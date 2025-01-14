@@ -5,17 +5,17 @@ use std::ops::AddAssign;
 use num_traits::CheckedAdd;
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::{PhysicalF64, PhysicalI64};
-use crate::arrays::array::ArrayData2;
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64, PhysicalI64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
-use crate::arrays::storage::PrimitiveStorage;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    new_unary_aggregate_states,
-    primitive_finalize,
+    drain,
+    unary_update,
     AggregateGroupStates,
+    TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
@@ -85,17 +85,11 @@ impl AggregateFunction for Sum {
                 DataType::Float64 => (Box::new(SumFloat64Impl), DataType::Float64),
                 DataType::Decimal64(m) => {
                     let datatype = DataType::Decimal64(m);
-                    (
-                        Box::new(SumDecimalImpl::<Decimal64Type>::new(datatype.clone())),
-                        datatype,
-                    )
+                    (Box::new(SumDecimalImpl::<Decimal64Type>::new()), datatype)
                 }
                 DataType::Decimal128(m) => {
                     let datatype = DataType::Decimal128(m);
-                    (
-                        Box::new(SumDecimalImpl::<Decimal128Type>::new(datatype.clone())),
-                        datatype,
-                    )
+                    (Box::new(SumDecimalImpl::<Decimal128Type>::new()), datatype)
                 }
                 other => return Err(invalid_input_types_error(self, &[other])),
             };
@@ -114,10 +108,11 @@ pub struct SumInt64Impl;
 
 impl AggregateFunctionImpl for SumInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalI64, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             SumStateCheckedAdd::<i64>::default,
-            move |states| primitive_finalize(DataType::Int64, states),
-        )
+            unary_update::<PhysicalI64, PhysicalI64, _>,
+            drain::<PhysicalI64, _, _>,
+        ))
     }
 }
 
@@ -126,68 +121,70 @@ pub struct SumFloat64Impl;
 
 impl AggregateFunctionImpl for SumFloat64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             SumStateAdd::<f64>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            unary_update::<PhysicalF64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct SumDecimalImpl<D> {
-    datatype: DataType,
     _d: PhantomData<D>,
 }
 
 impl<D> SumDecimalImpl<D> {
-    fn new(datatype: DataType) -> Self {
-        SumDecimalImpl {
-            datatype,
-            _d: PhantomData,
-        }
+    const fn new() -> Self {
+        SumDecimalImpl { _d: PhantomData }
     }
 }
 
 impl<D> AggregateFunctionImpl for SumDecimalImpl<D>
 where
     D: DecimalType,
-    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        let datatype = self.datatype.clone();
-
-        new_unary_aggregate_states::<D::Storage, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             SumStateCheckedAdd::<D::Primitive>::default,
-            move |states| primitive_finalize(datatype.clone(), states),
-        )
+            unary_update::<D::Storage, D::Storage, _>,
+            drain::<D::Storage, _, _>,
+        ))
     }
 }
 
 #[derive(Debug, Default)]
 pub struct SumStateCheckedAdd<T> {
     sum: T,
-    set: bool,
+    valid: bool,
 }
 
-impl<T: CheckedAdd + Default + Debug + Copy> AggregateState<T, T> for SumStateCheckedAdd<T> {
+impl<T> AggregateState<&T, T> for SumStateCheckedAdd<T>
+where
+    T: CheckedAdd + Default + Debug + Copy,
+{
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum = self.sum.checked_add(&other.sum).unwrap_or_default(); // TODO
-        self.set = self.set || other.set;
+        self.valid = self.valid || other.valid;
         Ok(())
     }
 
-    fn update(&mut self, input: T) -> Result<()> {
-        self.sum = self.sum.checked_add(&input).unwrap_or_default(); // TODO
-        self.set = true;
+    fn update(&mut self, input: &T) -> Result<()> {
+        self.sum = self.sum.checked_add(input).unwrap_or_default(); // TODO
+        self.valid = true;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(T, bool)> {
-        if self.set {
-            Ok((self.sum, true))
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = T>,
+    {
+        if self.valid {
+            output.put(&self.sum);
         } else {
-            Ok((T::default(), false))
+            output.put_null();
         }
+        Ok(())
     }
 }
 
@@ -197,43 +194,54 @@ pub struct SumStateAdd<T> {
     valid: bool,
 }
 
-impl<T: AddAssign + Default + Debug + Copy> AggregateState<T, T> for SumStateAdd<T> {
+impl<T> AggregateState<&T, T> for SumStateAdd<T>
+where
+    T: AddAssign + Default + Debug + Copy,
+{
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.valid = self.valid || other.valid;
         Ok(())
     }
 
-    fn update(&mut self, input: T) -> Result<()> {
+    fn update(&mut self, &input: &T) -> Result<()> {
         self.sum += input;
         self.valid = true;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(T, bool)> {
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = T>,
+    {
         if self.valid {
-            Ok((self.sum, true))
+            output.put(&self.sum);
         } else {
-            Ok((T::default(), false))
+            output.put_null();
         }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use stdutil::iter::TryFromExactSizeIterator;
+
     use super::*;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::array::selection::Selection;
     use crate::arrays::array::Array;
-    use crate::arrays::scalar::ScalarValue;
-    use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
+    use crate::arrays::testutil::{assert_arrays_eq, assert_arrays_eq_sel};
     use crate::expr;
-    use crate::functions::aggregate::ChunkGroupAddressIter;
 
     #[test]
     fn sum_i64_single_group_two_partitions() {
         // Single group, two partitions, 'SELECT SUM(a) FROM table'
 
-        let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
-        let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
+        let partition_1_vals = Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap();
+        let partition_2_vals = Array::try_from_iter::<[i64; 3]>([4, 5, 6]).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -247,50 +255,31 @@ mod tests {
         let mut states_1 = specialized.function_impl.new_states();
         let mut states_2 = specialized.function_impl.new_states();
 
-        states_1.new_states(1);
-        states_2.new_states(1);
+        states_1.new_groups(1);
+        states_2.new_groups(1);
 
         // All inputs map to the same group (no GROUP BY clause)
-        let addrs_1: Vec<_> = (0..partition_1_vals.logical_len())
-            .map(|_| GroupAddress {
-                chunk_idx: 0,
-                row_idx: 0,
-            })
-            .collect();
-        let addrs_2: Vec<_> = (0..partition_2_vals.logical_len())
-            .map(|_| GroupAddress {
-                chunk_idx: 0,
-                row_idx: 0,
-            })
-            .collect();
-
         states_1
-            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
+            .update_group_states(&[&partition_1_vals], Selection::linear(3), &[0, 0, 0])
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
+            .update_group_states(&[&partition_2_vals], Selection::linear(3), &[0, 0, 0])
             .unwrap();
 
         // Combine states.
         //
         // Both partitions hold a single state (representing a single group),
         // and those states map to each other.
-        let combine_mapping = vec![GroupAddress {
-            chunk_idx: 0,
-            row_idx: 0,
-        }];
         states_1
-            .combine(
-                &mut states_2,
-                ChunkGroupAddressIter::new(0, &combine_mapping),
-            )
+            .combine(&mut states_2, Selection::slice(&[0]), &[0])
             .unwrap();
 
         // Get final output.
-        let out = states_1.finalize().unwrap();
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int64, 1).unwrap();
+        states_1.drain(&mut out).unwrap();
 
-        assert_eq!(1, out.logical_len());
-        assert_eq!(ScalarValue::Int64(21), out.logical_value(0).unwrap());
+        let expected = Array::try_from_iter([21_i64]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
@@ -309,8 +298,8 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = &Array::from_iter::<[i64; 3]>([1, 2, 3]);
-        let partition_2_vals = &Array::from_iter::<[i64; 3]>([4, 5, 6]);
+        let partition_1_vals = Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap();
+        let partition_2_vals = Array::try_from_iter::<[i64; 3]>([4, 5, 6]).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -329,48 +318,19 @@ mod tests {
         let mut states_2 = specialized.function_impl.new_states();
 
         // Both partitions are operating on two groups ('a' and 'b').
-        states_1.new_states(1);
-        states_1.new_states(1);
+        states_1.new_groups(1);
+        states_1.new_groups(1);
 
-        states_2.new_states(1);
-        states_2.new_states(1);
+        states_2.new_groups(1);
+        states_2.new_groups(1);
 
         // Mapping corresponding to the above table. Group 'a' == 0 and group
         // 'b' == 1.
-        let addrs_1 = vec![
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 0,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 0,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 1,
-            },
-        ];
-        let addrs_2 = vec![
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 1,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 1,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 0,
-            },
-        ];
-
         states_1
-            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
+            .update_group_states(&[&partition_1_vals], Selection::linear(3), &[0, 0, 1])
             .unwrap();
         states_2
-            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
+            .update_group_states(&[&partition_2_vals], Selection::linear(3), &[1, 1, 0])
             .unwrap();
 
         // Combine states.
@@ -382,29 +342,20 @@ mod tests {
         // The mapping here indicates the the 0th state for both partitions
         // should be combined, and the 1st state for both partitions should be
         // combined.
-        let combine_mapping = vec![
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 0,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 1,
-            },
-        ];
         states_1
             .combine(
                 &mut states_2,
-                ChunkGroupAddressIter::new(0, &combine_mapping),
+                Selection::linear(2), // States 0 ('a') and 1 ('b')
+                &[0, 1],
             )
             .unwrap();
 
         // Get final output.
-        let out = states_1.finalize().unwrap();
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int64, 2).unwrap();
+        states_1.drain(&mut out).unwrap();
 
-        assert_eq!(2, out.logical_len());
-        assert_eq!(ScalarValue::Int64(9), out.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::Int64(12), out.logical_value(1).unwrap());
+        let expected = Array::try_from_iter([9_i64, 12_i64]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
@@ -431,8 +382,8 @@ mod tests {
         // Partition values and mappings represent the positions of the above
         // table. The actual grouping values are stored in the operator, and
         // operator is what computes the mappings.
-        let partition_1_vals = &Array::from_iter::<[i64; 4]>([1, 2, 3, 4]);
-        let partition_2_vals = &Array::from_iter::<[i64; 4]>([5, 6, 7, 8]);
+        let partition_1_vals = Array::try_from_iter::<[i64; 4]>([1, 2, 3, 4]).unwrap();
+        let partition_2_vals = Array::try_from_iter::<[i64; 4]>([5, 6, 7, 8]).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -451,58 +402,21 @@ mod tests {
         let mut states_2 = specialized.function_impl.new_states();
 
         // Partition 1 sees groups 'x', 'y', and 'z'.
-        states_1.new_states(1);
-        states_1.new_states(1);
-        states_1.new_states(1);
+        states_1.new_groups(1);
+        states_1.new_groups(1);
+        states_1.new_groups(1);
 
         // Partition 2 see groups 'x' and 'z' (no 'y').
-        states_2.new_states(1);
-        states_2.new_states(1);
+        states_2.new_groups(1);
+        states_2.new_groups(1);
 
         // For partition 1: 'x' == 0, 'y' == 1, 'z' == 2
-        let addrs_1 = vec![
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 0,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 0,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 1,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 2,
-            },
-        ];
-        // For partition 2: 'x' == 0, 'z' == 1
-        let addrs_2 = vec![
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 0,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 1,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 1,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 1,
-            },
-        ];
-
         states_1
-            .update_states(&[partition_1_vals], ChunkGroupAddressIter::new(0, &addrs_1))
+            .update_group_states(&[&partition_1_vals], Selection::linear(4), &[0, 0, 1, 2])
             .unwrap();
+        // For partition 2: 'x' == 0, 'z' == 1
         states_2
-            .update_states(&[partition_2_vals], ChunkGroupAddressIter::new(0, &addrs_2))
+            .update_group_states(&[&partition_2_vals], Selection::linear(4), &[0, 1, 1, 1])
             .unwrap();
 
         // Combine states.
@@ -510,86 +424,61 @@ mod tests {
         // States for 'x' both at the same position.
         //
         // States for 'y' at different positions, partition_2_state[1] => partition_1_state[2]
-        let combine_mapping = vec![
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 0,
-            },
-            GroupAddress {
-                chunk_idx: 0,
-                row_idx: 2,
-            },
-        ];
         states_1
-            .combine(
-                &mut states_2,
-                ChunkGroupAddressIter::new(0, &combine_mapping),
-            )
+            .combine(&mut states_2, Selection::slice(&[0, 1]), &[0, 2])
             .unwrap();
 
         // Get final output.
-        let out = states_1.finalize().unwrap();
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int64, 3).unwrap();
+        states_1.drain(&mut out).unwrap();
 
-        assert_eq!(3, out.logical_len());
-        assert_eq!(ScalarValue::Int64(8), out.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::Int64(3), out.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::Int64(25), out.logical_value(2).unwrap());
+        let expected = Array::try_from_iter([8_i64, 3_i64, 25_i64]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 
-    // #[test]
-    // fn sum_i64_drain_multiple() {
-    //     // Three groups, single partition, test that drain can be called
-    //     // multiple times until states are exhausted.
-    //     let vals = &Array::from_iter::<[i64; 6]>([1, 2, 3, 4, 5, 6]);
+    #[test]
+    fn sum_i64_drain_multiple() {
+        // Three groups, single partition, test that drain can be called
+        // multiple times until states are exhausted.
+        let vals = Array::try_from_iter::<[i64; 6]>([1, 2, 3, 4, 5, 6]).unwrap();
 
-    //     let specialized = Sum.plan_from_datatypes(&[DataType::Int64]).unwrap();
-    //     let mut states = specialized.new_grouped_state();
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Utf8, DataType::Int64],
+                vec!["col1".to_string(), "col2".to_string()],
+            )
+            .unwrap();
 
-    //     states.new_group();
-    //     states.new_group();
-    //     states.new_group();
+        let specialized = Sum
+            .plan(&table_list, vec![expr::col_ref(table_ref, 1)])
+            .unwrap();
+        let mut states = specialized.function_impl.new_states();
 
-    //     let addrs = vec![
-    //         GroupAddress {
-    //             chunk_idx: 0,
-    //             row_idx: 0,
-    //         },
-    //         GroupAddress {
-    //             chunk_idx: 0,
-    //             row_idx: 0,
-    //         },
-    //         GroupAddress {
-    //             chunk_idx: 0,
-    //             row_idx: 1,
-    //         },
-    //         GroupAddress {
-    //             chunk_idx: 0,
-    //             row_idx: 1,
-    //         },
-    //         GroupAddress {
-    //             chunk_idx: 0,
-    //             row_idx: 2,
-    //         },
-    //         GroupAddress {
-    //             chunk_idx: 0,
-    //             row_idx: 2,
-    //         },
-    //     ];
+        states.new_groups(3);
 
-    //     states
-    //         .update_states(&[vals], ChunkGroupAddressIter::new(0, &addrs))
-    //         .unwrap();
+        states
+            .update_group_states(&[&vals], Selection::linear(6), &[0, 0, 1, 1, 2, 2])
+            .unwrap();
 
-    //     let out_1 = states.drain_next(2).unwrap().unwrap();
-    //     assert_eq!(2, out_1.logical_len());
-    //     assert_eq!(ScalarValue::Int64(3), out_1.logical_value(0).unwrap());
-    //     assert_eq!(ScalarValue::Int64(7), out_1.logical_value(1).unwrap());
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int64, 2).unwrap();
 
-    //     let out_2 = states.drain_next(2).unwrap().unwrap();
-    //     assert_eq!(1, out_2.logical_len());
-    //     assert_eq!(ScalarValue::Int64(11), out_2.logical_value(0).unwrap());
+        let n = states.drain(&mut out).unwrap();
+        assert_eq!(2, n);
 
-    //     let out_3 = states.drain_next(2).unwrap();
-    //     assert_eq!(None, out_3);
-    // }
+        let expected = Array::try_from_iter([3_i64, 7]).unwrap();
+        assert_arrays_eq(&expected, &out);
+
+        out.reset_for_write(&Arc::new(NopBufferManager)).unwrap();
+        let n = states.drain(&mut out).unwrap();
+        assert_eq!(1, n);
+
+        let expected = Array::try_from_iter([11_i64]).unwrap();
+        assert_arrays_eq_sel(&expected, 0..1, &out, 0..1);
+
+        out.reset_for_write(&Arc::new(NopBufferManager)).unwrap();
+        let n = states.drain(&mut out).unwrap();
+        assert_eq!(0, n);
+    }
 }

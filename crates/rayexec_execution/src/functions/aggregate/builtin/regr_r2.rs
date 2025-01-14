@@ -3,14 +3,16 @@ use std::fmt::Debug;
 use rayexec_error::Result;
 
 use super::corr::CorrelationState;
-use crate::arrays::array::physical_type::PhysicalF64;
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    new_binary_aggregate_states,
-    primitive_finalize,
+    binary_update,
+    drain,
     AggregateGroupStates,
+    TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
@@ -72,10 +74,11 @@ pub struct RegrR2Impl;
 
 impl AggregateFunctionImpl for RegrR2Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             RegrR2State::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            binary_update::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
@@ -84,23 +87,28 @@ pub struct RegrR2State {
     corr: CorrelationState,
 }
 
-impl AggregateState<(f64, f64), f64> for RegrR2State {
+impl AggregateState<(&f64, &f64), f64> for RegrR2State {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.corr.merge(&mut other.corr)?;
         Ok(())
     }
 
-    fn update(&mut self, input: (f64, f64)) -> Result<()> {
+    fn update(&mut self, input: (&f64, &f64)) -> Result<()> {
         self.corr.update(input)?;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(f64, bool)> {
-        let (v, valid) = self.corr.finalize()?;
-        if valid {
-            Ok((v.powi(2), true))
-        } else {
-            Ok((0.0, false))
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = f64>,
+    {
+        match self.corr.finalize_value() {
+            Some(val) => {
+                let val = val.powi(2);
+                output.put(&val);
+            }
+            None => output.put_null(),
         }
+        Ok(())
     }
 }

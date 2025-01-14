@@ -4,11 +4,18 @@ use std::ops::AddAssign;
 use num_traits::{AsPrimitive, Float};
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::{PhysicalF16, PhysicalF32, PhysicalF64, PhysicalStorage};
+use crate::arrays::array::physical_type::{
+    MutablePhysicalStorage,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalStorage,
+};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
-use crate::arrays::executor::scalar::{BinaryListReducer, ListExecutor};
+use crate::arrays::executor::scalar::{BinaryListReducer, BinaryReducer};
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -102,19 +109,21 @@ where
 
 impl<S> ScalarFunctionImpl for L2DistanceImpl<S>
 where
-    S: PhysicalStorage,
-    for<'a> S::Type<'a>: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
+    S: MutablePhysicalStorage,
+    S::StorageType: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let a = inputs[0];
-        let b = inputs[1];
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Float64,
-            buffer: PrimitiveBuffer::with_len(a.logical_len()),
-        };
-
-        ListExecutor::<false, false>::binary_reduce::<S, _, L2DistanceReducer<_>>(a, b, builder)
+        BinaryListReducer::reduce::<S, S, L2DistanceReducer<_>, PhysicalF64>(
+            a,
+            sel,
+            b,
+            sel,
+            OutBuffer::from_array(output)?,
+        )
     }
 }
 
@@ -123,21 +132,94 @@ pub(crate) struct L2DistanceReducer<F> {
     pub distance: F,
 }
 
-impl<F> BinaryListReducer<F, f64> for L2DistanceReducer<F>
+impl<F> BinaryReducer<&F, &F, f64> for L2DistanceReducer<F>
 where
-    F: Float + AddAssign + AsPrimitive<f64> + Default,
+    F: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
-    fn new(left_len: i32, right_len: i32) -> Self {
-        debug_assert_eq!(left_len, right_len);
-        Self::default()
-    }
-
-    fn put_values(&mut self, v1: F, v2: F) {
+    fn put_values(&mut self, &v1: &F, &v2: &F) {
         let diff = v1 - v2;
         self.distance += diff * diff;
     }
 
     fn finish(self) -> f64 {
         self.distance.as_().sqrt()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::datatype::ListTypeMeta;
+    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::expr;
+    use crate::functions::scalar::builtin::list::list_values;
+
+    #[test]
+    fn l2_distance_ok() {
+        let mut a = Array::try_new(
+            &Arc::new(NopBufferManager),
+            DataType::List(ListTypeMeta::new(DataType::Float64)),
+            1,
+        )
+        .unwrap();
+        list_values(
+            &[
+                Array::try_from_iter([1.0]).unwrap(),
+                Array::try_from_iter([2.0]).unwrap(),
+                Array::try_from_iter([3.0]).unwrap(),
+            ],
+            0..1,
+            &mut a,
+        )
+        .unwrap();
+
+        let mut b = Array::try_new(
+            &Arc::new(NopBufferManager),
+            DataType::List(ListTypeMeta::new(DataType::Float64)),
+            1,
+        )
+        .unwrap();
+        list_values(
+            &[
+                Array::try_from_iter([1.0]).unwrap(),
+                Array::try_from_iter([2.0]).unwrap(),
+                Array::try_from_iter([4.0]).unwrap(),
+            ],
+            0..1,
+            &mut b,
+        )
+        .unwrap();
+
+        let batch = Batch::try_from_arrays([a, b]).unwrap();
+
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![
+                    DataType::List(ListTypeMeta::new(DataType::Float64)),
+                    DataType::List(ListTypeMeta::new(DataType::Float64)),
+                ],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
+
+        let planned = L2Distance
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
+
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Float64, 1).unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+
+        let expected = Array::try_from_iter([1.0]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 }

@@ -4,6 +4,7 @@ use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::array::buffer_manager::NopBufferManager;
+use super::array::selection::Selection;
 use super::datatype::DataType;
 use crate::arrays::array::Array;
 use crate::arrays::executor::scalar::concat_with_exact_total_len;
@@ -106,6 +107,11 @@ impl Batch {
             num_rows: capacity,
             capacity,
         })
+    }
+
+    /// Returns a selection that selects rows [0, num_rows).
+    pub fn selection<'a>(&self) -> Selection<'a> {
+        Selection::Linear { len: self.num_rows }
     }
 
     pub fn num_rows(&self) -> usize {
@@ -312,7 +318,7 @@ impl Batch {
         &self.arrays
     }
 
-    pub fn array_mut(&mut self) -> &mut [Array] {
+    pub fn arrays_mut(&mut self) -> &mut [Array] {
         &mut self.arrays
     }
 

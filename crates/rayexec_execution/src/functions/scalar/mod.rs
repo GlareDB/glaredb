@@ -8,6 +8,7 @@ use rayexec_error::Result;
 
 use super::FunctionInfo;
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
@@ -103,7 +104,21 @@ impl Hash for PlannedScalarFunction {
 }
 
 pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array>;
+    fn execute2(&self, _inputs: &[&Array]) -> Result<Array> {
+        unimplemented!()
+    }
+
+    /// Execute the function the input batch, writing the output for each row
+    /// into `output` at the same index.
+    ///
+    /// `output` has the following guarantees:
+    /// - Has at least the primary buffer capacity needed to write the results.
+    /// - All validities are initalized to 'valid'.
+    /// - Array data can be made mutable via `try_as_mut()`.
+    ///
+    /// The batch's `selection` method should be called to determine which rows
+    /// should be looked at during function eval.
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()>;
 }
 
 impl Clone for Box<dyn ScalarFunctionImpl> {

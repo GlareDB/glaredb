@@ -58,16 +58,28 @@ impl<'a> PhysicalExpressionPlanner<'a> {
     ) -> Result<PhysicalScalarExpression> {
         match expr {
             Expression::Column(col) => {
-                // TODO: How is projection pushdown going to work? Will tables
-                // be updated by the optimizer?
-
+                // The optimizer should preserve columns in tables so we should
+                // be able to look at the table list directly.
+                //
+                // If we get here and their's either a missing table for table
+                // ref, or missing column for a table, then that should be
+                // considered a bug.
                 let mut offset = 0;
                 for &table_ref in table_refs {
                     let table = self.table_list.get(table_ref)?;
 
                     if col.table_scope == table_ref {
+                        let datatype =
+                            table.column_types.get(col.column).cloned().ok_or_else(|| {
+                                RayexecError::new(format!(
+                                    "Missing column: {}, table: {:?}",
+                                    col.column, table
+                                ))
+                            })?;
+
                         return Ok(PhysicalScalarExpression::Column(PhysicalColumnExpr {
                             idx: offset + col.column,
+                            datatype,
                         }));
                     }
 
@@ -176,7 +188,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 let else_expr = match &expr.else_expr {
                     Some(else_expr) => self.plan_scalar(table_refs, else_expr)?,
                     None => PhysicalScalarExpression::Cast(PhysicalCastExpr {
-                        to: datatype,
+                        to: datatype.clone(),
                         expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
                             literal: ScalarValue::Null,
                         })),
@@ -186,6 +198,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 Ok(PhysicalScalarExpression::Case(PhysicalCaseExpr {
                     cases,
                     else_expr: Box::new(else_expr),
+                    datatype,
                 }))
             }
             other => Err(RayexecError::new(format!(

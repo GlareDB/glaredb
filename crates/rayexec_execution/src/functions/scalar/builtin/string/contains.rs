@@ -1,10 +1,11 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::PhysicalUtf8;
+use crate::arrays::array::physical_type::{PhysicalBool, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -82,15 +83,19 @@ pub struct StringContainsConstantImpl {
 }
 
 impl ScalarFunctionImpl for StringContainsConstantImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let haystack = &input.arrays()[0];
 
-        UnaryExecutor::execute2::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
-            buf.put(&s.contains(&self.constant))
-        })
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _>(
+            haystack,
+            sel,
+            OutBuffer::from_array(output)?,
+            |haystack, buf| {
+                let v = haystack.contains(&self.constant);
+                buf.put(&v);
+            },
+        )
     }
 }
 
@@ -98,17 +103,21 @@ impl ScalarFunctionImpl for StringContainsConstantImpl {
 pub struct StringContainsImpl;
 
 impl ScalarFunctionImpl for StringContainsImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let haystack = &input.arrays()[0];
+        let needle = &input.arrays()[1];
 
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
-            inputs[0],
-            inputs[1],
-            builder,
-            |s, c, buf| buf.put(&s.contains(c)),
+        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
+            haystack,
+            sel,
+            needle,
+            sel,
+            OutBuffer::from_array(output)?,
+            |haystack, needle, buf| {
+                let v = haystack.contains(needle);
+                buf.put(&v);
+            },
         )
     }
 }

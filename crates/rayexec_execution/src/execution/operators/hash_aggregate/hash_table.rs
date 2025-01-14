@@ -308,7 +308,7 @@ impl HashTable {
 
                         // Initialize the states.
                         for state in &mut states {
-                            state.states.new_states(num_new_groups);
+                            state.states.new_groups(num_new_groups);
                         }
 
                         let chunk = GroupChunk {

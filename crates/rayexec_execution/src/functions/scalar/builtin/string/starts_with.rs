@@ -1,10 +1,11 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::PhysicalUtf8;
+use crate::arrays::array::physical_type::{PhysicalBool, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -84,23 +85,23 @@ pub struct StartsWithImpl {
 }
 
 impl ScalarFunctionImpl for StartsWithImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
 
         match self.constant.as_ref() {
-            Some(constant) => {
-                UnaryExecutor::execute2::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
-                    buf.put(&s.starts_with(constant))
-                })
-            }
-            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
-                inputs[0],
-                inputs[1],
-                builder,
-                |s, c, buf| buf.put(&s.starts_with(c)),
+            Some(prefix) => UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _>(
+                &input.arrays()[0],
+                sel,
+                OutBuffer::from_array(output)?,
+                |s, buf| buf.put(&s.starts_with(prefix)),
+            ),
+            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
+                &input.arrays()[0],
+                sel,
+                &input.arrays()[1],
+                sel,
+                OutBuffer::from_array(output)?,
+                |s, prefix, buf| buf.put(&s.starts_with(prefix)),
             ),
         }
     }

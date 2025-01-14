@@ -1,10 +1,11 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::{PhysicalBinary, PhysicalUtf8};
+use crate::arrays::array::physical_type::{PhysicalBinary, PhysicalI64, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -64,18 +65,19 @@ impl ScalarFunction for Length {
 pub struct StrLengthImpl;
 
 impl ScalarFunctionImpl for StrLengthImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = inputs[0];
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Int64,
-            buffer: PrimitiveBuffer::with_len(input.logical_len()),
-        };
-
-        UnaryExecutor::execute2::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
-            let len = v.chars().count() as i64;
-            buf.put(&len)
-        })
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _>(
+            input,
+            sel,
+            OutBuffer::from_array(output)?,
+            |s, buf| {
+                let len = s.chars().count() as i64;
+                buf.put(&len)
+            },
+        )
     }
 }
 
@@ -145,18 +147,17 @@ impl ScalarFunction for ByteLength {
 pub struct ByteLengthImpl;
 
 impl ScalarFunctionImpl for ByteLengthImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = inputs[0];
-
-        let builder = ArrayBuilder {
-            datatype: DataType::Int64,
-            buffer: PrimitiveBuffer::with_len(input.logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
 
         // Binary applicable to both str and [u8].
-        UnaryExecutor::execute2::<PhysicalBinary, _, _>(input, builder, |v, buf| {
-            buf.put(&(v.len() as i64))
-        })
+        UnaryExecutor::execute::<PhysicalBinary, PhysicalI64, _>(
+            input,
+            sel,
+            OutBuffer::from_array(output)?,
+            |v, buf| buf.put(&(v.len() as i64)),
+        )
     }
 }
 
@@ -222,18 +223,19 @@ impl ScalarFunction for BitLength {
 pub struct BitLengthImpl;
 
 impl ScalarFunctionImpl for BitLengthImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = inputs[0];
-
-        let builder = ArrayBuilder {
-            datatype: DataType::Int64,
-            buffer: PrimitiveBuffer::with_len(input.logical_len()),
-        };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
 
         // Binary applicable to both str and [u8].
-        UnaryExecutor::execute2::<PhysicalBinary, _, _>(input, builder, |v, buf| {
-            let bit_len = v.len() * 8;
-            buf.put(&(bit_len as i64))
-        })
+        UnaryExecutor::execute::<PhysicalBinary, PhysicalI64, _>(
+            input,
+            sel,
+            OutBuffer::from_array(output)?,
+            |v, buf| {
+                let bit_len = v.len() * 8;
+                buf.put(&(bit_len as i64))
+            },
+        )
     }
 }

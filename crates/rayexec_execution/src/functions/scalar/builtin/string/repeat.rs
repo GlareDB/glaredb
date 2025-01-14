@@ -4,9 +4,10 @@ use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{PhysicalI64, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::scalar::BinaryExecutor;
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -65,27 +66,25 @@ impl ScalarFunction for Repeat {
 pub struct RepeatUtf8Impl;
 
 impl ScalarFunctionImpl for RepeatUtf8Impl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let strings = inputs[0];
-        let nums = inputs[1];
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let strings = &input.arrays()[0];
+        let counts = &input.arrays()[1];
 
-        // TODO: Capacity
+        let mut str_buf = String::new();
 
-        let mut string_buf = String::new();
-
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
+        BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _>(
             strings,
-            nums,
-            ArrayBuilder {
-                datatype: DataType::Utf8,
-                buffer: GermanVarlenBuffer::with_len(strings.logical_len()),
-            },
-            |s, num, buf| {
-                string_buf.clear();
+            sel,
+            counts,
+            sel,
+            OutBuffer::from_array(output)?,
+            |s, &num, buf| {
+                str_buf.clear();
                 for _ in 0..num {
-                    string_buf.push_str(s);
+                    str_buf.push_str(s);
                 }
-                buf.put(string_buf.as_str())
+                buf.put(str_buf.as_str())
             },
         )
     }

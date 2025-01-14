@@ -1,10 +1,12 @@
 use rayexec_error::Result;
+use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::PhysicalI64;
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
@@ -102,21 +104,22 @@ impl ScalarFunction for EpochMs {
 pub struct EpochImpl<const S: i64>;
 
 impl<const S: i64> ScalarFunctionImpl for EpochImpl<S> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = inputs[0];
-        to_timestamp::<S>(input)
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
+        to_timestamp::<S>(input, sel, output)
     }
 }
 
-fn to_timestamp<const S: i64>(input: &Array) -> Result<Array> {
-    let builder = ArrayBuilder {
-        datatype: DataType::Timestamp(TimestampTypeMeta {
-            unit: TimeUnit::Microsecond,
-        }),
-        buffer: PrimitiveBuffer::with_len(input.logical_len()),
-    };
-
-    UnaryExecutor::execute2::<PhysicalI64, _, _>(input, builder, |v, buf| {
-        buf.put(&(v * S));
-    })
+fn to_timestamp<const S: i64>(
+    input: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
+) -> Result<()> {
+    UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _>(
+        input,
+        sel,
+        OutBuffer::from_array(out)?,
+        |&v, buf| buf.put(&(v * S)),
+    )
 }

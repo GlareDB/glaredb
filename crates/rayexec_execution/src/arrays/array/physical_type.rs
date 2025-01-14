@@ -327,7 +327,7 @@ impl VarlenType for [u8] {
 }
 
 /// Helper trait for getting the underlying data for an array.
-pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
+pub trait PhysicalStorage: Debug + Default + Sync + Send + Clone + Copy + 'static {
     // TODO: Remove
     /// The type that gets returned from the underlying array storage.
     type Type<'a>: Sync + Send;
@@ -376,7 +376,7 @@ pub trait MutablePhysicalStorage: PhysicalStorage {
 /// While this allows any array type to used in the executors, there's no way to
 /// actually get the underlying values. This is useful if the values aren't
 /// actually needed (e.g. COUNT(*)).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalAny;
 
 impl PhysicalStorage for PhysicalAny {
@@ -427,7 +427,7 @@ impl AddressableStorage for UnitStorage {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UntypedNull;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalUntypedNull;
 
 impl PhysicalStorage for PhysicalUntypedNull {
@@ -464,7 +464,7 @@ impl MutablePhysicalStorage for PhysicalUntypedNull {
 }
 
 // TODO: Use primitive macro
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalBool;
 
 impl PhysicalStorage for PhysicalBool {
@@ -559,7 +559,7 @@ generate_primitive!(f64, PhysicalF64, Float64);
 
 generate_primitive!(Interval, PhysicalInterval, Interval);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalBinary;
 
 impl PhysicalStorage for PhysicalBinary {
@@ -603,7 +603,7 @@ impl MutablePhysicalStorage for PhysicalBinary {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalUtf8;
 
 impl PhysicalStorage for PhysicalUtf8 {
@@ -718,7 +718,7 @@ impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalList;
 
 impl PhysicalStorage for PhysicalList {

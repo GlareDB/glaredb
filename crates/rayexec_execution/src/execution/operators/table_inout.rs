@@ -94,7 +94,7 @@ impl ExecutableOperator for PhysicalTableInOut {
             .iter()
             .map(|expr| {
                 let arr = expr.eval(&batch)?;
-                Ok(arr.into_owned())
+                Ok(arr)
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -117,7 +117,7 @@ impl ExecutableOperator for PhysicalTableInOut {
                     .iter()
                     .map(|expr| {
                         let arr = expr.eval(&batch)?;
-                        Ok(arr.into_owned())
+                        Ok(arr)
                     })
                     .collect::<Result<Vec<_>>>()?;
 

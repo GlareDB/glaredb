@@ -99,7 +99,7 @@ impl IntermediatePipelineBuildState<'_> {
                 .into_iter()
                 .map(|expr| {
                     let arr = expr.eval(&dummy_batch)?;
-                    Ok(arr.into_owned())
+                    Ok(arr)
                 })
                 .collect::<Result<Vec<_>>>()?;
             row_arrs.push(arrs);

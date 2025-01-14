@@ -6,7 +6,6 @@ use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::array::Array;
 use crate::arrays::executor::scalar::concat;
 use crate::execution::operators::util::resizer::DEFAULT_TARGET_BATCH_SIZE;
-use crate::functions::aggregate::ChunkGroupAddressIter;
 
 /// Holds a chunk of value for the aggregate hash table.
 #[derive(Debug)]
@@ -69,7 +68,7 @@ impl GroupChunk {
         self.hashes.extend(hashes);
 
         for states in &mut self.aggregate_states {
-            states.states.new_states(new_groups);
+            states.states.new_groups(new_groups);
         }
 
         self.num_groups += new_groups;
@@ -91,10 +90,11 @@ impl GroupChunk {
                 .filter_map(|(selected, arr)| if selected { Some(arr) } else { None })
                 .collect();
 
-            agg_states.states.update_states(
-                &input_cols,
-                ChunkGroupAddressIter::new(self.chunk_idx, addrs),
-            )?;
+            unimplemented!()
+            // agg_states.states.update_group_states(
+            //     &input_cols,
+            //     ChunkGroupAddressIter::new(self.chunk_idx, addrs),
+            // )?;
         }
 
         Ok(())
@@ -110,10 +110,11 @@ impl GroupChunk {
             let own_state = &mut self.aggregate_states[agg_idx];
             let other_state = &mut other.aggregate_states[agg_idx];
 
-            own_state.states.combine(
-                &mut other_state.states,
-                ChunkGroupAddressIter::new(self.chunk_idx, addrs),
-            )?;
+            unimplemented!()
+            // own_state.states.combine(
+            //     &mut other_state.states,
+            //     ChunkGroupAddressIter::new(self.chunk_idx, addrs),
+            // )?;
         }
 
         Ok(())

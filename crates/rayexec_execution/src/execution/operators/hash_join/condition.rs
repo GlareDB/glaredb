@@ -80,7 +80,7 @@ impl LeftPrecomputedJoinConditions {
     pub fn precompute_for_left_batch(&mut self, left: &Batch) -> Result<()> {
         for condition in &mut self.conditions {
             let precomputed = condition.left.eval(left)?;
-            condition.left_precomputed.push(precomputed.into_owned())
+            condition.left_precomputed.push(precomputed)
         }
 
         Ok(())
@@ -104,47 +104,48 @@ impl LeftPrecomputedJoinConditions {
         let left_row_sel = Arc::new(left_row_sel);
         let right_row_sel = Arc::new(right_row_sel);
 
-        let mut results = Vec::with_capacity(self.conditions.len());
+        // let mut results = Vec::with_capacity(self.conditions.len());
 
         // Select rows from the right batch.
         let selected_right = right.select_old(right_row_sel.clone());
 
-        for condition in &self.conditions {
-            let mut left_precomputed = condition
-                .left_precomputed
-                .get(left_batch_idx)
-                .ok_or_else(|| {
-                    RayexecError::new(format!("Missing left precomputed array: {left_batch_idx}"))
-                })?
-                .clone();
+        unimplemented!()
+        // for condition in &self.conditions {
+        //     let mut left_precomputed = condition
+        //         .left_precomputed
+        //         .get(left_batch_idx)
+        //         .ok_or_else(|| {
+        //             RayexecError::new(format!("Missing left precomputed array: {left_batch_idx}"))
+        //         })?
+        //         .clone();
 
-            // Select relevant rows from the left.
-            left_precomputed.select_mut2(left_row_sel.clone());
+        //     // Select relevant rows from the left.
+        //     left_precomputed.select_mut2(left_row_sel.clone());
 
-            // Eval the right side.
-            let right_arr = condition.right.eval(&selected_right)?;
+        //     // Eval the right side.
+        //     let right_arr = condition.right.eval(&selected_right)?;
 
-            // Compute join condition result.
-            let result = condition
-                .function
-                .function_impl
-                .execute(&[&left_precomputed, right_arr.as_ref()])?;
+        //     // Compute join condition result.
+        //     let result = condition
+        //         .function
+        //         .function_impl
+        //         .execute(&[&left_precomputed, right_arr.as_ref()])?;
 
-            results.push(result);
-        }
+        //     results.push(result);
+        // }
 
-        // AND the results.
-        let refs: Vec<_> = results.iter().collect();
-        let out = AndImpl.execute(&refs)?;
+        // // AND the results.
+        // let refs: Vec<_> = results.iter().collect();
+        // let out = AndImpl.execute(&refs)?;
 
-        // Generate a selection for the left and right selections.
-        let mut select_the_selection = SelectionVector::with_capacity(out.logical_len());
-        SelectExecutor::select(&out, &mut select_the_selection)?;
+        // // Generate a selection for the left and right selections.
+        // let mut select_the_selection = SelectionVector::with_capacity(out.logical_len());
+        // SelectExecutor::select(&out, &mut select_the_selection)?;
 
-        // Filter the original selection vectors only keeping selected indices.
-        let left_row_sel = left_row_sel.select(&select_the_selection);
-        let right_row_sel = right_row_sel.select(&select_the_selection);
+        // // Filter the original selection vectors only keeping selected indices.
+        // let left_row_sel = left_row_sel.select(&select_the_selection);
+        // let right_row_sel = right_row_sel.select(&select_the_selection);
 
-        Ok((left_row_sel, right_row_sel))
+        // Ok((left_row_sel, right_row_sel))
     }
 }

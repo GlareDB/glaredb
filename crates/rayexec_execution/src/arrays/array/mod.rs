@@ -833,13 +833,7 @@ impl Array {
 
     /// Gets the physical type of the array.
     pub fn physical_type(&self) -> PhysicalType {
-        match self.data2.physical_type() {
-            PhysicalType::Binary => match self.datatype {
-                DataType::Utf8 => PhysicalType::Utf8,
-                _ => PhysicalType::Binary,
-            },
-            other => other,
-        }
+        self.datatype.physical_type()
     }
 
     /// Get the value at a logical index.

@@ -4,9 +4,10 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::array::physical_type::PhysicalI64;
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
@@ -140,21 +141,21 @@ pub struct DateTruncImpl {
 }
 
 impl ScalarFunctionImpl for DateTruncImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = &inputs[1];
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        // First element is field name, skip.
+        let input = &input.arrays()[0];
 
         let trunc = match self.input_unit {
             TimeUnit::Second => match self.field {
-                TruncField::Microseconds | TruncField::Milliseconds | TruncField::Second => {
-                    return Ok((*input).clone())
-                }
+                TruncField::Microseconds | TruncField::Milliseconds | TruncField::Second => 1,
                 TruncField::Minute => 60,
                 TruncField::Hour => 60 * 60,
                 TruncField::Day => 24 * 60 * 60,
                 other => not_implemented!("trunc field: {other:?}"),
             },
             TimeUnit::Millisecond => match self.field {
-                TruncField::Microseconds | TruncField::Milliseconds => return Ok((*input).clone()),
+                TruncField::Microseconds | TruncField::Milliseconds => 1,
                 TruncField::Second => 1000,
                 TruncField::Minute => 60 * 1000,
                 TruncField::Hour => 60 * 60 * 1000,
@@ -162,7 +163,7 @@ impl ScalarFunctionImpl for DateTruncImpl {
                 other => not_implemented!("trunc field: {other:?}"),
             },
             TimeUnit::Microsecond => match self.field {
-                TruncField::Microseconds => return Ok((*input).clone()),
+                TruncField::Microseconds => 1,
                 TruncField::Milliseconds => 1000,
                 TruncField::Second => 1000 * 1000,
                 TruncField::Minute => 60 * 1000 * 1000,
@@ -181,16 +182,14 @@ impl ScalarFunctionImpl for DateTruncImpl {
             },
         };
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Timestamp(TimestampTypeMeta {
-                unit: self.input_unit,
-            }),
-            buffer: PrimitiveBuffer::with_len(input.logical_len()),
-        };
-
-        UnaryExecutor::execute2::<PhysicalI64, _, _>(input, builder, |v, buf| {
-            let v = (v / trunc) * trunc;
-            buf.put(&v)
-        })
+        UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _>(
+            input,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&v, buf| {
+                let v = (v / trunc) * trunc;
+                buf.put(&v)
+            },
+        )
     }
 }
