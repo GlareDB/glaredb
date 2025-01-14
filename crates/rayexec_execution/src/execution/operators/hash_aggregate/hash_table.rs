@@ -1,5 +1,4 @@
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
@@ -9,7 +8,7 @@ use super::drain::HashTableDrain;
 use super::entry::EntryKey;
 use super::Aggregate;
 use crate::arrays::array::Array;
-use crate::arrays::selection::SelectionVector;
+use crate::arrays::batch::Batch;
 
 const LOAD_FACTOR: f64 = 0.7;
 
@@ -50,13 +49,13 @@ impl GroupAddress {
 pub(crate) struct InsertBuffers {
     /// Computed offsets into entries.
     offsets: Vec<usize>,
-    /// Selection vector containing indices for inputs rows that still need to
-    /// be inserted into the table.
-    needs_insert: SelectionVector,
+    /// Vector containing indices for inputs rows that still need to be inserted
+    /// into the table.
+    needs_insert: Vec<usize>,
     /// Selection vector pointing to new groups.
-    new_group_rows: SelectionVector,
-    /// Selection vector pointing to rows that need to be compared.
-    needs_compare: SelectionVector,
+    new_group_rows: Vec<usize>,
+    /// Vector pointing to rows that need to be compared.
+    needs_compare: Vec<usize>,
     /// Rows that don't pass the equality check.
     not_eq_rows: BTreeSet<usize>,
     /// Group addresses for each row in the input.
@@ -126,7 +125,7 @@ impl HashTable {
 
         for mut other_chunk in other.chunks.drain(..) {
             // Find or create groups in self from other.
-            self.find_or_create_groups(&other_chunk.arrays, &other_chunk.hashes)?;
+            self.find_or_create_groups(other_chunk.batch.arrays(), &other_chunk.hashes)?;
 
             // Now figure out which chunks we need to update in self. Find or
             // create groups would have already created new chunks with empty
@@ -187,9 +186,7 @@ impl HashTable {
 
         // Init selection to all rows in input.
         self.insert_buffers.needs_insert.clear();
-        self.insert_buffers
-            .needs_insert
-            .append_locations(0..num_inputs);
+        self.insert_buffers.needs_insert.extend(0..num_inputs);
 
         let mut remaining = num_inputs;
 
@@ -208,7 +205,7 @@ impl HashTable {
 
             // Figure out where we're putting remaining rows.
             for idx in 0..remaining {
-                let row_idx = self.insert_buffers.needs_insert.get(idx);
+                let row_idx = self.insert_buffers.needs_insert[idx];
                 let offset = &mut self.insert_buffers.offsets[row_idx];
                 let row_hash = hashes[row_idx];
 
@@ -225,7 +222,7 @@ impl HashTable {
                         // The real group address will be figured out during
                         // state initalization.
                         *ent = EntryKey::new(hashes[row_idx], GroupAddress::empty());
-                        self.insert_buffers.new_group_rows.push_location(row_idx);
+                        self.insert_buffers.new_group_rows.push(row_idx);
                         new_groups += 1;
                         break;
                     }
@@ -235,7 +232,7 @@ impl HashTable {
                     // Check if hash matches. If it does, we need to mark for
                     // comparison. If it doesn't we have linear probe.
                     if ent.hash == row_hash {
-                        self.insert_buffers.needs_compare.push_location(row_idx);
+                        self.insert_buffers.needs_compare.push(row_idx);
                         break;
                     }
 
@@ -256,17 +253,11 @@ impl HashTable {
             // If we've inserted new group hashes, go ahead and create the actual
             // groups.
             if !self.insert_buffers.new_group_rows.is_empty() {
-                // TODO: Try not to clone?
-                let selection = Arc::new(self.insert_buffers.new_group_rows.clone());
-
-                let group_vals = groups.iter().map(|a| {
-                    let mut arr = a.clone();
-                    arr.select_mut2(selection.clone());
-                    arr
-                });
+                // Selection for inserting into the chunk is the new groups
+                // encountered in the input.
+                let selection = &self.insert_buffers.new_group_rows;
 
                 let phys_types = groups.iter().map(|a| a.physical_type());
-
                 let num_new_groups = self.insert_buffers.new_group_rows.len();
 
                 // Get the chunk to insert into and the relative offset within
@@ -275,16 +266,9 @@ impl HashTable {
                 // case of chunk reuse.
                 let (chunk_idx, chunk_offset) = match self.chunks.last_mut() {
                     Some(chunk) if chunk.can_append(num_new_groups, phys_types) => {
-                        let chunk_offset = chunk.num_groups;
+                        let chunk_offset = chunk.num_groups();
 
-                        // Append to previous chunk.
-                        let hashes = self
-                            .insert_buffers
-                            .new_group_rows
-                            .iter_locations()
-                            .map(|loc| hashes[loc]);
-
-                        chunk.append_group_values(group_vals, hashes)?;
+                        chunk.append_group_values(groups, hashes, selection)?;
 
                         let chunk_idx = self.chunks.len() - 1;
                         (chunk_idx, chunk_offset)
@@ -293,31 +277,25 @@ impl HashTable {
                         // Either we have no chunk, or we do but it's already at
                         // a good capacity. Create a new one.
                         let chunk_idx = self.chunks.len();
-                        let mut states = self
+
+                        let states = self
                             .aggregates
                             .iter()
                             .map(|agg| agg.new_states())
                             .collect::<Result<Vec<_>>>()?;
 
-                        let chunk_hashes: Vec<_> = self
-                            .insert_buffers
-                            .new_group_rows
-                            .iter_locations()
-                            .map(|loc| hashes[loc])
-                            .collect();
-
-                        // Initialize the states.
-                        for state in &mut states {
-                            state.states.new_groups(num_new_groups);
-                        }
-
-                        let chunk = GroupChunk {
+                        let mut chunk = GroupChunk {
                             chunk_idx: chunk_idx as u16,
-                            num_groups: num_new_groups,
-                            hashes: chunk_hashes,
-                            arrays: group_vals.collect(),
+                            hashes: Vec::with_capacity(hashes.len()),
+                            batch: Batch::try_new(
+                                groups.iter().map(|arr| arr.datatype().clone()),
+                                hashes.len(),
+                            )?,
                             aggregate_states: states,
                         };
+
+                        chunk.append_group_values(groups, hashes, selection)?;
+
                         self.chunks.push(chunk);
 
                         (chunk_idx, 0)
@@ -328,11 +306,7 @@ impl HashTable {
                 //
                 // Accounts for the selection we did when putting the arrays
                 // into the chunk.
-                for (updated_idx, row_idx) in self
-                    .insert_buffers
-                    .new_group_rows
-                    .iter_locations()
-                    .enumerate()
+                for (updated_idx, &row_idx) in self.insert_buffers.new_group_rows.iter().enumerate()
                 {
                     let offset = self.insert_buffers.offsets[row_idx];
                     let ent = &mut self.entries[offset];
@@ -353,7 +327,7 @@ impl HashTable {
             if !self.insert_buffers.needs_compare.is_empty() {
                 // Update addresses slice with the groups we'll be comparing
                 // against.
-                for row_idx in self.insert_buffers.needs_compare.iter_locations() {
+                for &row_idx in self.insert_buffers.needs_compare.iter() {
                     let offset = self.insert_buffers.offsets[row_idx];
                     let ent = &self.entries[offset];
                     // Sets address for this row to existing group. If the rows
@@ -479,6 +453,8 @@ const fn is_power_of_2(v: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
     use super::*;
     use crate::arrays::bitmap::Bitmap;
     use crate::arrays::datatype::DataType;
@@ -519,8 +495,8 @@ mod tests {
 
     #[test]
     fn insert_simple() {
-        let groups = [Array::from_iter(["g1", "g2", "g1"])];
-        let inputs = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
+        let inputs = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
 
         let hashes = [4, 5, 4]; // Hashes for group values.
 
@@ -535,12 +511,12 @@ mod tests {
     fn insert_chunk_append() {
         // Assumes knowledge of internals.
 
-        let groups1 = [Array::from_iter(["g1", "g2", "g1"])];
-        let inputs1 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups1 = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
+        let inputs1 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
         let hashes1 = [4, 5, 4];
 
-        let groups2 = [Array::from_iter(["g1", "g2", "g3"])];
-        let inputs2 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups2 = [Array::try_from_iter(["g1", "g2", "g3"]).unwrap()];
+        let inputs2 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
         let hashes2 = [4, 5, 6];
 
         let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
@@ -554,8 +530,8 @@ mod tests {
 
     #[test]
     fn insert_hash_collision() {
-        let groups = [Array::from_iter(["g1", "g2", "g1"])];
-        let inputs = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
+        let inputs = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
 
         let hashes = [4, 4, 4];
 
@@ -570,8 +546,8 @@ mod tests {
     fn insert_require_resize() {
         // 17 unique groups (> initial 16 capacity)
 
-        let groups = [Array::from_iter(0..17)];
-        let inputs = [Array::from_iter(0_i64..17_i64)];
+        let groups = [Array::try_from_iter(0..17).unwrap()];
+        let inputs = [Array::try_from_iter((0..17_i64).collect::<Vec<_>>()).unwrap()];
 
         let hashes = vec![44; 17]; // All hashes collide.
 
@@ -587,8 +563,8 @@ mod tests {
         // 33 unique groups, more than twice initial capacity. Caught bug where
         // resize by doubling didn't increase capacity enough.
 
-        let groups = [Array::from_iter(0..33)];
-        let inputs = [Array::from_iter(0_i64..33_i64)];
+        let groups = [Array::try_from_iter(0..33).unwrap()];
+        let inputs = [Array::try_from_iter((0..33_i64).collect::<Vec<_>>()).unwrap()];
 
         let hashes = vec![44; 33]; // All hashes collide.
 
@@ -601,8 +577,8 @@ mod tests {
 
     #[test]
     fn merge_simple() {
-        let groups1 = [Array::from_iter(["g1", "g2", "g1"])];
-        let inputs1 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups1 = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
+        let inputs1 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
 
         let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
 
@@ -610,8 +586,8 @@ mod tests {
         let mut t1 = make_hash_table(agg.clone());
         t1.insert(&groups1, &hashes, &inputs1).unwrap();
 
-        let groups2 = [Array::from_iter(["g3", "g2", "g1"])];
-        let inputs2 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups2 = [Array::try_from_iter(["g3", "g2", "g1"]).unwrap()];
+        let inputs2 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
 
         let hashes = vec![6, 5, 4];
 
@@ -627,8 +603,8 @@ mod tests {
     fn merge_non_empty_then_merge_empty() {
         // Tests that we properly resize internal buffers to account for merging
         // in empty hash tables after already merging in non-empty hash tables.
-        let groups1 = [Array::from_iter(["g1", "g2", "g1"])];
-        let inputs1 = [Array::from_iter::<[i64; 3]>([1, 2, 3])];
+        let groups1 = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
+        let inputs1 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
 
         let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
 
@@ -638,8 +614,8 @@ mod tests {
         t1.insert(&groups1, &hashes, &inputs1).unwrap();
 
         // Second hash table, not empty
-        let groups2 = [Array::from_iter(["g1", "g2"])];
-        let inputs2 = [Array::from_iter::<[i64; 2]>([4, 5])];
+        let groups2 = [Array::try_from_iter(["g1", "g2"]).unwrap()];
+        let inputs2 = [Array::try_from_iter::<[i64; 2]>([4, 5]).unwrap()];
         let hashes = vec![4, 5];
         let mut t2 = make_hash_table(agg.clone());
         t2.insert(&groups2, &hashes, &inputs2).unwrap();

@@ -5,6 +5,7 @@ use rayexec_error::{not_implemented, Result};
 use super::chunk::GroupChunk;
 use super::hash_table::GroupAddress;
 use crate::arrays::array::physical_type::{
+    Addressable,
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -27,13 +28,10 @@ use crate::arrays::array::physical_type::{
     PhysicalUtf8,
 };
 use crate::arrays::array::Array;
-use crate::arrays::executor::scalar::{can_skip_validity_check, check_validity};
-use crate::arrays::selection::{self, SelectionVector};
-use crate::arrays::storage::AddressableStorage;
 
 pub fn group_values_eq(
     inputs: &[Array],
-    input_sel: &SelectionVector,
+    input_sel: &[usize],
     chunks: &[GroupChunk],
     addresses: &[GroupAddress],
     chunk_indices: &BTreeSet<u16>,
@@ -41,13 +39,13 @@ pub fn group_values_eq(
 ) -> Result<()> {
     for &chunk_idx in chunk_indices {
         // Get only input rows that have its compare partner row in this chunk.
-        let rows1 = input_sel.iter_locations().filter(|&loc| {
+        let rows1 = input_sel.iter().copied().filter(|&loc| {
             let addr = &addresses[loc];
             addr.chunk_idx == chunk_idx
         });
 
         // Get only the locations from addresses that point to this chunk.
-        let rows2 = input_sel.iter_locations().filter_map(|loc| {
+        let rows2 = input_sel.iter().filter_map(|&loc| {
             let addr = &addresses[loc];
             if addr.chunk_idx == chunk_idx {
                 Some(addr.row_idx as usize)
@@ -58,7 +56,7 @@ pub fn group_values_eq(
 
         compare_group_rows_eq(
             inputs,
-            &chunks[chunk_idx as usize].arrays,
+            &chunks[chunk_idx as usize].batch.arrays(),
             rows1,
             rows2,
             not_eq_rows,
@@ -179,26 +177,29 @@ fn compare_rows_eq<'a, S, I1, I2>(
 ) -> Result<()>
 where
     S: PhysicalStorage,
-    <S::Storage<'a> as AddressableStorage>::T: PartialEq,
+    S::StorageType: PartialEq,
     I1: Iterator<Item = usize>,
     I2: Iterator<Item = usize>,
 {
-    let selection1 = array1.selection_vector();
-    let selection2 = array2.selection_vector();
+    let flat1 = array1.flat_view()?;
+    let flat2 = array2.flat_view()?;
 
-    let validity1 = array1.validity();
-    let validity2 = array2.validity();
+    let selection1 = flat1.selection;
+    let selection2 = flat2.selection;
 
-    let values1 = S::get_storage(array1.array_data())?;
-    let values2 = S::get_storage(array2.array_data())?;
+    let validity1 = flat1.validity;
+    let validity2 = flat2.validity;
 
-    if can_skip_validity_check([validity1, validity2]) {
+    let values1 = S::get_addressable(&flat1.array_buffer)?;
+    let values2 = S::get_addressable(&flat2.array_buffer)?;
+
+    if validity1.all_valid() && validity2.all_valid() {
         for (row1, row2) in rows1.zip(rows2) {
-            let sel1 = unsafe { selection::get_unchecked(selection1, row1) };
-            let sel2 = unsafe { selection::get_unchecked(selection2, row2) };
+            let sel1 = selection1.get(row1).unwrap();
+            let sel2 = selection2.get(row2).unwrap();
 
-            let val1 = unsafe { values1.get_unchecked(sel1) };
-            let val2 = unsafe { values2.get_unchecked(sel2) };
+            let val1 = values1.get(sel1).unwrap();
+            let val2 = values2.get(sel2).unwrap();
 
             if val1 != val2 {
                 not_eq_rows.insert(row1);
@@ -206,17 +207,14 @@ where
         }
     } else {
         for (row1, row2) in rows1.zip(rows2) {
-            let sel1 = unsafe { selection::get_unchecked(selection1, row1) };
-            let sel2 = unsafe { selection::get_unchecked(selection2, row2) };
+            let sel1 = selection1.get(row1).unwrap();
+            let sel2 = selection2.get(row2).unwrap();
 
-            match (
-                check_validity(sel1, validity1),
-                check_validity(sel2, validity2),
-            ) {
+            match (validity1.is_valid(sel1), validity2.is_valid(sel2)) {
                 (true, true) => {
                     // Rows both valid, check value equality.
-                    let val1 = unsafe { values1.get_unchecked(sel1) };
-                    let val2 = unsafe { values2.get_unchecked(sel2) };
+                    let val1 = values1.get(sel1).unwrap();
+                    let val2 = values2.get(sel2).unwrap();
 
                     if val1 != val2 {
                         not_eq_rows.insert(row1);
@@ -235,4 +233,53 @@ where
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+
+    #[test]
+    fn compare_rows_i32_single_not_eq() {
+        let arr1 = Array::try_from_iter([1, 2, 3]).unwrap();
+        let arr2 = Array::try_from_iter([1, 5, 3]).unwrap();
+
+        let mut not_eq = BTreeSet::new();
+
+        compare_rows_eq::<PhysicalI32, _, _>(&arr1, &arr2, 0..3, 0..3, &mut not_eq).unwrap();
+
+        let expected = BTreeSet::from_iter([1]);
+        assert_eq!(expected, not_eq);
+    }
+
+    #[test]
+    fn compare_rows_i32_multiple_not_eq() {
+        let arr1 = Array::try_from_iter([1, 2, 4]).unwrap();
+        let arr2 = Array::try_from_iter([1, 5, 3]).unwrap();
+
+        let mut not_eq = BTreeSet::new();
+
+        compare_rows_eq::<PhysicalI32, _, _>(&arr1, &arr2, 0..3, 0..3, &mut not_eq).unwrap();
+
+        let expected = BTreeSet::from_iter([1, 2]);
+        assert_eq!(expected, not_eq);
+    }
+
+    #[test]
+    fn compare_rows_i32_with_nulls() {
+        // For groups created by GROUP BY, nulls are considered equal to
+        // themselves.
+
+        let arr1 = Array::try_from_iter([Some(1), Some(2), None]).unwrap();
+        let arr2 = Array::try_from_iter([Some(1), Some(5), None]).unwrap();
+
+        let mut not_eq = BTreeSet::new();
+
+        compare_rows_eq::<PhysicalI32, _, _>(&arr1, &arr2, 0..3, 0..3, &mut not_eq).unwrap();
+
+        let expected = BTreeSet::from_iter([1]);
+        assert_eq!(expected, not_eq);
+    }
 }
