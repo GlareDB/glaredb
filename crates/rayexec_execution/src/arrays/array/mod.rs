@@ -13,13 +13,15 @@ mod shared_or_owned;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use array_buffer::{ArrayBuffer, DictionaryBuffer, ListBuffer, SecondaryBuffer};
+use array_buffer::{ArrayBuffer, DictionaryBuffer, ListBuffer, ListItemMetadata, SecondaryBuffer};
 use array_data::ArrayData;
 use buffer_manager::{BufferManager, NopBufferManager};
 use flat::FlatArrayView;
 use half::f16;
 use physical_type::{
+    Addressable,
     AddressableMut,
+    MutablePhysicalStorage,
     PhysicalAny,
     PhysicalBinary,
     PhysicalBool,
@@ -34,6 +36,7 @@ use physical_type::{
     PhysicalI8,
     PhysicalInterval,
     PhysicalList,
+    PhysicalStorage,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -282,6 +285,400 @@ where
 
         Ok(())
     }
+
+    /// Resets self to prepare for writing to the array.
+    ///
+    /// This will:
+    /// - Reset validity to all 'valid'.
+    /// - Create or reuse a writeable buffer for array data. No guarantees are
+    ///   made about the contents of the buffer.
+    ///
+    /// Bfuffer values _must_ be written for a row before attempting to read a
+    /// value for that row after calling this function. Underlying storage may
+    /// be cleared resulting in stale metadata (and thus invalid reads).
+    pub fn reset_for_write(&mut self, manager: &Arc<B>) -> Result<()> {
+        let cap = self.capacity();
+        let next = self.next.as_mut().unwrap();
+
+        next.validity = Validity::new_all_valid(cap);
+
+        // Check if dictionary first since we want to try to get the underlying
+        // buffer from that. We should only have layer of "dictionary", so we
+        // shouldn't need to recurse.
+        if next.data.as_ref().physical_type() == PhysicalType::Dictionary {
+            let secondary = next.data.try_as_mut()?.get_secondary_mut();
+            let dict = match std::mem::replace(secondary, SecondaryBuffer::None) {
+                SecondaryBuffer::Dictionary(dict) => dict,
+                other => {
+                    return Err(RayexecError::new(format!(
+                        "Expected dictionary secondary buffer, got {other:?}",
+                    )))
+                }
+            };
+
+            // TODO: Not sure what to do if capacities don't match. Currently
+            // dictionaries are only created through 'select' and the index
+            // buffer gets initialized to the length of the selection.
+            next.data = dict.buffer;
+        }
+
+        if let Err(()) = next.data.try_reset_for_write() {
+            // Need to create a new buffer and set that.
+            let buffer = array_buffer_for_datatype(manager, &self.datatype, cap)?;
+            next.data = ArrayData::owned(buffer)
+        }
+
+        // Reset secondary buffers.
+        match next.data.try_as_mut()?.get_secondary_mut() {
+            SecondaryBuffer::StringViewHeap(heap) => {
+                heap.clear();
+                // All metadata is stale. Panics may occur if attempting to read
+                // prior to writing new values for a row.
+            }
+            SecondaryBuffer::List(list) => {
+                list.entries = 0;
+                // Child array keeps its capacity, it'll be overwritten. List
+                // item metadata will become stale, but technically won't error.
+            }
+            SecondaryBuffer::Dictionary(_) => (),
+            SecondaryBuffer::None => (),
+        }
+
+        Ok(())
+    }
+
+    /// "Clones" some other array into this array.
+    ///
+    /// This will try to make the buffer from the other array managed to make it
+    /// cheaply cloneable and shared with this array.
+    ///
+    /// Array capacities and datatypes must be the same for both arrays.
+    pub fn try_clone_from(&mut self, manager: &B, other: &mut Self) -> Result<()> {
+        if self.datatype != other.datatype {
+            return Err(RayexecError::new(
+                "Attempted clone array from other array with different data types",
+            )
+            .with_field("own_datatype", self.datatype.clone())
+            .with_field("other_datatype", other.datatype.clone()));
+        }
+
+        // TODO: Do we want this check? Dictionaries right now can have differing capacities based
+        // on selection inputs.
+        // if self.capacity() != other.capacity() {
+        //     return Err(RayexecError::new(
+        //         "Attempted to clone into array from other array with different capacity",
+        //     )
+        //     .with_field("own_capacity", self.capacity())
+        //     .with_field("other_capacity", other.capacity()));
+        // }
+
+        let managed = other.next_mut().data.make_managed(manager)?;
+        self.next_mut().data.set_managed(managed)?;
+        self.next_mut().validity = other.next().validity.clone();
+
+        Ok(())
+    }
+
+    /// Copy rows from self to another array.
+    ///
+    /// `mapping` provides a mapping of source indices to destination indices in
+    /// (source, dest) pairs.
+    pub fn copy_rows(
+        &self,
+        mapping: impl stdutil::iter::IntoExactSizeIterator<Item = (usize, usize)>,
+        dest: &mut Self,
+    ) -> Result<()> {
+        match self.datatype.physical_type() {
+            PhysicalType::Boolean => copy_rows::<PhysicalBool, _>(self, mapping, dest)?,
+            PhysicalType::Int8 => copy_rows::<PhysicalI8, _>(self, mapping, dest)?,
+            PhysicalType::Int16 => copy_rows::<PhysicalI16, _>(self, mapping, dest)?,
+            PhysicalType::Int32 => copy_rows::<PhysicalI32, _>(self, mapping, dest)?,
+            PhysicalType::Int64 => copy_rows::<PhysicalI64, _>(self, mapping, dest)?,
+            PhysicalType::Int128 => copy_rows::<PhysicalI128, _>(self, mapping, dest)?,
+            PhysicalType::UInt8 => copy_rows::<PhysicalU8, _>(self, mapping, dest)?,
+            PhysicalType::UInt16 => copy_rows::<PhysicalU16, _>(self, mapping, dest)?,
+            PhysicalType::UInt32 => copy_rows::<PhysicalU32, _>(self, mapping, dest)?,
+            PhysicalType::UInt64 => copy_rows::<PhysicalU64, _>(self, mapping, dest)?,
+            PhysicalType::UInt128 => copy_rows::<PhysicalU128, _>(self, mapping, dest)?,
+            PhysicalType::Float16 => copy_rows::<PhysicalF16, _>(self, mapping, dest)?,
+            PhysicalType::Float32 => copy_rows::<PhysicalF32, _>(self, mapping, dest)?,
+            PhysicalType::Float64 => copy_rows::<PhysicalF64, _>(self, mapping, dest)?,
+            PhysicalType::Interval => copy_rows::<PhysicalInterval, _>(self, mapping, dest)?,
+            PhysicalType::Utf8 => copy_rows::<PhysicalUtf8, _>(self, mapping, dest)?,
+            _ => unimplemented!(),
+        }
+
+        Ok(())
+    }
+
+    pub fn get_value(&self, idx: usize) -> Result<ScalarValue> {
+        if idx >= self.capacity() {
+            return Err(RayexecError::new("Index out of bounds")
+                .with_field("idx", idx)
+                .with_field("capacity", self.capacity()));
+        }
+
+        let flat = self.flat_view()?;
+        let idx = flat.selection.get(idx).expect("Index to be in bounds");
+
+        if !flat.validity.is_valid(idx) {
+            return Ok(ScalarValue::Null);
+        }
+
+        match &self.datatype {
+            DataType::Boolean => {
+                let v = PhysicalBool::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Boolean(*v))
+            }
+            DataType::Int8 => {
+                let v = PhysicalI8::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int8(*v))
+            }
+            DataType::Int16 => {
+                let v = PhysicalI16::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int16(*v))
+            }
+            DataType::Int32 => {
+                let v = PhysicalI32::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int32(*v))
+            }
+            DataType::Int64 => {
+                let v = PhysicalI64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int64(*v))
+            }
+            DataType::Int128 => {
+                let v = PhysicalI128::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Int128(*v))
+            }
+            DataType::UInt8 => {
+                let v = PhysicalU8::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt8(*v))
+            }
+            DataType::UInt16 => {
+                let v = PhysicalU16::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt16(*v))
+            }
+            DataType::UInt32 => {
+                let v = PhysicalU32::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt32(*v))
+            }
+            DataType::UInt64 => {
+                let v = PhysicalU64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt64(*v))
+            }
+            DataType::UInt128 => {
+                let v = PhysicalU128::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::UInt128(*v))
+            }
+            DataType::Float16 => {
+                let v = PhysicalF16::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Float16(*v))
+            }
+            DataType::Float32 => {
+                let v = PhysicalF32::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Float32(*v))
+            }
+            DataType::Float64 => {
+                let v = PhysicalF64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Float64(*v))
+            }
+            DataType::Decimal64(m) => {
+                let v = PhysicalI64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Decimal64(Decimal64Scalar {
+                    precision: m.precision,
+                    scale: m.scale,
+                    value: *v,
+                }))
+            }
+            DataType::Decimal128(m) => {
+                let v = PhysicalI128::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Decimal128(Decimal128Scalar {
+                    precision: m.precision,
+                    scale: m.scale,
+                    value: *v,
+                }))
+            }
+            DataType::Interval => {
+                let v = PhysicalInterval::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Interval(*v))
+            }
+            DataType::Timestamp(m) => {
+                let v = PhysicalI64::get_addressable(flat.array_buffer)?
+                    .get(idx)
+                    .unwrap();
+                Ok(ScalarValue::Timestamp(TimestampScalar {
+                    unit: m.unit,
+                    value: *v,
+                }))
+            }
+            DataType::Utf8 => {
+                let addressable = PhysicalUtf8::get_addressable(flat.array_buffer)?;
+                let v = addressable.get(idx).unwrap();
+                Ok(ScalarValue::Utf8(v.into()))
+            }
+            DataType::Binary => {
+                let addressable = PhysicalBinary::get_addressable(flat.array_buffer)?;
+                let v = addressable.get(idx).unwrap();
+                Ok(ScalarValue::Binary(v.into()))
+            }
+
+            _ => not_implemented!("get value for scalar type"),
+        }
+    }
+
+    /// Set a scalar value at a given index.
+    pub fn set_value(&mut self, idx: usize, val: &ScalarValue) -> Result<()> {
+        if idx >= self.capacity() {
+            return Err(RayexecError::new("Index out of bounds")
+                .with_field("idx", idx)
+                .with_field("capacity", self.capacity()));
+        }
+
+        let next = self.next_mut();
+        next.validity.set_valid(idx);
+        let data = next.data.try_as_mut()?;
+
+        match val {
+            ScalarValue::Null => {
+                next.validity.set_invalid(idx);
+            }
+            ScalarValue::Boolean(val) => {
+                PhysicalBool::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int8(val) => {
+                PhysicalI8::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int16(val) => {
+                PhysicalI16::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int32(val) => {
+                PhysicalI32::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int64(val) => {
+                PhysicalI64::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Int128(val) => {
+                PhysicalI128::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt8(val) => {
+                PhysicalU8::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt16(val) => {
+                PhysicalU16::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt32(val) => {
+                PhysicalU32::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt64(val) => {
+                PhysicalU64::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::UInt128(val) => {
+                PhysicalU128::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Float16(val) => {
+                PhysicalF16::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Float32(val) => {
+                PhysicalF32::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Float64(val) => {
+                PhysicalF64::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Decimal64(val) => {
+                PhysicalI64::get_addressable_mut(data)?.put(idx, &val.value);
+            }
+            ScalarValue::Decimal128(val) => {
+                PhysicalI128::get_addressable_mut(data)?.put(idx, &val.value);
+            }
+            ScalarValue::Date32(val) => {
+                PhysicalI32::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Date64(val) => {
+                PhysicalI64::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Timestamp(val) => {
+                PhysicalI64::get_addressable_mut(data)?.put(idx, &val.value);
+            }
+            ScalarValue::Interval(val) => {
+                PhysicalInterval::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Utf8(val) => {
+                PhysicalUtf8::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::Binary(val) => {
+                PhysicalBinary::get_addressable_mut(data)?.put(idx, val);
+            }
+            ScalarValue::List(list) => {
+                let secondary = next.data.try_as_mut()?.get_secondary_mut().get_list_mut()?;
+
+                // Ensure we have space to push.
+                let rem_cap = secondary.child.capacity() - secondary.entries;
+                if rem_cap < list.len() {
+                    // TODO: Just resize secondary.
+                    return Err(RayexecError::new(
+                        "Secondary list buffer does not have required capacity",
+                    )
+                    .with_field("remaining", rem_cap)
+                    .with_field("need", list.len()));
+                }
+
+                for (child_idx, val) in (secondary.entries..).zip(list) {
+                    secondary.child.set_value(child_idx, val)?;
+                }
+
+                // Now update entry count in child. Original value is our offset
+                // index.
+                let start_offset = secondary.entries;
+                secondary.entries += list.len();
+
+                // Set metadata pointing to new list.
+                PhysicalList::get_addressable_mut(next.data.try_as_mut()?)?.put(
+                    idx,
+                    &ListItemMetadata {
+                        offset: start_offset as i32,
+                        len: list.len() as i32,
+                    },
+                );
+            }
+            ScalarValue::Struct(_) => not_implemented!("set value for struct"),
+        }
+
+        Ok(())
+    }
 }
 
 impl Array {
@@ -307,7 +704,7 @@ impl Array {
     pub fn new_typed_null_array(datatype: DataType, len: usize) -> Result<Self> {
         // Create physical array data of length 1, and use a selection vector to
         // extend it out to the desired size.
-        let data = datatype.physical_type()?.zeroed_array_data(1);
+        let data = datatype.physical_type().zeroed_array_data(1);
         let validity = Bitmap::new_with_all_false(1);
         let selection = SelectionVector::repeated(len, 0);
 
@@ -1120,6 +1517,44 @@ impl From<ListStorage> for ArrayData2 {
     }
 }
 
+/// Helper for copying rows.
+fn copy_rows<S, B>(
+    from: &Array<B>,
+    mapping: impl stdutil::iter::IntoExactSizeIterator<Item = (usize, usize)>,
+    to: &mut Array<B>,
+) -> Result<()>
+where
+    S: MutablePhysicalStorage,
+    B: BufferManager,
+{
+    let from_flat = from.flat_view()?;
+    let from_storage = S::get_addressable(from_flat.array_buffer)?;
+
+    let next = to.next_mut();
+    let to_data = next.data.try_as_mut()?;
+    let mut to_storage = S::get_addressable_mut(to_data)?;
+
+    if from_flat.validity.all_valid() && next.validity.all_valid() {
+        for (from_idx, to_idx) in mapping.into_iter() {
+            let from_idx = from_flat.selection.get(from_idx).unwrap();
+            let v = from_storage.get(from_idx).unwrap();
+            to_storage.put(to_idx, v);
+        }
+    } else {
+        for (from_idx, to_idx) in mapping.into_iter() {
+            let from_idx = from_flat.selection.get(from_idx).unwrap();
+            if from_flat.validity.is_valid(from_idx) {
+                let v = from_storage.get(from_idx).unwrap();
+                to_storage.put(to_idx, v);
+            } else {
+                next.validity.set_invalid(to_idx);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Create a new array buffer for a datatype.
 fn array_buffer_for_datatype<B>(
     manager: &Arc<B>,
@@ -1129,7 +1564,7 @@ fn array_buffer_for_datatype<B>(
 where
     B: BufferManager,
 {
-    let buffer = match datatype.physical_type()? {
+    let buffer = match datatype.physical_type() {
         PhysicalType::UntypedNull => {
             ArrayBuffer::with_primary_capacity::<PhysicalUntypedNull>(manager, capacity)?
         }
@@ -1237,7 +1672,7 @@ macro_rules! impl_primitive_from_iter {
     };
 }
 
-// TODO: Bool
+impl_primitive_from_iter!(bool, PhysicalBool, Boolean);
 
 impl_primitive_from_iter!(i8, PhysicalI8, Int8);
 impl_primitive_from_iter!(i16, PhysicalI16, Int16);
@@ -1257,10 +1692,25 @@ impl_primitive_from_iter!(f64, PhysicalF64, Float64);
 
 impl_primitive_from_iter!(Interval, PhysicalInterval, Interval);
 
-impl<'a> TryFromExactSizeIterator<&'a str> for Array<NopBufferManager> {
+/// Trait that provides `AsRef<str>` for use with creating arrays from an
+/// iterator.
+///
+/// We don't use `AsRef<str>` directly as the implementation of
+/// `TryFromExactSizedIterator` could conflict with other types (the above impls
+/// for primitives). A separate trait just lets us limit it to just `&str` and
+/// `String`.
+pub trait AsRefStr: AsRef<str> {}
+
+impl AsRefStr for &str {}
+impl AsRefStr for String {}
+
+impl<S> TryFromExactSizeIterator<S> for Array<NopBufferManager>
+where
+    S: AsRefStr,
+{
     type Error = RayexecError;
 
-    fn try_from_iter<T: stdutil::iter::IntoExactSizeIterator<Item = &'a str>>(
+    fn try_from_iter<T: stdutil::iter::IntoExactSizeIterator<Item = S>>(
         iter: T,
     ) -> Result<Self, Self::Error> {
         let iter = iter.into_iter();
@@ -1273,7 +1723,7 @@ impl<'a> TryFromExactSizeIterator<&'a str> for Array<NopBufferManager> {
         let mut addressable = buffer.try_as_string_view_addressable_mut()?;
 
         for (idx, v) in iter.enumerate() {
-            addressable.put(idx, v);
+            addressable.put(idx, v.as_ref());
         }
 
         Ok(Array {
@@ -1326,77 +1776,140 @@ where
 mod tests {
 
     use super::*;
+    use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]
-    fn select_mut_no_change() {
-        let mut arr = Array::from_iter(["a", "b", "c"]);
-        let selection = SelectionVector::with_range(0..3);
+    fn select_no_change() {
+        let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        arr.select(&Arc::new(NopBufferManager), [0, 1, 2]).unwrap();
 
-        arr.select_mut2(selection);
-
-        assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from("b"), arr.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::from("c"), arr.logical_value(2).unwrap());
+        let expected = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        assert_arrays_eq(&expected, &arr);
     }
 
     #[test]
-    fn select_mut_prune_rows() {
-        let mut arr = Array::from_iter(["a", "b", "c"]);
-        let selection = SelectionVector::from_iter([0, 2]);
+    fn select_prune_rows() {
+        let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        arr.select(&Arc::new(NopBufferManager), [0, 2]).unwrap();
 
-        arr.select_mut2(selection);
-
-        assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());
-        assert!(arr.logical_value(2).is_err());
+        let expected = Array::try_from_iter(["a", "c"]).unwrap();
+        assert_arrays_eq(&expected, &arr);
     }
 
     #[test]
-    fn select_mut_expand_rows() {
-        let mut arr = Array::from_iter(["a", "b", "c"]);
-        let selection = SelectionVector::from_iter([0, 1, 1, 2]);
+    fn select_expand_rows() {
+        let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        arr.select(&Arc::new(NopBufferManager), [0, 1, 1, 2])
+            .unwrap();
 
-        arr.select_mut2(selection);
-
-        assert_eq!(ScalarValue::from("a"), arr.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from("b"), arr.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::from("b"), arr.logical_value(2).unwrap());
-        assert_eq!(ScalarValue::from("c"), arr.logical_value(3).unwrap());
-        assert!(arr.logical_value(4).is_err());
+        let expected = Array::try_from_iter(["a", "b", "b", "c"]).unwrap();
+        assert_arrays_eq(&expected, &arr);
     }
 
     #[test]
-    fn select_mut_existing_selection() {
-        let mut arr = Array::from_iter(["a", "b", "c"]);
-        let selection = SelectionVector::from_iter([0, 2]);
-
+    fn select_existing_selection() {
+        let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         // => ["a", "c"]
-        arr.select_mut2(selection);
+        arr.select(&Arc::new(NopBufferManager), [0, 2]).unwrap();
 
-        let selection = SelectionVector::from_iter([1, 1, 0]);
-        arr.select_mut2(selection);
+        // => ["c", "c", "a"]
+        arr.select(&Arc::new(NopBufferManager), [1, 1, 0]).unwrap();
 
-        assert_eq!(ScalarValue::from("c"), arr.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::from("c"), arr.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::from("a"), arr.logical_value(2).unwrap());
-        assert!(arr.logical_value(3).is_err());
+        let expected = Array::try_from_iter(["c", "c", "a"]).unwrap();
+        assert_arrays_eq(&expected, &arr);
     }
 
     #[test]
-    fn scalar_value_logical_eq_i32() {
-        let arr = Array::from_iter([1, 2, 3]);
-        let scalar = ScalarValue::Int32(2);
-
-        assert!(!arr.scalar_value_logically_eq(&scalar, 0).unwrap());
-        assert!(arr.scalar_value_logically_eq(&scalar, 1).unwrap());
+    fn get_value_simple() {
+        let arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        let val = arr.get_value(1).unwrap();
+        assert_eq!(ScalarValue::Utf8("b".into()), val);
     }
 
     #[test]
-    fn scalar_value_logical_eq_null() {
-        let arr = Array::from_iter([Some(1), None, Some(3)]);
-        let scalar = ScalarValue::Null;
+    fn get_value_null() {
+        let arr = Array::try_from_iter([Some("a"), None, Some("c")]).unwrap();
 
-        assert!(!arr.scalar_value_logically_eq(&scalar, 0).unwrap());
-        assert!(arr.scalar_value_logically_eq(&scalar, 1).unwrap());
+        let val = arr.get_value(0).unwrap();
+        assert_eq!(ScalarValue::Utf8("a".into()), val);
+
+        let val = arr.get_value(1).unwrap();
+        assert_eq!(ScalarValue::Null, val);
+    }
+
+    #[test]
+    fn get_value_with_selection() {
+        let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        // => ["a", "c"]
+        arr.select(&Arc::new(NopBufferManager), [0, 2]).unwrap();
+        let val = arr.get_value(1).unwrap();
+
+        assert_eq!(ScalarValue::Utf8("c".into()), val);
+    }
+
+    #[test]
+    fn copy_rows_simple() {
+        let from = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        let mut to = Array::try_from_iter(["d", "d", "d"]).unwrap();
+
+        from.copy_rows([(0, 1), (1, 2)], &mut to).unwrap();
+
+        let expected = Array::try_from_iter(["d", "a", "b"]).unwrap();
+
+        assert_arrays_eq(&expected, &to);
+    }
+
+    #[test]
+    fn copy_rows_from_dict() {
+        let mut from = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        // => '["b", "a", "c"]
+        from.select(&Arc::new(NopBufferManager), [1, 0, 2]).unwrap();
+
+        let mut to = Array::try_from_iter(["d", "d", "d"]).unwrap();
+
+        from.copy_rows([(0, 1), (1, 2)], &mut to).unwrap();
+
+        let expected = Array::try_from_iter(["d", "b", "a"]).unwrap();
+
+        assert_arrays_eq(&expected, &to);
+    }
+
+    #[test]
+    fn reset_after_clone_from() {
+        let mut a1 = Array::try_from_iter(["a", "bb", "ccc"]).unwrap();
+        let mut a2 = Array::try_from_iter(["d", "ee", "fff"]).unwrap();
+
+        a1.try_clone_from(&NopBufferManager, &mut a2).unwrap();
+
+        let expected = Array::try_from_iter(["d", "ee", "fff"]).unwrap();
+        assert_arrays_eq(&expected, &a1);
+        assert_arrays_eq(&expected, &a2);
+
+        a1.reset_for_write(&Arc::new(NopBufferManager)).unwrap();
+
+        // Ensure we can write to it.
+        let mut strings = a1
+            .next_mut()
+            .data
+            .try_as_mut()
+            .unwrap()
+            .try_as_string_view_addressable_mut()
+            .unwrap();
+
+        strings.put(0, "hello");
+        strings.put(1, "world");
+        strings.put(2, "goodbye");
+
+        let expected = Array::try_from_iter(["hello", "world", "goodbye"]).unwrap();
+        assert_arrays_eq(&expected, &a1);
+    }
+
+    #[test]
+    fn reset_resets_validity() {
+        let mut a = Array::try_from_iter([Some("a"), None, Some("c")]).unwrap();
+        assert!(!a.next().validity.all_valid());
+
+        a.reset_for_write(&Arc::new(NopBufferManager)).unwrap();
+        assert!(a.next().validity.all_valid());
     }
 }

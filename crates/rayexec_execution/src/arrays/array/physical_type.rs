@@ -209,7 +209,7 @@ impl ProtoConv for PhysicalType {
 }
 
 /// Represents an in-memory array that can be indexed into to retrieve values.
-pub trait Addressable: Debug {
+pub trait Addressable<'a>: Debug {
     /// The type that get's returned.
     type T: Send + Debug + ?Sized;
 
@@ -220,10 +220,10 @@ pub trait Addressable: Debug {
     }
 
     /// Get a value at the given index.
-    fn get(&self, idx: usize) -> Option<&Self::T>;
+    fn get(&self, idx: usize) -> Option<&'a Self::T>;
 }
 
-impl<T> Addressable for &[T]
+impl<'a, T> Addressable<'a> for &'a [T]
 where
     T: Debug + Send,
 {
@@ -233,7 +233,7 @@ where
         (**self).len()
     }
 
-    fn get(&self, idx: usize) -> Option<&Self::T> {
+    fn get(&self, idx: usize) -> Option<&'a Self::T> {
         (**self).get(idx)
     }
 }
@@ -355,7 +355,7 @@ pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
     type StorageType: Sync + Send + ?Sized;
 
     /// The type of the addressable storage.
-    type Addressable<'a>: Addressable<T = Self::StorageType>;
+    type Addressable<'a>: Addressable<'a, T = Self::StorageType>;
 
     /// Get addressable storage for indexing into the array.
     fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>>;
@@ -741,6 +741,16 @@ impl PhysicalStorage for PhysicalList {
 
     fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
         buffer.try_as_slice::<Self>()
+    }
+}
+
+impl MutablePhysicalStorage for PhysicalList {
+    type AddressableMut<'a> = &'a mut [Self::StorageType];
+
+    fn get_addressable_mut<B: BufferManager>(
+        buffer: &mut ArrayBuffer<B>,
+    ) -> Result<Self::AddressableMut<'_>> {
+        buffer.try_as_slice_mut::<Self>()
     }
 }
 

@@ -68,7 +68,7 @@ pub fn assert_arrays_eq_sel(
     let flat1 = array1.flat_view().unwrap();
     let flat2 = array2.flat_view().unwrap();
 
-    match array1.datatype.physical_type().unwrap() {
+    match array1.datatype.physical_type() {
         PhysicalType::Boolean => {
             assert_arrays_eq_sel_inner::<PhysicalBool>(flat1, sel1, flat2, sel2)
         }

@@ -585,7 +585,7 @@ fn new_comparison_impl<O: ComparisonOperation>(
             }
             (DataType::List(m1), DataType::List(m2)) if m1 == m2 => {
                 // TODO: We'll want to figure out casting for lists.
-                Box::new(ListComparisonImpl::<O>::new(m1.datatype.physical_type()?))
+                Box::new(ListComparisonImpl::<O>::new(m1.datatype.physical_type()))
             }
             (a, b) => return Err(invalid_input_types_error(func, &[a, b])),
         },
