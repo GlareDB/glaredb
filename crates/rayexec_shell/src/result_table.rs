@@ -234,6 +234,7 @@ pub struct MaterializedRowIter<'a> {
 impl<'a> Iterator for MaterializedRowIter<'a> {
     type Item = ScalarRow<'a>;
 
+    #[allow(deprecated)]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let batch = self.table.batches.get(self.batch_idx)?;

@@ -23,9 +23,10 @@ impl FilterOperation {
 }
 
 impl StatelessOperation for FilterOperation {
+    #[allow(deprecated)]
     fn execute(&self, batch: Batch) -> Result<Batch> {
         let selection = self.predicate.select(&batch)?;
-        let batch = batch.select(Arc::new(selection)); // TODO: Select mut
+        let batch = batch.select_old(Arc::new(selection)); // TODO: Select mut
 
         Ok(batch)
     }
