@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
 
 use super::array::buffer_manager::NopBufferManager;
 use super::array::selection::Selection;
@@ -54,7 +53,7 @@ impl Batch {
     ///
     /// Each array will be initialized to hold `capacity` rows.
     pub fn try_new(
-        datatypes: impl IntoExactSizeIterator<Item = DataType>,
+        datatypes: impl stdutil::iter::IntoExactSizeIterator<Item = DataType>,
         capacity: usize,
     ) -> Result<Self> {
         let datatypes = datatypes.into_iter();
@@ -239,12 +238,19 @@ impl Batch {
         Batch::try_from_arrays(output_cols)
     }
 
-    // TODO: Owned variant
     #[deprecated]
-    pub fn project(&self, indices: &[usize]) -> Self {
-        let cols = indices
-            .iter()
-            .map(|idx| self.arrays[*idx].clone())
+    pub fn project(self, indices: &[usize]) -> Self {
+        let cols = self
+            .arrays
+            .into_iter()
+            .enumerate()
+            .filter_map(|(idx, arr)| {
+                if indices.contains(&idx) {
+                    Some(arr)
+                } else {
+                    None
+                }
+            })
             .collect();
 
         Batch {
