@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
+use stdutil::iter::IntoExactSizeIterator;
 
+use super::array::buffer_manager::NopBufferManager;
+use super::datatype::DataType;
 use crate::arrays::array::Array;
 use crate::arrays::executor::scalar::concat_with_exact_total_len;
 use crate::arrays::row::ScalarRow;
@@ -44,6 +47,28 @@ impl Batch {
             num_rows,
             capacity: 0,
         }
+    }
+
+    /// Create a batch by initializing arrays for the given datatypes.
+    ///
+    /// Each array will be initialized to hold `capacity` rows.
+    pub fn try_new(
+        datatypes: impl IntoExactSizeIterator<Item = DataType>,
+        capacity: usize,
+    ) -> Result<Self> {
+        let datatypes = datatypes.into_iter();
+        let mut arrays = Vec::with_capacity(datatypes.len());
+
+        for datatype in datatypes {
+            let array = Array::try_new(&Arc::new(NopBufferManager), datatype, capacity)?;
+            arrays.push(array)
+        }
+
+        Ok(Batch {
+            arrays,
+            num_rows: 0,
+            capacity,
+        })
     }
 
     /// Create a new batch from some number of arrays.
@@ -91,12 +116,74 @@ impl Batch {
     ///
     /// Errors if `rows` is greater than the capacity of the batch.
     pub fn set_num_rows(&mut self, rows: usize) -> Result<()> {
-        if rows > self.capacity {
-            return Err(RayexecError::new("Number of rows exceeds capacity")
-                .with_field("capacity", self.capacity)
-                .with_field("requested_num_rows", rows));
-        }
+        // TODO: Need to solidify what capacity should be with dictionaries.
+        // if rows > self.capacity {
+        //     return Err(RayexecError::new("Number of rows exceeds capacity")
+        //         .with_field("capacity", self.capacity)
+        //         .with_field("requested_num_rows", rows));
+        // }
         self.num_rows = rows;
+
+        Ok(())
+    }
+
+    /// Selects rows from the batch based on `selection`.
+    pub fn select(&mut self, selection: &[usize]) -> Result<()> {
+        for arr in &mut self.arrays {
+            arr.select(&Arc::new(NopBufferManager), selection.iter().copied())?;
+        }
+        self.set_num_rows(selection.len())?;
+
+        Ok(())
+    }
+
+    /// Reset all arrays in the batch for writes.
+    pub fn reset_for_write(&mut self) -> Result<()> {
+        for arr in &mut self.arrays {
+            arr.reset_for_write(&Arc::new(NopBufferManager))?;
+        }
+        Ok(())
+    }
+
+    /// Copy rows from this batch to another batch.
+    ///
+    /// `mapping` provides (from, to) pairs for how to copy the rows.
+    pub fn copy_rows(&self, mapping: &[(usize, usize)], dest: &mut Self) -> Result<()> {
+        if self.arrays.len() != dest.arrays.len() {
+            return Err(RayexecError::new(
+                "Attempted to copy rows to another batch with invalid number of columns",
+            ));
+        }
+
+        for (from, to) in self.arrays.iter().zip(dest.arrays.iter_mut()) {
+            from.copy_rows(mapping.iter().copied(), to)?;
+        }
+
+        Ok(())
+    }
+
+    /// Appends a batch to the end of self.
+    ///
+    /// Errors if this batch doesn't have enough capacity to append the other
+    /// batch.
+    pub fn append(&mut self, other: &Batch) -> Result<()> {
+        if self.num_rows() + other.num_rows() > self.capacity {
+            return Err(
+                RayexecError::new("Batch doesn't have sufficient capacity for append")
+                    .with_field("self_rows", self.num_rows())
+                    .with_field("other_rows", other.num_rows())
+                    .with_field("self_capacity", self.capacity),
+            );
+        }
+
+        for (from, to) in other.arrays.iter().zip(self.arrays.iter_mut()) {
+            // [0..batch_num_rows) => [self_row_count..)
+            let mapping =
+                (0..other.num_rows()).zip(self.num_rows..(self.num_rows + other.num_rows()));
+            from.copy_rows(mapping, to)?;
+        }
+
+        self.num_rows += other.num_rows;
 
         Ok(())
     }
@@ -104,6 +191,7 @@ impl Batch {
     /// Concat multiple batches into one.
     ///
     /// Batches are requried to have the same logical schemas.
+    #[deprecated]
     pub fn concat(batches: &[Batch]) -> Result<Self> {
         let num_cols = match batches.first() {
             Some(batch) => batch.num_arrays(),
@@ -146,6 +234,7 @@ impl Batch {
     }
 
     // TODO: Owned variant
+    #[deprecated]
     pub fn project(&self, indices: &[usize]) -> Self {
         let cols = indices
             .iter()
@@ -160,6 +249,7 @@ impl Batch {
     }
 
     // TODO: Remove
+    #[deprecated]
     pub fn slice(&self, offset: usize, count: usize) -> Self {
         let cols = self.arrays.iter().map(|c| c.slice(offset, count)).collect();
         Batch {
@@ -174,7 +264,8 @@ impl Batch {
     ///
     /// This accepts an Arc selection as it'll be cloned for each array in the
     /// batch.
-    pub fn select(&self, selection: Arc<SelectionVector>) -> Batch {
+    #[deprecated]
+    pub fn select_old(&self, selection: Arc<SelectionVector>) -> Batch {
         let cols = self
             .arrays
             .iter()
@@ -193,6 +284,7 @@ impl Batch {
     }
 
     /// Get the row at some index.
+    #[deprecated]
     pub fn row(&self, idx: usize) -> Option<ScalarRow> {
         if idx >= self.num_rows {
             return None;
@@ -230,5 +322,58 @@ impl Batch {
 
     pub fn into_arrays(self) -> Vec<Array> {
         self.arrays
+    }
+
+    /// Helper for returning a pretty formatted table for the batch.
+    ///
+    /// This should only be used during debugging.
+    #[cfg(debug_assertions)]
+    #[allow(unused)]
+    pub fn debug_table(&self) -> super::format::pretty::table::PrettyTable {
+        use crate::arrays::field::{Field, Schema};
+        use crate::arrays::format::pretty::table::PrettyTable;
+
+        let schema =
+            Schema::new(self.arrays.iter().enumerate().map(|(idx, array)| {
+                Field::new(format!("array{idx}"), array.datatype().clone(), true)
+            }));
+
+        PrettyTable::try_new(&schema, &[self], 100, None)
+            .expect("to be able to create pretty table")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::arrays::testutil::assert_batches_eq;
+
+    #[test]
+    fn append_batch_simple() {
+        let mut batch = Batch::try_new([DataType::Int32, DataType::Utf8], 1024).unwrap();
+
+        let append1 = Batch::try_from_arrays([
+            Array::try_from_iter([1, 2, 3]).unwrap(),
+            Array::try_from_iter(["a", "b", "c"]).unwrap(),
+        ])
+        .unwrap();
+        batch.append(&append1).unwrap();
+
+        let append2 = Batch::try_from_arrays([
+            Array::try_from_iter([4, 5, 6]).unwrap(),
+            Array::try_from_iter(["d", "e", "f"]).unwrap(),
+        ])
+        .unwrap();
+        batch.append(&append2).unwrap();
+
+        let expected = Batch::try_from_arrays([
+            Array::try_from_iter([1, 2, 3, 4, 5, 6]).unwrap(),
+            Array::try_from_iter(["a", "b", "c", "d", "e", "f"]).unwrap(),
+        ])
+        .unwrap();
+
+        assert_batches_eq(&expected, &batch);
     }
 }

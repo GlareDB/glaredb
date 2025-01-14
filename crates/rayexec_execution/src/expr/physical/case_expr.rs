@@ -30,6 +30,7 @@ pub struct PhysicalCaseExpr {
 }
 
 impl PhysicalCaseExpr {
+    #[allow(deprecated)]
     pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
         let mut arrays = Vec::new();
         let mut indices: Vec<(usize, usize)> = (0..batch.num_rows()).map(|_| (0, 0)).collect();
@@ -46,7 +47,7 @@ impl PhysicalCaseExpr {
             let selection = Arc::new(SelectionVector::from_iter(remaining.index_iter()));
 
             // Get batch with only remaining rows that we should consider.
-            let selected_batch = batch.select(selection.clone());
+            let selected_batch = batch.select_old(selection.clone());
 
             // Execute 'when'.
             let selected = case.when.eval(&selected_batch)?;
@@ -56,7 +57,7 @@ impl PhysicalCaseExpr {
             SelectExecutor::select(&selected, &mut trues_sel)?;
 
             // Select rows in batch to execute on based on 'trues'.
-            let execute_batch = selected_batch.select(Arc::new(trues_sel.clone()));
+            let execute_batch = selected_batch.select_old(Arc::new(trues_sel.clone()));
             let output = case.then.eval(&execute_batch)?;
 
             // Store array for later interleaving.
@@ -81,7 +82,7 @@ impl PhysicalCaseExpr {
         // Do all remaining rows.
         if remaining.count_trues() != 0 {
             let selection = Arc::new(SelectionVector::from_iter(remaining.index_iter()));
-            let remaining_batch = batch.select(selection.clone());
+            let remaining_batch = batch.select_old(selection.clone());
 
             let output = self.else_expr.eval(&remaining_batch)?;
             let array_idx = arrays.len();

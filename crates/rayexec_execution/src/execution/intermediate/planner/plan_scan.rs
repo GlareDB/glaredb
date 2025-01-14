@@ -16,6 +16,7 @@ use crate::logical::operator::Node;
 use crate::storage::table_storage::Projections;
 
 impl IntermediatePipelineBuildState<'_> {
+    #[allow(deprecated)]
     pub fn plan_scan(&mut self, id_gen: &mut PipelineIdGen, scan: Node<LogicalScan>) -> Result<()> {
         let location = scan.location;
 
@@ -73,6 +74,7 @@ impl IntermediatePipelineBuildState<'_> {
         Ok(())
     }
 
+    #[allow(deprecated)]
     fn create_batches_for_row_values(
         &self,
         projections: Projections,

@@ -120,6 +120,7 @@ impl LeftOuterJoinDrainState {
     ///
     /// This will filter out rows that have been visited, and join the remaining
     /// rows will null columns on the right.
+    #[allow(deprecated)]
     pub fn drain_next(&mut self) -> Result<Option<Batch>> {
         loop {
             let batch = match self.batches.get(self.batch_idx) {
@@ -148,7 +149,7 @@ impl LeftOuterJoinDrainState {
                 continue;
             }
 
-            let left_cols = batch.select(Arc::new(selection)).into_arrays();
+            let left_cols = batch.select_old(Arc::new(selection)).into_arrays();
             let right_cols = self
                 .right_types
                 .iter()
@@ -161,6 +162,7 @@ impl LeftOuterJoinDrainState {
         }
     }
 
+    #[allow(deprecated)]
     pub fn drain_semi_next(&mut self) -> Result<Option<Batch>> {
         loop {
             let batch = match self.batches.get(self.batch_idx) {
@@ -183,7 +185,7 @@ impl LeftOuterJoinDrainState {
                 continue;
             }
 
-            let left_cols = batch.select(Arc::new(selection)).into_arrays();
+            let left_cols = batch.select_old(Arc::new(selection)).into_arrays();
             let right_cols = self
                 .right_types
                 .iter()
@@ -230,6 +232,7 @@ impl RightOuterJoinTracker {
     /// the batch.
     ///
     /// Returns None if all row on the right were visited.
+    #[allow(deprecated)]
     pub fn into_unvisited(self, left_types: &[DataType], right: &Batch) -> Result<Option<Batch>> {
         let selection = SelectionVector::from_iter(self.unvisited.index_iter());
         let num_rows = selection.num_rows();
@@ -237,7 +240,7 @@ impl RightOuterJoinTracker {
             return Ok(None);
         }
 
-        let right_cols = right.select(Arc::new(selection)).into_arrays();
+        let right_cols = right.select_old(Arc::new(selection)).into_arrays();
 
         let left_null_cols = left_types
             .iter()

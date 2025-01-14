@@ -772,15 +772,6 @@ impl Array {
         self.selection2 = Some(selection.into())
     }
 
-    pub fn make_shared(&mut self) {
-        if let Some(validity) = &mut self.validity2 {
-            validity.make_shared();
-        }
-        if let Some(selection) = &mut self.selection2 {
-            selection.make_shared()
-        }
-    }
-
     /// Updates this array's selection vector.
     ///
     /// Takes into account any existing selection. This allows for repeated

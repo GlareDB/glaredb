@@ -36,6 +36,7 @@ impl BatchResizer {
     /// Typically this will return either no batches or a single batch. However
     /// there is a case where this can return multiple batches if 'len(input) +
     /// pending_row_count > target * 2' (aka very large input batch).
+    #[allow(deprecated)]
     pub fn try_push(&mut self, batch: Batch) -> Result<ComputedBatches> {
         if batch.num_rows() == 0 {
             return Ok(ComputedBatches::None);
@@ -61,8 +62,8 @@ impl BatchResizer {
             let sel_a = SelectionVector::with_range(0..diff);
             let sel_b = SelectionVector::with_range(diff..batch.num_rows());
 
-            let batch_a = batch.select(Arc::new(sel_a));
-            let batch_b = batch.select(Arc::new(sel_b));
+            let batch_a = batch.select_old(Arc::new(sel_a));
+            let batch_b = batch.select_old(Arc::new(sel_b));
 
             self.pending.push(batch_a);
 
@@ -102,6 +103,7 @@ impl BatchResizer {
         Ok(ComputedBatches::None)
     }
 
+    #[allow(deprecated)]
     pub fn flush_remaining(&mut self) -> Result<ComputedBatches> {
         if self.pending_row_count == 0 {
             return Ok(ComputedBatches::None);

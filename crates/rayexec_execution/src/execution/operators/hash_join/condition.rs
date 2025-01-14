@@ -91,6 +91,7 @@ impl LeftPrecomputedJoinConditions {
     ///
     /// The output is the (left, right) selection vectors to use for the final
     /// output batch.
+    #[allow(deprecated)]
     pub fn compute_selection_for_probe(
         &self,
         left_batch_idx: usize,
@@ -106,7 +107,7 @@ impl LeftPrecomputedJoinConditions {
         let mut results = Vec::with_capacity(self.conditions.len());
 
         // Select rows from the right batch.
-        let selected_right = right.select(right_row_sel.clone());
+        let selected_right = right.select_old(right_row_sel.clone());
 
         for condition in &self.conditions {
             let mut left_precomputed = condition

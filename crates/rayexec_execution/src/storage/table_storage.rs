@@ -118,6 +118,7 @@ impl<S: DataTableScan> ProjectedScan<S> {
         ProjectedScan { projections, scan }
     }
 
+    #[allow(deprecated)]
     async fn pull_inner(&mut self) -> Result<Option<Batch>> {
         let batch = match self.scan.pull().await? {
             Some(batch) => batch,
