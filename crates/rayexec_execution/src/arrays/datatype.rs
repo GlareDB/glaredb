@@ -264,7 +264,7 @@ impl fmt::Display for TimeUnit {
 /// Metadata associated with structs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct StructTypeMeta {
-    pub fields: Vec<Field>,
+    pub fields: Box<[Field]>,
 }
 
 impl ProtoConv for StructTypeMeta {
@@ -284,7 +284,8 @@ impl ProtoConv for StructTypeMeta {
             .fields
             .into_iter()
             .map(Field::from_proto)
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Result<Vec<_>>>()?
+            .into_boxed_slice();
         Ok(Self { fields })
     }
 }

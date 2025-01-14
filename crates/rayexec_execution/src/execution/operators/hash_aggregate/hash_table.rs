@@ -147,10 +147,11 @@ impl HashTable {
         Ok(())
     }
 
-    pub fn into_drain(self) -> HashTableDrain {
+    pub fn into_drain(self, batch_size: usize) -> HashTableDrain {
         HashTableDrain {
             table: self,
             drain_idx: 0,
+            batch_size,
         }
     }
 
@@ -466,6 +467,7 @@ mod tests {
     fn make_hash_table(function: PlannedAggregateFunction) -> HashTable {
         let aggregate = Aggregate {
             function: function.function_impl,
+            datatype: function.return_type,
             col_selection: Bitmap::from_iter([true]),
             is_distinct: false,
         };

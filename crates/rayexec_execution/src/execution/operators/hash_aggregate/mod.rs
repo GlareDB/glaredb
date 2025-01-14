@@ -16,13 +16,14 @@ use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
 use super::{ExecutionStates, InputOutputStates, PollFinalize};
+use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::physical_type::PhysicalU64;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::scalar::{HashExecutor, UnaryExecutor};
+use crate::arrays::executor::OutBuffer;
 use crate::arrays::scalar::ScalarValue;
 use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
@@ -45,6 +46,8 @@ use crate::logical::logical_aggregate::GroupingFunction;
 pub struct Aggregate {
     /// Function for producing the aggregate state.
     pub function: Box<dyn AggregateFunctionImpl>,
+    /// Return type for the aggregate.
+    pub datatype: DataType,
     /// Columns that will be inputs into the aggregate.
     pub col_selection: Bitmap,
     /// If inputs are distinct.
@@ -264,6 +267,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         .zip(col_selections.iter())
                         .map(|(expr, col_selection)| Aggregate {
                             function: expr.function.function_impl.clone(),
+                            datatype: expr.function.return_type.clone(),
                             col_selection: col_selection.clone(),
                             is_distinct: expr.is_distinct,
                         })
@@ -414,12 +418,12 @@ impl ExecutableOperator for PhysicalHashAggregate {
 
                     final_table.merge_many(&mut completed)?;
 
-                    let drain = final_table.into_drain();
+                    let drain = final_table.into_drain(4096); // TODO: Configurable during state creation.
                     state.hashtable_drain = Some(drain);
                 }
 
                 // Drain should be Some by here.
-                let batch = match state.hashtable_drain.as_mut().unwrap().next() {
+                let mut batch = match state.hashtable_drain.as_mut().unwrap().next() {
                     Some(Ok(batch)) => batch,
                     Some(Err(e)) => return Err(e),
                     None => return Ok(PollPull::Exhausted),
@@ -427,22 +431,24 @@ impl ExecutableOperator for PhysicalHashAggregate {
 
                 // Prune off GROUP ID column, generate appropriate GROUPING
                 // outputs.
-                let mut arrays = batch.into_arrays();
-                let group_ids = arrays
+                let group_ids = batch
+                    .arrays
                     .pop()
                     .ok_or_else(|| RayexecError::new("Missing group ids arrays"))?;
 
                 // TODO: This can be pre-computed, we don't need to compute this
                 // on the output.
                 for grouping_function in &self.grouping_functions {
-                    let builder = ArrayBuilder {
-                        datatype: DataType::UInt64,
-                        buffer: PrimitiveBuffer::with_len(group_ids.logical_len()),
-                    };
+                    let mut groups = Array::try_new(
+                        &Arc::new(NopBufferManager),
+                        DataType::Int64,
+                        group_ids.capacity(),
+                    )?;
 
-                    let array = UnaryExecutor::execute2::<PhysicalU64, _, _>(
+                    UnaryExecutor::execute::<PhysicalU64, PhysicalU64, _>(
                         &group_ids,
-                        builder,
+                        batch.selection(),
+                        OutBuffer::from_array(&mut groups)?,
                         |id, buf| {
                             // Compute the output for GROUPING.
                             let mut v: u64 = 0;
@@ -463,10 +469,8 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         },
                     )?;
 
-                    arrays.push(array);
+                    batch.arrays.push(groups);
                 }
-
-                let batch = Batch::try_from_arrays(arrays)?;
 
                 Ok(PollPull::Computed(ComputedBatches::Single(batch)))
             }

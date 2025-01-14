@@ -1,6 +1,10 @@
+use std::sync::Arc;
+
 use rayexec_error::Result;
 
 use super::hash_table::HashTable;
+use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 
 /// Drains a hash table.
@@ -12,6 +16,8 @@ pub struct HashTableDrain {
     pub(crate) table: HashTable,
     /// The current chunk we're draining.
     pub(crate) drain_idx: usize,
+    /// Batch size to use when draining.
+    pub(crate) batch_size: usize,
 }
 
 impl HashTableDrain {
@@ -21,20 +27,37 @@ impl HashTableDrain {
         }
 
         let chunk = &mut self.table.chunks[self.drain_idx];
-        self.drain_idx += 1;
 
-        unimplemented!()
-        // // Computed aggregate columns.
-        // let results = chunk
-        //     .aggregate_states
-        //     .iter_mut()
-        //     .map(|s| s.states.finalize())
-        //     .collect::<Result<Vec<_>>>()?;
+        let mut arrays = self
+            .table
+            .aggregates
+            .iter()
+            .map(|agg| {
+                Array::try_new(
+                    &Arc::new(NopBufferManager),
+                    agg.datatype.clone(),
+                    self.batch_size,
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
 
-        // // Chunk arrays includes the GROUP ID column (last).
-        // let batch = Batch::try_from_arrays(results.into_iter().chain(chunk.arrays.drain(..)))?;
+        let mut count = 0;
 
-        // Ok(Some(batch))
+        for (out, agg_state) in arrays.iter_mut().zip(&mut chunk.aggregate_states) {
+            // Assumes all agg states drain the number of value, which they
+            // should.
+            count = agg_state.states.drain(out)?;
+        }
+
+        if count < self.batch_size {
+            // Only move to next chunk once this one is drained.
+            self.drain_idx += 1;
+        }
+
+        let mut batch = Batch::try_from_arrays(arrays)?;
+        batch.set_num_rows(count)?;
+
+        Ok(Some(batch))
     }
 }
 
