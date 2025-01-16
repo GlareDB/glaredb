@@ -44,7 +44,7 @@ use create_table::PhysicalCreateTable;
 use create_view::{CreateViewPartitionState, PhysicalCreateView};
 use drop::{DropPartitionState, PhysicalDrop};
 use empty::PhysicalEmpty;
-use filter::{FilterOperation, PhysicalFilter};
+use filter::{FilterPartitionState, PhysicalFilter};
 use hash_aggregate::PhysicalHashAggregate;
 use hash_join::{
     HashJoinBuildPartitionState,
@@ -113,6 +113,7 @@ pub const DEFAULT_TARGET_BATCH_SIZE: usize = 4096;
 pub enum PartitionState {
     Limit(LimitPartitionState),
     Project(ProjectPartitionState),
+    Filter(FilterPartitionState),
 
     HashAggregate(HashAggregatePartitionState),
     UngroupedAggregate(UngroupedAggregatePartitionState),
@@ -449,6 +450,7 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
 #[derive(Debug)]
 pub enum PhysicalOperator {
     Project(PhysicalProject),
+    Filter(PhysicalFilter),
     Limit(PhysicalLimit),
 
     HashAggregate(PhysicalHashAggregate),
@@ -466,7 +468,6 @@ pub enum PhysicalOperator {
     MergeSorted(PhysicalGatherSort),
     LocalSort(PhysicalScatterSort),
     Union(PhysicalUnion),
-    Filter(SimpleOperator<FilterOperation>),
     Unnest(PhysicalUnnest),
     Scan(PhysicalScan),
     TableFunction(PhysicalTableFunction),
@@ -689,7 +690,7 @@ impl DatabaseProtoConv for PhysicalOperator {
             Self::CreateTable(op) => Value::CreateTable(op.to_proto_ctx(context)?),
             Self::Drop(op) => Value::Drop(op.to_proto_ctx(context)?),
             Self::Empty(op) => Value::Empty(op.to_proto_ctx(context)?),
-            Self::Filter(op) => Value::Filter(op.to_proto_ctx(context)?),
+            // Self::Filter(op) => Value::Filter(op.to_proto_ctx(context)?),
             // Self::Project(op) => Value::Project(op.to_proto_ctx(context)?),
             Self::Insert(op) => Value::Insert(op.to_proto_ctx(context)?),
             Self::Limit(op) => Value::Limit(op.to_proto_ctx(context)?),
@@ -722,9 +723,9 @@ impl DatabaseProtoConv for PhysicalOperator {
             Value::Empty(op) => {
                 PhysicalOperator::Empty(PhysicalEmpty::from_proto_ctx(op, context)?)
             }
-            Value::Filter(op) => {
-                PhysicalOperator::Filter(PhysicalFilter::from_proto_ctx(op, context)?)
-            }
+            // Value::Filter(op) => {
+            //     PhysicalOperator::Filter(PhysicalFilter::from_proto_ctx(op, context)?)
+            // }
             // Value::Project(op) => {
             //     PhysicalOperator::Project(PhysicalProject::from_proto_ctx(op, context)?)
             // }
