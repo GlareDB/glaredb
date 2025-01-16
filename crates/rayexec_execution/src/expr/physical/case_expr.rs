@@ -228,7 +228,7 @@ mod tests {
         let mut state = expr.create_state(3).unwrap();
 
         let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
-        expr.eval(&mut input, &mut state, Selection::linear(3), &mut out)
+        expr.eval(&mut input, &mut state, Selection::linear(0, 3), &mut out)
             .unwrap();
 
         let expected = Array::try_from_iter([1, 2, 48]).unwrap();
@@ -270,7 +270,7 @@ mod tests {
         };
 
         let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
-        expr.eval(&mut input, &mut state, Selection::linear(3), &mut out)
+        expr.eval(&mut input, &mut state, Selection::linear(0, 3), &mut out)
             .unwrap();
 
         let expected = Array::try_from_iter([1, 48, 48]).unwrap();

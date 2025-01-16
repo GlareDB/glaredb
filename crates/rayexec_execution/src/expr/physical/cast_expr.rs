@@ -61,7 +61,7 @@ impl PhysicalCastExpr {
         // written the rows starting at 0 up to selection len.
         cast_array(
             child_output,
-            Selection::linear(sel.len()),
+            Selection::linear(0, sel.len()),
             output,
             CastFailBehavior::Error,
         )?;

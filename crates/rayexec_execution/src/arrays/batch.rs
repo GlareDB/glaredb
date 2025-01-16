@@ -6,7 +6,6 @@ use super::array::buffer_manager::NopBufferManager;
 use super::array::selection::Selection;
 use super::datatype::DataType;
 use crate::arrays::array::Array;
-use crate::arrays::executor::scalar::concat_with_exact_total_len;
 use crate::arrays::row::ScalarRow;
 use crate::arrays::selection::SelectionVector;
 
@@ -110,7 +109,10 @@ impl Batch {
 
     /// Returns a selection that selects rows [0, num_rows).
     pub fn selection<'a>(&self) -> Selection<'a> {
-        Selection::Linear { len: self.num_rows }
+        Selection::Linear {
+            start: 0,
+            len: self.num_rows,
+        }
     }
 
     pub fn num_rows(&self) -> usize {
@@ -133,9 +135,9 @@ impl Batch {
     }
 
     /// Selects rows from the batch based on `selection`.
-    pub fn select(&mut self, selection: &[usize]) -> Result<()> {
+    pub fn select(&mut self, selection: Selection) -> Result<()> {
         for arr in &mut self.arrays {
-            arr.select(&Arc::new(NopBufferManager), selection.iter().copied())?;
+            arr.select(&Arc::new(NopBufferManager), selection)?;
         }
         self.set_num_rows(selection.len())?;
 
@@ -212,17 +214,6 @@ impl Batch {
             arrays: cols,
             num_rows: self.num_rows,
             capacity: self.capacity,
-        }
-    }
-
-    // TODO: Remove
-    #[deprecated]
-    pub fn slice(&self, offset: usize, count: usize) -> Self {
-        let cols = self.arrays.iter().map(|c| c.slice(offset, count)).collect();
-        Batch {
-            arrays: cols,
-            num_rows: count,
-            capacity: count,
         }
     }
 

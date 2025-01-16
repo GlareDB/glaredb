@@ -13,6 +13,7 @@ use super::{
     PollPull,
     PollPush,
 };
+use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -94,7 +95,7 @@ impl ExecutableOperator for PhysicalLimit {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        batch: Batch,
+        mut batch: Batch,
     ) -> Result<PollPush> {
         let state = match partition_state {
             PartitionState::Limit(state) => state,
@@ -120,7 +121,7 @@ impl ExecutableOperator for PhysicalLimit {
                 state.remaining_count,
             );
 
-            let batch = batch.slice(state.remaining_offset, count);
+            batch.select(Selection::linear(state.remaining_offset, count))?;
 
             state.remaining_offset = 0;
             state.remaining_count -= batch.num_rows();
@@ -128,7 +129,7 @@ impl ExecutableOperator for PhysicalLimit {
         } else if state.remaining_count < batch.num_rows() {
             // Remaining offset is 0, and input batch is has more rows than we
             // need, just slice to the right size.
-            let batch = batch.slice(0, state.remaining_count);
+            batch.select(Selection::linear(0, state.remaining_count))?;
             state.remaining_count = 0;
             batch
         } else {
@@ -233,7 +234,10 @@ impl DatabaseProtoConv for PhysicalLimit {
 mod tests {
     use std::sync::Arc;
 
+    use stdutil::iter::TryFromExactSizeIterator;
+
     use super::*;
+    use crate::arrays::array::Array;
     use crate::arrays::scalar::ScalarValue;
     use crate::execution::operators::test_util::{
         logical_value,
@@ -256,8 +260,8 @@ mod tests {
     #[test]
     fn limit_single_partition() {
         let mut inputs = vec![
-            make_i32_batch([1, 2, 3, 4]),
-            make_i32_batch([5, 6, 7, 8, 9, 10]),
+            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap(),
+            Batch::try_from_arrays([Array::try_from_iter([5, 6, 7, 8, 9, 10]).unwrap()]).unwrap(),
         ];
 
         let operator = Arc::new(PhysicalLimit::new(5, None));
@@ -289,7 +293,9 @@ mod tests {
             .poll_pull(&operator, &mut partition_states[0], &operator_state)
             .unwrap();
         let output = unwrap_poll_pull_batch(poll_pull);
-        let expected = make_i32_batch([1, 2, 3, 4]); // Matches the first batch pushed.
+        // Matches the first batch pushed.
+        let expected =
+            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
         assert_eq!(expected, output);
 
         // Push next batch
@@ -317,14 +323,17 @@ mod tests {
             .unwrap();
         let output = unwrap_poll_pull_batch(poll_pull);
 
-        assert_eq!(ScalarValue::Int32(5), logical_value(&output, 0, 0));
+        assert_eq!(
+            ScalarValue::Int32(5),
+            output.arrays[0].get_value(0).unwrap()
+        );
     }
 
     #[test]
     fn limit_offset_single_partition_first_batch_partial() {
         let mut inputs = vec![
-            make_i32_batch([1, 2, 3, 4]),
-            make_i32_batch([5, 6, 7, 8, 9, 10]),
+            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap(),
+            Batch::try_from_arrays([Array::try_from_iter([5, 6, 7, 8, 9, 10]).unwrap()]).unwrap(),
         ];
 
         let operator = Arc::new(PhysicalLimit::new(5, Some(2)));
@@ -349,8 +358,14 @@ mod tests {
             .unwrap();
         let output = unwrap_poll_pull_batch(poll_pull);
         // First two elements skipped.
-        assert_eq!(ScalarValue::Int32(3), logical_value(&output, 0, 0),);
-        assert_eq!(ScalarValue::Int32(4), logical_value(&output, 0, 1),);
+        assert_eq!(
+            ScalarValue::Int32(3),
+            output.arrays[0].get_value(0).unwrap()
+        );
+        assert_eq!(
+            ScalarValue::Int32(4),
+            output.arrays[0].get_value(1).unwrap()
+        );
 
         // Push next batch
         let poll_push = push_cx
@@ -369,16 +384,25 @@ mod tests {
             .unwrap();
         let output = unwrap_poll_pull_batch(poll_pull);
 
-        assert_eq!(ScalarValue::Int32(5), logical_value(&output, 0, 0),);
-        assert_eq!(ScalarValue::Int32(6), logical_value(&output, 0, 1),);
-        assert_eq!(ScalarValue::Int32(7), logical_value(&output, 0, 2),);
+        assert_eq!(
+            ScalarValue::Int32(5),
+            output.arrays[0].get_value(0).unwrap()
+        );
+        assert_eq!(
+            ScalarValue::Int32(6),
+            output.arrays[0].get_value(1).unwrap()
+        );
+        assert_eq!(
+            ScalarValue::Int32(7),
+            output.arrays[0].get_value(2).unwrap()
+        );
     }
 
     #[test]
     fn limit_offset_single_partition_first_batch_skipped() {
         let mut inputs = vec![
-            make_i32_batch([1, 2, 3, 4]),
-            make_i32_batch([5, 6, 7, 8, 9, 10]),
+            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap(),
+            Batch::try_from_arrays([Array::try_from_iter([5, 6, 7, 8, 9, 10]).unwrap()]).unwrap(),
         ];
 
         let operator = Arc::new(PhysicalLimit::new(2, Some(5)));
@@ -415,13 +439,22 @@ mod tests {
             .unwrap();
         let output = unwrap_poll_pull_batch(poll_pull);
 
-        assert_eq!(ScalarValue::Int32(6), logical_value(&output, 0, 0),);
-        assert_eq!(ScalarValue::Int32(7), logical_value(&output, 0, 1),);
+        assert_eq!(
+            ScalarValue::Int32(6),
+            output.arrays[0].get_value(0).unwrap()
+        );
+        assert_eq!(
+            ScalarValue::Int32(7),
+            output.arrays[0].get_value(1).unwrap()
+        );
     }
 
     #[test]
     fn limit_break_exhaust() {
-        let mut inputs = vec![make_i32_batch([1, 2, 3, 4]), make_i32_batch([5, 6, 7, 8])];
+        let mut inputs = vec![
+            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap(),
+            Batch::try_from_arrays([Array::try_from_iter([5, 6, 7, 8]).unwrap()]).unwrap(),
+        ];
 
         let operator = Arc::new(PhysicalLimit::new(2, None));
         let operator_state = Arc::new(OperatorState::None);

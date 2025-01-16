@@ -89,7 +89,7 @@ mod tests {
         expr.eval(
             &mut input,
             &mut ExpressionState::empty(),
-            Selection::linear(4),
+            Selection::linear(0, 4),
             &mut out,
         )
         .unwrap();

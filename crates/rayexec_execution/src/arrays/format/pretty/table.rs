@@ -756,6 +756,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
+    use crate::arrays::array::selection::Selection;
     use crate::arrays::field::Field;
 
     #[test]
@@ -1339,8 +1340,7 @@ mod tests {
         ])
         .unwrap();
 
-        batch.select(&[0, 0, 1, 1, 0, 0]).unwrap();
-        println!("LEN: {}", batch.num_rows());
+        batch.select(Selection::slice(&[0, 0, 1, 1, 0, 0])).unwrap();
 
         let table = pretty_format_batches(&schema, &[batch], 40, None).unwrap();
 
@@ -1373,8 +1373,7 @@ mod tests {
         ])
         .unwrap();
 
-        batch.select(&[0, 0, 1, 1, 0, 0]).unwrap();
-        println!("LEN: {}", batch.num_rows());
+        batch.select(Selection::slice(&[0, 0, 1, 1, 0, 0])).unwrap();
 
         let table = pretty_format_batches(&schema, &[batch], 40, Some(5)).unwrap();
 

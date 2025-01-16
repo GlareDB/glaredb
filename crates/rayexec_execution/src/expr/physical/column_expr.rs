@@ -90,7 +90,7 @@ mod tests {
             datatype: DataType::Int32,
         };
         let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 4).unwrap();
-        let sel = Selection::linear(4);
+        let sel = Selection::linear(0, 4);
 
         expr.eval(&mut input, &mut ExpressionState::empty(), sel, &mut out)
             .unwrap();

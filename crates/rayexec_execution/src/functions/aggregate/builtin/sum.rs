@@ -260,10 +260,10 @@ mod tests {
 
         // All inputs map to the same group (no GROUP BY clause)
         states_1
-            .update_group_states(&[&partition_1_vals], Selection::linear(3), &[0, 0, 0])
+            .update_group_states(&[&partition_1_vals], Selection::linear(0, 3), &[0, 0, 0])
             .unwrap();
         states_2
-            .update_group_states(&[&partition_2_vals], Selection::linear(3), &[0, 0, 0])
+            .update_group_states(&[&partition_2_vals], Selection::linear(0, 3), &[0, 0, 0])
             .unwrap();
 
         // Combine states.
@@ -327,10 +327,10 @@ mod tests {
         // Mapping corresponding to the above table. Group 'a' == 0 and group
         // 'b' == 1.
         states_1
-            .update_group_states(&[&partition_1_vals], Selection::linear(3), &[0, 0, 1])
+            .update_group_states(&[&partition_1_vals], Selection::linear(0, 3), &[0, 0, 1])
             .unwrap();
         states_2
-            .update_group_states(&[&partition_2_vals], Selection::linear(3), &[1, 1, 0])
+            .update_group_states(&[&partition_2_vals], Selection::linear(0, 3), &[1, 1, 0])
             .unwrap();
 
         // Combine states.
@@ -345,7 +345,7 @@ mod tests {
         states_1
             .combine(
                 &mut states_2,
-                Selection::linear(2), // States 0 ('a') and 1 ('b')
+                Selection::linear(0, 2), // States 0 ('a') and 1 ('b')
                 &[0, 1],
             )
             .unwrap();
@@ -412,11 +412,11 @@ mod tests {
 
         // For partition 1: 'x' == 0, 'y' == 1, 'z' == 2
         states_1
-            .update_group_states(&[&partition_1_vals], Selection::linear(4), &[0, 0, 1, 2])
+            .update_group_states(&[&partition_1_vals], Selection::linear(0, 4), &[0, 0, 1, 2])
             .unwrap();
         // For partition 2: 'x' == 0, 'z' == 1
         states_2
-            .update_group_states(&[&partition_2_vals], Selection::linear(4), &[0, 1, 1, 1])
+            .update_group_states(&[&partition_2_vals], Selection::linear(0, 4), &[0, 1, 1, 1])
             .unwrap();
 
         // Combine states.
@@ -459,7 +459,7 @@ mod tests {
         states.new_groups(3);
 
         states
-            .update_group_states(&[&vals], Selection::linear(6), &[0, 0, 1, 1, 2, 2])
+            .update_group_states(&[&vals], Selection::linear(0, 6), &[0, 0, 1, 1, 2, 2])
             .unwrap();
 
         let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int64, 2).unwrap();

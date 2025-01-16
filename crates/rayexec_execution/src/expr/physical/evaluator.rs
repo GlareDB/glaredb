@@ -64,7 +64,7 @@ impl ExpressionEvaluator {
         let mut input = Batch::empty_with_num_rows(1);
         let mut out = Array::try_new(&Arc::new(NopBufferManager), expr.datatype(), 1)?;
 
-        Self::eval_expression(expr, &mut input, state, Selection::linear(1), &mut out)?;
+        Self::eval_expression(expr, &mut input, state, Selection::linear(0, 1), &mut out)?;
 
         let v = out.get_value(0)?;
 

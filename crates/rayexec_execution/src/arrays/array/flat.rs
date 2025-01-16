@@ -45,7 +45,7 @@ where
             Ok(FlatArrayView {
                 validity,
                 array_buffer: data,
-                selection: Selection::linear(array.capacity()),
+                selection: Selection::linear(0, array.capacity()),
             })
         }
     }
