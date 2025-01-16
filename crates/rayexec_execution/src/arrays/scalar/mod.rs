@@ -51,7 +51,6 @@ use crate::arrays::datatype::{
     TimeUnit,
     TimestampTypeMeta,
 };
-use crate::arrays::selection::SelectionVector;
 
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -566,6 +565,16 @@ mod tests {
         let arr = s.as_array(4).unwrap();
 
         let expected = Array::try_from_iter([14, 14, 14, 14]).unwrap();
+
+        assert_arrays_eq(&expected, &arr);
+    }
+
+    #[test]
+    fn scalar_utf8_as_array() {
+        let s = ScalarValue::from("dog");
+        let arr = s.as_array(4).unwrap();
+
+        let expected = Array::try_from_iter(["dog", "dog", "dog", "dog"]).unwrap();
 
         assert_arrays_eq(&expected, &arr);
     }

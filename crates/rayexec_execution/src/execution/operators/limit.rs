@@ -239,8 +239,6 @@ mod tests {
     use crate::arrays::array::Array;
     use crate::arrays::scalar::ScalarValue;
     use crate::execution::operators::test_util::{
-        logical_value,
-        make_i32_batch,
         test_database_context,
         unwrap_poll_pull_batch,
         TestWakerContext,

@@ -186,6 +186,14 @@ where
         &self.datatype
     }
 
+    /// Gets the physical type for this array's data type.
+    ///
+    /// Note for arrays that have previously been `select`ed, this will report
+    /// the original physical type of the data type, and _not_ dictionary.
+    pub fn physical_type(&self) -> PhysicalType {
+        self.datatype.physical_type()
+    }
+
     pub fn put_validity(&mut self, validity: Validity) -> Result<()> {
         let next = self.next_mut();
 
@@ -682,6 +690,7 @@ where
 }
 
 impl Array {
+    #[deprecated]
     pub fn new_untyped_null_array(len: usize) -> Self {
         // Note that we're adding a bitmap here even though the data already
         // returns NULL. This allows the executors (especially for aggregates)
@@ -701,6 +710,7 @@ impl Array {
     }
 
     /// Creates a new typed array with all values being set to null.
+    #[deprecated]
     pub fn new_typed_null_array(datatype: DataType, len: usize) -> Result<Self> {
         // Create physical array data of length 1, and use a selection vector to
         // extend it out to the desired size.
@@ -717,6 +727,7 @@ impl Array {
         })
     }
 
+    #[deprecated]
     pub fn new_with_array_data(datatype: DataType, data: impl Into<ArrayData2>) -> Self {
         Array {
             datatype,
@@ -727,6 +738,7 @@ impl Array {
         }
     }
 
+    #[deprecated]
     pub fn new_with_validity_and_array_data(
         datatype: DataType,
         validity: impl Into<PhysicalValidity>,
@@ -741,35 +753,14 @@ impl Array {
         }
     }
 
+    #[deprecated]
     pub fn has_selection(&self) -> bool {
         self.selection2.is_some()
     }
 
+    #[deprecated]
     pub fn selection_vector(&self) -> Option<&SelectionVector> {
         self.selection2.as_ref().map(|v| v.as_ref())
-    }
-
-    /// Sets the validity for a value at a given physical index.
-    pub fn set_physical_validity(&mut self, idx: usize, valid: bool) {
-        match &mut self.validity2 {
-            Some(validity) => {
-                let validity = validity.get_mut();
-                validity.set_unchecked(idx, valid);
-            }
-            None => {
-                // Initialize validity.
-                let len = self.data2.len();
-                let mut validity = Bitmap::new_with_all_true(len);
-                validity.set_unchecked(idx, valid);
-
-                self.validity2 = Some(validity.into())
-            }
-        }
-    }
-
-    // TODO: Validating variant too.
-    pub fn put_selection(&mut self, selection: impl Into<LogicalSelection>) {
-        self.selection2 = Some(selection.into())
     }
 
     /// Updates this array's selection vector.
@@ -777,6 +768,7 @@ impl Array {
     /// Takes into account any existing selection. This allows for repeated
     /// selection (filtering) against the same array.
     // TODO: Add test for selecting on logically empty array.
+    #[deprecated]
     pub fn select_mut2(&mut self, selection: impl Into<LogicalSelection>) {
         let selection = selection.into();
         match self.selection_vector() {
@@ -792,6 +784,7 @@ impl Array {
         }
     }
 
+    #[deprecated]
     pub fn logical_len(&self) -> usize {
         match self.selection_vector() {
             Some(v) => v.num_rows(),
@@ -799,10 +792,12 @@ impl Array {
         }
     }
 
+    #[deprecated]
     pub fn validity(&self) -> Option<&Bitmap> {
         self.validity2.as_ref().map(|v| v.as_ref())
     }
 
+    #[deprecated]
     pub fn is_valid(&self, idx: usize) -> Option<bool> {
         if idx >= self.logical_len() {
             return None;
@@ -823,22 +818,15 @@ impl Array {
     /// Returns the array data.
     ///
     /// ArrayData can be cheaply cloned.
+    #[deprecated]
     pub fn array_data(&self) -> &ArrayData2 {
         &self.data2
-    }
-
-    pub fn into_array_data(self) -> ArrayData2 {
-        self.data2
-    }
-
-    /// Gets the physical type of the array.
-    pub fn physical_type(&self) -> PhysicalType {
-        self.datatype.physical_type()
     }
 
     /// Get the value at a logical index.
     ///
     /// Takes into account the validity and selection vector.
+    #[deprecated]
     pub fn logical_value(&self, idx: usize) -> Result<ScalarValue> {
         let idx = match self.selection_vector() {
             Some(v) => v
@@ -859,6 +847,7 @@ impl Array {
     /// Gets the scalar value at the physical index.
     ///
     /// Ignores validity and selectivitity.
+    #[deprecated]
     pub fn physical_scalar(&self, idx: usize) -> Result<ScalarValue> {
         Ok(match &self.datatype {
             DataType::Null => match &self.data2 {
@@ -1005,177 +994,6 @@ impl Array {
                 _other => return Err(array_not_valid_for_type_err(&self.datatype)),
             },
         })
-    }
-
-    /// Checks if a scalar value is logically equal to a value in the array.
-    pub fn scalar_value_logically_eq(&self, scalar: &ScalarValue, row: usize) -> Result<bool> {
-        if row >= self.logical_len() {
-            return Err(RayexecError::new("Row out of bounds"));
-        }
-
-        match scalar {
-            ScalarValue::Null => {
-                UnaryExecutor::value_at2::<PhysicalAny>(self, row).map(|arr_val| arr_val.is_none())
-            } // None == NULL
-            ScalarValue::Boolean(v) => {
-                UnaryExecutor::value_at2::<PhysicalBool>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::Int8(v) => {
-                UnaryExecutor::value_at2::<PhysicalI8>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::Int16(v) => {
-                UnaryExecutor::value_at2::<PhysicalI16>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::Int32(v) => {
-                UnaryExecutor::value_at2::<PhysicalI32>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::Int64(v) => {
-                UnaryExecutor::value_at2::<PhysicalI64>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::Int128(v) => {
-                UnaryExecutor::value_at2::<PhysicalI128>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::UInt8(v) => {
-                UnaryExecutor::value_at2::<PhysicalU8>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::UInt16(v) => {
-                UnaryExecutor::value_at2::<PhysicalU16>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::UInt32(v) => {
-                UnaryExecutor::value_at2::<PhysicalU32>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::UInt64(v) => {
-                UnaryExecutor::value_at2::<PhysicalU64>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::UInt128(v) => {
-                UnaryExecutor::value_at2::<PhysicalU128>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::Float32(v) => {
-                UnaryExecutor::value_at2::<PhysicalF32>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::Float64(v) => {
-                UnaryExecutor::value_at2::<PhysicalF64>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::Date32(v) => {
-                UnaryExecutor::value_at2::<PhysicalI32>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::Date64(v) => {
-                UnaryExecutor::value_at2::<PhysicalI64>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                })
-            }
-            ScalarValue::Interval(v) => UnaryExecutor::value_at2::<PhysicalInterval>(self, row)
-                .map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == *v,
-                    None => false,
-                }),
-            ScalarValue::Utf8(v) => {
-                UnaryExecutor::value_at2::<PhysicalUtf8>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == v.as_ref(),
-                    None => false,
-                })
-            }
-            ScalarValue::Binary(v) => {
-                UnaryExecutor::value_at2::<PhysicalBinary>(self, row).map(|arr_val| match arr_val {
-                    Some(arr_val) => arr_val == v.as_ref(),
-                    None => false,
-                })
-            }
-            ScalarValue::Timestamp(v) => {
-                UnaryExecutor::value_at2::<PhysicalI64>(self, row).map(|arr_val| {
-                    // Assumes time unit is the same
-                    match arr_val {
-                        Some(arr_val) => arr_val == v.value,
-                        None => false,
-                    }
-                })
-            }
-            ScalarValue::Decimal64(v) => {
-                UnaryExecutor::value_at2::<PhysicalI64>(self, row).map(|arr_val| {
-                    // Assumes precision/scale are the same.
-                    match arr_val {
-                        Some(arr_val) => arr_val == v.value,
-                        None => false,
-                    }
-                })
-            }
-            ScalarValue::Decimal128(v) => {
-                UnaryExecutor::value_at2::<PhysicalI128>(self, row).map(|arr_val| {
-                    // Assumes precision/scale are the same.
-                    match arr_val {
-                        Some(arr_val) => arr_val == v.value,
-                        None => false,
-                    }
-                })
-            }
-
-            other => not_implemented!("scalar value eq: {other}"),
-        }
-    }
-
-    pub fn try_slice(&self, offset: usize, count: usize) -> Result<Self> {
-        if offset + count > self.logical_len() {
-            return Err(RayexecError::new("Slice out of bounds"));
-        }
-        Ok(self.slice(offset, count))
-    }
-
-    pub fn slice(&self, offset: usize, count: usize) -> Self {
-        let selection = match self.selection_vector() {
-            Some(sel) => sel.slice_unchecked(offset, count),
-            None => SelectionVector::with_range(offset..(offset + count)),
-        };
-
-        Array {
-            datatype: self.datatype.clone(),
-            selection2: Some(selection.into()),
-            validity2: self.validity2.clone(),
-            data2: self.data2.clone(),
-            next: None,
-        }
     }
 }
 

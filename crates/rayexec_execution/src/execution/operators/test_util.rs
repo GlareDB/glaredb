@@ -107,12 +107,3 @@ pub fn unwrap_poll_pull_batch(poll: PollPull) -> Batch {
         other => panic!("unexpected poll pull: {other:?}"),
     }
 }
-
-pub fn logical_value(batch: &Batch, column: usize, row: usize) -> ScalarValue {
-    batch.array(column).unwrap().logical_value(row).unwrap()
-}
-
-/// Makes a batch with a single column i32 values provided by the iterator.
-pub fn make_i32_batch(iter: impl IntoIterator<Item = i32>) -> Batch {
-    Batch::try_from_arrays(vec![Array::from_iter(iter.into_iter())]).unwrap()
-}

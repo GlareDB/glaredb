@@ -265,7 +265,6 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::execution::operators::test_util::{
-        make_i32_batch,
         test_database_context,
         unwrap_poll_pull_batch,
         TestWakerContext,

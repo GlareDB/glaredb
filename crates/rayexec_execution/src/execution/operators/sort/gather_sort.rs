@@ -614,11 +614,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::execution::operators::test_util::{
-        make_i32_batch,
-        unwrap_poll_pull_batch,
-        TestWakerContext,
-    };
+    use crate::execution::operators::test_util::{unwrap_poll_pull_batch, TestWakerContext};
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
 
     // #[test]
