@@ -72,7 +72,7 @@ use ungrouped_aggregate::{
     UngroupedAggregateOperatorState,
     UngroupedAggregatePartitionState,
 };
-use union::{PhysicalUnion, UnionBottomPartitionState, UnionOperatorState, UnionTopPartitionState};
+use union::PhysicalUnion;
 use unnest::{PhysicalUnnest, UnnestPartitionState};
 use values::PhysicalValues;
 use window::PhysicalWindow;
@@ -130,8 +130,6 @@ pub enum PartitionState {
     GatherSortPull(GatherSortPullPartitionState),
     ScatterSort(ScatterSortPartitionState),
     Unnest(UnnestPartitionState),
-    UnionTop(UnionTopPartitionState),
-    UnionBottom(UnionBottomPartitionState),
     Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
@@ -152,7 +150,6 @@ pub enum OperatorState {
     HashJoin(HashJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
     GatherSort(GatherSortOperatorState),
-    Union(UnionOperatorState),
     Sink(SinkOperatorState),
     None,
 }
@@ -266,29 +263,16 @@ pub enum PartitionAndOperatorStates {
         /// State per-partition.
         partition_states: Vec<PartitionState>,
     },
-    /// Operators that produce 1 or more output branches.
-    ///
-    /// Mostly for materializations.
-    BranchingOutput {
+    /// Operator that accepts 'n' number of inputs, executing inputs until
+    /// exhaustion with a single output.
+    NaryInput {
         /// Global operator state.
         operator_state: OperatorState,
-        /// Single set of input states.
-        inputs_states: Vec<PartitionState>,
-        /// Multiple sets of output states.
-        output_states: Vec<Vec<PartitionState>>,
-    },
-    /// Operators that have two children, with this operator acting as the
-    /// "sink" for one child.
-    ///
-    /// For joins, the build side is the terminating input, while the probe side
-    /// is non-terminating.
-    TerminatingInput {
-        /// Global operator state.
-        operator_state: OperatorState,
-        /// States for the input that is non-terminating.
-        nonterminating_states: Vec<PartitionState>,
-        /// States for the input that is terminated by this operator.
-        terminating_states: Vec<PartitionState>,
+        /// Vector of partitions states for each partition. Length of outer vec
+        /// indicates number of inputs.
+        ///
+        /// Inputs will be executed to completion left to right.
+        input_partition_states: Vec<Vec<PartitionState>>,
     },
 }
 
@@ -301,12 +285,21 @@ impl PartitionAndOperatorStates {
                 operator_state,
                 partition_states,
             } => Ok((operator_state, partition_states)),
-            Self::BranchingOutput { .. } => Err(RayexecError::new(
-                "Expected branchless states, got branching output",
+            Self::NaryInput { .. } => Err(RayexecError::new(
+                "Expected branchless states, got n-ary input",
             )),
-            Self::TerminatingInput { .. } => Err(RayexecError::new(
-                "Expected branchless states, got terminating input",
-            )),
+        }
+    }
+
+    pub fn nary_into_states(self) -> Result<(OperatorState, Vec<Vec<PartitionState>>)> {
+        match self {
+            Self::NaryInput {
+                operator_state,
+                input_partition_states,
+            } => Ok((operator_state, input_partition_states)),
+            Self::Branchless { .. } => {
+                Err(RayexecError::new("Expected n-ary input, got branchless"))
+            }
         }
     }
 }

@@ -1,249 +1,71 @@
-use std::sync::Arc;
-use std::task::{Context, Waker};
+use std::task::Context;
 
-use parking_lot::Mutex;
-use rayexec_error::Result;
+use rayexec_error::{OptionExt, Result};
 
 use super::{
     ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
+    ExecuteInOutState,
     OperatorState,
+    PartitionAndOperatorStates,
     PartitionState,
+    PollExecute,
     PollFinalize,
-    PollPull,
-    PollPush,
 };
-use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 
-#[derive(Debug)]
-pub struct UnionTopPartitionState {
-    partition_idx: usize,
-    batch: Option<Batch>,
-    finished: bool,
-    push_waker: Option<Waker>,
-    pull_waker: Option<Waker>,
-}
-
-#[derive(Debug)]
-pub struct UnionBottomPartitionState {
-    partition_idx: usize,
-}
-
-#[derive(Debug)]
-pub struct UnionOperatorState {
-    shared: Vec<Mutex<SharedPartitionState>>,
-}
-
-#[derive(Debug)]
-struct SharedPartitionState {
-    batch: Option<Batch>,
-    finished: bool,
-    push_waker: Option<Waker>,
-    pull_waker: Option<Waker>,
-}
-
 /// Unions two input operations.
 ///
-/// The "top" input operator acts as a normal operator, and so the "top"
-/// partition state is used for pushing and pulling.
-///
-/// The "bottom" input operator treats this operator as a sink, and will only
-/// push. Every push from bottom will be writing to the global state.
-///
-/// The current implementation prefers taking from the "top".
-///
-/// "top" and "bottom" are expected to have the same number of partitions.
+/// This operator does nothing special other than producing states that
+/// influence pipeline execution. Batches are passed through as-is.
 #[derive(Debug)]
 pub struct PhysicalUnion;
 
-impl PhysicalUnion {
-    /// Index of the input corresponding to the top of the union.
-    pub const UNION_TOP_INPUT_INDEX: usize = 0;
-    /// Index of the input corresponding to the bottom of the union.
-    pub const UNION_BOTTOM_INPUT_INDEX: usize = 1;
-}
-
 impl ExecutableOperator for PhysicalUnion {
-    fn create_states2(
+    fn create_states(
         &self,
         _context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        let num_partitions = partitions[0];
-
-        let top_states = (0..num_partitions)
-            .map(|idx| {
-                PartitionState::UnionTop(UnionTopPartitionState {
-                    partition_idx: idx,
-                    batch: None,
-                    finished: false,
-                    push_waker: None,
-                    pull_waker: None,
-                })
+        _batch_size: usize,
+        partitions: usize,
+    ) -> Result<PartitionAndOperatorStates> {
+        // 2 child inputs, each with n partitions.
+        let states = (0..2)
+            .map(|_| {
+                (0..partitions)
+                    .map(|_| PartitionState::None)
+                    .collect::<Vec<_>>()
             })
-            .collect();
+            .collect::<Vec<_>>();
 
-        let bottom_states = (0..num_partitions)
-            .map(|idx| {
-                PartitionState::UnionBottom(UnionBottomPartitionState { partition_idx: idx })
-            })
-            .collect();
-
-        let operator_state = UnionOperatorState {
-            shared: (0..num_partitions)
-                .map(|_| {
-                    Mutex::new(SharedPartitionState {
-                        batch: None,
-                        finished: false,
-                        push_waker: None,
-                        pull_waker: None,
-                    })
-                })
-                .collect(),
-        };
-
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::Union(operator_state)),
-            partition_states: InputOutputStates::NaryInputSingleOutput {
-                partition_states: vec![top_states, bottom_states],
-                pull_states: Self::UNION_TOP_INPUT_INDEX,
-            },
+        Ok(PartitionAndOperatorStates::NaryInput {
+            operator_state: OperatorState::None,
+            input_partition_states: states,
         })
     }
 
-    fn poll_push(
+    fn poll_execute(
         &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
-        match partition_state {
-            PartitionState::UnionTop(state) => {
-                if state.batch.is_some() {
-                    state.push_waker = Some(cx.waker().clone());
-                    return Ok(PollPush::Pending(batch));
-                }
-                state.batch = Some(batch);
+        _cx: &mut Context,
+        _partition_state: &mut PartitionState,
+        _operator_state: &OperatorState,
+        inout: ExecuteInOutState,
+    ) -> Result<PollExecute> {
+        let input = inout.input.required("input batch required")?;
+        let output = inout.output.required("output batch required")?;
 
-                if let Some(waker) = state.pull_waker.take() {
-                    waker.wake();
-                }
+        output.try_clone_from(input)?;
 
-                Ok(PollPush::Pushed)
-            }
-
-            PartitionState::UnionBottom(state) => {
-                let mut shared = match operator_state {
-                    OperatorState::Union(operator_state) => {
-                        operator_state.shared[state.partition_idx].lock()
-                    }
-                    other => panic!("invalid operator state: {other:?}"),
-                };
-
-                if shared.batch.is_some() {
-                    shared.push_waker = Some(cx.waker().clone());
-                    return Ok(PollPush::Pending(batch));
-                }
-
-                shared.batch = Some(batch);
-
-                if let Some(waker) = shared.pull_waker.take() {
-                    waker.wake();
-                }
-
-                Ok(PollPush::Pushed)
-            }
-
-            other => panic!("invalid partition state: {other:?}"),
-        }
+        Ok(PollExecute::Ready)
     }
 
     fn poll_finalize(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        _partition_state: &mut PartitionState,
+        _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
-        match partition_state {
-            PartitionState::UnionTop(state) => {
-                state.finished = true;
-                if let Some(waker) = state.pull_waker.take() {
-                    waker.wake();
-                }
-                Ok(PollFinalize::Finalized)
-            }
-
-            PartitionState::UnionBottom(state) => {
-                let mut shared = match operator_state {
-                    OperatorState::Union(operator_state) => {
-                        operator_state.shared[state.partition_idx].lock()
-                    }
-                    other => panic!("invalid operator state: {other:?}"),
-                };
-
-                shared.finished = true;
-                if let Some(waker) = shared.pull_waker.take() {
-                    waker.wake();
-                }
-
-                Ok(PollFinalize::Finalized)
-            }
-
-            other => panic!("invalid partition state: {other:?}"),
-        }
-    }
-
-    fn poll_pull(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-    ) -> Result<PollPull> {
-        match partition_state {
-            PartitionState::UnionTop(state) => match state.batch.take() {
-                Some(batch) => {
-                    if let Some(waker) = state.push_waker.take() {
-                        waker.wake();
-                    }
-                    Ok(PollPull::Computed(batch.into()))
-                }
-                None => {
-                    let mut shared = match operator_state {
-                        OperatorState::Union(operator_state) => {
-                            operator_state.shared[state.partition_idx].lock()
-                        }
-                        other => panic!("invalid operator state: {other:?}"),
-                    };
-
-                    // Check if we received batch from bottom.
-                    if let Some(batch) = shared.batch.take() {
-                        if let Some(waker) = shared.push_waker.take() {
-                            waker.wake();
-                        }
-                        return Ok(PollPull::Computed(batch.into()));
-                    }
-
-                    // If not, check if we're finished.
-                    if shared.finished && state.finished {
-                        return Ok(PollPull::Exhausted);
-                    }
-
-                    // No batches, and we're not finished. Need to wait.
-                    shared.pull_waker = Some(cx.waker().clone());
-                    if let Some(waker) = shared.push_waker.take() {
-                        waker.wake();
-                    }
-
-                    Ok(PollPull::Pending)
-                }
-            },
-            other => panic!("invalid partition state: {other:?}"),
-        }
+        Ok(PollFinalize::Finalized)
     }
 }
 
@@ -262,5 +84,68 @@ impl DatabaseProtoConv for PhysicalUnion {
 
     fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
         Ok(Self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::arrays::array::Array;
+    use crate::arrays::batch::Batch;
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::assert_batches_eq;
+    use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};
+
+    #[test]
+    fn union_simple() {
+        let operator = OperatorWrapper::new(PhysicalUnion);
+        let (op_state, mut input_states) = operator
+            .operator
+            .create_states(&test_database_context(), 1024, 1)
+            .unwrap()
+            .nary_into_states()
+            .unwrap();
+
+        let mut top_input =
+            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
+
+        let mut out = Batch::try_new([DataType::Int32], 1024).unwrap();
+
+        let poll = operator
+            .poll_execute(
+                &mut input_states[0][0],
+                &op_state,
+                ExecuteInOutState {
+                    input: Some(&mut top_input),
+                    output: Some(&mut out),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::Ready, poll);
+
+        let expected =
+            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
+        assert_batches_eq(&expected, &out);
+
+        let mut bottom_input =
+            Batch::try_from_arrays([Array::try_from_iter([5, 6, 7, 8]).unwrap()]).unwrap();
+
+        let poll = operator
+            .poll_execute(
+                &mut input_states[0][0],
+                &op_state,
+                ExecuteInOutState {
+                    input: Some(&mut bottom_input),
+                    output: Some(&mut out),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::Ready, poll);
+
+        let expected =
+            Batch::try_from_arrays([Array::try_from_iter([5, 6, 7, 8]).unwrap()]).unwrap();
+        assert_batches_eq(&expected, &out);
     }
 }
