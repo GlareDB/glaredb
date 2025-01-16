@@ -17,7 +17,6 @@ pub mod nl_join;
 pub mod project;
 pub mod round_robin;
 pub mod scan;
-pub mod simple;
 pub mod sink;
 pub mod sort;
 pub mod source;
@@ -60,7 +59,6 @@ use project::{PhysicalProject, ProjectPartitionState};
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
-use simple::SimpleOperator;
 use sink::{SinkOperation, SinkOperator, SinkOperatorState, SinkPartitionState};
 use sort::gather_sort::PhysicalGatherSort;
 use sort::scatter_sort::PhysicalScatterSort;
@@ -89,7 +87,6 @@ use self::round_robin::{
     RoundRobinPullPartitionState,
     RoundRobinPushPartitionState,
 };
-use self::simple::SimplePartitionState;
 use self::sort::gather_sort::{
     GatherSortOperatorState,
     GatherSortPullPartitionState,
@@ -130,7 +127,6 @@ pub enum PartitionState {
     GatherSortPull(GatherSortPullPartitionState),
     ScatterSort(ScatterSortPartitionState),
     Unnest(UnnestPartitionState),
-    Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
     TableInOut(TableInOutPartitionState),

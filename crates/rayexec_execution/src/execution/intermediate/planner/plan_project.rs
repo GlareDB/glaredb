@@ -5,7 +5,6 @@ use rayexec_error::{Result, ResultExt};
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::project::PhysicalProject;
-use crate::execution::operators::simple::SimpleOperator;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, Node};
