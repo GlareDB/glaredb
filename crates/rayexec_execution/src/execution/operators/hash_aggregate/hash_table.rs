@@ -24,7 +24,7 @@ pub struct HashTable {
     pub(crate) chunks: Vec<GroupChunk>,
     pub(crate) entries: Vec<EntryKey<GroupAddress>>,
     pub(crate) num_occupied: usize,
-    pub(crate) insert_buffers: InsertBuffers,
+    pub(crate) insert_buffers: Box<InsertBuffers>,
     pub(crate) aggregates: Vec<Aggregate>,
 }
 
@@ -76,7 +76,7 @@ impl HashTable {
             chunks: Vec::new(),
             entries: vec![EntryKey::default(); capacity],
             num_occupied: 0,
-            insert_buffers: InsertBuffers::default(),
+            insert_buffers: Box::new(InsertBuffers::default()),
             aggregates,
         }
     }

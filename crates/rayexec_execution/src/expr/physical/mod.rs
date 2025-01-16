@@ -20,8 +20,6 @@ use scalar_function_expr::PhysicalScalarFunctionExpr;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::arrays::executor::scalar::SelectExecutor;
-use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
 use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::proto::DatabaseProtoConv;
@@ -67,20 +65,6 @@ impl PhysicalScalarExpression {
         //     Self::Literal(e) => e.eval2(batch),
         //     Self::ScalarFunction(e) => e.eval2(batch),
         // }
-    }
-
-    /// Produce a selection vector for the batch using this expression.
-    ///
-    /// The selection vector will include row indices where the expression
-    /// evaluates to true.
-    #[deprecated]
-    pub fn select(&self, batch: &Batch) -> Result<SelectionVector> {
-        let selected = self.eval(batch)?;
-
-        let mut selection = SelectionVector::with_capacity(selected.logical_len());
-        SelectExecutor::select(&selected, &mut selection)?;
-
-        Ok(selection)
     }
 }
 

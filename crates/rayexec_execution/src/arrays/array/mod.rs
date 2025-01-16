@@ -22,7 +22,6 @@ use physical_type::{
     Addressable,
     AddressableMut,
     MutablePhysicalStorage,
-    PhysicalAny,
     PhysicalBinary,
     PhysicalBool,
     PhysicalDictionary,
@@ -47,6 +46,7 @@ use physical_type::{
     PhysicalUtf8,
 };
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use selection::Selection;
 use shared_or_owned::SharedOrOwned;
 use stdutil::iter::TryFromExactSizeIterator;
 use string_view::StringViewHeap;
@@ -156,6 +156,22 @@ where
                 data: ArrayData::owned(buffer),
             }),
         })
+    }
+
+    /// Create a new typed null array.
+    ///
+    /// This will internally create an array buf with a capacity of 1, mark that
+    /// value as null, then select to the desired capacity.
+    pub fn try_new_typed_null(
+        manager: &Arc<B>,
+        datatype: DataType,
+        capacity: usize,
+    ) -> Result<Self> {
+        let mut arr = Self::try_new(manager, datatype, 1)?;
+        arr.put_validity(Validity::new_all_invalid(1))?;
+        arr.select(manager, Selection::constant(capacity, 0))?;
+
+        Ok(arr)
     }
 
     // TODO: Remove

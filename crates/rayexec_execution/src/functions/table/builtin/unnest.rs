@@ -10,7 +10,6 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
-use crate::execution::operators::unnest::unnest;
 use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize, PollPush};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation};

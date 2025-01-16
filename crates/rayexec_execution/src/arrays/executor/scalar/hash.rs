@@ -39,131 +39,133 @@ impl HashExecutor {
     /// Hashes the given array values, combining them with the existing hashes
     /// in `hashes`.
     pub fn hash_combine(array: &Array, hashes: &mut [u64]) -> Result<()> {
-        match array.physical_type() {
-            PhysicalType::UntypedNull => {
-                Self::hash_one_inner::<PhysicalUntypedNull, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::Boolean => {
-                Self::hash_one_inner::<PhysicalBool, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::Int8 => {
-                Self::hash_one_inner::<PhysicalI8, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::Int16 => {
-                Self::hash_one_inner::<PhysicalI16, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::Int32 => {
-                Self::hash_one_inner::<PhysicalI32, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::Int64 => {
-                Self::hash_one_inner::<PhysicalI64, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::Int128 => {
-                Self::hash_one_inner::<PhysicalI128, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::UInt8 => {
-                Self::hash_one_inner::<PhysicalU8, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::UInt16 => {
-                Self::hash_one_inner::<PhysicalU16, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::UInt32 => {
-                Self::hash_one_inner::<PhysicalU32, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::UInt64 => {
-                Self::hash_one_inner::<PhysicalU64, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::UInt128 => {
-                Self::hash_one_inner::<PhysicalI128, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::Float16 => {
-                Self::hash_one_inner::<PhysicalF16, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::Float32 => {
-                Self::hash_one_inner::<PhysicalF32, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::Float64 => {
-                Self::hash_one_inner::<PhysicalF64, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::Binary => {
-                Self::hash_one_inner::<PhysicalBinary, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::Utf8 => {
-                Self::hash_one_inner::<PhysicalUtf8, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::Interval => {
-                Self::hash_one_inner::<PhysicalInterval, CombineSetHash>(array, hashes)?
-            }
-            PhysicalType::List => Self::hash_list::<CombineSetHash>(array, hashes)?,
-            other => not_implemented!("Hash for type: {other}"),
-        }
+        unimplemented!()
+        // match array.physical_type() {
+        //     PhysicalType::UntypedNull => {
+        //         Self::hash_one_inner::<PhysicalUntypedNull, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Boolean => {
+        //         Self::hash_one_inner::<PhysicalBool, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Int8 => {
+        //         Self::hash_one_inner::<PhysicalI8, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Int16 => {
+        //         Self::hash_one_inner::<PhysicalI16, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Int32 => {
+        //         Self::hash_one_inner::<PhysicalI32, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Int64 => {
+        //         Self::hash_one_inner::<PhysicalI64, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Int128 => {
+        //         Self::hash_one_inner::<PhysicalI128, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::UInt8 => {
+        //         Self::hash_one_inner::<PhysicalU8, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::UInt16 => {
+        //         Self::hash_one_inner::<PhysicalU16, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::UInt32 => {
+        //         Self::hash_one_inner::<PhysicalU32, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::UInt64 => {
+        //         Self::hash_one_inner::<PhysicalU64, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::UInt128 => {
+        //         Self::hash_one_inner::<PhysicalI128, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Float16 => {
+        //         Self::hash_one_inner::<PhysicalF16, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Float32 => {
+        //         Self::hash_one_inner::<PhysicalF32, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Float64 => {
+        //         Self::hash_one_inner::<PhysicalF64, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Binary => {
+        //         Self::hash_one_inner::<PhysicalBinary, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Utf8 => {
+        //         Self::hash_one_inner::<PhysicalUtf8, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Interval => {
+        //         Self::hash_one_inner::<PhysicalInterval, CombineSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::List => Self::hash_list::<CombineSetHash>(array, hashes)?,
+        //     other => not_implemented!("Hash for type: {other}"),
+        // }
 
-        Ok(())
+        // Ok(())
     }
 
     /// Hash the given array and write the values into `hashes`, overwriting any
     /// existing values.
     pub fn hash_no_combine(array: &Array, hashes: &mut [u64]) -> Result<()> {
-        match array.physical_type() {
-            PhysicalType::UntypedNull => {
-                Self::hash_one_inner::<PhysicalUntypedNull, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::Boolean => {
-                Self::hash_one_inner::<PhysicalBool, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::Int8 => {
-                Self::hash_one_inner::<PhysicalI8, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::Int16 => {
-                Self::hash_one_inner::<PhysicalI16, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::Int32 => {
-                Self::hash_one_inner::<PhysicalI32, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::Int64 => {
-                Self::hash_one_inner::<PhysicalI64, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::Int128 => {
-                Self::hash_one_inner::<PhysicalI128, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::UInt8 => {
-                Self::hash_one_inner::<PhysicalU8, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::UInt16 => {
-                Self::hash_one_inner::<PhysicalU16, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::UInt32 => {
-                Self::hash_one_inner::<PhysicalU32, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::UInt64 => {
-                Self::hash_one_inner::<PhysicalU64, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::UInt128 => {
-                Self::hash_one_inner::<PhysicalI128, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::Float16 => {
-                Self::hash_one_inner::<PhysicalF16, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::Float32 => {
-                Self::hash_one_inner::<PhysicalF32, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::Float64 => {
-                Self::hash_one_inner::<PhysicalF64, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::Binary => {
-                Self::hash_one_inner::<PhysicalBinary, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::Utf8 => {
-                Self::hash_one_inner::<PhysicalUtf8, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::Interval => {
-                Self::hash_one_inner::<PhysicalInterval, OverwriteSetHash>(array, hashes)?
-            }
-            PhysicalType::List => Self::hash_list::<OverwriteSetHash>(array, hashes)?,
-            other => not_implemented!("Hash for type: {other}"),
-        }
+        unimplemented!()
+        // match array.physical_type() {
+        //     PhysicalType::UntypedNull => {
+        //         Self::hash_one_inner::<PhysicalUntypedNull, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Boolean => {
+        //         Self::hash_one_inner::<PhysicalBool, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Int8 => {
+        //         Self::hash_one_inner::<PhysicalI8, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Int16 => {
+        //         Self::hash_one_inner::<PhysicalI16, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Int32 => {
+        //         Self::hash_one_inner::<PhysicalI32, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Int64 => {
+        //         Self::hash_one_inner::<PhysicalI64, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Int128 => {
+        //         Self::hash_one_inner::<PhysicalI128, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::UInt8 => {
+        //         Self::hash_one_inner::<PhysicalU8, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::UInt16 => {
+        //         Self::hash_one_inner::<PhysicalU16, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::UInt32 => {
+        //         Self::hash_one_inner::<PhysicalU32, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::UInt64 => {
+        //         Self::hash_one_inner::<PhysicalU64, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::UInt128 => {
+        //         Self::hash_one_inner::<PhysicalI128, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Float16 => {
+        //         Self::hash_one_inner::<PhysicalF16, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Float32 => {
+        //         Self::hash_one_inner::<PhysicalF32, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Float64 => {
+        //         Self::hash_one_inner::<PhysicalF64, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Binary => {
+        //         Self::hash_one_inner::<PhysicalBinary, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Utf8 => {
+        //         Self::hash_one_inner::<PhysicalUtf8, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::Interval => {
+        //         Self::hash_one_inner::<PhysicalInterval, OverwriteSetHash>(array, hashes)?
+        //     }
+        //     PhysicalType::List => Self::hash_list::<OverwriteSetHash>(array, hashes)?,
+        //     other => not_implemented!("Hash for type: {other}"),
+        // }
 
-        Ok(())
+        // Ok(())
     }
 
     pub fn hash_many<'b>(arrays: &[Array], hashes: &'b mut [u64]) -> Result<&'b mut [u64]> {
@@ -180,107 +182,108 @@ impl HashExecutor {
         Ok(hashes)
     }
 
-    fn hash_one_inner<'a, 'b, S, H>(array: &'a Array, hashes: &'b mut [u64]) -> Result<()>
-    where
-        S: PhysicalStorage,
-        S::Type<'a>: HashValue,
-        H: SetHash,
-    {
-        let selection = array.selection_vector();
+    // fn hash_one_inner<'a, 'b, S, H>(array: &'a Array, hashes: &'b mut [u64]) -> Result<()>
+    // where
+    //     S: PhysicalStorage,
+    //     S::Type<'a>: HashValue,
+    //     H: SetHash,
+    // {
+    //     let selection = array.selection_vector();
 
-        match array.validity() {
-            Some(validity) => {
-                let values = S::get_storage(&array.data2)?;
+    //     match array.validity() {
+    //         Some(validity) => {
+    //             let values = S::get_storage(&array.data2)?;
 
-                for (idx, hash) in hashes.iter_mut().enumerate() {
-                    let sel = unsafe { selection::get_unchecked(selection, idx) };
+    //             for (idx, hash) in hashes.iter_mut().enumerate() {
+    //                 let sel = unsafe { selection::get_unchecked(selection, idx) };
 
-                    if validity.value(sel) {
-                        let val = unsafe { values.get_unchecked(sel) };
-                        H::set_hash(val.hash_one(), hash);
-                    } else {
-                        H::set_hash(null_hash_value(), hash)
-                    }
-                }
-            }
-            None => {
-                let values = S::get_storage(&array.data2)?;
+    //                 if validity.value(sel) {
+    //                     let val = unsafe { values.get_unchecked(sel) };
+    //                     H::set_hash(val.hash_one(), hash);
+    //                 } else {
+    //                     H::set_hash(null_hash_value(), hash)
+    //                 }
+    //             }
+    //         }
+    //         None => {
+    //             let values = S::get_storage(&array.data2)?;
 
-                for (idx, hash) in hashes.iter_mut().enumerate() {
-                    let sel = unsafe { selection::get_unchecked(selection, idx) };
-                    let val = unsafe { values.get_unchecked(sel) };
-                    H::set_hash(val.hash_one(), hash);
-                }
-            }
-        }
+    //             for (idx, hash) in hashes.iter_mut().enumerate() {
+    //                 let sel = unsafe { selection::get_unchecked(selection, idx) };
+    //                 let val = unsafe { values.get_unchecked(sel) };
+    //                 H::set_hash(val.hash_one(), hash);
+    //             }
+    //         }
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     fn hash_list<H>(array: &Array, hashes: &mut [u64]) -> Result<()>
     where
         H: SetHash,
     {
-        let inner = match array.array_data() {
-            ArrayData2::List(list) => &list.array,
-            other => {
-                return Err(RayexecError::new(format!(
-                    "Unexpected array data for list hashing: {:?}",
-                    other.physical_type(),
-                )))
-            }
-        };
+        unimplemented!()
+        // let inner = match array.array_data() {
+        //     ArrayData2::List(list) => &list.array,
+        //     other => {
+        //         return Err(RayexecError::new(format!(
+        //             "Unexpected array data for list hashing: {:?}",
+        //             other.physical_type(),
+        //         )))
+        //     }
+        // };
 
-        // TODO: Try to avoid this.
-        let mut list_hashes_buf = vec![0; inner.logical_len()];
-        Self::hash_no_combine(inner, &mut list_hashes_buf)?;
+        // // TODO: Try to avoid this.
+        // let mut list_hashes_buf = vec![0; inner.logical_len()];
+        // Self::hash_no_combine(inner, &mut list_hashes_buf)?;
 
-        let metadata = PhysicalList::get_storage(&array.data2)?;
-        let selection = array.selection_vector();
+        // let metadata = PhysicalList::get_storage(&array.data2)?;
+        // let selection = array.selection_vector();
 
-        match array.validity() {
-            Some(validity) => {
-                for (idx, hash) in hashes.iter_mut().enumerate() {
-                    let sel = unsafe { selection::get_unchecked(selection, idx) };
+        // match array.validity() {
+        //     Some(validity) => {
+        //         for (idx, hash) in hashes.iter_mut().enumerate() {
+        //             let sel = unsafe { selection::get_unchecked(selection, idx) };
 
-                    if validity.value(sel) {
-                        let val = unsafe { metadata.get_unchecked(sel) };
+        //             if validity.value(sel) {
+        //                 let val = unsafe { metadata.get_unchecked(sel) };
 
-                        // Set first hash.
-                        H::set_hash(list_hashes_buf[val.offset as usize], hash);
+        //                 // Set first hash.
+        //                 H::set_hash(list_hashes_buf[val.offset as usize], hash);
 
-                        // Combine all the rest.
-                        for hash_idx in 1..val.len {
-                            CombineSetHash::set_hash(
-                                list_hashes_buf[(val.offset + hash_idx) as usize],
-                                hash,
-                            );
-                        }
-                    } else {
-                        H::set_hash(null_hash_value(), hash);
-                    }
-                }
-            }
-            None => {
-                for (idx, hash) in hashes.iter_mut().enumerate() {
-                    let sel = unsafe { selection::get_unchecked(selection, idx) };
-                    let val = unsafe { metadata.get_unchecked(sel) };
+        //                 // Combine all the rest.
+        //                 for hash_idx in 1..val.len {
+        //                     CombineSetHash::set_hash(
+        //                         list_hashes_buf[(val.offset + hash_idx) as usize],
+        //                         hash,
+        //                     );
+        //                 }
+        //             } else {
+        //                 H::set_hash(null_hash_value(), hash);
+        //             }
+        //         }
+        //     }
+        //     None => {
+        //         for (idx, hash) in hashes.iter_mut().enumerate() {
+        //             let sel = unsafe { selection::get_unchecked(selection, idx) };
+        //             let val = unsafe { metadata.get_unchecked(sel) };
 
-                    // Set first hash.
-                    H::set_hash(list_hashes_buf[val.offset as usize], hash);
+        //             // Set first hash.
+        //             H::set_hash(list_hashes_buf[val.offset as usize], hash);
 
-                    // Combine all the rest.
-                    for hash_idx in 1..val.len {
-                        CombineSetHash::set_hash(
-                            list_hashes_buf[(val.offset + hash_idx) as usize],
-                            hash,
-                        );
-                    }
-                }
-            }
-        }
+        //             // Combine all the rest.
+        //             for hash_idx in 1..val.len {
+        //                 CombineSetHash::set_hash(
+        //                     list_hashes_buf[(val.offset + hash_idx) as usize],
+        //                     hash,
+        //                 );
+        //             }
+        //         }
+        //     }
+        // }
 
-        Ok(())
+        // Ok(())
     }
 }
 

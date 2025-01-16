@@ -1,7 +1,6 @@
 use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
-use super::validate_logical_len;
 use crate::arrays::array::flat::FlatArrayView;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -217,36 +216,6 @@ impl UnaryExecutor {
         }
 
         Ok(())
-    }
-
-    /// Get the value some index in the array.
-    ///
-    /// Returns Some if the value is valid, None otherwise.
-    pub fn value_at2<S>(array: &Array, idx: usize) -> Result<Option<S::Type<'_>>>
-    where
-        S: PhysicalStorage,
-    {
-        let selection = array.selection_vector();
-
-        match array.validity() {
-            Some(validity) => {
-                let values = S::get_storage(&array.data2)?;
-
-                let sel = selection::get(selection, idx);
-                if !validity.value(sel) {
-                    Ok(None)
-                } else {
-                    let val = unsafe { values.get_unchecked(sel) };
-                    Ok(Some(val))
-                }
-            }
-            None => {
-                let values = S::get_storage(&array.data2)?;
-                let sel = selection::get(selection, idx);
-                let val = unsafe { values.get_unchecked(sel) };
-                Ok(Some(val))
-            }
-        }
     }
 }
 

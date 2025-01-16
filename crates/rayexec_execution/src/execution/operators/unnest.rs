@@ -184,115 +184,116 @@ impl ExecutableOperator for PhysicalUnnest {
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollPull> {
-        let state = match partition_state {
-            PartitionState::Unnest(state) => state,
-            other => panic!("invalid state: {other:?}"),
-        };
+        unimplemented!()
+        // let state = match partition_state {
+        //     PartitionState::Unnest(state) => state,
+        //     other => panic!("invalid state: {other:?}"),
+        // };
 
-        if state.current_row >= state.input_num_rows {
-            if state.finished {
-                return Ok(PollPull::Exhausted);
-            }
+        // if state.current_row >= state.input_num_rows {
+        //     if state.finished {
+        //         return Ok(PollPull::Exhausted);
+        //     }
 
-            // We're done with these inputs. Come back later.
-            state.pull_waker = Some(cx.waker().clone());
-            if let Some(waker) = state.push_waker.take() {
-                waker.wake();
-            }
+        //     // We're done with these inputs. Come back later.
+        //     state.pull_waker = Some(cx.waker().clone());
+        //     if let Some(waker) = state.push_waker.take() {
+        //         waker.wake();
+        //     }
 
-            return Ok(PollPull::Pending);
-        }
+        //     return Ok(PollPull::Pending);
+        // }
 
-        // We have input ready, get the longest list for the current row.
-        let mut longest = 0;
-        for input_idx in 0..state.unnest_inputs.len() {
-            if state.unnest_inputs[input_idx].physical_type() == PhysicalType::UntypedNull {
-                // Just let other unnest expressions determine the number of
-                // rows.
-                continue;
-            }
+        // // We have input ready, get the longest list for the current row.
+        // let mut longest = 0;
+        // for input_idx in 0..state.unnest_inputs.len() {
+        //     if state.unnest_inputs[input_idx].physical_type() == PhysicalType::UntypedNull {
+        //         // Just let other unnest expressions determine the number of
+        //         // rows.
+        //         continue;
+        //     }
 
-            if let Some(list_meta) = UnaryExecutor::value_at2::<PhysicalList>(
-                &state.unnest_inputs[input_idx],
-                state.current_row,
-            )? {
-                if list_meta.len > longest {
-                    longest = list_meta.len;
-                }
-            }
-        }
+        //     if let Some(list_meta) = UnaryExecutor::value_at2::<PhysicalList>(
+        //         &state.unnest_inputs[input_idx],
+        //         state.current_row,
+        //     )? {
+        //         if list_meta.len > longest {
+        //             longest = list_meta.len;
+        //         }
+        //     }
+        // }
 
-        let mut outputs =
-            Vec::with_capacity(state.project_inputs.len() + state.unnest_inputs.len());
+        // let mut outputs =
+        //     Vec::with_capacity(state.project_inputs.len() + state.unnest_inputs.len());
 
-        // Process plain project inputs.
-        //
-        // Create a selection vector that points to the current row to extend
-        // out the values as needed.
-        let selection = Arc::new(SelectionVector::from(vec![
-            state.current_row;
-            longest as usize
-        ]));
-        for projected in &state.project_inputs {
-            let mut out = projected.clone();
-            out.select_mut2(selection.clone());
-            outputs.push(out);
-        }
+        // // Process plain project inputs.
+        // //
+        // // Create a selection vector that points to the current row to extend
+        // // out the values as needed.
+        // let selection = Arc::new(SelectionVector::from(vec![
+        //     state.current_row;
+        //     longest as usize
+        // ]));
+        // for projected in &state.project_inputs {
+        //     let mut out = projected.clone();
+        //     out.select_mut2(selection.clone());
+        //     outputs.push(out);
+        // }
 
-        // Now process unnests.
-        for input_idx in 0..state.unnest_inputs.len() {
-            let arr = &state.unnest_inputs[input_idx];
+        // // Now process unnests.
+        // for input_idx in 0..state.unnest_inputs.len() {
+        //     let arr = &state.unnest_inputs[input_idx];
 
-            match arr.physical_type() {
-                PhysicalType::List => {
-                    let child = match arr.array_data() {
-                        ArrayData2::List(list) => list.inner_array(),
-                        _other => return Err(RayexecError::new("Unexpected storage type")),
-                    };
+        //     match arr.physical_type() {
+        //         PhysicalType::List => {
+        //             let child = match arr.array_data() {
+        //                 ArrayData2::List(list) => list.inner_array(),
+        //                 _other => return Err(RayexecError::new("Unexpected storage type")),
+        //             };
 
-                    match UnaryExecutor::value_at2::<PhysicalList>(arr, state.current_row)? {
-                        Some(meta) => {
-                            // Row is a list, unnest.
-                            let out = unnest(child, longest as usize, meta)?;
-                            outputs.push(out);
-                        }
-                        None => {
-                            // Row is null, produce nulls according to longest
-                            // length.
-                            let out = Array::new_typed_null_array(
-                                child.datatype().clone(),
-                                longest as usize,
-                            )?;
-                            outputs.push(out);
-                        }
-                    }
-                }
-                PhysicalType::UntypedNull => {
-                    // Just produce null array according to longest length.
-                    let out = Array::new_untyped_null_array(longest as usize);
-                    outputs.push(out);
-                }
-                other => {
-                    return Err(RayexecError::new(format!(
-                        "Unexpected physical type in unnest: {other:?}"
-                    )))
-                }
-            }
-        }
+        //             match UnaryExecutor::value_at2::<PhysicalList>(arr, state.current_row)? {
+        //                 Some(meta) => {
+        //                     // Row is a list, unnest.
+        //                     let out = unnest(child, longest as usize, meta)?;
+        //                     outputs.push(out);
+        //                 }
+        //                 None => {
+        //                     // Row is null, produce nulls according to longest
+        //                     // length.
+        //                     let out = Array::new_typed_null_array(
+        //                         child.datatype().clone(),
+        //                         longest as usize,
+        //                     )?;
+        //                     outputs.push(out);
+        //                 }
+        //             }
+        //         }
+        //         PhysicalType::UntypedNull => {
+        //             // Just produce null array according to longest length.
+        //             let out = Array::new_untyped_null_array(longest as usize);
+        //             outputs.push(out);
+        //         }
+        //         other => {
+        //             return Err(RayexecError::new(format!(
+        //                 "Unexpected physical type in unnest: {other:?}"
+        //             )))
+        //         }
+        //     }
+        // }
 
-        // Next pull works on the next row.
-        state.current_row += 1;
+        // // Next pull works on the next row.
+        // state.current_row += 1;
 
-        // If these inputs are done, go ahead and let the push side know.
-        if state.current_row >= state.input_num_rows {
-            if let Some(waker) = state.push_waker.take() {
-                waker.wake()
-            }
-        }
+        // // If these inputs are done, go ahead and let the push side know.
+        // if state.current_row >= state.input_num_rows {
+        //     if let Some(waker) = state.push_waker.take() {
+        //         waker.wake()
+        //     }
+        // }
 
-        let batch = Batch::try_from_arrays(outputs)?;
+        // let batch = Batch::try_from_arrays(outputs)?;
 
-        Ok(PollPull::Computed(batch.into()))
+        // Ok(PollPull::Computed(batch.into()))
     }
 }
 
@@ -304,189 +305,189 @@ impl Explainable for PhysicalUnnest {
     }
 }
 
-pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata2) -> Result<Array> {
-    let datatype = child.datatype().clone();
+// pub(crate) fn unnest(child: &Array, longest_len: usize, meta: ListItemMetadata2) -> Result<Array> {
+//     let datatype = child.datatype().clone();
 
-    match child.physical_type() {
-        PhysicalType::UntypedNull => Ok(Array::new_untyped_null_array(longest_len)),
-        PhysicalType::Boolean => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: BooleanBuffer::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalBool, _>(builder, child, meta)
-        }
-        PhysicalType::Int8 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<i8>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalI8, _>(builder, child, meta)
-        }
-        PhysicalType::Int16 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<i16>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalI16, _>(builder, child, meta)
-        }
-        PhysicalType::Int32 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<i32>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalI32, _>(builder, child, meta)
-        }
-        PhysicalType::Int64 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<i64>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalI64, _>(builder, child, meta)
-        }
-        PhysicalType::Int128 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<i128>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalI128, _>(builder, child, meta)
-        }
-        PhysicalType::UInt8 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<u8>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalU8, _>(builder, child, meta)
-        }
-        PhysicalType::UInt16 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<u16>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalU16, _>(builder, child, meta)
-        }
-        PhysicalType::UInt32 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<u32>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalU32, _>(builder, child, meta)
-        }
-        PhysicalType::UInt64 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<u64>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalU64, _>(builder, child, meta)
-        }
-        PhysicalType::UInt128 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<u128>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalU128, _>(builder, child, meta)
-        }
-        PhysicalType::Float16 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<f16>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalF16, _>(builder, child, meta)
-        }
-        PhysicalType::Float32 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<f32>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalF32, _>(builder, child, meta)
-        }
-        PhysicalType::Float64 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: PrimitiveBuffer::<f64>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalF64, _>(builder, child, meta)
-        }
-        PhysicalType::Utf8 => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: GermanVarlenBuffer::<str>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalUtf8, _>(builder, child, meta)
-        }
-        PhysicalType::Binary => {
-            let builder = ArrayBuilder {
-                datatype,
-                buffer: GermanVarlenBuffer::<[u8]>::with_len(longest_len),
-            };
-            unnest_inner::<PhysicalBinary, _>(builder, child, meta)
-        }
-        other => not_implemented!("Unnest for physical type {other:?}"),
-    }
-}
+//     match child.physical_type() {
+//         PhysicalType::UntypedNull => Ok(Array::new_untyped_null_array(longest_len)),
+//         PhysicalType::Boolean => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: BooleanBuffer::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalBool, _>(builder, child, meta)
+//         }
+//         PhysicalType::Int8 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<i8>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalI8, _>(builder, child, meta)
+//         }
+//         PhysicalType::Int16 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<i16>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalI16, _>(builder, child, meta)
+//         }
+//         PhysicalType::Int32 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<i32>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalI32, _>(builder, child, meta)
+//         }
+//         PhysicalType::Int64 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<i64>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalI64, _>(builder, child, meta)
+//         }
+//         PhysicalType::Int128 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<i128>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalI128, _>(builder, child, meta)
+//         }
+//         PhysicalType::UInt8 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<u8>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalU8, _>(builder, child, meta)
+//         }
+//         PhysicalType::UInt16 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<u16>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalU16, _>(builder, child, meta)
+//         }
+//         PhysicalType::UInt32 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<u32>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalU32, _>(builder, child, meta)
+//         }
+//         PhysicalType::UInt64 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<u64>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalU64, _>(builder, child, meta)
+//         }
+//         PhysicalType::UInt128 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<u128>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalU128, _>(builder, child, meta)
+//         }
+//         PhysicalType::Float16 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<f16>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalF16, _>(builder, child, meta)
+//         }
+//         PhysicalType::Float32 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<f32>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalF32, _>(builder, child, meta)
+//         }
+//         PhysicalType::Float64 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: PrimitiveBuffer::<f64>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalF64, _>(builder, child, meta)
+//         }
+//         PhysicalType::Utf8 => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: GermanVarlenBuffer::<str>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalUtf8, _>(builder, child, meta)
+//         }
+//         PhysicalType::Binary => {
+//             let builder = ArrayBuilder {
+//                 datatype,
+//                 buffer: GermanVarlenBuffer::<[u8]>::with_len(longest_len),
+//             };
+//             unnest_inner::<PhysicalBinary, _>(builder, child, meta)
+//         }
+//         other => not_implemented!("Unnest for physical type {other:?}"),
+//     }
+// }
 
-fn unnest_inner<'a, S, B>(
-    mut builder: ArrayBuilder<B>,
-    child: &'a Array,
-    meta: ListItemMetadata2,
-) -> Result<Array>
-where
-    S: PhysicalStorage,
-    B: ArrayDataBuffer,
-    S::Type<'a>: Borrow<B::Type>,
-{
-    let selection = child.selection_vector();
-    // Note out len may differ from the length indicated by the list item
-    // metadata. Just means we need to ensure the trailing values are marked
-    // NULL.
-    let out_len = builder.buffer.len();
+// fn unnest_inner<'a, S, B>(
+//     mut builder: ArrayBuilder<B>,
+//     child: &'a Array,
+//     meta: ListItemMetadata2,
+// ) -> Result<Array>
+// where
+//     S: PhysicalStorage,
+//     B: ArrayDataBuffer,
+//     S::Type<'a>: Borrow<B::Type>,
+// {
+//     let selection = child.selection_vector();
+//     // Note out len may differ from the length indicated by the list item
+//     // metadata. Just means we need to ensure the trailing values are marked
+//     // NULL.
+//     let out_len = builder.buffer.len();
 
-    match child.validity() {
-        Some(validity) => {
-            let values = S::get_storage(child.array_data())?;
-            let mut out_validity = Bitmap::new_with_all_false(out_len);
+//     match child.validity() {
+//         Some(validity) => {
+//             let values = S::get_storage(child.array_data())?;
+//             let mut out_validity = Bitmap::new_with_all_false(out_len);
 
-            for (out_idx, child_idx) in (meta.offset..meta.offset + meta.len).enumerate() {
-                let child_idx = child_idx as usize;
-                let sel = selection::get(selection, child_idx);
+//             for (out_idx, child_idx) in (meta.offset..meta.offset + meta.len).enumerate() {
+//                 let child_idx = child_idx as usize;
+//                 let sel = selection::get(selection, child_idx);
 
-                if !validity.value(sel) {
-                    continue;
-                }
+//                 if !validity.value(sel) {
+//                     continue;
+//                 }
 
-                let val = unsafe { values.get_unchecked(sel) };
-                out_validity.set_unchecked(out_idx, true);
-                builder.buffer.put(out_idx, val.borrow());
-            }
+//                 let val = unsafe { values.get_unchecked(sel) };
+//                 out_validity.set_unchecked(out_idx, true);
+//                 builder.buffer.put(out_idx, val.borrow());
+//             }
 
-            Ok(Array::new_with_validity_and_array_data(
-                builder.datatype,
-                out_validity,
-                builder.buffer.into_data(),
-            ))
-        }
-        None => {
-            let values = S::get_storage(child.array_data())?;
+//             Ok(Array::new_with_validity_and_array_data(
+//                 builder.datatype,
+//                 out_validity,
+//                 builder.buffer.into_data(),
+//             ))
+//         }
+//         None => {
+//             let values = S::get_storage(child.array_data())?;
 
-            // Note we always have an output validity since we may be producing
-            // an array from a list that contains fewer items than the number of
-            // rows we're producing.
-            let mut out_validity = Bitmap::new_with_all_false(out_len);
+//             // Note we always have an output validity since we may be producing
+//             // an array from a list that contains fewer items than the number of
+//             // rows we're producing.
+//             let mut out_validity = Bitmap::new_with_all_false(out_len);
 
-            for (out_idx, child_idx) in (meta.offset..meta.offset + meta.len).enumerate() {
-                let child_idx = child_idx as usize;
-                let sel = selection::get(selection, child_idx);
+//             for (out_idx, child_idx) in (meta.offset..meta.offset + meta.len).enumerate() {
+//                 let child_idx = child_idx as usize;
+//                 let sel = selection::get(selection, child_idx);
 
-                let val = unsafe { values.get_unchecked(sel) };
-                out_validity.set_unchecked(out_idx, true);
-                builder.buffer.put(out_idx, val.borrow());
-            }
+//                 let val = unsafe { values.get_unchecked(sel) };
+//                 out_validity.set_unchecked(out_idx, true);
+//                 builder.buffer.put(out_idx, val.borrow());
+//             }
 
-            Ok(Array::new_with_validity_and_array_data(
-                builder.datatype,
-                out_validity,
-                builder.buffer.into_data(),
-            ))
-        }
-    }
-}
+//             Ok(Array::new_with_validity_and_array_data(
+//                 builder.datatype,
+//                 out_validity,
+//                 builder.buffer.into_data(),
+//             ))
+//         }
+//     }
+// }

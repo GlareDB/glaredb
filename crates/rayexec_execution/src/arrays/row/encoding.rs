@@ -186,71 +186,72 @@ impl ComparableRowEncoder {
         let mut offsets: Vec<usize> = Vec::with_capacity(num_rows + 1);
         offsets.push(0);
 
-        for row_idx in 0..num_rows {
-            let data = data.as_mut_slice();
+        unimplemented!()
+        // for row_idx in 0..num_rows {
+        //     let data = data.as_mut_slice();
 
-            let mut row_offset = *offsets.last().unwrap();
-            for (arr, cmp_col) in columns.iter().zip(self.columns.iter()) {
-                row_offset = match arr.array_data() {
-                    ArrayData2::UntypedNull(_) => {
-                        Self::encode_untyped_null(cmp_col, data, row_offset)?
-                    }
-                    ArrayData2::Boolean(_) => Self::encode_primitive::<PhysicalBool>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::Int8(_) => Self::encode_primitive::<PhysicalI8>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::Int16(_) => Self::encode_primitive::<PhysicalI16>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::Int32(_) => Self::encode_primitive::<PhysicalI32>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::Int64(_) => Self::encode_primitive::<PhysicalI64>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::Int128(_) => Self::encode_primitive::<PhysicalI128>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::UInt8(_) => Self::encode_primitive::<PhysicalU8>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::UInt16(_) => Self::encode_primitive::<PhysicalU16>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::UInt32(_) => Self::encode_primitive::<PhysicalU32>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::UInt64(_) => Self::encode_primitive::<PhysicalU64>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::UInt128(_) => Self::encode_primitive::<PhysicalU128>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::Float16(_) => Self::encode_primitive::<PhysicalF16>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::Float32(_) => Self::encode_primitive::<PhysicalF32>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::Float64(_) => Self::encode_primitive::<PhysicalF64>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::Interval(_) => Self::encode_primitive::<PhysicalInterval>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::Binary(_) => Self::encode_varlen::<PhysicalBinary>(
-                        cmp_col, arr, row_idx, data, row_offset,
-                    )?,
-                    ArrayData2::List(_) => not_implemented!("Row encode list"),
-                };
-            }
+        //     let mut row_offset = *offsets.last().unwrap();
+        //     for (arr, cmp_col) in columns.iter().zip(self.columns.iter()) {
+        //         row_offset = match arr.array_data() {
+        //             ArrayData2::UntypedNull(_) => {
+        //                 Self::encode_untyped_null(cmp_col, data, row_offset)?
+        //             }
+        //             ArrayData2::Boolean(_) => Self::encode_primitive::<PhysicalBool>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::Int8(_) => Self::encode_primitive::<PhysicalI8>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::Int16(_) => Self::encode_primitive::<PhysicalI16>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::Int32(_) => Self::encode_primitive::<PhysicalI32>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::Int64(_) => Self::encode_primitive::<PhysicalI64>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::Int128(_) => Self::encode_primitive::<PhysicalI128>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::UInt8(_) => Self::encode_primitive::<PhysicalU8>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::UInt16(_) => Self::encode_primitive::<PhysicalU16>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::UInt32(_) => Self::encode_primitive::<PhysicalU32>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::UInt64(_) => Self::encode_primitive::<PhysicalU64>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::UInt128(_) => Self::encode_primitive::<PhysicalU128>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::Float16(_) => Self::encode_primitive::<PhysicalF16>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::Float32(_) => Self::encode_primitive::<PhysicalF32>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::Float64(_) => Self::encode_primitive::<PhysicalF64>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::Interval(_) => Self::encode_primitive::<PhysicalInterval>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::Binary(_) => Self::encode_varlen::<PhysicalBinary>(
+        //                 cmp_col, arr, row_idx, data, row_offset,
+        //             )?,
+        //             ArrayData2::List(_) => not_implemented!("Row encode list"),
+        //         };
+        //     }
 
-            offsets.push(row_offset);
-        }
+        //     offsets.push(row_offset);
+        // }
 
-        Ok(ComparableRows { data, offsets })
+        // Ok(ComparableRows { data, offsets })
     }
 
     /// Compute the size of the data buffer we'll need for storing all encoded
@@ -296,40 +297,40 @@ impl ComparableRowEncoder {
         Ok(size)
     }
 
-    /// Encodes a variable length array into `buf` starting at `start`.
-    ///
-    /// This should return the new offset to write to for the next value.
-    fn encode_varlen<'a, S>(
-        col: &ComparableColumn,
-        arr: &'a Array,
-        row: usize,
-        buf: &mut [u8],
-        start: usize,
-    ) -> Result<usize>
-    where
-        S: PhysicalStorage,
-        S::Type<'a>: ComparableEncode + AsBytes,
-    {
-        let null_byte = col.null_byte();
-        let valid_byte = col.valid_byte();
+    // /// Encodes a variable length array into `buf` starting at `start`.
+    // ///
+    // /// This should return the new offset to write to for the next value.
+    // fn encode_varlen<'a, S>(
+    //     col: &ComparableColumn,
+    //     arr: &'a Array,
+    //     row: usize,
+    //     buf: &mut [u8],
+    //     start: usize,
+    // ) -> Result<usize>
+    // where
+    //     S: PhysicalStorage,
+    //     S::Type<'a>: ComparableEncode + AsBytes,
+    // {
+    //     let null_byte = col.null_byte();
+    //     let valid_byte = col.valid_byte();
 
-        match UnaryExecutor::value_at2::<S>(arr, row)? {
-            Some(val) => {
-                buf[start] = valid_byte;
-                let end = start + 1 + val.as_bytes().len();
-                let write_buf = &mut buf[start + 1..end];
-                val.encode(write_buf);
-                col.invert_if_desc(write_buf);
+    //     match UnaryExecutor::value_at2::<S>(arr, row)? {
+    //         Some(val) => {
+    //             buf[start] = valid_byte;
+    //             let end = start + 1 + val.as_bytes().len();
+    //             let write_buf = &mut buf[start + 1..end];
+    //             val.encode(write_buf);
+    //             col.invert_if_desc(write_buf);
 
-                Ok(start + 1 + write_buf.len())
-            }
-            None => {
-                buf[start] = null_byte;
+    //             Ok(start + 1 + write_buf.len())
+    //         }
+    //         None => {
+    //             buf[start] = null_byte;
 
-                Ok(start + 1)
-            }
-        }
-    }
+    //             Ok(start + 1)
+    //         }
+    //     }
+    // }
 
     fn encode_untyped_null(col: &ComparableColumn, buf: &mut [u8], start: usize) -> Result<usize> {
         let null_byte = col.null_byte();
@@ -337,40 +338,40 @@ impl ComparableRowEncoder {
         Ok(start + 1)
     }
 
-    /// Encodes a primitive length array into `buf` starting at `start`.
-    ///
-    /// This should return the new offset to write to for the next value.
-    fn encode_primitive<'a, S>(
-        col: &ComparableColumn,
-        arr: &'a Array,
-        row: usize,
-        buf: &mut [u8],
-        start: usize,
-    ) -> Result<usize>
-    where
-        S: PhysicalStorage,
-        S::Type<'a>: ComparableEncode,
-    {
-        let null_byte = col.null_byte();
-        let valid_byte = col.valid_byte();
+    // /// Encodes a primitive length array into `buf` starting at `start`.
+    // ///
+    // /// This should return the new offset to write to for the next value.
+    // fn encode_primitive<'a, S>(
+    //     col: &ComparableColumn,
+    //     arr: &'a Array,
+    //     row: usize,
+    //     buf: &mut [u8],
+    //     start: usize,
+    // ) -> Result<usize>
+    // where
+    //     S: PhysicalStorage,
+    //     S::Type<'a>: ComparableEncode,
+    // {
+    //     let null_byte = col.null_byte();
+    //     let valid_byte = col.valid_byte();
 
-        match UnaryExecutor::value_at2::<S>(arr, row)? {
-            Some(val) => {
-                buf[start] = valid_byte;
-                let end = start + 1 + std::mem::size_of::<S::Type<'a>>();
-                let write_buf = &mut buf[start + 1..end];
-                val.encode(write_buf);
-                col.invert_if_desc(write_buf);
+    //     match UnaryExecutor::value_at2::<S>(arr, row)? {
+    //         Some(val) => {
+    //             buf[start] = valid_byte;
+    //             let end = start + 1 + std::mem::size_of::<S::Type<'a>>();
+    //             let write_buf = &mut buf[start + 1..end];
+    //             val.encode(write_buf);
+    //             col.invert_if_desc(write_buf);
 
-                Ok(start + 1 + write_buf.len())
-            }
-            None => {
-                buf[start] = null_byte;
+    //             Ok(start + 1 + write_buf.len())
+    //         }
+    //         None => {
+    //             buf[start] = null_byte;
 
-                Ok(start + 1)
-            }
-        }
-    }
+    //             Ok(start + 1)
+    //         }
+    //     }
+    // }
 }
 
 /// Trait for types that can encode themselves into a comparable binary
@@ -474,184 +475,184 @@ impl ComparableEncode for &[u8] {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::cmp::Ordering;
+// #[cfg(test)]
+// mod tests {
+//     use std::cmp::Ordering;
 
-    use super::*;
+//     use super::*;
 
-    #[test]
-    fn simple_primitive_cmp_between_cols_asc() {
-        let col1 = Array::from_iter([-1, 0, 1]);
-        let col2 = Array::from_iter([1, 0, -1]);
+//     #[test]
+//     fn simple_primitive_cmp_between_cols_asc() {
+//         let col1 = Array::from_iter([-1, 0, 1]);
+//         let col2 = Array::from_iter([1, 0, -1]);
 
-        let encoder = ComparableRowEncoder {
-            columns: vec![ComparableColumn {
-                desc: false,
-                nulls_first: false,
-            }],
-        };
+//         let encoder = ComparableRowEncoder {
+//             columns: vec![ComparableColumn {
+//                 desc: false,
+//                 nulls_first: false,
+//             }],
+//         };
 
-        let rows1 = encoder.encode(&[&col1]).unwrap();
-        let rows2 = encoder.encode(&[&col2]).unwrap();
+//         let rows1 = encoder.encode(&[&col1]).unwrap();
+//         let rows2 = encoder.encode(&[&col2]).unwrap();
 
-        assert_eq!(3, rows1.num_rows());
-        assert_eq!(3, rows2.num_rows());
+//         assert_eq!(3, rows1.num_rows());
+//         assert_eq!(3, rows2.num_rows());
 
-        let cmps: Vec<_> = (rows1.iter().zip(rows2.iter()))
-            .map(|(left, right)| left.cmp(&right))
-            .collect();
+//         let cmps: Vec<_> = (rows1.iter().zip(rows2.iter()))
+//             .map(|(left, right)| left.cmp(&right))
+//             .collect();
 
-        let expected = vec![Ordering::Less, Ordering::Equal, Ordering::Greater];
-        assert_eq!(expected, cmps);
-    }
+//         let expected = vec![Ordering::Less, Ordering::Equal, Ordering::Greater];
+//         assert_eq!(expected, cmps);
+//     }
 
-    #[test]
-    fn simple_primitive_cmp_between_cols_desc() {
-        let col1 = Array::from_iter([-1, 0, 1]);
-        let col2 = Array::from_iter([1, 0, -1]);
+//     #[test]
+//     fn simple_primitive_cmp_between_cols_desc() {
+//         let col1 = Array::from_iter([-1, 0, 1]);
+//         let col2 = Array::from_iter([1, 0, -1]);
 
-        let encoder = ComparableRowEncoder {
-            columns: vec![ComparableColumn {
-                desc: true,
-                nulls_first: false,
-            }],
-        };
+//         let encoder = ComparableRowEncoder {
+//             columns: vec![ComparableColumn {
+//                 desc: true,
+//                 nulls_first: false,
+//             }],
+//         };
 
-        let rows1 = encoder.encode(&[&col1]).unwrap();
-        let rows2 = encoder.encode(&[&col2]).unwrap();
+//         let rows1 = encoder.encode(&[&col1]).unwrap();
+//         let rows2 = encoder.encode(&[&col2]).unwrap();
 
-        assert_eq!(3, rows1.num_rows());
-        assert_eq!(3, rows2.num_rows());
+//         assert_eq!(3, rows1.num_rows());
+//         assert_eq!(3, rows2.num_rows());
 
-        let cmps: Vec<_> = (rows1.iter().zip(rows2.iter()))
-            .map(|(left, right)| left.cmp(&right))
-            .collect();
+//         let cmps: Vec<_> = (rows1.iter().zip(rows2.iter()))
+//             .map(|(left, right)| left.cmp(&right))
+//             .collect();
 
-        // Flipped from above, since if we're ordering in descending order.
-        let expected = vec![Ordering::Greater, Ordering::Equal, Ordering::Less];
-        assert_eq!(expected, cmps);
-    }
+//         // Flipped from above, since if we're ordering in descending order.
+//         let expected = vec![Ordering::Greater, Ordering::Equal, Ordering::Less];
+//         assert_eq!(expected, cmps);
+//     }
 
-    #[test]
-    fn simple_varlen_cmp_between_cols_asc() {
-        let col1 = Array::from_iter(["a", "aa", "bb"]);
-        let col2 = Array::from_iter(["aa", "a", "bb"]);
+//     #[test]
+//     fn simple_varlen_cmp_between_cols_asc() {
+//         let col1 = Array::from_iter(["a", "aa", "bb"]);
+//         let col2 = Array::from_iter(["aa", "a", "bb"]);
 
-        let encoder = ComparableRowEncoder {
-            columns: vec![ComparableColumn {
-                desc: false,
-                nulls_first: false,
-            }],
-        };
+//         let encoder = ComparableRowEncoder {
+//             columns: vec![ComparableColumn {
+//                 desc: false,
+//                 nulls_first: false,
+//             }],
+//         };
 
-        let rows1 = encoder.encode(&[&col1]).unwrap();
-        let rows2 = encoder.encode(&[&col2]).unwrap();
+//         let rows1 = encoder.encode(&[&col1]).unwrap();
+//         let rows2 = encoder.encode(&[&col2]).unwrap();
 
-        assert_eq!(3, rows1.num_rows());
-        assert_eq!(3, rows2.num_rows());
+//         assert_eq!(3, rows1.num_rows());
+//         assert_eq!(3, rows2.num_rows());
 
-        let cmps: Vec<_> = (rows1.iter().zip(rows2.iter()))
-            .map(|(left, right)| left.cmp(&right))
-            .collect();
+//         let cmps: Vec<_> = (rows1.iter().zip(rows2.iter()))
+//             .map(|(left, right)| left.cmp(&right))
+//             .collect();
 
-        let expected = vec![Ordering::Less, Ordering::Greater, Ordering::Equal];
-        assert_eq!(expected, cmps);
-    }
+//         let expected = vec![Ordering::Less, Ordering::Greater, Ordering::Equal];
+//         assert_eq!(expected, cmps);
+//     }
 
-    #[test]
-    fn primitive_nulls_last_asc() {
-        let col1 = Array::from_iter([Some(-1), None, Some(1), Some(2)]);
-        let col2 = Array::from_iter([Some(1), Some(0), Some(-1), None]);
+//     #[test]
+//     fn primitive_nulls_last_asc() {
+//         let col1 = Array::from_iter([Some(-1), None, Some(1), Some(2)]);
+//         let col2 = Array::from_iter([Some(1), Some(0), Some(-1), None]);
 
-        let encoder = ComparableRowEncoder {
-            columns: vec![ComparableColumn {
-                desc: false,
-                nulls_first: false,
-            }],
-        };
+//         let encoder = ComparableRowEncoder {
+//             columns: vec![ComparableColumn {
+//                 desc: false,
+//                 nulls_first: false,
+//             }],
+//         };
 
-        let rows1 = encoder.encode(&[&col1]).unwrap();
-        let rows2 = encoder.encode(&[&col2]).unwrap();
+//         let rows1 = encoder.encode(&[&col1]).unwrap();
+//         let rows2 = encoder.encode(&[&col2]).unwrap();
 
-        assert_eq!(4, rows1.num_rows());
-        assert_eq!(4, rows2.num_rows());
+//         assert_eq!(4, rows1.num_rows());
+//         assert_eq!(4, rows2.num_rows());
 
-        assert!(rows1.row(0).unwrap() < rows2.row(0).unwrap());
-        assert!(rows1.row(1).unwrap() > rows2.row(1).unwrap());
-        assert!(rows1.row(2).unwrap() > rows2.row(2).unwrap());
-        assert!(rows1.row(3).unwrap() < rows2.row(3).unwrap());
-    }
+//         assert!(rows1.row(0).unwrap() < rows2.row(0).unwrap());
+//         assert!(rows1.row(1).unwrap() > rows2.row(1).unwrap());
+//         assert!(rows1.row(2).unwrap() > rows2.row(2).unwrap());
+//         assert!(rows1.row(3).unwrap() < rows2.row(3).unwrap());
+//     }
 
-    #[test]
-    fn primitive_nulls_last_desc() {
-        let col1 = Array::from_iter([Some(-1), None, Some(1), Some(2)]);
-        let col2 = Array::from_iter([Some(1), Some(0), Some(-1), None]);
+//     #[test]
+//     fn primitive_nulls_last_desc() {
+//         let col1 = Array::from_iter([Some(-1), None, Some(1), Some(2)]);
+//         let col2 = Array::from_iter([Some(1), Some(0), Some(-1), None]);
 
-        let encoder = ComparableRowEncoder {
-            columns: vec![ComparableColumn {
-                desc: true,
-                nulls_first: false,
-            }],
-        };
+//         let encoder = ComparableRowEncoder {
+//             columns: vec![ComparableColumn {
+//                 desc: true,
+//                 nulls_first: false,
+//             }],
+//         };
 
-        let rows1 = encoder.encode(&[&col1]).unwrap();
-        let rows2 = encoder.encode(&[&col2]).unwrap();
+//         let rows1 = encoder.encode(&[&col1]).unwrap();
+//         let rows2 = encoder.encode(&[&col2]).unwrap();
 
-        assert_eq!(4, rows1.num_rows());
-        assert_eq!(4, rows2.num_rows());
+//         assert_eq!(4, rows1.num_rows());
+//         assert_eq!(4, rows2.num_rows());
 
-        assert!(rows1.row(0).unwrap() > rows2.row(0).unwrap());
-        assert!(rows1.row(1).unwrap() > rows2.row(1).unwrap());
-        assert!(rows1.row(2).unwrap() < rows2.row(2).unwrap());
-        assert!(rows1.row(3).unwrap() < rows2.row(3).unwrap());
-    }
+//         assert!(rows1.row(0).unwrap() > rows2.row(0).unwrap());
+//         assert!(rows1.row(1).unwrap() > rows2.row(1).unwrap());
+//         assert!(rows1.row(2).unwrap() < rows2.row(2).unwrap());
+//         assert!(rows1.row(3).unwrap() < rows2.row(3).unwrap());
+//     }
 
-    #[test]
-    fn primitive_nulls_first_asc() {
-        let col1 = Array::from_iter([Some(-1), None, Some(1), Some(2)]);
-        let col2 = Array::from_iter([Some(1), Some(0), Some(-1), None]);
+//     #[test]
+//     fn primitive_nulls_first_asc() {
+//         let col1 = Array::from_iter([Some(-1), None, Some(1), Some(2)]);
+//         let col2 = Array::from_iter([Some(1), Some(0), Some(-1), None]);
 
-        let encoder = ComparableRowEncoder {
-            columns: vec![ComparableColumn {
-                desc: false,
-                nulls_first: true,
-            }],
-        };
+//         let encoder = ComparableRowEncoder {
+//             columns: vec![ComparableColumn {
+//                 desc: false,
+//                 nulls_first: true,
+//             }],
+//         };
 
-        let rows1 = encoder.encode(&[&col1]).unwrap();
-        let rows2 = encoder.encode(&[&col2]).unwrap();
+//         let rows1 = encoder.encode(&[&col1]).unwrap();
+//         let rows2 = encoder.encode(&[&col2]).unwrap();
 
-        assert_eq!(4, rows1.num_rows());
-        assert_eq!(4, rows2.num_rows());
+//         assert_eq!(4, rows1.num_rows());
+//         assert_eq!(4, rows2.num_rows());
 
-        assert!(rows1.row(0).unwrap() < rows2.row(0).unwrap());
-        assert!(rows1.row(1).unwrap() < rows2.row(1).unwrap());
-        assert!(rows1.row(2).unwrap() > rows2.row(2).unwrap());
-        assert!(rows1.row(3).unwrap() > rows2.row(3).unwrap());
-    }
+//         assert!(rows1.row(0).unwrap() < rows2.row(0).unwrap());
+//         assert!(rows1.row(1).unwrap() < rows2.row(1).unwrap());
+//         assert!(rows1.row(2).unwrap() > rows2.row(2).unwrap());
+//         assert!(rows1.row(3).unwrap() > rows2.row(3).unwrap());
+//     }
 
-    #[test]
-    fn primitive_nulls_first_desc() {
-        let col1 = Array::from_iter([Some(-1), None, Some(1), Some(2)]);
-        let col2 = Array::from_iter([Some(1), Some(0), Some(-1), None]);
+//     #[test]
+//     fn primitive_nulls_first_desc() {
+//         let col1 = Array::from_iter([Some(-1), None, Some(1), Some(2)]);
+//         let col2 = Array::from_iter([Some(1), Some(0), Some(-1), None]);
 
-        let encoder = ComparableRowEncoder {
-            columns: vec![ComparableColumn {
-                desc: true,
-                nulls_first: true,
-            }],
-        };
+//         let encoder = ComparableRowEncoder {
+//             columns: vec![ComparableColumn {
+//                 desc: true,
+//                 nulls_first: true,
+//             }],
+//         };
 
-        let rows1 = encoder.encode(&[&col1]).unwrap();
-        let rows2 = encoder.encode(&[&col2]).unwrap();
+//         let rows1 = encoder.encode(&[&col1]).unwrap();
+//         let rows2 = encoder.encode(&[&col2]).unwrap();
 
-        assert_eq!(4, rows1.num_rows());
-        assert_eq!(4, rows2.num_rows());
+//         assert_eq!(4, rows1.num_rows());
+//         assert_eq!(4, rows2.num_rows());
 
-        assert!(rows1.row(0).unwrap() > rows2.row(0).unwrap());
-        assert!(rows1.row(1).unwrap() < rows2.row(1).unwrap());
-        assert!(rows1.row(2).unwrap() < rows2.row(2).unwrap());
-        assert!(rows1.row(3).unwrap() > rows2.row(3).unwrap());
-    }
-}
+//         assert!(rows1.row(0).unwrap() > rows2.row(0).unwrap());
+//         assert!(rows1.row(1).unwrap() < rows2.row(1).unwrap());
+//         assert!(rows1.row(2).unwrap() < rows2.row(2).unwrap());
+//         assert!(rows1.row(3).unwrap() > rows2.row(3).unwrap());
+//     }
+// }

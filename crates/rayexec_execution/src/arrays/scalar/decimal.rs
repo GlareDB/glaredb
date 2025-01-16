@@ -33,10 +33,7 @@ impl DecimalPrimitive for i128 {
     }
 }
 
-pub trait DecimalType: Debug + Sync + Send + Copy + 'static
-where
-    for<'a> Self::Storage: PhysicalStorage<Type<'a> = Self::Primitive>,
-{
+pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
     /// The underlying primitive type storing the decimal's value.
     type Primitive: DecimalPrimitive;
     /// Storage type to use for accessing the primitives in a decimal array.
