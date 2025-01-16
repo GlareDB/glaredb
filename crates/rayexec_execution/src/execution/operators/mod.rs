@@ -32,7 +32,7 @@ pub mod window;
 pub(crate) mod util;
 
 #[cfg(test)]
-mod testutil;
+pub(crate) mod testutil;
 
 use std::fmt::Debug;
 use std::sync::Arc;
