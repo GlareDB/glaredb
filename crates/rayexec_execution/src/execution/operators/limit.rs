@@ -89,7 +89,6 @@ impl ExecutableOperator for PhysicalLimit {
         })
     }
 
-    #[allow(deprecated)]
     fn poll_push(
         &self,
         cx: &mut Context,

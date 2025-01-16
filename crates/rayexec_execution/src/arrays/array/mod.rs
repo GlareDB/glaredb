@@ -385,7 +385,7 @@ where
     /// (source, dest) pairs.
     pub fn copy_rows(
         &self,
-        mapping: impl stdutil::iter::IntoExactSizeIterator<Item = (usize, usize)>,
+        mapping: impl IntoIterator<Item = (usize, usize)>,
         dest: &mut Self,
     ) -> Result<()> {
         match self.datatype.physical_type() {
@@ -1505,7 +1505,7 @@ impl From<ListStorage> for ArrayData2 {
 /// Helper for copying rows.
 fn copy_rows<S, B>(
     from: &Array<B>,
-    mapping: impl stdutil::iter::IntoExactSizeIterator<Item = (usize, usize)>,
+    mapping: impl IntoIterator<Item = (usize, usize)>,
     to: &mut Array<B>,
 ) -> Result<()>
 where

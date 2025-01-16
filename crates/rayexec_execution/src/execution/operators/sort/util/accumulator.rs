@@ -1,7 +1,11 @@
+use std::sync::Arc;
+
 use rayexec_error::{RayexecError, Result};
 
+use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::executor::scalar::interleave;
+use crate::arrays::compute::interleave::interleave;
 
 /// Tracks the state per input into the merge.
 #[derive(Debug, Clone)]
@@ -57,6 +61,7 @@ impl IndicesAccumulator {
     /// Build a batch from the accumulated interleave indices.
     ///
     /// Internally drops batches that will no longer be part of the output.
+    // TODO: Output batch should be passed in.
     pub fn build(&mut self) -> Result<Option<Batch>> {
         if self.indices.is_empty() {
             return Ok(None);
@@ -73,7 +78,13 @@ impl IndicesAccumulator {
                     .map(|(_, batch)| batch.array(col_idx).expect("column to exist"))
                     .collect();
 
-                interleave(&cols, &self.indices)
+                let datatype = cols.first().expect("at least one array").datatype().clone();
+                let mut out =
+                    Array::try_new(&Arc::new(NopBufferManager), datatype, self.indices.len())?;
+
+                interleave(&cols, &self.indices, &mut out)?;
+
+                Ok(out)
             })
             .collect::<Result<Vec<_>>>()?;
         self.indices.clear();

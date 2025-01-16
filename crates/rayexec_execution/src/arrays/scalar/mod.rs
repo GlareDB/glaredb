@@ -5,17 +5,19 @@ pub mod timestamp;
 use std::borrow::Cow;
 use std::fmt;
 use std::hash::Hash;
+use std::sync::Arc;
 
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use half::f16;
 use interval::Interval;
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
-use crate::arrays::array::{Array, ArrayData2};
-use crate::arrays::bitmap::Bitmap;
+use super::array::buffer_manager::NopBufferManager;
+use super::array::selection::Selection;
+use crate::arrays::array::Array;
 use crate::arrays::compute::cast::format::{
     BoolFormatter,
     Date32Formatter,
@@ -49,15 +51,7 @@ use crate::arrays::datatype::{
     TimeUnit,
     TimestampTypeMeta,
 };
-use crate::arrays::executor::scalar::concat;
 use crate::arrays::selection::SelectionVector;
-use crate::arrays::storage::{
-    BooleanStorage,
-    GermanVarlenStorage,
-    ListItemMetadata2,
-    ListStorage,
-    PrimitiveStorage,
-};
 
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -205,64 +199,9 @@ impl ScalarValue<'_> {
 
     /// Create an array of size `n` using the scalar value.
     pub fn as_array(&self, n: usize) -> Result<Array> {
-        let data: ArrayData2 = match self {
-            Self::Null => return Ok(Array::new_untyped_null_array(n)),
-            Self::Boolean(v) => BooleanStorage(Bitmap::new_with_val(*v, 1)).into(),
-            Self::Float16(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Float32(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Float64(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int8(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int16(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int32(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int64(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int128(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt8(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt16(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt32(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt64(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt128(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Decimal64(v) => PrimitiveStorage::from(vec![v.value]).into(),
-            Self::Decimal128(v) => PrimitiveStorage::from(vec![v.value]).into(),
-            Self::Date32(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Date64(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Timestamp(v) => PrimitiveStorage::from(vec![v.value]).into(),
-            Self::Interval(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Utf8(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
-            Self::Binary(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
-            Self::List(v) => {
-                if v.is_empty() {
-                    let metadata = ListItemMetadata2 { offset: 0, len: 0 };
-
-                    ListStorage {
-                        metadata: vec![metadata].into(),
-                        array: Array::new_untyped_null_array(0),
-                    }
-                    .into()
-                } else {
-                    let arrays = v
-                        .iter()
-                        .map(|v| v.as_array(1))
-                        .collect::<Result<Vec<_>>>()?;
-                    let refs: Vec<_> = arrays.iter().collect();
-                    let array = concat(&refs)?;
-
-                    let metadata = ListItemMetadata2 {
-                        offset: 0,
-                        len: array.logical_len() as i32,
-                    };
-
-                    ListStorage {
-                        metadata: vec![metadata].into(),
-                        array,
-                    }
-                    .into()
-                }
-            }
-            other => not_implemented!("{other:?} to array"), // Struct, List
-        };
-
-        let mut array = Array::new_with_array_data(self.datatype(), data);
-        array.selection2 = Some(SelectionVector::repeated(n, 0).into());
+        let mut array = Array::try_new(&Arc::new(NopBufferManager), self.datatype(), 1)?;
+        array.set_value(0, self)?;
+        array.select(&Arc::new(NopBufferManager), Selection::constant(n, 0))?;
 
         Ok(array)
     }
@@ -611,5 +550,23 @@ impl ProtoConv for OwnedScalarValue {
                 Self::List(values)
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::arrays::testutil::assert_arrays_eq;
+
+    #[test]
+    fn scalar_i32_as_array() {
+        let s = ScalarValue::from(14);
+        let arr = s.as_array(4).unwrap();
+
+        let expected = Array::try_from_iter([14, 14, 14, 14]).unwrap();
+
+        assert_arrays_eq(&expected, &arr);
     }
 }

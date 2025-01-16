@@ -29,9 +29,6 @@ pub use hash::*;
 
 mod list;
 pub use list::*;
-
-mod fill;
-pub use fill::*;
 use rayexec_error::{RayexecError, Result};
 
 use super::builder::ArrayDataBuffer;
