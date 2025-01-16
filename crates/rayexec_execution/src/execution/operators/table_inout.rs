@@ -39,7 +39,7 @@ pub struct PhysicalTableInOut {
 }
 
 impl ExecutableOperator for PhysicalTableInOut {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -128,7 +128,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,

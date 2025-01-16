@@ -192,7 +192,7 @@ impl PhysicalGatherSort {
 }
 
 impl ExecutableOperator for PhysicalGatherSort {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -286,7 +286,7 @@ impl ExecutableOperator for PhysicalGatherSort {
         Ok(PollPush::Pushed)
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -610,12 +610,12 @@ impl DatabaseProtoConv for PhysicalGatherSort {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    // use std::sync::Arc;
 
-    use super::*;
-    use crate::arrays::datatype::DataType;
-    use crate::execution::operators::test_util::{unwrap_poll_pull_batch, TestWakerContext};
-    use crate::expr::physical::column_expr::PhysicalColumnExpr;
+    // use super::*;
+    // use crate::arrays::datatype::DataType;
+    // use crate::execution::operators::test_util::{unwrap_poll_pull_batch, TestWakerContext};
+    // use crate::expr::physical::column_expr::PhysicalColumnExpr;
 
     // #[test]
     // fn merge_sorted_single_input_partition() {

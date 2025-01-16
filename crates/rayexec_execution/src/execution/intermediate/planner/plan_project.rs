@@ -4,7 +4,7 @@ use rayexec_error::{Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::execution::intermediate::pipeline::IntermediateOperator;
-use crate::execution::operators::project::ProjectOperation;
+use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::simple::SimpleOperator;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_project::LogicalProject;
@@ -29,9 +29,7 @@ impl IntermediatePipelineBuildState<'_> {
             .context("Failed to plan expressions for projection")?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Project(SimpleOperator::new(
-                ProjectOperation::new(projections),
-            ))),
+            operator: Arc::new(PhysicalOperator::Project(PhysicalProject { projections })),
             partitioning_requirement: None,
         };
 

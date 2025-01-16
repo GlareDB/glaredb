@@ -169,6 +169,25 @@ impl Batch {
         Ok(())
     }
 
+    /// Clones another batch into self.
+    pub fn try_clone_from(&mut self, other: &mut Self) -> Result<()> {
+        if self.arrays.len() != other.arrays.len() {
+            return Err(RayexecError::new(
+                "Attempted to clone from batch with different number of arrays",
+            )
+            .with_field("self", self.arrays.len())
+            .with_field("other", other.arrays.len()));
+        }
+
+        for (own, other) in self.arrays.iter_mut().zip(other.arrays.iter_mut()) {
+            own.try_clone_from(&Arc::new(NopBufferManager), other)?;
+        }
+
+        self.set_num_rows(other.num_rows())?;
+
+        Ok(())
+    }
+
     /// Appends a batch to the end of self.
     ///
     /// Errors if this batch doesn't have enough capacity to append the other
@@ -333,5 +352,27 @@ mod tests {
         .unwrap();
 
         assert_batches_eq(&expected, &batch);
+    }
+
+    #[test]
+    fn clone_from_simple() {
+        let mut batch1 = Batch::try_from_arrays([
+            Array::try_from_iter([1, 2, 3, 4]).unwrap(),
+            Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
+        ])
+        .unwrap();
+
+        let mut batch2 = Batch::try_new([DataType::Int32, DataType::Utf8], 4).unwrap();
+
+        batch2.try_clone_from(&mut batch1).unwrap();
+
+        let expected = Batch::try_from_arrays([
+            Array::try_from_iter([1, 2, 3, 4]).unwrap(),
+            Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
+        ])
+        .unwrap();
+
+        assert_batches_eq(&expected, &batch1);
+        assert_batches_eq(&expected, &batch2);
     }
 }

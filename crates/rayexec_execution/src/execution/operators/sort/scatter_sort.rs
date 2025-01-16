@@ -63,7 +63,7 @@ impl PhysicalScatterSort {
 }
 
 impl ExecutableOperator for PhysicalScatterSort {
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -115,7 +115,7 @@ impl ExecutableOperator for PhysicalScatterSort {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -260,26 +260,26 @@ impl DatabaseProtoConv for PhysicalScatterSort {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    // use std::sync::Arc;
 
-    use super::*;
-    use crate::arrays::datatype::DataType;
-    use crate::execution::operators::test_util::{
-        test_database_context,
-        unwrap_poll_pull_batch,
-        TestWakerContext,
-    };
-    use crate::expr::physical::column_expr::PhysicalColumnExpr;
+    // use super::*;
+    // use crate::arrays::datatype::DataType;
+    // use crate::execution::operators::test_util::{
+    //     test_database_context,
+    //     unwrap_poll_pull_batch,
+    //     TestWakerContext,
+    // };
+    // use crate::expr::physical::column_expr::PhysicalColumnExpr;
 
-    fn create_states(operator: &PhysicalScatterSort, partitions: usize) -> Vec<PartitionState> {
-        let context = test_database_context();
-        let states = operator.create_states(&context, vec![partitions]).unwrap();
+    // fn create_states(operator: &PhysicalScatterSort, partitions: usize) -> Vec<PartitionState> {
+    //     let context = test_database_context();
+    //     let states = operator.create_states2(&context, vec![partitions]).unwrap();
 
-        match states.partition_states {
-            InputOutputStates::OneToOne { partition_states } => partition_states,
-            other => panic!("unexpected states: {other:?}"),
-        }
-    }
+    //     match states.partition_states {
+    //         InputOutputStates::OneToOne { partition_states } => partition_states,
+    //         other => panic!("unexpected states: {other:?}"),
+    //     }
+    // }
 
     // #[test]
     // fn sort_single_partition_desc_nulls_first() {

@@ -1,69 +1,177 @@
-use rayexec_error::Result;
+use std::task::Context;
 
-use super::simple::{SimpleOperator, StatelessOperation};
-use crate::arrays::batch::Batch;
+use rayexec_error::{OptionExt, Result};
+
+use super::{
+    ExecutableOperator,
+    ExecuteInOutState,
+    OperatorState,
+    PartitionAndOperatorStates,
+    PartitionState,
+    PollExecute,
+    PollFinalize,
+};
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::PhysicalScalarExpression;
-use crate::proto::DatabaseProtoConv;
-
-pub type PhysicalProject = SimpleOperator<ProjectOperation>;
 
 #[derive(Debug)]
-pub struct ProjectOperation {
-    exprs: Vec<PhysicalScalarExpression>,
+pub struct PhysicalProject {
+    pub(crate) projections: Vec<PhysicalScalarExpression>,
 }
 
-impl ProjectOperation {
-    pub fn new(exprs: Vec<PhysicalScalarExpression>) -> Self {
-        ProjectOperation { exprs }
-    }
+#[derive(Debug)]
+pub struct ProjectPartitionState {
+    evaluator: ExpressionEvaluator,
 }
 
-impl StatelessOperation for ProjectOperation {
-    fn execute(&self, batch: Batch) -> Result<Batch> {
-        let arrs = self
-            .exprs
-            .iter()
-            .map(|expr| {
-                let arr = expr.eval(&batch)?;
-                Ok(arr)
+impl ExecutableOperator for PhysicalProject {
+    fn create_states(
+        &self,
+        _context: &DatabaseContext,
+        batch_size: usize,
+        partitions: usize,
+    ) -> Result<PartitionAndOperatorStates> {
+        let partition_states = (0..partitions)
+            .map(|_| {
+                Ok(PartitionState::Project(ProjectPartitionState {
+                    evaluator: ExpressionEvaluator::try_new(self.projections.clone(), batch_size)?,
+                }))
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Batch::try_from_arrays(arrs)
+        Ok(PartitionAndOperatorStates::Branchless {
+            operator_state: OperatorState::None,
+            partition_states,
+        })
+    }
+
+    fn poll_execute(
+        &self,
+        _cx: &mut Context,
+        partition_state: &mut PartitionState,
+        _operator_state: &OperatorState,
+        inout: ExecuteInOutState,
+    ) -> Result<PollExecute> {
+        let state = match partition_state {
+            PartitionState::Project(state) => state,
+            other => panic!("invalid state: {other:?}"),
+        };
+
+        let input = inout.input.required("batch input")?;
+        let output = inout.output.required("batch output")?;
+
+        let sel = input.selection();
+        state.evaluator.eval_batch(input, sel, output)?;
+
+        Ok(PollExecute::Ready)
+    }
+
+    fn poll_finalize(
+        &self,
+        _cx: &mut Context,
+        _partition_state: &mut PartitionState,
+        _operator_state: &OperatorState,
+    ) -> Result<PollFinalize> {
+        Ok(PollFinalize::Finalized)
     }
 }
 
-impl Explainable for ProjectOperation {
+impl Explainable for PhysicalProject {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Project").with_values("projections", &self.exprs)
+        ExplainEntry::new("Project").with_values("projections", &self.projections)
     }
 }
 
-impl DatabaseProtoConv for PhysicalProject {
-    type ProtoType = rayexec_proto::generated::execution::PhysicalProject;
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
 
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            exprs: self
-                .operation
-                .exprs
-                .iter()
-                .map(|e| e.to_proto_ctx(context))
-                .collect::<Result<Vec<_>>>()?,
-        })
-    }
+    use stdutil::iter::TryFromExactSizeIterator;
 
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            operation: ProjectOperation {
-                exprs: proto
-                    .exprs
-                    .into_iter()
-                    .map(|e| PhysicalScalarExpression::from_proto_ctx(e, context))
-                    .collect::<Result<Vec<_>>>()?,
-            },
-        })
+    use super::*;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::array::Array;
+    use crate::arrays::batch::Batch;
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::assert_batches_eq;
+    use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};
+    use crate::expr::physical::column_expr::PhysicalColumnExpr;
+    use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
+
+    #[test]
+    fn project_simple() {
+        let projections = vec![
+            PhysicalScalarExpression::Column(PhysicalColumnExpr {
+                datatype: DataType::Int32,
+                idx: 1,
+            }),
+            PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                literal: "lit".into(),
+            }),
+        ];
+
+        let operator = PhysicalProject { projections };
+        let states = operator
+            .create_states(&test_database_context(), 4, 1)
+            .unwrap();
+        let (operator_state, mut partition_states) = states.branchless_into_states().unwrap();
+
+        let wrapper = OperatorWrapper::new(operator);
+
+        let mut out = Batch::try_from_arrays([
+            Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 4).unwrap(),
+            Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 4).unwrap(),
+        ])
+        .unwrap();
+
+        let mut in1 = Batch::try_from_arrays([
+            Array::try_from_iter([true, false, true, true]).unwrap(),
+            Array::try_from_iter([8, 9, 7, 6]).unwrap(),
+        ])
+        .unwrap();
+
+        wrapper
+            .poll_execute(
+                &mut partition_states[0],
+                &operator_state,
+                ExecuteInOutState {
+                    input: Some(&mut in1),
+                    output: Some(&mut out),
+                },
+            )
+            .unwrap();
+
+        let expected1 = Batch::try_from_arrays([
+            Array::try_from_iter([8, 9, 7, 6]).unwrap(),
+            Array::try_from_iter(["lit", "lit", "lit", "lit"]).unwrap(),
+        ])
+        .unwrap();
+        assert_batches_eq(&expected1, &out);
+
+        let mut in2 = Batch::try_from_arrays([
+            Array::try_from_iter([true, false, true, true]).unwrap(),
+            Array::try_from_iter([Some(4), Some(5), None, Some(7)]).unwrap(),
+        ])
+        .unwrap();
+
+        wrapper
+            .poll_execute(
+                &mut partition_states[0],
+                &operator_state,
+                ExecuteInOutState {
+                    input: Some(&mut in2),
+                    output: Some(&mut out),
+                },
+            )
+            .unwrap();
+
+        let expected2 = Batch::try_from_arrays([
+            Array::try_from_iter([Some(4), Some(5), None, Some(7)]).unwrap(),
+            Array::try_from_iter(["lit", "lit", "lit", "lit"]).unwrap(),
+        ])
+        .unwrap();
+        assert_batches_eq(&expected2, &out);
     }
 }
