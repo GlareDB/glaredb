@@ -150,6 +150,28 @@ impl SeriesParams {
         let stop = input.arrays[1].get_value(row)?.try_as_i64()?;
         let step = input.arrays[2].get_value(row)?.try_as_i64()?;
 
+        if start > stop && step > 0 {
+            return Err(RayexecError::new(
+                "Never-ending series, start larger than stop with positive step",
+            )
+            .with_field("start", start)
+            .with_field("stop", stop)
+            .with_field("step", step));
+        }
+
+        if start < stop && step < 0 {
+            return Err(RayexecError::new(
+                "Never-ending series, start smaller than stop with negative step",
+            )
+            .with_field("start", start)
+            .with_field("stop", stop)
+            .with_field("step", step));
+        }
+
+        if step == 0 {
+            return Err(RayexecError::new("Step cannot be zero"));
+        }
+
         Ok(SeriesParams {
             curr: start,
             stop,
@@ -421,5 +443,61 @@ mod tests {
             })
             .unwrap();
         assert_eq!(PollExecute::NeedsMore, poll);
+    }
+
+    #[test]
+    fn generate_series_neverending_start_gt_stop() {
+        let mut state = StateWrapper::new(
+            GenerateSeriesInOutImpl
+                .create_states(1)
+                .unwrap()
+                .pop()
+                .unwrap(),
+        );
+
+        // generate_series(5, 1, 1)
+        let mut input = Batch::try_from_arrays([
+            Array::try_from_iter([5]).unwrap(),
+            Array::try_from_iter([1]).unwrap(),
+            Array::try_from_iter([1]).unwrap(),
+        ])
+        .unwrap();
+
+        let mut out = Batch::try_new([DataType::Int32], 1024).unwrap();
+
+        let _ = state
+            .poll_execute(ExecuteInOutState {
+                input: Some(&mut input),
+                output: Some(&mut out),
+            })
+            .unwrap_err();
+    }
+
+    #[test]
+    fn generate_series_neverending_start_lt_stop() {
+        let mut state = StateWrapper::new(
+            GenerateSeriesInOutImpl
+                .create_states(1)
+                .unwrap()
+                .pop()
+                .unwrap(),
+        );
+
+        // generate_series(1, 5, -1)
+        let mut input = Batch::try_from_arrays([
+            Array::try_from_iter([1]).unwrap(),
+            Array::try_from_iter([5]).unwrap(),
+            Array::try_from_iter([-1]).unwrap(),
+        ])
+        .unwrap();
+
+        let mut out = Batch::try_new([DataType::Int32], 1024).unwrap();
+
+        let _ = state
+            .poll_execute(ExecuteInOutState {
+                input: Some(&mut input),
+                output: Some(&mut out),
+            })
+            .unwrap_err();
     }
 }
