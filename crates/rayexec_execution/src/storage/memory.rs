@@ -9,7 +9,6 @@ use crate::arrays::batch::Batch;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::execution::computed_batch::ComputedBatches;
 use crate::execution::operators::sink::PartitionSink;
-use crate::execution::operators::util::resizer::{BatchResizer, DEFAULT_TARGET_BATCH_SIZE};
 
 #[derive(Debug, Default)]
 pub struct MemoryTableStorage {
@@ -116,7 +115,6 @@ impl DataTable for MemoryDataTable {
         let inserts: Vec<_> = (0..input_partitions)
             .map(|_| {
                 Box::new(MemoryDataTableInsert {
-                    resizer: BatchResizer::new(DEFAULT_TARGET_BATCH_SIZE),
                     collected: Vec::new(),
                     data: self.data.clone(),
                 }) as _
@@ -140,7 +138,6 @@ impl DataTableScan for MemoryDataTableScan {
 
 #[derive(Debug)]
 pub struct MemoryDataTableInsert {
-    resizer: BatchResizer, // TODO: Need to replace.
     collected: Vec<ComputedBatches>,
     data: Arc<Mutex<Vec<Batch>>>,
 }
@@ -148,20 +145,13 @@ pub struct MemoryDataTableInsert {
 impl PartitionSink for MemoryDataTableInsert {
     fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
-            let batches = self.resizer.try_push(batch)?;
-            if batches.is_empty() {
-                return Ok(());
-            }
-            self.collected.push(batches);
+            self.collected.push(batch.into());
             Ok(())
         })
     }
 
     fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
         Box::pin(async {
-            let batches = self.resizer.flush_remaining()?;
-            self.collected.push(batches);
-
             let mut data = self.data.lock();
             for mut computed in self.collected.drain(..) {
                 while let Some(batch) = computed.try_pop_front()? {

@@ -94,9 +94,6 @@ impl IntermediatePipelineBuildState<'_> {
                 IntermediatePipelineBuildState::new(self.config, self.bind_context);
             left_state.walk(materializations, id_gen, left)?;
 
-            // Add batch resizer to left (build) side.
-            left_state.push_batch_resizer(id_gen)?;
-
             // Take any completed pipelines from the left side and put them in our
             // list.
             self.local_group
@@ -108,12 +105,6 @@ impl IntermediatePipelineBuildState<'_> {
             let left_pipeline = left_state.in_progress.take().ok_or_else(|| {
                 RayexecError::new("expected in-progress pipeline from left side of join")
             })?;
-
-            // Resize probe inputs too.
-            //
-            // TODO: There's some experimentation to be done on if this is
-            // beneficial to do on the output of a join too.
-            self.push_batch_resizer(id_gen)?;
 
             let conditions = join
                 .node
@@ -145,9 +136,6 @@ impl IntermediatePipelineBuildState<'_> {
             // Left pipeline will be child this this pipeline at the current
             // operator.
             self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
-
-            // Resize output of join too.
-            self.push_batch_resizer(id_gen)?;
 
             Ok(())
         } else {

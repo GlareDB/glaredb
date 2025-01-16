@@ -193,51 +193,6 @@ impl Batch {
         Ok(())
     }
 
-    /// Concat multiple batches into one.
-    ///
-    /// Batches are requried to have the same logical schemas.
-    #[deprecated]
-    pub fn concat(batches: &[Batch]) -> Result<Self> {
-        let num_cols = match batches.first() {
-            Some(batch) => batch.num_arrays(),
-            None => return Err(RayexecError::new("Cannot concat zero batches")),
-        };
-
-        for batch in batches {
-            if batch.num_arrays() != num_cols {
-                return Err(RayexecError::new(format!(
-                    "Cannot concat batches with different number of columns, got {} and {}",
-                    num_cols,
-                    batch.num_arrays()
-                )));
-            }
-        }
-
-        let num_rows: usize = batches.iter().map(|b| b.num_rows).sum();
-
-        // Special case for zero col batches. The true number of rows wouldn't
-        // be reflected if we just attempted to concat no array.
-        if num_cols == 0 {
-            return Ok(Batch::empty_with_num_rows(num_rows));
-        }
-
-        let mut output_cols = Vec::with_capacity(num_cols);
-
-        let mut working_arrays = Vec::with_capacity(batches.len());
-        for col_idx in 0..num_cols {
-            batches
-                .iter()
-                .for_each(|b| working_arrays.push(b.array(col_idx).unwrap()));
-
-            let out = concat_with_exact_total_len(&working_arrays, num_rows)?;
-            output_cols.push(out);
-
-            working_arrays.clear();
-        }
-
-        Batch::try_from_arrays(output_cols)
-    }
-
     #[deprecated]
     pub fn project(self, indices: &[usize]) -> Self {
         let cols = self

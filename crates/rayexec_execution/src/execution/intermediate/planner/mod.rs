@@ -39,7 +39,6 @@ use super::pipeline::{
     StreamId,
 };
 use crate::config::execution::IntermediatePlanConfig;
-use crate::execution::operators::batch_resizer::PhysicalBatchResizer;
 use crate::execution::operators::PhysicalOperator;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
 use crate::logical::binder::bind_context::BindContext;
@@ -417,37 +416,6 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         }
 
         Ok(())
-    }
-
-    /// Pushes a batch resizer onto the current pipline.
-    ///
-    /// If the latest operator is already a batch resizer operator, we skip
-    /// pushing a new one.
-    fn push_batch_resizer(&mut self, id_gen: &mut PipelineIdGen) -> Result<()> {
-        let current = self
-            .in_progress
-            .as_mut()
-            .required("in-progress pipeline for batch resizer")?;
-
-        // It's valid to push a batch resizer even if there's no previous
-        // operators, as another pipeline may be feeding batches into this one.
-        // And it's those batches that we want to resize.
-        if let Some(last) = current.operators.last() {
-            if matches!(last.operator.as_ref(), PhysicalOperator::BatchResizer(_)) {
-                // Nothing to do.
-                return Ok(());
-            }
-        }
-
-        let loc = current.location;
-        self.push_intermediate_operator(
-            IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::BatchResizer(PhysicalBatchResizer)),
-                partitioning_requirement: None,
-            },
-            loc,
-            id_gen,
-        )
     }
 
     fn finish(&mut self, id_gen: &mut PipelineIdGen) -> Result<()> {

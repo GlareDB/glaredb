@@ -8,7 +8,6 @@ use super::util::sort_keys::SortKeysExtractor;
 use super::util::sorted_batch::{IndexSortedBatch, SortedIndicesIter};
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
-use crate::execution::operators::util::resizer::DEFAULT_TARGET_BATCH_SIZE;
 use crate::execution::operators::{
     ExecutableOperator,
     ExecutionStates,
@@ -18,6 +17,7 @@ use crate::execution::operators::{
     PollFinalize,
     PollPull,
     PollPush,
+    DEFAULT_TARGET_BATCH_SIZE,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalSortExpression;
