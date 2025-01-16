@@ -77,7 +77,6 @@ use unnest::{PhysicalUnnest, UnnestPartitionState};
 use values::PhysicalValues;
 use window::PhysicalWindow;
 
-use self::empty::EmptyPartitionState;
 use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::limit::LimitPartitionState;
 use self::nl_join::{
@@ -139,7 +138,6 @@ pub enum PartitionState {
     CreateSchema(CreateSchemaPartitionState),
     CreateView(CreateViewPartitionState),
     Drop(DropPartitionState),
-    Empty(EmptyPartitionState),
     None,
 }
 

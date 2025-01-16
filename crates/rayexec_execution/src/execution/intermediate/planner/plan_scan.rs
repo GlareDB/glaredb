@@ -56,10 +56,15 @@ impl IntermediatePipelineBuildState<'_> {
             },
             ScanSource::ExpressionList { rows } => {
                 let batches = self.create_batches_for_row_values(projections, rows)?;
-                IntermediateOperator {
-                    operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(batches))),
-                    partitioning_requirement: None,
-                }
+                // TODO: Table refs
+                unimplemented!()
+                // let expressions = rows.into_iter().map(|row| {
+                //     self.expr_planner.plan_scalars(table_refs, exprs)
+                // })
+                // IntermediateOperator {
+                //     operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(batches))),
+                //     partitioning_requirement: None,
+                // }
             }
             ScanSource::View { .. } => not_implemented!("view physical planning"),
         };

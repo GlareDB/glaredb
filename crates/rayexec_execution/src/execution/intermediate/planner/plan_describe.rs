@@ -8,6 +8,8 @@ use crate::arrays::batch::Batch;
 use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::PhysicalOperator;
+use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
+use crate::expr::physical::PhysicalScalarExpression;
 use crate::logical::logical_describe::LogicalDescribe;
 use crate::logical::operator::Node;
 
@@ -23,13 +25,25 @@ impl IntermediatePipelineBuildState<'_> {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let names = Array::from_iter(describe.node.schema.iter().map(|f| f.name.as_str()));
-        let datatypes =
-            Array::from_iter(describe.node.schema.iter().map(|f| f.datatype.to_string()));
-        let batch = Batch::try_from_arrays(vec![names, datatypes])?;
+        let fields = &describe.node.schema.fields;
+        let mut row_exprs = Vec::with_capacity(fields.len());
+
+        for field in fields {
+            // Push [name, datatype] expressions for each row.
+            row_exprs.push(vec![
+                PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                    literal: field.name.clone().into(),
+                }),
+                PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
+                    literal: field.datatype.to_string().into(),
+                }),
+            ]);
+        }
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![batch]))),
+            operator: Arc::new(PhysicalOperator::Values(PhysicalValues {
+                expressions: row_exprs,
+            })),
             partitioning_requirement: Some(1),
         };
 

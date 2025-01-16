@@ -80,25 +80,26 @@ impl IntermediatePipelineBuildState<'_> {
             }
         }
 
-        let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-            Batch::try_from_arrays([
-                Array::from_iter(type_strings),
-                Array::from_iter(plan_strings),
-            ])?,
-        ])));
+        unimplemented!()
+        // let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
+        //     Batch::try_from_arrays([
+        //         Array::from_iter(type_strings),
+        //         Array::from_iter(plan_strings),
+        //     ])?,
+        // ])));
 
-        let operator = IntermediateOperator {
-            operator: physical,
-            partitioning_requirement: None,
-        };
+        // let operator = IntermediateOperator {
+        //     operator: physical,
+        //     partitioning_requirement: None,
+        // };
 
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: vec![operator],
-            location,
-            source: PipelineSource::InPipeline,
-        });
+        // self.in_progress = Some(InProgressPipeline {
+        //     id: id_gen.next_pipeline_id(),
+        //     operators: vec![operator],
+        //     location,
+        //     source: PipelineSource::InPipeline,
+        // });
 
-        Ok(())
+        // Ok(())
     }
 }
