@@ -56,6 +56,7 @@ pub enum PhysicalType {
     List,
     Struct,
     Dictionary,
+    Constant,
 }
 
 impl PhysicalType {
@@ -141,6 +142,7 @@ impl PhysicalType {
             Self::List => "List",
             Self::Struct => "Struct",
             Self::Dictionary => "Dictionary",
+            Self::Constant => "Constant",
         }
     }
 }
@@ -177,6 +179,7 @@ impl ProtoConv for PhysicalType {
             Self::List => Self::ProtoType::List,
             Self::Struct => Self::ProtoType::Struct,
             Self::Dictionary => Self::ProtoType::Dictionary,
+            Self::Constant => Self::ProtoType::Constant,
         })
     }
 
@@ -204,6 +207,7 @@ impl ProtoConv for PhysicalType {
             Self::ProtoType::List => Self::List,
             Self::ProtoType::Struct => Self::Struct,
             Self::ProtoType::Dictionary => Self::Dictionary,
+            Self::ProtoType::Constant => Self::Constant,
         })
     }
 }
@@ -276,56 +280,6 @@ where
     }
 }
 
-// TODO: Remove
-/// Types able to convert themselves to byte slices.
-pub trait AsBytes {
-    fn as_bytes(&self) -> &[u8];
-}
-
-impl AsBytes for str {
-    fn as_bytes(&self) -> &[u8] {
-        self.as_bytes()
-    }
-}
-
-impl AsBytes for &str {
-    fn as_bytes(&self) -> &[u8] {
-        (*self).as_bytes()
-    }
-}
-
-impl AsBytes for [u8] {
-    fn as_bytes(&self) -> &[u8] {
-        self
-    }
-}
-
-impl AsBytes for &[u8] {
-    fn as_bytes(&self) -> &[u8] {
-        self
-    }
-}
-
-// TODO: Remove
-/// Types that can be converted from bytes.
-///
-/// This should not be implemented for `&str`/`&[u8]`.
-pub trait VarlenType: Debug + PartialEq + Eq {
-    fn try_from_bytes(bytes: &[u8]) -> Result<&Self>;
-}
-
-impl VarlenType for str {
-    fn try_from_bytes(bytes: &[u8]) -> Result<&Self> {
-        std::str::from_utf8(bytes).context("Bytes not valid utf8")
-    }
-}
-
-impl VarlenType for [u8] {
-    fn try_from_bytes(bytes: &[u8]) -> Result<&Self> {
-        Ok(bytes)
-    }
-}
-
 /// Helper trait for getting the underlying data for an array.
 pub trait PhysicalStorage: Debug + Default + Sync + Send + Clone + Copy + 'static {
     const PHYSICAL_TYPE: PhysicalType;
@@ -358,9 +312,6 @@ pub trait MutablePhysicalStorage: PhysicalStorage {
         buffer: &mut ArrayBuffer<B>,
     ) -> Result<Self::AddressableMut<'_>>;
 }
-
-#[derive(Debug, Default, Clone, Copy)]
-pub struct PhysicalConstant;
 
 /// Marker type representing a null value without an associated type.
 ///
@@ -629,6 +580,33 @@ impl PhysicalStorage for PhysicalDictionary {
     type StorageType = Self::PrimaryBufferType;
 
     type Addressable<'a> = &'a [usize];
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_slice::<Self>()
+    }
+}
+
+/// Zero-sized marker value that gets stored in the primary data buffer for a
+/// constant array.
+///
+/// This is used to allow the data buffer have a length, but not actually
+/// allocate any storage.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ConstantMarker;
+
+/// Constant arrays have a single value in the secondary data buffer. The
+/// primary data buffer is a slice of `ConstantMarker` to indicate the length of
+/// the array.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PhysicalConstant;
+
+impl PhysicalStorage for PhysicalConstant {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Constant;
+
+    type PrimaryBufferType = ConstantMarker;
+    type StorageType = Self::PrimaryBufferType;
+
+    type Addressable<'a> = &'a [ConstantMarker];
 
     fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
         buffer.try_as_slice::<Self>()

@@ -13,7 +13,14 @@ mod shared_or_owned;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use array_buffer::{ArrayBuffer, DictionaryBuffer, ListBuffer, ListItemMetadata, SecondaryBuffer};
+use array_buffer::{
+    ArrayBuffer,
+    ConstantBuffer,
+    DictionaryBuffer,
+    ListBuffer,
+    ListItemMetadata,
+    SecondaryBuffer,
+};
 use array_data::ArrayData;
 use buffer_manager::{BufferManager, NopBufferManager};
 use flat::FlatArrayView;
@@ -24,6 +31,7 @@ use physical_type::{
     MutablePhysicalStorage,
     PhysicalBinary,
     PhysicalBool,
+    PhysicalConstant,
     PhysicalDictionary,
     PhysicalF16,
     PhysicalF32,
@@ -158,6 +166,31 @@ where
         })
     }
 
+    /// Create a new array backed by a constant value.
+    pub fn try_new_constant(manager: &Arc<B>, value: &ScalarValue, len: usize) -> Result<Self> {
+        let mut arr = Self::try_new(manager, value.datatype(), 1)?;
+        arr.set_value(0, value)?;
+
+        let next = arr.next.unwrap();
+
+        let mut buf = ArrayBuffer::with_primary_capacity::<PhysicalConstant>(manager, len)?;
+        buf.put_secondary_buffer(SecondaryBuffer::Constant(ConstantBuffer {
+            validity: next.validity,
+            buffer: next.data,
+        }));
+
+        Ok(Array {
+            datatype: value.datatype(),
+            selection2: None,
+            validity2: None,
+            data2: ArrayData2::UntypedNull(UntypedNullStorage(len)),
+            next: Some(ArrayNextInner {
+                validity: Validity::new_all_valid(len),
+                data: ArrayData::owned(buf),
+            }),
+        })
+    }
+
     /// Create a new typed null array.
     ///
     /// This will internally create an array buf with a capacity of 1, mark that
@@ -225,6 +258,10 @@ where
 
     pub fn is_dictionary(&self) -> bool {
         self.next.as_ref().unwrap().data.physical_type() == PhysicalType::Dictionary
+    }
+
+    pub fn is_constant(&self) -> bool {
+        self.next.as_ref().unwrap().data.physical_type() == PhysicalType::Constant
     }
 
     pub fn flat_view(&self) -> Result<FlatArrayView<B>> {
@@ -365,6 +402,7 @@ where
                 // item metadata will become stale, but technically won't error.
             }
             SecondaryBuffer::Dictionary(_) => (),
+            SecondaryBuffer::Constant(_) => (),
             SecondaryBuffer::None => (),
         }
 
@@ -1664,6 +1702,13 @@ mod tests {
         let val = arr.get_value(1).unwrap();
 
         assert_eq!(ScalarValue::Utf8("c".into()), val);
+    }
+
+    #[test]
+    fn get_value_constant() {
+        let arr = Array::try_new_constant(&Arc::new(NopBufferManager), &"cat".into(), 4).unwrap();
+        let val = arr.get_value(2).unwrap();
+        assert_eq!(ScalarValue::Utf8("cat".into()), val);
     }
 
     #[test]

@@ -6,6 +6,7 @@ use crate::arrays::array::physical_type::{
     AddressableMut,
     PhysicalBinary,
     PhysicalBool,
+    PhysicalConstant,
     PhysicalDictionary,
     PhysicalF16,
     PhysicalF32,
@@ -112,6 +113,7 @@ impl AggregateFunction for Count {
             PhysicalType::Utf8 => Box::new(CountNonNullImpl::<PhysicalUtf8>::new()),
             PhysicalType::Binary => Box::new(CountNonNullImpl::<PhysicalBinary>::new()),
             PhysicalType::Dictionary => Box::new(CountNonNullImpl::<PhysicalDictionary>::new()),
+            PhysicalType::Constant => Box::new(CountNonNullImpl::<PhysicalConstant>::new()),
             PhysicalType::List => Box::new(CountNonNullImpl::<PhysicalList>::new()),
             PhysicalType::Struct => not_implemented!("count struct"),
         };

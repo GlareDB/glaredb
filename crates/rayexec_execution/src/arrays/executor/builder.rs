@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use stdutil::marker::PhantomCovariant;
 
-use crate::arrays::array::physical_type::{AsBytes, VarlenType};
 use crate::arrays::array::{ArrayData2, BinaryData};
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
@@ -150,10 +149,7 @@ pub struct GermanVarlenBuffer<T: ?Sized> {
     pub(crate) _type: PhantomCovariant<T>,
 }
 
-impl<T> GermanVarlenBuffer<T>
-where
-    T: VarlenType + ?Sized,
-{
+impl<T: ?Sized> GermanVarlenBuffer<T> {
     pub fn with_len(len: usize) -> Self {
         Self::with_len_and_data_capacity(len, 0)
     }
@@ -204,10 +200,7 @@ where
     }
 }
 
-impl<T> ArrayDataBuffer for GermanVarlenBuffer<T>
-where
-    T: AsBytes + ?Sized,
-{
+impl<T: ?Sized> ArrayDataBuffer for GermanVarlenBuffer<T> {
     type Type = T;
 
     fn len(&self) -> usize {
@@ -215,31 +208,32 @@ where
     }
 
     fn put(&mut self, idx: usize, val: &Self::Type) {
-        let val = val.as_bytes();
+        unimplemented!()
+        // let val = val.as_bytes();
 
-        if val.len() as i32 <= INLINE_THRESHOLD {
-            // Store completely inline.
-            let meta = self.metadata[idx].as_small_mut();
-            meta.len = val.len() as i32;
-            meta.inline[0..val.len()].copy_from_slice(val);
-        } else {
-            // Store prefix, buf index, and offset in line. Store complete copy
-            // in buffer.
-            let meta = self.metadata[idx].as_large_mut();
-            meta.len = val.len() as i32;
+        // if val.len() as i32 <= INLINE_THRESHOLD {
+        //     // Store completely inline.
+        //     let meta = self.metadata[idx].as_small_mut();
+        //     meta.len = val.len() as i32;
+        //     meta.inline[0..val.len()].copy_from_slice(val);
+        // } else {
+        //     // Store prefix, buf index, and offset in line. Store complete copy
+        //     // in buffer.
+        //     let meta = self.metadata[idx].as_large_mut();
+        //     meta.len = val.len() as i32;
 
-            // Prefix
-            meta.prefix.copy_from_slice(&val[0..4]);
+        //     // Prefix
+        //     meta.prefix.copy_from_slice(&val[0..4]);
 
-            // Buffer index, currently always zero.
-            meta.buffer_idx = 0;
+        //     // Buffer index, currently always zero.
+        //     meta.buffer_idx = 0;
 
-            // Offset, 4 bytes
-            let offset = self.data.len();
-            meta.offset = offset as i32;
+        //     // Offset, 4 bytes
+        //     let offset = self.data.len();
+        //     meta.offset = offset as i32;
 
-            self.data.extend_from_slice(val);
-        }
+        //     self.data.extend_from_slice(val);
+        // }
     }
 
     fn into_data(self) -> ArrayData2 {

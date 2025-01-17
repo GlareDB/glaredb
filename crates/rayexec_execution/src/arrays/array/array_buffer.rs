@@ -194,6 +194,7 @@ pub enum SecondaryBuffer<B: BufferManager> {
     StringViewHeap(StringViewHeap),
     Dictionary(DictionaryBuffer<B>),
     List(ListBuffer<B>),
+    Constant(ConstantBuffer<B>),
     None,
 }
 
@@ -259,6 +260,13 @@ where
     pub fn new(child: Array<B>) -> Self {
         ListBuffer { entries: 0, child }
     }
+}
+
+/// Holds a single constant value.
+#[derive(Debug)]
+pub struct ConstantBuffer<B: BufferManager> {
+    pub(crate) validity: Validity,
+    pub(crate) buffer: ArrayData<B>,
 }
 
 #[cfg(test)]

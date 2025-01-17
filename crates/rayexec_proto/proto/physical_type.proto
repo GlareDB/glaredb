@@ -25,4 +25,5 @@ enum PhysicalType {
     LIST                  = 19;
     STRUCT                = 20;
     DICTIONARY            = 21;
+    CONSTANT              = 22;
 }

@@ -2,7 +2,6 @@ use half::f16;
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::array::physical_type::{
-    AsBytes,
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -465,7 +464,8 @@ impl ComparableEncode for bool {
 
 impl ComparableEncode for &str {
     fn encode(&self, buf: &mut [u8]) {
-        buf.copy_from_slice(self.as_bytes())
+        unimplemented!()
+        // buf.copy_from_slice(self.as_bytes())
     }
 }
 

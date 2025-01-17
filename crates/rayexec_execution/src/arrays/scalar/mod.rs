@@ -198,11 +198,7 @@ impl ScalarValue<'_> {
 
     /// Create an array of size `n` using the scalar value.
     pub fn as_array(&self, n: usize) -> Result<Array> {
-        let mut array = Array::try_new(&Arc::new(NopBufferManager), self.datatype(), 1)?;
-        array.set_value(0, self)?;
-        array.select(&Arc::new(NopBufferManager), Selection::constant(n, 0))?;
-
-        Ok(array)
+        Array::try_new_constant(&Arc::new(NopBufferManager), self, n)
     }
 
     pub fn try_as_bool(&self) -> Result<bool> {
