@@ -293,8 +293,6 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     for (col_idx, col_is_null) in null_mask.iter().enumerate() {
                         if col_is_null {
                             // Create column with all nulls but retain the datatype.
-                            //
-                            // TODO: Don
                             let null_col = Array::try_new_typed_null(
                                 &Arc::new(NopBufferManager),
                                 grouping_columns[col_idx].datatype().clone(),
@@ -305,6 +303,15 @@ impl ExecutableOperator for PhysicalHashAggregate {
                             masked_grouping_columns.push(grouping_columns[col_idx].clone());
                         }
                     }
+
+                    // Group id for disambiguating NULL values in user columns
+                    // vs NULLs we're applying for the mask.
+                    let grouping_set_id = null_mask.try_as_u64()?;
+
+                    // Append group id to group val columns. Can be retrieved via the
+                    // GROUPING function call.
+                    masked_grouping_columns
+                        .push(ScalarValue::UInt64(grouping_set_id).as_array(num_rows)?);
                 }
 
                 unimplemented!()
