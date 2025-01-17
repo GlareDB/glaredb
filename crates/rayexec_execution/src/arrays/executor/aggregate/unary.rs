@@ -21,7 +21,7 @@ impl UnaryNonNullUpdater {
         Output: ?Sized,
         for<'a> State: AggregateState<&'a S::StorageType, Output>,
     {
-        if array.is_dictionary() {
+        if array.is_dictionary() || array.is_constant() {
             let flat = array.flat_view()?;
             return Self::update_flat::<S, State, Output>(flat, selection, mapping, states);
         }
@@ -162,6 +162,22 @@ mod tests {
         .unwrap();
 
         assert_eq!(16, states[0].val);
+    }
+
+    #[test]
+    fn unary_primitive_single_state_constant() {
+        let mut states = [TestSumState::default()];
+        let array = Array::try_new_constant(&Arc::new(NopBufferManager), &3.into(), 5).unwrap();
+
+        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
+            &array,
+            [0, 1, 2, 4], // Select from the resulting dictionary.
+            [0, 0, 0, 0],
+            &mut states,
+        )
+        .unwrap();
+
+        assert_eq!(12, states[0].val);
     }
 
     #[test]

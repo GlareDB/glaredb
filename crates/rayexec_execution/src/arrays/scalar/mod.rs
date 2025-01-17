@@ -347,83 +347,35 @@ impl fmt::Display for ScalarValue<'_> {
     }
 }
 
-impl From<bool> for ScalarValue<'_> {
-    fn from(value: bool) -> Self {
-        ScalarValue::Boolean(value)
-    }
+macro_rules! impl_primitive_from {
+    ($prim:ty, $variant:ident) => {
+        impl From<$prim> for ScalarValue<'_> {
+            fn from(value: $prim) -> Self {
+                ScalarValue::$variant(value)
+            }
+        }
+    };
 }
 
-impl From<f16> for ScalarValue<'_> {
-    fn from(value: f16) -> Self {
-        ScalarValue::Float16(value)
-    }
-}
+impl_primitive_from!(bool, Boolean);
 
-impl From<f32> for ScalarValue<'_> {
-    fn from(value: f32) -> Self {
-        ScalarValue::Float32(value)
-    }
-}
+impl_primitive_from!(i8, Int8);
+impl_primitive_from!(i16, Int16);
+impl_primitive_from!(i32, Int32);
+impl_primitive_from!(i64, Int64);
+impl_primitive_from!(i128, Int128);
 
-impl From<f64> for ScalarValue<'_> {
-    fn from(value: f64) -> Self {
-        ScalarValue::Float64(value)
-    }
-}
+impl_primitive_from!(u8, UInt8);
+impl_primitive_from!(u16, UInt16);
+impl_primitive_from!(u32, UInt32);
+impl_primitive_from!(u64, UInt64);
+impl_primitive_from!(u128, UInt128);
 
-impl From<i8> for ScalarValue<'_> {
-    fn from(value: i8) -> Self {
-        ScalarValue::Int8(value)
-    }
-}
+impl_primitive_from!(f16, Float16);
+impl_primitive_from!(f32, Float32);
+impl_primitive_from!(f64, Float64);
 
-impl From<i16> for ScalarValue<'_> {
-    fn from(value: i16) -> Self {
-        ScalarValue::Int16(value)
-    }
-}
-
-impl From<i32> for ScalarValue<'_> {
-    fn from(value: i32) -> Self {
-        ScalarValue::Int32(value)
-    }
-}
-
-impl From<i64> for ScalarValue<'_> {
-    fn from(value: i64) -> Self {
-        ScalarValue::Int64(value)
-    }
-}
-
-impl From<u8> for ScalarValue<'_> {
-    fn from(value: u8) -> Self {
-        ScalarValue::UInt8(value)
-    }
-}
-
-impl From<u16> for ScalarValue<'_> {
-    fn from(value: u16) -> Self {
-        ScalarValue::UInt16(value)
-    }
-}
-
-impl From<u32> for ScalarValue<'_> {
-    fn from(value: u32) -> Self {
-        ScalarValue::UInt32(value)
-    }
-}
-
-impl From<u64> for ScalarValue<'_> {
-    fn from(value: u64) -> Self {
-        ScalarValue::UInt64(value)
-    }
-}
-
-impl From<Interval> for ScalarValue<'_> {
-    fn from(value: Interval) -> Self {
-        ScalarValue::Interval(value)
-    }
-}
+impl_primitive_from!(Interval, Interval);
 
 impl<'a> From<&'a str> for ScalarValue<'a> {
     fn from(value: &'a str) -> Self {

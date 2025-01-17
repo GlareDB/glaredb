@@ -34,7 +34,13 @@ impl TernaryExecutor {
             PutBuffer<O::AddressableMut<'a>>,
         ),
     {
-        if array1.is_dictionary() || array2.is_dictionary() || array3.is_dictionary() {
+        if array1.is_dictionary()
+            || array2.is_dictionary()
+            || array3.is_dictionary()
+            || array1.is_constant()
+            || array2.is_constant()
+            || array3.is_constant()
+        {
             let flat1 = array1.flat_view()?;
             let flat2 = array2.flat_view()?;
             let flat3 = array3.flat_view()?;
@@ -304,6 +310,40 @@ mod tests {
         .unwrap();
 
         let expected = Array::try_from_iter([".a", "..b", "<<<c"]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn ternary_left_prepend_constant() {
+        let strings = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        let count = Array::try_from_iter([1, 2, 3]).unwrap();
+        let pad = Array::try_new_constant(&Arc::new(NopBufferManager), &"<".into(), 3).unwrap();
+
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
+
+        let mut str_buf = String::new();
+        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(
+            &strings,
+            0..3,
+            &count,
+            0..3,
+            &pad,
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |s, &count, pad, buf| {
+                str_buf.clear();
+                for _ in 0..count {
+                    str_buf.push_str(pad);
+                }
+                str_buf.push_str(s);
+
+                buf.put(&str_buf);
+            },
+        )
+        .unwrap();
+
+        let expected = Array::try_from_iter(["<a", "<<b", "<<<c"]).unwrap();
 
         assert_arrays_eq(&expected, &out);
     }

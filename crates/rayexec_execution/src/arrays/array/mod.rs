@@ -277,7 +277,30 @@ where
         selection: impl stdutil::iter::IntoExactSizeIterator<Item = usize>,
     ) -> Result<()> {
         let is_dictionary = self.is_dictionary();
+        let is_constant = self.is_constant();
         let next = self.next_mut();
+
+        if is_constant {
+            // Easy, just create a new primary data buffer with the size of the selection.
+            let sel = selection.into_iter();
+
+            let mut new_buf =
+                ArrayBuffer::with_primary_capacity::<PhysicalConstant>(manager, sel.len())?;
+
+            std::mem::swap(
+                next.data.try_as_mut()?.get_secondary_mut(), // TODO: Should just clone the pointer if managed.
+                new_buf.get_secondary_mut(),
+            );
+
+            next.data = ArrayData::owned(new_buf);
+
+            debug_assert!(matches!(
+                next.data.get_secondary(),
+                SecondaryBuffer::Constant(_)
+            ));
+
+            return Ok(());
+        }
 
         if is_dictionary {
             // Already dictionary, select the selection.
@@ -1636,6 +1659,13 @@ mod tests {
     use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]
+    fn new_constant_array() {
+        let arr = Array::try_new_constant(&Arc::new(NopBufferManager), &"a".into(), 4).unwrap();
+        let expected = Array::try_from_iter(["a", "a", "a", "a"]).unwrap();
+        assert_arrays_eq(&expected, &arr);
+    }
+
+    #[test]
     fn select_no_change() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         arr.select(&Arc::new(NopBufferManager), [0, 1, 2]).unwrap();
@@ -1673,6 +1703,17 @@ mod tests {
         arr.select(&Arc::new(NopBufferManager), [1, 1, 0]).unwrap();
 
         let expected = Array::try_from_iter(["c", "c", "a"]).unwrap();
+        assert_arrays_eq(&expected, &arr);
+    }
+
+    #[test]
+    fn select_constant() {
+        let mut arr =
+            Array::try_new_constant(&Arc::new(NopBufferManager), &"dog".into(), 3).unwrap();
+        arr.select(&Arc::new(NopBufferManager), [0, 1, 2, 0, 1, 2])
+            .unwrap();
+
+        let expected = Array::try_from_iter(["dog", "dog", "dog", "dog", "dog", "dog"]).unwrap();
         assert_arrays_eq(&expected, &arr);
     }
 

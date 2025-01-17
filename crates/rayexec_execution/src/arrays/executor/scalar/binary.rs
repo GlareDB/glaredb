@@ -24,7 +24,11 @@ impl BinaryExecutor {
         O: MutablePhysicalStorage,
         for<'a> Op: FnMut(&S1::StorageType, &S2::StorageType, PutBuffer<O::AddressableMut<'a>>),
     {
-        if array1.is_dictionary() || array2.is_dictionary() {
+        if array1.is_dictionary()
+            || array2.is_dictionary()
+            || array1.is_constant()
+            || array2.is_constant()
+        {
             let view1 = FlatArrayView::from_array(array1)?;
             let view2 = FlatArrayView::from_array(array2)?;
 
@@ -154,6 +158,8 @@ mod tests {
     use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::array::string_view::StringViewHeap;
     use crate::arrays::array::validity::Validity;
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]
     fn binary_simple_add() {
@@ -284,5 +290,26 @@ mod tests {
 
         assert!(validity.is_valid(2));
         assert_eq!(9, out_slice[2]);
+    }
+
+    #[test]
+    fn binary_add_with_constant() {
+        let left = Array::try_from_iter([1, 2, 3]).unwrap();
+        let right = Array::try_new_constant(&Arc::new(NopBufferManager), &4.into(), 3).unwrap();
+
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+
+        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
+            &left,
+            0..3,
+            &right,
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |&a, &b, buf| buf.put(&(a + b)),
+        )
+        .unwrap();
+
+        let expected = Array::try_from_iter([5, 6, 7]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 }

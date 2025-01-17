@@ -10,11 +10,7 @@ use crate::arrays::array::physical_type::{
     PhysicalStorage,
 };
 use crate::arrays::array::Array;
-use crate::arrays::bitmap::Bitmap;
-use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
 use crate::arrays::executor::{OutBuffer, PutBuffer};
-use crate::arrays::selection;
-use crate::arrays::storage::AddressableStorage;
 
 #[derive(Debug, Clone)]
 pub struct UnaryExecutor;
@@ -32,7 +28,7 @@ impl UnaryExecutor {
         O: MutablePhysicalStorage,
         for<'a> Op: FnMut(&S::StorageType, PutBuffer<O::AddressableMut<'a>>),
     {
-        if array.is_dictionary() {
+        if array.is_dictionary() || array.is_constant() {
             let view = array.flat_view()?;
             return Self::execute_flat::<S, _, _>(view, selection, out, op);
         }
@@ -231,6 +227,8 @@ mod tests {
     use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::array::string_view::{StringViewAddressableMut, StringViewHeap};
     use crate::arrays::array::validity::Validity;
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]
     fn int32_inc_by_2() {
@@ -442,5 +440,23 @@ mod tests {
 
         let out_slice = out.try_as_slice::<PhysicalI32>().unwrap();
         assert_eq!(&[5, 5, 4, 3, 3, 5], out_slice);
+    }
+
+    #[test]
+    fn int32_inc_by_2_constant() {
+        let array = Array::try_new_constant(&Arc::new(NopBufferManager), &3.into(), 2).unwrap();
+
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 2).unwrap();
+
+        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
+            &array,
+            0..2,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |&v, buf| buf.put(&(v + 2)),
+        )
+        .unwrap();
+
+        let expected = Array::try_from_iter([5, 5]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 }

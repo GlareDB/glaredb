@@ -24,7 +24,10 @@ impl UniformExecutor {
         O: MutablePhysicalStorage,
         for<'a> Op: FnMut(&[&S::StorageType], PutBuffer<O::AddressableMut<'a>>),
     {
-        if arrays.iter().any(|arr| arr.is_dictionary()) {
+        if arrays
+            .iter()
+            .any(|arr| arr.is_dictionary() || arr.is_constant())
+        {
             let flats = arrays
                 .iter()
                 .map(|arr| arr.flat_view())
@@ -268,6 +271,34 @@ mod tests {
         .unwrap();
 
         let expected = Array::try_from_iter(["a1horse", "b2horse", "c3dog"]).unwrap();
+
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn uniform_string_concat_row_wise_with_constant() {
+        let a = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        let b = Array::try_new_constant(&Arc::new(NopBufferManager), &"*".into(), 3).unwrap();
+        let c = Array::try_from_iter(["dog", "cat", "horse"]).unwrap();
+
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
+
+        let mut str_buf = String::new();
+        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+            &[a, b, c],
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |strings, buf| {
+                str_buf.clear();
+                for s in strings {
+                    str_buf.push_str(s);
+                }
+                buf.put(&str_buf);
+            },
+        )
+        .unwrap();
+
+        let expected = Array::try_from_iter(["a*dog", "b*cat", "c*horse"]).unwrap();
 
         assert_arrays_eq(&expected, &out);
     }
