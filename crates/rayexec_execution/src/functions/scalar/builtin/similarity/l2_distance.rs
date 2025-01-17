@@ -154,10 +154,10 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::ListTypeMeta;
     use crate::arrays::testutil::assert_arrays_eq;
     use crate::expr;
-    use crate::functions::scalar::builtin::list::list_values;
 
     #[test]
     fn l2_distance_ok() {
@@ -167,7 +167,7 @@ mod tests {
             1,
         )
         .unwrap();
-        list_values(
+        make_list_from_values(
             &[
                 Array::try_from_iter([1.0]).unwrap(),
                 Array::try_from_iter([2.0]).unwrap(),
@@ -184,7 +184,7 @@ mod tests {
             1,
         )
         .unwrap();
-        list_values(
+        make_list_from_values(
             &[
                 Array::try_from_iter([1.0]).unwrap(),
                 Array::try_from_iter([2.0]).unwrap(),

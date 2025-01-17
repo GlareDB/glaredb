@@ -647,8 +647,22 @@ where
                 let v = addressable.get(idx).unwrap();
                 Ok(ScalarValue::Binary(v.into()))
             }
+            DataType::List(_) => {
+                let addressable = PhysicalList::get_addressable(flat.array_buffer)?;
+                let meta = addressable.get(idx).unwrap();
+                let list_buf = flat.array_buffer.get_secondary().get_list()?;
 
-            _ => not_implemented!("get value for scalar type"),
+                // TODO: Could be slow.
+                let mut vals = Vec::with_capacity(meta.len as usize);
+                for child_idx in meta.offset..(meta.offset + meta.len) {
+                    let v = list_buf.child.get_value(child_idx as usize)?;
+                    vals.push(v);
+                }
+
+                Ok(ScalarValue::List(vals))
+            }
+
+            other => not_implemented!("get value for scalar type: {other:?}"),
         }
     }
 
@@ -1672,6 +1686,8 @@ where
 mod tests {
 
     use super::*;
+    use crate::arrays::compute::make_list::make_list_from_values;
+    use crate::arrays::datatype::ListTypeMeta;
     use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]
@@ -1776,6 +1792,34 @@ mod tests {
         let arr = Array::try_new_constant(&Arc::new(NopBufferManager), &"cat".into(), 4).unwrap();
         let val = arr.get_value(2).unwrap();
         assert_eq!(ScalarValue::Utf8("cat".into()), val);
+    }
+
+    #[test]
+    fn get_value_list_i32() {
+        let mut lists = Array::try_new(
+            &Arc::new(NopBufferManager),
+            DataType::List(ListTypeMeta::new(DataType::Int32)),
+            4,
+        )
+        .unwrap();
+
+        make_list_from_values(
+            &[
+                Array::try_from_iter([Some(1), Some(2), None, Some(4)]).unwrap(),
+                Array::try_from_iter([5, 6, 7, 8]).unwrap(),
+            ],
+            0..4,
+            &mut lists,
+        )
+        .unwrap();
+
+        let expected0 = ScalarValue::List(vec![1.into(), 5.into()]);
+        let v0 = lists.get_value(0).unwrap();
+        assert_eq!(expected0, v0);
+
+        let expected2 = ScalarValue::List(vec![ScalarValue::Null, 7.into()]);
+        let v2 = lists.get_value(2).unwrap();
+        assert_eq!(expected2, v2);
     }
 
     #[test]

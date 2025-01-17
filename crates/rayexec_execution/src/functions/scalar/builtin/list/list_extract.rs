@@ -216,9 +216,9 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::ListTypeMeta;
     use crate::arrays::testutil::assert_arrays_eq;
-    use crate::functions::scalar::builtin::list::list_values;
 
     #[test]
     fn list_extract_primitive() {
@@ -232,7 +232,7 @@ mod tests {
         )
         .unwrap();
 
-        list_values(&[a, b], 0..3, &mut lists).unwrap();
+        make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
 
         let mut second_elements =
             Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
@@ -254,7 +254,7 @@ mod tests {
         )
         .unwrap();
 
-        list_values(&[a, b], 0..3, &mut lists).unwrap();
+        make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
 
         let mut extracted_elements =
             Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
@@ -276,7 +276,7 @@ mod tests {
         )
         .unwrap();
 
-        list_values(&[a, b], 0..3, &mut lists).unwrap();
+        make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
 
         let mut second_elements =
             Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
@@ -306,7 +306,7 @@ mod tests {
         )
         .unwrap();
 
-        list_values(&[a, b], 0..3, &mut lists).unwrap();
+        make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
         lists.next_mut().validity.set_invalid(1); // [2, 5] => NULL
 
         let mut second_elements =

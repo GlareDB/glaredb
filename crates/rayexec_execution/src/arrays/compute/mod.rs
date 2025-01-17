@@ -3,5 +3,6 @@ pub mod cast;
 pub mod date;
 pub mod hash;
 pub mod interleave;
+pub mod make_list;
 
 pub mod util;
