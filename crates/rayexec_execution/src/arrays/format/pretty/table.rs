@@ -753,9 +753,12 @@ const fn elide_index<T>(v: &[T]) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
     use crate::arrays::array::selection::Selection;
     use crate::arrays::field::Field;
 
@@ -1388,6 +1391,41 @@ mod tests {
             "│ …      │      … │",
             "│ 1      │      1 │",
             "│ 1      │      1 │",
+            "├────────┴────────┤",
+            "│ 6 rows, 5 shown │",
+            "└─────────────────┘",
+        ];
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn batch_with_constant_rows_exceeds_max_rows() {
+        let schema = Schema::new(vec![
+            Field::new("a", DataType::Utf8, true),
+            Field::new("b", DataType::Int32, true),
+        ]);
+
+        let mut batch = Batch::try_from_arrays(vec![
+            Array::try_new_constant(&Arc::new(NopBufferManager), &"1".into(), 6).unwrap(),
+            Array::try_new_constant(&Arc::new(NopBufferManager), &2.into(), 6).unwrap(),
+        ])
+        .unwrap();
+
+        batch.select(Selection::slice(&[0, 0, 1, 1, 0, 0])).unwrap();
+
+        let table = pretty_format_batches(&schema, &[batch], 40, Some(5)).unwrap();
+
+        let expected = [
+            "┌────────┬────────┐",
+            "│ a      │ b      │",
+            "│ Utf8   │ Int32  │",
+            "├────────┼────────┤",
+            "│ 1      │      2 │",
+            "│ 1      │      2 │",
+            "│ 1      │      2 │",
+            "│ …      │      … │",
+            "│ 1      │      2 │",
+            "│ 1      │      2 │",
             "├────────┴────────┤",
             "│ 6 rows, 5 shown │",
             "└─────────────────┘",

@@ -192,19 +192,26 @@ where
     }
 
     /// Create a new typed null array.
-    ///
-    /// This will internally create an array buf with a capacity of 1, mark that
-    /// value as null, then select to the desired capacity.
-    pub fn try_new_typed_null(
-        manager: &Arc<B>,
-        datatype: DataType,
-        capacity: usize,
-    ) -> Result<Self> {
-        let mut arr = Self::try_new(manager, datatype, 1)?;
-        arr.put_validity(Validity::new_all_invalid(1))?;
-        arr.select(manager, Selection::constant(capacity, 0))?;
+    pub fn try_new_typed_null(manager: &Arc<B>, datatype: DataType, len: usize) -> Result<Self> {
+        let val_buffer = array_buffer_for_datatype(manager, &datatype, 1)?;
+        let validity = Validity::new_all_invalid(1);
 
-        Ok(arr)
+        let mut buf = ArrayBuffer::with_primary_capacity::<PhysicalConstant>(manager, len)?;
+        buf.put_secondary_buffer(SecondaryBuffer::Constant(ConstantBuffer {
+            validity,
+            buffer: ArrayData::owned(val_buffer),
+        }));
+
+        Ok(Array {
+            datatype,
+            selection2: None,
+            validity2: None,
+            data2: ArrayData2::UntypedNull(UntypedNullStorage(len)),
+            next: Some(ArrayNextInner {
+                validity: Validity::new_all_valid(len),
+                data: ArrayData::owned(buf),
+            }),
+        })
     }
 
     // TODO: Remove
@@ -647,6 +654,15 @@ where
 
     /// Set a scalar value at a given index.
     pub fn set_value(&mut self, idx: usize, val: &ScalarValue) -> Result<()> {
+        // TODO: Handle constant, dictionary
+        //
+        // - Constant => convert to dictionary
+        // - Dictionary => add new value, update selection to point to value
+
+        if self.is_dictionary() || self.is_constant() {
+            not_implemented!("set value for dictionary/constant arrays")
+        }
+
         if idx >= self.capacity() {
             return Err(RayexecError::new("Index out of bounds")
                 .with_field("idx", idx)
@@ -1663,6 +1679,16 @@ mod tests {
         let arr = Array::try_new_constant(&Arc::new(NopBufferManager), &"a".into(), 4).unwrap();
         let expected = Array::try_from_iter(["a", "a", "a", "a"]).unwrap();
         assert_arrays_eq(&expected, &arr);
+    }
+
+    #[test]
+    fn new_typed_null_array() {
+        let arr =
+            Array::try_new_typed_null(&Arc::new(NopBufferManager), DataType::Int32, 4).unwrap();
+        let expected = Array::try_from_iter::<[Option<i32>; 4]>([None, None, None, None]).unwrap();
+        assert_arrays_eq(&expected, &arr);
+
+        assert_eq!(ScalarValue::Null, arr.get_value(2).unwrap());
     }
 
     #[test]

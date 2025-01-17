@@ -22,7 +22,7 @@ impl BinaryNonNullUpdater {
         Output: ?Sized,
         for<'a> State: AggregateState<(&'a S1::StorageType, &'a S2::StorageType), Output>,
     {
-        // TODO: Dictionary
+        // TODO: Dictionary/constant
 
         // TODO: Length check.
 
