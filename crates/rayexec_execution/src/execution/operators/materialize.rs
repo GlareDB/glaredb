@@ -5,7 +5,7 @@ use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
 use super::sink::operation::{PartitionSink, PollPush, SinkOperation};
-use super::source::{PartitionSource, SourceOperation};
+use super::source::operation::{PartitionSource, PollPull, SourceOperation};
 use super::util::broadcast::{BroadcastChannel, BroadcastReceiver};
 use super::PollFinalize;
 use crate::arrays::batch::Batch;
@@ -63,7 +63,7 @@ pub struct MaterializedSinkOperation {
 
 impl SinkOperation for MaterializedSinkOperation {
     fn create_partition_sinks(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         num_sinks: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {
@@ -99,24 +99,24 @@ pub struct MaterializeSourceOperation {
 }
 
 impl SourceOperation for MaterializeSourceOperation {
-    fn create_partition_sources(&self, num_sources: usize) -> Vec<Box<dyn PartitionSource>> {
-        let mut sources = self.sources.lock();
-        let sources: Vec<_> = std::mem::take(sources.as_mut());
+    fn create_partition_sources(
+        &mut self,
+        context: &DatabaseContext,
+        partitions: usize,
+    ) -> Result<Vec<Box<dyn PartitionSource>>> {
+        unimplemented!()
+        // let mut sources = self.sources.lock();
+        // let sources: Vec<_> = std::mem::take(sources.as_mut());
 
-        if sources.len() != num_sources {
-            panic!(
-                "invalid sources len: {}, expected: {}",
-                sources.len(),
-                num_sources
-            );
-        }
+        // if sources.len() != num_sources {
+        //     panic!(
+        //         "invalid sources len: {}, expected: {}",
+        //         sources.len(),
+        //         num_sources
+        //     );
+        // }
 
-        sources.into_iter().map(|s| Box::new(s) as _).collect()
-    }
-
-    fn partitioning_requirement(&self) -> Option<usize> {
-        let len = self.sources.lock().len();
-        Some(len)
+        // sources.into_iter().map(|s| Box::new(s) as _).collect()
     }
 }
 
@@ -134,10 +134,14 @@ pub struct MaterializedDataPartitionSource {
 }
 
 impl PartitionSource for MaterializedDataPartitionSource {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
-        let fut = self.recv.recv();
-        Box::pin(async move { Ok(fut.await) })
+    fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
+        unimplemented!()
     }
+
+    // fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    //     let fut = self.recv.recv();
+    //     Box::pin(async move { Ok(fut.await) })
+    // }
 }
 
 #[derive(Debug)]

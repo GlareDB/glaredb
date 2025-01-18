@@ -10,7 +10,7 @@ use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::intermediate::pipeline::StreamId;
 use crate::execution::operators::sink::operation::{PartitionSink, PollPush, SinkOperation};
-use crate::execution::operators::source::{PartitionSource, SourceOperation};
+use crate::execution::operators::source::operation::{PartitionSource, PollPull, SourceOperation};
 use crate::execution::operators::PollFinalize;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -36,7 +36,7 @@ impl<C: HttpClient + 'static> ClientToServerStream<C> {
 
 impl<C: HttpClient + 'static> SinkOperation for ClientToServerStream<C> {
     fn create_partition_sinks(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         num_sinks: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {
@@ -99,17 +99,18 @@ impl<C: HttpClient> ServerToClientStream<C> {
 }
 
 impl<C: HttpClient + 'static> SourceOperation for ServerToClientStream<C> {
-    fn create_partition_sources(&self, num_sources: usize) -> Vec<Box<dyn PartitionSource>> {
-        assert_eq!(1, num_sources);
+    fn create_partition_sources(
+        &mut self,
+        context: &DatabaseContext,
+        partitions: usize,
+    ) -> Result<Vec<Box<dyn PartitionSource>>> {
+        unimplemented!()
+        // assert_eq!(1, num_sources);
 
-        vec![Box::new(ServerToClientPartitionSource {
-            stream_id: self.stream_id,
-            client: self.client.clone(),
-        })]
-    }
-
-    fn partitioning_requirement(&self) -> Option<usize> {
-        Some(1)
+        // vec![Box::new(ServerToClientPartitionSource {
+        //     stream_id: self.stream_id,
+        //     client: self.client.clone(),
+        // })]
     }
 }
 
@@ -126,17 +127,21 @@ pub struct ServerToClientPartitionSource<C: HttpClient> {
 }
 
 impl<C: HttpClient> PartitionSource for ServerToClientPartitionSource<C> {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
-        Box::pin(async {
-            // TODO: Backoff + hint somehow
-            loop {
-                let status = self.client.pull(self.stream_id, 0).await?;
-                match status {
-                    PullStatus::Batch(batch) => return Ok(Some(batch.0)),
-                    PullStatus::Pending => continue,
-                    PullStatus::Finished => return Ok(None),
-                }
-            }
-        })
+    fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
+        unimplemented!()
     }
+
+    // fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    //     Box::pin(async {
+    //         // TODO: Backoff + hint somehow
+    //         loop {
+    //             let status = self.client.pull(self.stream_id, 0).await?;
+    //             match status {
+    //                 PullStatus::Batch(batch) => return Ok(Some(batch.0)),
+    //                 PullStatus::Pending => continue,
+    //                 PullStatus::Finished => return Ok(None),
+    //             }
+    //         }
+    //     })
+    // }
 }

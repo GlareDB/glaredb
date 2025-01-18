@@ -86,7 +86,7 @@ impl<S: SinkOperation> PhysicalSink<S> {
 
 impl<S: SinkOperation> ExecutableOperator for PhysicalSink<S> {
     fn create_states(
-        &self,
+        &mut self,
         context: &DatabaseContext,
         _batch_size: usize,
         partitions: usize,
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn sink_single_partition() {
-        let wrapper = OperatorWrapper::new(PhysicalSink {
+        let mut wrapper = OperatorWrapper::new(PhysicalSink {
             sink: CollectingSinkOperation,
         });
         let states = wrapper
@@ -293,7 +293,7 @@ mod tests {
 
     #[test]
     fn sink_multiple_partitions() {
-        let wrapper = OperatorWrapper::new(PhysicalSink {
+        let mut wrapper = OperatorWrapper::new(PhysicalSink {
             sink: CollectingSinkOperation,
         });
         let states = wrapper

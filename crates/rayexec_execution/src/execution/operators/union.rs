@@ -24,7 +24,7 @@ pub struct PhysicalUnion;
 
 impl ExecutableOperator for PhysicalUnion {
     fn create_states(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         _batch_size: usize,
         partitions: usize,
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn union_simple() {
-        let operator = OperatorWrapper::new(PhysicalUnion);
+        let mut operator = OperatorWrapper::new(PhysicalUnion);
         let (op_state, mut input_states) = operator
             .operator
             .create_states(&test_database_context(), 1024, 1)

@@ -63,7 +63,8 @@ use sink::operation::SinkOperation;
 use sink::{PhysicalSink, SinkOperatorState, SinkPartitionState};
 use sort::gather_sort::PhysicalGatherSort;
 use sort::scatter_sort::PhysicalScatterSort;
-use source::{SourceOperation, SourceOperator, SourcePartitionState};
+use source::operation::SourceOperation;
+use source::{PhysicalSource, SourcePartitionState};
 use table_function::{PhysicalTableFunction, TableFunctionPartitionState};
 use table_inout::{PhysicalTableInOut, TableInOutPartitionState};
 use ungrouped_aggregate::{
@@ -383,7 +384,7 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
     }
 
     fn create_states(
-        &self,
+        &mut self,
         context: &DatabaseContext,
         batch_size: usize,
         partitions: usize,
@@ -451,9 +452,9 @@ pub enum PhysicalOperator {
     Values(PhysicalValues),
     ResultSink(PhysicalSink<ResultSink>),
     DynSink(PhysicalSink<Box<dyn SinkOperation>>),
-    DynSource(SourceOperator<Box<dyn SourceOperation>>),
+    DynSource(PhysicalSource<Box<dyn SourceOperation>>),
     MaterializedSink(PhysicalSink<MaterializedSinkOperation>),
-    MaterializedSource(SourceOperator<MaterializeSourceOperation>),
+    MaterializedSource(PhysicalSource<MaterializeSourceOperation>),
     RoundRobin(PhysicalRoundRobinRepartition),
     MergeSorted(PhysicalGatherSort),
     LocalSort(PhysicalScatterSort),

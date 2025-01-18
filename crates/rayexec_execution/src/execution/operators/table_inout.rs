@@ -59,7 +59,7 @@ pub struct PhysicalTableInOut {
 
 impl ExecutableOperator for PhysicalTableInOut {
     fn create_states(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         _batch_size: usize,
         partitions: usize,
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn inout_no_input_project() {
-        let wrapper = OperatorWrapper::new(PhysicalTableInOut {
+        let mut wrapper = OperatorWrapper::new(PhysicalTableInOut {
             function: plan_generate_series(),
             input_types: vec![DataType::Int64; 3],
             projected_inputs: Vec::new(),
@@ -297,7 +297,7 @@ mod tests {
 
     #[test]
     fn inout_with_input_project() {
-        let wrapper = OperatorWrapper::new(PhysicalTableInOut {
+        let mut wrapper = OperatorWrapper::new(PhysicalTableInOut {
             function: plan_generate_series(),
             input_types: vec![DataType::Int64; 3],
             projected_inputs: vec![

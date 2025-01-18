@@ -33,7 +33,7 @@ pub struct PhysicalValues {
 
 impl ExecutableOperator for PhysicalValues {
     fn create_states(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         batch_size: usize,
         partitions: usize,
@@ -208,7 +208,7 @@ mod tests {
             ],
         ];
 
-        let operator = PhysicalValues { expressions: exprs };
+        let mut operator = PhysicalValues { expressions: exprs };
         let states = operator
             .create_states(&test_database_context(), 1024, 1)
             .unwrap();
@@ -271,7 +271,7 @@ mod tests {
             ],
         ];
 
-        let operator = PhysicalValues { expressions: exprs };
+        let mut operator = PhysicalValues { expressions: exprs };
         let states = operator
             .create_states(&test_database_context(), 1024, 1)
             .unwrap();

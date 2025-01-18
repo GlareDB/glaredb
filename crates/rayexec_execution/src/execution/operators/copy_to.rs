@@ -21,7 +21,7 @@ pub struct CopyToOperation {
 
 impl SinkOperation for CopyToOperation {
     fn create_partition_sinks(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         num_sinks: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {

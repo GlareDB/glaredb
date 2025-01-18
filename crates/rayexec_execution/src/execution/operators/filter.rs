@@ -38,7 +38,7 @@ pub struct FilterPartitionState {
 
 impl ExecutableOperator for PhysicalFilter {
     fn create_states(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         batch_size: usize,
         partitions: usize,
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn filter_simple() {
-        let operator = PhysicalFilter {
+        let mut operator = PhysicalFilter {
             predicate: PhysicalScalarExpression::Column(PhysicalColumnExpr {
                 datatype: DataType::Boolean,
                 idx: 0,

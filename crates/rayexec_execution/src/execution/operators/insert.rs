@@ -21,7 +21,7 @@ pub struct InsertOperation {
 
 impl SinkOperation for InsertOperation {
     fn create_partition_sinks(
-        &self,
+        &mut self,
         context: &DatabaseContext,
         num_sinks: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {

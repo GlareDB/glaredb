@@ -16,7 +16,7 @@ use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::intermediate::pipeline::StreamId;
 use crate::execution::operators::sink::operation::{PartitionSink, PollPush, SinkOperation};
-use crate::execution::operators::source::{PartitionSource, SourceOperation};
+use crate::execution::operators::source::operation::{PartitionSource, PollPull, SourceOperation};
 use crate::execution::operators::PollFinalize;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::runtime::ErrorSink;
@@ -165,7 +165,7 @@ pub struct OutgoingStream {
 
 impl SinkOperation for OutgoingStream {
     fn create_partition_sinks(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {
@@ -266,16 +266,17 @@ pub struct IncomingStream {
 }
 
 impl SourceOperation for IncomingStream {
-    fn create_partition_sources(&self, num_sources: usize) -> Vec<Box<dyn PartitionSource>> {
-        assert_eq!(1, num_sources);
+    fn create_partition_sources(
+        &mut self,
+        context: &DatabaseContext,
+        partitions: usize,
+    ) -> Result<Vec<Box<dyn PartitionSource>>> {
+        unimplemented!()
+        // assert_eq!(1, num_sources);
 
-        vec![Box::new(IncomingPartitionStream {
-            state: self.state.clone(),
-        })]
-    }
-
-    fn partitioning_requirement(&self) -> Option<usize> {
-        Some(1)
+        // vec![Box::new(IncomingPartitionStream {
+        //     state: self.state.clone(),
+        // })]
     }
 }
 
@@ -291,11 +292,15 @@ pub struct IncomingPartitionStream {
 }
 
 impl PartitionSource for IncomingPartitionStream {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
-        Box::pin(IncomingPullFuture {
-            state: self.state.clone(),
-        })
+    fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
+        unimplemented!()
     }
+
+    // fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
+    //     Box::pin(IncomingPullFuture {
+    //         state: self.state.clone(),
+    //     })
+    // }
 }
 
 #[derive(Debug)]

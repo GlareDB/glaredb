@@ -29,7 +29,7 @@ pub struct CreateTableSinkOperation {
 
 impl SinkOperation for CreateTableSinkOperation {
     fn create_partition_sinks(
-        &self,
+        &mut self,
         context: &DatabaseContext,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {

@@ -20,7 +20,8 @@ use crate::execution::operators::materialize::MaterializeOperation;
 use crate::execution::operators::round_robin::PhysicalRoundRobinRepartition;
 use crate::execution::operators::sink::operation::SinkOperation;
 use crate::execution::operators::sink::PhysicalSink;
-use crate::execution::operators::source::{SourceOperation, SourceOperator};
+use crate::execution::operators::source::operation::SourceOperation;
+use crate::execution::operators::source::PhysicalSource;
 use crate::execution::operators::{
     ExecutableOperator,
     InputOutputStates,
@@ -182,7 +183,7 @@ impl PendingQuery {
                     context,
                     IntermediateOperator {
                         operator: Arc::new(PhysicalOperator::MaterializedSource(
-                            SourceOperator::new(source),
+                            PhysicalSource::new(source),
                         )),
                         partitioning_requirement: Some(config.partitions),
                     },
@@ -539,7 +540,7 @@ impl PendingQuery {
                 let operator = match &loc_state {
                     PlanLocationState::Server { stream_buffers } => {
                         let source = stream_buffers.create_incoming_stream(stream_id)?;
-                        SourceOperator::new(Box::new(source) as Box<dyn SourceOperation>)
+                        PhysicalSource::new(Box::new(source) as Box<dyn SourceOperation>)
                     }
                     PlanLocationState::Client { hybrid_client, .. } => {
                         // Missing hybrid client shouldn't happen.
@@ -547,7 +548,7 @@ impl PendingQuery {
                             RayexecError::new("Hybrid client missing, cannot create sink pipeline")
                         })?;
                         let source = ServerToClientStream::new(stream_id, hybrid_client.clone());
-                        SourceOperator::new(Box::new(source) as Box<dyn SourceOperation>)
+                        PhysicalSource::new(Box::new(source) as Box<dyn SourceOperation>)
                     }
                 };
 

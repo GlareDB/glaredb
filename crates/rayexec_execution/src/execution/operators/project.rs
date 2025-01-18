@@ -28,7 +28,7 @@ pub struct ProjectPartitionState {
 
 impl ExecutableOperator for PhysicalProject {
     fn create_states(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         batch_size: usize,
         partitions: usize,
@@ -112,7 +112,7 @@ mod tests {
             }),
         ];
 
-        let operator = PhysicalProject { projections };
+        let mut operator = PhysicalProject { projections };
         let states = operator
             .create_states(&test_database_context(), 4, 1)
             .unwrap();

@@ -22,7 +22,7 @@ pub struct PhysicalEmpty;
 
 impl ExecutableOperator for PhysicalEmpty {
     fn create_states(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         _batch_size: usize,
         partitions: usize,
@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     fn empty_simple() {
-        let wrapper = OperatorWrapper::new(PhysicalEmpty);
+        let mut wrapper = OperatorWrapper::new(PhysicalEmpty);
         let states = wrapper
             .operator
             .create_states(&test_database_context(), 1024, 1)

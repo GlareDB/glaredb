@@ -86,7 +86,7 @@ pub struct ResultSink {
 
 impl SinkOperation for ResultSink {
     fn create_partition_sinks(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {

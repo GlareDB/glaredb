@@ -40,7 +40,7 @@ pub struct PhysicalLimit {
 
 impl ExecutableOperator for PhysicalLimit {
     fn create_states(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         _batch_size: usize,
         partitions: usize,
@@ -175,7 +175,7 @@ mod tests {
         OperatorState,
         PartitionState,
     ) {
-        let wrapper = OperatorWrapper::new(PhysicalLimit { limit, offset });
+        let mut wrapper = OperatorWrapper::new(PhysicalLimit { limit, offset });
         let states = wrapper
             .operator
             .create_states(&test_database_context(), 1024, 1)

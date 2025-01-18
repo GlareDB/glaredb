@@ -233,7 +233,7 @@ impl PhysicalHashAggregate {
 
 impl ExecutableOperator for PhysicalHashAggregate {
     fn create_states(
-        &self,
+        &mut self,
         context: &DatabaseContext,
         batch_size: usize,
         partitions: usize,

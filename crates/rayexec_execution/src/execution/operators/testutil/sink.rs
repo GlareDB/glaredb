@@ -14,7 +14,7 @@ pub struct CollectingSinkOperation;
 
 impl SinkOperation for CollectingSinkOperation {
     fn create_partition_sinks(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
         num_sinks: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {

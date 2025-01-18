@@ -24,7 +24,7 @@ pub trait SinkOperation: Debug + Send + Sync + Explainable {
     ///
     /// `partititions` will follow the partitioning requirement if set.
     fn create_partition_sinks(
-        &self,
+        &mut self,
         context: &DatabaseContext,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>>;
@@ -54,11 +54,11 @@ pub trait PartitionSink: Debug + Send {
 
 impl SinkOperation for Box<dyn SinkOperation> {
     fn create_partition_sinks(
-        &self,
+        &mut self,
         context: &DatabaseContext,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {
-        self.as_ref().create_partition_sinks(context, partitions)
+        self.as_mut().create_partition_sinks(context, partitions)
     }
 
     fn partitioning_requirement(&self) -> Option<usize> {
