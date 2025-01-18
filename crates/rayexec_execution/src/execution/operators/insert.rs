@@ -2,14 +2,15 @@ use std::sync::Arc;
 
 use rayexec_error::{OptionExt, RayexecError, Result};
 
-use super::sink::{PartitionSink, SinkOperation, SinkOperator};
+use super::sink::operation::{PartitionSink, SinkOperation};
+use super::sink::PhysicalSink;
 use crate::database::catalog::CatalogTx;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 
-pub type PhysicalInsert = SinkOperator<InsertOperation>;
+pub type PhysicalInsert = PhysicalSink<InsertOperation>;
 
 #[derive(Debug)]
 pub struct InsertOperation {
@@ -40,7 +41,7 @@ impl SinkOperation for InsertOperation {
         Ok(inserts)
     }
 
-    fn partition_requirement(&self) -> Option<usize> {
+    fn partitioning_requirement(&self) -> Option<usize> {
         None
     }
 }
@@ -63,7 +64,7 @@ impl DatabaseProtoConv for PhysicalInsert {
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(SinkOperator::new(InsertOperation {
+        Ok(PhysicalSink::new(InsertOperation {
             catalog: proto.catalog,
             schema: proto.schema,
             table: Arc::new(DatabaseProtoConv::from_proto_ctx(

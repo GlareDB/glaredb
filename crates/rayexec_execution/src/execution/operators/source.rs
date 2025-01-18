@@ -32,7 +32,7 @@ pub trait SourceOperation: Debug + Send + Sync + Explainable {
     /// Return an optional partitioning requirement for this source.
     // TODO: This seems to not be used. Currently we're setting partitions
     // ad-hoc in planning.
-    fn partition_requirement(&self) -> Option<usize>;
+    fn partitioning_requirement(&self) -> Option<usize>;
 }
 
 impl SourceOperation for Box<dyn SourceOperation> {
@@ -40,8 +40,8 @@ impl SourceOperation for Box<dyn SourceOperation> {
         self.as_ref().create_partition_sources(num_sources)
     }
 
-    fn partition_requirement(&self) -> Option<usize> {
-        self.as_ref().partition_requirement()
+    fn partitioning_requirement(&self) -> Option<usize> {
+        self.as_ref().partitioning_requirement()
     }
 }
 

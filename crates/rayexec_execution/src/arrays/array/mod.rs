@@ -166,6 +166,21 @@ where
         })
     }
 
+    /// Try to create a new array from other.
+    pub fn try_new_from_other(manager: &Arc<B>, other: &mut Self) -> Result<Self> {
+        let managed = other.next_mut().data.make_managed(manager)?;
+        let data = ArrayData::managed(managed);
+        let validity = other.next().validity.clone();
+
+        Ok(Array {
+            datatype: other.datatype().clone(),
+            selection2: None,
+            validity2: None,
+            data2: ArrayData2::UntypedNull(UntypedNullStorage(0)),
+            next: Some(ArrayNextInner { validity, data }),
+        })
+    }
+
     /// Create a new array backed by a constant value.
     pub fn try_new_constant(manager: &Arc<B>, value: &ScalarValue, len: usize) -> Result<Self> {
         let mut arr = Self::try_new(manager, value.datatype(), 1)?;
@@ -1705,6 +1720,30 @@ mod tests {
         assert_arrays_eq(&expected, &arr);
 
         assert_eq!(ScalarValue::Null, arr.get_value(2).unwrap());
+    }
+
+    #[test]
+    fn new_from_other_simple() {
+        let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        let new_arr = Array::try_new_from_other(&Arc::new(NopBufferManager), &mut arr).unwrap();
+
+        let expected = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        assert_arrays_eq(&expected, &arr);
+        assert_arrays_eq(&expected, &new_arr);
+    }
+
+    #[test]
+    fn new_from_other_dictionary() {
+        let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        // => '["b", "a", "a", "b"]'
+        arr.select(&Arc::new(NopBufferManager), [1, 0, 0, 1])
+            .unwrap();
+
+        let new_arr = Array::try_new_from_other(&Arc::new(NopBufferManager), &mut arr).unwrap();
+
+        let expected = Array::try_from_iter(["b", "a", "a", "b"]).unwrap();
+        assert_arrays_eq(&expected, &arr);
+        assert_arrays_eq(&expected, &new_arr);
     }
 
     #[test]

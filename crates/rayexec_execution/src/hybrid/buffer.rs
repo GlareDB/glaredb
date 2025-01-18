@@ -15,8 +15,9 @@ use super::client::{IpcBatch, PullStatus};
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::intermediate::pipeline::StreamId;
-use crate::execution::operators::sink::{PartitionSink, SinkOperation};
+use crate::execution::operators::sink::operation::{PartitionSink, PollPush, SinkOperation};
 use crate::execution::operators::source::{PartitionSource, SourceOperation};
+use crate::execution::operators::PollFinalize;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::runtime::ErrorSink;
 
@@ -166,16 +167,16 @@ impl SinkOperation for OutgoingStream {
     fn create_partition_sinks(
         &self,
         _context: &DatabaseContext,
-        num_sinks: usize,
+        partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {
-        assert_eq!(1, num_sinks);
+        assert_eq!(1, partitions);
 
         Ok(vec![Box::new(OutgoingPartitionStream {
             state: self.state.clone(),
         })])
     }
 
-    fn partition_requirement(&self) -> Option<usize> {
+    fn partitioning_requirement(&self) -> Option<usize> {
         Some(1)
     }
 }
@@ -192,18 +193,26 @@ pub struct OutgoingPartitionStream {
 }
 
 impl PartitionSink for OutgoingPartitionStream {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
-        Box::pin(OutgoingPushFuture {
-            batch: Some(batch),
-            state: self.state.clone(),
-        })
+    fn poll_push(&mut self, cx: &mut Context, input: &mut Batch) -> Result<PollPush> {
+        unimplemented!()
     }
 
-    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
-        Box::pin(OutgoingFinalizeFuture {
-            state: self.state.clone(),
-        })
+    fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize> {
+        unimplemented!()
     }
+
+    // fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    //     Box::pin(OutgoingPushFuture {
+    //         batch: Some(batch),
+    //         state: self.state.clone(),
+    //     })
+    // }
+
+    // fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
+    //     Box::pin(OutgoingFinalizeFuture {
+    //         state: self.state.clone(),
+    //     })
+    // }
 }
 
 #[derive(Debug)]
@@ -265,7 +274,7 @@ impl SourceOperation for IncomingStream {
         })]
     }
 
-    fn partition_requirement(&self) -> Option<usize> {
+    fn partitioning_requirement(&self) -> Option<usize> {
         Some(1)
     }
 }

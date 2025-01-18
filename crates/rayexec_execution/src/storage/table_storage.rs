@@ -6,7 +6,7 @@ use rayexec_proto::ProtoConv;
 
 use crate::arrays::batch::Batch;
 use crate::database::catalog_entry::CatalogEntry;
-use crate::execution::operators::sink::PartitionSink;
+use crate::execution::operators::sink::operation::PartitionSink;
 
 /// Scan projections.
 #[derive(Debug, Clone, PartialEq, Eq)]

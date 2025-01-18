@@ -1,11 +1,13 @@
-//! Utilities for testing operator implementations.
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Wake, Waker};
 
 use rayexec_error::Result;
 
-use super::{
+use crate::database::system::new_system_catalog;
+use crate::database::DatabaseContext;
+use crate::datasource::DataSourceRegistry;
+use crate::execution::operators::{
     ExecutableOperator,
     ExecuteInOutState,
     OperatorState,
@@ -13,9 +15,6 @@ use super::{
     PollExecute,
     PollFinalize,
 };
-use crate::database::system::new_system_catalog;
-use crate::database::DatabaseContext;
-use crate::datasource::DataSourceRegistry;
 
 pub fn test_database_context() -> DatabaseContext {
     DatabaseContext::new(Arc::new(

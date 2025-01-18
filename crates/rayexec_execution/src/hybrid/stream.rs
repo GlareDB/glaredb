@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::task::Context;
 
 use futures::future::BoxFuture;
 use rayexec_error::Result;
@@ -8,8 +9,9 @@ use super::client::{HybridClient, PullStatus};
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::intermediate::pipeline::StreamId;
-use crate::execution::operators::sink::{PartitionSink, SinkOperation};
+use crate::execution::operators::sink::operation::{PartitionSink, PollPush, SinkOperation};
 use crate::execution::operators::source::{PartitionSource, SourceOperation};
+use crate::execution::operators::PollFinalize;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 /// Client-side stream for sending batches from the client to the server (push).
@@ -46,7 +48,7 @@ impl<C: HttpClient + 'static> SinkOperation for ClientToServerStream<C> {
         })])
     }
 
-    fn partition_requirement(&self) -> Option<usize> {
+    fn partitioning_requirement(&self) -> Option<usize> {
         Some(1)
     }
 }
@@ -64,14 +66,22 @@ pub struct ClientToServerPartitionSink<C: HttpClient> {
 }
 
 impl<C: HttpClient> PartitionSink for ClientToServerPartitionSink<C> {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
-        // TODO: Figure out backpressure
-        Box::pin(async { self.client.push(self.stream_id, 0, batch).await })
+    fn poll_push(&mut self, cx: &mut Context, input: &mut Batch) -> Result<PollPush> {
+        unimplemented!()
     }
 
-    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async { self.client.finalize(self.stream_id, 0).await })
+    fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize> {
+        unimplemented!()
     }
+
+    // fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    //     // TODO: Figure out backpressure
+    //     Box::pin(async { self.client.push(self.stream_id, 0, batch).await })
+    // }
+
+    // fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
+    //     Box::pin(async { self.client.finalize(self.stream_id, 0).await })
+    // }
 }
 
 /// Client-side stream for receiving batches from the server to the client
@@ -98,7 +108,7 @@ impl<C: HttpClient + 'static> SourceOperation for ServerToClientStream<C> {
         })]
     }
 
-    fn partition_requirement(&self) -> Option<usize> {
+    fn partitioning_requirement(&self) -> Option<usize> {
         Some(1)
     }
 }

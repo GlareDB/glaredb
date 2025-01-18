@@ -18,7 +18,8 @@ use crate::execution::intermediate::pipeline::{
 };
 use crate::execution::operators::materialize::MaterializeOperation;
 use crate::execution::operators::round_robin::PhysicalRoundRobinRepartition;
-use crate::execution::operators::sink::{SinkOperation, SinkOperator};
+use crate::execution::operators::sink::operation::SinkOperation;
+use crate::execution::operators::sink::PhysicalSink;
 use crate::execution::operators::source::{SourceOperation, SourceOperator};
 use crate::execution::operators::{
     ExecutableOperator,
@@ -163,7 +164,7 @@ impl PendingQuery {
                 config,
                 context,
                 IntermediateOperator {
-                    operator: Arc::new(PhysicalOperator::DynSink(SinkOperator::new(Box::new(
+                    operator: Arc::new(PhysicalOperator::DynSink(PhysicalSink::new(Box::new(
                         mat_op.sink,
                     )))),
                     partitioning_requirement: Some(config.partitions),
@@ -352,7 +353,7 @@ impl PendingQuery {
                     }
                 };
 
-                let partitions = match sink.partition_requirement() {
+                let partitions = match sink.partitioning_requirement() {
                     Some(n) => n,
                     None => pipeline.num_partitions(),
                 };
@@ -362,7 +363,7 @@ impl PendingQuery {
                         Self::push_repartition(context, id_gen, pipeline, partitions, executables)?;
                 }
 
-                let operator = Arc::new(PhysicalOperator::ResultSink(SinkOperator::new(sink)));
+                let operator = Arc::new(PhysicalOperator::ResultSink(PhysicalSink::new(sink)));
                 let states = operator.create_states2(context, vec![partitions])?;
                 let partition_states = match states.partition_states {
                     InputOutputStates::OneToOne { partition_states } => partition_states,
@@ -411,47 +412,48 @@ impl PendingQuery {
                 stream_id,
                 partitions,
             } => {
-                // Sink is pipeline executing somewhere else.
-                let operator: SinkOperator<Box<dyn SinkOperation>> = match loc_state {
-                    PlanLocationState::Server { stream_buffers } => {
-                        let sink = stream_buffers.create_outgoing_stream(stream_id)?;
-                        SinkOperator::new(Box::new(sink))
-                    }
-                    PlanLocationState::Client { hybrid_client, .. } => {
-                        // Missing hybrid client shouldn't happen. Means we've
-                        // incorrectly planned a hybrid query when we shouldn't
-                        // have.
-                        let hybrid_client = hybrid_client.ok_or_else(|| {
-                            RayexecError::new("Hybrid client missing, cannot create sink pipeline")
-                        })?;
-                        let sink = ClientToServerStream::new(stream_id, hybrid_client.clone());
-                        SinkOperator::new(Box::new(sink))
-                    }
-                };
+                unimplemented!()
+                // // Sink is pipeline executing somewhere else.
+                // let operator: SinkOperator<Box<dyn SinkOperation>> = match loc_state {
+                //     PlanLocationState::Server { stream_buffers } => {
+                //         let sink = stream_buffers.create_outgoing_stream(stream_id)?;
+                //         SinkOperator::new(Box::new(sink))
+                //     }
+                //     PlanLocationState::Client { hybrid_client, .. } => {
+                //         // Missing hybrid client shouldn't happen. Means we've
+                //         // incorrectly planned a hybrid query when we shouldn't
+                //         // have.
+                //         let hybrid_client = hybrid_client.ok_or_else(|| {
+                //             RayexecError::new("Hybrid client missing, cannot create sink pipeline")
+                //         })?;
+                //         let sink = ClientToServerStream::new(stream_id, hybrid_client.clone());
+                //         SinkOperator::new(Box::new(sink))
+                //     }
+                // };
 
-                let states = operator.create_states2(context, vec![partitions])?;
-                let partition_states = match states.partition_states {
-                    InputOutputStates::OneToOne { partition_states } => partition_states,
-                    _ => return Err(RayexecError::new("invalid partition states")),
-                };
+                // let states = operator.create_states2(context, vec![partitions])?;
+                // let partition_states = match states.partition_states {
+                //     InputOutputStates::OneToOne { partition_states } => partition_states,
+                //     _ => return Err(RayexecError::new("invalid partition states")),
+                // };
 
-                if partition_states.len() != pipeline.num_partitions() {
-                    pipeline = Self::push_repartition(
-                        context,
-                        id_gen,
-                        pipeline,
-                        partition_states.len(),
-                        executables,
-                    )?;
-                }
+                // if partition_states.len() != pipeline.num_partitions() {
+                //     pipeline = Self::push_repartition(
+                //         context,
+                //         id_gen,
+                //         pipeline,
+                //         partition_states.len(),
+                //         executables,
+                //     )?;
+                // }
 
-                pipeline.push_operator(
-                    Arc::new(PhysicalOperator::DynSink(operator)),
-                    states.operator_state,
-                    partition_states,
-                )?;
+                // pipeline.push_operator(
+                //     Arc::new(PhysicalOperator::DynSink(operator)),
+                //     states.operator_state,
+                //     partition_states,
+                // )?;
 
-                executables.push(pipeline);
+                // executables.push(pipeline);
             }
             PipelineSink::Materialization { .. } => {
                 // TODO: This is never constructed as pipelines that make up a

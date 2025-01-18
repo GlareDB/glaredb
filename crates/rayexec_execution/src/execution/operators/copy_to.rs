@@ -2,14 +2,15 @@ use rayexec_error::{OptionExt, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_proto::ProtoConv;
 
-use super::sink::{PartitionSink, SinkOperation, SinkOperator};
+use super::sink::operation::{PartitionSink, SinkOperation};
+use super::sink::PhysicalSink;
 use crate::arrays::field::Schema;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::functions::copy::CopyToFunction;
 use crate::proto::DatabaseProtoConv;
 
-pub type PhysicalCopyTo = SinkOperator<CopyToOperation>;
+pub type PhysicalCopyTo = PhysicalSink<CopyToOperation>;
 
 #[derive(Debug)]
 pub struct CopyToOperation {
@@ -28,7 +29,7 @@ impl SinkOperation for CopyToOperation {
             .create_sinks(self.schema.clone(), self.location.clone(), num_sinks)
     }
 
-    fn partition_requirement(&self) -> Option<usize> {
+    fn partitioning_requirement(&self) -> Option<usize> {
         // TODO: Until we figure out partitioned COPY TO.
         Some(1)
     }
@@ -52,7 +53,7 @@ impl DatabaseProtoConv for PhysicalCopyTo {
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(SinkOperator::new(CopyToOperation {
+        Ok(PhysicalSink::new(CopyToOperation {
             copy_to: DatabaseProtoConv::from_proto_ctx(
                 proto.copy_to.required("copy_to")?,
                 context,

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::task::Context;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
@@ -8,7 +9,8 @@ use super::table_storage::{DataTable, DataTableScan, ProjectedScan, Projections,
 use crate::arrays::batch::Batch;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::execution::computed_batch::ComputedBatches;
-use crate::execution::operators::sink::PartitionSink;
+use crate::execution::operators::sink::operation::{PartitionSink, PollPush};
+use crate::execution::operators::PollFinalize;
 
 #[derive(Debug, Default)]
 pub struct MemoryTableStorage {
@@ -143,23 +145,31 @@ pub struct MemoryDataTableInsert {
 }
 
 impl PartitionSink for MemoryDataTableInsert {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async {
-            self.collected.push(batch.into());
-            Ok(())
-        })
+    fn poll_push(&mut self, cx: &mut Context, input: &mut Batch) -> Result<PollPush> {
+        unimplemented!()
     }
 
-    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async {
-            let mut data = self.data.lock();
-            for mut computed in self.collected.drain(..) {
-                while let Some(batch) = computed.try_pop_front()? {
-                    data.push(batch);
-                }
-            }
-
-            Ok(())
-        })
+    fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize> {
+        unimplemented!()
     }
+
+    // fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    //     Box::pin(async {
+    //         self.collected.push(batch.into());
+    //         Ok(())
+    //     })
+    // }
+
+    // fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
+    //     Box::pin(async {
+    //         let mut data = self.data.lock();
+    //         for mut computed in self.collected.drain(..) {
+    //             while let Some(batch) = computed.try_pop_front()? {
+    //                 data.push(batch);
+    //             }
+    //         }
+
+    //         Ok(())
+    //     })
+    // }
 }

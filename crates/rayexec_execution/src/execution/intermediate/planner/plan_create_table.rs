@@ -7,7 +7,7 @@ use crate::database::create::CreateTableInfo;
 use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::create_table::CreateTableSinkOperation;
 use crate::execution::operators::empty::PhysicalEmpty;
-use crate::execution::operators::sink::SinkOperator;
+use crate::execution::operators::sink::PhysicalSink;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_create::LogicalCreateTable;
 use crate::logical::operator::Node;
@@ -57,7 +57,7 @@ impl IntermediatePipelineBuildState<'_> {
         };
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::CreateTable(SinkOperator::new(
+            operator: Arc::new(PhysicalOperator::CreateTable(PhysicalSink::new(
                 CreateTableSinkOperation {
                     catalog: create.node.catalog,
                     schema: create.node.schema,

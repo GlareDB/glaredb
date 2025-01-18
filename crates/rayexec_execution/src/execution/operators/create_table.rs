@@ -1,11 +1,14 @@
 use std::fmt;
+use std::task::Context;
 
 use futures::future::BoxFuture;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
-use super::sink::{PartitionSink, SinkOperation, SinkOperator};
+use super::sink::operation::{PartitionSink, PollPush, SinkOperation};
+use super::sink::PhysicalSink;
 use super::util::barrier::PartitionBarrier;
+use super::PollFinalize;
 use crate::arrays::batch::Batch;
 use crate::database::catalog::CatalogTx;
 use crate::database::create::CreateTableInfo;
@@ -14,7 +17,7 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 use crate::storage::table_storage::DataTable;
 
-pub type PhysicalCreateTable = SinkOperator<CreateTableSinkOperation>;
+pub type PhysicalCreateTable = PhysicalSink<CreateTableSinkOperation>;
 
 #[derive(Debug)]
 pub struct CreateTableSinkOperation {
@@ -28,7 +31,7 @@ impl SinkOperation for CreateTableSinkOperation {
     fn create_partition_sinks(
         &self,
         context: &DatabaseContext,
-        num_sinks: usize,
+        partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {
         // TODO: Placeholder.
         let tx = CatalogTx::new();
@@ -62,22 +65,22 @@ impl SinkOperation for CreateTableSinkOperation {
             Ok(datatable)
         });
 
-        let insert_barrier = PartitionBarrier::new(num_sinks);
+        let insert_barrier = PartitionBarrier::new(partitions);
 
         // First partition is responsible for actually creating the table.
         let mut sinks = vec![Box::new(CreateTablePartitionSink {
             is_ctas: self.is_ctas,
-            num_partitions: num_sinks,
+            num_partitions: partitions,
             partition_idx: 0,
             create_table_fut: Some(create_table_fut),
             insert_barrier: insert_barrier.clone(),
             sink: None,
         }) as _];
 
-        sinks.extend((1..num_sinks).map(|idx| {
+        sinks.extend((1..partitions).map(|idx| {
             Box::new(CreateTablePartitionSink {
                 is_ctas: self.is_ctas,
-                num_partitions: num_sinks,
+                num_partitions: partitions,
                 partition_idx: idx,
                 create_table_fut: None,
                 insert_barrier: insert_barrier.clone(),
@@ -88,7 +91,7 @@ impl SinkOperation for CreateTableSinkOperation {
         Ok(sinks)
     }
 
-    fn partition_requirement(&self) -> Option<usize> {
+    fn partitioning_requirement(&self) -> Option<usize> {
         None
     }
 }
@@ -119,31 +122,39 @@ struct CreateTablePartitionSink {
 }
 
 impl PartitionSink for CreateTablePartitionSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async {
-            self.create_table_if_has_fut().await?;
-            self.wait_for_sink_if_none().await;
-
-            if let Some(sink) = &mut self.sink {
-                sink.push(batch).await?;
-            }
-
-            Ok(())
-        })
+    fn poll_push(&mut self, cx: &mut Context, input: &mut Batch) -> Result<PollPush> {
+        unimplemented!()
     }
 
-    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async {
-            self.create_table_if_has_fut().await?;
-            self.wait_for_sink_if_none().await;
-
-            if let Some(sink) = &mut self.sink {
-                sink.finalize().await?;
-            }
-
-            Ok(())
-        })
+    fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize> {
+        unimplemented!()
     }
+
+    // fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    //     Box::pin(async {
+    //         self.create_table_if_has_fut().await?;
+    //         self.wait_for_sink_if_none().await;
+
+    //         if let Some(sink) = &mut self.sink {
+    //             sink.push(batch).await?;
+    //         }
+
+    //         Ok(())
+    //     })
+    // }
+
+    // fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
+    //     Box::pin(async {
+    //         self.create_table_if_has_fut().await?;
+    //         self.wait_for_sink_if_none().await;
+
+    //         if let Some(sink) = &mut self.sink {
+    //             sink.finalize().await?;
+    //         }
+
+    //         Ok(())
+    //     })
+    // }
 }
 
 impl CreateTablePartitionSink {
@@ -203,7 +214,7 @@ impl DatabaseProtoConv for PhysicalCreateTable {
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        Ok(SinkOperator::new(CreateTableSinkOperation {
+        Ok(PhysicalSink::new(CreateTableSinkOperation {
             catalog: proto.catalog,
             schema: proto.schema,
             info: CreateTableInfo::from_proto(proto.info.required("info")?)?,

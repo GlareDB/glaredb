@@ -59,7 +59,8 @@ use project::{PhysicalProject, ProjectPartitionState};
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
-use sink::{SinkOperation, SinkOperator, SinkOperatorState, SinkPartitionState};
+use sink::operation::SinkOperation;
+use sink::{PhysicalSink, SinkOperatorState, SinkPartitionState};
 use sort::gather_sort::PhysicalGatherSort;
 use sort::scatter_sort::PhysicalScatterSort;
 use source::{SourceOperation, SourceOperator, SourcePartitionState};
@@ -448,10 +449,10 @@ pub enum PhysicalOperator {
     NestedLoopJoin(PhysicalNestedLoopJoin),
     HashJoin(PhysicalHashJoin),
     Values(PhysicalValues),
-    ResultSink(SinkOperator<ResultSink>),
-    DynSink(SinkOperator<Box<dyn SinkOperation>>),
+    ResultSink(PhysicalSink<ResultSink>),
+    DynSink(PhysicalSink<Box<dyn SinkOperation>>),
     DynSource(SourceOperator<Box<dyn SourceOperation>>),
-    MaterializedSink(SinkOperator<MaterializedSinkOperation>),
+    MaterializedSink(PhysicalSink<MaterializedSinkOperation>),
     MaterializedSource(SourceOperator<MaterializeSourceOperation>),
     RoundRobin(PhysicalRoundRobinRepartition),
     MergeSorted(PhysicalGatherSort),

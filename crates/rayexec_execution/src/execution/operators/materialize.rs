@@ -1,10 +1,13 @@
+use std::task::Context;
+
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
-use super::sink::{PartitionSink, SinkOperation};
+use super::sink::operation::{PartitionSink, PollPush, SinkOperation};
 use super::source::{PartitionSource, SourceOperation};
 use super::util::broadcast::{BroadcastChannel, BroadcastReceiver};
+use super::PollFinalize;
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -78,7 +81,7 @@ impl SinkOperation for MaterializedSinkOperation {
         Ok(sinks.into_iter().map(|s| Box::new(s) as _).collect())
     }
 
-    fn partition_requirement(&self) -> Option<usize> {
+    fn partitioning_requirement(&self) -> Option<usize> {
         Some(self.sinks.lock().len())
     }
 }
@@ -111,7 +114,7 @@ impl SourceOperation for MaterializeSourceOperation {
         sources.into_iter().map(|s| Box::new(s) as _).collect()
     }
 
-    fn partition_requirement(&self) -> Option<usize> {
+    fn partitioning_requirement(&self) -> Option<usize> {
         let len = self.sources.lock().len();
         Some(len)
     }
@@ -143,17 +146,25 @@ pub struct MaterializedDataPartitionSink {
 }
 
 impl PartitionSink for MaterializedDataPartitionSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async {
-            self.sender.send(batch);
-            Ok(())
-        })
+    fn poll_push(&mut self, cx: &mut Context, input: &mut Batch) -> Result<PollPush> {
+        unimplemented!()
     }
 
-    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async {
-            self.sender.finish();
-            Ok(())
-        })
+    fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize> {
+        unimplemented!()
     }
+
+    // fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    //     Box::pin(async {
+    //         self.sender.send(batch);
+    //         Ok(())
+    //     })
+    // }
+
+    // fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
+    //     Box::pin(async {
+    //         self.sender.finish();
+    //         Ok(())
+    //     })
+    // }
 }

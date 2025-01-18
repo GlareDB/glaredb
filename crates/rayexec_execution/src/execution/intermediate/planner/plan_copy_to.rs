@@ -5,7 +5,7 @@ use rayexec_error::Result;
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::copy_to::CopyToOperation;
-use crate::execution::operators::sink::SinkOperator;
+use crate::execution::operators::sink::PhysicalSink;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_copy::LogicalCopyTo;
 use crate::logical::operator::Node;
@@ -23,7 +23,7 @@ impl IntermediatePipelineBuildState<'_> {
         self.walk(materializations, id_gen, source)?;
 
         let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::CopyTo(SinkOperator::new(
+            operator: Arc::new(PhysicalOperator::CopyTo(PhysicalSink::new(
                 CopyToOperation {
                     copy_to: copy_to.node.copy_to,
                     location: copy_to.node.location,

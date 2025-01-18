@@ -70,6 +70,21 @@ impl Batch {
         })
     }
 
+    /// Try to create a new batch using the arrays from the other batch.
+    pub fn try_new_from_other(other: &mut Self) -> Result<Self> {
+        let arrays = other
+            .arrays_mut()
+            .iter_mut()
+            .map(|arr| Array::try_new_from_other(&Arc::new(NopBufferManager), arr))
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Batch {
+            arrays,
+            num_rows: other.num_rows,
+            capacity: other.capacity,
+        })
+    }
+
     /// Create a new batch from some number of arrays.
     ///
     /// All arrays should have the same logical length.
@@ -326,6 +341,26 @@ mod tests {
 
     use super::*;
     use crate::arrays::testutil::assert_batches_eq;
+
+    #[test]
+    fn new_from_other() {
+        let mut batch = Batch::try_from_arrays([
+            Array::try_from_iter([1, 2, 3, 4]).unwrap(),
+            Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
+        ])
+        .unwrap();
+
+        let new_batch = Batch::try_new_from_other(&mut batch).unwrap();
+
+        let expected = Batch::try_from_arrays([
+            Array::try_from_iter([1, 2, 3, 4]).unwrap(),
+            Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
+        ])
+        .unwrap();
+
+        assert_batches_eq(&expected, &batch);
+        assert_batches_eq(&expected, &new_batch);
+    }
 
     #[test]
     fn append_batch_simple() {
