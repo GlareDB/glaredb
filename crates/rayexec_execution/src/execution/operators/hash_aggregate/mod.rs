@@ -28,6 +28,7 @@ use crate::arrays::array::physical_type::PhysicalU64;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
+use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::scalar::{HashExecutor, UnaryExecutor};
 use crate::arrays::executor::OutBuffer;
@@ -116,12 +117,14 @@ struct LocalAggregatingState {
     /// Index of this partition.
     partition_idx: usize,
     /// Local aggregate tables for each partition.
-    table: Vec<HashTable>,
+    partition_tables: Vec<HashTable>,
     /// Reusable hashes buffer.
     hash_buf: Vec<u64>,
-    /// Reusable buffer for storing which hash table a row should be inserting
+    /// Reusable buffers for storing which hash table a row should be inserting
     /// into.
-    partitioning_buf: Vec<usize>,
+    ///
+    /// These are selection vectors on the input batch.
+    partitioning_bufs: Vec<Vec<usize>>,
 }
 
 #[derive(Debug)]
@@ -280,7 +283,6 @@ impl ExecutableOperator for PhysicalHashAggregate {
 
                 let num_rows = input.num_rows();
                 state.hash_buf.resize(num_rows, 0);
-                state.partitioning_buf.resize(num_rows, 0);
 
                 let mut masked_grouping_columns: Vec<Array> =
                     Vec::with_capacity(grouping_columns.len());
@@ -312,6 +314,41 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     // GROUPING function call.
                     masked_grouping_columns
                         .push(ScalarValue::UInt64(grouping_set_id).as_array(num_rows)?);
+                }
+
+                // Compute hashes on the group by values.
+                //
+                // Note we hash the masked columns and the grouping set id
+                // columns since the grouping set is essentially part of what
+                // we're comparing. We can reduce collisions by including that
+                // column in the hash.
+                state.hash_buf.resize(num_rows, 0);
+                hash_many_arrays(
+                    &masked_grouping_columns,
+                    input.selection(),
+                    &mut state.hash_buf,
+                )?;
+
+                state
+                    .partitioning_bufs
+                    .iter_mut()
+                    .for_each(|sel| sel.clear());
+
+                // Compute selections for each partition based on hash.
+                for (row_idx, &hash) in state.hash_buf.iter().enumerate() {
+                    let part_idx = hash as usize % state.partitioning_bufs.len();
+                    state.partitioning_bufs[part_idx].push(row_idx);
+                }
+
+                // TODO: Try to not do this.
+                let mut part_hashes = Vec::new();
+
+                for (part_idx, hashtable) in state.partition_tables.iter_mut().enumerate() {
+                    let selection = &state.partitioning_bufs[part_idx];
+
+                    // Select hashes we're inserting for this partition.
+                    part_hashes.clear();
+                    part_hashes.extend(selection.iter().map(|&sel| state.hash_buf[sel]));
                 }
 
                 unimplemented!()

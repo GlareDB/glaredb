@@ -78,7 +78,7 @@ impl<'a> IntoIterator for Selection<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FlatSelectionIter<'a> {
     idx: usize,
     sel: Selection<'a>,

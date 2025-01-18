@@ -92,7 +92,9 @@ impl SetHashOp for CombineHash {
 /// Hash an array selection, writing the hash values to `hashes`.
 ///
 /// Length of selection and hashes slice must be the same.
-pub fn hash(
+///
+/// This will overwrite hashes.
+pub fn hash_array(
     arr: &Array,
     sel: impl IntoExactSizeIterator<Item = usize>,
     hashes: &mut [u64],
@@ -105,7 +107,7 @@ pub fn hash(
 ///
 /// Length of selection and hashes slice must be the same. The same selection is
 /// applied to every input array.
-pub fn hash_many<'a>(
+pub fn hash_many_arrays<'a>(
     arrs: impl IntoIterator<Item = &'a Array>,
     sel: Selection,
     hashes: &mut [u64],
@@ -319,7 +321,7 @@ mod tests {
         let mut hashes = vec![1, 2];
         let arr = Array::try_from_iter([4, 5]).unwrap();
 
-        hash(&arr, 0..2, &mut hashes).unwrap();
+        hash_array(&arr, 0..2, &mut hashes).unwrap();
 
         assert_ne!(1, hashes[0]);
         assert_ne!(2, hashes[1]);
@@ -330,9 +332,20 @@ mod tests {
         let mut hashes = vec![0; 4];
         let arr = Array::try_from_iter([Some(1), Some(2), None, Some(4)]).unwrap();
 
-        hash(&arr, 0..4, &mut hashes).unwrap();
+        hash_array(&arr, 0..4, &mut hashes).unwrap();
 
         assert_eq!(DefaultHasher::NULL_HASH, hashes[2]);
+    }
+
+    #[test]
+    fn hash_with_selection() {
+        let mut hashes = vec![0; 2];
+        let arr = Array::try_from_iter([Some(1), Some(2), None, Some(4)]).unwrap();
+
+        hash_array(&arr, [0, 2], &mut hashes).unwrap();
+
+        assert_ne!(0, hashes[0]);
+        assert_eq!(DefaultHasher::NULL_HASH, hashes[1]);
     }
 
     #[test]
@@ -342,7 +355,7 @@ mod tests {
         arr.select(&Arc::new(NopBufferManager), [0, 1, 0, 1])
             .unwrap();
 
-        hash(&arr, 0..4, &mut hashes).unwrap();
+        hash_array(&arr, 0..4, &mut hashes).unwrap();
 
         assert_eq!(hashes[0], hashes[2]);
         assert_eq!(hashes[1], hashes[3]);
@@ -370,7 +383,7 @@ mod tests {
         )
         .unwrap();
 
-        hash(&lists, 0..4, &mut hashes).unwrap();
+        hash_array(&lists, 0..4, &mut hashes).unwrap();
 
         assert_ne!(0, hashes[0]);
         assert_eq!(hashes[0], hashes[2]);
@@ -385,7 +398,7 @@ mod tests {
 
         let mut hashes = vec![0; 2];
 
-        hash_many(&arrs, Selection::linear(0, 2), &mut hashes).unwrap();
+        hash_many_arrays(&arrs, Selection::linear(0, 2), &mut hashes).unwrap();
         assert_ne!(hashes[0], hashes[1]);
     }
 }
