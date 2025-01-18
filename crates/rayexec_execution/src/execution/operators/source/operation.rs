@@ -28,6 +28,7 @@ pub trait SourceOperation: Debug + Send + Sync + Explainable {
     fn create_partition_sources(
         &mut self,
         context: &DatabaseContext,
+        batch_size: usize,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSource>>>;
 }
@@ -35,8 +36,8 @@ pub trait SourceOperation: Debug + Send + Sync + Explainable {
 pub trait PartitionSource: Debug + Send {
     /// Pull batches from this source.
     ///
-    /// The source should write its data to `output` which will be pushed to the
-    /// upstream operators.
+    /// `output` will already be reset for writing. The source should write its
+    /// data to `output` which will be pushed to the upstream operators.
     fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull>;
 }
 
@@ -44,9 +45,11 @@ impl SourceOperation for Box<dyn SourceOperation> {
     fn create_partition_sources(
         &mut self,
         context: &DatabaseContext,
+        batch_size: usize,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSource>>> {
-        self.as_mut().create_partition_sources(context, partitions)
+        self.as_mut()
+            .create_partition_sources(context, batch_size, partitions)
     }
 }
 

@@ -1,6 +1,6 @@
 use std::task::Context;
 
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
@@ -20,6 +20,7 @@ impl SourceOperation for BatchesSource {
     fn create_partition_sources(
         &mut self,
         _context: &DatabaseContext,
+        batch_size: usize,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSource>>> {
         let mut part_batches = vec![Vec::new(); partitions];
@@ -27,6 +28,10 @@ impl SourceOperation for BatchesSource {
         for (batch_idx, batch) in self.batches.iter_mut().enumerate() {
             let part_idx = batch_idx % partitions;
             let new_batch = Batch::try_new_from_other(batch)?;
+
+            if new_batch.num_rows() > batch_size {
+                return Err(RayexecError::new("Test batch num rows exceeds batch size"));
+            }
 
             part_batches[part_idx].push(new_batch);
         }

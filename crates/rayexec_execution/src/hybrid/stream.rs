@@ -102,6 +102,7 @@ impl<C: HttpClient + 'static> SourceOperation for ServerToClientStream<C> {
     fn create_partition_sources(
         &mut self,
         context: &DatabaseContext,
+        batch_size: usize,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSource>>> {
         unimplemented!()
