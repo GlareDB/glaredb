@@ -38,7 +38,7 @@ impl ExecutableOperator for PhysicalEmpty {
     fn poll_execute(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
+        partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         inout: ExecuteInOutState,
     ) -> Result<PollExecute> {

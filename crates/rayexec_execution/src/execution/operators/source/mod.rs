@@ -158,4 +158,53 @@ mod tests {
         let expected = Batch::try_from_arrays([Array::try_from_iter([2]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &output);
     }
+
+    #[test]
+    fn source_multiple_partitions() {
+        let batches = vec![
+            Batch::try_from_arrays([Array::try_from_iter([1]).unwrap()]).unwrap(),
+            Batch::try_from_arrays([Array::try_from_iter([2]).unwrap()]).unwrap(),
+        ];
+
+        let mut wrapper = OperatorWrapper::new(PhysicalSource {
+            source: BatchesSource { batches },
+        });
+        let states = wrapper
+            .operator
+            .create_states(&test_database_context(), 1024, 2)
+            .unwrap();
+        let (op_state, mut part_states) = states.branchless_into_states().unwrap();
+
+        let mut output = Batch::try_new([DataType::Int32], 1024).unwrap();
+
+        let poll = wrapper
+            .poll_execute(
+                &mut part_states[0],
+                &op_state,
+                ExecuteInOutState {
+                    input: None,
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::Exhausted, poll);
+
+        let expected = Batch::try_from_arrays([Array::try_from_iter([1]).unwrap()]).unwrap();
+        assert_batches_eq(&expected, &output);
+
+        let poll = wrapper
+            .poll_execute(
+                &mut part_states[1],
+                &op_state,
+                ExecuteInOutState {
+                    input: None,
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::Exhausted, poll);
+
+        let expected = Batch::try_from_arrays([Array::try_from_iter([2]).unwrap()]).unwrap();
+        assert_batches_eq(&expected, &output);
+    }
 }

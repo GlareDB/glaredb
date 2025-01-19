@@ -25,6 +25,8 @@ pub trait SourceOperation: Debug + Send + Sync + Explainable {
     /// Create partition sources for this operation.
     ///
     /// This must return the exact number of sources for partitions.
+    ///
+    /// Called exactly once during physical planning.
     fn create_partition_sources(
         &mut self,
         context: &DatabaseContext,

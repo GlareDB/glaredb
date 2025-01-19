@@ -96,7 +96,7 @@ impl ExecutableOperator for PhysicalLimit {
             state.remaining_count -= output.num_rows();
 
             if state.remaining_count == 0 {
-                Ok(PollExecute::Break)
+                Ok(PollExecute::Exhausted)
             } else {
                 Ok(PollExecute::Ready)
             }
@@ -107,7 +107,7 @@ impl ExecutableOperator for PhysicalLimit {
             output.set_num_rows(state.remaining_count)?;
             state.remaining_count = 0;
 
-            Ok(PollExecute::Break)
+            Ok(PollExecute::Exhausted)
         } else {
             // Remaing offset is 0, and input batch has more rows than our
             // limit, so just use the batch as-is.
@@ -207,7 +207,7 @@ mod tests {
                 },
             )
             .unwrap();
-        assert_eq!(PollExecute::Break, poll);
+        assert_eq!(PollExecute::Exhausted, poll);
 
         let expected = Batch::try_from_arrays([
             Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
@@ -265,7 +265,7 @@ mod tests {
                 },
             )
             .unwrap();
-        assert_eq!(PollExecute::Break, poll);
+        assert_eq!(PollExecute::Exhausted, poll);
 
         let expected2 = Batch::try_from_arrays([
             Array::try_from_iter(["f", "g", "h"]).unwrap(),
@@ -297,7 +297,7 @@ mod tests {
                 },
             )
             .unwrap();
-        assert_eq!(PollExecute::Break, poll);
+        assert_eq!(PollExecute::Exhausted, poll);
 
         let expected = Batch::try_from_arrays([
             Array::try_from_iter(["b", "c"]).unwrap(),
@@ -347,7 +347,7 @@ mod tests {
                 },
             )
             .unwrap();
-        assert_eq!(PollExecute::Break, poll);
+        assert_eq!(PollExecute::Exhausted, poll);
 
         let expected = Batch::try_from_arrays([
             Array::try_from_iter(["g", "h"]).unwrap(),

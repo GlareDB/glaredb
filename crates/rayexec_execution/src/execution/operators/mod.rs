@@ -201,15 +201,8 @@ pub enum PollExecute {
     ///
     /// The next poll should be with a new input batch.
     Ready,
-    /// Push pending. Waker stored, re-execute with the exact same state.
+    /// Execution pending. Waker stored, re-execute with the exact same state.
     Pending,
-    /// Operator accepted as much input at can handle. Don't provide any
-    /// additional input.
-    ///
-    /// The output batch will have meaningful data that should be pushed to the
-    /// next operator(s).
-    // TODO: Remove and just have 'exhaust' mean the same thing?
-    Break,
     /// Operator needs more input before it'll produce any meaningful output.
     NeedsMore,
     /// Operator has more output. Call again with the same input batch.
@@ -219,8 +212,29 @@ pub enum PollExecute {
     HasMore,
     /// Operator is exhausted and shouldn't be polled again.
     ///
-    /// The output batch will have meaningful data that should be pushed to the
-    /// next operator(s).
+    /// The output batch will have any remaining data. If there's no more data,
+    /// then the output batch will have zero rows.
+    ///
+    /// When we're executing the pipeline, an operator returning this will
+    /// prevent this operator and any child operators within that pipeline from
+    /// being executed again.
+    ///
+    /// E.g. the LIMIT operator will return Exhausted once the limit has been
+    /// reached.
+    Exhausted,
+}
+
+/// Poll result for flushing an operator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollFlush {
+    /// Operator has more output, keep flushing to get all data.
+    HasMore,
+    /// Flush pending. Waker stored, re-execute with the exact same state.
+    Pending,
+    /// Operator is exhausted and shouldn't be polled again.
+    ///
+    /// The output batch will have any remaining data. If there's no more data,
+    /// then the output batch will have zero rows.
     Exhausted,
 }
 
