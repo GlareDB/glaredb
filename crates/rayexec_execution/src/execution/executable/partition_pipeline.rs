@@ -4,10 +4,10 @@ use std::task::{Context, Poll};
 use rayexec_error::Result;
 use tracing::trace;
 
-use super::pipeline::PipelineId;
 use super::stack::{ExecutionStack, StackEffectHandler};
 use crate::arrays::batch::Batch;
 use crate::execution::executable::stack::StackControlFlow;
+use crate::execution::intermediate::pipeline::IntermediatePipelineId;
 use crate::execution::operators::{
     ExecutableOperator,
     ExecuteInOutState,
@@ -22,7 +22,7 @@ use crate::runtime::time::RuntimeInstant;
 /// Information about a partition pipeline.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PartitionPipelineInfo {
-    pub pipeline: PipelineId,
+    pub pipeline: IntermediatePipelineId,
     pub partition: usize,
 }
 
@@ -35,6 +35,14 @@ pub struct ExecutablePartitionPipeline {
 }
 
 impl ExecutablePartitionPipeline {
+    pub fn pipeline_id(&self) -> IntermediatePipelineId {
+        self.info.pipeline
+    }
+
+    pub fn partition_idx(&self) -> usize {
+        self.info.partition
+    }
+
     /// Try to execute as much of the pipeline for this partition as possible.
     ///
     /// Loop through all operators, pushing data as far as we can until we get
@@ -57,7 +65,7 @@ impl ExecutablePartitionPipeline {
         I: RuntimeInstant,
     {
         trace!(
-            pipeline_id = %self.info.pipeline.0,
+            pipeline_id = %self.info.pipeline,
             partition = %self.info.partition,
             "executing partition pipeline",
         );
@@ -90,15 +98,15 @@ impl ExecutablePartitionPipeline {
 #[derive(Debug)]
 pub struct OperatorWithState {
     /// The underlying physical operator.
-    physical: Arc<PhysicalOperator>,
+    pub(crate) physical: Arc<PhysicalOperator>,
     /// The state that's shared across all partitions for this operator.
-    operator_state: Arc<OperatorState>,
+    pub(crate) operator_state: Arc<OperatorState>,
     /// State for this operator that's exclusive to this partition.
-    partition_states: PartitionState,
+    pub(crate) partition_states: PartitionState,
     /// Output batch buffer for this operator/pipeline.
     ///
     /// May be None if this operator is the last in the pipeline.
-    output_buffer: Option<Batch>,
+    pub(crate) output_buffer: Option<Batch>,
 }
 
 /// Implementation of `StackEffectsHandler` that calls `poll_finalize` and

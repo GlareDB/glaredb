@@ -11,6 +11,7 @@ use super::{
     PollFinalize,
     UnaryInputStates,
 };
+use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::evaluator::ExpressionEvaluator;
@@ -19,6 +20,22 @@ use crate::expr::physical::PhysicalScalarExpression;
 #[derive(Debug)]
 pub struct PhysicalProject {
     pub(crate) projections: Vec<PhysicalScalarExpression>,
+    pub(crate) output_types: Vec<DataType>,
+}
+
+impl PhysicalProject {
+    pub fn new<S>(projections: impl IntoIterator<Item = S>) -> Self
+    where
+        S: Into<PhysicalScalarExpression>,
+    {
+        let projections: Vec<_> = projections.into_iter().map(|expr| expr.into()).collect();
+        let output_types = projections.iter().map(|proj| proj.datatype()).collect();
+
+        PhysicalProject {
+            projections,
+            output_types,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -47,6 +64,10 @@ impl ExecutableOperator for PhysicalProject {
             operator_state: OperatorState::None,
             partition_states,
         })
+    }
+
+    fn output_types(&self) -> &[DataType] {
+        &self.output_types
     }
 
     fn poll_execute(
@@ -114,7 +135,7 @@ mod tests {
             }),
         ];
 
-        let mut operator = PhysicalProject { projections };
+        let mut operator = PhysicalProject::new(projections);
         let mut states = operator
             .create_states(&test_database_context(), 4, 1)
             .unwrap();

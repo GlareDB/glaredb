@@ -33,6 +33,36 @@ pub enum PhysicalScalarExpression {
     ScalarFunction(PhysicalScalarFunctionExpr),
 }
 
+impl From<PhysicalCaseExpr> for PhysicalScalarExpression {
+    fn from(value: PhysicalCaseExpr) -> Self {
+        PhysicalScalarExpression::Case(value)
+    }
+}
+
+impl From<PhysicalCastExpr> for PhysicalScalarExpression {
+    fn from(value: PhysicalCastExpr) -> Self {
+        PhysicalScalarExpression::Cast(value)
+    }
+}
+
+impl From<PhysicalColumnExpr> for PhysicalScalarExpression {
+    fn from(value: PhysicalColumnExpr) -> Self {
+        PhysicalScalarExpression::Column(value)
+    }
+}
+
+impl From<PhysicalLiteralExpr> for PhysicalScalarExpression {
+    fn from(value: PhysicalLiteralExpr) -> Self {
+        PhysicalScalarExpression::Literal(value)
+    }
+}
+
+impl From<PhysicalScalarFunctionExpr> for PhysicalScalarExpression {
+    fn from(value: PhysicalScalarFunctionExpr) -> Self {
+        PhysicalScalarExpression::ScalarFunction(value)
+    }
+}
+
 impl PhysicalScalarExpression {
     pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
         match self {

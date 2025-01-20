@@ -78,9 +78,7 @@ impl IntermediatePipelineBuildState<'_> {
         }
 
         self.push_intermediate_operator(
-            PhysicalOperator::Project(PhysicalProject {
-                projections: preproject_exprs,
-            }),
+            PhysicalOperator::Project(PhysicalProject::new(preproject_exprs)),
             location,
             id_gen,
         )?;

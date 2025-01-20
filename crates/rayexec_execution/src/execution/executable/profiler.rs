@@ -2,14 +2,15 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::time::Duration;
 
-use super::pipeline::{ExecutablePartitionPipeline, PipelineId};
+use super::partition_pipeline::ExecutablePartitionPipeline;
+use crate::execution::intermediate::pipeline::IntermediatePipelineId;
 use crate::explain::context_display::ContextDisplayMode;
 use crate::explain::explainable::ExplainConfig;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ExecutionProfileData {
     /// Profile data for all pipelines in this query.
-    pub pipelines: BTreeMap<PipelineId, PipelineProfileData>,
+    pub pipelines: BTreeMap<IntermediatePipelineId, PipelineProfileData>,
 }
 
 impl ExecutionProfileData {

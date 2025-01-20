@@ -26,7 +26,7 @@ impl IntermediatePipelineBuildState<'_> {
             .plan_scalars(&input_refs, &project.node.projections)
             .context("Failed to plan expressions for projection")?;
 
-        let operator = PhysicalOperator::Project(PhysicalProject { projections });
+        let operator = PhysicalOperator::Project(PhysicalProject::new(projections));
         self.push_intermediate_operator(operator, location, id_gen)?;
 
         Ok(())

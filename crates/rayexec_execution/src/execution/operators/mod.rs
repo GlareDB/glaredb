@@ -103,6 +103,7 @@ use self::sort::scatter_sort::ScatterSortPartitionState;
 use self::values::ValuesPartitionState;
 use super::computed_batch::ComputedBatches;
 use crate::arrays::batch::Batch;
+use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::engine::result::ResultSink;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -332,7 +333,7 @@ pub struct MaterializationStates {
     /// Global operator state.
     pub operator_state: OperatorState,
     /// States for the single input into the materialization operator.
-    pub sink_states: Vec<PartitionState>,
+    pub input_states: Vec<PartitionState>,
     /// States for the outputs from the materialization operator.
     pub output_states: Vec<Vec<PartitionState>>,
 }
@@ -417,6 +418,10 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         _context: &DatabaseContext,
         _partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
+        unimplemented!()
+    }
+
+    fn output_types(&self) -> &[DataType] {
         unimplemented!()
     }
 
@@ -511,6 +516,85 @@ pub enum PhysicalOperator {
 
 impl ExecutableOperator for PhysicalOperator {
     type States = PartitionAndOperatorStates;
+
+    fn output_types(&self) -> &[DataType] {
+        match self {
+            Self::HashAggregate(op) => op.output_types(),
+            Self::UngroupedAggregate(op) => op.output_types(),
+            Self::Window(op) => op.output_types(),
+            Self::NestedLoopJoin(op) => op.output_types(),
+            Self::HashJoin(op) => op.output_types(),
+            Self::Values(op) => op.output_types(),
+            Self::ResultSink(op) => op.output_types(),
+            Self::DynSink(op) => op.output_types(),
+            Self::DynSource(op) => op.output_types(),
+            Self::MaterializedSink(op) => op.output_types(),
+            Self::MaterializedSource(op) => op.output_types(),
+            Self::RoundRobin(op) => op.output_types(),
+            Self::MergeSorted(op) => op.output_types(),
+            Self::LocalSort(op) => op.output_types(),
+            Self::Limit(op) => op.output_types(),
+            Self::Union(op) => op.output_types(),
+            Self::Filter(op) => op.output_types(),
+            Self::Project(op) => op.output_types(),
+            Self::Unnest(op) => op.output_types(),
+            Self::Scan(op) => op.output_types(),
+            Self::TableFunction(op) => op.output_types(),
+            Self::TableInOut(op) => op.output_types(),
+            Self::Insert(op) => op.output_types(),
+            Self::CopyTo(op) => op.output_types(),
+            Self::CreateTable(op) => op.output_types(),
+            Self::CreateSchema(op) => op.output_types(),
+            Self::CreateView(op) => op.output_types(),
+            Self::Drop(op) => op.output_types(),
+            Self::Empty(op) => op.output_types(),
+        }
+    }
+
+    fn create_states(
+        &mut self,
+        context: &DatabaseContext,
+        batch_size: usize,
+        partitions: usize,
+    ) -> Result<PartitionAndOperatorStates> {
+        let states = match self {
+            Self::HashAggregate(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::UngroupedAggregate(op) => {
+                op.create_states(context, batch_size, partitions)?.into()
+            }
+            Self::Window(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::NestedLoopJoin(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::HashJoin(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Values(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::ResultSink(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::DynSink(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::DynSource(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::MaterializedSink(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::MaterializedSource(op) => {
+                op.create_states(context, batch_size, partitions)?.into()
+            }
+            Self::RoundRobin(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::MergeSorted(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::LocalSort(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Limit(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Union(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Filter(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Project(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Unnest(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Scan(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::TableFunction(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::TableInOut(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Insert(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::CopyTo(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::CreateTable(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::CreateSchema(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::CreateView(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Drop(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Empty(op) => op.create_states(context, batch_size, partitions)?.into(),
+        };
+
+        Ok(states)
+    }
 
     fn create_states2(
         &self,

@@ -46,14 +46,13 @@ impl IntermediatePipelineBuildState<'_> {
             })
             .collect();
 
+        let projections = function_inputs
+            .into_iter()
+            .chain(projected_outputs.into_iter());
+
         // Project function inputs first.
         self.push_intermediate_operator(
-            PhysicalOperator::Project(PhysicalProject {
-                projections: function_inputs
-                    .into_iter()
-                    .chain(projected_outputs.into_iter())
-                    .collect(),
-            }),
+            PhysicalOperator::Project(PhysicalProject::new(projections)),
             inout.location,
             id_gen,
         )?;

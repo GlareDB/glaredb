@@ -20,6 +20,12 @@ pub struct PhysicalLiteralExpr {
 }
 
 impl PhysicalLiteralExpr {
+    pub fn new(literal: impl Into<OwnedScalarValue>) -> Self {
+        PhysicalLiteralExpr {
+            literal: literal.into(),
+        }
+    }
+
     pub(crate) fn create_state(&self, _batch_size: usize) -> Result<ExpressionState> {
         Ok(ExpressionState::empty())
     }

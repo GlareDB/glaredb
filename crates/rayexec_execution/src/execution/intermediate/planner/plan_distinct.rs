@@ -33,9 +33,7 @@ impl IntermediatePipelineBuildState<'_> {
             .plan_scalars(&input_refs, &distinct.node.on)?;
 
         self.push_intermediate_operator(
-            PhysicalOperator::Project(PhysicalProject {
-                projections: group_exprs,
-            }),
+            PhysicalOperator::Project(PhysicalProject::new(group_exprs)),
             distinct.location,
             id_gen,
         )?;
