@@ -11,6 +11,7 @@ use super::{
     PartitionState,
     PollExecute,
     PollFinalize,
+    UnaryInputStates,
 };
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::selection::Selection;
@@ -58,12 +59,14 @@ pub struct PhysicalTableInOut {
 }
 
 impl ExecutableOperator for PhysicalTableInOut {
+    type States = UnaryInputStates;
+
     fn create_states(
         &mut self,
         _context: &DatabaseContext,
         _batch_size: usize,
         partitions: usize,
-    ) -> Result<PartitionAndOperatorStates> {
+    ) -> Result<UnaryInputStates> {
         let states = match &self.function.function_impl {
             TableFunctionImpl::InOut(inout) => inout.create_states(partitions)?,
             _ => {
@@ -86,7 +89,7 @@ impl ExecutableOperator for PhysicalTableInOut {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(PartitionAndOperatorStates::Branchless {
+        Ok(UnaryInputStates {
             operator_state: OperatorState::None,
             partition_states: states,
         })
@@ -259,11 +262,9 @@ mod tests {
             projected_inputs: Vec::new(),
         });
 
-        let (op_state, mut part_states) = wrapper
+        let mut states = wrapper
             .operator
             .create_states(&test_database_context(), 1024, 1)
-            .unwrap()
-            .branchless_into_states()
             .unwrap();
 
         let mut output = Batch::try_new([DataType::Int64], 1024).unwrap();
@@ -278,8 +279,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut part_states[0],
-                &op_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut input),
                     output: Some(&mut output),
@@ -312,11 +313,9 @@ mod tests {
             ],
         });
 
-        let (op_state, mut part_states) = wrapper
+        let mut states = wrapper
             .operator
             .create_states(&test_database_context(), 1024, 1)
-            .unwrap()
-            .branchless_into_states()
             .unwrap();
 
         let mut output =
@@ -332,8 +331,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut part_states[0],
-                &op_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut input),
                     output: Some(&mut output),
@@ -352,8 +351,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut part_states[0],
-                &op_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut input),
                     output: Some(&mut output),

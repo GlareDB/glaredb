@@ -72,7 +72,12 @@ use ungrouped_aggregate::{
     UngroupedAggregateOperatorState,
     UngroupedAggregatePartitionState,
 };
-use union::PhysicalUnion;
+use union::{
+    PhysicalUnion,
+    UnionBufferingPartitionState,
+    UnionOperatorState,
+    UnionPullingPartitionState,
+};
 use unnest::{PhysicalUnnest, UnnestPartitionState};
 use values::PhysicalValues;
 use window::PhysicalWindow;
@@ -113,6 +118,8 @@ pub enum PartitionState {
     Limit(LimitPartitionState),
     Project(ProjectPartitionState),
     Filter(FilterPartitionState),
+    UnionPulling(UnionPullingPartitionState),
+    UnionBuffering(UnionBufferingPartitionState),
 
     HashAggregate(HashAggregatePartitionState),
     UngroupedAggregate(UngroupedAggregatePartitionState),
@@ -142,6 +149,8 @@ pub enum PartitionState {
 // Current size: 144 bytes
 #[derive(Debug)]
 pub enum OperatorState {
+    Union(UnionOperatorState),
+
     HashAggregate(HashAggregateOperatorState),
     UngroupedAggregate(UngroupedAggregateOperatorState),
     NestedLoopJoin(NestedLoopJoinOperatorState),
@@ -268,52 +277,64 @@ pub struct ExecuteInOutState<'a> {
 
 #[derive(Debug)]
 pub enum PartitionAndOperatorStates {
-    /// Operators that have a single input/output.
-    Branchless {
-        /// Global operator state.
-        operator_state: OperatorState,
-        /// State per-partition.
-        partition_states: Vec<PartitionState>,
-    },
-    /// Operator that accepts 'n' number of inputs, executing inputs until
-    /// exhaustion with a single output.
-    NaryInput {
-        /// Global operator state.
-        operator_state: OperatorState,
-        /// Vector of partitions states for each partition. Length of outer vec
-        /// indicates number of inputs.
-        ///
-        /// Inputs will be executed to completion left to right.
-        input_partition_states: Vec<Vec<PartitionState>>,
-    },
+    /// Operator that accepts a single input and produces a single output.
+    UnaryInput(UnaryInputStates),
+    /// Operator that accepts two inputs and produces a single output.
+    BinaryInput(BinaryInputStates),
+    /// Operator that materializes its input and produces multiple outputs.
+    Materialization(MaterializationStates),
 }
 
-impl PartitionAndOperatorStates {
-    /// Returns the operator state and partition states for a "branchless"
-    /// operator.
-    pub fn branchless_into_states(self) -> Result<(OperatorState, Vec<PartitionState>)> {
-        match self {
-            Self::Branchless {
-                operator_state,
-                partition_states,
-            } => Ok((operator_state, partition_states)),
-            Self::NaryInput { .. } => Err(RayexecError::new(
-                "Expected branchless states, got n-ary input",
-            )),
-        }
+impl From<UnaryInputStates> for PartitionAndOperatorStates {
+    fn from(states: UnaryInputStates) -> Self {
+        PartitionAndOperatorStates::UnaryInput(states)
     }
+}
 
-    pub fn nary_into_states(self) -> Result<(OperatorState, Vec<Vec<PartitionState>>)> {
-        match self {
-            Self::NaryInput {
-                operator_state,
-                input_partition_states,
-            } => Ok((operator_state, input_partition_states)),
-            Self::Branchless { .. } => {
-                Err(RayexecError::new("Expected n-ary input, got branchless"))
-            }
-        }
+impl From<BinaryInputStates> for PartitionAndOperatorStates {
+    fn from(states: BinaryInputStates) -> Self {
+        PartitionAndOperatorStates::BinaryInput(states)
     }
+}
+
+impl From<MaterializationStates> for PartitionAndOperatorStates {
+    fn from(states: MaterializationStates) -> Self {
+        PartitionAndOperatorStates::Materialization(states)
+    }
+}
+
+#[derive(Debug)]
+pub struct UnaryInputStates {
+    /// Global operator state.
+    pub operator_state: OperatorState,
+    /// State per-partition.
+    pub partition_states: Vec<PartitionState>,
+}
+
+#[derive(Debug)]
+pub struct BinaryInputStates {
+    /// Global operator state.
+    pub operator_state: OperatorState,
+    /// States that belong to the "sink" input for the operator.
+    ///
+    /// E.g. states for the build side of join.
+    pub sink_states: Vec<PartitionState>,
+    /// States for the input that "passes through" the operator in the sense
+    /// that this input is treats the operator as a normal intermediate operator
+    /// in the chain.
+    ///
+    /// E.g. states for the probe side of a join.
+    pub passthrough_states: Vec<PartitionState>,
+}
+
+#[derive(Debug)]
+pub struct MaterializationStates {
+    /// Global operator state.
+    pub operator_state: OperatorState,
+    /// States for the single input into the materialization operator.
+    pub sink_states: Vec<PartitionState>,
+    /// States for the outputs from the materialization operator.
+    pub output_states: Vec<Vec<PartitionState>>,
 }
 
 /// Describes the relationships of partition states for operators.
@@ -383,6 +404,8 @@ pub struct ExecutionStates {
 }
 
 pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
+    type States: Into<PartitionAndOperatorStates>;
+
     /// Create execution states for this operator.
     ///
     /// `input_partitions` is the partitioning for each input that will be
@@ -402,7 +425,7 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         context: &DatabaseContext,
         batch_size: usize,
         partitions: usize,
-    ) -> Result<PartitionAndOperatorStates> {
+    ) -> Result<Self::States> {
         unimplemented!()
     }
 
@@ -487,6 +510,8 @@ pub enum PhysicalOperator {
 }
 
 impl ExecutableOperator for PhysicalOperator {
+    type States = PartitionAndOperatorStates;
+
     fn create_states2(
         &self,
         context: &DatabaseContext,

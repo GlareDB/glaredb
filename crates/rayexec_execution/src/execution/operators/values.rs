@@ -10,6 +10,7 @@ use super::{
     PartitionState,
     PollExecute,
     PollFinalize,
+    UnaryInputStates,
 };
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
@@ -32,12 +33,14 @@ pub struct PhysicalValues {
 }
 
 impl ExecutableOperator for PhysicalValues {
+    type States = UnaryInputStates;
+
     fn create_states(
         &mut self,
         _context: &DatabaseContext,
         batch_size: usize,
         partitions: usize,
-    ) -> Result<PartitionAndOperatorStates> {
+    ) -> Result<UnaryInputStates> {
         let states = (0..partitions)
             .map(|_| {
                 let out_buf = match self.expressions.first() {
@@ -55,7 +58,7 @@ impl ExecutableOperator for PhysicalValues {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(PartitionAndOperatorStates::Branchless {
+        Ok(UnaryInputStates {
             operator_state: OperatorState::None,
             partition_states: states,
         })
@@ -209,10 +212,9 @@ mod tests {
         ];
 
         let mut operator = PhysicalValues { expressions: exprs };
-        let states = operator
+        let mut states = operator
             .create_states(&test_database_context(), 1024, 1)
             .unwrap();
-        let (operator_state, mut partition_states) = states.branchless_into_states().unwrap();
 
         let wrapper = OperatorWrapper::new(operator);
 
@@ -226,8 +228,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut partition_states[0],
-                &operator_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut input),
                     output: Some(&mut output),
@@ -272,10 +274,9 @@ mod tests {
         ];
 
         let mut operator = PhysicalValues { expressions: exprs };
-        let states = operator
+        let mut states = operator
             .create_states(&test_database_context(), 1024, 1)
             .unwrap();
-        let (operator_state, mut partition_states) = states.branchless_into_states().unwrap();
 
         let wrapper = OperatorWrapper::new(operator);
 
@@ -289,8 +290,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut partition_states[0],
-                &operator_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut input),
                     output: Some(&mut output),
@@ -309,8 +310,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut partition_states[0],
-                &operator_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut input),
                     output: Some(&mut output),

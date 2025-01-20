@@ -6,10 +6,10 @@ use super::{
     ExecutableOperator,
     ExecuteInOutState,
     OperatorState,
-    PartitionAndOperatorStates,
     PartitionState,
     PollExecute,
     PollFinalize,
+    UnaryInputStates,
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -27,12 +27,14 @@ pub struct ProjectPartitionState {
 }
 
 impl ExecutableOperator for PhysicalProject {
+    type States = UnaryInputStates;
+
     fn create_states(
         &mut self,
         _context: &DatabaseContext,
         batch_size: usize,
         partitions: usize,
-    ) -> Result<PartitionAndOperatorStates> {
+    ) -> Result<UnaryInputStates> {
         let partition_states = (0..partitions)
             .map(|_| {
                 Ok(PartitionState::Project(ProjectPartitionState {
@@ -41,7 +43,7 @@ impl ExecutableOperator for PhysicalProject {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(PartitionAndOperatorStates::Branchless {
+        Ok(UnaryInputStates {
             operator_state: OperatorState::None,
             partition_states,
         })
@@ -113,10 +115,9 @@ mod tests {
         ];
 
         let mut operator = PhysicalProject { projections };
-        let states = operator
+        let mut states = operator
             .create_states(&test_database_context(), 4, 1)
             .unwrap();
-        let (operator_state, mut partition_states) = states.branchless_into_states().unwrap();
 
         let wrapper = OperatorWrapper::new(operator);
 
@@ -134,8 +135,8 @@ mod tests {
 
         wrapper
             .poll_execute(
-                &mut partition_states[0],
-                &operator_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut in1),
                     output: Some(&mut out),
@@ -158,8 +159,8 @@ mod tests {
 
         wrapper
             .poll_execute(
-                &mut partition_states[0],
-                &operator_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut in2),
                     output: Some(&mut out),

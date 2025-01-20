@@ -11,6 +11,7 @@ use super::{
     PartitionState,
     PollExecute,
     PollFinalize,
+    UnaryInputStates,
 };
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::selection::Selection;
@@ -37,12 +38,14 @@ pub struct FilterPartitionState {
 }
 
 impl ExecutableOperator for PhysicalFilter {
+    type States = UnaryInputStates;
+
     fn create_states(
         &mut self,
         _context: &DatabaseContext,
         batch_size: usize,
         partitions: usize,
-    ) -> Result<PartitionAndOperatorStates> {
+    ) -> Result<UnaryInputStates> {
         let partition_states = (0..partitions)
             .map(|_| {
                 Ok(PartitionState::Filter(FilterPartitionState {
@@ -60,7 +63,7 @@ impl ExecutableOperator for PhysicalFilter {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(PartitionAndOperatorStates::Branchless {
+        Ok(UnaryInputStates {
             operator_state: OperatorState::None,
             partition_states,
         })
@@ -139,10 +142,9 @@ mod tests {
             }),
         };
 
-        let states = operator
+        let mut states = operator
             .create_states(&test_database_context(), 4, 1)
             .unwrap();
-        let (operator_state, mut partition_states) = states.branchless_into_states().unwrap();
         let wrapper = OperatorWrapper::new(operator);
 
         let mut out = Batch::try_from_arrays([
@@ -159,8 +161,8 @@ mod tests {
 
         wrapper
             .poll_execute(
-                &mut partition_states[0],
-                &operator_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut in1),
                     output: Some(&mut out),
@@ -183,8 +185,8 @@ mod tests {
 
         wrapper
             .poll_execute(
-                &mut partition_states[0],
-                &operator_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut in2),
                     output: Some(&mut out),

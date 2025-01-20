@@ -34,46 +34,47 @@ impl IntermediatePipelineBuildState<'_> {
             }
         };
 
-        let is_ctas = input.is_some();
-        match input {
-            Some(input) => {
-                // CTAS, plan the input. It'll be the source of this pipeline.
-                self.walk(materializations, id_gen, input)?;
-            }
-            None => {
-                // No input, just have an empty operator as the source.
-                let operator = IntermediateOperator {
-                    operator: Arc::new(PhysicalOperator::Empty(PhysicalEmpty)),
-                    partitioning_requirement: Some(1),
-                };
+        unimplemented!()
+        // let is_ctas = input.is_some();
+        // match input {
+        //     Some(input) => {
+        //         // CTAS, plan the input. It'll be the source of this pipeline.
+        //         self.walk(materializations, id_gen, input)?;
+        //     }
+        //     None => {
+        //         // No input, just have an empty operator as the source.
+        //         let operator = IntermediateOperator {
+        //             operator: Arc::new(PhysicalOperator::Empty(PhysicalEmpty)),
+        //             partitioning_requirement: Some(1),
+        //         };
 
-                self.in_progress = Some(InProgressPipeline {
-                    id: id_gen.next_pipeline_id(),
-                    operators: vec![operator],
-                    location,
-                    source: PipelineSource::InPipeline,
-                });
-            }
-        };
+        //         self.in_progress = Some(InProgressPipeline {
+        //             id: id_gen.next_pipeline_id(),
+        //             operators: vec![operator],
+        //             location,
+        //             source: PipelineSource::InPipeline,
+        //         });
+        //     }
+        // };
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::CreateTable(PhysicalSink::new(
-                CreateTableSinkOperation {
-                    catalog: create.node.catalog,
-                    schema: create.node.schema,
-                    info: CreateTableInfo {
-                        name: create.node.name,
-                        columns: create.node.columns,
-                        on_conflict: create.node.on_conflict,
-                    },
-                    is_ctas,
-                },
-            ))),
-            partitioning_requirement: None,
-        };
+        // let operator = IntermediateOperator {
+        //     operator: Arc::new(PhysicalOperator::CreateTable(PhysicalSink::new(
+        //         CreateTableSinkOperation {
+        //             catalog: create.node.catalog,
+        //             schema: create.node.schema,
+        //             info: CreateTableInfo {
+        //                 name: create.node.name,
+        //                 columns: create.node.columns,
+        //                 on_conflict: create.node.on_conflict,
+        //             },
+        //             is_ctas,
+        //         },
+        //     ))),
+        //     partitioning_requirement: None,
+        // };
 
-        self.push_intermediate_operator(operator, location, id_gen)?;
+        // self.push_intermediate_operator(operator, location, id_gen)?;
 
-        Ok(())
+        // Ok(())
     }
 }

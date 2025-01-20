@@ -6,10 +6,10 @@ use super::{
     ExecutableOperator,
     ExecuteInOutState,
     OperatorState,
-    PartitionAndOperatorStates,
     PartitionState,
     PollExecute,
     PollFinalize,
+    UnaryInputStates,
 };
 use crate::arrays::array::selection::Selection;
 use crate::database::DatabaseContext;
@@ -39,12 +39,14 @@ pub struct PhysicalLimit {
 }
 
 impl ExecutableOperator for PhysicalLimit {
+    type States = UnaryInputStates;
+
     fn create_states(
         &mut self,
         _context: &DatabaseContext,
         _batch_size: usize,
         partitions: usize,
-    ) -> Result<PartitionAndOperatorStates> {
+    ) -> Result<UnaryInputStates> {
         let states = (0..partitions)
             .map(|_| {
                 PartitionState::Limit(LimitPartitionState {
@@ -54,7 +56,7 @@ impl ExecutableOperator for PhysicalLimit {
             })
             .collect();
 
-        Ok(PartitionAndOperatorStates::Branchless {
+        Ok(UnaryInputStates {
             operator_state: OperatorState::None,
             partition_states: states,
         })
@@ -170,25 +172,19 @@ mod tests {
     fn single_partition_limit(
         limit: usize,
         offset: Option<usize>,
-    ) -> (
-        OperatorWrapper<PhysicalLimit>,
-        OperatorState,
-        PartitionState,
-    ) {
+    ) -> (OperatorWrapper<PhysicalLimit>, UnaryInputStates) {
         let mut wrapper = OperatorWrapper::new(PhysicalLimit { limit, offset });
         let states = wrapper
             .operator
             .create_states(&test_database_context(), 1024, 1)
             .unwrap();
-        let (op_state, mut part_states) = states.branchless_into_states().unwrap();
-        let part_state = part_states.pop().unwrap();
 
-        (wrapper, op_state, part_state)
+        (wrapper, states)
     }
 
     #[test]
     fn limit_no_offset_simple() {
-        let (wrapper, op_state, mut part_state) = single_partition_limit(5, None);
+        let (wrapper, mut states) = single_partition_limit(5, None);
 
         let mut input = Batch::try_from_arrays([
             Array::try_from_iter(["a", "b", "c", "d", "e", "f"]).unwrap(),
@@ -199,8 +195,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut part_state,
-                &op_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut input),
                     output: Some(&mut output),
@@ -220,7 +216,7 @@ mod tests {
 
     #[test]
     fn limit_no_offset_multiple_batches() {
-        let (wrapper, op_state, mut part_state) = single_partition_limit(8, None);
+        let (wrapper, mut states) = single_partition_limit(8, None);
 
         let mut input1 = Batch::try_from_arrays([
             Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
@@ -231,8 +227,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut part_state,
-                &op_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut input1),
                     output: Some(&mut output),
@@ -257,8 +253,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut part_state,
-                &op_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut input2),
                     output: Some(&mut output),
@@ -278,7 +274,7 @@ mod tests {
 
     #[test]
     fn limit_with_offset_single_batch() {
-        let (wrapper, op_state, mut part_state) = single_partition_limit(2, Some(1));
+        let (wrapper, mut states) = single_partition_limit(2, Some(1));
 
         let mut input = Batch::try_from_arrays([
             Array::try_from_iter(["a", "b", "c", "d", "e", "f"]).unwrap(),
@@ -289,8 +285,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut part_state,
-                &op_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut input),
                     output: Some(&mut output),
@@ -310,7 +306,7 @@ mod tests {
 
     #[test]
     fn limit_with_offset_discard_first_batch() {
-        let (wrapper, op_state, mut part_state) = single_partition_limit(2, Some(6));
+        let (wrapper, mut states) = single_partition_limit(2, Some(6));
 
         let mut input = Batch::try_from_arrays([
             Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
@@ -321,8 +317,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut part_state,
-                &op_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut input),
                     output: Some(&mut output),
@@ -339,8 +335,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut part_state,
-                &op_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut input2),
                     output: Some(&mut output),

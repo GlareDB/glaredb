@@ -22,6 +22,7 @@ use super::{
     PartitionAndOperatorStates,
     PollExecute,
     PollFinalize,
+    UnaryInputStates,
 };
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::physical_type::PhysicalU64;
@@ -232,12 +233,14 @@ impl PhysicalHashAggregate {
 }
 
 impl ExecutableOperator for PhysicalHashAggregate {
+    type States = UnaryInputStates;
+
     fn create_states(
         &mut self,
         context: &DatabaseContext,
         batch_size: usize,
         partitions: usize,
-    ) -> Result<PartitionAndOperatorStates> {
+    ) -> Result<UnaryInputStates> {
         unimplemented!()
     }
 

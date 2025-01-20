@@ -29,17 +29,18 @@ impl IntermediatePipelineBuildState<'_> {
             ));
         }
 
-        // Initialize in-progress with no operators, but scan source being this
-        // materialization.
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: Vec::new(),
-            location: LocationRequirement::ClientLocal, // Currently only support local.
-            source: PipelineSource::Materialization {
-                mat_ref: scan.node.mat,
-            },
-        });
+        unimplemented!()
+        // // Initialize in-progress with no operators, but scan source being this
+        // // materialization.
+        // self.in_progress = Some(InProgressPipeline {
+        //     id: id_gen.next_pipeline_id(),
+        //     operators: Vec::new(),
+        //     location: LocationRequirement::ClientLocal, // Currently only support local.
+        //     source: PipelineSource::Materialization {
+        //         mat_ref: scan.node.mat,
+        //     },
+        // });
 
-        Ok(())
+        // Ok(())
     }
 }

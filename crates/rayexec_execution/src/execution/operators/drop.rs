@@ -16,6 +16,7 @@ use super::{
     PollFinalize,
     PollPull,
     PollPush,
+    UnaryInputStates,
 };
 use crate::arrays::batch::Batch;
 use crate::database::catalog::CatalogTx;
@@ -47,6 +48,8 @@ impl PhysicalDrop {
 }
 
 impl ExecutableOperator for PhysicalDrop {
+    type States = UnaryInputStates;
+
     fn create_states2(
         &self,
         context: &DatabaseContext,

@@ -450,4 +450,78 @@ mod tests {
         );
         assert_eq!(out, StackControlFlow::Finished);
     }
+
+    #[test]
+    fn stack_execution_multiple_has_more() {
+        // Test that we can handle `poll_execute` returning `HasMore` from
+        // multiple operators (e.g. nested joins).
+
+        let mut stack = ExecutionStack::try_new(4).unwrap();
+
+        let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        // First HasMore
+        let out = pop_next(&mut stack, TestEffects::execute(1, PollExecute::HasMore));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        // Second HasMore
+        let out = pop_next(&mut stack, TestEffects::execute(2, PollExecute::HasMore));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        // Push to last as normal.
+        let out = pop_next(&mut stack, TestEffects::execute(3, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        // Poll second HasMore operator first.
+        let out = pop_next(&mut stack, TestEffects::execute(2, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        // Push to last again.
+        let out = pop_next(&mut stack, TestEffects::execute(3, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        // Poll first HasMore operator second.
+        let out = pop_next(&mut stack, TestEffects::execute(1, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        // Push to parent operators as normal.
+        let out = pop_next(&mut stack, TestEffects::execute(2, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+        let out = pop_next(&mut stack, TestEffects::execute(3, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+    }
+
+    #[test]
+    fn stack_execution_propagate_finalize_through_many() {
+        let mut stack = ExecutionStack::try_new(4).unwrap();
+
+        let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Exhausted));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        // Push through last three operators.
+        let out = pop_next(&mut stack, TestEffects::execute(1, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+        let out = pop_next(&mut stack, TestEffects::execute(2, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+        let out = pop_next(&mut stack, TestEffects::execute(3, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        // Finalize last three operators.
+        let out = pop_next(
+            &mut stack,
+            TestEffects::finalize(1, PollFinalize::Finalized),
+        );
+        assert_eq!(out, StackControlFlow::Continue);
+        let out = pop_next(
+            &mut stack,
+            TestEffects::finalize(2, PollFinalize::Finalized),
+        );
+        assert_eq!(out, StackControlFlow::Continue);
+        let out = pop_next(
+            &mut stack,
+            TestEffects::finalize(3, PollFinalize::Finalized),
+        );
+        assert_eq!(out, StackControlFlow::Finished);
+    }
 }

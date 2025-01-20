@@ -176,12 +176,13 @@ where
         // planning can get the appropriate error sink when creating streams.
         let error_sink = self.buffers.create_error_sink(query_id)?;
 
-        let pipelines = planner.plan_from_intermediate(state.group, state.materializations)?;
-        let handle = self.executor.spawn_pipelines(pipelines, error_sink);
+        unimplemented!()
+        // let pipelines = planner.plan_from_intermediate(state.group, state.materializations)?;
+        // let handle = self.executor.spawn_pipelines(pipelines, error_sink);
 
-        self.executing_pipelines.insert(query_id, handle);
+        // self.executing_pipelines.insert(query_id, handle);
 
-        Ok(())
+        // Ok(())
     }
 
     pub fn push_batch_for_stream(&self, stream_id: StreamId, batch: Batch) -> Result<()> {

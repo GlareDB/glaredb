@@ -15,6 +15,7 @@ use super::{
     PollFinalize,
     PollPull,
     PollPush,
+    UnaryInputStates,
 };
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
@@ -102,6 +103,8 @@ impl PhysicalUngroupedAggregate {
 }
 
 impl ExecutableOperator for PhysicalUngroupedAggregate {
+    type States = UnaryInputStates;
+
     fn create_states2(
         &self,
         _context: &DatabaseContext,

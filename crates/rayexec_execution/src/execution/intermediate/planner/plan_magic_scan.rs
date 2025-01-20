@@ -33,35 +33,36 @@ impl IntermediatePipelineBuildState<'_> {
             ));
         }
 
-        // Initialize in-progress with no operators, but scan source being this
-        // materialization.
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: Vec::new(),
-            location: LocationRequirement::ClientLocal, // Currently only support local.
-            source: PipelineSource::Materialization {
-                mat_ref: scan.node.mat,
-            },
-        });
+        unimplemented!()
+        // // Initialize in-progress with no operators, but scan source being this
+        // // materialization.
+        // self.in_progress = Some(InProgressPipeline {
+        //     id: id_gen.next_pipeline_id(),
+        //     operators: Vec::new(),
+        //     location: LocationRequirement::ClientLocal, // Currently only support local.
+        //     source: PipelineSource::Materialization {
+        //         mat_ref: scan.node.mat,
+        //     },
+        // });
 
-        // Plan the projection out of the materialization.
-        let materialized_refs = &self
-            .bind_context
-            .get_materialization(scan.node.mat)?
-            .table_refs;
-        let projections = self
-            .expr_planner
-            .plan_scalars(materialized_refs, &scan.node.projections)
-            .context("Failed to plan projections out of materialization")?;
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Project(PhysicalProject { projections })),
-            partitioning_requirement: None,
-        };
+        // // Plan the projection out of the materialization.
+        // let materialized_refs = &self
+        //     .bind_context
+        //     .get_materialization(scan.node.mat)?
+        //     .table_refs;
+        // let projections = self
+        //     .expr_planner
+        //     .plan_scalars(materialized_refs, &scan.node.projections)
+        //     .context("Failed to plan projections out of materialization")?;
+        // let operator = IntermediateOperator {
+        //     operator: Arc::new(PhysicalOperator::Project(PhysicalProject { projections })),
+        //     partitioning_requirement: None,
+        // };
 
-        // TODO: Distinct the projection.
+        // // TODO: Distinct the projection.
 
-        self.push_intermediate_operator(operator, scan.location, id_gen)?;
+        // self.push_intermediate_operator(operator, scan.location, id_gen)?;
 
-        Ok(())
+        // Ok(())
     }
 }

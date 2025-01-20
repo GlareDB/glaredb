@@ -5,7 +5,7 @@ use parking_lot::Mutex;
 use rayexec_error::Result;
 
 use super::util::outer_join_tracker::LeftOuterJoinTracker;
-use super::ComputedBatches;
+use super::{BinaryInputStates, ComputedBatches};
 use crate::arrays::batch::Batch;
 use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
@@ -209,6 +209,8 @@ impl PhysicalNestedLoopJoin {
 }
 
 impl ExecutableOperator for PhysicalNestedLoopJoin {
+    type States = BinaryInputStates;
+
     fn create_states2(
         &self,
         _context: &DatabaseContext,

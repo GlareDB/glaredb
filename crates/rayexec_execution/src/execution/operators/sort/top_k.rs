@@ -12,6 +12,7 @@ use crate::execution::operators::{
     PollFinalize,
     PollPull,
     PollPush,
+    UnaryInputStates,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -25,6 +26,8 @@ pub struct TopKOperatorState {}
 pub struct PhysicalTopK {}
 
 impl ExecutableOperator for PhysicalTopK {
+    type States = UnaryInputStates;
+
     fn create_states2(
         &self,
         _context: &DatabaseContext,

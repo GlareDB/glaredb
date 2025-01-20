@@ -16,29 +16,30 @@ impl ExecutionProfileData {
     pub fn add_partition_data(&mut self, partition: &ExecutablePartitionPipeline) {
         let pipeline_data = self.pipelines.entry(partition.pipeline_id()).or_default();
 
-        let partition_data = PartitionPipelineProfileData {
-            operators: partition
-                .operators()
-                .iter()
-                .map(|op| op.profile_data().clone())
-                .collect(),
-            explain_strings: partition
-                .operators()
-                .iter()
-                .map(|op| {
-                    op.physical_operator()
-                        .explain_entry(ExplainConfig {
-                            context_mode: ContextDisplayMode::Raw,
-                            verbose: false,
-                        })
-                        .to_string()
-                })
-                .collect(),
-        };
+        unimplemented!()
+        // let partition_data = PartitionPipelineProfileData {
+        //     operators: partition
+        //         .operators()
+        //         .iter()
+        //         .map(|op| op.profile_data().clone())
+        //         .collect(),
+        //     explain_strings: partition
+        //         .operators()
+        //         .iter()
+        //         .map(|op| {
+        //             op.physical_operator()
+        //                 .explain_entry(ExplainConfig {
+        //                     context_mode: ContextDisplayMode::Raw,
+        //                     verbose: false,
+        //                 })
+        //                 .to_string()
+        //         })
+        //         .collect(),
+        // };
 
-        pipeline_data
-            .partitions
-            .insert(partition.partition(), partition_data);
+        // pipeline_data
+        //     .partitions
+        //     .insert(partition.partition(), partition_data);
     }
 }
 

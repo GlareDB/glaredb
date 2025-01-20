@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-use std::fmt;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
@@ -9,7 +8,6 @@ use tracing::trace;
 use super::profiler::OperatorProfileData;
 use super::stack::{ExecutionStack, StackEffectHandler};
 use crate::arrays::batch::Batch;
-use crate::execution::computed_batch::ComputedBatches;
 use crate::execution::executable::stack::StackControlFlow;
 use crate::execution::operators::{
     ExecutableOperator,
@@ -19,8 +17,6 @@ use crate::execution::operators::{
     PhysicalOperator,
     PollExecute,
     PollFinalize,
-    PollPull,
-    PollPush,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::runtime::time::{RuntimeInstant, Timer};
@@ -171,6 +167,53 @@ impl ExecutablePartitionPipeline {
     pub fn operators(&self) -> &[OperatorWithState] {
         &self.operators
     }
+
+    /// Try to execute as much of the pipeline for this partition as possible.
+    ///
+    /// Loop through all operators, pushing data as far as we can until we get
+    /// to a pending state, or we've completed the pipeline.
+    ///
+    /// When we reach a pending state, the state will be updated such that the
+    /// next call to `poll_execute` will pick up where it left off.
+    ///
+    /// Once a batch has been pushed to the 'sink' operator (the last operator),
+    /// the pull state gets reset such that this will begin pulling from the
+    /// first non-exhausted operator.
+    ///
+    /// When an operator is exhausted (no more batches to pull), `poll_finalize`
+    /// is called on the _next_ operator, and we begin pulling from the _next_
+    /// operator until it's exhausted.
+    ///
+    /// The inner logic lives in `ExecutionStack`.
+    pub fn poll_execute<I>(&mut self, cx: &mut Context) -> Poll<Option<Result<()>>>
+    where
+        I: RuntimeInstant,
+    {
+        trace!(
+            pipeline_id = %self.info.pipeline.0,
+            partition = %self.info.partition,
+            "executing partition pipeline",
+        );
+
+        let mut handler = OperatorStackEffects {
+            cx,
+            operators: &mut self.operators,
+        };
+
+        // TODO: Need to either remove this loop or the loop in the executors.
+        loop {
+            let control_flow = match self.stack.pop_next(&mut handler) {
+                Ok(cf) => cf,
+                Err(e) => return Poll::Ready(Some(Err(e))),
+            };
+
+            match control_flow {
+                StackControlFlow::Continue => continue,
+                StackControlFlow::Finished => return Poll::Ready(None),
+                StackControlFlow::Pending => return Poll::Pending,
+            }
+        }
+    }
 }
 
 /// Information about a partition pipeline.
@@ -186,8 +229,8 @@ pub struct OperatorWithState {
     physical: Arc<PhysicalOperator>,
     /// The state that's shared across all partitions for this operator.
     operator_state: Arc<OperatorState>,
-    /// States for this operator that's exclusive to this partition.
-    partition_states: PartitionStates,
+    /// State for this operator that's exclusive to this partition.
+    partition_states: PartitionState,
     /// Output batch buffer for this operator/pipeline.
     ///
     /// May be None if this operator is the last in the pipeline.
@@ -197,35 +240,13 @@ pub struct OperatorWithState {
 }
 
 impl OperatorWithState {
-    pub fn physical_operator(&self) -> &dyn ExecutableOperator {
-        self.physical.as_ref()
-    }
-
     pub fn profile_data(&self) -> &OperatorProfileData {
         &self.profile_data
     }
 }
 
-/// States to use within a single partition.
-///
-/// Most operations will only have a single state (set to `current`) and an
-/// empty `next` queue.
-///
-/// However for operations like Union where we're unioning multiple inputs, each
-/// partition will be responsible for multiple states (for union, it'd be two
-/// states, one for "top" and one for "bottom").
-///
-/// This lets us maintain the same number of partitions across the inputs and
-/// the single output.
-// TODO: Remove?
-#[derive(Debug)]
-struct PartitionStates {
-    /// The current partition state being used for execution.
-    current: PartitionState,
-    /// Next states to use once we exhaust the operator using the current state.
-    next: VecDeque<PartitionState>,
-}
-
+/// Implementation of `StackEffectsHandler` that calls `poll_finalize` and
+/// `poll_execute` on the appropriate operators.
 struct OperatorStackEffects<'a, 'b> {
     cx: &'a mut Context<'b>,
     operators: &'a mut [OperatorWithState],
@@ -251,7 +272,7 @@ impl<'a, 'b> StackEffectHandler for OperatorStackEffects<'a, 'b> {
 
         operator.physical.poll_execute(
             self.cx,
-            &mut operator.partition_states.current,
+            &mut operator.partition_states,
             &operator.operator_state,
             inout,
         )
@@ -260,56 +281,8 @@ impl<'a, 'b> StackEffectHandler for OperatorStackEffects<'a, 'b> {
     fn handle_finalize(&mut self, op_idx: usize) -> Result<PollFinalize> {
         self.operators[op_idx].physical.poll_finalize(
             self.cx,
-            &mut self.operators[op_idx].partition_states.current,
+            &mut self.operators[op_idx].partition_states,
             &self.operators[op_idx].operator_state,
         )
-    }
-}
-
-impl ExecutablePartitionPipeline {
-    /// Try to execute as much of the pipeline for this partition as possible.
-    ///
-    /// Loop through all operators, pushing data as far as we can until we get
-    /// to a pending state, or we've completed the pipeline.
-    ///
-    /// When we reach a pending state, the state will be updated such that the
-    /// next call to `poll_execute` will pick up where it left off.
-    ///
-    /// Once a batch has been pushed to the 'sink' operator (the last operator),
-    /// the pull state gets reset such that this will begin pulling from the
-    /// first non-exhausted operator.
-    ///
-    /// When an operator is exhausted (no more batches to pull), `poll_finalize`
-    /// is called on the _next_ operator, and we begin pulling from the _next_
-    /// operator until it's exhausted.
-    ///
-    /// The inner loop logic lives in `ExecutionStack`.
-    pub fn poll_execute<I>(&mut self, cx: &mut Context) -> Poll<Option<Result<()>>>
-    where
-        I: RuntimeInstant,
-    {
-        trace!(
-            pipeline_id = %self.info.pipeline.0,
-            partition = %self.info.partition,
-            "executing partition pipeline",
-        );
-
-        let mut handler = OperatorStackEffects {
-            cx,
-            operators: &mut self.operators,
-        };
-
-        loop {
-            let control_flow = match self.stack.pop_next(&mut handler) {
-                Ok(cf) => cf,
-                Err(e) => return Poll::Ready(Some(Err(e))),
-            };
-
-            match control_flow {
-                StackControlFlow::Continue => continue,
-                StackControlFlow::Finished => return Poll::Ready(None),
-                StackControlFlow::Pending => return Poll::Pending,
-            }
-        }
     }
 }

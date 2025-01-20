@@ -14,6 +14,7 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::util::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker};
 use super::{
+    BinaryInputStates,
     ComputedBatches,
     ExecutableOperator,
     ExecutionStates,
@@ -188,6 +189,8 @@ impl PhysicalHashJoin {
 }
 
 impl ExecutableOperator for PhysicalHashJoin {
+    type States = BinaryInputStates;
+
     fn create_states2(
         &self,
         _context: &DatabaseContext,

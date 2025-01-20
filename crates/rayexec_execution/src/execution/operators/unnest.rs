@@ -14,6 +14,7 @@ use super::{
     PollFinalize,
     PollPull,
     PollPush,
+    UnaryInputStates,
 };
 use crate::arrays::array::physical_type::{
     PhysicalBinary,
@@ -82,6 +83,8 @@ pub struct PhysicalUnnest {
 }
 
 impl ExecutableOperator for PhysicalUnnest {
+    type States = UnaryInputStates;
+
     fn create_states2(
         &self,
         _context: &DatabaseContext,

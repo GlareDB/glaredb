@@ -16,6 +16,7 @@ use super::{
     PartitionState,
     PollExecute,
     PollFinalize,
+    UnaryInputStates,
 };
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::scalar::ScalarValue;
@@ -85,12 +86,14 @@ impl<S: SinkOperation> PhysicalSink<S> {
 }
 
 impl<S: SinkOperation> ExecutableOperator for PhysicalSink<S> {
+    type States = UnaryInputStates;
+
     fn create_states(
         &mut self,
         context: &DatabaseContext,
         _batch_size: usize,
         partitions: usize,
-    ) -> Result<PartitionAndOperatorStates> {
+    ) -> Result<UnaryInputStates> {
         let op_state = OperatorState::Sink(SinkOperatorState {
             inner: Mutex::new(SinkOperatorStateInner {
                 global_row_count: 0,
@@ -111,7 +114,7 @@ impl<S: SinkOperation> ExecutableOperator for PhysicalSink<S> {
             })
             .collect();
 
-        Ok(PartitionAndOperatorStates::Branchless {
+        Ok(UnaryInputStates {
             operator_state: op_state,
             partition_states: part_states,
         })
@@ -246,18 +249,17 @@ mod tests {
         let mut wrapper = OperatorWrapper::new(PhysicalSink {
             sink: CollectingSinkOperation,
         });
-        let states = wrapper
+        let mut states = wrapper
             .operator
             .create_states(&test_database_context(), 1024, 1)
             .unwrap();
-        let (op_state, mut part_states) = states.branchless_into_states().unwrap();
 
         let row_counts = [4, 5, 6];
         for row_count in row_counts {
             let poll = wrapper
                 .poll_execute(
-                    &mut part_states[0],
-                    &op_state,
+                    &mut states.partition_states[0],
+                    &states.operator_state,
                     ExecuteInOutState {
                         input: Some(&mut Batch::empty_with_num_rows(row_count)),
                         output: None,
@@ -268,7 +270,7 @@ mod tests {
         }
 
         let poll = wrapper
-            .poll_finalize(&mut part_states[0], &op_state)
+            .poll_finalize(&mut states.partition_states[0], &states.operator_state)
             .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
 
@@ -276,8 +278,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut part_states[0],
-                &op_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: None,
                     output: Some(&mut output),
@@ -296,19 +298,18 @@ mod tests {
         let mut wrapper = OperatorWrapper::new(PhysicalSink {
             sink: CollectingSinkOperation,
         });
-        let states = wrapper
+        let mut states = wrapper
             .operator
             .create_states(&test_database_context(), 1024, 4)
             .unwrap();
-        let (op_state, mut part_states) = states.branchless_into_states().unwrap();
 
         // (partition, row_count) pairs
         let per_part_row_counts = [(0, 24), (1, 14), (0, 100), (3, 8)];
         for (part, row_count) in per_part_row_counts {
             let poll = wrapper
                 .poll_execute(
-                    &mut part_states[part],
-                    &op_state,
+                    &mut states.partition_states[part],
+                    &states.operator_state,
                     ExecuteInOutState {
                         input: Some(&mut Batch::empty_with_num_rows(row_count)),
                         output: None,
@@ -321,14 +322,14 @@ mod tests {
         // Finalize all partitions but last.
         for part in 0..3 {
             let poll = wrapper
-                .poll_finalize(&mut part_states[part], &op_state)
+                .poll_finalize(&mut states.partition_states[part], &states.operator_state)
                 .unwrap();
             assert_eq!(PollFinalize::Finalized, poll);
         }
 
         // Finalize last.
         let poll = wrapper
-            .poll_finalize(&mut part_states[3], &op_state)
+            .poll_finalize(&mut states.partition_states[3], &states.operator_state)
             .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
 
@@ -337,8 +338,8 @@ mod tests {
         // Poll with partition that finalized with NeedsDrain (3).
         let poll = wrapper
             .poll_execute(
-                &mut part_states[3],
-                &op_state,
+                &mut states.partition_states[3],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: None,
                     output: Some(&mut output),

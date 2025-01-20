@@ -269,26 +269,27 @@ where
         );
 
         let timer = Timer::<R::Instant>::start();
-        let pipelines = planner.plan_from_intermediate(
-            intermediate_portal.intermediate_pipelines,
-            intermediate_portal.intermediate_materializations,
-        )?;
-        profile.plan_executable_step = Some(timer.stop());
+        unimplemented!()
+        // let pipelines = planner.plan_from_intermediate(
+        //     intermediate_portal.intermediate_pipelines,
+        //     intermediate_portal.intermediate_materializations,
+        // )?;
+        // profile.plan_executable_step = Some(timer.stop());
 
-        self.portals.insert(
-            portal_name.into(),
-            ExecutablePortal {
-                query_id: intermediate_portal.query_id,
-                execution_mode: intermediate_portal.execution_mode,
-                executable_pipelines: pipelines,
-                output_schema: intermediate_portal.output_schema,
-                result_stream: stream,
-                error_sink: errors,
-                profile,
-                verifier,
-            },
-        );
-        Ok(())
+        // self.portals.insert(
+        //     portal_name.into(),
+        //     ExecutablePortal {
+        //         query_id: intermediate_portal.query_id,
+        //         execution_mode: intermediate_portal.execution_mode,
+        //         executable_pipelines: pipelines,
+        //         output_schema: intermediate_portal.output_schema,
+        //         result_stream: stream,
+        //         error_sink: errors,
+        //         profile,
+        //         verifier,
+        //     },
+        // );
+        // Ok(())
     }
 
     /// Plans the intermediate pipelines from a resolved statement.

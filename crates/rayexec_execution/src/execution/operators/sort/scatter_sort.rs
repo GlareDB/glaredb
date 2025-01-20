@@ -17,6 +17,7 @@ use crate::execution::operators::{
     PollFinalize,
     PollPull,
     PollPush,
+    UnaryInputStates,
     DEFAULT_TARGET_BATCH_SIZE,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -63,6 +64,8 @@ impl PhysicalScatterSort {
 }
 
 impl ExecutableOperator for PhysicalScatterSort {
+    type States = UnaryInputStates;
+
     fn create_states2(
         &self,
         _context: &DatabaseContext,

@@ -25,13 +25,14 @@ impl IntermediatePipelineBuildState<'_> {
             partitioning_requirement: Some(1),
         };
 
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: vec![operator],
-            location,
-            source: PipelineSource::InPipeline,
-        });
+        unimplemented!()
+        // self.in_progress = Some(InProgressPipeline {
+        //     id: id_gen.next_pipeline_id(),
+        //     operators: vec![operator],
+        //     location,
+        //     source: PipelineSource::InPipeline,
+        // });
 
-        Ok(())
+        // Ok(())
     }
 }

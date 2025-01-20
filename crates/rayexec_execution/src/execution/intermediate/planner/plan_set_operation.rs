@@ -39,15 +39,16 @@ impl IntermediatePipelineBuildState<'_> {
 
         match setop.node.kind {
             SetOpKind::Union => {
-                let operator = IntermediateOperator {
-                    operator: Arc::new(PhysicalOperator::Union(PhysicalUnion)),
-                    partitioning_requirement: None,
-                };
+                unimplemented!()
+                // let operator = IntermediateOperator {
+                //     operator: Arc::new(PhysicalOperator::Union(PhysicalUnion)),
+                //     partitioning_requirement: None,
+                // };
 
-                self.push_intermediate_operator(operator, location, id_gen)?;
+                // self.push_intermediate_operator(operator, location, id_gen)?;
 
-                // The union operator is the "sink" for the bottom pipeline.
-                self.push_as_child_pipeline(bottom_in_progress, 1)?;
+                // // The union operator is the "sink" for the bottom pipeline.
+                // self.push_as_child_pipeline(bottom_in_progress, 1)?;
             }
             other => not_implemented!("set op {other}"),
         }

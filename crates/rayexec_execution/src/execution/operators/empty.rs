@@ -10,6 +10,7 @@ use super::{
     PartitionState,
     PollExecute,
     PollFinalize,
+    UnaryInputStates,
 };
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -21,15 +22,17 @@ use crate::proto::DatabaseProtoConv;
 pub struct PhysicalEmpty;
 
 impl ExecutableOperator for PhysicalEmpty {
+    type States = UnaryInputStates;
+
     fn create_states(
         &mut self,
         _context: &DatabaseContext,
         _batch_size: usize,
         partitions: usize,
-    ) -> Result<PartitionAndOperatorStates> {
+    ) -> Result<UnaryInputStates> {
         let states = (0..partitions).map(|_| PartitionState::None).collect();
 
-        Ok(PartitionAndOperatorStates::Branchless {
+        Ok(UnaryInputStates {
             operator_state: OperatorState::None,
             partition_states: states,
         })
@@ -89,11 +92,10 @@ mod tests {
     #[test]
     fn empty_simple() {
         let mut wrapper = OperatorWrapper::new(PhysicalEmpty);
-        let states = wrapper
+        let mut states = wrapper
             .operator
             .create_states(&test_database_context(), 1024, 1)
             .unwrap();
-        let (operator_state, mut part_states) = states.branchless_into_states().unwrap();
 
         let mut output = Batch::try_from_arrays([
             Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 1024).unwrap(),
@@ -103,8 +105,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut part_states[0],
-                &operator_state,
+                &mut states.partition_states[0],
+                &states.operator_state,
                 ExecuteInOutState {
                     input: None,
                     output: Some(&mut output),

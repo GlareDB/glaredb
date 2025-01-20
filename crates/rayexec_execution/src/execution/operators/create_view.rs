@@ -15,6 +15,7 @@ use super::{
     PollFinalize,
     PollPull,
     PollPush,
+    UnaryInputStates,
 };
 use crate::arrays::batch::Batch;
 use crate::database::catalog::CatalogTx;
@@ -41,6 +42,8 @@ pub struct PhysicalCreateView {
 }
 
 impl ExecutableOperator for PhysicalCreateView {
+    type States = UnaryInputStates;
+
     fn create_states2(
         &self,
         context: &DatabaseContext,

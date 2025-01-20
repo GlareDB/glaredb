@@ -68,214 +68,229 @@ impl ProtoConv for IntermediatePipelineId {
 /// appropriately.
 #[derive(Debug, Clone)]
 pub enum PipelineSink {
-    /// Send this pipeline's results the query output (client).
-    QueryOutput,
-    /// The pipeline's sink is already included in the pipeline.
-    InPipeline,
-    /// Sink is in the same group of operators as itself.
-    InGroup {
+    /// Sink is in the current pipeline.
+    CurrentPipeline,
+    /// Sink is an operator in another pipeline.
+    OtherPipeline {
         /// ID of the pipeline we should send output to.
         pipeline_id: IntermediatePipelineId,
         /// Index of the operator in the pipeline.
         operator_idx: usize,
-        /// Index of the input this pipeline is into the other pipeline.
-        ///
-        /// Typically 0, but may be some other value in the case of joins.
-        input_idx: usize,
     },
-    /// Sink is a pipeline in some other group.
-    ///
-    /// Currently this just indicates that we're sending to a pipeline "not on
-    /// this machine".
-    OtherGroup {
-        /// Stream ID we should be using when sending output to the other group.
-        stream_id: StreamId,
-        /// Number of partitions the receiving pipeline expects.
-        partitions: usize,
-    },
-    /// Sink is into a materialization operator.
-    Materialization { mat_ref: MaterializationRef },
+    // /// The pipeline's sink is already included in the pipeline.
+    // InPipeline,
+    // /// Sink is in the same group of operators as itself.
+    // InGroup {
+    //     /// ID of the pipeline we should send output to.
+    //     pipeline_id: IntermediatePipelineId,
+    //     /// Index of the operator in the pipeline.
+    //     operator_idx: usize,
+    //     /// Index of the input this pipeline is into the other pipeline.
+    //     ///
+    //     /// Typically 0, but may be some other value in the case of joins.
+    //     input_idx: usize,
+    // },
+    // /// Sink is a pipeline in some other group.
+    // ///
+    // /// Currently this just indicates that we're sending to a pipeline "not on
+    // /// this machine".
+    // OtherGroup {
+    //     /// Stream ID we should be using when sending output to the other group.
+    //     stream_id: StreamId,
+    //     /// Number of partitions the receiving pipeline expects.
+    //     partitions: usize,
+    // },
+    // /// Sink is into a materialization operator.
+    // Materialization { mat_ref: MaterializationRef },
 }
 
 impl ProtoConv for PipelineSink {
     type ProtoType = rayexec_proto::generated::execution::PipelineSink;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::execution::pipeline_sink::Value;
-        use rayexec_proto::generated::execution::{
-            PipelineSinkInGroup,
-            PipelineSinkMaterialization,
-            PipelineSinkOtherGroup,
-        };
+        unimplemented!()
+        // use rayexec_proto::generated::execution::pipeline_sink::Value;
+        // use rayexec_proto::generated::execution::{
+        //     PipelineSinkInGroup,
+        //     PipelineSinkMaterialization,
+        //     PipelineSinkOtherGroup,
+        // };
 
-        let value = match self {
-            Self::QueryOutput => Value::QueryOutput(Default::default()),
-            Self::InPipeline => Value::InPipeline(Default::default()),
-            Self::InGroup {
-                pipeline_id,
-                operator_idx,
-                input_idx,
-            } => Value::InGroup(PipelineSinkInGroup {
-                id: Some(pipeline_id.to_proto()?),
-                operator_idx: *operator_idx as u32,
-                input_idx: *input_idx as u32,
-            }),
-            Self::OtherGroup {
-                partitions,
-                stream_id,
-            } => Value::OtherGroup(PipelineSinkOtherGroup {
-                stream_id: Some(stream_id.to_proto()?),
-                partitions: *partitions as u32,
-            }),
-            Self::Materialization { mat_ref } => {
-                Value::Materialization(PipelineSinkMaterialization {
-                    materialization_ref: mat_ref.materialization_idx as u32,
-                })
-            }
-        };
+        // let value = match self {
+        //     Self::QueryOutput => Value::QueryOutput(Default::default()),
+        //     Self::InPipeline => Value::InPipeline(Default::default()),
+        //     Self::InGroup {
+        //         pipeline_id,
+        //         operator_idx,
+        //         input_idx,
+        //     } => Value::InGroup(PipelineSinkInGroup {
+        //         id: Some(pipeline_id.to_proto()?),
+        //         operator_idx: *operator_idx as u32,
+        //         input_idx: *input_idx as u32,
+        //     }),
+        //     Self::OtherGroup {
+        //         partitions,
+        //         stream_id,
+        //     } => Value::OtherGroup(PipelineSinkOtherGroup {
+        //         stream_id: Some(stream_id.to_proto()?),
+        //         partitions: *partitions as u32,
+        //     }),
+        //     Self::Materialization { mat_ref } => {
+        //         Value::Materialization(PipelineSinkMaterialization {
+        //             materialization_ref: mat_ref.materialization_idx as u32,
+        //         })
+        //     }
+        // };
 
-        Ok(Self::ProtoType { value: Some(value) })
+        // Ok(Self::ProtoType { value: Some(value) })
     }
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        use rayexec_proto::generated::execution::pipeline_sink::Value;
-        use rayexec_proto::generated::execution::{
-            PipelineSinkInGroup,
-            PipelineSinkMaterialization,
-            PipelineSinkOtherGroup,
-        };
+        unimplemented!()
+        // use rayexec_proto::generated::execution::pipeline_sink::Value;
+        // use rayexec_proto::generated::execution::{
+        //     PipelineSinkInGroup,
+        //     PipelineSinkMaterialization,
+        //     PipelineSinkOtherGroup,
+        // };
 
-        Ok(match proto.value.required("value")? {
-            Value::QueryOutput(_) => Self::QueryOutput,
-            Value::InPipeline(_) => Self::InPipeline,
-            Value::InGroup(PipelineSinkInGroup {
-                id,
-                operator_idx,
-                input_idx,
-            }) => Self::InGroup {
-                pipeline_id: IntermediatePipelineId::from_proto(id.required("id")?)?,
-                operator_idx: operator_idx as usize,
-                input_idx: input_idx as usize,
-            },
-            Value::OtherGroup(PipelineSinkOtherGroup {
-                stream_id,
-                partitions,
-            }) => Self::OtherGroup {
-                stream_id: StreamId::from_proto(stream_id.required("stream_id")?)?,
-                partitions: partitions as usize,
-            },
-            Value::Materialization(PipelineSinkMaterialization {
-                materialization_ref,
-            }) => Self::Materialization {
-                mat_ref: MaterializationRef {
-                    materialization_idx: materialization_ref as usize,
-                },
-            },
-        })
+        // Ok(match proto.value.required("value")? {
+        //     Value::QueryOutput(_) => Self::QueryOutput,
+        //     Value::InPipeline(_) => Self::InPipeline,
+        //     Value::InGroup(PipelineSinkInGroup {
+        //         id,
+        //         operator_idx,
+        //         input_idx,
+        //     }) => Self::InGroup {
+        //         pipeline_id: IntermediatePipelineId::from_proto(id.required("id")?)?,
+        //         operator_idx: operator_idx as usize,
+        //         input_idx: input_idx as usize,
+        //     },
+        //     Value::OtherGroup(PipelineSinkOtherGroup {
+        //         stream_id,
+        //         partitions,
+        //     }) => Self::OtherGroup {
+        //         stream_id: StreamId::from_proto(stream_id.required("stream_id")?)?,
+        //         partitions: partitions as usize,
+        //     },
+        //     Value::Materialization(PipelineSinkMaterialization {
+        //         materialization_ref,
+        //     }) => Self::Materialization {
+        //         mat_ref: MaterializationRef {
+        //             materialization_idx: materialization_ref as usize,
+        //         },
+        //     },
+        // })
     }
 }
 
-/// Location of the source of a pipeline.
-///
-/// Single-node execution will always have the source as the first operator in
-/// the chain (and nothing needs to be done).
+/// Source for a single pipeline.
 ///
 /// For hybrid execution, the source may be a remote pipeline, and so we will
 /// include an ipc source operator as this pipeline's source.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PipelineSource {
-    /// Source is already in the pipeline, don't do anything.
-    InPipeline,
-    /// Source is some other pipeline in the same group as this pipeline.
+    /// Sink is in the current pipeline.
+    CurrentPipeline,
+    /// Sink is an operator in another pipeline.
     OtherPipeline {
-        /// Pipeline to pull from.
-        pipeline: IntermediatePipelineId,
-        /// Optional partitioning requirement.
-        ///
-        /// This should be set if the pipline we're constructing should maintain
-        /// the output partitioning of the source.
-        ///
-        /// Mostly for ORDER BY to maintain sortedness through the pipeline.
-        partitioning_requirement: Option<usize>,
+        /// ID of the pipeline we should send output to.
+        pipeline_id: IntermediatePipelineId,
     },
-    /// Source is remote, build an ipc source.
-    OtherGroup {
-        stream_id: StreamId,
-        partitions: usize,
-    },
-    /// Source is from a materialization operator.
-    Materialization { mat_ref: MaterializationRef },
+    // /// Source is already in the pipeline, don't do anything.
+    // InPipeline,
+    // /// Source is some other pipeline in the same group as this pipeline.
+    // OtherPipeline {
+    //     /// Pipeline to pull from.
+    //     pipeline: IntermediatePipelineId,
+    //     /// Optional partitioning requirement.
+    //     ///
+    //     /// This should be set if the pipline we're constructing should maintain
+    //     /// the output partitioning of the source.
+    //     ///
+    //     /// Mostly for ORDER BY to maintain sortedness through the pipeline.
+    //     partitioning_requirement: Option<usize>,
+    // },
+    // /// Source is remote, build an ipc source.
+    // OtherGroup {
+    //     stream_id: StreamId,
+    //     partitions: usize,
+    // },
+    // /// Source is from a materialization operator.
+    // Materialization { mat_ref: MaterializationRef },
 }
 
 impl ProtoConv for PipelineSource {
     type ProtoType = rayexec_proto::generated::execution::PipelineSource;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::execution::pipeline_source::Value;
-        use rayexec_proto::generated::execution::{
-            PipelineSourceMaterialization,
-            PipelineSourceOtherGroup,
-            PipelineSourceOtherPipeline,
-        };
+        unimplemented!()
+        // use rayexec_proto::generated::execution::pipeline_source::Value;
+        // use rayexec_proto::generated::execution::{
+        //     PipelineSourceMaterialization,
+        //     PipelineSourceOtherGroup,
+        //     PipelineSourceOtherPipeline,
+        // };
 
-        let value = match self {
-            Self::InPipeline => Value::InPipeline(Default::default()),
-            Self::OtherPipeline {
-                pipeline,
-                partitioning_requirement,
-            } => Value::OtherPipeline(PipelineSourceOtherPipeline {
-                id: Some(pipeline.to_proto()?),
-                partitioning_requirement: partitioning_requirement.map(|p| p as u32),
-            }),
-            Self::OtherGroup {
-                partitions,
-                stream_id,
-            } => Value::OtherGroup(PipelineSourceOtherGroup {
-                stream_id: Some(stream_id.to_proto()?),
-                partitions: *partitions as u32,
-            }),
-            Self::Materialization { mat_ref } => {
-                Value::Materialization(PipelineSourceMaterialization {
-                    materialization_ref: mat_ref.materialization_idx as u32,
-                })
-            }
-        };
+        // let value = match self {
+        //     Self::InPipeline => Value::InPipeline(Default::default()),
+        //     Self::OtherPipeline {
+        //         pipeline,
+        //         partitioning_requirement,
+        //     } => Value::OtherPipeline(PipelineSourceOtherPipeline {
+        //         id: Some(pipeline.to_proto()?),
+        //         partitioning_requirement: partitioning_requirement.map(|p| p as u32),
+        //     }),
+        //     Self::OtherGroup {
+        //         partitions,
+        //         stream_id,
+        //     } => Value::OtherGroup(PipelineSourceOtherGroup {
+        //         stream_id: Some(stream_id.to_proto()?),
+        //         partitions: *partitions as u32,
+        //     }),
+        //     Self::Materialization { mat_ref } => {
+        //         Value::Materialization(PipelineSourceMaterialization {
+        //             materialization_ref: mat_ref.materialization_idx as u32,
+        //         })
+        //     }
+        // };
 
-        Ok(Self::ProtoType { value: Some(value) })
+        // Ok(Self::ProtoType { value: Some(value) })
     }
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        use rayexec_proto::generated::execution::pipeline_source::Value;
-        use rayexec_proto::generated::execution::{
-            PipelineSourceMaterialization,
-            PipelineSourceOtherGroup,
-            PipelineSourceOtherPipeline,
-        };
+        unimplemented!()
+        // use rayexec_proto::generated::execution::pipeline_source::Value;
+        // use rayexec_proto::generated::execution::{
+        //     PipelineSourceMaterialization,
+        //     PipelineSourceOtherGroup,
+        //     PipelineSourceOtherPipeline,
+        // };
 
-        Ok(match proto.value.required("value")? {
-            Value::InPipeline(_) => Self::InPipeline,
-            Value::OtherPipeline(PipelineSourceOtherPipeline {
-                id,
-                partitioning_requirement,
-            }) => Self::OtherPipeline {
-                pipeline: IntermediatePipelineId::from_proto(id.required("id")?)?,
-                partitioning_requirement: partitioning_requirement.map(|p| p as usize),
-            },
-            Value::OtherGroup(PipelineSourceOtherGroup {
-                stream_id,
-                partitions,
-            }) => Self::OtherGroup {
-                stream_id: StreamId::from_proto(stream_id.required("stream_id")?)?,
-                partitions: partitions as usize,
-            },
-            Value::Materialization(PipelineSourceMaterialization {
-                materialization_ref,
-            }) => Self::Materialization {
-                mat_ref: MaterializationRef {
-                    materialization_idx: materialization_ref as usize,
-                },
-            },
-        })
+        // Ok(match proto.value.required("value")? {
+        //     Value::InPipeline(_) => Self::InPipeline,
+        //     Value::OtherPipeline(PipelineSourceOtherPipeline {
+        //         id,
+        //         partitioning_requirement,
+        //     }) => Self::OtherPipeline {
+        //         pipeline: IntermediatePipelineId::from_proto(id.required("id")?)?,
+        //         partitioning_requirement: partitioning_requirement.map(|p| p as usize),
+        //     },
+        //     Value::OtherGroup(PipelineSourceOtherGroup {
+        //         stream_id,
+        //         partitions,
+        //     }) => Self::OtherGroup {
+        //         stream_id: StreamId::from_proto(stream_id.required("stream_id")?)?,
+        //         partitions: partitions as usize,
+        //     },
+        //     Value::Materialization(PipelineSourceMaterialization {
+        //         materialization_ref,
+        //     }) => Self::Materialization {
+        //         mat_ref: MaterializationRef {
+        //             materialization_idx: materialization_ref as usize,
+        //         },
+        //     },
+        // })
     }
 }
 
@@ -389,7 +404,6 @@ impl DatabaseProtoConv for IntermediatePipeline {
 pub struct IntermediateOperator {
     /// The physical operator that will be used in the executable pipline.
     pub(crate) operator: Arc<PhysicalOperator>,
-
     /// If this operator has a partitioning requirement.
     ///
     /// If set, the input and output partitions for this operator will be the

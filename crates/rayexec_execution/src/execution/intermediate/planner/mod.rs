@@ -306,37 +306,38 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     ) -> Result<()> {
         let in_progress = self.in_progress_pipeline_mut()?;
 
-        let child_pipeline = IntermediatePipeline {
-            id: child.id,
-            sink: PipelineSink::InGroup {
-                pipeline_id: in_progress.id,
-                operator_idx: in_progress.operators.len() - 1,
-                input_idx,
-            },
-            source: child.source,
-            operators: child.operators,
-        };
+        unimplemented!()
+        // let child_pipeline = IntermediatePipeline {
+        //     id: child.id,
+        //     sink: PipelineSink::InGroup {
+        //         pipeline_id: in_progress.id,
+        //         operator_idx: in_progress.operators.len() - 1,
+        //         input_idx,
+        //     },
+        //     source: child.source,
+        //     operators: child.operators,
+        // };
 
-        match child.location {
-            LocationRequirement::ClientLocal => {
-                self.local_group
-                    .pipelines
-                    .insert(child_pipeline.id, child_pipeline);
-            }
-            LocationRequirement::Remote => {
-                self.remote_group
-                    .pipelines
-                    .insert(child_pipeline.id, child_pipeline);
-            }
-            LocationRequirement::Any => {
-                // TODO: Determine if any should be allowed here.
-                self.local_group
-                    .pipelines
-                    .insert(child_pipeline.id, child_pipeline);
-            }
-        }
+        // match child.location {
+        //     LocationRequirement::ClientLocal => {
+        //         self.local_group
+        //             .pipelines
+        //             .insert(child_pipeline.id, child_pipeline);
+        //     }
+        //     LocationRequirement::Remote => {
+        //         self.remote_group
+        //             .pipelines
+        //             .insert(child_pipeline.id, child_pipeline);
+        //     }
+        //     LocationRequirement::Any => {
+        //         // TODO: Determine if any should be allowed here.
+        //         self.local_group
+        //             .pipelines
+        //             .insert(child_pipeline.id, child_pipeline);
+        //     }
+        // }
 
-        Ok(())
+        // Ok(())
     }
 
     /// Pushes an intermedate operator onto the in-progress pipeline, erroring
@@ -375,44 +376,45 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             let in_progress = self.in_progress_pipeline_mut()?;
             in_progress.operators.push(operator);
         } else {
-            // Different locations, finalize in-progress and start a new one.
-            let in_progress = self.take_in_progress_pipeline()?;
+            // // Different locations, finalize in-progress and start a new one.
+            // let in_progress = self.take_in_progress_pipeline()?;
 
-            let stream_id = id_gen.new_stream_id();
+            // let stream_id = id_gen.new_stream_id();
 
-            let new_in_progress = InProgressPipeline {
-                id: id_gen.next_pipeline_id(),
-                operators: vec![operator],
-                location,
-                source: PipelineSource::OtherGroup {
-                    stream_id,
-                    partitions: 1,
-                },
-            };
+            // let new_in_progress = InProgressPipeline {
+            //     id: id_gen.next_pipeline_id(),
+            //     operators: vec![operator],
+            //     location,
+            //     source: PipelineSource::OtherGroup {
+            //         stream_id,
+            //         partitions: 1,
+            //     },
+            // };
 
-            let finalized = IntermediatePipeline {
-                id: in_progress.id,
-                sink: PipelineSink::OtherGroup {
-                    stream_id,
-                    partitions: 1,
-                },
-                source: in_progress.source,
-                operators: in_progress.operators,
-            };
+            unimplemented!()
+            // let finalized = IntermediatePipeline {
+            //     id: in_progress.id,
+            //     sink: PipelineSink::OtherGroup {
+            //         stream_id,
+            //         partitions: 1,
+            //     },
+            //     source: in_progress.source,
+            //     operators: in_progress.operators,
+            // };
 
-            match in_progress.location {
-                LocationRequirement::ClientLocal => {
-                    self.local_group.pipelines.insert(finalized.id, finalized);
-                }
-                LocationRequirement::Remote => {
-                    self.remote_group.pipelines.insert(finalized.id, finalized);
-                }
-                LocationRequirement::Any => {
-                    self.local_group.pipelines.insert(finalized.id, finalized);
-                }
-            }
+            // match in_progress.location {
+            //     LocationRequirement::ClientLocal => {
+            //         self.local_group.pipelines.insert(finalized.id, finalized);
+            //     }
+            //     LocationRequirement::Remote => {
+            //         self.remote_group.pipelines.insert(finalized.id, finalized);
+            //     }
+            //     LocationRequirement::Any => {
+            //         self.local_group.pipelines.insert(finalized.id, finalized);
+            //     }
+            // }
 
-            self.in_progress = Some(new_in_progress)
+            // self.in_progress = Some(new_in_progress)
         }
 
         Ok(())
@@ -424,44 +426,45 @@ impl<'a> IntermediatePipelineBuildState<'a> {
             in_progress.location = LocationRequirement::ClientLocal;
         }
 
-        if in_progress.location != LocationRequirement::ClientLocal {
-            let stream_id = id_gen.new_stream_id();
+        unimplemented!()
+        // if in_progress.location != LocationRequirement::ClientLocal {
+        //     let stream_id = id_gen.new_stream_id();
 
-            let final_pipeline = IntermediatePipeline {
-                id: id_gen.next_pipeline_id(),
-                sink: PipelineSink::QueryOutput,
-                source: PipelineSource::OtherGroup {
-                    stream_id,
-                    partitions: 1,
-                },
-                operators: Vec::new(),
-            };
+        //     let final_pipeline = IntermediatePipeline {
+        //         id: id_gen.next_pipeline_id(),
+        //         sink: PipelineSink::QueryOutput,
+        //         source: PipelineSource::OtherGroup {
+        //             stream_id,
+        //             partitions: 1,
+        //         },
+        //         operators: Vec::new(),
+        //     };
 
-            let pipeline = IntermediatePipeline {
-                id: in_progress.id,
-                sink: PipelineSink::OtherGroup {
-                    stream_id,
-                    partitions: 1,
-                },
-                source: in_progress.source,
-                operators: in_progress.operators,
-            };
+        //     let pipeline = IntermediatePipeline {
+        //         id: in_progress.id,
+        //         sink: PipelineSink::OtherGroup {
+        //             stream_id,
+        //             partitions: 1,
+        //         },
+        //         source: in_progress.source,
+        //         operators: in_progress.operators,
+        //     };
 
-            self.remote_group.pipelines.insert(pipeline.id, pipeline);
-            self.local_group
-                .pipelines
-                .insert(final_pipeline.id, final_pipeline);
-        } else {
-            let pipeline = IntermediatePipeline {
-                id: in_progress.id,
-                sink: PipelineSink::QueryOutput,
-                source: in_progress.source,
-                operators: in_progress.operators,
-            };
+        //     self.remote_group.pipelines.insert(pipeline.id, pipeline);
+        //     self.local_group
+        //         .pipelines
+        //         .insert(final_pipeline.id, final_pipeline);
+        // } else {
+        //     let pipeline = IntermediatePipeline {
+        //         id: in_progress.id,
+        //         sink: PipelineSink::QueryOutput,
+        //         source: in_progress.source,
+        //         operators: in_progress.operators,
+        //     };
 
-            self.local_group.pipelines.insert(pipeline.id, pipeline);
-        }
+        //     self.local_group.pipelines.insert(pipeline.id, pipeline);
+        // }
 
-        Ok(())
+        // Ok(())
     }
 }

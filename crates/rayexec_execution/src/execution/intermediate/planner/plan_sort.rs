@@ -53,38 +53,39 @@ impl IntermediatePipelineBuildState<'_> {
         // Global sorting accepts n-partitions, but produces only a single
         // partition. We finish the current pipeline
 
-        let in_progress = self.take_in_progress_pipeline()?;
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: Vec::new(),
-            location,
-            source: PipelineSource::OtherPipeline {
-                pipeline: in_progress.id,
-                partitioning_requirement: Some(1),
-            },
-        });
+        // let in_progress = self.take_in_progress_pipeline()?;
+        // self.in_progress = Some(InProgressPipeline {
+        //     id: id_gen.next_pipeline_id(),
+        //     operators: Vec::new(),
+        //     location,
+        //     source: PipelineSource::OtherPipeline {
+        //         pipeline: in_progress.id,
+        //         partitioning_requirement: Some(1),
+        //     },
+        // });
 
-        let pipeline = IntermediatePipeline {
-            id: in_progress.id,
-            sink: PipelineSink::InPipeline,
-            source: in_progress.source,
-            operators: in_progress.operators,
-        };
-        // TODO: This should not be happening here.
-        // https://github.com/GlareDB/glaredb/issues/3352
-        match location {
-            LocationRequirement::ClientLocal => {
-                self.local_group.pipelines.insert(pipeline.id, pipeline);
-            }
-            LocationRequirement::Remote => {
-                self.remote_group.pipelines.insert(pipeline.id, pipeline);
-            }
-            LocationRequirement::Any => {
-                // TODO
-                self.local_group.pipelines.insert(pipeline.id, pipeline);
-            }
-        }
+        unimplemented!()
+        // let pipeline = IntermediatePipeline {
+        //     id: in_progress.id,
+        //     sink: PipelineSink::InPipeline,
+        //     source: in_progress.source,
+        //     operators: in_progress.operators,
+        // };
+        // // TODO: This should not be happening here.
+        // // https://github.com/GlareDB/glaredb/issues/3352
+        // match location {
+        //     LocationRequirement::ClientLocal => {
+        //         self.local_group.pipelines.insert(pipeline.id, pipeline);
+        //     }
+        //     LocationRequirement::Remote => {
+        //         self.remote_group.pipelines.insert(pipeline.id, pipeline);
+        //     }
+        //     LocationRequirement::Any => {
+        //         // TODO
+        //         self.local_group.pipelines.insert(pipeline.id, pipeline);
+        //     }
+        // }
 
-        Ok(())
+        // Ok(())
     }
 }
