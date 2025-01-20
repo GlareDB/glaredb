@@ -3,7 +3,6 @@ use std::sync::Arc;
 use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::hash_aggregate::PhysicalHashAggregate;
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::ungrouped_aggregate::PhysicalUngroupedAggregate;
@@ -79,12 +78,9 @@ impl IntermediatePipelineBuildState<'_> {
         }
 
         self.push_intermediate_operator(
-            IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::Project(PhysicalProject {
-                    projections: preproject_exprs,
-                })),
-                partitioning_requirement: None,
-            },
+            PhysicalOperator::Project(PhysicalProject {
+                projections: preproject_exprs,
+            }),
             location,
             id_gen,
         )?;
@@ -92,27 +88,19 @@ impl IntermediatePipelineBuildState<'_> {
         match agg.node.grouping_sets {
             Some(grouping_sets) => {
                 // If we're working with groups, push a hash aggregate operator.
-                let operator = IntermediateOperator {
-                    operator: Arc::new(PhysicalOperator::HashAggregate(
-                        PhysicalHashAggregate::new(
-                            phys_aggs,
-                            grouping_sets,
-                            agg.node.grouping_functions,
-                        ),
-                    )),
-                    partitioning_requirement: None,
-                };
+                let operator = PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
+                    phys_aggs,
+                    grouping_sets,
+                    agg.node.grouping_functions,
+                ));
                 self.push_intermediate_operator(operator, location, id_gen)?;
             }
             None => {
                 // Otherwise push an ungrouped aggregate operator.
 
-                let operator = IntermediateOperator {
-                    operator: Arc::new(PhysicalOperator::UngroupedAggregate(
-                        PhysicalUngroupedAggregate::new(phys_aggs),
-                    )),
-                    partitioning_requirement: None,
-                };
+                let operator = PhysicalOperator::UngroupedAggregate(
+                    PhysicalUngroupedAggregate::new(phys_aggs),
+                );
                 self.push_intermediate_operator(operator, location, id_gen)?;
             }
         };

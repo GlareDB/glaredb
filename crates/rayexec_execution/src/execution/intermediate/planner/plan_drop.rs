@@ -3,7 +3,6 @@ use std::sync::Arc;
 use rayexec_error::{RayexecError, Result};
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
-use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::drop::PhysicalDrop;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_drop::LogicalDrop;
@@ -17,13 +16,7 @@ impl IntermediatePipelineBuildState<'_> {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Drop(PhysicalDrop::new(
-                drop.node.catalog,
-                drop.node.info,
-            ))),
-            partitioning_requirement: Some(1),
-        };
+        let operator = PhysicalOperator::Drop(PhysicalDrop::new(drop.node.catalog, drop.node.info));
 
         unimplemented!()
         // self.in_progress = Some(InProgressPipeline {

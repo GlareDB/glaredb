@@ -3,7 +3,6 @@ use std::sync::Arc;
 use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_materialization::LogicalMagicMaterializationScan;
@@ -16,22 +15,22 @@ impl IntermediatePipelineBuildState<'_> {
         materializations: &mut Materializations,
         scan: Node<LogicalMagicMaterializationScan>,
     ) -> Result<()> {
-        if !materializations
-            .local
-            .materializations
-            .contains_key(&scan.node.mat)
-        {
-            return Err(RayexecError::new(format!(
-                "Missing materialization for ref: {}",
-                scan.node.mat
-            )));
-        }
+        // if !materializations
+        //     .local
+        //     .materializations
+        //     .contains_key(&scan.node.mat)
+        // {
+        //     return Err(RayexecError::new(format!(
+        //         "Missing materialization for ref: {}",
+        //         scan.node.mat
+        //     )));
+        // }
 
-        if self.in_progress.is_some() {
-            return Err(RayexecError::new(
-                "Expected in progress to be None for materialization scan",
-            ));
-        }
+        // if self.in_progress.is_some() {
+        //     return Err(RayexecError::new(
+        //         "Expected in progress to be None for materialization scan",
+        //     ));
+        // }
 
         unimplemented!()
         // // Initialize in-progress with no operators, but scan source being this

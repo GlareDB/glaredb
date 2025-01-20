@@ -3,7 +3,6 @@ use std::sync::Arc;
 use rayexec_error::Result;
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::copy_to::CopyToOperation;
 use crate::execution::operators::sink::PhysicalSink;
 use crate::execution::operators::PhysicalOperator;
@@ -22,18 +21,11 @@ impl IntermediatePipelineBuildState<'_> {
 
         self.walk(materializations, id_gen, source)?;
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::CopyTo(PhysicalSink::new(
-                CopyToOperation {
-                    copy_to: copy_to.node.copy_to,
-                    location: copy_to.node.location,
-                    schema: copy_to.node.source_schema,
-                },
-            ))),
-            // This should be temporary until there's a better understanding of
-            // how we want to handle parallel writes.
-            partitioning_requirement: Some(1),
-        };
+        let operator = PhysicalOperator::CopyTo(PhysicalSink::new(CopyToOperation {
+            copy_to: copy_to.node.copy_to,
+            location: copy_to.node.location,
+            schema: copy_to.node.source_schema,
+        }));
 
         self.push_intermediate_operator(operator, location, id_gen)?;
 

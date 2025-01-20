@@ -3,7 +3,6 @@ use std::sync::Arc;
 use rayexec_error::{not_implemented, Result};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::hash_aggregate::PhysicalHashAggregate;
 use crate::execution::operators::union::PhysicalUnion;
 use crate::execution::operators::PhysicalOperator;
@@ -30,10 +29,11 @@ impl IntermediatePipelineBuildState<'_> {
         let mut bottom_builder =
             IntermediatePipelineBuildState::new(self.config, self.bind_context);
         bottom_builder.walk(materializations, id_gen, bottom)?;
-        self.local_group
-            .merge_from_other(&mut bottom_builder.local_group);
-        self.remote_group
-            .merge_from_other(&mut bottom_builder.remote_group);
+        unimplemented!();
+        // self.local_group
+        //     .merge_from_other(&mut bottom_builder.local_group);
+        // self.remote_group
+        //     .merge_from_other(&mut bottom_builder.remote_group);
 
         let bottom_in_progress = bottom_builder.take_in_progress_pipeline()?;
 
@@ -64,13 +64,11 @@ impl IntermediatePipelineBuildState<'_> {
 
             let grouping_sets = vec![(0..output_types.len()).collect()];
 
-            let operator =
-                IntermediateOperator {
-                    operator: Arc::new(PhysicalOperator::HashAggregate(
-                        PhysicalHashAggregate::new(Vec::new(), grouping_sets, Vec::new()),
-                    )),
-                    partitioning_requirement: None,
-                };
+            let operator = PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
+                Vec::new(),
+                grouping_sets,
+                Vec::new(),
+            ));
 
             self.push_intermediate_operator(operator, location, id_gen)?;
         }

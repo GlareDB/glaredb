@@ -3,7 +3,6 @@ use std::sync::Arc;
 use rayexec_error::{Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::table_inout::PhysicalTableInOut;
 use crate::execution::operators::PhysicalOperator;
@@ -49,29 +48,23 @@ impl IntermediatePipelineBuildState<'_> {
 
         // Project function inputs first.
         self.push_intermediate_operator(
-            IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::Project(PhysicalProject {
-                    projections: function_inputs
-                        .into_iter()
-                        .chain(projected_outputs.into_iter())
-                        .collect(),
-                })),
-                partitioning_requirement: None,
-            },
+            PhysicalOperator::Project(PhysicalProject {
+                projections: function_inputs
+                    .into_iter()
+                    .chain(projected_outputs.into_iter())
+                    .collect(),
+            }),
             inout.location,
             id_gen,
         )?;
 
         // Push inout
         self.push_intermediate_operator(
-            IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::TableInOut(PhysicalTableInOut {
-                    function: inout.node.function,
-                    input_types,
-                    projected_inputs,
-                })),
-                partitioning_requirement: None,
-            },
+            PhysicalOperator::TableInOut(PhysicalTableInOut {
+                function: inout.node.function,
+                input_types,
+                projected_inputs,
+            }),
             inout.location,
             id_gen,
         )?;

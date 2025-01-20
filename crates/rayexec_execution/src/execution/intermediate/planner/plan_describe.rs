@@ -5,7 +5,6 @@ use rayexec_error::{RayexecError, Result};
 use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::PhysicalOperator;
 use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
@@ -40,12 +39,9 @@ impl IntermediatePipelineBuildState<'_> {
             ]);
         }
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Values(PhysicalValues {
-                expressions: row_exprs,
-            })),
-            partitioning_requirement: Some(1),
-        };
+        let operator = PhysicalOperator::Values(PhysicalValues {
+            expressions: row_exprs,
+        });
 
         unimplemented!()
         // self.in_progress = Some(InProgressPipeline {

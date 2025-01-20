@@ -26,12 +26,11 @@ pub struct PartitionPipelineInfo {
     pub partition: usize,
 }
 
+/// Executable pipeline for a single partition.
 #[derive(Debug)]
 pub struct ExecutablePartitionPipeline {
     pub(crate) info: PartitionPipelineInfo,
-    pub(crate) current_stream: usize,
-    pub(crate) stream_stack: ExecutionStack,
-    pub(crate) streams: Vec<OperatorStream>,
+    pub(crate) stack: ExecutionStack,
     pub(crate) operators: Vec<OperatorWithState>,
 }
 
@@ -63,15 +62,14 @@ impl ExecutablePartitionPipeline {
             "executing partition pipeline",
         );
 
-        let mut handler = OperatorStreamStackEffects {
+        let mut handler = OperatorStackEffects {
             cx,
             operators: &mut self.operators,
-            stream: &self.streams[self.current_stream],
         };
 
         // TODO: Need to either remove this loop or the loop in the executors.
         loop {
-            let control_flow = match self.stream_stack.pop_next(&mut handler) {
+            let control_flow = match self.stack.pop_next(&mut handler) {
                 Ok(cf) => cf,
                 Err(e) => return Poll::Ready(Some(Err(e))),
             };
@@ -103,65 +101,16 @@ pub struct OperatorWithState {
     output_buffer: Option<Batch>,
 }
 
-/// Contains operator indices making up a single "stream" in a pipeline.
-#[derive(Debug, Clone)]
-pub struct OperatorStream {
-    pub(crate) indices: Vec<usize>,
-}
-
-impl OperatorStream {
-    /// Get an operator and its child if it has one.
-    ///
-    /// Operators at the start of a stream do not have child (e.g. table scans).
-    fn get_operator_and_child_mut<'a>(
-        &self,
-        op_idx: usize,
-        operators: &'a mut [OperatorWithState],
-    ) -> (&'a mut OperatorWithState, Option<&'a mut OperatorWithState>) {
-        if op_idx == 0 {
-            let op = &mut operators[self.indices[0]];
-            return (op, None);
-        }
-
-        let real_idx = self.indices[op_idx];
-        let child_idx = self.indices[op_idx - 1];
-
-        assert_ne!(real_idx, child_idx);
-        assert!(real_idx < operators.len());
-        assert!(child_idx < operators.len());
-
-        let ptr = operators.as_mut_ptr();
-        // SAFETY: We asserted that indices are unique and in bounds.
-        // TODO: Replace with `get_many_mut` when stabilized.
-        unsafe {
-            let op = &mut *ptr.add(real_idx);
-            let child = &mut *ptr.add(child_idx);
-            (op, Some(child))
-        }
-    }
-
-    fn get_operator_mut<'a>(
-        &self,
-        op_idx: usize,
-        operators: &'a mut [OperatorWithState],
-    ) -> &'a mut OperatorWithState {
-        &mut operators[self.indices[op_idx]]
-    }
-}
-
 /// Implementation of `StackEffectsHandler` that calls `poll_finalize` and
 /// `poll_execute` on the appropriate operators.
-struct OperatorStreamStackEffects<'a, 'b> {
+struct OperatorStackEffects<'a, 'b> {
     cx: &'a mut Context<'b>,
     operators: &'a mut [OperatorWithState],
-    stream: &'a OperatorStream,
 }
 
-impl<'a, 'b> StackEffectHandler for OperatorStreamStackEffects<'a, 'b> {
+impl<'a, 'b> StackEffectHandler for OperatorStackEffects<'a, 'b> {
     fn handle_execute(&mut self, op_idx: usize) -> Result<PollExecute> {
-        let (operator, child) = self
-            .stream
-            .get_operator_and_child_mut(op_idx, self.operators);
+        let (operator, child) = get_operator_and_child_mut(op_idx, self.operators);
 
         let inout = match child {
             Some(child) => ExecuteInOutState {
@@ -183,11 +132,37 @@ impl<'a, 'b> StackEffectHandler for OperatorStreamStackEffects<'a, 'b> {
     }
 
     fn handle_finalize(&mut self, op_idx: usize) -> Result<PollFinalize> {
-        let operator = self.stream.get_operator_mut(op_idx, self.operators);
+        let operator = &mut self.operators[op_idx];
         operator.physical.poll_finalize(
             self.cx,
             &mut operator.partition_states,
             &operator.operator_state,
         )
+    }
+}
+
+/// Get an operator and its child if it has one.
+///
+/// Operators at the start of a stream do not have child (e.g. table scans).
+fn get_operator_and_child_mut(
+    op_idx: usize,
+    operators: &mut [OperatorWithState],
+) -> (&mut OperatorWithState, Option<&mut OperatorWithState>) {
+    if op_idx == 0 {
+        let op = &mut operators[0];
+        return (op, None);
+    }
+
+    let child_idx = op_idx - 1;
+
+    assert!(op_idx < operators.len());
+
+    let ptr = operators.as_mut_ptr();
+    // SAFETY: We asserted that indices are unique and in bounds.
+    // TODO: Replace with `get_many_mut` when stabilized.
+    unsafe {
+        let op = &mut *ptr.add(op_idx);
+        let child = &mut *ptr.add(child_idx);
+        (op, Some(child))
     }
 }

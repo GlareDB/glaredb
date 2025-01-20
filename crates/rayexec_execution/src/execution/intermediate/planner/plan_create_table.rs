@@ -4,7 +4,6 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::database::create::CreateTableInfo;
-use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::create_table::CreateTableSinkOperation;
 use crate::execution::operators::empty::PhysicalEmpty;
 use crate::execution::operators::sink::PhysicalSink;

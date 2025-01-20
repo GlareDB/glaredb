@@ -27,17 +27,7 @@ use std::sync::Arc;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use uuid::Uuid;
 
-use super::pipeline::{
-    IntermediateMaterialization,
-    IntermediateMaterializationGroup,
-    IntermediateOperator,
-    IntermediatePipeline,
-    IntermediatePipelineGroup,
-    IntermediatePipelineId,
-    PipelineSink,
-    PipelineSource,
-    StreamId,
-};
+use super::pipeline::{IntermediatePipeline, IntermediatePipelineId, PipelineSink};
 use crate::config::execution::IntermediatePlanConfig;
 use crate::execution::operators::PhysicalOperator;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
@@ -47,9 +37,9 @@ use crate::logical::operator::{self, LocationRequirement, LogicalOperator};
 /// Planned pipelines grouped into locations for where they should be executed.
 #[derive(Debug)]
 pub struct PlannedPipelineGroups {
-    pub local: IntermediatePipelineGroup,
-    pub remote: IntermediatePipelineGroup,
-    pub materializations: IntermediateMaterializationGroup,
+    // pub local: IntermediatePipelineGroup,
+    // pub remote: IntermediatePipelineGroup,
+    // pub materializations: IntermediateMaterializationGroup,
 }
 
 /// Planner for building intermedate pipelines.
@@ -81,13 +71,14 @@ impl IntermediatePipelinePlanner {
 
         state.finish(&mut id_gen)?;
 
-        debug_assert!(state.in_progress.is_none());
+        unimplemented!()
+        // debug_assert!(state.in_progress.is_none());
 
-        Ok(PlannedPipelineGroups {
-            local: state.local_group,
-            remote: state.remote_group,
-            materializations: materializations.local,
-        })
+        // Ok(PlannedPipelineGroups {
+        //     local: state.local_group,
+        //     remote: state.remote_group,
+        //     materializations: materializations.local,
+        // })
     }
 }
 
@@ -112,32 +103,32 @@ impl PipelineIdGen {
         id
     }
 
-    fn new_stream_id(&self) -> StreamId {
-        StreamId {
-            query_id: self.query_id,
-            stream_id: Uuid::new_v4(),
-        }
-    }
+    // fn new_stream_id(&self) -> StreamId {
+    //     StreamId {
+    //         query_id: self.query_id,
+    //         stream_id: Uuid::new_v4(),
+    //     }
+    // }
 }
 
 #[derive(Debug)]
 struct Materializations {
-    local: IntermediateMaterializationGroup,
+    // local: IntermediateMaterializationGroup,
     // TODO: Remote materializations.
 }
 
 /// Represents an intermediate pipeline that we're building up.
 #[derive(Debug)]
 struct InProgressPipeline {
-    id: IntermediatePipelineId,
-    /// All operators we've planned so far. Should be order left-to-right in
-    /// terms of execution flow.
-    operators: Vec<IntermediateOperator>,
-    /// Location where these operators should be running. This will determine
-    /// which pipeline group this pipeline will be placed in.
-    location: LocationRequirement,
-    /// Source of the pipeline.
-    source: PipelineSource,
+    // id: IntermediatePipelineId,
+    // /// All operators we've planned so far. Should be order left-to-right in
+    // /// terms of execution flow.
+    // operators: Vec<IntermediateOperator>,
+    // /// Location where these operators should be running. This will determine
+    // /// which pipeline group this pipeline will be placed in.
+    // location: LocationRequirement,
+    // /// Source of the pipeline.
+    // source: PipelineSource,
 }
 
 #[derive(Debug)]
@@ -146,10 +137,10 @@ struct IntermediatePipelineBuildState<'a> {
     /// Pipeline we're working on, as well as the location for where it should
     /// be executed.
     in_progress: Option<InProgressPipeline>,
-    /// Pipelines in the local group.
-    local_group: IntermediatePipelineGroup,
-    /// Pipelines in the remote group.
-    remote_group: IntermediatePipelineGroup,
+    // /// Pipelines in the local group.
+    // local_group: IntermediatePipelineGroup,
+    // /// Pipelines in the remote group.
+    // remote_group: IntermediatePipelineGroup,
     /// Bind context used during logical planning.
     ///
     /// Used to generate physical expressions, and determined data types
@@ -168,8 +159,8 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         IntermediatePipelineBuildState {
             config,
             in_progress: None,
-            local_group: IntermediatePipelineGroup::default(),
-            remote_group: IntermediatePipelineGroup::default(),
+            // local_group: IntermediatePipelineGroup::default(),
+            // remote_group: IntermediatePipelineGroup::default(),
             bind_context,
             expr_planner,
         }
@@ -181,32 +172,33 @@ impl<'a> IntermediatePipelineBuildState<'a> {
         // materializations to depend on previously planned materializations.
         // Unsure if we want to make that a strong guarantee (probably yes).
 
-        let mut materializations = Materializations {
-            local: IntermediateMaterializationGroup::default(),
-        };
+        unimplemented!()
+        // let mut materializations = Materializations {
+        //     local: IntermediateMaterializationGroup::default(),
+        // };
 
-        for mat in self.bind_context.iter_materializations() {
-            self.walk(&mut materializations, id_gen, mat.plan.clone())?; // TODO: The clone is unfortunate.
+        // for mat in self.bind_context.iter_materializations() {
+        //     self.walk(&mut materializations, id_gen, mat.plan.clone())?; // TODO: The clone is unfortunate.
 
-            let in_progress = self.take_in_progress_pipeline()?;
-            if in_progress.location == LocationRequirement::Remote {
-                not_implemented!("remote materializations");
-            }
+        //     let in_progress = self.take_in_progress_pipeline()?;
+        //     if in_progress.location == LocationRequirement::Remote {
+        //         not_implemented!("remote materializations");
+        //     }
 
-            let intermediate = IntermediateMaterialization {
-                id: in_progress.id,
-                source: in_progress.source,
-                operators: in_progress.operators,
-                scan_count: mat.scan_count,
-            };
+        //     let intermediate = IntermediateMaterialization {
+        //         id: in_progress.id,
+        //         source: in_progress.source,
+        //         operators: in_progress.operators,
+        //         scan_count: mat.scan_count,
+        //     };
 
-            materializations
-                .local
-                .materializations
-                .insert(mat.mat_ref, intermediate);
-        }
+        //     materializations
+        //         .local
+        //         .materializations
+        //         .insert(mat.mat_ref, intermediate);
+        // }
 
-        Ok(materializations)
+        // Ok(materializations)
     }
 
     /// Recursively walk the plan, building up intermediate pipelines.
@@ -348,83 +340,84 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     /// in-progress pipeline created.
     fn push_intermediate_operator(
         &mut self,
-        operator: IntermediateOperator,
+        operator: PhysicalOperator,
         mut location: LocationRequirement,
         id_gen: &mut PipelineIdGen,
     ) -> Result<()> {
-        let current_location = &mut self
-            .in_progress
-            .as_mut()
-            .required("in-progress pipeline")?
-            .location;
+        unimplemented!()
+        // let current_location = &mut self
+        //     .in_progress
+        //     .as_mut()
+        //     .required("in-progress pipeline")?
+        //     .location;
 
-        // TODO: Determine if we want to allow Any to get this far. This means
-        // that either the optimizer didn't run, or the plan has no location
-        // requirements (no dependencies on tables or files).
-        if *current_location == LocationRequirement::Any {
-            *current_location = location;
-        }
+        // // TODO: Determine if we want to allow Any to get this far. This means
+        // // that either the optimizer didn't run, or the plan has no location
+        // // requirements (no dependencies on tables or files).
+        // if *current_location == LocationRequirement::Any {
+        //     *current_location = location;
+        // }
 
-        // If we're pushing an operator for any location, just inherit the
-        // location for the current pipeline.
-        if location == LocationRequirement::Any {
-            location = *current_location
-        }
+        // // If we're pushing an operator for any location, just inherit the
+        // // location for the current pipeline.
+        // if location == LocationRequirement::Any {
+        //     location = *current_location
+        // }
 
-        if *current_location == location {
-            // Same location, just push
-            let in_progress = self.in_progress_pipeline_mut()?;
-            in_progress.operators.push(operator);
-        } else {
-            // // Different locations, finalize in-progress and start a new one.
-            // let in_progress = self.take_in_progress_pipeline()?;
+        // if *current_location == location {
+        //     // Same location, just push
+        //     let in_progress = self.in_progress_pipeline_mut()?;
+        //     in_progress.operators.push(operator);
+        // } else {
+        //     // // Different locations, finalize in-progress and start a new one.
+        //     // let in_progress = self.take_in_progress_pipeline()?;
 
-            // let stream_id = id_gen.new_stream_id();
+        //     // let stream_id = id_gen.new_stream_id();
 
-            // let new_in_progress = InProgressPipeline {
-            //     id: id_gen.next_pipeline_id(),
-            //     operators: vec![operator],
-            //     location,
-            //     source: PipelineSource::OtherGroup {
-            //         stream_id,
-            //         partitions: 1,
-            //     },
-            // };
+        //     // let new_in_progress = InProgressPipeline {
+        //     //     id: id_gen.next_pipeline_id(),
+        //     //     operators: vec![operator],
+        //     //     location,
+        //     //     source: PipelineSource::OtherGroup {
+        //     //         stream_id,
+        //     //         partitions: 1,
+        //     //     },
+        //     // };
 
-            unimplemented!()
-            // let finalized = IntermediatePipeline {
-            //     id: in_progress.id,
-            //     sink: PipelineSink::OtherGroup {
-            //         stream_id,
-            //         partitions: 1,
-            //     },
-            //     source: in_progress.source,
-            //     operators: in_progress.operators,
-            // };
+        //     unimplemented!()
+        //     // let finalized = IntermediatePipeline {
+        //     //     id: in_progress.id,
+        //     //     sink: PipelineSink::OtherGroup {
+        //     //         stream_id,
+        //     //         partitions: 1,
+        //     //     },
+        //     //     source: in_progress.source,
+        //     //     operators: in_progress.operators,
+        //     // };
 
-            // match in_progress.location {
-            //     LocationRequirement::ClientLocal => {
-            //         self.local_group.pipelines.insert(finalized.id, finalized);
-            //     }
-            //     LocationRequirement::Remote => {
-            //         self.remote_group.pipelines.insert(finalized.id, finalized);
-            //     }
-            //     LocationRequirement::Any => {
-            //         self.local_group.pipelines.insert(finalized.id, finalized);
-            //     }
-            // }
+        //     // match in_progress.location {
+        //     //     LocationRequirement::ClientLocal => {
+        //     //         self.local_group.pipelines.insert(finalized.id, finalized);
+        //     //     }
+        //     //     LocationRequirement::Remote => {
+        //     //         self.remote_group.pipelines.insert(finalized.id, finalized);
+        //     //     }
+        //     //     LocationRequirement::Any => {
+        //     //         self.local_group.pipelines.insert(finalized.id, finalized);
+        //     //     }
+        //     // }
 
-            // self.in_progress = Some(new_in_progress)
-        }
+        //     // self.in_progress = Some(new_in_progress)
+        // }
 
-        Ok(())
+        // Ok(())
     }
 
     fn finish(&mut self, id_gen: &mut PipelineIdGen) -> Result<()> {
-        let mut in_progress = self.take_in_progress_pipeline()?;
-        if in_progress.location == LocationRequirement::Any {
-            in_progress.location = LocationRequirement::ClientLocal;
-        }
+        // let mut in_progress = self.take_in_progress_pipeline()?;
+        // if in_progress.location == LocationRequirement::Any {
+        //     in_progress.location = LocationRequirement::ClientLocal;
+        // }
 
         unimplemented!()
         // if in_progress.location != LocationRequirement::ClientLocal {

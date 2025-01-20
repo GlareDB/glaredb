@@ -3,7 +3,6 @@ use std::sync::Arc;
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::hash_join::PhysicalHashJoin;
 use crate::execution::operators::nl_join::PhysicalNestedLoopJoin;
 use crate::execution::operators::PhysicalOperator;
@@ -94,12 +93,13 @@ impl IntermediatePipelineBuildState<'_> {
                 IntermediatePipelineBuildState::new(self.config, self.bind_context);
             left_state.walk(materializations, id_gen, left)?;
 
-            // Take any completed pipelines from the left side and put them in our
-            // list.
-            self.local_group
-                .merge_from_other(&mut left_state.local_group);
-            self.remote_group
-                .merge_from_other(&mut left_state.remote_group);
+            unimplemented!();
+            // // Take any completed pipelines from the left side and put them in our
+            // // list.
+            // self.local_group
+            //     .merge_from_other(&mut left_state.local_group);
+            // self.remote_group
+            //     .merge_from_other(&mut left_state.remote_group);
 
             // Get the left pipeline.
             let left_pipeline = left_state.in_progress.take().ok_or_else(|| {
@@ -121,16 +121,13 @@ impl IntermediatePipelineBuildState<'_> {
                 })
                 .collect::<Result<Vec<_>>>()?;
 
-            let operator = IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::HashJoin(PhysicalHashJoin::new(
-                    join.node.join_type,
-                    &equality_indices,
-                    conditions,
-                    left_types,
-                    right_types,
-                ))),
-                partitioning_requirement: None,
-            };
+            let operator = PhysicalOperator::HashJoin(PhysicalHashJoin::new(
+                join.node.join_type,
+                &equality_indices,
+                conditions,
+                left_types,
+                right_types,
+            ));
             self.push_intermediate_operator(operator, location, id_gen)?;
 
             // Left pipeline will be child this this pipeline at the current
@@ -264,10 +261,11 @@ impl IntermediatePipelineBuildState<'_> {
 
         // Take completed pipelines from the left and merge them into this
         // state's completed set of pipelines.
-        self.local_group
-            .merge_from_other(&mut left_state.local_group);
-        self.remote_group
-            .merge_from_other(&mut left_state.remote_group);
+        unimplemented!();
+        // self.local_group
+        //     .merge_from_other(&mut left_state.local_group);
+        // self.remote_group
+        //     .merge_from_other(&mut left_state.remote_group);
 
         // Get the left in-progress pipeline. This will be one of the inputs
         // into the current in-progress pipeline.
@@ -275,12 +273,8 @@ impl IntermediatePipelineBuildState<'_> {
             RayexecError::new("expected in-progress pipeline from left side of join")
         })?;
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::NestedLoopJoin(
-                PhysicalNestedLoopJoin::new(filter, join_type),
-            )),
-            partitioning_requirement: None,
-        };
+        let operator =
+            PhysicalOperator::NestedLoopJoin(PhysicalNestedLoopJoin::new(filter, join_type));
         self.push_intermediate_operator(operator, location, id_gen)?;
 
         // Left pipeline will be input to this pipeline.

@@ -14,7 +14,6 @@ use uuid::Uuid;
 use super::client::{IpcBatch, PullStatus};
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
-use crate::execution::intermediate::pipeline::StreamId;
 use crate::execution::operators::sink::operation::{PartitionSink, PollPush, SinkOperation};
 use crate::execution::operators::source::operation::{PartitionSource, PollPull, SourceOperation};
 use crate::execution::operators::PollFinalize;
@@ -25,137 +24,137 @@ use crate::runtime::ErrorSink;
 // TODO: Remove old streams.
 #[derive(Debug, Default)]
 pub struct ServerStreamBuffers {
-    /// Error sinks keyed by query id.
-    error_sinks: DashMap<Uuid, Arc<SharedErrorSink>>,
-    /// Streams that are sending batches to the server.
-    incoming: DashMap<StreamId, IncomingStream>,
-    /// Streams that are sending batches to the client.
-    outgoing: DashMap<StreamId, OutgoingStream>,
+    // /// Error sinks keyed by query id.
+    // error_sinks: DashMap<Uuid, Arc<SharedErrorSink>>,
+    // /// Streams that are sending batches to the server.
+    // incoming: DashMap<StreamId, IncomingStream>,
+    // /// Streams that are sending batches to the client.
+    // outgoing: DashMap<StreamId, OutgoingStream>,
 }
 
 impl ServerStreamBuffers {
-    pub fn create_incoming_stream(&self, stream_id: StreamId) -> Result<IncomingStream> {
-        debug!(?stream_id, "creating incoming stream");
+    // pub fn create_incoming_stream(&self, stream_id: StreamId) -> Result<IncomingStream> {
+    //     debug!(?stream_id, "creating incoming stream");
 
-        let stream = IncomingStream {
-            state: Arc::new(Mutex::new(IncomingStreamState {
-                finished: false,
-                batches: VecDeque::new(),
-                pull_waker: None,
-            })),
-        };
+    //     let stream = IncomingStream {
+    //         state: Arc::new(Mutex::new(IncomingStreamState {
+    //             finished: false,
+    //             batches: VecDeque::new(),
+    //             pull_waker: None,
+    //         })),
+    //     };
 
-        self.incoming.insert(stream_id, stream.clone());
+    //     self.incoming.insert(stream_id, stream.clone());
 
-        Ok(stream)
-    }
+    //     Ok(stream)
+    // }
 
-    pub fn create_outgoing_stream(&self, stream_id: StreamId) -> Result<OutgoingStream> {
-        debug!(?stream_id, "creating outgoing stream");
+    // pub fn create_outgoing_stream(&self, stream_id: StreamId) -> Result<OutgoingStream> {
+    //     debug!(?stream_id, "creating outgoing stream");
 
-        let error_sink = self.get_sink_for_query(&stream_id.query_id)?;
+    //     let error_sink = self.get_sink_for_query(&stream_id.query_id)?;
 
-        let stream = OutgoingStream {
-            state: Arc::new(Mutex::new(OutgoingStreamState {
-                finished: false,
-                batch: None,
-                push_waker: None,
-                error_sink,
-            })),
-        };
+    //     let stream = OutgoingStream {
+    //         state: Arc::new(Mutex::new(OutgoingStreamState {
+    //             finished: false,
+    //             batch: None,
+    //             push_waker: None,
+    //             error_sink,
+    //         })),
+    //     };
 
-        self.outgoing.insert(stream_id, stream.clone());
+    //     self.outgoing.insert(stream_id, stream.clone());
 
-        Ok(stream)
-    }
+    //     Ok(stream)
+    // }
 
-    /// Creates an stores an error sink for a query.
-    pub fn create_error_sink(&self, query_id: Uuid) -> Result<Arc<SharedErrorSink>> {
-        debug!(%query_id, "create error sink for query");
+    // /// Creates an stores an error sink for a query.
+    // pub fn create_error_sink(&self, query_id: Uuid) -> Result<Arc<SharedErrorSink>> {
+    //     debug!(%query_id, "create error sink for query");
 
-        match self.error_sinks.entry(query_id) {
-            dashmap::Entry::Occupied(_ent) => Err(RayexecError::new(format!(
-                "Error sink already exists for query {query_id}"
-            ))),
-            dashmap::Entry::Vacant(ent) => {
-                let error_sink = Arc::new(SharedErrorSink::default());
-                ent.insert(error_sink.clone());
-                Ok(error_sink)
-            }
-        }
-    }
+    //     match self.error_sinks.entry(query_id) {
+    //         dashmap::Entry::Occupied(_ent) => Err(RayexecError::new(format!(
+    //             "Error sink already exists for query {query_id}"
+    //         ))),
+    //         dashmap::Entry::Vacant(ent) => {
+    //             let error_sink = Arc::new(SharedErrorSink::default());
+    //             ent.insert(error_sink.clone());
+    //             Ok(error_sink)
+    //         }
+    //     }
+    // }
 
-    pub fn get_sink_for_query(&self, query_id: &Uuid) -> Result<Arc<SharedErrorSink>> {
-        debug!(%query_id, "retrieving error sink for query");
+    // pub fn get_sink_for_query(&self, query_id: &Uuid) -> Result<Arc<SharedErrorSink>> {
+    //     debug!(%query_id, "retrieving error sink for query");
 
-        let error_sink = self
-            .error_sinks
-            .get(query_id)
-            .ok_or_else(|| RayexecError::new(format!("Missing error sink for query {query_id}")))?;
+    //     let error_sink = self
+    //         .error_sinks
+    //         .get(query_id)
+    //         .ok_or_else(|| RayexecError::new(format!("Missing error sink for query {query_id}")))?;
 
-        Ok(error_sink.value().clone())
-    }
+    //     Ok(error_sink.value().clone())
+    // }
 
-    pub fn push_batch_for_stream(&self, stream_id: &StreamId, batch: Batch) -> Result<()> {
-        let incoming = self.incoming.get(stream_id).ok_or_else(|| {
-            RayexecError::new(format!("Missing incoming stream with id: {stream_id:?}"))
-        })?;
+    // pub fn push_batch_for_stream(&self, stream_id: &StreamId, batch: Batch) -> Result<()> {
+    //     let incoming = self.incoming.get(stream_id).ok_or_else(|| {
+    //         RayexecError::new(format!("Missing incoming stream with id: {stream_id:?}"))
+    //     })?;
 
-        let mut state = incoming.state.lock();
-        state.batches.push_back(batch);
+    //     let mut state = incoming.state.lock();
+    //     state.batches.push_back(batch);
 
-        if let Some(waker) = state.pull_waker.take() {
-            waker.wake();
-        }
+    //     if let Some(waker) = state.pull_waker.take() {
+    //         waker.wake();
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    pub fn finalize_stream(&self, stream_id: &StreamId) -> Result<()> {
-        let incoming = self.incoming.get(stream_id).ok_or_else(|| {
-            RayexecError::new(format!("Missing incoming stream with id: {stream_id:?}"))
-        })?;
+    // pub fn finalize_stream(&self, stream_id: &StreamId) -> Result<()> {
+    //     let incoming = self.incoming.get(stream_id).ok_or_else(|| {
+    //         RayexecError::new(format!("Missing incoming stream with id: {stream_id:?}"))
+    //     })?;
 
-        let mut state = incoming.state.lock();
-        state.finished = true;
+    //     let mut state = incoming.state.lock();
+    //     state.finished = true;
 
-        if let Some(waker) = state.pull_waker.take() {
-            waker.wake();
-        }
+    //     if let Some(waker) = state.pull_waker.take() {
+    //         waker.wake();
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    pub fn pull_batch_for_stream(&self, stream_id: &StreamId) -> Result<PullStatus> {
-        let outgoing = self.outgoing.get(stream_id).ok_or_else(|| {
-            RayexecError::new(format!("Missing outgoing stream with id: {stream_id:?}"))
-        })?;
+    // pub fn pull_batch_for_stream(&self, stream_id: &StreamId) -> Result<PullStatus> {
+    //     let outgoing = self.outgoing.get(stream_id).ok_or_else(|| {
+    //         RayexecError::new(format!("Missing outgoing stream with id: {stream_id:?}"))
+    //     })?;
 
-        let mut state = outgoing.state.lock();
+    //     let mut state = outgoing.state.lock();
 
-        // Check if the query errored before doing anything with the batch. This
-        // is how we get the error back to the client.
-        //
-        // This may race between the read/write of the lock, but I don't think
-        // that actually matters. The error is getting back to the client
-        // somehow, either via this stream or some other stream.
-        if state.error_sink.inner.read().is_some() {
-            let error = state.error_sink.inner.write().take();
-            return Err(error.unwrap_or_else(|| RayexecError::new("Error already pulled")));
-        }
+    //     // Check if the query errored before doing anything with the batch. This
+    //     // is how we get the error back to the client.
+    //     //
+    //     // This may race between the read/write of the lock, but I don't think
+    //     // that actually matters. The error is getting back to the client
+    //     // somehow, either via this stream or some other stream.
+    //     if state.error_sink.inner.read().is_some() {
+    //         let error = state.error_sink.inner.write().take();
+    //         return Err(error.unwrap_or_else(|| RayexecError::new("Error already pulled")));
+    //     }
 
-        let status = match state.batch.take() {
-            Some(batch) => PullStatus::Batch(IpcBatch(batch)),
-            None if state.finished => PullStatus::Finished,
-            None => PullStatus::Pending,
-        };
+    //     let status = match state.batch.take() {
+    //         Some(batch) => PullStatus::Batch(IpcBatch(batch)),
+    //         None if state.finished => PullStatus::Finished,
+    //         None => PullStatus::Pending,
+    //     };
 
-        if let Some(waker) = state.push_waker.take() {
-            waker.wake();
-        }
+    //     if let Some(waker) = state.push_waker.take() {
+    //         waker.wake();
+    //     }
 
-        Ok(status)
-    }
+    //     Ok(status)
+    // }
 }
 
 #[derive(Debug, Clone)]

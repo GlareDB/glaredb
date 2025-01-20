@@ -3,7 +3,6 @@ use std::sync::Arc;
 use rayexec_error::Result;
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::limit::PhysicalLimit;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_limit::LogicalLimit;
@@ -23,13 +22,10 @@ impl IntermediatePipelineBuildState<'_> {
 
         // This is a global limit, ensure this operator is only receiving a
         // single input partition.
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Limit(PhysicalLimit {
-                limit: limit.node.limit,
-                offset: limit.node.offset,
-            })),
-            partitioning_requirement: Some(1),
-        };
+        let operator = PhysicalOperator::Limit(PhysicalLimit {
+            limit: limit.node.limit,
+            offset: limit.node.offset,
+        });
 
         self.push_intermediate_operator(operator, location, id_gen)?;
 

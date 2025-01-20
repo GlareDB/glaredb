@@ -3,7 +3,6 @@ use std::sync::Arc;
 use rayexec_error::{Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::unnest::PhysicalUnnest;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_unnest::LogicalUnnest;
@@ -32,14 +31,10 @@ impl IntermediatePipelineBuildState<'_> {
             .plan_scalars(&input_refs, &unnest.node.unnest_expressions)
             .context("Failed to plan unnest expressions for unnest")?;
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Unnest(PhysicalUnnest {
-                project_expressions,
-                unnest_expressions,
-            })),
-            partitioning_requirement: None,
-        };
-
+        let operator = PhysicalOperator::Unnest(PhysicalUnnest {
+            project_expressions,
+            unnest_expressions,
+        });
         self.push_intermediate_operator(operator, location, id_gen)?;
 
         Ok(())

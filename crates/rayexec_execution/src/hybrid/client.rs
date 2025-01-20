@@ -13,7 +13,6 @@ use uuid::Uuid;
 use crate::arrays::batch::Batch;
 use crate::arrays::field::Schema;
 use crate::database::DatabaseContext;
-use crate::execution::intermediate::pipeline::{IntermediatePipelineGroup, StreamId};
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedStatement;
 use crate::proto::DatabaseProtoConv;
@@ -76,34 +75,36 @@ impl DatabaseProtoConv for HybridPlanRequest {
 
 #[derive(Debug)]
 pub struct HybridPlanResponse {
-    /// Id for the query.
-    pub query_id: Uuid,
-    /// Pipelines that should be executed on the client.
-    pub pipelines: IntermediatePipelineGroup,
-    /// Output schema for the query.
-    pub schema: Schema,
+    // /// Id for the query.
+    // pub query_id: Uuid,
+    // /// Pipelines that should be executed on the client.
+    // pub pipelines: IntermediatePipelineGroup,
+    // /// Output schema for the query.
+    // pub schema: Schema,
 }
 
 impl DatabaseProtoConv for HybridPlanResponse {
     type ProtoType = rayexec_proto::generated::hybrid::PlanResponse;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            query_id: Some(self.query_id.to_proto()?),
-            pipelines: Some(self.pipelines.to_proto_ctx(context)?),
-            schema: Some(self.schema.to_proto()?),
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     query_id: Some(self.query_id.to_proto()?),
+        //     pipelines: Some(self.pipelines.to_proto_ctx(context)?),
+        //     schema: Some(self.schema.to_proto()?),
+        // })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            query_id: Uuid::from_proto(proto.query_id.required("query_id")?)?,
-            pipelines: IntermediatePipelineGroup::from_proto_ctx(
-                proto.pipelines.required("pipelines")?,
-                context,
-            )?,
-            schema: Schema::from_proto(proto.schema.required("schema")?)?,
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     query_id: Uuid::from_proto(proto.query_id.required("query_id")?)?,
+        //     pipelines: IntermediatePipelineGroup::from_proto_ctx(
+        //         proto.pipelines.required("pipelines")?,
+        //         context,
+        //     )?,
+        //     schema: Schema::from_proto(proto.schema.required("schema")?)?,
+        // })
     }
 }
 
@@ -145,28 +146,30 @@ impl ProtoConv for HybridExecuteResponse {
 
 #[derive(Debug)]
 pub struct HybridPushRequest {
-    pub stream_id: StreamId,
-    pub partition: usize,
-    pub batch: IpcBatch,
+    // pub stream_id: StreamId,
+    // pub partition: usize,
+    // pub batch: IpcBatch,
 }
 
 impl ProtoConv for HybridPushRequest {
     type ProtoType = rayexec_proto::generated::hybrid::PushRequest;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            stream_id: Some(self.stream_id.to_proto()?),
-            partition: self.partition as u32,
-            batch: Some(self.batch.to_proto()?),
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     stream_id: Some(self.stream_id.to_proto()?),
+        //     partition: self.partition as u32,
+        //     batch: Some(self.batch.to_proto()?),
+        // })
     }
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(Self {
-            stream_id: StreamId::from_proto(proto.stream_id.required("stream_id")?)?,
-            partition: proto.partition as usize,
-            batch: IpcBatch::from_proto(proto.batch.required("batch")?)?,
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     stream_id: StreamId::from_proto(proto.stream_id.required("stream_id")?)?,
+        //     partition: proto.partition as usize,
+        //     batch: IpcBatch::from_proto(proto.batch.required("batch")?)?,
+        // })
     }
 }
 
@@ -187,25 +190,27 @@ impl ProtoConv for HybridPushResponse {
 
 #[derive(Debug)]
 pub struct HybridFinalizeRequest {
-    pub stream_id: StreamId,
-    pub partition: usize,
+    // pub stream_id: StreamId,
+    // pub partition: usize,
 }
 
 impl ProtoConv for HybridFinalizeRequest {
     type ProtoType = rayexec_proto::generated::hybrid::FinalizeRequest;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            stream_id: Some(self.stream_id.to_proto()?),
-            partition: self.partition as u32,
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     stream_id: Some(self.stream_id.to_proto()?),
+        //     partition: self.partition as u32,
+        // })
     }
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(Self {
-            stream_id: StreamId::from_proto(proto.stream_id.required("stream_id")?)?,
-            partition: proto.partition as usize,
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     stream_id: StreamId::from_proto(proto.stream_id.required("stream_id")?)?,
+        //     partition: proto.partition as usize,
+        // })
     }
 }
 
@@ -226,25 +231,27 @@ impl ProtoConv for HybridFinalizeResponse {
 
 #[derive(Debug)]
 pub struct HybridPullRequest {
-    pub stream_id: StreamId,
-    pub partition: usize,
+    // pub stream_id: StreamId,
+    // pub partition: usize,
 }
 
 impl ProtoConv for HybridPullRequest {
     type ProtoType = rayexec_proto::generated::hybrid::PullRequest;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            stream_id: Some(self.stream_id.to_proto()?),
-            partition: self.partition as u32,
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     stream_id: Some(self.stream_id.to_proto()?),
+        //     partition: self.partition as u32,
+        // })
     }
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(Self {
-            stream_id: StreamId::from_proto(proto.stream_id.required("stream_id")?)?,
-            partition: proto.partition as usize,
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     stream_id: StreamId::from_proto(proto.stream_id.required("stream_id")?)?,
+        //     partition: proto.partition as usize,
+        // })
     }
 }
 
@@ -478,54 +485,54 @@ impl<C: HttpClient> HybridClient<C> {
         Ok(())
     }
 
-    pub async fn push(&self, stream_id: StreamId, partition: usize, batch: Batch) -> Result<()> {
-        let url = self
-            .url
-            .join(REMOTE_ENDPOINTS.rpc_hybrid_push)
-            .context("failed to parse push endpoint")?;
+    // pub async fn push(&self, stream_id: StreamId, partition: usize, batch: Batch) -> Result<()> {
+    //     let url = self
+    //         .url
+    //         .join(REMOTE_ENDPOINTS.rpc_hybrid_push)
+    //         .context("failed to parse push endpoint")?;
 
-        let msg = HybridPushRequest {
-            stream_id,
-            partition,
-            batch: IpcBatch(batch),
-        };
+    //     let msg = HybridPushRequest {
+    //         stream_id,
+    //         partition,
+    //         batch: IpcBatch(batch),
+    //     };
 
-        let _resp: HybridPushResponse = self.do_request(msg, url).await?;
+    //     let _resp: HybridPushResponse = self.do_request(msg, url).await?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    pub async fn finalize(&self, stream_id: StreamId, partition: usize) -> Result<()> {
-        let url = self
-            .url
-            .join(REMOTE_ENDPOINTS.rpc_hybrid_finalize)
-            .context("failed to parse finalize endpoint")?;
+    // pub async fn finalize(&self, stream_id: StreamId, partition: usize) -> Result<()> {
+    //     let url = self
+    //         .url
+    //         .join(REMOTE_ENDPOINTS.rpc_hybrid_finalize)
+    //         .context("failed to parse finalize endpoint")?;
 
-        let msg = HybridFinalizeRequest {
-            stream_id,
-            partition,
-        };
+    //     let msg = HybridFinalizeRequest {
+    //         stream_id,
+    //         partition,
+    //     };
 
-        let _resp: HybridFinalizeResponse = self.do_request(msg, url).await?;
+    //     let _resp: HybridFinalizeResponse = self.do_request(msg, url).await?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    pub async fn pull(&self, stream_id: StreamId, partition: usize) -> Result<PullStatus> {
-        let url = self
-            .url
-            .join(REMOTE_ENDPOINTS.rpc_hybrid_pull)
-            .context("failed to parse pull endpoint")?;
+    // pub async fn pull(&self, stream_id: StreamId, partition: usize) -> Result<PullStatus> {
+    //     let url = self
+    //         .url
+    //         .join(REMOTE_ENDPOINTS.rpc_hybrid_pull)
+    //         .context("failed to parse pull endpoint")?;
 
-        let msg = HybridPullRequest {
-            stream_id,
-            partition,
-        };
+    //     let msg = HybridPullRequest {
+    //         stream_id,
+    //         partition,
+    //     };
 
-        let resp: HybridPullResponse = self.do_request(msg, url).await?;
+    //     let resp: HybridPullResponse = self.do_request(msg, url).await?;
 
-        Ok(resp.status)
-    }
+    //     Ok(resp.status)
+    // }
 
     async fn do_request<M, R>(&self, msg: M, url: Url) -> Result<R>
     where

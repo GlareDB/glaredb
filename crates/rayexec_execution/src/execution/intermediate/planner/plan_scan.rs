@@ -5,7 +5,6 @@ use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::scan::PhysicalScan;
 use crate::execution::operators::table_function::PhysicalTableFunction;
 use crate::execution::operators::values::PhysicalValues;
@@ -38,22 +37,10 @@ impl IntermediatePipelineBuildState<'_> {
                 catalog,
                 schema,
                 source,
-            } => IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::Scan(PhysicalScan::new(
-                    catalog,
-                    schema,
-                    source,
-                    projections,
-                ))),
-                partitioning_requirement: None,
-            },
-            ScanSource::TableFunction { function } => IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::TableFunction(PhysicalTableFunction::new(
-                    function,
-                    projections,
-                ))),
-                partitioning_requirement: None,
-            },
+            } => PhysicalOperator::Scan(PhysicalScan::new(catalog, schema, source, projections)),
+            ScanSource::TableFunction { function } => {
+                PhysicalOperator::TableFunction(PhysicalTableFunction::new(function, projections))
+            }
             ScanSource::ExpressionList { rows } => {
                 // let batches = self.create_batches_for_row_values(projections, rows)?;
                 // TODO: Table refs

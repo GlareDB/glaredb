@@ -3,12 +3,7 @@ use std::sync::Arc;
 use rayexec_error::Result;
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::{
-    IntermediateOperator,
-    IntermediatePipeline,
-    PipelineSink,
-    PipelineSource,
-};
+use crate::execution::intermediate::pipeline::{IntermediatePipeline, PipelineSink};
 use crate::execution::operators::sort::gather_sort::PhysicalGatherSort;
 use crate::execution::operators::sort::scatter_sort::PhysicalScatterSort;
 use crate::execution::operators::PhysicalOperator;
@@ -32,23 +27,23 @@ impl IntermediatePipelineBuildState<'_> {
             .expr_planner
             .plan_sorts(&input_refs, &order.node.exprs)?;
 
-        // Partition-local sorting.
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::LocalSort(PhysicalScatterSort::new(
-                exprs.clone(),
-            ))),
-            partitioning_requirement: None,
-        };
-        self.push_intermediate_operator(operator, location, id_gen)?;
+        // // Partition-local sorting.
+        // let operator = IntermediateOperator {
+        //     operator: Arc::new(PhysicalOperator::LocalSort(PhysicalScatterSort::new(
+        //         exprs.clone(),
+        //     ))),
+        //     partitioning_requirement: None,
+        // };
+        // self.push_intermediate_operator(operator, location, id_gen)?;
 
-        // Global sorting.
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::MergeSorted(PhysicalGatherSort::new(
-                exprs,
-            ))),
-            partitioning_requirement: None,
-        };
-        self.push_intermediate_operator(operator, location, id_gen)?;
+        // // Global sorting.
+        // let operator = IntermediateOperator {
+        //     operator: Arc::new(PhysicalOperator::MergeSorted(PhysicalGatherSort::new(
+        //         exprs,
+        //     ))),
+        //     partitioning_requirement: None,
+        // };
+        // self.push_intermediate_operator(operator, location, id_gen)?;
 
         // Global sorting accepts n-partitions, but produces only a single
         // partition. We finish the current pipeline

@@ -11,12 +11,7 @@ use crate::config::session::SessionConfig;
 use crate::database::catalog::CatalogTx;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
-use crate::execution::executable::planner::{ExecutablePipelinePlanner, PlanLocationState};
-use crate::execution::intermediate::pipeline::{
-    IntermediateMaterializationGroup,
-    IntermediatePipelineGroup,
-    StreamId,
-};
+use crate::execution::executable::planner::ExecutablePipelinePlanner;
 use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
 use crate::hybrid::buffer::ServerStreamBuffers;
 use crate::hybrid::client::{HybridPlanResponse, PullStatus};
@@ -54,9 +49,9 @@ struct PendingPipelineState {
     /// Context we used for intial planning, and what we'll be using for
     /// executable pipeline planning.
     context: DatabaseContext,
-    /// The pipeline group we'll be turning into executables pipelines.
-    group: IntermediatePipelineGroup,
-    materializations: IntermediateMaterializationGroup,
+    // /// The pipeline group we'll be turning into executables pipelines.
+    // group: IntermediatePipelineGroup,
+    // materializations: IntermediateMaterializationGroup,
 }
 
 impl<P, R> ServerState<P, R>
@@ -137,24 +132,25 @@ where
 
         let pipelines = planner.plan_pipelines(logical, bind_context)?;
 
-        if !pipelines.materializations.is_empty() {
-            not_implemented!("materializations with hybrid exec")
-        }
+        // if !pipelines.materializations.is_empty() {
+        //     not_implemented!("materializations with hybrid exec")
+        // }
 
-        self.pending_pipelines.insert(
-            query_id,
-            PendingPipelineState {
-                context,
-                group: pipelines.remote,
-                materializations: IntermediateMaterializationGroup::default(),
-            },
-        );
+        unimplemented!()
+        // self.pending_pipelines.insert(
+        //     query_id,
+        //     PendingPipelineState {
+        //         context,
+        //         group: pipelines.remote,
+        //         materializations: IntermediateMaterializationGroup::default(),
+        //     },
+        // );
 
-        Ok(HybridPlanResponse {
-            query_id,
-            pipelines: pipelines.local,
-            schema,
-        })
+        // Ok(HybridPlanResponse {
+        //     query_id,
+        //     pipelines: pipelines.local,
+        //     schema,
+        // })
     }
 
     pub fn execute_pending(&self, query_id: Uuid) -> Result<()> {
@@ -162,19 +158,19 @@ where
             RayexecError::new(format!("Missing pending pipeline for id: {query_id}"))
         })?;
 
-        let mut planner = ExecutablePipelinePlanner::<R>::new(
-            &state.context,
-            ExecutablePlanConfig {
-                partitions: num_cpus::get(),
-            },
-            PlanLocationState::Server {
-                stream_buffers: &self.buffers,
-            },
-        );
+        // let mut planner = ExecutablePipelinePlanner::<R>::new(
+        //     &state.context,
+        //     ExecutablePlanConfig {
+        //         partitions: num_cpus::get(),
+        //     },
+        //     PlanLocationState::Server {
+        //         stream_buffers: &self.buffers,
+        //     },
+        // );
 
-        // TODO: Spooky action, this needs to happen before the planning so that
-        // planning can get the appropriate error sink when creating streams.
-        let error_sink = self.buffers.create_error_sink(query_id)?;
+        // // TODO: Spooky action, this needs to happen before the planning so that
+        // // planning can get the appropriate error sink when creating streams.
+        // let error_sink = self.buffers.create_error_sink(query_id)?;
 
         unimplemented!()
         // let pipelines = planner.plan_from_intermediate(state.group, state.materializations)?;
@@ -185,15 +181,15 @@ where
         // Ok(())
     }
 
-    pub fn push_batch_for_stream(&self, stream_id: StreamId, batch: Batch) -> Result<()> {
-        self.buffers.push_batch_for_stream(&stream_id, batch)
-    }
+    // pub fn push_batch_for_stream(&self, stream_id: StreamId, batch: Batch) -> Result<()> {
+    //     self.buffers.push_batch_for_stream(&stream_id, batch)
+    // }
 
-    pub fn finalize_stream(&self, stream_id: StreamId) -> Result<()> {
-        self.buffers.finalize_stream(&stream_id)
-    }
+    // pub fn finalize_stream(&self, stream_id: StreamId) -> Result<()> {
+    //     self.buffers.finalize_stream(&stream_id)
+    // }
 
-    pub fn pull_batch_for_stream(&self, stream_id: StreamId) -> Result<PullStatus> {
-        self.buffers.pull_batch_for_stream(&stream_id)
-    }
+    // pub fn pull_batch_for_stream(&self, stream_id: StreamId) -> Result<PullStatus> {
+    //     self.buffers.pull_batch_for_stream(&stream_id)
+    // }
 }

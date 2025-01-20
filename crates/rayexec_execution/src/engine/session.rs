@@ -17,11 +17,7 @@ use crate::database::catalog::CatalogTx;
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, Database, DatabaseContext};
 use crate::execution::executable::pipeline::ExecutablePipeline;
-use crate::execution::executable::planner::{ExecutablePipelinePlanner, PlanLocationState};
-use crate::execution::intermediate::pipeline::{
-    IntermediateMaterializationGroup,
-    IntermediatePipelineGroup,
-};
+use crate::execution::executable::planner::ExecutablePipelinePlanner;
 use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
 use crate::hybrid::client::HybridClient;
 use crate::logical::binder::bind_statement::StatementBinder;
@@ -110,8 +106,8 @@ enum ExecutionMode {
 struct IntermediatePortal {
     query_id: Uuid,
     execution_mode: ExecutionMode,
-    intermediate_pipelines: IntermediatePipelineGroup,
-    intermediate_materializations: IntermediateMaterializationGroup,
+    // intermediate_pipelines: IntermediatePipelineGroup,
+    // intermediate_materializations: IntermediateMaterializationGroup,
     output_schema: Schema,
 }
 
@@ -257,16 +253,16 @@ where
 
         let (stream, sink, errors) = new_results_sinks();
 
-        let mut planner = ExecutablePipelinePlanner::<R>::new(
-            &self.context,
-            ExecutablePlanConfig {
-                partitions: self.config.partitions as usize,
-            },
-            PlanLocationState::Client {
-                output_sink: Some(sink),
-                hybrid_client: self.hybrid_client.as_ref(),
-            },
-        );
+        // let mut planner = ExecutablePipelinePlanner::<R>::new(
+        //     &self.context,
+        //     ExecutablePlanConfig {
+        //         partitions: self.config.partitions as usize,
+        //     },
+        //     PlanLocationState::Client {
+        //         output_sink: Some(sink),
+        //         hybrid_client: self.hybrid_client.as_ref(),
+        //     },
+        // );
 
         let timer = Timer::<R::Instant>::start();
         unimplemented!()
@@ -311,13 +307,14 @@ where
                     .remote_plan(stmt, resolve_context, &self.context)
                     .await?;
 
-                Ok(IntermediatePortal {
-                    query_id: resp.query_id,
-                    execution_mode: ExecutionMode::Hybrid,
-                    intermediate_pipelines: resp.pipelines,
-                    intermediate_materializations: IntermediateMaterializationGroup::default(), // TODO: Need to get these somehow.
-                    output_schema: resp.schema,
-                })
+                unimplemented!()
+                // Ok(IntermediatePortal {
+                //     query_id: resp.query_id,
+                //     execution_mode: ExecutionMode::Hybrid,
+                //     intermediate_pipelines: resp.pipelines,
+                //     intermediate_materializations: IntermediateMaterializationGroup::default(), // TODO: Need to get these somehow.
+                //     output_schema: resp.schema,
+                // })
             }
             _ => {
                 // Normal all-local planning.
@@ -414,19 +411,20 @@ where
                     }
                 };
 
-                if !pipelines.remote.is_empty() {
-                    return Err(RayexecError::new(
-                        "Remote pipelines should not have been planned",
-                    ));
-                }
+                // if !pipelines.remote.is_empty() {
+                //     return Err(RayexecError::new(
+                //         "Remote pipelines should not have been planned",
+                //     ));
+                // }
 
-                Ok(IntermediatePortal {
-                    query_id,
-                    execution_mode: ExecutionMode::LocalOnly,
-                    intermediate_pipelines: pipelines.local,
-                    intermediate_materializations: pipelines.materializations,
-                    output_schema: schema,
-                })
+                unimplemented!()
+                // Ok(IntermediatePortal {
+                //     query_id,
+                //     execution_mode: ExecutionMode::LocalOnly,
+                //     intermediate_pipelines: pipelines.local,
+                //     intermediate_materializations: pipelines.materializations,
+                //     output_schema: schema,
+                // })
             }
         }
     }

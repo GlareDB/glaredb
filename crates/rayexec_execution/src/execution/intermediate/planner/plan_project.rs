@@ -3,7 +3,6 @@ use std::sync::Arc;
 use rayexec_error::{Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_project::LogicalProject;
@@ -27,11 +26,7 @@ impl IntermediatePipelineBuildState<'_> {
             .plan_scalars(&input_refs, &project.node.projections)
             .context("Failed to plan expressions for projection")?;
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Project(PhysicalProject { projections })),
-            partitioning_requirement: None,
-        };
-
+        let operator = PhysicalOperator::Project(PhysicalProject { projections });
         self.push_intermediate_operator(operator, location, id_gen)?;
 
         Ok(())

@@ -4,7 +4,6 @@ use std::sync::Arc;
 use rayexec_error::Result;
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::IntermediateOperator;
 use crate::execution::operators::hash_aggregate::PhysicalHashAggregate;
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::PhysicalOperator;
@@ -34,12 +33,9 @@ impl IntermediatePipelineBuildState<'_> {
             .plan_scalars(&input_refs, &distinct.node.on)?;
 
         self.push_intermediate_operator(
-            IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::Project(PhysicalProject {
-                    projections: group_exprs,
-                })),
-                partitioning_requirement: None,
-            },
+            PhysicalOperator::Project(PhysicalProject {
+                projections: group_exprs,
+            }),
             distinct.location,
             id_gen,
         )?;
@@ -47,14 +43,11 @@ impl IntermediatePipelineBuildState<'_> {
         let grouping_sets: Vec<BTreeSet<usize>> = vec![(0..group_types.len()).collect()];
 
         self.push_intermediate_operator(
-            IntermediateOperator {
-                operator: Arc::new(PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
-                    Vec::new(),
-                    grouping_sets,
-                    Vec::new(),
-                ))),
-                partitioning_requirement: None,
-            },
+            PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
+                Vec::new(),
+                grouping_sets,
+                Vec::new(),
+            )),
             distinct.location,
             id_gen,
         )?;

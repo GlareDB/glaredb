@@ -4,7 +4,6 @@ use rayexec_error::{RayexecError, Result};
 
 use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
 use crate::database::create::CreateSchemaInfo;
-use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::create_schema::PhysicalCreateSchema;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_create::LogicalCreateSchema;
@@ -22,16 +21,13 @@ impl IntermediatePipelineBuildState<'_> {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::CreateSchema(PhysicalCreateSchema::new(
-                create.node.catalog,
-                CreateSchemaInfo {
-                    name: create.node.name,
-                    on_conflict: create.node.on_conflict,
-                },
-            ))),
-            partitioning_requirement: Some(1),
-        };
+        let operator = PhysicalOperator::CreateSchema(PhysicalCreateSchema::new(
+            create.node.catalog,
+            CreateSchemaInfo {
+                name: create.node.name,
+                on_conflict: create.node.on_conflict,
+            },
+        ));
 
         unimplemented!()
         // self.in_progress = Some(InProgressPipeline {

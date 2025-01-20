@@ -8,7 +8,6 @@ use rayexec_io::http::HttpClient;
 use super::client::{HybridClient, PullStatus};
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
-use crate::execution::intermediate::pipeline::StreamId;
 use crate::execution::operators::sink::operation::{PartitionSink, PollPush, SinkOperation};
 use crate::execution::operators::source::operation::{PartitionSource, PollPull, SourceOperation};
 use crate::execution::operators::PollFinalize;
@@ -24,14 +23,14 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 /// have everything it needs for wiring up the streams for correct partitioning.
 #[derive(Debug)]
 pub struct ClientToServerStream<C: HttpClient> {
-    stream_id: StreamId,
+    // stream_id: StreamId,
     client: Arc<HybridClient<C>>,
 }
 
 impl<C: HttpClient + 'static> ClientToServerStream<C> {
-    pub fn new(stream_id: StreamId, client: Arc<HybridClient<C>>) -> Self {
-        ClientToServerStream { stream_id, client }
-    }
+    // pub fn new(stream_id: StreamId, client: Arc<HybridClient<C>>) -> Self {
+    //     ClientToServerStream { stream_id, client }
+    // }
 }
 
 impl<C: HttpClient + 'static> SinkOperation for ClientToServerStream<C> {
@@ -42,10 +41,11 @@ impl<C: HttpClient + 'static> SinkOperation for ClientToServerStream<C> {
     ) -> Result<Vec<Box<dyn PartitionSink>>> {
         assert_eq!(1, num_sinks);
 
-        Ok(vec![Box::new(ClientToServerPartitionSink {
-            stream_id: self.stream_id,
-            client: self.client.clone(),
-        })])
+        unimplemented!()
+        // Ok(vec![Box::new(ClientToServerPartitionSink {
+        //     stream_id: self.stream_id,
+        //     client: self.client.clone(),
+        // })])
     }
 
     fn partitioning_requirement(&self) -> Option<usize> {
@@ -61,7 +61,7 @@ impl<C: HttpClient> Explainable for ClientToServerStream<C> {
 
 #[derive(Debug)]
 pub struct ClientToServerPartitionSink<C: HttpClient> {
-    stream_id: StreamId,
+    // stream_id: StreamId,
     client: Arc<HybridClient<C>>,
 }
 
@@ -88,14 +88,14 @@ impl<C: HttpClient> PartitionSink for ClientToServerPartitionSink<C> {
 /// (pull).
 #[derive(Debug)]
 pub struct ServerToClientStream<C: HttpClient> {
-    stream_id: StreamId,
+    // stream_id: StreamId,
     client: Arc<HybridClient<C>>,
 }
 
 impl<C: HttpClient> ServerToClientStream<C> {
-    pub fn new(stream_id: StreamId, client: Arc<HybridClient<C>>) -> Self {
-        ServerToClientStream { stream_id, client }
-    }
+    // pub fn new(stream_id: StreamId, client: Arc<HybridClient<C>>) -> Self {
+    //     ServerToClientStream { stream_id, client }
+    // }
 }
 
 impl<C: HttpClient + 'static> SourceOperation for ServerToClientStream<C> {
@@ -123,7 +123,7 @@ impl<C: HttpClient> Explainable for ServerToClientStream<C> {
 
 #[derive(Debug)]
 pub struct ServerToClientPartitionSource<C: HttpClient> {
-    stream_id: StreamId,
+    // stream_id: StreamId,
     client: Arc<HybridClient<C>>,
 }
 

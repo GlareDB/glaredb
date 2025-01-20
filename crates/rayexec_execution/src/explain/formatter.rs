@@ -3,12 +3,7 @@ use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use super::explainable::{ExplainConfig, ExplainEntry};
-use crate::execution::intermediate::pipeline::{
-    IntermediatePipeline,
-    IntermediatePipelineGroup,
-    PipelineSink,
-    PipelineSource,
-};
+use crate::execution::intermediate::pipeline::{IntermediatePipeline, PipelineSink};
 use crate::explain::explainable::Explainable;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::logical_explain::ExplainFormat;
@@ -51,13 +46,13 @@ impl<'a> ExplainFormatter<'a> {
         self.format(&node)
     }
 
-    pub fn format_intermediate_groups(
-        &self,
-        groups: &[(&str, &IntermediatePipelineGroup)],
-    ) -> Result<String> {
-        let node = ExplainNode::from_intermediate_groups(self.bind_context, groups, self.config);
-        self.format(&node)
-    }
+    // pub fn format_intermediate_groups(
+    //     &self,
+    //     groups: &[(&str, &IntermediatePipelineGroup)],
+    // ) -> Result<String> {
+    //     let node = ExplainNode::from_intermediate_groups(self.bind_context, groups, self.config);
+    //     self.format(&node)
+    // }
 
     fn format(&self, node: &ExplainNode) -> Result<String> {
         match self.format {
@@ -110,36 +105,36 @@ struct ExplainNode {
 }
 
 impl ExplainNode {
-    fn from_intermediate_groups(
-        bind_context: &BindContext,
-        groups: &[(&str, &IntermediatePipelineGroup)],
-        config: ExplainConfig,
-    ) -> ExplainNode {
-        let entry = ExplainEntry::new("IntermediatePipelineGroups");
-        let children = groups
-            .iter()
-            .map(|(label, group)| Self::from_intermediate_group(bind_context, group, label, config))
-            .collect();
+    // fn from_intermediate_groups(
+    //     bind_context: &BindContext,
+    //     groups: &[(&str, &IntermediatePipelineGroup)],
+    //     config: ExplainConfig,
+    // ) -> ExplainNode {
+    //     let entry = ExplainEntry::new("IntermediatePipelineGroups");
+    //     let children = groups
+    //         .iter()
+    //         .map(|(label, group)| Self::from_intermediate_group(bind_context, group, label, config))
+    //         .collect();
 
-        ExplainNode { entry, children }
-    }
+    //     ExplainNode { entry, children }
+    // }
 
-    fn from_intermediate_group(
-        bind_context: &BindContext,
-        group: &IntermediatePipelineGroup,
-        label: &str,
-        config: ExplainConfig,
-    ) -> ExplainNode {
-        let entry = ExplainEntry::new(format!("IntermediatePipelineGroup {label}"));
+    // fn from_intermediate_group(
+    //     bind_context: &BindContext,
+    //     group: &IntermediatePipelineGroup,
+    //     label: &str,
+    //     config: ExplainConfig,
+    // ) -> ExplainNode {
+    //     let entry = ExplainEntry::new(format!("IntermediatePipelineGroup {label}"));
 
-        let children = group
-            .pipelines
-            .values()
-            .map(|pipeline| Self::from_intermedate_pipeline(bind_context, pipeline, config))
-            .collect();
+    //     let children = group
+    //         .pipelines
+    //         .values()
+    //         .map(|pipeline| Self::from_intermedate_pipeline(bind_context, pipeline, config))
+    //         .collect();
 
-        ExplainNode { entry, children }
-    }
+    //     ExplainNode { entry, children }
+    // }
 
     fn from_intermedate_pipeline(
         bind_context: &BindContext,
