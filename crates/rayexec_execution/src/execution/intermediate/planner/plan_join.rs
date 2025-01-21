@@ -4,7 +4,6 @@ use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::execution::operators::hash_join::PhysicalHashJoin;
-use crate::execution::operators::nl_join::PhysicalNestedLoopJoin;
 use crate::execution::operators::PhysicalOperator;
 use crate::expr;
 use crate::expr::comparison_expr::ComparisonOperator;
@@ -273,16 +272,16 @@ impl IntermediatePipelineBuildState<'_> {
             RayexecError::new("expected in-progress pipeline from left side of join")
         })?;
 
-        let operator =
-            PhysicalOperator::NestedLoopJoin(PhysicalNestedLoopJoin::new(filter, join_type));
-        self.push_intermediate_operator(operator, location, id_gen)?;
+        // let operator =
+        //     PhysicalOperator::NestedLoopJoin(PhysicalNestedLoopJoin::new(filter, join_type));
+        // self.push_intermediate_operator(operator, location, id_gen)?;
 
-        // Left pipeline will be input to this pipeline.
-        self.push_as_child_pipeline(
-            left_pipeline,
-            PhysicalNestedLoopJoin::BUILD_SIDE_INPUT_INDEX,
-        )?;
+        // // Left pipeline will be input to this pipeline.
+        // self.push_as_child_pipeline(
+        //     left_pipeline,
+        //     PhysicalNestedLoopJoin::BUILD_SIDE_INPUT_INDEX,
+        // )?;
 
-        Ok(())
+        // Ok(())
     }
 }

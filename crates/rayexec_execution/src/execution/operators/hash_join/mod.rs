@@ -172,7 +172,7 @@ impl PhysicalHashJoin {
         // accomplish the deduplication.
         matches!(
             self.join_type,
-            JoinType::Left | JoinType::Full | JoinType::Semi | JoinType::LeftMark { .. }
+            JoinType::Left | JoinType::Full | JoinType::LeftSemi | JoinType::LeftMark { .. }
         )
     }
 
@@ -184,7 +184,10 @@ impl PhysicalHashJoin {
         // Note this includes SEMI join since it's just an extension of a mark
         // join, just that we return the left visited rows instead of bools that
         // they've been visited.
-        matches!(self.join_type, JoinType::Semi | JoinType::LeftMark { .. })
+        matches!(
+            self.join_type,
+            JoinType::LeftSemi | JoinType::LeftMark { .. }
+        )
     }
 }
 
@@ -571,7 +574,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                             Some(batch) => return Ok(PollPull::Computed(batch.into())),
                             None => return Ok(PollPull::Exhausted),
                         }
-                    } else if matches!(self.join_type, JoinType::Semi) {
+                    } else if matches!(self.join_type, JoinType::LeftSemi) {
                         // Semi drain
                         match drain_state.drain_semi_next()? {
                             Some(batch) => return Ok(PollPull::Computed(batch.into())),

@@ -1,5 +1,6 @@
 pub mod evaluator;
 pub mod planner;
+pub mod selection_evaluator;
 
 pub mod case_expr;
 pub mod cast_expr;

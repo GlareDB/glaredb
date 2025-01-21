@@ -7,20 +7,15 @@ use super::{
     ExecutableOperator,
     ExecuteInOutState,
     OperatorState,
-    PartitionAndOperatorStates,
     PartitionState,
     PollExecute,
     PollFinalize,
     UnaryInputStates,
 };
-use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::selection::Selection;
-use crate::arrays::array::Array;
-use crate::arrays::datatype::DataType;
-use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::physical::evaluator::ExpressionEvaluator;
+use crate::expr::physical::selection_evaluator::SelectionEvaluator;
 use crate::expr::physical::PhysicalScalarExpression;
 
 #[derive(Debug)]
@@ -30,11 +25,7 @@ pub struct PhysicalFilter {
 
 #[derive(Debug)]
 pub struct FilterPartitionState {
-    evaluator: ExpressionEvaluator,
-    /// Boolean array for holding the output of the filter expression.
-    output: Array,
-    /// Selected indices buffer.
-    selection: Vec<usize>,
+    evaluator: SelectionEvaluator,
 }
 
 impl ExecutableOperator for PhysicalFilter {
@@ -49,16 +40,7 @@ impl ExecutableOperator for PhysicalFilter {
         let partition_states = (0..partitions)
             .map(|_| {
                 Ok(PartitionState::Filter(FilterPartitionState {
-                    evaluator: ExpressionEvaluator::try_new(
-                        vec![self.predicate.clone()],
-                        batch_size,
-                    )?,
-                    output: Array::try_new(
-                        &Arc::new(NopBufferManager),
-                        DataType::Boolean,
-                        batch_size,
-                    )?,
-                    selection: Vec::with_capacity(batch_size),
+                    evaluator: SelectionEvaluator::try_new(self.predicate.clone(), batch_size)?,
                 }))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -84,23 +66,12 @@ impl ExecutableOperator for PhysicalFilter {
         let input = inout.input.required("batch input")?;
         let output = inout.output.required("batch output")?;
 
-        state.output.reset_for_write(&Arc::new(NopBufferManager))?;
-        state
-            .evaluator
-            .eval_single_expression(input, input.selection(), &mut state.output)?;
-
-        state.selection.clear();
-        UnaryExecutor::select(
-            &state.output,
-            Selection::linear(0, input.num_rows()),
-            &mut state.selection,
-        )?;
-
+        let selection = state.evaluator.select(input)?;
         output.try_clone_from(input)?;
 
-        if state.selection.len() != output.num_rows() {
+        if selection.len() != output.num_rows() {
             // Only add selection if we're actually omitting rows.
-            output.select(Selection::slice(&state.selection))?;
+            output.select(Selection::slice(selection))?;
         }
 
         Ok(PollExecute::Ready)
@@ -127,6 +98,8 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::array::Array;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
     use crate::arrays::testutil::assert_batches_eq;

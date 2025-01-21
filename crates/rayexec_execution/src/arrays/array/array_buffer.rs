@@ -265,6 +265,7 @@ where
 /// Holds a single constant value.
 #[derive(Debug)]
 pub struct ConstantBuffer<B: BufferManager> {
+    pub(crate) row_reference: usize,
     pub(crate) validity: Validity,
     pub(crate) buffer: ArrayData<B>,
 }

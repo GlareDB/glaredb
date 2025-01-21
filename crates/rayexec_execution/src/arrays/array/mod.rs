@@ -54,7 +54,6 @@ use physical_type::{
     PhysicalUtf8,
 };
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
-use selection::Selection;
 use shared_or_owned::SharedOrOwned;
 use stdutil::iter::TryFromExactSizeIterator;
 use string_view::StringViewHeap;
@@ -62,7 +61,6 @@ use validity::Validity;
 
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
-use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::timestamp::TimestampScalar;
@@ -190,6 +188,7 @@ where
 
         let mut buf = ArrayBuffer::with_primary_capacity::<PhysicalConstant>(manager, len)?;
         buf.put_secondary_buffer(SecondaryBuffer::Constant(ConstantBuffer {
+            row_reference: 0,
             validity: next.validity,
             buffer: next.data,
         }));
@@ -213,6 +212,7 @@ where
 
         let mut buf = ArrayBuffer::with_primary_capacity::<PhysicalConstant>(manager, len)?;
         buf.put_secondary_buffer(SecondaryBuffer::Constant(ConstantBuffer {
+            row_reference: 0,
             validity,
             buffer: ArrayData::owned(val_buffer),
         }));
@@ -482,6 +482,38 @@ where
         let managed = other.next_mut().data.make_managed(manager)?;
         self.next_mut().data.set_managed(managed)?;
         self.next_mut().validity = other.next().validity.clone();
+
+        Ok(())
+    }
+
+    /// Try to clone a row from another array into this array, turning this
+    /// array into a constant array with `count` length.
+    pub fn try_clone_row_from(
+        &mut self,
+        manager: &Arc<B>,
+        other: &mut Self,
+        row: usize,
+        count: usize,
+    ) -> Result<()> {
+        if self.datatype != other.datatype {
+            return Err(RayexecError::new(
+                "Attempted clone row from other array with different data types",
+            )
+            .with_field("own_datatype", self.datatype.clone())
+            .with_field("other_datatype", other.datatype.clone()));
+        }
+
+        let managed = other.next_mut().data.make_managed(manager)?;
+        let mut buf = ArrayBuffer::with_primary_capacity::<PhysicalConstant>(manager, count)?;
+        buf.put_secondary_buffer(SecondaryBuffer::Constant(ConstantBuffer {
+            row_reference: row,
+            validity: other.next().validity.clone(), // TODO: We could avoid a full clone here.
+            buffer: ArrayData::managed(managed),
+        }));
+
+        let next = self.next_mut();
+        next.validity = Validity::new_all_valid(count);
+        next.data = ArrayData::owned(buf);
 
         Ok(())
     }
@@ -1925,5 +1957,31 @@ mod tests {
 
         a.reset_for_write(&Arc::new(NopBufferManager)).unwrap();
         assert!(a.next().validity.all_valid());
+    }
+
+    #[test]
+    fn try_clone_row_from_i32_valid() {
+        let manager = Arc::new(NopBufferManager);
+
+        let mut arr = Array::try_from_iter([1, 2, 3]).unwrap();
+        let mut arr2 = Array::try_new(&manager, DataType::Int32, 16).unwrap();
+
+        arr2.try_clone_row_from(&manager, &mut arr, 1, 8).unwrap();
+
+        let expected = Array::try_from_iter([2, 2, 2, 2, 2, 2, 2, 2]).unwrap();
+        assert_arrays_eq(&expected, &arr2);
+    }
+
+    #[test]
+    fn try_clone_row_from_i32_null() {
+        let manager = Arc::new(NopBufferManager);
+
+        let mut arr = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
+        let mut arr2 = Array::try_new(&manager, DataType::Int32, 16).unwrap();
+
+        arr2.try_clone_row_from(&manager, &mut arr, 1, 8).unwrap();
+
+        let expected = Array::try_from_iter(vec![None as Option<i32>; 8]).unwrap();
+        assert_arrays_eq(&expected, &arr2);
     }
 }

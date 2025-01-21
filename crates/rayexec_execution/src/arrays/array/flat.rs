@@ -47,13 +47,10 @@ where
                 _ => return Err(RayexecError::new("Secondary buffer not a constant buffer")),
             };
 
-            debug_assert_eq!(1, const_buffer.validity.len());
-            debug_assert_eq!(1, const_buffer.buffer.primary_capacity());
-
             Ok(FlatArrayView {
                 validity: &const_buffer.validity,
                 array_buffer: &const_buffer.buffer,
-                selection: Selection::constant(s.len(), 0),
+                selection: Selection::constant(s.len(), const_buffer.row_reference),
             })
         } else {
             let validity = &array.next.as_ref().unwrap().validity;

@@ -34,7 +34,12 @@ impl ExpressionState {
 }
 
 impl ExpressionEvaluator {
-    pub fn try_new(expressions: Vec<PhysicalScalarExpression>, batch_size: usize) -> Result<Self> {
+    pub fn try_new(
+        expressions: impl IntoIterator<Item = PhysicalScalarExpression>,
+        batch_size: usize,
+    ) -> Result<Self> {
+        let expressions: Vec<_> = expressions.into_iter().collect();
+
         let states = expressions
             .iter()
             .map(|expr| expr.create_state(batch_size))

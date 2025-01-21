@@ -170,7 +170,10 @@ impl Batch {
     /// Copy rows from this batch to another batch.
     ///
     /// `mapping` provides (from, to) pairs for how to copy the rows.
-    pub fn copy_rows(&self, mapping: &[(usize, usize)], dest: &mut Self) -> Result<()> {
+    pub fn copy_rows<I>(&self, mapping: I, dest: &mut Self) -> Result<()>
+    where
+        I: IntoIterator<Item = (usize, usize)> + Clone,
+    {
         if self.arrays.len() != dest.arrays.len() {
             return Err(RayexecError::new(
                 "Attempted to copy rows to another batch with invalid number of columns",
@@ -178,7 +181,8 @@ impl Batch {
         }
 
         for (from, to) in self.arrays.iter().zip(dest.arrays.iter_mut()) {
-            from.copy_rows(mapping.iter().copied(), to)?;
+            let mapping = mapping.clone();
+            from.copy_rows(mapping, to)?;
         }
 
         Ok(())
@@ -199,6 +203,24 @@ impl Batch {
         }
 
         self.set_num_rows(other.num_rows())?;
+
+        Ok(())
+    }
+
+    pub fn try_clone_row_from(&mut self, other: &mut Self, row: usize, count: usize) -> Result<()> {
+        if self.arrays.len() != other.arrays.len() {
+            return Err(RayexecError::new(
+                "Attempted to clone row from batch with different number of arrays",
+            )
+            .with_field("self", self.arrays.len())
+            .with_field("other", other.arrays.len()));
+        }
+
+        for (own, other) in self.arrays.iter_mut().zip(other.arrays.iter_mut()) {
+            own.try_clone_row_from(&Arc::new(NopBufferManager), other, row, count)?;
+        }
+
+        self.set_num_rows(count)?;
 
         Ok(())
     }
@@ -408,6 +430,27 @@ mod tests {
         .unwrap();
 
         assert_batches_eq(&expected, &batch1);
+        assert_batches_eq(&expected, &batch2);
+    }
+
+    #[test]
+    fn clone_row_from_simple() {
+        let mut batch1 = Batch::try_from_arrays([
+            Array::try_from_iter([1, 2, 3, 4]).unwrap(),
+            Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
+        ])
+        .unwrap();
+
+        let mut batch2 = Batch::try_new([DataType::Int32, DataType::Utf8], 4).unwrap();
+
+        batch2.try_clone_row_from(&mut batch1, 2, 3).unwrap();
+
+        let expected = Batch::try_from_arrays([
+            Array::try_from_iter([3, 3, 3]).unwrap(),
+            Array::try_from_iter(["c", "c", "c"]).unwrap(),
+        ])
+        .unwrap();
+
         assert_batches_eq(&expected, &batch2);
     }
 }

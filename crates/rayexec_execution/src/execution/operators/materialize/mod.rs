@@ -1,3 +1,5 @@
+pub mod batch_collection;
+
 use std::task::Context;
 
 use futures::future::BoxFuture;

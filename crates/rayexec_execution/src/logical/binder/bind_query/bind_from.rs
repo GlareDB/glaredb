@@ -593,7 +593,7 @@ impl<'a> FromBinder<'a> {
             ast::JoinType::Inner => JoinType::Inner,
             ast::JoinType::Left => JoinType::Left,
             ast::JoinType::Right => JoinType::Right,
-            ast::JoinType::LeftSemi => JoinType::Semi,
+            ast::JoinType::LeftSemi => JoinType::LeftSemi,
             other => not_implemented!("plan join type: {other:?}"),
         };
 
@@ -632,8 +632,8 @@ impl<'a> FromBinder<'a> {
                 JoinType::Left
                 | JoinType::Inner
                 | JoinType::Full
-                | JoinType::Semi
-                | JoinType::Anti
+                | JoinType::LeftSemi
+                | JoinType::LeftAnti
                 | JoinType::LeftMark { .. } => UsingColumn {
                     column: using,
                     table_ref: left_table,
@@ -682,7 +682,7 @@ impl<'a> FromBinder<'a> {
         }
 
         // Remove right columns from scope for semi joins.
-        if join_type == JoinType::Semi {
+        if join_type == JoinType::LeftSemi {
             let right_tables: Vec<_> = bind_context
                 .iter_tables_in_scope(right_idx)?
                 .map(|t| t.reference)

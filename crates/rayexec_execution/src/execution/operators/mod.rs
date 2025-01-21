@@ -11,9 +11,9 @@ pub mod filter;
 pub mod hash_aggregate;
 pub mod hash_join;
 pub mod insert;
+pub mod join;
 pub mod limit;
 pub mod materialize;
-pub mod nl_join;
 pub mod project;
 pub mod round_robin;
 pub mod scan;
@@ -52,9 +52,14 @@ use hash_join::{
     PhysicalHashJoin,
 };
 use insert::PhysicalInsert;
+use join::nested_loop_join::{
+    NestedLoopJoinBuildPartitionState,
+    NestedLoopJoinOperatorState,
+    NestedLoopJoinProbePartitionState,
+    PhysicalNestedLoopJoin,
+};
 use limit::PhysicalLimit;
 use materialize::{MaterializeSourceOperation, MaterializedSinkOperation};
-use nl_join::PhysicalNestedLoopJoin;
 use project::{PhysicalProject, ProjectPartitionState};
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use round_robin::PhysicalRoundRobinRepartition;
@@ -84,11 +89,6 @@ use window::PhysicalWindow;
 
 use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::limit::LimitPartitionState;
-use self::nl_join::{
-    NestedLoopJoinBuildPartitionState,
-    NestedLoopJoinOperatorState,
-    NestedLoopJoinProbePartitionState,
-};
 use self::round_robin::{
     RoundRobinOperatorState,
     RoundRobinPullPartitionState,
@@ -121,11 +121,11 @@ pub enum PartitionState {
     Filter(FilterPartitionState),
     UnionPulling(UnionPullingPartitionState),
     UnionBuffering(UnionBufferingPartitionState),
+    NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState),
+    NestedLoopJoinProbe(NestedLoopJoinProbePartitionState),
 
     HashAggregate(HashAggregatePartitionState),
     UngroupedAggregate(UngroupedAggregatePartitionState),
-    NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState),
-    NestedLoopJoinProbe(NestedLoopJoinProbePartitionState),
     HashJoinBuild(HashJoinBuildPartitionState),
     HashJoinProbe(HashJoinProbePartitionState),
     Values(ValuesPartitionState),
@@ -151,10 +151,10 @@ pub enum PartitionState {
 #[derive(Debug)]
 pub enum OperatorState {
     Union(UnionOperatorState),
+    NestedLoopJoin(NestedLoopJoinOperatorState),
 
     HashAggregate(HashAggregateOperatorState),
     UngroupedAggregate(UngroupedAggregateOperatorState),
-    NestedLoopJoin(NestedLoopJoinOperatorState),
     HashJoin(HashJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
     GatherSort(GatherSortOperatorState),
@@ -485,11 +485,11 @@ pub enum PhysicalOperator {
     Project(PhysicalProject),
     Filter(PhysicalFilter),
     Limit(PhysicalLimit),
+    NestedLoopJoin(PhysicalNestedLoopJoin),
 
     HashAggregate(PhysicalHashAggregate),
     UngroupedAggregate(PhysicalUngroupedAggregate),
     Window(PhysicalWindow),
-    NestedLoopJoin(PhysicalNestedLoopJoin),
     HashJoin(PhysicalHashJoin),
     Values(PhysicalValues),
     ResultSink(PhysicalSink<ResultSink>),
@@ -813,7 +813,7 @@ impl DatabaseProtoConv for PhysicalOperator {
             Self::Union(op) => Value::Union(op.to_proto_ctx(context)?),
             Self::Values(op) => Value::Values(op.to_proto_ctx(context)?),
             Self::TableFunction(op) => Value::TableFunction(op.to_proto_ctx(context)?),
-            Self::NestedLoopJoin(op) => Value::NlJoin(op.to_proto_ctx(context)?),
+            // Self::NestedLoopJoin(op) => Value::NlJoin(op.to_proto_ctx(context)?),
             Self::CopyTo(op) => Value::CopyTo(op.to_proto_ctx(context)?),
             Self::LocalSort(op) => Value::LocalSort(op.to_proto_ctx(context)?),
             Self::MergeSorted(op) => Value::MergeSorted(op.to_proto_ctx(context)?),
@@ -862,9 +862,9 @@ impl DatabaseProtoConv for PhysicalOperator {
             Value::TableFunction(op) => {
                 PhysicalOperator::TableFunction(PhysicalTableFunction::from_proto_ctx(op, context)?)
             }
-            Value::NlJoin(op) => PhysicalOperator::NestedLoopJoin(
-                PhysicalNestedLoopJoin::from_proto_ctx(op, context)?,
-            ),
+            // Value::NlJoin(op) => PhysicalOperator::NestedLoopJoin(
+            //     PhysicalNestedLoopJoin::from_proto_ctx(op, context)?,
+            // ),
             Value::CopyTo(op) => {
                 PhysicalOperator::CopyTo(PhysicalCopyTo::from_proto_ctx(op, context)?)
             }

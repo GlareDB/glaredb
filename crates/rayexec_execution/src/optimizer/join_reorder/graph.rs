@@ -858,7 +858,7 @@ impl Graph {
             }))
         } else {
             let join_type = if any_semi {
-                JoinType::Semi
+                JoinType::LeftSemi
             } else {
                 JoinType::Inner
             };

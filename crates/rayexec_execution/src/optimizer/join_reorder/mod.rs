@@ -151,7 +151,7 @@ impl InnerJoinReorder {
             }
             LogicalOperator::ComparisonJoin(join)
                 if join.node.join_type == JoinType::Inner
-                    || join.node.join_type == JoinType::Semi =>
+                    || join.node.join_type == JoinType::LeftSemi =>
             {
                 self.extract_filters_and_join_children(root)?;
             }
@@ -219,7 +219,7 @@ impl InnerJoinReorder {
                         for child in join.children.drain(..) {
                             queue.push_back(child);
                         }
-                    } else if join.node.join_type == JoinType::Semi {
+                    } else if join.node.join_type == JoinType::LeftSemi {
                         // Semi join conditions need to be kept together as
                         // they're not freely reorderable.
                         self.conditions.push(ReorderableCondition::Semi {
