@@ -39,9 +39,7 @@ impl IntermediatePipelineBuildState<'_> {
             ]);
         }
 
-        let operator = PhysicalOperator::Values(PhysicalValues {
-            expressions: row_exprs,
-        });
+        let operator = PhysicalOperator::Values(PhysicalValues::new(row_exprs));
 
         unimplemented!()
         // self.in_progress = Some(InProgressPipeline {

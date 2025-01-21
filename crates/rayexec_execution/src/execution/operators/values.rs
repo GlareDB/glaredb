@@ -6,13 +6,13 @@ use super::{
     ExecutableOperator,
     ExecuteInOutState,
     OperatorState,
-    PartitionAndOperatorStates,
     PartitionState,
     PollExecute,
     PollFinalize,
     UnaryInputStates,
 };
 use crate::arrays::batch::Batch;
+use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::evaluator::ExpressionEvaluator;
@@ -30,10 +30,34 @@ pub struct ValuesPartitionState {
 #[derive(Debug)]
 pub struct PhysicalValues {
     pub(crate) expressions: Vec<Vec<PhysicalScalarExpression>>,
+    pub(crate) output_types: Vec<DataType>,
+}
+
+impl PhysicalValues {
+    pub fn new(expressions: Vec<Vec<PhysicalScalarExpression>>) -> Self {
+        let datatypes = match expressions.first() {
+            Some(first) => first.iter().map(|expr| expr.datatype()).collect(),
+            None => {
+                return PhysicalValues {
+                    expressions: Vec::new(),
+                    output_types: Vec::new(),
+                }
+            }
+        };
+
+        PhysicalValues {
+            expressions,
+            output_types: datatypes,
+        }
+    }
 }
 
 impl ExecutableOperator for PhysicalValues {
     type States = UnaryInputStates;
+
+    fn output_types(&self) -> &[DataType] {
+        &self.output_types
+    }
 
     fn create_states(
         &mut self,
@@ -43,14 +67,7 @@ impl ExecutableOperator for PhysicalValues {
     ) -> Result<UnaryInputStates> {
         let states = (0..partitions)
             .map(|_| {
-                let out_buf = match self.expressions.first() {
-                    Some(first) => {
-                        let datatypes = first.iter().map(|expr| expr.datatype());
-                        Batch::try_new(datatypes, batch_size)?
-                    }
-                    None => Batch::empty(),
-                };
-
+                let out_buf = Batch::try_new(self.output_types.clone(), batch_size)?;
                 Ok(PartitionState::Values(ValuesPartitionState {
                     row_idx: 0,
                     out_buf,
@@ -211,7 +228,7 @@ mod tests {
             ],
         ];
 
-        let mut operator = PhysicalValues { expressions: exprs };
+        let mut operator = PhysicalValues::new(exprs);
         let mut states = operator
             .create_states(&test_database_context(), 1024, 1)
             .unwrap();
@@ -273,7 +290,7 @@ mod tests {
             ],
         ];
 
-        let mut operator = PhysicalValues { expressions: exprs };
+        let mut operator = PhysicalValues::new(exprs);
         let mut states = operator
             .create_states(&test_database_context(), 1024, 1)
             .unwrap();

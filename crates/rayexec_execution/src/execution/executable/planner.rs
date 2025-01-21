@@ -445,8 +445,11 @@ impl<'a> ExecutablePipelinePlanner<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::arrays::datatype::DataType;
     use crate::execution::operators::project::PhysicalProject;
     use crate::execution::operators::testutil::test_database_context;
+    use crate::execution::operators::union::PhysicalUnion;
+    use crate::execution::operators::values::PhysicalValues;
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
 
     #[test]
@@ -474,5 +477,59 @@ mod tests {
         assert_eq!(1, executable.len());
 
         assert_eq!(4, executable[0].partitions.len());
+    }
+
+    #[test]
+    fn plan_union_two_pipelines() {
+        let pipelines = [
+            IntermediatePipeline {
+                id: IntermediatePipelineId(0),
+                source: PipelineSource::InPipeline,
+                sink: PipelineSink::InPipeline,
+                operators: vec![
+                    PhysicalOperator::Values(PhysicalValues::new(vec![vec![
+                        PhysicalLiteralExpr::new("cat").into(),
+                    ]])),
+                    PhysicalOperator::Union(PhysicalUnion::new([DataType::Utf8])),
+                    PhysicalOperator::Project(PhysicalProject::new([PhysicalLiteralExpr::new(
+                        "a",
+                    )])),
+                ],
+            },
+            IntermediatePipeline {
+                id: IntermediatePipelineId(1),
+                source: PipelineSource::InPipeline,
+                sink: PipelineSink::OtherPipeline {
+                    id: IntermediatePipelineId(0),
+                    operator_idx: 1, // Union operator in pipeline 0
+                },
+                operators: vec![PhysicalOperator::Values(PhysicalValues::new(vec![vec![
+                    PhysicalLiteralExpr::new("dog").into(),
+                ]]))],
+            },
+        ];
+
+        let context = test_database_context();
+        let mut planner = ExecutablePipelinePlanner::new(
+            &context,
+            ExecutablePlanConfig {
+                partitions: 4,
+                batch_size: 1024,
+            },
+        );
+
+        let executable = planner.plan_pipelines(pipelines).unwrap();
+        assert_eq!(2, executable.len());
+
+        // Pipeline 1 will now have the union as its last operator.
+        let pipeline1 = executable
+            .iter()
+            .find(|ex| ex.pipeline_id == IntermediatePipelineId(1))
+            .unwrap();
+        assert_eq!(2, pipeline1.partitions[0].operators.len());
+        match executable[1].partitions[0].operators[1].physical.as_ref() {
+            PhysicalOperator::Union(_) => (),
+            other => panic!("expected union operator, got other: {other:?}"),
+        }
     }
 }

@@ -8,7 +8,6 @@ use super::{
     ExecutableOperator,
     ExecuteInOutState,
     OperatorState,
-    PartitionAndOperatorStates,
     PartitionState,
     PollExecute,
     PollFinalize,
@@ -61,11 +60,23 @@ struct BufferedPartitionBatch {
 /// Unions two input operations.
 #[derive(Debug)]
 pub struct PhysicalUnion {
-    pub(crate) datatypes: Vec<DataType>,
+    pub(crate) output_types: Vec<DataType>,
+}
+
+impl PhysicalUnion {
+    pub fn new(output_types: impl IntoIterator<Item = DataType>) -> Self {
+        PhysicalUnion {
+            output_types: output_types.into_iter().collect(),
+        }
+    }
 }
 
 impl ExecutableOperator for PhysicalUnion {
     type States = BinaryInputStates;
+
+    fn output_types(&self) -> &[DataType] {
+        &self.output_types
+    }
 
     fn create_states(
         &mut self,
@@ -92,7 +103,7 @@ impl ExecutableOperator for PhysicalUnion {
             buffers: (0..partitions)
                 .map(|_| {
                     Ok(Mutex::new(BufferedPartitionBatch {
-                        batch: Batch::try_new(self.datatypes.clone(), batch_size)?,
+                        batch: Batch::try_new(self.output_types.clone(), batch_size)?,
                         is_ready_for_pull: false,
                         is_finished: false,
                         buffering_waker: None,
@@ -255,7 +266,7 @@ mod tests {
     #[test]
     fn union_simple() {
         let mut operator = OperatorWrapper::new(PhysicalUnion {
-            datatypes: vec![DataType::Int32],
+            output_types: vec![DataType::Int32],
         });
         let mut states = operator
             .operator
