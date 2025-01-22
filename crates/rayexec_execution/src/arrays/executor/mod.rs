@@ -19,11 +19,9 @@ pub struct OutBuffer<'a, B: BufferManager = NopBufferManager> {
 
 impl<'a> OutBuffer<'a> {
     pub fn from_array(array: &'a mut Array) -> Result<Self> {
-        let next = array.next.as_mut().unwrap();
-
         Ok(OutBuffer {
-            buffer: next.data.try_as_mut()?,
-            validity: &mut next.validity,
+            buffer: array.data.try_as_mut()?,
+            validity: &mut array.validity,
         })
     }
 }

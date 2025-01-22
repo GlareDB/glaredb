@@ -38,10 +38,10 @@ impl UniformExecutor {
 
         let inputs = arrays
             .iter()
-            .map(|arr| S::get_addressable(&arr.next().data))
+            .map(|arr| S::get_addressable(&arr.data))
             .collect::<Result<Vec<_>>>()?;
 
-        let all_valid = arrays.iter().all(|arr| arr.next().validity.all_valid());
+        let all_valid = arrays.iter().all(|arr| arr.validity.all_valid());
 
         let mut output = O::get_addressable_mut(out.buffer)?;
 
@@ -60,7 +60,7 @@ impl UniformExecutor {
                 );
             }
         } else {
-            let validities: Vec<_> = arrays.iter().map(|arr| &arr.next().validity).collect();
+            let validities: Vec<_> = arrays.iter().map(|arr| &arr.validity).collect();
 
             for (output_idx, input_idx) in sel.into_iter().enumerate() {
                 let all_valid = validities.iter().all(|v| v.is_valid(input_idx));

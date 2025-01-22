@@ -33,10 +33,10 @@ impl UnaryExecutor {
             return Self::execute_flat::<S, _, _>(view, selection, out, op);
         }
 
-        let input = S::get_addressable(&array.next.as_ref().unwrap().data)?;
+        let input = S::get_addressable(&array.data)?;
         let mut output = O::get_addressable_mut(out.buffer)?;
 
-        let validity = &array.next.as_ref().unwrap().validity;
+        let validity = &array.validity;
 
         if validity.all_valid() {
             for (output_idx, input_idx) in selection.into_iter().enumerate() {
@@ -160,9 +160,8 @@ impl UnaryExecutor {
         S: MutablePhysicalStorage,
         Op: FnMut(&mut S::StorageType),
     {
-        let next = array.next_mut();
-        let validity = &next.validity;
-        let mut input = S::get_addressable_mut(next.data.try_as_mut()?)?;
+        let validity = &array.validity;
+        let mut input = S::get_addressable_mut(array.data.try_as_mut()?)?;
 
         if validity.all_valid() {
             for idx in selection.into_iter() {
@@ -288,7 +287,7 @@ mod tests {
 
         UnaryExecutor::execute_in_place::<PhysicalI32, _>(&mut array, 0..3, |v| *v += 2).unwrap();
 
-        let arr_slice = array.next().data.try_as_slice::<PhysicalI32>().unwrap();
+        let arr_slice = array.data.try_as_slice::<PhysicalI32>().unwrap();
         assert_eq!(&[3, 4, 5], arr_slice);
     }
 
@@ -406,7 +405,7 @@ mod tests {
         })
         .unwrap();
 
-        let out = array.next().data.try_as_string_view_addressable().unwrap();
+        let out = array.data.try_as_string_view_addressable().unwrap();
 
         assert_eq!("A", out.get(0).unwrap());
         assert_eq!("BB", out.get(1).unwrap());

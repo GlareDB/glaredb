@@ -92,7 +92,7 @@ fn make_list_from_values_inner<S: MutablePhysicalStorage>(
     let sel_len = sel.len();
     let capacity = sel.len() * inputs.len();
 
-    let list_buf = match output.next_mut().data.try_as_mut()?.get_secondary_mut() {
+    let list_buf = match output.data.try_as_mut()?.get_secondary_mut() {
         SecondaryBuffer::List(list) => list,
         _ => return Err(RayexecError::new("Expected list buffer")),
     };
@@ -102,7 +102,6 @@ fn make_list_from_values_inner<S: MutablePhysicalStorage>(
     // TODO: Need to store buffer manager somewhere else.
     list_buf
         .child
-        .next_mut()
         .data
         .try_as_mut()?
         .reserve_primary::<S>(capacity)?;
@@ -117,23 +116,20 @@ fn make_list_from_values_inner<S: MutablePhysicalStorage>(
     // know if we still have room to push to the child array.
     list_buf.entries = capacity;
 
-    let child_next = list_buf.child.next_mut();
+    let child_next = &mut list_buf.child;
     let mut child_outputs = S::get_addressable_mut(child_next.data.try_as_mut()?)?;
     let child_validity = &mut child_next.validity;
 
     // TODO: Possibly avoid allocating here?
     let col_bufs = inputs
         .iter()
-        .map(|arr| S::get_addressable(&arr.next().data))
+        .map(|arr| S::get_addressable(&arr.data))
         .collect::<Result<Vec<_>>>()?;
 
     // Write the list values from the input batch.
     let mut output_idx = 0;
     for row_idx in sel {
-        for (col, validity) in col_bufs
-            .iter()
-            .zip(inputs.iter().map(|arr| &arr.next().validity))
-        {
+        for (col, validity) in col_bufs.iter().zip(inputs.iter().map(|arr| &arr.validity)) {
             if validity.is_valid(row_idx) {
                 child_outputs.put(output_idx, col.get(row_idx).unwrap());
             } else {
@@ -146,8 +142,7 @@ fn make_list_from_values_inner<S: MutablePhysicalStorage>(
     std::mem::drop(child_outputs);
 
     // Now generate and set the metadatas.
-    let mut out =
-        PhysicalList::get_addressable_mut(output.next.as_mut().unwrap().data.try_as_mut()?)?;
+    let mut out = PhysicalList::get_addressable_mut(output.data.try_as_mut()?)?;
 
     let len = inputs.len() as i32;
     for output_idx in 0..sel_len {

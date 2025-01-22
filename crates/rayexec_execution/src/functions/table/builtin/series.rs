@@ -183,7 +183,7 @@ impl SeriesParams {
     ///
     /// Returns the count of values written to `out`.
     fn generate_next(&mut self, out: &mut Array) -> Result<usize> {
-        let mut out = PhysicalI64::get_addressable_mut(out.next_mut().data.try_as_mut()?)?;
+        let mut out = PhysicalI64::get_addressable_mut(out.data.try_as_mut()?)?;
 
         let mut idx = 0;
         if self.curr < self.stop && self.step > 0 {

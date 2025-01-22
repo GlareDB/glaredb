@@ -52,17 +52,17 @@ impl BinaryListReducer {
             // TODO
         }
 
-        let inner1 = match array1.next().data.get_secondary() {
+        let inner1 = match array1.data.get_secondary() {
             SecondaryBuffer::List(list) => &list.child,
             _ => return Err(RayexecError::new("Array 1 not a list array")),
         };
 
-        let inner2 = match array2.next().data.get_secondary() {
+        let inner2 = match array2.data.get_secondary() {
             SecondaryBuffer::List(list) => &list.child,
             _ => return Err(RayexecError::new("Array 2 not a list array")),
         };
 
-        if !inner1.next().validity.all_valid() || !inner2.next().validity.all_valid() {
+        if !inner1.validity.all_valid() || !inner2.validity.all_valid() {
             // TODO: This can be more selective. Rows that don't conform
             // could be skipped with the selections.
             return Err(RayexecError::new(
@@ -70,16 +70,16 @@ impl BinaryListReducer {
             ));
         }
 
-        let metadata1 = PhysicalList::get_addressable(&array1.next().data)?;
-        let metadata2 = PhysicalList::get_addressable(&array2.next().data)?;
+        let metadata1 = PhysicalList::get_addressable(&array1.data)?;
+        let metadata2 = PhysicalList::get_addressable(&array2.data)?;
 
-        let validity1 = &array1.next().validity;
-        let validity2 = &array2.next().validity;
+        let validity1 = &array1.validity;
+        let validity2 = &array2.validity;
 
         let mut output = O::get_addressable_mut(out.buffer)?;
 
-        let input1 = S1::get_addressable(&inner1.next().data)?;
-        let input2 = S2::get_addressable(&inner2.next().data)?;
+        let input1 = S1::get_addressable(&inner1.data)?;
+        let input2 = S2::get_addressable(&inner2.data)?;
 
         if validity1.all_valid() && validity2.all_valid() {
             for (output_idx, (input1_idx, input2_idx)) in

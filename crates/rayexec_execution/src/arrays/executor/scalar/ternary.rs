@@ -52,15 +52,15 @@ impl TernaryExecutor {
 
         // TODO: length validation.
 
-        let input1 = S1::get_addressable(&array1.next().data)?;
-        let input2 = S2::get_addressable(&array2.next().data)?;
-        let input3 = S3::get_addressable(&array3.next().data)?;
+        let input1 = S1::get_addressable(&array1.data)?;
+        let input2 = S2::get_addressable(&array2.data)?;
+        let input3 = S3::get_addressable(&array3.data)?;
 
         let mut output = O::get_addressable_mut(out.buffer)?;
 
-        let validity1 = &array1.next().validity;
-        let validity2 = &array2.next().validity;
-        let validity3 = &array3.next().validity;
+        let validity1 = &array1.validity;
+        let validity2 = &array2.validity;
+        let validity3 = &array3.validity;
 
         if validity1.all_valid() && validity2.all_valid() && validity3.all_valid() {
             for (output_idx, (input1_idx, (input2_idx, input3_idx))) in sel1

@@ -139,7 +139,7 @@ mod tests {
             ListItemMetadata { offset: 4, len: 2 },
         ];
 
-        let s = PhysicalList::get_addressable(&out.next().data).unwrap();
+        let s = PhysicalList::get_addressable(&out.data).unwrap();
         assert_eq!(expected_metas, s);
     }
 }

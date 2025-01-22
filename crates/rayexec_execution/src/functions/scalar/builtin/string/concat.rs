@@ -77,7 +77,6 @@ impl ScalarFunctionImpl for StringConcatImpl {
                 // TODO: Zero args should actually error during planning.
                 // Currently this just sets everything to an empty string.
                 let mut addressable = output
-                    .next_mut()
                     .data
                     .try_as_mut()?
                     .try_as_string_view_addressable_mut()?;

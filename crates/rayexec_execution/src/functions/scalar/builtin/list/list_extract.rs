@@ -172,12 +172,11 @@ where
         _ => return Err(RayexecError::new("Missing secondary buffer for list")),
     };
 
-    let child_buf = S::get_addressable(&child.next().data)?;
-    let child_validity = &child.next().validity;
+    let child_buf = S::get_addressable(&child.data)?;
+    let child_validity = &child.validity;
 
-    let out_next = output.next_mut();
-    let mut out_buffer = S::get_addressable_mut(out_next.data.try_as_mut()?)?;
-    let out_validity = &mut out_next.validity;
+    let mut out_buffer = S::get_addressable_mut(output.data.try_as_mut()?)?;
+    let out_validity = &mut output.validity;
 
     for (output_idx, input_idx) in sel.into_iter().enumerate() {
         let sel_idx = flat.selection.get(input_idx).unwrap();
@@ -307,7 +306,7 @@ mod tests {
         .unwrap();
 
         make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
-        lists.next_mut().validity.set_invalid(1); // [2, 5] => NULL
+        lists.validity.set_invalid(1); // [2, 5] => NULL
 
         let mut second_elements =
             Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();

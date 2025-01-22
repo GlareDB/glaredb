@@ -200,9 +200,8 @@ where
     S: MutablePhysicalStorage,
     State: AggregateState<I, S::StorageType>,
 {
-    let next = output.next_mut();
-    let buffer = &mut S::get_addressable_mut(next.data.try_as_mut()?)?;
-    let validity = &mut next.validity;
+    let buffer = &mut S::get_addressable_mut(output.data.try_as_mut()?)?;
+    let validity = &mut output.validity;
 
     for (idx, state) in states.iter_mut().enumerate() {
         state.finalize(PutBuffer {

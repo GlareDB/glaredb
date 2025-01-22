@@ -21,7 +21,7 @@ where
     B: BufferManager,
 {
     pub fn from_array(array: &'a Array<B>) -> Result<Self> {
-        let data = &array.next.as_ref().unwrap().data;
+        let data = &array.data;
         if array.is_dictionary() {
             let selection = data.try_as_slice::<PhysicalDictionary>()?;
 
@@ -53,7 +53,7 @@ where
                 selection: Selection::constant(s.len(), const_buffer.row_reference),
             })
         } else {
-            let validity = &array.next.as_ref().unwrap().validity;
+            let validity = &array.validity;
 
             Ok(FlatArrayView {
                 validity,

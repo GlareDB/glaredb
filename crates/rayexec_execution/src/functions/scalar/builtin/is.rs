@@ -105,7 +105,6 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
         let input = &input.arrays()[0];
 
         let out = output
-            .next_mut()
             .data
             .try_as_mut()?
             .try_as_slice_mut::<PhysicalBool>()?;
@@ -313,7 +312,6 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT
         let input = &input.arrays()[0];
 
         let out = output
-            .next_mut()
             .data
             .try_as_mut()?
             .try_as_slice_mut::<PhysicalBool>()?;
@@ -365,7 +363,7 @@ mod tests {
         let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
-        let s = out.next().data.try_as_slice::<PhysicalBool>().unwrap();
+        let s = out.data.try_as_slice::<PhysicalBool>().unwrap();
 
         let expected = Array::try_from_iter([false, false, false]).unwrap();
 

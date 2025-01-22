@@ -28,8 +28,8 @@ impl UnaryNonNullUpdater {
 
         // TODO: Length check.
 
-        let input = S::get_addressable(&array.next().data)?;
-        let validity = &array.next().validity;
+        let input = S::get_addressable(&array.data)?;
+        let validity = &array.validity;
 
         if validity.all_valid() {
             for (input_idx, state_idx) in selection.into_iter().zip(mapping.into_iter()) {

@@ -225,10 +225,10 @@ mod tests {
     #[test]
     fn assert_i32_arrays_eq_with_invalid() {
         let mut array1 = Array::try_from_iter([4, 5, 6]).unwrap();
-        array1.next_mut().validity.set_invalid(1);
+        array1.validity.set_invalid(1);
 
         let mut array2 = Array::try_from_iter([4, 8, 6]).unwrap();
-        array2.next_mut().validity.set_invalid(1);
+        array2.validity.set_invalid(1);
 
         assert_arrays_eq(&array1, &array2);
     }

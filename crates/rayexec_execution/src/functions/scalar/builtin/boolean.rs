@@ -76,7 +76,6 @@ impl ScalarFunctionImpl for AndImpl {
             0 => {
                 // TODO: Default to false?
                 let vals = output
-                    .next_mut()
                     .data
                     .try_as_mut()?
                     .try_as_slice_mut::<PhysicalBool>()?;
@@ -180,7 +179,6 @@ impl ScalarFunctionImpl for OrImpl {
             0 => {
                 // TODO: Default to false?
                 let vals = output
-                    .next_mut()
                     .data
                     .try_as_mut()?
                     .try_as_slice_mut::<PhysicalBool>()?;

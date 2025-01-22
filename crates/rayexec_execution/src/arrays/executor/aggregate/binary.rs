@@ -26,11 +26,11 @@ impl BinaryNonNullUpdater {
 
         // TODO: Length check.
 
-        let input1 = S1::get_addressable(&array1.next().data)?;
-        let input2 = S2::get_addressable(&array2.next().data)?;
+        let input1 = S1::get_addressable(&array1.data)?;
+        let input2 = S2::get_addressable(&array2.data)?;
 
-        let validity1 = &array1.next().validity;
-        let validity2 = &array2.next().validity;
+        let validity1 = &array1.validity;
+        let validity2 = &array2.validity;
 
         if validity1.all_valid() && validity2.all_valid() {
             for (input_idx, state_idx) in selection.into_iter().zip(mapping.into_iter()) {
