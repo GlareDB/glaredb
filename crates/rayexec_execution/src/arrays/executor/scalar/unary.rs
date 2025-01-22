@@ -1,7 +1,6 @@
 use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
-use super::validate_logical_len;
 use crate::arrays::array::flat::FlatArrayView;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -11,11 +10,7 @@ use crate::arrays::array::physical_type::{
     PhysicalStorage,
 };
 use crate::arrays::array::Array;
-use crate::arrays::bitmap::Bitmap;
-use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
 use crate::arrays::executor::{OutBuffer, PutBuffer};
-use crate::arrays::selection;
-use crate::arrays::storage::AddressableStorage;
 
 #[derive(Debug, Clone)]
 pub struct UnaryExecutor;
@@ -33,7 +28,7 @@ impl UnaryExecutor {
         O: MutablePhysicalStorage,
         for<'a> Op: FnMut(&S::StorageType, PutBuffer<O::AddressableMut<'a>>),
     {
-        if array.is_dictionary() {
+        if array.is_dictionary() || array.is_constant() {
             let view = array.flat_view()?;
             return Self::execute_flat::<S, _, _>(view, selection, out, op);
         }
@@ -114,7 +109,7 @@ impl UnaryExecutor {
     /// Valid values are represented with Some, invalid values are represented
     /// with None.
     ///
-    /// Note this should really only be used for tests.
+    /// `op` will be called with the output index for that row.
     pub fn for_each_flat<S, Op>(
         array: FlatArrayView<'_>,
         selection: impl IntoExactSizeIterator<Item = usize>,
@@ -218,142 +213,6 @@ impl UnaryExecutor {
 
         Ok(())
     }
-
-    // TODO: Remove
-    /// Executes `op` on every non-null input.
-    pub fn execute2<'a, S, B, Op>(
-        array: &'a Array,
-        builder: ArrayBuilder<B>,
-        mut op: Op,
-    ) -> Result<Array>
-    where
-        Op: FnMut(S::Type<'a>, &mut OutputBuffer<B>),
-        S: PhysicalStorage,
-        B: ArrayDataBuffer,
-    {
-        let len = validate_logical_len(&builder.buffer, array)?;
-
-        let selection = array.selection_vector();
-        let mut out_validity = None;
-
-        let mut output_buffer = OutputBuffer {
-            idx: 0,
-            buffer: builder.buffer,
-        };
-
-        match array.validity() {
-            Some(validity) => {
-                let values = S::get_storage(&array.data2)?;
-                let mut out_validity_builder = Bitmap::new_with_all_true(len);
-
-                for idx in 0..len {
-                    let sel = selection::get(selection, idx);
-                    if !validity.value(sel) {
-                        out_validity_builder.set_unchecked(idx, false);
-                        continue;
-                    }
-
-                    let val = unsafe { values.get_unchecked(sel) };
-
-                    output_buffer.idx = idx;
-                    op(val, &mut output_buffer);
-                }
-
-                out_validity = Some(out_validity_builder.into())
-            }
-            None => {
-                let values = S::get_storage(&array.data2)?;
-                for idx in 0..len {
-                    let sel = selection::get(selection, idx);
-                    let val = unsafe { values.get_unchecked(sel) };
-
-                    output_buffer.idx = idx;
-                    op(val, &mut output_buffer);
-                }
-            }
-        }
-
-        let data = output_buffer.buffer.into_data();
-
-        Ok(Array {
-            datatype: builder.datatype,
-            selection2: None,
-            validity2: out_validity,
-            data2: data,
-            next: None,
-        })
-    }
-
-    /// Helper for iterating over all values in an array, taking into account
-    /// the array's selection vector and validity mask.
-    ///
-    /// `op` is called for each logical entry in the array with the index and
-    /// either Some(val) if the value is valid, or None if it's not.
-    pub fn for_each2<'a, S, Op>(array: &'a Array, mut op: Op) -> Result<()>
-    where
-        Op: FnMut(usize, Option<S::Type<'a>>),
-        S: PhysicalStorage,
-    {
-        let selection = array.selection_vector();
-        let len = array.logical_len();
-
-        match array.validity() {
-            Some(validity) => {
-                let values = S::get_storage(&array.data2)?;
-
-                for idx in 0..len {
-                    let sel = selection::get(selection, idx);
-                    if !validity.value(sel) {
-                        op(idx, None);
-                        continue;
-                    }
-
-                    let val = unsafe { values.get_unchecked(sel) };
-                    op(idx, Some(val));
-                }
-            }
-            None => {
-                let values = S::get_storage(&array.data2)?;
-                for idx in 0..len {
-                    let sel = selection::get(selection, idx);
-                    let val = unsafe { values.get_unchecked(sel) };
-                    op(idx, Some(val));
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Gets the value some index in the array.
-    ///
-    /// Returns Some if the value is valid, None otherwise.
-    pub fn value_at2<S>(array: &Array, idx: usize) -> Result<Option<S::Type<'_>>>
-    where
-        S: PhysicalStorage,
-    {
-        let selection = array.selection_vector();
-
-        match array.validity() {
-            Some(validity) => {
-                let values = S::get_storage(&array.data2)?;
-
-                let sel = selection::get(selection, idx);
-                if !validity.value(sel) {
-                    Ok(None)
-                } else {
-                    let val = unsafe { values.get_unchecked(sel) };
-                    Ok(Some(val))
-                }
-            }
-            None => {
-                let values = S::get_storage(&array.data2)?;
-                let sel = selection::get(selection, idx);
-                let val = unsafe { values.get_unchecked(sel) };
-                Ok(Some(val))
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -368,6 +227,8 @@ mod tests {
     use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::array::string_view::{StringViewAddressableMut, StringViewHeap};
     use crate::arrays::array::validity::Validity;
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]
     fn int32_inc_by_2() {
@@ -579,5 +440,23 @@ mod tests {
 
         let out_slice = out.try_as_slice::<PhysicalI32>().unwrap();
         assert_eq!(&[5, 5, 4, 3, 3, 5], out_slice);
+    }
+
+    #[test]
+    fn int32_inc_by_2_constant() {
+        let array = Array::try_new_constant(&Arc::new(NopBufferManager), &3.into(), 2).unwrap();
+
+        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 2).unwrap();
+
+        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
+            &array,
+            0..2,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |&v, buf| buf.put(&(v + 2)),
+        )
+        .unwrap();
+
+        let expected = Array::try_from_iter([5, 5]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 }

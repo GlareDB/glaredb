@@ -15,6 +15,12 @@ pub struct RawBuffer<B: BufferManager> {
     /// This stores the pointer as a u8 pointer and it'll be casted to the right
     /// type during array operations.
     pub(crate) ptr: NonNull<u8>,
+    /// Capacity for the number of elements (`T`, not bytes) this buffer can
+    /// hold.
+    ///
+    /// This is needed in additional to the reservation to properly handle
+    /// zero-sized types (untyped null).
+    pub(crate) capacity: usize,
 }
 
 unsafe impl<B: BufferManager> Send for RawBuffer<B> {}
@@ -26,12 +32,11 @@ where
 {
     /// Try to create a new buffer with a given capacity for type `T`.
     pub fn try_with_capacity<T>(manager: &Arc<B>, cap: usize) -> Result<Self> {
-        assert!(std::mem::size_of::<T>() > 0);
-
         if cap == 0 {
             return Ok(RawBuffer {
                 reservation: manager.reserve_external(0, 0)?,
                 ptr: NonNull::dangling(),
+                capacity: 0,
             });
         }
 
@@ -44,23 +49,47 @@ where
 
         let reservation = manager.reserve_from_layout(layout)?;
 
-        Ok(RawBuffer { reservation, ptr })
+        Ok(RawBuffer {
+            reservation,
+            ptr,
+            capacity: cap,
+        })
     }
 
     pub unsafe fn as_slice<T>(&self) -> &[T] {
         debug_assert_eq!(std::mem::align_of::<T>(), self.reservation.align());
-        debug_assert_eq!(0, self.reservation.size() % std::mem::size_of::<T>());
+        debug_assert_eq!(
+            0,
+            if std::mem::size_of::<T>() > 0 {
+                self.reservation.size() % std::mem::size_of::<T>()
+            } else {
+                0
+            }
+        );
+        debug_assert_eq!(
+            self.reservation.size(),
+            self.capacity * std::mem::size_of::<T>()
+        );
 
-        let cap = self.reservation.size() / std::mem::size_of::<T>();
-        std::slice::from_raw_parts(self.ptr.as_ptr().cast::<T>().cast_const(), cap)
+        std::slice::from_raw_parts(self.ptr.as_ptr().cast::<T>().cast_const(), self.capacity)
     }
 
     pub unsafe fn as_slice_mut<T>(&mut self) -> &mut [T] {
         debug_assert_eq!(std::mem::align_of::<T>(), self.reservation.align());
-        debug_assert_eq!(0, self.reservation.size() % std::mem::size_of::<T>());
+        debug_assert_eq!(
+            0,
+            if std::mem::size_of::<T>() > 0 {
+                self.reservation.size() % std::mem::size_of::<T>()
+            } else {
+                0
+            }
+        );
+        debug_assert_eq!(
+            self.reservation.size(),
+            self.capacity * std::mem::size_of::<T>()
+        );
 
-        let cap = self.reservation.size() / std::mem::size_of::<T>();
-        std::slice::from_raw_parts_mut(self.ptr.as_ptr().cast::<T>(), cap)
+        std::slice::from_raw_parts_mut(self.ptr.as_ptr().cast::<T>(), self.capacity)
     }
 
     /// Reserves memory for holding `additional` number of `T` elements.
@@ -68,7 +97,18 @@ where
     /// This will reallocate using the buffer manager on the existing memory reservation.
     pub unsafe fn reserve<T>(&mut self, additional: usize) -> Result<()> {
         debug_assert_eq!(std::mem::align_of::<T>(), self.reservation.align());
-        debug_assert_eq!(0, self.reservation.size() % std::mem::size_of::<T>());
+        debug_assert_eq!(
+            0,
+            if std::mem::size_of::<T>() > 0 {
+                self.reservation.size() % std::mem::size_of::<T>()
+            } else {
+                0
+            }
+        );
+        debug_assert_eq!(
+            self.reservation.size(),
+            self.capacity * std::mem::size_of::<T>()
+        );
 
         let cap = self.reservation.size() / std::mem::size_of::<T>();
         let layout = Layout::array::<T>(cap + additional).context("failed to create layout")?;
@@ -87,6 +127,7 @@ where
         };
 
         self.reservation = self.reservation.manager().reserve_from_layout(layout)?;
+        self.capacity += additional;
 
         Ok(())
     }

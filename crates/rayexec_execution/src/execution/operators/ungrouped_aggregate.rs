@@ -15,6 +15,7 @@ use super::{
     PollFinalize,
     PollPull,
     PollPush,
+    UnaryInputStates,
 };
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
@@ -93,7 +94,7 @@ impl PhysicalUngroupedAggregate {
             } else {
                 agg.function.function_impl.new_states()
             };
-            state.new_states(1);
+            state.new_groups(1);
             states.push(state);
         }
 
@@ -102,7 +103,9 @@ impl PhysicalUngroupedAggregate {
 }
 
 impl ExecutableOperator for PhysicalUngroupedAggregate {
-    fn create_states(
+    type States = UnaryInputStates;
+
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -150,12 +153,8 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         match state {
             UngroupedAggregatePartitionState::Aggregating { agg_states, .. } => {
                 // All rows map to the same group (group 0)
-                let addrs: Vec<_> = (0..batch.num_rows())
-                    .map(|_| GroupAddress {
-                        chunk_idx: 0,
-                        row_idx: 0,
-                    })
-                    .collect();
+                let selection = batch.selection();
+                let mapping = vec![0; batch.num_rows()];
 
                 for (agg_idx, agg) in self.aggregates.iter().enumerate() {
                     let cols: Vec<_> = agg
@@ -164,8 +163,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                         .map(|expr| batch.array(expr.idx).expect("column to exist"))
                         .collect();
 
-                    agg_states[agg_idx]
-                        .update_states(&cols, ChunkGroupAddressIter::new(0, &addrs))?;
+                    agg_states[agg_idx].update_group_states(&cols, selection, &mapping)?;
                 }
 
                 // Keep pushing.
@@ -177,7 +175,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -209,10 +207,11 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 for (mut local_agg_state, global_agg_state) in
                     agg_states.into_iter().zip(shared.agg_states.iter_mut())
                 {
-                    global_agg_state.combine(
-                        &mut local_agg_state,
-                        ChunkGroupAddressIter::new(0, &mapping),
-                    )?;
+                    unimplemented!()
+                    // global_agg_state.combine(
+                    //     &mut local_agg_state,
+                    //     ChunkGroupAddressIter::new(0, &mapping),
+                    // )?;
                 }
 
                 shared.remaining -= 1;
@@ -232,17 +231,18 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                     // Lock no longer needed.
                     std::mem::drop(shared);
 
-                    let arrays = final_states
-                        .iter_mut()
-                        .map(|s| s.finalize())
-                        .collect::<Result<Vec<_>>>()?;
+                    unimplemented!()
+                    // let arrays = final_states
+                    //     .iter_mut()
+                    //     .map(|s| s.finalize())
+                    //     .collect::<Result<Vec<_>>>()?;
 
-                    let batch = Batch::try_from_arrays(arrays)?;
+                    // let batch = Batch::try_from_arrays(arrays)?;
 
-                    *state = UngroupedAggregatePartitionState::Producing {
-                        partition_idx: *partition_idx,
-                        batches: vec![batch],
-                    }
+                    // *state = UngroupedAggregatePartitionState::Producing {
+                    //     partition_idx: *partition_idx,
+                    //     batches: vec![batch],
+                    // }
                 }
 
                 Ok(PollFinalize::Finalized)

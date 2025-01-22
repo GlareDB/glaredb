@@ -237,103 +237,104 @@ impl PageWriter for BufferedPageWriter {
 /// Write an array into the column writer.
 // TODO: Validity.
 fn write_array<P: PageWriter>(writer: &mut ColumnWriter<P>, array: &Array) -> Result<()> {
-    if array.has_selection() {
-        return Err(RayexecError::new(
-            "Array needs to be unselected before it can be written",
-        ));
-    }
+    unimplemented!()
+    // if array.has_selection() {
+    //     return Err(RayexecError::new(
+    //         "Array needs to be unselected before it can be written",
+    //     ));
+    // }
 
-    match writer {
-        ColumnWriter::BoolColumnWriter(writer) => {
-            match array.array_data() {
-                ArrayData2::Boolean(d) => {
-                    let bools: Vec<_> = d.as_ref().as_ref().iter().collect();
-                    writer
-                        .write_batch(&bools, None, None)
-                        .context("failed to write bools")?; // TODO: Def, rep
-                    Ok(())
-                }
-                _ => Err(RayexecError::new("expected bool data")),
-            }
-        }
-        ColumnWriter::Int32ColumnWriter(writer) => match array.array_data() {
-            ArrayData2::Int32(d) => {
-                writer
-                    .write_batch(d.as_slice(), None, None)
-                    .context("failed to write i32 data")?;
-                Ok(())
-            }
-            ArrayData2::UInt32(d) => {
-                // SAFETY: u32 and i32 safe to cast to/from. This follows
-                // upstream behavior.
-                let data = unsafe { d.try_reintepret_cast::<i32>()? };
-                writer
-                    .write_batch(data.as_slice(), None, None)
-                    .context("failed to write i32 data")?;
-                Ok(())
-            }
-            _ => Err(RayexecError::new("expected i32/u32 data")),
-        },
-        ColumnWriter::Int64ColumnWriter(writer) => match array.array_data() {
-            ArrayData2::Int64(d) => {
-                writer
-                    .write_batch(d.as_slice(), None, None)
-                    .context("failed to write i64 data")?;
-                Ok(())
-            }
-            ArrayData2::UInt64(d) => {
-                // SAFETY: u64 and i64 safe to cast to/from. This follows
-                // upstream behavior.
-                let data = unsafe { d.try_reintepret_cast::<i64>()? };
-                writer
-                    .write_batch(data.as_slice(), None, None)
-                    .context("failed to write i64 data")?;
-                Ok(())
-            }
-            _ => Err(RayexecError::new("expected i64/u64 data")),
-        },
-        ColumnWriter::FloatColumnWriter(writer) => match array.array_data() {
-            ArrayData2::Float32(d) => {
-                writer
-                    .write_batch(d.as_slice(), None, None)
-                    .context("failed to write f32 data")?;
-                Ok(())
-            }
-            _ => Err(RayexecError::new("expected f32 data")),
-        },
-        ColumnWriter::DoubleColumnWriter(writer) => match array.array_data() {
-            ArrayData2::Float64(d) => {
-                writer
-                    .write_batch(d.as_slice(), None, None)
-                    .context("failed to write f64 data")?;
-                Ok(())
-            }
-            _ => Err(RayexecError::new("expected f64 data")),
-        },
-        ColumnWriter::ByteArrayColumnWriter(writer) => match array.array_data() {
-            ArrayData2::Binary(_) => {
-                // TODO: Try not to copy here. There's a hard requirement on the
-                // physical type being `Bytes`, and so a conversion needs to
-                // happen somewhere.
-                let storage = PhysicalBinary::get_storage(array.array_data())?;
-                let mut data = Vec::with_capacity(storage.len());
-                for idx in 0..storage.len() {
-                    let val = storage.get(idx).required("binary data")?;
-                    let val = Bytes::copy_from_slice(val);
-                    data.push(ByteArray::from(val));
-                }
+    // match writer {
+    //     ColumnWriter::BoolColumnWriter(writer) => {
+    //         match array.array_data() {
+    //             ArrayData2::Boolean(d) => {
+    //                 let bools: Vec<_> = d.as_ref().as_ref().iter().collect();
+    //                 writer
+    //                     .write_batch(&bools, None, None)
+    //                     .context("failed to write bools")?; // TODO: Def, rep
+    //                 Ok(())
+    //             }
+    //             _ => Err(RayexecError::new("expected bool data")),
+    //         }
+    //     }
+    //     ColumnWriter::Int32ColumnWriter(writer) => match array.array_data() {
+    //         ArrayData2::Int32(d) => {
+    //             writer
+    //                 .write_batch(d.as_slice(), None, None)
+    //                 .context("failed to write i32 data")?;
+    //             Ok(())
+    //         }
+    //         ArrayData2::UInt32(d) => {
+    //             // SAFETY: u32 and i32 safe to cast to/from. This follows
+    //             // upstream behavior.
+    //             let data = unsafe { d.try_reintepret_cast::<i32>()? };
+    //             writer
+    //                 .write_batch(data.as_slice(), None, None)
+    //                 .context("failed to write i32 data")?;
+    //             Ok(())
+    //         }
+    //         _ => Err(RayexecError::new("expected i32/u32 data")),
+    //     },
+    //     ColumnWriter::Int64ColumnWriter(writer) => match array.array_data() {
+    //         ArrayData2::Int64(d) => {
+    //             writer
+    //                 .write_batch(d.as_slice(), None, None)
+    //                 .context("failed to write i64 data")?;
+    //             Ok(())
+    //         }
+    //         ArrayData2::UInt64(d) => {
+    //             // SAFETY: u64 and i64 safe to cast to/from. This follows
+    //             // upstream behavior.
+    //             let data = unsafe { d.try_reintepret_cast::<i64>()? };
+    //             writer
+    //                 .write_batch(data.as_slice(), None, None)
+    //                 .context("failed to write i64 data")?;
+    //             Ok(())
+    //         }
+    //         _ => Err(RayexecError::new("expected i64/u64 data")),
+    //     },
+    //     ColumnWriter::FloatColumnWriter(writer) => match array.array_data() {
+    //         ArrayData2::Float32(d) => {
+    //             writer
+    //                 .write_batch(d.as_slice(), None, None)
+    //                 .context("failed to write f32 data")?;
+    //             Ok(())
+    //         }
+    //         _ => Err(RayexecError::new("expected f32 data")),
+    //     },
+    //     ColumnWriter::DoubleColumnWriter(writer) => match array.array_data() {
+    //         ArrayData2::Float64(d) => {
+    //             writer
+    //                 .write_batch(d.as_slice(), None, None)
+    //                 .context("failed to write f64 data")?;
+    //             Ok(())
+    //         }
+    //         _ => Err(RayexecError::new("expected f64 data")),
+    //     },
+    //     ColumnWriter::ByteArrayColumnWriter(writer) => match array.array_data() {
+    //         ArrayData2::Binary(_) => {
+    //             // TODO: Try not to copy here. There's a hard requirement on the
+    //             // physical type being `Bytes`, and so a conversion needs to
+    //             // happen somewhere.
+    //             let storage = PhysicalBinary::get_storage(array.array_data())?;
+    //             let mut data = Vec::with_capacity(storage.len());
+    //             for idx in 0..storage.len() {
+    //                 let val = storage.get(idx).required("binary data")?;
+    //                 let val = Bytes::copy_from_slice(val);
+    //                 data.push(ByteArray::from(val));
+    //             }
 
-                writer
-                    .write_batch(&data, None, None)
-                    .context("failed to write binary data")?;
+    //             writer
+    //                 .write_batch(&data, None, None)
+    //                 .context("failed to write binary data")?;
 
-                Ok(())
-            }
-            _ => Err(RayexecError::new("expected binary data")),
-        },
-        ColumnWriter::Int96ColumnWriter(_) => not_implemented!("int96 writer"),
-        ColumnWriter::FixedLenByteArrayColumnWriter(_) => {
-            not_implemented!("fixed byte array writer")
-        }
-    }
+    //             Ok(())
+    //         }
+    //         _ => Err(RayexecError::new("expected binary data")),
+    //     },
+    //     ColumnWriter::Int96ColumnWriter(_) => not_implemented!("int96 writer"),
+    //     ColumnWriter::FixedLenByteArrayColumnWriter(_) => {
+    //         not_implemented!("fixed byte array writer")
+    //     }
+    // }
 }

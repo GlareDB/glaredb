@@ -2,7 +2,7 @@ use rayexec_error::{RayexecError, Result};
 
 use super::array_buffer::{ArrayBuffer, SecondaryBuffer};
 use super::buffer_manager::{BufferManager, NopBufferManager};
-use super::physical_type::PhysicalDictionary;
+use super::physical_type::{PhysicalConstant, PhysicalDictionary};
 use super::selection::Selection;
 use super::validity::Validity;
 use super::Array;
@@ -39,13 +39,26 @@ where
                 array_buffer: &dict_buffer.buffer,
                 selection: Selection::slice(selection),
             })
+        } else if array.is_constant() {
+            let s = data.try_as_slice::<PhysicalConstant>()?;
+
+            let const_buffer = match data.get_secondary() {
+                SecondaryBuffer::Constant(constant) => constant,
+                _ => return Err(RayexecError::new("Secondary buffer not a constant buffer")),
+            };
+
+            Ok(FlatArrayView {
+                validity: &const_buffer.validity,
+                array_buffer: &const_buffer.buffer,
+                selection: Selection::constant(s.len(), const_buffer.row_reference),
+            })
         } else {
             let validity = &array.next.as_ref().unwrap().validity;
 
             Ok(FlatArrayView {
                 validity,
                 array_buffer: data,
-                selection: Selection::linear(array.capacity()),
+                selection: Selection::linear(0, array.capacity()),
             })
         }
     }

@@ -3,14 +3,16 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::PhysicalF64;
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    new_binary_aggregate_states,
-    primitive_finalize,
+    binary_update,
+    drain,
     AggregateGroupStates,
+    TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
@@ -72,10 +74,11 @@ pub struct CovarPopImpl;
 
 impl AggregateFunctionImpl for CovarPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             CovarState::<CovarPopFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            binary_update::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
@@ -130,25 +133,26 @@ pub struct CovarSampImpl;
 
 impl AggregateFunctionImpl for CovarSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
+        Box::new(TypedAggregateGroupStates::new(
             CovarState::<CovarSampFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+            binary_update::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
+            drain::<PhysicalF64, _, _>,
+        ))
     }
 }
 
 pub trait CovarFinalize: Sync + Send + Debug + Default + 'static {
-    fn finalize(co_moment: f64, count: i64) -> (f64, bool);
+    fn finalize(co_moment: f64, count: i64) -> Option<f64>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CovarSampFinalize;
 
 impl CovarFinalize for CovarSampFinalize {
-    fn finalize(co_moment: f64, count: i64) -> (f64, bool) {
+    fn finalize(co_moment: f64, count: i64) -> Option<f64> {
         match count {
-            0 | 1 => (0.0, false),
-            _ => (co_moment / (count - 1) as f64, true),
+            0 | 1 => None,
+            _ => Some(co_moment / (count - 1) as f64),
         }
     }
 }
@@ -157,10 +161,10 @@ impl CovarFinalize for CovarSampFinalize {
 pub struct CovarPopFinalize;
 
 impl CovarFinalize for CovarPopFinalize {
-    fn finalize(co_moment: f64, count: i64) -> (f64, bool) {
+    fn finalize(co_moment: f64, count: i64) -> Option<f64> {
         match count {
-            0 => (0.0, false),
-            _ => (co_moment / count as f64, true),
+            0 => None,
+            _ => Some(co_moment / count as f64),
         }
     }
 }
@@ -174,7 +178,16 @@ pub struct CovarState<F: CovarFinalize> {
     _finalize: PhantomData<F>,
 }
 
-impl<F> AggregateState<(f64, f64), f64> for CovarState<F>
+impl<F> CovarState<F>
+where
+    F: CovarFinalize,
+{
+    pub fn finalize_value(&self) -> Option<f64> {
+        F::finalize(self.co_moment, self.count)
+    }
+}
+
+impl<F> AggregateState<(&f64, &f64), f64> for CovarState<F>
 where
     F: CovarFinalize,
 {
@@ -206,11 +219,8 @@ where
         Ok(())
     }
 
-    fn update(&mut self, input: (f64, f64)) -> Result<()> {
-        // Note that 'y' comes first, covariance functions are call like `COVAR_SAMP(y, x)`.
-        let x = input.1;
-        let y = input.0;
-
+    // Note that 'y' comes first, covariance functions are call like `COVAR_SAMP(y, x)`.
+    fn update(&mut self, (&y, &x): (&f64, &f64)) -> Result<()> {
         self.count += 1;
         let n = self.count as f64;
 
@@ -229,7 +239,14 @@ where
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(f64, bool)> {
-        Ok(F::finalize(self.co_moment, self.count))
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = f64>,
+    {
+        match F::finalize(self.co_moment, self.count) {
+            Some(val) => output.put(&val),
+            None => output.put_null(),
+        }
+        Ok(())
     }
 }

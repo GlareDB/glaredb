@@ -56,6 +56,7 @@ pub enum PhysicalType {
     List,
     Struct,
     Dictionary,
+    Constant,
 }
 
 impl PhysicalType {
@@ -141,6 +142,7 @@ impl PhysicalType {
             Self::List => "List",
             Self::Struct => "Struct",
             Self::Dictionary => "Dictionary",
+            Self::Constant => "Constant",
         }
     }
 }
@@ -177,6 +179,7 @@ impl ProtoConv for PhysicalType {
             Self::List => Self::ProtoType::List,
             Self::Struct => Self::ProtoType::Struct,
             Self::Dictionary => Self::ProtoType::Dictionary,
+            Self::Constant => Self::ProtoType::Constant,
         })
     }
 
@@ -204,6 +207,7 @@ impl ProtoConv for PhysicalType {
             Self::ProtoType::List => Self::List,
             Self::ProtoType::Struct => Self::Struct,
             Self::ProtoType::Dictionary => Self::Dictionary,
+            Self::ProtoType::Constant => Self::Constant,
         })
     }
 }
@@ -276,69 +280,8 @@ where
     }
 }
 
-// TODO: Remove
-/// Types able to convert themselves to byte slices.
-pub trait AsBytes {
-    fn as_bytes(&self) -> &[u8];
-}
-
-impl AsBytes for str {
-    fn as_bytes(&self) -> &[u8] {
-        self.as_bytes()
-    }
-}
-
-impl AsBytes for &str {
-    fn as_bytes(&self) -> &[u8] {
-        (*self).as_bytes()
-    }
-}
-
-impl AsBytes for [u8] {
-    fn as_bytes(&self) -> &[u8] {
-        self
-    }
-}
-
-impl AsBytes for &[u8] {
-    fn as_bytes(&self) -> &[u8] {
-        self
-    }
-}
-
-// TODO: Remove
-/// Types that can be converted from bytes.
-///
-/// This should not be implemented for `&str`/`&[u8]`.
-pub trait VarlenType: Debug + PartialEq + Eq {
-    fn try_from_bytes(bytes: &[u8]) -> Result<&Self>;
-}
-
-impl VarlenType for str {
-    fn try_from_bytes(bytes: &[u8]) -> Result<&Self> {
-        std::str::from_utf8(bytes).context("Bytes not valid utf8")
-    }
-}
-
-impl VarlenType for [u8] {
-    fn try_from_bytes(bytes: &[u8]) -> Result<&Self> {
-        Ok(bytes)
-    }
-}
-
 /// Helper trait for getting the underlying data for an array.
-pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
-    // TODO: Remove
-    /// The type that gets returned from the underlying array storage.
-    type Type<'a>: Sync + Send;
-    // TODO: Remove
-    /// The type of the underlying array storage.
-    type Storage<'a>: AddressableStorage<T = Self::Type<'a>>;
-
-    // TODO: Remove
-    /// Gets the storage for the array that we can access directly.
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>>;
-
+pub trait PhysicalStorage: Debug + Default + Sync + Send + Clone + Copy + 'static {
     const PHYSICAL_TYPE: PhysicalType;
 
     /// Size in bytes of the type being stored in the primary buffer.
@@ -370,56 +313,6 @@ pub trait MutablePhysicalStorage: PhysicalStorage {
     ) -> Result<Self::AddressableMut<'_>>;
 }
 
-// TODO: Remove
-/// Type that's able to be used for any physical type.
-///
-/// While this allows any array type to used in the executors, there's no way to
-/// actually get the underlying values. This is useful if the values aren't
-/// actually needed (e.g. COUNT(*)).
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalAny;
-
-impl PhysicalStorage for PhysicalAny {
-    type Type<'a> = ();
-    type Storage<'a> = UnitStorage;
-
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        Ok(UnitStorage(data.len()))
-    }
-
-    const PHYSICAL_TYPE: PhysicalType = PhysicalType::UntypedNull;
-    type PrimaryBufferType = ();
-    type StorageType = Self::PrimaryBufferType;
-    type Addressable<'a> = &'a [()];
-    fn get_addressable<B: BufferManager>(
-        _buffer: &ArrayBuffer<B>,
-    ) -> Result<Self::Addressable<'_>> {
-        unimplemented!()
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct UnitStorage(usize);
-
-impl AddressableStorage for UnitStorage {
-    type T = ();
-
-    fn len(&self) -> usize {
-        self.0
-    }
-
-    fn get(&self, idx: usize) -> Option<Self::T> {
-        if idx >= self.0 {
-            return None;
-        }
-        Some(())
-    }
-
-    unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
-        self.get(idx).unwrap()
-    }
-}
-
 /// Marker type representing a null value without an associated type.
 ///
 /// This will be the type we use for queries like `SELECT NULL` where there's no
@@ -427,20 +320,10 @@ impl AddressableStorage for UnitStorage {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UntypedNull;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalUntypedNull;
 
 impl PhysicalStorage for PhysicalUntypedNull {
-    type Type<'a> = UntypedNull2;
-    type Storage<'a> = UntypedNullStorage;
-
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData2::UntypedNull(s) => Ok(*s),
-            _ => Err(RayexecError::new("invalid storage")),
-        }
-    }
-
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::UntypedNull;
 
     type PrimaryBufferType = UntypedNull;
@@ -464,20 +347,10 @@ impl MutablePhysicalStorage for PhysicalUntypedNull {
 }
 
 // TODO: Use primitive macro
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalBool;
 
 impl PhysicalStorage for PhysicalBool {
-    type Type<'a> = bool;
-    type Storage<'a> = BooleanStorageRef<'a>;
-
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData2::Boolean(storage) => Ok(storage.as_boolean_storage_ref()),
-            _ => Err(RayexecError::new("invalid storage, expected boolean")),
-        }
-    }
-
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::Boolean;
 
     type PrimaryBufferType = bool;
@@ -506,16 +379,6 @@ macro_rules! generate_primitive {
         pub struct $name;
 
         impl PhysicalStorage for $name {
-            type Type<'a> = $prim;
-            type Storage<'a> = PrimitiveStorageSlice<'a, $prim>;
-
-            fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-                match data {
-                    ArrayData2::$variant(storage) => Ok(storage.as_primitive_storage_slice()),
-                    _ => Err(RayexecError::new("invalid storage, expected int8")),
-                }
-            }
-
             const PHYSICAL_TYPE: PhysicalType = PhysicalType::$variant;
 
             type PrimaryBufferType = $prim;
@@ -559,28 +422,10 @@ generate_primitive!(f64, PhysicalF64, Float64);
 
 generate_primitive!(Interval, PhysicalInterval, Interval);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalBinary;
 
 impl PhysicalStorage for PhysicalBinary {
-    type Type<'a> = &'a [u8];
-    type Storage<'a> = BinaryDataStorage<'a>;
-
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData2::Binary(binary) => match binary {
-                BinaryData::Binary(b) => {
-                    Ok(BinaryDataStorage::Binary(b.as_contiguous_storage_slice()))
-                }
-                BinaryData::LargeBinary(b) => Ok(BinaryDataStorage::LargeBinary(
-                    b.as_contiguous_storage_slice(),
-                )),
-                BinaryData::German(b) => Ok(BinaryDataStorage::German(b.as_german_storage_slice())),
-            },
-            _ => Err(RayexecError::new("invalid storage, expected binary")),
-        }
-    }
-
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::Binary;
 
     type PrimaryBufferType = StringViewMetadataUnion;
@@ -603,30 +448,10 @@ impl MutablePhysicalStorage for PhysicalBinary {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalUtf8;
 
 impl PhysicalStorage for PhysicalUtf8 {
-    type Type<'a> = &'a str;
-    type Storage<'a> = StrDataStorage<'a>;
-
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData2::Binary(binary) => match binary {
-                BinaryData::Binary(b) => {
-                    Ok(BinaryDataStorage::Binary(b.as_contiguous_storage_slice()).into())
-                }
-                BinaryData::LargeBinary(b) => {
-                    Ok(BinaryDataStorage::LargeBinary(b.as_contiguous_storage_slice()).into())
-                }
-                BinaryData::German(b) => {
-                    Ok(BinaryDataStorage::German(b.as_german_storage_slice()).into())
-                }
-            },
-            _ => Err(RayexecError::new("invalid storage")),
-        }
-    }
-
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::Utf8;
 
     type PrimaryBufferType = StringViewMetadataUnion;
@@ -718,20 +543,10 @@ impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalList;
 
 impl PhysicalStorage for PhysicalList {
-    type Type<'a> = ListItemMetadata2;
-    type Storage<'a> = PrimitiveStorageSlice<'a, ListItemMetadata2>;
-
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData2::List(storage) => Ok(storage.metadata.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected list")),
-        }
-    }
-
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::List;
 
     type PrimaryBufferType = ListItemMetadata;
@@ -759,19 +574,39 @@ impl MutablePhysicalStorage for PhysicalList {
 pub struct PhysicalDictionary;
 
 impl PhysicalStorage for PhysicalDictionary {
-    type Type<'a> = usize;
-    type Storage<'a> = PrimitiveStorageSlice<'a, usize>;
-
-    fn get_storage(_data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        unimplemented!()
-    }
-
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::Dictionary;
 
     type PrimaryBufferType = usize; // The index into the dictionary.
     type StorageType = Self::PrimaryBufferType;
 
     type Addressable<'a> = &'a [usize];
+
+    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
+        buffer.try_as_slice::<Self>()
+    }
+}
+
+/// Zero-sized marker value that gets stored in the primary data buffer for a
+/// constant array.
+///
+/// This is used to allow the data buffer have a length, but not actually
+/// allocate any storage.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ConstantMarker;
+
+/// Constant arrays have a single value in the secondary data buffer. The
+/// primary data buffer is a slice of `ConstantMarker` to indicate the length of
+/// the array.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PhysicalConstant;
+
+impl PhysicalStorage for PhysicalConstant {
+    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Constant;
+
+    type PrimaryBufferType = ConstantMarker;
+    type StorageType = Self::PrimaryBufferType;
+
+    type Addressable<'a> = &'a [ConstantMarker];
 
     fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
         buffer.try_as_slice::<Self>()

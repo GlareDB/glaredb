@@ -6,7 +6,6 @@ use tracing::error;
 use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
 use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::PhysicalOperator;
 use crate::explain::context_display::ContextDisplayMode;
@@ -67,38 +66,39 @@ impl IntermediatePipelineBuildState<'_> {
             plan_strings.push(formatter.format_logical_plan(&optimized)?);
         }
 
-        match plan_result {
-            Ok(_) => {
-                type_strings.push("physical".to_string());
-                plan_strings.push(formatter.format_intermediate_groups(&[
-                    ("local", &planner.local_group),
-                    ("remote", &planner.remote_group),
-                ])?);
-            }
-            Err(e) => {
-                error!(%e, "error planning explain input")
-            }
-        }
+        // match plan_result {
+        //     Ok(_) => {
+        //         type_strings.push("physical".to_string());
+        //         plan_strings.push(formatter.format_intermediate_groups(&[
+        //             ("local", &planner.local_group),
+        //             ("remote", &planner.remote_group),
+        //         ])?);
+        //     }
+        //     Err(e) => {
+        //         error!(%e, "error planning explain input")
+        //     }
+        // }
 
-        let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-            Batch::try_from_arrays([
-                Array::from_iter(type_strings),
-                Array::from_iter(plan_strings),
-            ])?,
-        ])));
+        unimplemented!()
+        // let physical = Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
+        //     Batch::try_from_arrays([
+        //         Array::from_iter(type_strings),
+        //         Array::from_iter(plan_strings),
+        //     ])?,
+        // ])));
 
-        let operator = IntermediateOperator {
-            operator: physical,
-            partitioning_requirement: None,
-        };
+        // let operator = IntermediateOperator {
+        //     operator: physical,
+        //     partitioning_requirement: None,
+        // };
 
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: vec![operator],
-            location,
-            source: PipelineSource::InPipeline,
-        });
+        // self.in_progress = Some(InProgressPipeline {
+        //     id: id_gen.next_pipeline_id(),
+        //     operators: vec![operator],
+        //     location,
+        //     source: PipelineSource::InPipeline,
+        // });
 
-        Ok(())
+        // Ok(())
     }
 }

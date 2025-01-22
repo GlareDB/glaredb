@@ -3,7 +3,6 @@ use std::fmt;
 use rayexec_error::Result;
 
 use super::{AddressableStorage, PrimitiveStorage};
-use crate::arrays::array::physical_type::AsBytes;
 
 /// Byte length threshold for inlining varlen data in the array's metadata.
 pub(crate) const INLINE_THRESHOLD: i32 = 12;
@@ -116,15 +115,13 @@ pub struct GermanVarlenStorage {
 }
 
 impl GermanVarlenStorage {
-    pub fn with_value<V>(val: &V) -> Self
-    where
-        V: AsBytes + ?Sized,
-    {
-        let bs = val.as_bytes();
-        let mut s = Self::with_metadata_capacity(1);
-        s.try_push(bs).unwrap();
+    pub fn with_value<V>(val: &V) -> Self {
+        unimplemented!()
+        // let bs = val.as_bytes();
+        // let mut s = Self::with_metadata_capacity(1);
+        // s.try_push(bs).unwrap();
 
-        s
+        // s
     }
 
     pub fn with_metadata_capacity(meta_cap: usize) -> Self {

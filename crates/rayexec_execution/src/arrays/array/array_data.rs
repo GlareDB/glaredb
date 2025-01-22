@@ -43,6 +43,12 @@ where
         }
     }
 
+    pub(crate) fn managed(buffer: B::CowPtr<ArrayBuffer<B>>) -> Self {
+        ArrayData {
+            inner: ArrayDataInner::Managed(buffer, None),
+        }
+    }
+
     /// Set this array data to point to a buffer that's being managed.
     ///
     /// If this array data was previously holding onto an owned buffer, we store

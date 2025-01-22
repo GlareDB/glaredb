@@ -3,9 +3,7 @@ use std::sync::Arc;
 use rayexec_error::{Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::IntermediateOperator;
-use crate::execution::operators::filter::FilterOperation;
-use crate::execution::operators::simple::SimpleOperator;
+use crate::execution::operators::filter::PhysicalFilter;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::operator::{LogicalNode, Node};
@@ -28,13 +26,7 @@ impl IntermediatePipelineBuildState<'_> {
             .plan_scalar(&input_refs, &filter.node.filter)
             .context("Failed to plan expressions for filter")?;
 
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Filter(SimpleOperator::new(
-                FilterOperation::new(predicate),
-            ))),
-            partitioning_requirement: None,
-        };
-
+        let operator = PhysicalOperator::Filter(PhysicalFilter { predicate });
         self.push_intermediate_operator(operator, location, id_gen)?;
 
         Ok(())

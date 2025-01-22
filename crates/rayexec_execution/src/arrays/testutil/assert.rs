@@ -1,20 +1,10 @@
-//! Test utilities.
-//!
-//! Note this this isn't behind a `#[cfg(test)]` flag since this should be
-//! usable outside of this crate.
-//!
-//! Should not be used outside of tests.
-
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
 use stdutil::iter::IntoExactSizeIterator;
 
-use super::array::flat::FlatArrayView;
-use super::array::Array;
-use super::batch::Batch;
-use super::executor::scalar::UnaryExecutor;
 use crate::arrays::array::array_buffer::SecondaryBuffer;
+use crate::arrays::array::flat::FlatArrayView;
 use crate::arrays::array::physical_type::{
     PhysicalBool,
     PhysicalF16,
@@ -35,6 +25,9 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
+use crate::arrays::executor::scalar::UnaryExecutor;
 
 /// Assert two arrays are logically equal.
 ///
@@ -103,6 +96,7 @@ pub fn assert_arrays_eq_sel(
     }
 }
 
+#[track_caller]
 fn assert_arrays_eq_sel_list_inner(
     flat1: FlatArrayView,
     sel1: impl IntoExactSizeIterator<Item = usize>,
@@ -146,6 +140,7 @@ fn assert_arrays_eq_sel_list_inner(
     }
 }
 
+#[track_caller]
 fn assert_arrays_eq_sel_inner<S>(
     flat1: FlatArrayView,
     sel1: impl IntoExactSizeIterator<Item = usize>,

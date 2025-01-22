@@ -3,12 +3,7 @@ use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use super::explainable::{ExplainConfig, ExplainEntry};
-use crate::execution::intermediate::pipeline::{
-    IntermediatePipeline,
-    IntermediatePipelineGroup,
-    PipelineSink,
-    PipelineSource,
-};
+use crate::execution::intermediate::pipeline::{IntermediatePipeline, PipelineSink};
 use crate::explain::explainable::Explainable;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::logical_explain::ExplainFormat;
@@ -51,13 +46,13 @@ impl<'a> ExplainFormatter<'a> {
         self.format(&node)
     }
 
-    pub fn format_intermediate_groups(
-        &self,
-        groups: &[(&str, &IntermediatePipelineGroup)],
-    ) -> Result<String> {
-        let node = ExplainNode::from_intermediate_groups(self.bind_context, groups, self.config);
-        self.format(&node)
-    }
+    // pub fn format_intermediate_groups(
+    //     &self,
+    //     groups: &[(&str, &IntermediatePipelineGroup)],
+    // ) -> Result<String> {
+    //     let node = ExplainNode::from_intermediate_groups(self.bind_context, groups, self.config);
+    //     self.format(&node)
+    // }
 
     fn format(&self, node: &ExplainNode) -> Result<String> {
         match self.format {
@@ -110,36 +105,36 @@ struct ExplainNode {
 }
 
 impl ExplainNode {
-    fn from_intermediate_groups(
-        bind_context: &BindContext,
-        groups: &[(&str, &IntermediatePipelineGroup)],
-        config: ExplainConfig,
-    ) -> ExplainNode {
-        let entry = ExplainEntry::new("IntermediatePipelineGroups");
-        let children = groups
-            .iter()
-            .map(|(label, group)| Self::from_intermediate_group(bind_context, group, label, config))
-            .collect();
+    // fn from_intermediate_groups(
+    //     bind_context: &BindContext,
+    //     groups: &[(&str, &IntermediatePipelineGroup)],
+    //     config: ExplainConfig,
+    // ) -> ExplainNode {
+    //     let entry = ExplainEntry::new("IntermediatePipelineGroups");
+    //     let children = groups
+    //         .iter()
+    //         .map(|(label, group)| Self::from_intermediate_group(bind_context, group, label, config))
+    //         .collect();
 
-        ExplainNode { entry, children }
-    }
+    //     ExplainNode { entry, children }
+    // }
 
-    fn from_intermediate_group(
-        bind_context: &BindContext,
-        group: &IntermediatePipelineGroup,
-        label: &str,
-        config: ExplainConfig,
-    ) -> ExplainNode {
-        let entry = ExplainEntry::new(format!("IntermediatePipelineGroup {label}"));
+    // fn from_intermediate_group(
+    //     bind_context: &BindContext,
+    //     group: &IntermediatePipelineGroup,
+    //     label: &str,
+    //     config: ExplainConfig,
+    // ) -> ExplainNode {
+    //     let entry = ExplainEntry::new(format!("IntermediatePipelineGroup {label}"));
 
-        let children = group
-            .pipelines
-            .values()
-            .map(|pipeline| Self::from_intermedate_pipeline(bind_context, pipeline, config))
-            .collect();
+    //     let children = group
+    //         .pipelines
+    //         .values()
+    //         .map(|pipeline| Self::from_intermedate_pipeline(bind_context, pipeline, config))
+    //         .collect();
 
-        ExplainNode { entry, children }
-    }
+    //     ExplainNode { entry, children }
+    // }
 
     fn from_intermedate_pipeline(
         bind_context: &BindContext,
@@ -149,64 +144,64 @@ impl ExplainNode {
         let _ = bind_context;
 
         let mut entry = ExplainEntry::new(format!("IntermediatePipeline {}", pipeline.id.0));
-        entry = match pipeline.sink {
-            PipelineSink::QueryOutput => entry.with_value("Sink", "QueryOutput"),
-            PipelineSink::InPipeline => entry.with_value("Sink", "InPipeline"),
-            PipelineSink::InGroup {
-                pipeline_id,
-                operator_idx,
-                input_idx,
-            } => entry.with_named_map(
-                "Sink",
-                "InGroup",
-                [
-                    ("pipeline_id", pipeline_id.0),
-                    ("operator_idx", operator_idx),
-                    ("input_idx", input_idx),
-                ],
-            ),
-            PipelineSink::OtherGroup {
-                stream_id,
-                partitions,
-            } => entry.with_named_map(
-                "Sink",
-                "OtherGroup",
-                [
-                    ("query_id", stream_id.query_id.to_string()),
-                    ("stream_id", stream_id.stream_id.to_string()),
-                    ("partitions", partitions.to_string()),
-                ],
-            ),
-            PipelineSink::Materialization { mat_ref } => entry.with_named_map(
-                "Sink",
-                "Materialization",
-                [("materialization_ref", mat_ref)],
-            ),
-        };
+        // entry = match pipeline.sink {
+        //     PipelineSink::QueryOutput => entry.with_value("Sink", "QueryOutput"),
+        //     PipelineSink::InPipeline => entry.with_value("Sink", "InPipeline"),
+        //     PipelineSink::InGroup {
+        //         pipeline_id,
+        //         operator_idx,
+        //         input_idx,
+        //     } => entry.with_named_map(
+        //         "Sink",
+        //         "InGroup",
+        //         [
+        //             ("pipeline_id", pipeline_id.0),
+        //             ("operator_idx", operator_idx),
+        //             ("input_idx", input_idx),
+        //         ],
+        //     ),
+        //     PipelineSink::OtherGroup {
+        //         stream_id,
+        //         partitions,
+        //     } => entry.with_named_map(
+        //         "Sink",
+        //         "OtherGroup",
+        //         [
+        //             ("query_id", stream_id.query_id.to_string()),
+        //             ("stream_id", stream_id.stream_id.to_string()),
+        //             ("partitions", partitions.to_string()),
+        //         ],
+        //     ),
+        //     PipelineSink::Materialization { mat_ref } => entry.with_named_map(
+        //         "Sink",
+        //         "Materialization",
+        //         [("materialization_ref", mat_ref)],
+        //     ),
+        // };
 
-        entry = match pipeline.source {
-            PipelineSource::InPipeline => entry.with_value("Source", "InPipeline"),
-            PipelineSource::OtherGroup {
-                stream_id,
-                partitions,
-            } => entry.with_named_map(
-                "Source",
-                "OtherGroup",
-                [
-                    ("query_id", stream_id.query_id.to_string()),
-                    ("stream_id", stream_id.stream_id.to_string()),
-                    ("partitions", partitions.to_string()),
-                ],
-            ),
-            PipelineSource::OtherPipeline { pipeline, .. } => {
-                entry.with_named_map("Source", "OtherPipeline", [("pipeline_id", pipeline.0)])
-            }
-            PipelineSource::Materialization { mat_ref } => entry.with_named_map(
-                "Source",
-                "Materialization",
-                [("materialization_ref", mat_ref)],
-            ),
-        };
+        // entry = match pipeline.source {
+        //     PipelineSource::InPipeline => entry.with_value("Source", "InPipeline"),
+        //     PipelineSource::OtherGroup {
+        //         stream_id,
+        //         partitions,
+        //     } => entry.with_named_map(
+        //         "Source",
+        //         "OtherGroup",
+        //         [
+        //             ("query_id", stream_id.query_id.to_string()),
+        //             ("stream_id", stream_id.stream_id.to_string()),
+        //             ("partitions", partitions.to_string()),
+        //         ],
+        //     ),
+        //     PipelineSource::OtherPipeline { pipeline, .. } => {
+        //         entry.with_named_map("Source", "OtherPipeline", [("pipeline_id", pipeline.0)])
+        //     }
+        //     PipelineSource::Materialization { mat_ref } => entry.with_named_map(
+        //         "Source",
+        //         "Materialization",
+        //         [("materialization_ref", mat_ref)],
+        //     ),
+        // };
 
         let children = pipeline
             .operators
