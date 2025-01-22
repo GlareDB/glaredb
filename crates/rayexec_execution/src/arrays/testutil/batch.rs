@@ -2,7 +2,7 @@
 
 /// Helper macro for generating batches to use in tests.
 macro_rules! generate_batch {
-    ( $( $array_values:expr ),+ ) => {{
+    ( $( $array_values:expr ),+ $(,)? ) => {{
         use stdutil::iter::TryFromExactSizeIterator;
         crate::arrays::batch::Batch::try_from_arrays([
             $(

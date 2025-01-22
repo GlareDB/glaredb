@@ -38,6 +38,12 @@ pub struct PhysicalLimit {
     pub(crate) offset: Option<usize>,
 }
 
+impl PhysicalLimit {
+    pub fn new(limit: usize, offset: Option<usize>) -> Self {
+        PhysicalLimit { limit, offset }
+    }
+}
+
 impl ExecutableOperator for PhysicalLimit {
     type States = UnaryInputStates;
 
@@ -160,197 +166,81 @@ impl DatabaseProtoConv for PhysicalLimit {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
-    use crate::arrays::array::Array;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::assert_batches_eq;
-    use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};
-
-    fn single_partition_limit(
-        limit: usize,
-        offset: Option<usize>,
-    ) -> (OperatorWrapper<PhysicalLimit>, UnaryInputStates) {
-        let mut wrapper = OperatorWrapper::new(PhysicalLimit { limit, offset });
-        let states = wrapper
-            .operator
-            .create_states(&test_database_context(), 1024, 1)
-            .unwrap();
-
-        (wrapper, states)
-    }
+    use crate::arrays::testutil::{assert_batches_eq, generate_batch};
+    use crate::execution::operators::testutil::OperatorWrapper;
 
     #[test]
     fn limit_no_offset_simple() {
-        let (wrapper, mut states) = single_partition_limit(5, None);
+        let mut wrapper = OperatorWrapper::new(PhysicalLimit::new(5, None));
+        let mut states = wrapper.create_unary_states(1024, 1);
 
-        let mut input = Batch::try_from_arrays([
-            Array::try_from_iter(["a", "b", "c", "d", "e", "f"]).unwrap(),
-            Array::try_from_iter([1, 2, 3, 4, 5, 6]).unwrap(),
-        ])
-        .unwrap();
+        let mut input = generate_batch!(["a", "b", "c", "d", "e", "f"], [1, 2, 3, 4, 5, 6]);
         let mut output = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
 
-        let poll = wrapper
-            .poll_execute(
-                &mut states.partition_states[0],
-                &states.operator_state,
-                ExecuteInOutState {
-                    input: Some(&mut input),
-                    output: Some(&mut output),
-                },
-            )
-            .unwrap();
+        let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(PollExecute::Exhausted, poll);
 
-        let expected = Batch::try_from_arrays([
-            Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
-            Array::try_from_iter([1, 2, 3, 4, 5]).unwrap(),
-        ])
-        .unwrap();
-
+        let expected = generate_batch!(["a", "b", "c", "d", "e"], [1, 2, 3, 4, 5]);
         assert_batches_eq(&expected, &output);
     }
 
     #[test]
     fn limit_no_offset_multiple_batches() {
-        let (wrapper, mut states) = single_partition_limit(8, None);
+        let mut wrapper = OperatorWrapper::new(PhysicalLimit::new(8, None));
+        let mut states = wrapper.create_unary_states(1024, 1);
 
-        let mut input1 = Batch::try_from_arrays([
-            Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
-            Array::try_from_iter([1, 2, 3, 4, 5]).unwrap(),
-        ])
-        .unwrap();
+        let mut input = generate_batch!(["a", "b", "c", "d", "e"], [1, 2, 3, 4, 5],);
         let mut output = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
 
-        let poll = wrapper
-            .poll_execute(
-                &mut states.partition_states[0],
-                &states.operator_state,
-                ExecuteInOutState {
-                    input: Some(&mut input1),
-                    output: Some(&mut output),
-                },
-            )
-            .unwrap();
+        let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(PollExecute::Ready, poll);
 
-        let expected1 = Batch::try_from_arrays([
-            Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
-            Array::try_from_iter([1, 2, 3, 4, 5]).unwrap(),
-        ])
-        .unwrap();
-
+        let expected1 = generate_batch!(["a", "b", "c", "d", "e"], [1, 2, 3, 4, 5]);
         assert_batches_eq(&expected1, &output);
 
-        let mut input2 = Batch::try_from_arrays([
-            Array::try_from_iter(["f", "g", "h", "i", "j"]).unwrap(),
-            Array::try_from_iter([6, 7, 8, 9, 10]).unwrap(),
-        ])
-        .unwrap();
-
-        let poll = wrapper
-            .poll_execute(
-                &mut states.partition_states[0],
-                &states.operator_state,
-                ExecuteInOutState {
-                    input: Some(&mut input2),
-                    output: Some(&mut output),
-                },
-            )
-            .unwrap();
+        let mut input2 = generate_batch!(["f", "g", "h", "i", "j"], [6, 7, 8, 9, 10]);
+        let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input2, &mut output);
         assert_eq!(PollExecute::Exhausted, poll);
 
-        let expected2 = Batch::try_from_arrays([
-            Array::try_from_iter(["f", "g", "h"]).unwrap(),
-            Array::try_from_iter([6, 7, 8]).unwrap(),
-        ])
-        .unwrap();
-
+        let expected2 = generate_batch!(["f", "g", "h"], [6, 7, 8],);
         assert_batches_eq(&expected2, &output);
     }
 
     #[test]
     fn limit_with_offset_single_batch() {
-        let (wrapper, mut states) = single_partition_limit(2, Some(1));
+        let mut wrapper = OperatorWrapper::new(PhysicalLimit::new(2, Some(1)));
+        let mut states = wrapper.create_unary_states(1024, 1);
 
-        let mut input = Batch::try_from_arrays([
-            Array::try_from_iter(["a", "b", "c", "d", "e", "f"]).unwrap(),
-            Array::try_from_iter([1, 2, 3, 4, 5, 6]).unwrap(),
-        ])
-        .unwrap();
+        let mut input = generate_batch!(["a", "b", "c", "d", "e", "f"], [1, 2, 3, 4, 5, 6],);
         let mut output = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
 
-        let poll = wrapper
-            .poll_execute(
-                &mut states.partition_states[0],
-                &states.operator_state,
-                ExecuteInOutState {
-                    input: Some(&mut input),
-                    output: Some(&mut output),
-                },
-            )
-            .unwrap();
+        let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(PollExecute::Exhausted, poll);
 
-        let expected = Batch::try_from_arrays([
-            Array::try_from_iter(["b", "c"]).unwrap(),
-            Array::try_from_iter([2, 3]).unwrap(),
-        ])
-        .unwrap();
-
+        let expected = generate_batch!(["b", "c"], [2, 3],);
         assert_batches_eq(&expected, &output);
     }
 
     #[test]
     fn limit_with_offset_discard_first_batch() {
-        let (wrapper, mut states) = single_partition_limit(2, Some(6));
+        let mut wrapper = OperatorWrapper::new(PhysicalLimit::new(2, Some(6)));
+        let mut states = wrapper.create_unary_states(1024, 1);
 
-        let mut input = Batch::try_from_arrays([
-            Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
-            Array::try_from_iter([1, 2, 3, 4, 5]).unwrap(),
-        ])
-        .unwrap();
+        let mut input = generate_batch!(["a", "b", "c", "d", "e"], [1, 2, 3, 4, 5],);
         let mut output = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
 
-        let poll = wrapper
-            .poll_execute(
-                &mut states.partition_states[0],
-                &states.operator_state,
-                ExecuteInOutState {
-                    input: Some(&mut input),
-                    output: Some(&mut output),
-                },
-            )
-            .unwrap();
+        let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(PollExecute::NeedsMore, poll);
 
-        let mut input2 = Batch::try_from_arrays([
-            Array::try_from_iter(["f", "g", "h", "i", "j"]).unwrap(),
-            Array::try_from_iter([6, 7, 8, 9, 10]).unwrap(),
-        ])
-        .unwrap();
+        let mut input2 = generate_batch!(["f", "g", "h", "i", "j"], [6, 7, 8, 9, 10],);
 
-        let poll = wrapper
-            .poll_execute(
-                &mut states.partition_states[0],
-                &states.operator_state,
-                ExecuteInOutState {
-                    input: Some(&mut input2),
-                    output: Some(&mut output),
-                },
-            )
-            .unwrap();
+        let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input2, &mut output);
         assert_eq!(PollExecute::Exhausted, poll);
 
-        let expected = Batch::try_from_arrays([
-            Array::try_from_iter(["g", "h"]).unwrap(),
-            Array::try_from_iter([7, 8]).unwrap(),
-        ])
-        .unwrap();
-
+        let expected = generate_batch!(["g", "h"], [7, 8],);
         assert_batches_eq(&expected, &output);
     }
 }

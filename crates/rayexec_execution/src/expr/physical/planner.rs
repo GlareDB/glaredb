@@ -28,13 +28,13 @@ impl<'a> PhysicalExpressionPlanner<'a> {
     }
 
     /// Plan more than one scalar expression.
-    pub fn plan_scalars(
+    pub fn plan_scalars<'b>(
         &self,
         table_refs: &[TableRef],
-        exprs: &[Expression],
+        exprs: impl IntoIterator<Item = &'b Expression>,
     ) -> Result<Vec<PhysicalScalarExpression>> {
         exprs
-            .iter()
+            .into_iter()
             .map(|expr| self.plan_scalar(table_refs, expr))
             .collect::<Result<Vec<_>>>()
     }

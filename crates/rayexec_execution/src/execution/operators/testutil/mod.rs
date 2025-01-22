@@ -10,3 +10,6 @@ pub use sink::*;
 
 mod source;
 pub use source::*;
+
+mod plan_exprs;
+pub use plan_exprs::*;

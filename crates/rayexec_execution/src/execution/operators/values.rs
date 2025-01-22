@@ -199,36 +199,24 @@ impl DatabaseProtoConv for PhysicalValues {
 mod tests {
     use std::sync::Arc;
 
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
     use crate::arrays::array::Array;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
     use crate::arrays::testutil::{assert_batches_eq, generate_batch};
-    use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};
-    use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
+    use crate::execution::operators::testutil::{plan_scalars, OperatorWrapper};
+    use crate::expr;
 
     #[test]
     fn values_literal() {
         // `VALUES ('a', 2), ('b', 3)`
-        let exprs = vec![
-            vec![
-                PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                    literal: "a".into(),
-                }),
-                PhysicalScalarExpression::Literal(PhysicalLiteralExpr { literal: 2.into() }),
-            ],
-            vec![
-                PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                    literal: "b".into(),
-                }),
-                PhysicalScalarExpression::Literal(PhysicalLiteralExpr { literal: 3.into() }),
-            ],
+        let expr_rows = vec![
+            plan_scalars(&[expr::lit("a"), expr::lit(2)], &[]),
+            plan_scalars(&[expr::lit("b"), expr::lit(3)], &[]),
         ];
 
-        let mut wrapper = OperatorWrapper::new(PhysicalValues::new(exprs));
+        let mut wrapper = OperatorWrapper::new(PhysicalValues::new(expr_rows));
         let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut output = Batch::try_from_arrays([
@@ -257,22 +245,12 @@ mod tests {
         // Each poll can only handle a single row of expressions.
 
         // `VALUES ('a', 2), ('b', 3)`
-        let exprs = vec![
-            vec![
-                PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                    literal: "a".into(),
-                }),
-                PhysicalScalarExpression::Literal(PhysicalLiteralExpr { literal: 2.into() }),
-            ],
-            vec![
-                PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                    literal: "b".into(),
-                }),
-                PhysicalScalarExpression::Literal(PhysicalLiteralExpr { literal: 3.into() }),
-            ],
+        let expr_rows = vec![
+            plan_scalars(&[expr::lit("a"), expr::lit(2)], &[]),
+            plan_scalars(&[expr::lit("b"), expr::lit(3)], &[]),
         ];
 
-        let mut wrapper = OperatorWrapper::new(PhysicalValues::new(exprs));
+        let mut wrapper = OperatorWrapper::new(PhysicalValues::new(expr_rows));
         let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut output = Batch::try_from_arrays([
