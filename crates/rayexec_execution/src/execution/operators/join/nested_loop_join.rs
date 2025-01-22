@@ -324,12 +324,9 @@ impl Explainable for PhysicalNestedLoopJoin {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
-    use crate::arrays::array::Array;
     use crate::arrays::batch::Batch;
-    use crate::arrays::testutil::assert_batches_eq;
+    use crate::arrays::testutil::{assert_batches_eq, generate_batch};
     use crate::execution::operators::testutil::OperatorWrapper;
 
     #[test]
@@ -343,46 +340,36 @@ mod tests {
         let mut states = operator.create_binary_states(1024, 1);
 
         // Build first.
-        let mut build_input =
-            Batch::try_from_arrays([Array::try_from_iter(["a", "b"]).unwrap()]).unwrap();
-        let poll = operator.poll_execute_sink(&mut states, 0, &mut build_input);
+        let mut build_input = generate_batch!(["a", "b"]);
+        let poll = operator.binary_execute_sink(&mut states, 0, &mut build_input);
         assert_eq!(PollExecute::NeedsMore, poll);
 
         // Finish build side.
-        let poll = operator.poll_finalize_sink(&mut states, 0);
+        let poll = operator.binary_finalize_sink(&mut states, 0);
         assert_eq!(PollFinalize::Finalized, poll);
 
         // Now probe
-        let mut probe_input =
-            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3]).unwrap()]).unwrap();
+        let mut probe_input = generate_batch!([1, 2, 3]);
         let mut out = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
         // First probe.
-        let poll = operator.poll_execute_inout(&mut states, 0, &mut probe_input, &mut out);
+        let poll = operator.binary_execute_inout(&mut states, 0, &mut probe_input, &mut out);
         assert_eq!(PollExecute::HasMore, poll);
 
-        let expected1 = Batch::try_from_arrays([
-            Array::try_from_iter(["a", "a", "a"]).unwrap(),
-            Array::try_from_iter([1, 2, 3]).unwrap(),
-        ])
-        .unwrap();
+        let expected1 = generate_batch!(["a", "a", "a"], [1, 2, 3]);
         assert_batches_eq(&expected1, &out);
 
         // Second probe.
-        let poll = operator.poll_execute_inout(&mut states, 0, &mut probe_input, &mut out);
+        let poll = operator.binary_execute_inout(&mut states, 0, &mut probe_input, &mut out);
         assert_eq!(PollExecute::HasMore, poll);
 
-        let expected1 = Batch::try_from_arrays([
-            Array::try_from_iter(["b", "b", "b"]).unwrap(),
-            Array::try_from_iter([1, 2, 3]).unwrap(),
-        ])
-        .unwrap();
-        assert_batches_eq(&expected1, &out);
+        let expected2 = generate_batch!(["b", "b", "b"], [1, 2, 3]);
+        assert_batches_eq(&expected2, &out);
 
         // Last probe should indicate we need more input.
-        let poll = operator.poll_execute_inout(&mut states, 0, &mut probe_input, &mut out);
+        let poll = operator.binary_execute_inout(&mut states, 0, &mut probe_input, &mut out);
         assert_eq!(PollExecute::NeedsMore, poll);
 
-        let poll = operator.poll_finalize_inout(&mut states, 0);
+        let poll = operator.binary_finalize_inout(&mut states, 0);
         assert_eq!(PollFinalize::Finalized, poll);
     }
 }

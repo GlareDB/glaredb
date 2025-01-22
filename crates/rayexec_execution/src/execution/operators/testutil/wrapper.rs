@@ -16,6 +16,7 @@ use crate::execution::operators::{
     PartitionState,
     PollExecute,
     PollFinalize,
+    UnaryInputStates,
 };
 
 pub fn test_database_context() -> DatabaseContext {
@@ -87,6 +88,75 @@ where
     }
 }
 
+/// Methods for operators that accept a single input.
+impl<O> OperatorWrapper<O>
+where
+    O: ExecutableOperator<States = UnaryInputStates>,
+{
+    /// Creates unary input states for the operator using a test database
+    /// context.
+    #[track_caller]
+    pub fn create_unary_states(
+        &mut self,
+        batch_size: usize,
+        partitions: usize,
+    ) -> UnaryInputStates {
+        self.operator
+            .create_states(&test_database_context(), batch_size, partitions)
+            .unwrap()
+    }
+
+    #[track_caller]
+    pub fn unary_execute_inout(
+        &self,
+        states: &mut UnaryInputStates,
+        partition: usize,
+        input: &mut Batch,
+        output: &mut Batch,
+    ) -> PollExecute {
+        self.poll_execute(
+            &mut states.partition_states[partition],
+            &states.operator_state,
+            ExecuteInOutState {
+                input: Some(input),
+                output: Some(output),
+            },
+        )
+        .unwrap()
+    }
+
+    #[track_caller]
+    pub fn unary_execute_out(
+        &self,
+        states: &mut UnaryInputStates,
+        partition: usize,
+        output: &mut Batch,
+    ) -> PollExecute {
+        self.poll_execute(
+            &mut states.partition_states[partition],
+            &states.operator_state,
+            ExecuteInOutState {
+                input: None,
+                output: Some(output),
+            },
+        )
+        .unwrap()
+    }
+
+    #[track_caller]
+    pub fn unary_finalize_sink(
+        &self,
+        states: &mut UnaryInputStates,
+        partition: usize,
+    ) -> PollFinalize {
+        self.poll_finalize(
+            &mut states.partition_states[partition],
+            &states.operator_state,
+        )
+        .unwrap()
+    }
+}
+
 /// Methods for operators that accept two inputs.
 impl<O> OperatorWrapper<O>
 where
@@ -108,7 +178,7 @@ where
     /// Executes the sink side of the operator with the given batch input for a
     /// partition.
     #[track_caller]
-    pub fn poll_execute_sink(
+    pub fn binary_execute_sink(
         &self,
         states: &mut BinaryInputStates,
         partition: usize,
@@ -128,7 +198,7 @@ where
     /// Executes the "inout" side of the operator with the given batch input
     /// for a partition, writing the output to `output`.
     #[track_caller]
-    pub fn poll_execute_inout(
+    pub fn binary_execute_inout(
         &self,
         states: &mut BinaryInputStates,
         partition: usize,
@@ -148,7 +218,7 @@ where
 
     /// Finalizes the sink side.
     #[track_caller]
-    pub fn poll_finalize_sink(
+    pub fn binary_finalize_sink(
         &self,
         states: &mut BinaryInputStates,
         partition: usize,
@@ -159,7 +229,7 @@ where
 
     /// Finalizes the inout side.
     #[track_caller]
-    pub fn poll_finalize_inout(
+    pub fn binary_finalize_inout(
         &self,
         states: &mut BinaryInputStates,
         partition: usize,

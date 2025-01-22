@@ -206,7 +206,7 @@ mod tests {
     use crate::arrays::array::Array;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::assert_batches_eq;
+    use crate::arrays::testutil::{assert_batches_eq, generate_batch};
     use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
 
@@ -228,12 +228,8 @@ mod tests {
             ],
         ];
 
-        let mut operator = PhysicalValues::new(exprs);
-        let mut states = operator
-            .create_states(&test_database_context(), 1024, 1)
-            .unwrap();
-
-        let wrapper = OperatorWrapper::new(operator);
+        let mut wrapper = OperatorWrapper::new(PhysicalValues::new(exprs));
+        let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut output = Batch::try_from_arrays([
             Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 1024).unwrap(),
@@ -243,24 +239,10 @@ mod tests {
 
         let mut input = Batch::empty_with_num_rows(1);
 
-        let poll = wrapper
-            .poll_execute(
-                &mut states.partition_states[0],
-                &states.operator_state,
-                ExecuteInOutState {
-                    input: Some(&mut input),
-                    output: Some(&mut output),
-                },
-            )
-            .unwrap();
+        let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(poll, PollExecute::Ready);
 
-        let expected1 = Batch::try_from_arrays([
-            Array::try_from_iter(["a", "b"]).unwrap(),
-            Array::try_from_iter([2, 3]).unwrap(),
-        ])
-        .unwrap();
-
+        let expected1 = generate_batch!(["a", "b"], [2, 3]);
         assert_batches_eq(&expected1, &output);
     }
 
@@ -290,12 +272,8 @@ mod tests {
             ],
         ];
 
-        let mut operator = PhysicalValues::new(exprs);
-        let mut states = operator
-            .create_states(&test_database_context(), 1024, 1)
-            .unwrap();
-
-        let wrapper = OperatorWrapper::new(operator);
+        let mut wrapper = OperatorWrapper::new(PhysicalValues::new(exprs));
+        let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut output = Batch::try_from_arrays([
             Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 1024).unwrap(),
@@ -305,44 +283,22 @@ mod tests {
 
         let mut input = Batch::empty_with_num_rows(513);
 
-        let poll = wrapper
-            .poll_execute(
-                &mut states.partition_states[0],
-                &states.operator_state,
-                ExecuteInOutState {
-                    input: Some(&mut input),
-                    output: Some(&mut output),
-                },
-            )
-            .unwrap();
+        let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(poll, PollExecute::HasMore);
 
-        let expected1 = Batch::try_from_arrays([
-            Array::try_from_iter(std::iter::repeat("a").take(513)).unwrap(),
-            Array::try_from_iter(std::iter::repeat(2).take(513)).unwrap(),
-        ])
-        .unwrap();
-
+        let expected1 = generate_batch!(
+            std::iter::repeat("a").take(513),
+            std::iter::repeat(2).take(513)
+        );
         assert_batches_eq(&expected1, &output);
 
-        let poll = wrapper
-            .poll_execute(
-                &mut states.partition_states[0],
-                &states.operator_state,
-                ExecuteInOutState {
-                    input: Some(&mut input),
-                    output: Some(&mut output),
-                },
-            )
-            .unwrap();
+        let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(poll, PollExecute::Ready);
 
-        let expected1 = Batch::try_from_arrays([
-            Array::try_from_iter(std::iter::repeat("b").take(513)).unwrap(),
-            Array::try_from_iter(std::iter::repeat(3).take(513)).unwrap(),
-        ])
-        .unwrap();
-
-        assert_batches_eq(&expected1, &output);
+        let expected2 = generate_batch!(
+            std::iter::repeat("b").take(513),
+            std::iter::repeat(3).take(513)
+        );
+        assert_batches_eq(&expected2, &output);
     }
 }

@@ -1,5 +1,7 @@
 //! Utilities for testing operator implementations.
 
+#![allow(unused)]
+
 mod wrapper;
 pub use wrapper::*;
 
