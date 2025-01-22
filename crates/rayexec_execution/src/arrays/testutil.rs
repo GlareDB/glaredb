@@ -103,6 +103,7 @@ pub fn assert_arrays_eq_sel(
     }
 }
 
+#[track_caller]
 fn assert_arrays_eq_sel_list_inner(
     flat1: FlatArrayView,
     sel1: impl IntoExactSizeIterator<Item = usize>,
@@ -146,6 +147,7 @@ fn assert_arrays_eq_sel_list_inner(
     }
 }
 
+#[track_caller]
 fn assert_arrays_eq_sel_inner<S>(
     flat1: FlatArrayView,
     sel1: impl IntoExactSizeIterator<Item = usize>,

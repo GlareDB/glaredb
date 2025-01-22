@@ -4,10 +4,12 @@ use std::task::{Context, Wake, Waker};
 
 use rayexec_error::Result;
 
+use crate::arrays::batch::Batch;
 use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
 use crate::execution::operators::{
+    BinaryInputStates,
     ExecutableOperator,
     ExecuteInOutState,
     OperatorState,
@@ -59,6 +61,7 @@ where
         }
     }
 
+    #[track_caller]
     pub fn poll_execute(
         &self,
         partition_state: &mut PartitionState,
@@ -71,6 +74,7 @@ where
             .poll_execute(&mut cx, partition_state, operator_state, inout)
     }
 
+    #[track_caller]
     pub fn poll_finalize(
         &self,
         partition_state: &mut PartitionState,
@@ -80,5 +84,87 @@ where
         let mut cx = Context::from_waker(&waker);
         self.operator
             .poll_finalize(&mut cx, partition_state, operator_state)
+    }
+}
+
+/// Methods for operators that accept two inputs.
+impl<O> OperatorWrapper<O>
+where
+    O: ExecutableOperator<States = BinaryInputStates>,
+{
+    /// Creates binary input states for the operator using a test database
+    /// context.
+    #[track_caller]
+    pub fn create_binary_states(
+        &mut self,
+        batch_size: usize,
+        partitions: usize,
+    ) -> BinaryInputStates {
+        self.operator
+            .create_states(&test_database_context(), batch_size, partitions)
+            .unwrap()
+    }
+
+    /// Executes the sink side of the operator with the given batch input for a
+    /// partition.
+    #[track_caller]
+    pub fn poll_execute_sink(
+        &self,
+        states: &mut BinaryInputStates,
+        partition: usize,
+        input: &mut Batch,
+    ) -> PollExecute {
+        self.poll_execute(
+            &mut states.sink_states[partition],
+            &states.operator_state,
+            ExecuteInOutState {
+                input: Some(input),
+                output: None,
+            },
+        )
+        .unwrap()
+    }
+
+    /// Executes the "inout" side of the operator with the given batch input
+    /// for a partition, writing the output to `output`.
+    #[track_caller]
+    pub fn poll_execute_inout(
+        &self,
+        states: &mut BinaryInputStates,
+        partition: usize,
+        input: &mut Batch,
+        output: &mut Batch,
+    ) -> PollExecute {
+        self.poll_execute(
+            &mut states.inout_states[partition],
+            &states.operator_state,
+            ExecuteInOutState {
+                input: Some(input),
+                output: Some(output),
+            },
+        )
+        .unwrap()
+    }
+
+    /// Finalizes the sink side.
+    #[track_caller]
+    pub fn poll_finalize_sink(
+        &self,
+        states: &mut BinaryInputStates,
+        partition: usize,
+    ) -> PollFinalize {
+        self.poll_finalize(&mut states.sink_states[partition], &states.operator_state)
+            .unwrap()
+    }
+
+    /// Finalizes the inout side.
+    #[track_caller]
+    pub fn poll_finalize_inout(
+        &self,
+        states: &mut BinaryInputStates,
+        partition: usize,
+    ) -> PollFinalize {
+        self.poll_finalize(&mut states.inout_states[partition], &states.operator_state)
+            .unwrap()
     }
 }

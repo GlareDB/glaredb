@@ -336,6 +336,30 @@ mod tests {
     }
 
     #[test]
+    fn stack_execution_has_more_then_needs_more() {
+        let mut stack = ExecutionStack::try_new(3).unwrap();
+
+        let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        let out = pop_next(&mut stack, TestEffects::execute(1, PollExecute::HasMore));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        // Should move to next operator.
+        let out = pop_next(&mut stack, TestEffects::execute(2, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        // Then reset back to operator that has more output, but it actually
+        // needs more.
+        let out = pop_next(&mut stack, TestEffects::execute(1, PollExecute::NeedsMore));
+        assert_eq!(out, StackControlFlow::Continue);
+
+        // Move back to start.
+        let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Ready));
+        assert_eq!(out, StackControlFlow::Continue);
+    }
+
+    #[test]
     fn stack_execution_exhaust_first_finalize_last() {
         let mut stack = ExecutionStack::try_new(2).unwrap();
 

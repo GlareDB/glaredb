@@ -116,7 +116,7 @@ impl ExecutableOperator for PhysicalUnion {
         Ok(BinaryInputStates {
             operator_state: op_state,
             sink_states: buffering,
-            passthrough_states: pulling,
+            inout_states: pulling,
         })
     }
 
@@ -280,7 +280,7 @@ mod tests {
 
         let poll = operator
             .poll_execute(
-                &mut states.passthrough_states[0],
+                &mut states.inout_states[0],
                 &states.operator_state,
                 ExecuteInOutState {
                     input: Some(&mut top_input),
@@ -295,7 +295,7 @@ mod tests {
         assert_batches_eq(&expected, &out);
 
         let poll = operator
-            .poll_finalize(&mut states.passthrough_states[0], &states.operator_state)
+            .poll_finalize(&mut states.inout_states[0], &states.operator_state)
             .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
 
@@ -317,7 +317,7 @@ mod tests {
         // Pulling side should now be able to get the batch.
         let poll = operator
             .poll_execute(
-                &mut states.passthrough_states[0],
+                &mut states.inout_states[0],
                 &states.operator_state,
                 ExecuteInOutState {
                     input: None,
@@ -340,7 +340,7 @@ mod tests {
         // Pulling side should exhaust now.
         let poll = operator
             .poll_execute(
-                &mut states.passthrough_states[0],
+                &mut states.inout_states[0],
                 &states.operator_state,
                 ExecuteInOutState {
                     input: None,

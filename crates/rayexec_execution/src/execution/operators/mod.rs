@@ -325,7 +325,7 @@ pub struct BinaryInputStates {
     /// in the chain.
     ///
     /// E.g. states for the probe side of a join.
-    pub passthrough_states: Vec<PartitionState>,
+    pub inout_states: Vec<PartitionState>,
 }
 
 #[derive(Debug)]

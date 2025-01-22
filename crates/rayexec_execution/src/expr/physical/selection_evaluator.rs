@@ -51,3 +51,42 @@ impl SelectionEvaluator {
         Ok(&self.selection)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::expr::physical::column_expr::PhysicalColumnExpr;
+
+    #[test]
+    fn select_simple() {
+        let mut evaluator = SelectionEvaluator::try_new(
+            PhysicalScalarExpression::Column(PhysicalColumnExpr {
+                datatype: DataType::Boolean,
+                idx: 0,
+            }),
+            1024,
+        )
+        .unwrap();
+
+        let mut input = Batch::try_from_arrays([
+            Array::try_from_iter([true, false, true, true]).unwrap(),
+            Array::try_from_iter([8, 9, 7, 6]).unwrap(),
+        ])
+        .unwrap();
+
+        let selection = evaluator.select(&mut input).unwrap();
+        assert_eq!(&[0, 2, 3], selection);
+
+        // Make sure we reset internal state.
+        let mut input = Batch::try_from_arrays([
+            Array::try_from_iter([true, false, false, false]).unwrap(),
+            Array::try_from_iter([2, 2, 2, 2]).unwrap(),
+        ])
+        .unwrap();
+
+        let selection = evaluator.select(&mut input).unwrap();
+        assert_eq!(&[0], selection);
+    }
+}

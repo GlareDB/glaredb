@@ -5,7 +5,6 @@ use std::fmt::Debug;
 use rayexec_error::{RayexecError, Result};
 use stdutil::marker::PhantomCovariant;
 
-use super::ChunkGroupAddressIter;
 use crate::arrays::array::physical_type::{MutablePhysicalStorage, PhysicalStorage};
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
@@ -15,7 +14,6 @@ use crate::arrays::executor::aggregate::{
     StateCombiner,
     UnaryNonNullUpdater,
 };
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
 use crate::arrays::executor::PutBuffer;
 use crate::arrays::storage::{AddressableStorage, PrimitiveStorage};
 

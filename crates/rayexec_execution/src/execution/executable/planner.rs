@@ -140,7 +140,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     OperatorStage1::BinaryInput(BinaryInputOperator {
                         operator: Arc::new(operator),
                         operator_state: Arc::new(states.operator_state),
-                        passthrough_states: states.passthrough_states,
+                        passthrough_states: states.inout_states,
                         sink_states: Some(states.sink_states),
                     })
                 }
