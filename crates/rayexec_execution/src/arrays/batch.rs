@@ -10,7 +10,7 @@ use crate::arrays::row::ScalarRow;
 use crate::arrays::selection::SelectionVector;
 
 /// A batch of same-length arrays.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct Batch {
     /// Arrays making up the batch.
     ///
@@ -152,6 +152,7 @@ impl Batch {
     /// Selects rows from the batch based on `selection`.
     pub fn select(&mut self, selection: Selection) -> Result<()> {
         for arr in &mut self.arrays {
+            println!("ARR: {arr:?}");
             arr.select(&Arc::new(NopBufferManager), selection)?;
         }
         self.set_num_rows(selection.len())?;
@@ -280,42 +281,28 @@ impl Batch {
     /// batch.
     #[deprecated]
     pub fn select_old(&self, selection: Arc<SelectionVector>) -> Batch {
-        let cols = self
-            .arrays
-            .iter()
-            .map(|c| {
-                let mut col = c.clone();
-                col.select_mut2(selection.clone());
-                col
-            })
-            .collect();
+        unimplemented!()
+        // let cols = self
+        //     .arrays
+        //     .iter()
+        //     .map(|c| {
+        //         let mut col = c.clone();
+        //         col.select_mut2(selection.clone());
+        //         col
+        //     })
+        //     .collect();
 
-        Batch {
-            arrays: cols,
-            num_rows: selection.as_ref().num_rows(),
-            capacity: selection.as_ref().num_rows(),
-        }
+        // Batch {
+        //     arrays: cols,
+        //     num_rows: selection.as_ref().num_rows(),
+        //     capacity: selection.as_ref().num_rows(),
+        // }
     }
 
     /// Get the row at some index.
     #[deprecated]
     pub fn row(&self, idx: usize) -> Option<ScalarRow> {
-        if idx >= self.num_rows {
-            return None;
-        }
-
-        // Non-zero number of rows, but no actual columns. Just return an empty
-        // row.
-        if self.arrays.is_empty() {
-            return Some(ScalarRow::empty());
-        }
-
-        let row = self
-            .arrays
-            .iter()
-            .map(|col| col.logical_value(idx).unwrap());
-
-        Some(ScalarRow::from_iter(row))
+        unimplemented!()
     }
 
     pub fn array(&self, idx: usize) -> Option<&Array> {

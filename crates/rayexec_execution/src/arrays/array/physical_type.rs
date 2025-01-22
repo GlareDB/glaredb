@@ -1,7 +1,7 @@
 use std::fmt::{self, Debug};
 
 use half::f16;
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
 use super::array_buffer::{ArrayBuffer, ListItemMetadata};
@@ -13,25 +13,7 @@ use super::string_view::{
     StringViewAddressableMut,
     StringViewMetadataUnion,
 };
-use crate::arrays::array::{Array, ArrayData2, BinaryData};
-use crate::arrays::executor::builder::{
-    ArrayDataBuffer,
-    BooleanBuffer,
-    GermanVarlenBuffer,
-    PrimitiveBuffer,
-};
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::storage::{
-    AddressableStorage,
-    BooleanStorageRef,
-    ContiguousVarlenStorageSlice,
-    GermanVarlenStorageSlice,
-    ListItemMetadata2,
-    ListStorage,
-    PrimitiveStorageSlice,
-    UntypedNull2,
-    UntypedNullStorage,
-};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {
@@ -60,36 +42,6 @@ pub enum PhysicalType {
 }
 
 impl PhysicalType {
-    // TODO: Remove
-    pub fn zeroed_array_data(&self, len: usize) -> ArrayData2 {
-        match self {
-            Self::UntypedNull => UntypedNullStorage(len).into(),
-            Self::Boolean => BooleanBuffer::with_len(len).into_data(),
-            Self::Int8 => PrimitiveBuffer::<i8>::with_len(len).into_data(),
-            Self::Int16 => PrimitiveBuffer::<i16>::with_len(len).into_data(),
-            Self::Int32 => PrimitiveBuffer::<i32>::with_len(len).into_data(),
-            Self::Int64 => PrimitiveBuffer::<i64>::with_len(len).into_data(),
-            Self::Int128 => PrimitiveBuffer::<i128>::with_len(len).into_data(),
-            Self::UInt8 => PrimitiveBuffer::<u8>::with_len(len).into_data(),
-            Self::UInt16 => PrimitiveBuffer::<u16>::with_len(len).into_data(),
-            Self::UInt32 => PrimitiveBuffer::<u32>::with_len(len).into_data(),
-            Self::UInt64 => PrimitiveBuffer::<u64>::with_len(len).into_data(),
-            Self::UInt128 => PrimitiveBuffer::<u128>::with_len(len).into_data(),
-            Self::Float16 => PrimitiveBuffer::<f16>::with_len(len).into_data(),
-            Self::Float32 => PrimitiveBuffer::<f32>::with_len(len).into_data(),
-            Self::Float64 => PrimitiveBuffer::<f64>::with_len(len).into_data(),
-            Self::Interval => PrimitiveBuffer::<Interval>::with_len(len).into_data(),
-            Self::Binary => GermanVarlenBuffer::<[u8]>::with_len(len).into_data(),
-            Self::Utf8 => GermanVarlenBuffer::<str>::with_len(len).into_data(),
-            Self::List => ListStorage {
-                metadata: vec![ListItemMetadata2::default(); len].into(),
-                array: Array::new_untyped_null_array(0),
-            }
-            .into(),
-            _ => unimplemented!(),
-        }
-    }
-
     /// Get the size in bytes of the type that gets placed into the primary
     /// buffer.
     pub const fn primary_buffer_mem_size(&self) -> usize {
@@ -471,75 +423,6 @@ impl MutablePhysicalStorage for PhysicalUtf8 {
         buffer: &mut ArrayBuffer<B>,
     ) -> Result<Self::AddressableMut<'_>> {
         buffer.try_as_string_view_addressable_mut()
-    }
-}
-
-#[derive(Debug)]
-pub enum BinaryDataStorage<'a> {
-    Binary(ContiguousVarlenStorageSlice<'a, i32>),
-    LargeBinary(ContiguousVarlenStorageSlice<'a, i64>),
-    German(GermanVarlenStorageSlice<'a>),
-}
-
-impl<'a> AddressableStorage for BinaryDataStorage<'a> {
-    type T = &'a [u8];
-
-    fn len(&self) -> usize {
-        match self {
-            Self::Binary(s) => s.len(),
-            Self::LargeBinary(s) => s.len(),
-            Self::German(s) => s.len(),
-        }
-    }
-
-    fn get(&self, idx: usize) -> Option<Self::T> {
-        match self {
-            Self::Binary(s) => s.get(idx),
-            Self::LargeBinary(s) => s.get(idx),
-            Self::German(s) => s.get(idx),
-        }
-    }
-
-    #[inline]
-    unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
-        match self {
-            Self::Binary(s) => s.get_unchecked(idx),
-            Self::LargeBinary(s) => s.get_unchecked(idx),
-            Self::German(s) => s.get_unchecked(idx),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct StrDataStorage<'a> {
-    inner: BinaryDataStorage<'a>,
-}
-
-impl<'a> AddressableStorage for StrDataStorage<'a> {
-    type T = &'a str;
-
-    fn len(&self) -> usize {
-        self.inner.len()
-    }
-
-    #[inline]
-    fn get(&self, idx: usize) -> Option<Self::T> {
-        let b = self.inner.get(idx)?;
-        // SAFETY: Construction of the vector should have already validated the data.
-        let s = unsafe { std::str::from_utf8_unchecked(b) };
-        Some(s)
-    }
-
-    #[inline]
-    unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
-        let b = self.inner.get_unchecked(idx);
-        std::str::from_utf8_unchecked(b) // See above
-    }
-}
-
-impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
-    fn from(value: BinaryDataStorage<'a>) -> Self {
-        StrDataStorage { inner: value }
     }
 }
 

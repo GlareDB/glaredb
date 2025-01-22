@@ -66,15 +66,6 @@ use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::timestamp::TimestampScalar;
 use crate::arrays::scalar::ScalarValue;
 use crate::arrays::selection::SelectionVector;
-use crate::arrays::storage::{
-    AddressableStorage,
-    BooleanStorage,
-    ContiguousVarlenStorage,
-    GermanVarlenStorage,
-    ListStorage,
-    PrimitiveStorage,
-    UntypedNullStorage,
-};
 
 /// Validity mask for physical storage.
 pub type PhysicalValidity = SharedOrOwned<Bitmap>;
@@ -84,7 +75,11 @@ pub type LogicalSelection = SharedOrOwned<SelectionVector>;
 
 #[derive(Debug)]
 pub(crate) struct ArrayNextInner<B: BufferManager> {
+    /// Determines the validity at each row in the array.
+    ///
+    /// This should match the length of array data.
     pub(crate) validity: Validity,
+    /// Holds the underlying array data.
     pub(crate) data: ArrayData<B>,
 }
 
@@ -93,51 +88,11 @@ pub(crate) struct ArrayNextInner<B: BufferManager> {
 pub struct Array<B: BufferManager = NopBufferManager> {
     /// Data type of the array.
     pub(crate) datatype: DataType,
-    /// Selection of rows for the array.
-    ///
-    /// If set, this provides logical row mapping on top of the underlying data.
-    /// If not set, then there's a one-to-one mapping between the logical row
-    /// and and row in the underlying data.
-    // TODO: Remove
-    pub(crate) selection2: Option<LogicalSelection>,
-    /// Option validity mask.
-    ///
-    /// This indicates the validity of the underlying data. This does not take
-    /// into account the selection vector, and always maps directly to the data.
-    // TODO: Remove
-    pub(crate) validity2: Option<PhysicalValidity>,
-    /// The physical data.
-    // TODO: Remove
-    pub(crate) data2: ArrayData2,
-
     /// Contents of the refactored array internals.
     ///
     /// Will be flattened and `selection2`, `validity2`, `data2` will be removed
     /// once everything's switched over.
     pub(crate) next: Option<ArrayNextInner<B>>,
-}
-
-// TODO: Remove
-impl Clone for Array {
-    fn clone(&self) -> Self {
-        Array {
-            datatype: self.datatype.clone(),
-            selection2: self.selection2.clone(),
-            validity2: self.validity2.clone(),
-            data2: self.data2.clone(),
-            next: None,
-        }
-    }
-}
-
-// TODO: Remove
-impl PartialEq for Array {
-    fn eq(&self, other: &Self) -> bool {
-        self.datatype == other.datatype
-            && self.selection2 == other.selection2
-            && self.validity2 == other.validity2
-            && self.data2 == other.data2
-    }
 }
 
 impl<B> Array<B>
@@ -154,9 +109,6 @@ where
 
         Ok(Array {
             datatype,
-            selection2: None,
-            validity2: None,
-            data2: ArrayData2::UntypedNull(UntypedNullStorage(capacity)),
             next: Some(ArrayNextInner {
                 validity,
                 data: ArrayData::owned(buffer),
@@ -172,9 +124,6 @@ where
 
         Ok(Array {
             datatype: other.datatype().clone(),
-            selection2: None,
-            validity2: None,
-            data2: ArrayData2::UntypedNull(UntypedNullStorage(0)),
             next: Some(ArrayNextInner { validity, data }),
         })
     }
@@ -195,9 +144,6 @@ where
 
         Ok(Array {
             datatype: value.datatype(),
-            selection2: None,
-            validity2: None,
-            data2: ArrayData2::UntypedNull(UntypedNullStorage(len)),
             next: Some(ArrayNextInner {
                 validity: Validity::new_all_valid(len),
                 data: ArrayData::owned(buf),
@@ -219,9 +165,6 @@ where
 
         Ok(Array {
             datatype,
-            selection2: None,
-            validity2: None,
-            data2: ArrayData2::UntypedNull(UntypedNullStorage(len)),
             next: Some(ArrayNextInner {
                 validity: Validity::new_all_valid(len),
                 data: ArrayData::owned(buf),
@@ -242,15 +185,7 @@ where
     }
 
     pub fn capacity(&self) -> usize {
-        if let Some(next) = &self.next {
-            return next.data.primary_capacity();
-        }
-
-        // TODO: Remove, just using to not break things completely yet.
-        match self.selection2.as_ref().map(|v| v.as_ref()) {
-            Some(v) => v.num_rows(),
-            None => self.data2.len(),
-        }
+        self.next().data.primary_capacity()
     }
 
     pub fn datatype(&self) -> &DataType {
@@ -845,136 +780,13 @@ where
 
 impl Array {
     #[deprecated]
-    pub fn new_untyped_null_array(len: usize) -> Self {
-        // Note that we're adding a bitmap here even though the data already
-        // returns NULL. This allows the executors (especially for aggregates)
-        // to solely look at the bitmap to determine if a row should executed
-        // on.
-        let validity = Bitmap::new_with_all_false(1);
-        let selection = SelectionVector::repeated(len, 0);
-        let data = UntypedNullStorage(1);
-
-        Array {
-            datatype: DataType::Null,
-            selection2: Some(selection.into()),
-            validity2: Some(validity.into()),
-            data2: data.into(),
-            next: None,
-        }
-    }
-
-    /// Creates a new typed array with all values being set to null.
-    #[deprecated]
-    pub fn new_typed_null_array(datatype: DataType, len: usize) -> Result<Self> {
-        // Create physical array data of length 1, and use a selection vector to
-        // extend it out to the desired size.
-        let data = datatype.physical_type().zeroed_array_data(1);
-        let validity = Bitmap::new_with_all_false(1);
-        let selection = SelectionVector::repeated(len, 0);
-
-        Ok(Array {
-            datatype,
-            selection2: Some(selection.into()),
-            validity2: Some(validity.into()),
-            data2: data,
-            next: None,
-        })
-    }
-
-    #[deprecated]
-    pub fn new_with_array_data(datatype: DataType, data: impl Into<ArrayData2>) -> Self {
-        Array {
-            datatype,
-            selection2: None,
-            validity2: None,
-            data2: data.into(),
-            next: None,
-        }
-    }
-
-    #[deprecated]
-    pub fn new_with_validity_and_array_data(
-        datatype: DataType,
-        validity: impl Into<PhysicalValidity>,
-        data: impl Into<ArrayData2>,
-    ) -> Self {
-        Array {
-            datatype,
-            selection2: None,
-            validity2: Some(validity.into()),
-            data2: data.into(),
-            next: None,
-        }
-    }
-
-    #[deprecated]
-    pub fn has_selection(&self) -> bool {
-        self.selection2.is_some()
-    }
-
-    #[deprecated]
-    pub fn selection_vector(&self) -> Option<&SelectionVector> {
-        self.selection2.as_ref().map(|v| v.as_ref())
-    }
-
-    /// Updates this array's selection vector.
-    ///
-    /// Takes into account any existing selection. This allows for repeated
-    /// selection (filtering) against the same array.
-    // TODO: Add test for selecting on logically empty array.
-    #[deprecated]
-    pub fn select_mut2(&mut self, selection: impl Into<LogicalSelection>) {
-        let selection = selection.into();
-        match self.selection_vector() {
-            Some(existing) => {
-                let selection = existing.select(selection.as_ref());
-                self.selection2 = Some(selection.into())
-            }
-            None => {
-                // No existing selection, we can just use the provided vector
-                // directly.
-                self.selection2 = Some(selection)
-            }
-        }
-    }
-
-    #[deprecated]
     pub fn logical_len(&self) -> usize {
-        match self.selection_vector() {
-            Some(v) => v.num_rows(),
-            None => self.data2.len(),
-        }
-    }
-
-    #[deprecated]
-    pub fn validity(&self) -> Option<&Bitmap> {
-        self.validity2.as_ref().map(|v| v.as_ref())
+        unimplemented!()
     }
 
     #[deprecated]
     pub fn is_valid(&self, idx: usize) -> Option<bool> {
-        if idx >= self.logical_len() {
-            return None;
-        }
-
-        let idx = match self.selection_vector() {
-            Some(v) => v.get_opt(idx)?,
-            None => idx,
-        };
-
-        if let Some(validity) = &self.validity2 {
-            return Some(validity.as_ref().value(idx));
-        }
-
-        Some(true)
-    }
-
-    /// Returns the array data.
-    ///
-    /// ArrayData can be cheaply cloned.
-    #[deprecated]
-    pub fn array_data(&self) -> &ArrayData2 {
-        &self.data2
+        unimplemented!()
     }
 
     /// Get the value at a logical index.
@@ -982,495 +794,21 @@ impl Array {
     /// Takes into account the validity and selection vector.
     #[deprecated]
     pub fn logical_value(&self, idx: usize) -> Result<ScalarValue> {
-        let idx = match self.selection_vector() {
-            Some(v) => v
-                .get_opt(idx)
-                .ok_or_else(|| RayexecError::new(format!("Logical index {idx} out of bounds")))?,
-            None => idx,
-        };
+        unimplemented!()
+        // let idx = match self.selection_vector() {
+        //     Some(v) => v
+        //         .get_opt(idx)
+        //         .ok_or_else(|| RayexecError::new(format!("Logical index {idx} out of bounds")))?,
+        //     None => idx,
+        // };
 
-        if let Some(validity) = &self.validity2 {
-            if !validity.as_ref().value(idx) {
-                return Ok(ScalarValue::Null);
-            }
-        }
+        // if let Some(validity) = &self.validity2 {
+        //     if !validity.as_ref().value(idx) {
+        //         return Ok(ScalarValue::Null);
+        //     }
+        // }
 
-        self.physical_scalar(idx)
-    }
-
-    /// Gets the scalar value at the physical index.
-    ///
-    /// Ignores validity and selectivitity.
-    #[deprecated]
-    pub fn physical_scalar(&self, idx: usize) -> Result<ScalarValue> {
-        Ok(match &self.datatype {
-            DataType::Null => match &self.data2 {
-                ArrayData2::UntypedNull(_) => ScalarValue::Null,
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Boolean => match &self.data2 {
-                ArrayData2::Boolean(arr) => arr.as_ref().as_ref().value(idx).into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Float16 => match &self.data2 {
-                ArrayData2::Float16(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Float32 => match &self.data2 {
-                ArrayData2::Float32(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Float64 => match &self.data2 {
-                ArrayData2::Float64(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Int8 => match &self.data2 {
-                ArrayData2::Int8(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Int16 => match &self.data2 {
-                ArrayData2::Int16(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Int32 => match &self.data2 {
-                ArrayData2::Int32(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Int64 => match &self.data2 {
-                ArrayData2::Int64(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Int128 => match &self.data2 {
-                ArrayData2::Int64(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::UInt8 => match &self.data2 {
-                ArrayData2::UInt8(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::UInt16 => match &self.data2 {
-                ArrayData2::UInt16(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::UInt32 => match &self.data2 {
-                ArrayData2::UInt32(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::UInt64 => match &self.data2 {
-                ArrayData2::UInt64(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::UInt128 => match &self.data2 {
-                ArrayData2::UInt64(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Decimal64(m) => match &self.data2 {
-                ArrayData2::Int64(arr) => ScalarValue::Decimal64(Decimal64Scalar {
-                    precision: m.precision,
-                    scale: m.scale,
-                    value: arr.as_ref().as_ref()[idx],
-                }),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Decimal128(m) => match &self.data2 {
-                ArrayData2::Int128(arr) => ScalarValue::Decimal128(Decimal128Scalar {
-                    precision: m.precision,
-                    scale: m.scale,
-                    value: arr.as_ref().as_ref()[idx],
-                }),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Date32 => match &self.data2 {
-                ArrayData2::Int32(arr) => ScalarValue::Date32(arr.as_ref().as_ref()[idx]),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Date64 => match &self.data2 {
-                ArrayData2::Int64(arr) => ScalarValue::Date64(arr.as_ref().as_ref()[idx]),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Timestamp(m) => match &self.data2 {
-                ArrayData2::Int64(arr) => ScalarValue::Timestamp(TimestampScalar {
-                    unit: m.unit,
-                    value: arr.as_ref().as_ref()[idx],
-                }),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Interval => match &self.data2 {
-                ArrayData2::Interval(arr) => arr.as_ref().as_ref()[idx].into(),
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-            DataType::Utf8 => {
-                let v = match &self.data2 {
-                    ArrayData2::Binary(BinaryData::Binary(arr)) => arr
-                        .get(idx)
-                        .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData2::Binary(BinaryData::LargeBinary(arr)) => arr
-                        .get(idx)
-                        .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData2::Binary(BinaryData::German(arr)) => arr
-                        .get(idx)
-                        .ok_or_else(|| RayexecError::new("missing data"))?,
-                    _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-                };
-                let s = std::str::from_utf8(v).context("binary data not valid utf8")?;
-                s.into()
-            }
-            DataType::Binary => {
-                let v = match &self.data2 {
-                    ArrayData2::Binary(BinaryData::Binary(arr)) => arr
-                        .get(idx)
-                        .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData2::Binary(BinaryData::LargeBinary(arr)) => arr
-                        .get(idx)
-                        .ok_or_else(|| RayexecError::new("missing data"))?,
-                    ArrayData2::Binary(BinaryData::German(arr)) => arr
-                        .get(idx)
-                        .ok_or_else(|| RayexecError::new("missing data"))?,
-                    _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-                };
-                v.into()
-            }
-            DataType::Struct(_) => not_implemented!("get value: struct"),
-            DataType::List(_) => match &self.data2 {
-                ArrayData2::List(list) => {
-                    let meta = list
-                        .metadata
-                        .as_slice()
-                        .get(idx)
-                        .ok_or_else(|| RayexecError::new("Out of bounds"))?;
-
-                    let vals = (meta.offset..meta.offset + meta.len)
-                        .map(|idx| list.array.physical_scalar(idx as usize))
-                        .collect::<Result<Vec<_>>>()?;
-
-                    ScalarValue::List(vals)
-                }
-                _other => return Err(array_not_valid_for_type_err(&self.datatype)),
-            },
-        })
-    }
-}
-
-fn array_not_valid_for_type_err(datatype: &DataType) -> RayexecError {
-    RayexecError::new(format!("Array data not valid for data type: {datatype}"))
-}
-
-impl<F> FromIterator<Option<F>> for Array
-where
-    F: Default,
-    Array: FromIterator<F>,
-{
-    fn from_iter<T: IntoIterator<Item = Option<F>>>(iter: T) -> Self {
-        // TODO: Make a bit more performant, this is used for more than just
-        // tests now.
-        let vals: Vec<_> = iter.into_iter().collect();
-        let mut validity = Bitmap::new_with_all_true(vals.len());
-
-        let mut new_vals = Vec::with_capacity(vals.len());
-        for (idx, val) in vals.into_iter().enumerate() {
-            match val {
-                Some(val) => new_vals.push(val),
-                None => {
-                    new_vals.push(F::default());
-                    validity.set_unchecked(idx, false);
-                }
-            }
-        }
-
-        let mut array = Array::from_iter(new_vals);
-        array.validity2 = Some(validity.into());
-
-        array
-    }
-}
-
-impl FromIterator<String> for Array {
-    fn from_iter<T: IntoIterator<Item = String>>(iter: T) -> Self {
-        let iter = iter.into_iter();
-        let (lower, _) = iter.size_hint();
-        let mut german = GermanVarlenStorage::with_metadata_capacity(lower);
-
-        for s in iter {
-            german.try_push(s.as_bytes()).unwrap();
-        }
-
-        Array {
-            datatype: DataType::Utf8,
-            selection2: None,
-            validity2: None,
-            data2: ArrayData2::Binary(BinaryData::German(Arc::new(german))),
-            next: None,
-        }
-    }
-}
-
-impl<'a> FromIterator<&'a str> for Array {
-    fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
-        let iter = iter.into_iter();
-        let (lower, _) = iter.size_hint();
-        let mut german = GermanVarlenStorage::with_metadata_capacity(lower);
-
-        for s in iter {
-            german.try_push(s.as_bytes()).unwrap();
-        }
-
-        Array {
-            datatype: DataType::Utf8,
-            selection2: None,
-            validity2: None,
-            data2: ArrayData2::Binary(BinaryData::German(Arc::new(german))),
-            next: None,
-        }
-    }
-}
-
-macro_rules! impl_primitive_from_iter {
-    ($prim:ty, $variant:ident) => {
-        impl FromIterator<$prim> for Array {
-            fn from_iter<T: IntoIterator<Item = $prim>>(iter: T) -> Self {
-                let vals: Vec<_> = iter.into_iter().collect();
-                Array {
-                    datatype: DataType::$variant,
-                    selection2: None,
-                    validity2: None,
-                    data2: ArrayData2::$variant(Arc::new(vals.into())),
-                    next: None,
-                }
-            }
-        }
-    };
-}
-
-impl_primitive_from_iter!(i8, Int8);
-impl_primitive_from_iter!(i16, Int16);
-impl_primitive_from_iter!(i32, Int32);
-impl_primitive_from_iter!(i64, Int64);
-impl_primitive_from_iter!(i128, Int128);
-impl_primitive_from_iter!(u8, UInt8);
-impl_primitive_from_iter!(u16, UInt16);
-impl_primitive_from_iter!(u32, UInt32);
-impl_primitive_from_iter!(u64, UInt64);
-impl_primitive_from_iter!(u128, UInt128);
-impl_primitive_from_iter!(f16, Float16);
-impl_primitive_from_iter!(f32, Float32);
-impl_primitive_from_iter!(f64, Float64);
-
-impl FromIterator<bool> for Array {
-    fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
-        let vals: Bitmap = iter.into_iter().collect();
-        Array {
-            datatype: DataType::Boolean,
-            selection2: None,
-            validity2: None,
-            data2: ArrayData2::Boolean(Arc::new(vals.into())),
-            next: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ArrayData2 {
-    UntypedNull(UntypedNullStorage),
-    Boolean(Arc<BooleanStorage>),
-    Float16(Arc<PrimitiveStorage<f16>>),
-    Float32(Arc<PrimitiveStorage<f32>>),
-    Float64(Arc<PrimitiveStorage<f64>>),
-    Int8(Arc<PrimitiveStorage<i8>>),
-    Int16(Arc<PrimitiveStorage<i16>>),
-    Int32(Arc<PrimitiveStorage<i32>>),
-    Int64(Arc<PrimitiveStorage<i64>>),
-    Int128(Arc<PrimitiveStorage<i128>>),
-    UInt8(Arc<PrimitiveStorage<u8>>),
-    UInt16(Arc<PrimitiveStorage<u16>>),
-    UInt32(Arc<PrimitiveStorage<u32>>),
-    UInt64(Arc<PrimitiveStorage<u64>>),
-    UInt128(Arc<PrimitiveStorage<u128>>),
-    Interval(Arc<PrimitiveStorage<Interval>>),
-    Binary(BinaryData),
-    List(Arc<ListStorage>),
-}
-
-impl ArrayData2 {
-    pub fn physical_type(&self) -> PhysicalType {
-        match self {
-            Self::UntypedNull(_) => PhysicalType::UntypedNull,
-            Self::Boolean(_) => PhysicalType::Boolean,
-            Self::Float16(_) => PhysicalType::Float16,
-            Self::Float32(_) => PhysicalType::Float32,
-            Self::Float64(_) => PhysicalType::Float64,
-            Self::Int8(_) => PhysicalType::Int8,
-            Self::Int16(_) => PhysicalType::Int16,
-            Self::Int32(_) => PhysicalType::Int32,
-            Self::Int64(_) => PhysicalType::Int64,
-            Self::Int128(_) => PhysicalType::Int128,
-            Self::UInt8(_) => PhysicalType::UInt8,
-            Self::UInt16(_) => PhysicalType::UInt16,
-            Self::UInt32(_) => PhysicalType::UInt32,
-            Self::UInt64(_) => PhysicalType::UInt64,
-            Self::UInt128(_) => PhysicalType::UInt128,
-            Self::Interval(_) => PhysicalType::Interval,
-            Self::Binary(_) => PhysicalType::Binary,
-            Self::List(_) => PhysicalType::List,
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        match self {
-            Self::UntypedNull(s) => s.len(),
-            Self::Boolean(s) => s.len(),
-            Self::Float16(s) => s.len(),
-            Self::Float32(s) => s.len(),
-            Self::Float64(s) => s.len(),
-            Self::Int8(s) => s.len(),
-            Self::Int16(s) => s.len(),
-            Self::Int32(s) => s.len(),
-            Self::Int64(s) => s.len(),
-            Self::Int128(s) => s.len(),
-            Self::UInt8(s) => s.len(),
-            Self::UInt16(s) => s.len(),
-            Self::UInt32(s) => s.len(),
-            Self::UInt64(s) => s.len(),
-            Self::UInt128(s) => s.len(),
-            Self::Interval(s) => s.len(),
-            Self::Binary(bin) => match bin {
-                BinaryData::Binary(s) => s.len(),
-                BinaryData::LargeBinary(s) => s.len(),
-                BinaryData::German(s) => s.len(),
-            },
-            ArrayData2::List(s) => s.len(),
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum BinaryData {
-    Binary(Arc<ContiguousVarlenStorage<i32>>),
-    LargeBinary(Arc<ContiguousVarlenStorage<i64>>),
-    German(Arc<GermanVarlenStorage>),
-}
-
-impl BinaryData {
-    /// Get the binary data size for the array.
-    ///
-    /// This will not include metadata size in the calculation.
-    pub fn binary_data_size_bytes(&self) -> usize {
-        match self {
-            Self::Binary(s) => s.data_size_bytes(),
-            Self::LargeBinary(s) => s.data_size_bytes(),
-            Self::German(s) => s.data_size_bytes(),
-        }
-    }
-}
-
-impl From<UntypedNullStorage> for ArrayData2 {
-    fn from(value: UntypedNullStorage) -> Self {
-        ArrayData2::UntypedNull(value)
-    }
-}
-
-impl From<BooleanStorage> for ArrayData2 {
-    fn from(value: BooleanStorage) -> Self {
-        ArrayData2::Boolean(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<f16>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<f16>) -> Self {
-        ArrayData2::Float16(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<f32>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<f32>) -> Self {
-        ArrayData2::Float32(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<f64>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<f64>) -> Self {
-        ArrayData2::Float64(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<i8>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<i8>) -> Self {
-        ArrayData2::Int8(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<i16>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<i16>) -> Self {
-        ArrayData2::Int16(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<i32>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<i32>) -> Self {
-        ArrayData2::Int32(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<i64>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<i64>) -> Self {
-        ArrayData2::Int64(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<i128>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<i128>) -> Self {
-        ArrayData2::Int128(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<u8>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<u8>) -> Self {
-        ArrayData2::UInt8(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<u16>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<u16>) -> Self {
-        ArrayData2::UInt16(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<u32>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<u32>) -> Self {
-        ArrayData2::UInt32(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<u64>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<u64>) -> Self {
-        ArrayData2::UInt64(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<u128>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<u128>) -> Self {
-        ArrayData2::UInt128(value.into())
-    }
-}
-
-impl From<PrimitiveStorage<Interval>> for ArrayData2 {
-    fn from(value: PrimitiveStorage<Interval>) -> Self {
-        ArrayData2::Interval(value.into())
-    }
-}
-
-impl From<GermanVarlenStorage> for ArrayData2 {
-    fn from(value: GermanVarlenStorage) -> Self {
-        ArrayData2::Binary(BinaryData::German(Arc::new(value)))
-    }
-}
-
-impl From<ListStorage> for ArrayData2 {
-    fn from(value: ListStorage) -> Self {
-        ArrayData2::List(Arc::new(value))
+        // self.physical_scalar(idx)
     }
 }
 
@@ -1685,9 +1023,6 @@ where
 
         Ok(Array {
             datatype: DataType::Utf8,
-            selection2: None,
-            validity2: None,
-            data2: ArrayData2::UntypedNull(UntypedNullStorage(len)),
             next: Some(ArrayNextInner {
                 validity: Validity::new_all_valid(len),
                 data: ArrayData::owned(buffer),
@@ -1731,7 +1066,6 @@ where
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::ListTypeMeta;

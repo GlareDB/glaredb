@@ -1,5 +1,4 @@
 pub mod aggregate;
-pub mod builder;
 pub mod scalar;
 
 use rayexec_error::Result;

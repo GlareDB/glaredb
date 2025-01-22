@@ -9,6 +9,5 @@ pub mod format;
 pub mod row;
 pub mod scalar;
 pub mod selection;
-pub mod storage;
 
 pub mod testutil;

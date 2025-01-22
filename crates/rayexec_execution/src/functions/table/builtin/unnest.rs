@@ -4,7 +4,7 @@ use std::task::{Context, Waker};
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::physical_type::{PhysicalList, PhysicalType};
-use crate::arrays::array::{Array, ArrayData2};
+use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::scalar::UnaryExecutor;

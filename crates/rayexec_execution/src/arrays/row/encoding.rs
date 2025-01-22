@@ -20,7 +20,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU64,
     PhysicalU8,
 };
-use crate::arrays::array::{Array, ArrayData2, BinaryData};
+use crate::arrays::array::Array;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::scalar::interval::Interval;
 
@@ -256,44 +256,45 @@ impl ComparableRowEncoder {
     /// Compute the size of the data buffer we'll need for storing all encoded
     /// rows.
     fn compute_data_size(&self, columns: &[&Array]) -> Result<usize> {
-        let mut size = 0;
-        for arr in columns {
-            let mut arr_size = match arr.array_data() {
-                ArrayData2::UntypedNull(_) => 0, // Nulls will be encoded in the "validity" portion of the row.
-                ArrayData2::Boolean(d) => d.len() * std::mem::size_of::<bool>(), // Note this will expand the 1 bit bools to bytes.
-                ArrayData2::Int8(d) => d.data_size_bytes(),
-                ArrayData2::Int16(d) => d.data_size_bytes(),
-                ArrayData2::Int32(d) => d.data_size_bytes(),
-                ArrayData2::Int64(d) => d.data_size_bytes(),
-                ArrayData2::Int128(d) => d.data_size_bytes(),
-                ArrayData2::UInt8(d) => d.data_size_bytes(),
-                ArrayData2::UInt16(d) => d.data_size_bytes(),
-                ArrayData2::UInt32(d) => d.data_size_bytes(),
-                ArrayData2::UInt64(d) => d.data_size_bytes(),
-                ArrayData2::UInt128(d) => d.data_size_bytes(),
-                ArrayData2::Float16(d) => d.data_size_bytes(),
-                ArrayData2::Float32(d) => d.data_size_bytes(),
-                ArrayData2::Float64(d) => d.data_size_bytes(),
-                ArrayData2::Interval(d) => d.data_size_bytes(),
-                ArrayData2::Binary(d) => match d {
-                    BinaryData::Binary(d) => d.data_size_bytes(),
-                    BinaryData::LargeBinary(d) => d.data_size_bytes(),
-                    BinaryData::German(d) => d.data_size_bytes(),
-                },
-                ArrayData2::List(_) => not_implemented!("Row encode list"),
-            };
+        unimplemented!()
+        // let mut size = 0;
+        // for arr in columns {
+        //     let mut arr_size = match arr.array_data() {
+        //         ArrayData2::UntypedNull(_) => 0, // Nulls will be encoded in the "validity" portion of the row.
+        //         ArrayData2::Boolean(d) => d.len() * std::mem::size_of::<bool>(), // Note this will expand the 1 bit bools to bytes.
+        //         ArrayData2::Int8(d) => d.data_size_bytes(),
+        //         ArrayData2::Int16(d) => d.data_size_bytes(),
+        //         ArrayData2::Int32(d) => d.data_size_bytes(),
+        //         ArrayData2::Int64(d) => d.data_size_bytes(),
+        //         ArrayData2::Int128(d) => d.data_size_bytes(),
+        //         ArrayData2::UInt8(d) => d.data_size_bytes(),
+        //         ArrayData2::UInt16(d) => d.data_size_bytes(),
+        //         ArrayData2::UInt32(d) => d.data_size_bytes(),
+        //         ArrayData2::UInt64(d) => d.data_size_bytes(),
+        //         ArrayData2::UInt128(d) => d.data_size_bytes(),
+        //         ArrayData2::Float16(d) => d.data_size_bytes(),
+        //         ArrayData2::Float32(d) => d.data_size_bytes(),
+        //         ArrayData2::Float64(d) => d.data_size_bytes(),
+        //         ArrayData2::Interval(d) => d.data_size_bytes(),
+        //         ArrayData2::Binary(d) => match d {
+        //             BinaryData::Binary(d) => d.data_size_bytes(),
+        //             BinaryData::LargeBinary(d) => d.data_size_bytes(),
+        //             BinaryData::German(d) => d.data_size_bytes(),
+        //         },
+        //         ArrayData2::List(_) => not_implemented!("Row encode list"),
+        //     };
 
-            // Account for validities.
-            //
-            // Currently all rows will have validities written for every column
-            // even if there's no validity bitmap for the column. This just
-            // makes implementation easier.
-            arr_size += std::mem::size_of::<u8>() * arr.logical_len();
+        //     // Account for validities.
+        //     //
+        //     // Currently all rows will have validities written for every column
+        //     // even if there's no validity bitmap for the column. This just
+        //     // makes implementation easier.
+        //     arr_size += std::mem::size_of::<u8>() * arr.logical_len();
 
-            size += arr_size;
-        }
+        //     size += arr_size;
+        // }
 
-        Ok(size)
+        // Ok(size)
     }
 
     // /// Encodes a variable length array into `buf` starting at `start`.

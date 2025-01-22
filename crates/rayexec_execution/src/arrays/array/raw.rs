@@ -32,9 +32,11 @@ where
 {
     /// Try to create a new buffer with a given capacity for type `T`.
     pub fn try_with_capacity<T>(manager: &Arc<B>, cap: usize) -> Result<Self> {
+        let layout = Layout::array::<T>(cap).context("failed to create layout")?;
+
         if cap == 0 {
             return Ok(RawBuffer {
-                reservation: manager.reserve_external(0, 0)?,
+                reservation: manager.reserve_from_layout(layout)?,
                 ptr: NonNull::dangling(),
                 capacity: 0,
             });
@@ -159,6 +161,13 @@ mod tests {
         assert_eq!(32, b.reservation.size());
 
         std::mem::drop(b);
+    }
+
+    #[test]
+    fn new_zero_cap() {
+        let b = RawBuffer::try_with_capacity::<i64>(&Arc::new(NopBufferManager), 0).unwrap();
+        assert_eq!(0, b.reservation.size());
+        assert_eq!(8, b.reservation.align());
     }
 
     #[test]

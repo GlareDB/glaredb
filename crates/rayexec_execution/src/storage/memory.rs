@@ -98,19 +98,20 @@ impl DataTable for MemoryDataTable {
             .map(|_| MemoryDataTableScan { data: Vec::new() })
             .collect();
 
-        let data = {
-            let data = self.data.lock();
-            data.clone()
-        };
+        unimplemented!()
+        // let data = {
+        //     let data = self.data.lock();
+        //     data.clone()
+        // };
 
-        for (idx, batch) in data.into_iter().enumerate() {
-            scans[idx % num_partitions].data.push(batch);
-        }
+        // for (idx, batch) in data.into_iter().enumerate() {
+        //     scans[idx % num_partitions].data.push(batch);
+        // }
 
-        Ok(scans
-            .into_iter()
-            .map(|scan| Box::new(ProjectedScan::new(scan, projections.clone())) as Box<_>)
-            .collect())
+        // Ok(scans
+        //     .into_iter()
+        //     .map(|scan| Box::new(ProjectedScan::new(scan, projections.clone())) as Box<_>)
+        //     .collect())
     }
 
     fn insert(&self, input_partitions: usize) -> Result<Vec<Box<dyn PartitionSink>>> {

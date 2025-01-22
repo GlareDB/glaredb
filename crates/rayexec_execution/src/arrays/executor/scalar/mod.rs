@@ -21,8 +21,5 @@ pub use ternary::*;
 mod uniform;
 pub use uniform::*;
 
-mod hash;
-pub use hash::*;
-
 mod list;
 pub use list::*;

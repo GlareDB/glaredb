@@ -15,15 +15,7 @@ use hash_table::HashTable;
 use parking_lot::Mutex;
 use rayexec_error::{OptionExt, RayexecError, Result};
 
-use super::{
-    ExecuteInOutState,
-    ExecutionStates,
-    InputOutputStates,
-    PartitionAndOperatorStates,
-    PollExecute,
-    PollFinalize,
-    UnaryInputStates,
-};
+use super::{ExecuteInOutState, PollExecute, PollFinalize, UnaryInputStates};
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::physical_type::PhysicalU64;
 use crate::arrays::array::Array;
@@ -31,7 +23,6 @@ use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
-use crate::arrays::executor::scalar::{HashExecutor, UnaryExecutor};
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::scalar::ScalarValue;
 use crate::arrays::selection::SelectionVector;
@@ -305,7 +296,9 @@ impl ExecutableOperator for PhysicalHashAggregate {
                             )?;
                             masked_grouping_columns.push(null_col);
                         } else {
-                            masked_grouping_columns.push(grouping_columns[col_idx].clone());
+                            // TODO: Take reference.
+                            unimplemented!()
+                            // masked_grouping_columns.push(grouping_columns[col_idx].clone());
                         }
                     }
 

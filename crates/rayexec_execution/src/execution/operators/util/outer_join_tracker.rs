@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::{Array, ArrayData2};
+use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;
@@ -102,25 +102,25 @@ impl LeftOuterJoinDrainState {
             .expect("bitmap to exist");
         self.batch_idx += self.skip;
 
-        let cols = batch
-            .arrays()
-            .iter()
-            .cloned()
-            .chain([Array::new_with_array_data(
-                DataType::Boolean,
-                ArrayData2::Boolean(Arc::new(bitmap.clone().into())),
-            )]);
+        unimplemented!()
+        // let cols = batch
+        //     .arrays()
+        //     .iter()
+        //     .cloned()
+        //     .chain([Array::new_with_array_data(
+        //         DataType::Boolean,
+        //         ArrayData2::Boolean(Arc::new(bitmap.clone().into())),
+        //     )]);
 
-        let batch = Batch::try_from_arrays(cols)?;
+        // let batch = Batch::try_from_arrays(cols)?;
 
-        Ok(Some(batch))
+        // Ok(Some(batch))
     }
 
     /// Drain the next batch.
     ///
     /// This will filter out rows that have been visited, and join the remaining
     /// rows will null columns on the right.
-    #[allow(deprecated)]
     pub fn drain_next(&mut self) -> Result<Option<Batch>> {
         loop {
             let batch = match self.batches.get(self.batch_idx) {
@@ -149,20 +149,20 @@ impl LeftOuterJoinDrainState {
                 continue;
             }
 
-            let left_cols = batch.select_old(Arc::new(selection)).into_arrays();
-            let right_cols = self
-                .right_types
-                .iter()
-                .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
-                .collect::<Result<Vec<_>>>()?;
+            unimplemented!()
+            // let left_cols = batch.select_old(Arc::new(selection)).into_arrays();
+            // let right_cols = self
+            //     .right_types
+            //     .iter()
+            //     .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
+            //     .collect::<Result<Vec<_>>>()?;
 
-            let batch = Batch::try_from_arrays(left_cols.into_iter().chain(right_cols))?;
+            // let batch = Batch::try_from_arrays(left_cols.into_iter().chain(right_cols))?;
 
-            return Ok(Some(batch));
+            // return Ok(Some(batch));
         }
     }
 
-    #[allow(deprecated)]
     pub fn drain_semi_next(&mut self) -> Result<Option<Batch>> {
         loop {
             let batch = match self.batches.get(self.batch_idx) {
@@ -185,16 +185,17 @@ impl LeftOuterJoinDrainState {
                 continue;
             }
 
-            let left_cols = batch.select_old(Arc::new(selection)).into_arrays();
-            let right_cols = self
-                .right_types
-                .iter()
-                .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
-                .collect::<Result<Vec<_>>>()?;
+            unimplemented!()
+            // let left_cols = batch.select_old(Arc::new(selection)).into_arrays();
+            // let right_cols = self
+            //     .right_types
+            //     .iter()
+            //     .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
+            //     .collect::<Result<Vec<_>>>()?;
 
-            let batch = Batch::try_from_arrays(left_cols.into_iter().chain(right_cols))?;
+            // let batch = Batch::try_from_arrays(left_cols.into_iter().chain(right_cols))?;
 
-            return Ok(Some(batch));
+            // return Ok(Some(batch));
         }
     }
 }
@@ -232,7 +233,6 @@ impl RightOuterJoinTracker {
     /// the batch.
     ///
     /// Returns None if all row on the right were visited.
-    #[allow(deprecated)]
     pub fn into_unvisited(self, left_types: &[DataType], right: &Batch) -> Result<Option<Batch>> {
         let selection = SelectionVector::from_iter(self.unvisited.index_iter());
         let num_rows = selection.num_rows();
@@ -242,13 +242,14 @@ impl RightOuterJoinTracker {
 
         let right_cols = right.select_old(Arc::new(selection)).into_arrays();
 
-        let left_null_cols = left_types
-            .iter()
-            .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
-            .collect::<Result<Vec<_>>>()?;
+        unimplemented!()
+        // let left_null_cols = left_types
+        //     .iter()
+        //     .map(|datatype| Array::new_typed_null_array(datatype.clone(), num_rows))
+        //     .collect::<Result<Vec<_>>>()?;
 
-        let batch = Batch::try_from_arrays(left_null_cols.into_iter().chain(right_cols))?;
+        // let batch = Batch::try_from_arrays(left_null_cols.into_iter().chain(right_cols))?;
 
-        Ok(Some(batch))
+        // Ok(Some(batch))
     }
 }

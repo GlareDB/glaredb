@@ -8,7 +8,6 @@ use rayexec_error::{RayexecError, Result};
 
 use super::sink::operation::{PartitionSink, PollPush, SinkOperation};
 use super::source::operation::{PartitionSource, PollPull, SourceOperation};
-use super::util::broadcast::{BroadcastChannel, BroadcastReceiver};
 use super::PollFinalize;
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
@@ -23,37 +22,38 @@ pub struct MaterializeOperation {
 
 impl MaterializeOperation {
     pub fn new(mat_ref: MaterializationRef, partitions: usize, source_scans: usize) -> Self {
-        let mut sinks = Vec::new();
-        let mut sources: Vec<_> = (0..source_scans).map(|_| Vec::new()).collect();
+        // let mut sinks = Vec::new();
+        // let mut sources: Vec<_> = (0..source_scans).map(|_| Vec::new()).collect();
 
-        for partition in 0..partitions {
-            let (ch, recvs) = BroadcastChannel::new(source_scans);
+        unimplemented!()
+        // for partition in 0..partitions {
+        //     let (ch, recvs) = BroadcastChannel::new(source_scans);
 
-            sinks.push(MaterializedDataPartitionSink { sender: ch });
+        //     sinks.push(MaterializedDataPartitionSink { sender: ch });
 
-            for (idx, recv) in recvs.into_iter().enumerate() {
-                sources[idx].push(MaterializedDataPartitionSource {
-                    _source_idx: idx,
-                    _partition_idx: partition,
-                    recv,
-                })
-            }
-        }
+        //     for (idx, recv) in recvs.into_iter().enumerate() {
+        //         sources[idx].push(MaterializedDataPartitionSource {
+        //             _source_idx: idx,
+        //             _partition_idx: partition,
+        //             recv,
+        //         })
+        //     }
+        // }
 
-        let sources = sources
-            .into_iter()
-            .map(|scans| MaterializeSourceOperation {
-                mat_ref,
-                sources: Mutex::new(scans),
-            })
-            .collect();
+        // let sources = sources
+        //     .into_iter()
+        //     .map(|scans| MaterializeSourceOperation {
+        //         mat_ref,
+        //         sources: Mutex::new(scans),
+        //     })
+        //     .collect();
 
-        let sink = MaterializedSinkOperation {
-            mat_ref,
-            sinks: Mutex::new(sinks),
-        };
+        // let sink = MaterializedSinkOperation {
+        //     mat_ref,
+        //     sinks: Mutex::new(sinks),
+        // };
 
-        MaterializeOperation { sink, sources }
+        // MaterializeOperation { sink, sources }
     }
 }
 
@@ -133,7 +133,7 @@ impl Explainable for MaterializeSourceOperation {
 pub struct MaterializedDataPartitionSource {
     _source_idx: usize,
     _partition_idx: usize,
-    recv: BroadcastReceiver,
+    // recv: BroadcastReceiver,
 }
 
 impl PartitionSource for MaterializedDataPartitionSource {
@@ -149,7 +149,7 @@ impl PartitionSource for MaterializedDataPartitionSource {
 
 #[derive(Debug)]
 pub struct MaterializedDataPartitionSink {
-    sender: BroadcastChannel,
+    // sender: BroadcastChannel,
 }
 
 impl PartitionSink for MaterializedDataPartitionSink {

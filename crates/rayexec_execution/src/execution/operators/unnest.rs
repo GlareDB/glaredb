@@ -37,19 +37,11 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUtf8,
 };
-use crate::arrays::array::{Array, ArrayData2};
+use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
-use crate::arrays::executor::builder::{
-    ArrayBuilder,
-    ArrayDataBuffer,
-    BooleanBuffer,
-    GermanVarlenBuffer,
-    PrimitiveBuffer,
-};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::selection::{self, SelectionVector};
-use crate::arrays::storage::{AddressableStorage, ListItemMetadata2};
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
@@ -92,32 +84,33 @@ impl ExecutableOperator for PhysicalUnnest {
     ) -> Result<ExecutionStates> {
         let partitions = partitions[0];
 
-        let states: Vec<_> = (0..partitions)
-            .map(|_| {
-                PartitionState::Unnest(UnnestPartitionState {
-                    project_inputs: vec![
-                        Array::new_untyped_null_array(0);
-                        self.project_expressions.len()
-                    ],
-                    unnest_inputs: vec![
-                        Array::new_untyped_null_array(0);
-                        self.unnest_expressions.len()
-                    ],
-                    input_num_rows: 0,
-                    current_row: 0,
-                    finished: false,
-                    push_waker: None,
-                    pull_waker: None,
-                })
-            })
-            .collect();
+        unimplemented!()
+        // let states: Vec<_> = (0..partitions)
+        //     .map(|_| {
+        //         PartitionState::Unnest(UnnestPartitionState {
+        //             project_inputs: vec![
+        //                 Array::new_untyped_null_array(0);
+        //                 self.project_expressions.len()
+        //             ],
+        //             unnest_inputs: vec![
+        //                 Array::new_untyped_null_array(0);
+        //                 self.unnest_expressions.len()
+        //             ],
+        //             input_num_rows: 0,
+        //             current_row: 0,
+        //             finished: false,
+        //             push_waker: None,
+        //             pull_waker: None,
+        //         })
+        //     })
+        //     .collect();
 
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: states,
-            },
-        })
+        // Ok(ExecutionStates {
+        //     operator_state: Arc::new(OperatorState::None),
+        //     partition_states: InputOutputStates::OneToOne {
+        //         partition_states: states,
+        //     },
+        // })
     }
 
     fn poll_push(

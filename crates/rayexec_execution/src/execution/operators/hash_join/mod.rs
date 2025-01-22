@@ -27,7 +27,6 @@ use super::{
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::arrays::executor::scalar::HashExecutor;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::logical_join::JoinType;
@@ -322,11 +321,12 @@ impl ExecutableOperator for PhysicalHashJoin {
                 for (idx, equality) in self.equalities.iter().enumerate() {
                     let result = equality.right.eval(&batch)?;
 
-                    if idx == 0 {
-                        HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
-                    } else {
-                        HashExecutor::hash_combine(&result, &mut state.hash_buf)?;
-                    }
+                    unimplemented!()
+                    // if idx == 0 {
+                    //     HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
+                    // } else {
+                    //     HashExecutor::hash_combine(&result, &mut state.hash_buf)?;
+                    // }
                 }
 
                 let hashtable = state.global.as_ref().expect("hash table to exist");
@@ -552,18 +552,19 @@ impl ExecutableOperator for PhysicalHashJoin {
                         }
                     };
 
-                    state.outer_join_drain_state = Some(LeftOuterJoinDrainState::new(
-                        start_idx,
-                        skip,
-                        global.clone(),
-                        shared
-                            .global_hash_table
-                            .as_ref()
-                            .unwrap()
-                            .collected_batches()
-                            .to_vec(),
-                        self.right_types.clone(),
-                    ));
+                    unimplemented!()
+                    // state.outer_join_drain_state = Some(LeftOuterJoinDrainState::new(
+                    //     start_idx,
+                    //     skip,
+                    //     global.clone(),
+                    //     shared
+                    //         .global_hash_table
+                    //         .as_ref()
+                    //         .unwrap()
+                    //         .collected_batches()
+                    //         .to_vec(),
+                    //     self.right_types.clone(),
+                    // ));
                 }
 
                 // Check if we're still draining unvisited left rows.
@@ -621,11 +622,12 @@ impl PhysicalHashJoin {
         for (idx, equality) in self.equalities.iter().enumerate() {
             let result = equality.left.eval(&batch)?;
 
-            if idx == 0 {
-                HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
-            } else {
-                HashExecutor::hash_combine(&result, &mut state.hash_buf)?;
-            }
+            unimplemented!()
+            // if idx == 0 {
+            //     HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
+            // } else {
+            //     HashExecutor::hash_combine(&result, &mut state.hash_buf)?;
+            // }
         }
 
         state

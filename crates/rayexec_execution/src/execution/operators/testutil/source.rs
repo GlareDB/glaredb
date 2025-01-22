@@ -23,7 +23,7 @@ impl SourceOperation for BatchesSource {
         batch_size: usize,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSource>>> {
-        let mut part_batches = vec![Vec::new(); partitions];
+        let mut part_batches: Vec<_> = (0..partitions).map(|_| Vec::new()).collect();
 
         for (batch_idx, batch) in self.batches.iter_mut().enumerate() {
             let part_idx = batch_idx % partitions;

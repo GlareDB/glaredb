@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use rayexec_error::{Result, ResultExt};
+use rayexec_error::{RayexecError, Result, ResultExt};
 
 pub trait BufferManager: Debug + Sync + Send + Sized {
     // TODO: T => Spillable or something.
@@ -43,8 +43,11 @@ where
     B: BufferManager,
 {
     fn try_new(manager: Arc<B>, size: usize, align: usize) -> Result<Self> {
-        alloc::Layout::from_size_align(size, align)
-            .context("unable to create layout for reservation")?;
+        alloc::Layout::from_size_align(size, align).map_err(|err| {
+            RayexecError::with_source("Unable to create layout for reservation", Box::new(err))
+                .with_field("size", size)
+                .with_field("align", align)
+        })?;
 
         Ok(Reservation {
             manager,

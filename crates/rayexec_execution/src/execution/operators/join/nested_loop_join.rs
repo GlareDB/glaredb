@@ -327,10 +327,11 @@ mod tests {
     use super::*;
     use crate::arrays::batch::Batch;
     use crate::arrays::testutil::{assert_batches_eq, generate_batch};
-    use crate::execution::operators::testutil::OperatorWrapper;
+    use crate::execution::operators::testutil::{plan_scalar, OperatorWrapper};
+    use crate::expr;
 
     #[test]
-    fn cross_join_single_build_batch_single_partiton() {
+    fn cross_join_single_build_batch_single_partition() {
         let mut operator = OperatorWrapper::new(PhysicalNestedLoopJoin::new(
             JoinType::Inner,
             [DataType::Utf8],
@@ -372,4 +373,38 @@ mod tests {
         let poll = operator.binary_finalize_inout(&mut states, 0);
         assert_eq!(PollFinalize::Finalized, poll);
     }
+
+    // #[test]
+    // fn inner_join_single_build_batch_single_partition() {
+    //     // left[1] == right[0]
+    //     let filter = plan_scalar(
+    //         &expr::eq(expr::col_ref(0, 1), expr::col_ref(1, 0)),
+    //         &[&[DataType::Int32, DataType::Utf8], &[DataType::Utf8]],
+    //     );
+    //     let mut operator = OperatorWrapper::new(PhysicalNestedLoopJoin::new(
+    //         JoinType::Inner,
+    //         [DataType::Int32, DataType::Utf8],
+    //         [DataType::Utf8],
+    //         Some(filter),
+    //     ));
+    //     let mut states = operator.create_binary_states(1024, 1);
+
+    //     // Build and finalize build side.
+    //     let mut build_input = generate_batch!([1, 2, 3], ["key1", "key2", "key3"],);
+    //     let poll = operator.binary_execute_sink(&mut states, 0, &mut build_input);
+    //     assert_eq!(PollExecute::NeedsMore, poll);
+    //     let poll = operator.binary_finalize_sink(&mut states, 0);
+    //     assert_eq!(PollFinalize::Finalized, poll);
+
+    //     let mut out =
+    //         Batch::try_new([DataType::Int32, DataType::Utf8, DataType::Utf8], 1024).unwrap();
+
+    //     // Probe with "key2" & "key3"
+    //     let mut probe_input = generate_batch!(["key2", "key3"]);
+    //     let poll = operator.binary_execute_inout(&mut states, 0, &mut probe_input, &mut out);
+    //     assert_eq!(PollExecute::HasMore, poll);
+
+    //     let expected1 = generate_batch!(["key2"], [2]);
+    //     assert_batches_eq(&expected1, &out);
+    // }
 }
