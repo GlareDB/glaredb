@@ -51,7 +51,7 @@ use super::parse::{
 };
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::physical_type::{
-    MutablePhysicalStorage,
+    MutableScalarStorage,
     PhysicalBool,
     PhysicalF16,
     PhysicalF32,
@@ -62,13 +62,13 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalStorage,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
     PhysicalUtf8,
+    ScalarStorage,
 };
 use crate::arrays::array::validity::Validity;
 use crate::arrays::array::Array;
@@ -86,13 +86,13 @@ use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType}
 /// of casting from one type to another, this will always error.
 pub fn cast_array(
     arr: &mut Array,
-    sel: impl IntoExactSizeIterator<Item = usize>,
+    sel: impl IntoExactSizeIterator<Item = usize> + Clone,
     out: &mut Array,
     behavior: CastFailBehavior,
 ) -> Result<()> {
     if arr.datatype() == out.datatype() {
         out.try_clone_from(&NopBufferManager, arr)?;
-        out.select(&Arc::new(NopBufferManager), sel)?;
+        out.select(&NopBufferManager, sel)?;
 
         return Ok(());
     }
@@ -334,7 +334,7 @@ fn cast_float_to_decimal_helper<S>(
     behavior: CastFailBehavior,
 ) -> Result<()>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
     S::StorageType: Float,
 {
     match out.datatype() {
@@ -355,7 +355,7 @@ fn cast_float_to_decimal<S, D>(
     behavior: CastFailBehavior,
 ) -> Result<()>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
     S::StorageType: Float,
     D: DecimalType,
 {
@@ -403,7 +403,7 @@ pub fn cast_decimal_to_float<D, S>(
 ) -> Result<()>
 where
     D: DecimalType,
-    S: MutablePhysicalStorage,
+    S: MutableScalarStorage,
     S::StorageType: Float + Copy,
 {
     let decimal_meta = arr.datatype().try_get_decimal_type_meta()?;
@@ -443,7 +443,7 @@ fn cast_int_to_decimal_helper<S>(
     behavior: CastFailBehavior,
 ) -> Result<()>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
     S::StorageType: PrimInt,
 {
     match out.datatype() {
@@ -462,7 +462,7 @@ fn cast_int_to_decimal<S, D>(
     behavior: CastFailBehavior,
 ) -> Result<()>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
     D: DecimalType,
     S::StorageType: PrimInt,
 {
@@ -530,7 +530,7 @@ fn cast_primitive_numeric_helper<S>(
     behavior: CastFailBehavior,
 ) -> Result<()>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
     S::StorageType: ToPrimitive + Sized + Copy,
 {
     match out.datatype() {
@@ -559,9 +559,9 @@ fn cast_primitive_numeric<S1, S2>(
     behavior: CastFailBehavior,
 ) -> Result<()>
 where
-    S1: PhysicalStorage,
+    S1: ScalarStorage,
     S1::StorageType: ToPrimitive + Sized + Copy,
-    S2: MutablePhysicalStorage,
+    S2: MutableScalarStorage,
     S2::StorageType: NumCast + Copy,
 {
     let mut fail_state = behavior.new_state();
@@ -782,7 +782,7 @@ fn cast_format<S, F>(
     behavior: CastFailBehavior,
 ) -> Result<()>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
     F: Formatter<Type = S::StorageType>,
 {
     let mut fail_state = behavior.new_state();
@@ -818,7 +818,7 @@ fn cast_parse_primitive<P, S>(
 where
     S::StorageType: Sized,
     P: Parser<Type = S::StorageType>,
-    S: MutablePhysicalStorage,
+    S: MutableScalarStorage,
 {
     let mut fail_state = behavior.new_state();
     UnaryExecutor::execute::<PhysicalUtf8, S, _>(
@@ -848,7 +848,7 @@ mod tests {
     #[test]
     fn array_cast_utf8_to_i32() {
         let mut arr = Array::try_from_iter(["13", "18", "123456789"]).unwrap();
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
         cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap();
 
@@ -859,14 +859,14 @@ mod tests {
     #[test]
     fn array_cast_utf8_to_i32_overflow_error() {
         let mut arr = Array::try_from_iter(["13", "18", "123456789000000"]).unwrap();
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
         cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap_err();
     }
 
     #[test]
     fn array_cast_utf8_to_i32_overflow_null() {
         let mut arr = Array::try_from_iter(["13", "18", "123456789000000"]).unwrap();
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
         cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Null).unwrap();
 
@@ -876,8 +876,8 @@ mod tests {
 
     #[test]
     fn array_cast_null_to_f32() {
-        let mut arr = Array::try_new(&Arc::new(NopBufferManager), DataType::Null, 3).unwrap();
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Float32, 3).unwrap();
+        let mut arr = Array::try_new(&NopBufferManager, DataType::Null, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Float32, 3).unwrap();
 
         cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap();
 
@@ -892,7 +892,7 @@ mod tests {
         // '[1.500, 2.000, 2.500]'
         arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(10, 3));
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Float64, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Float64, 3).unwrap();
         cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap();
 
         let expected = Array::try_from_iter([1.5_f64, 2.0, 2.5]).unwrap();

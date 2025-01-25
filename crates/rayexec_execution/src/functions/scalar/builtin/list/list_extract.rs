@@ -1,11 +1,10 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
-use crate::arrays::array::array_buffer::SecondaryBuffer;
 use crate::arrays::array::physical_type::{
     Addressable,
     AddressableMut,
-    MutablePhysicalStorage,
+    MutableScalarStorage,
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -18,7 +17,6 @@ use crate::arrays::array::physical_type::{
     PhysicalI8,
     PhysicalInterval,
     PhysicalList,
-    PhysicalStorage,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -27,6 +25,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUntypedNull,
     PhysicalUtf8,
+    ScalarStorage,
 };
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -162,49 +161,50 @@ fn extract_inner<S>(
     element_idx: usize,
 ) -> Result<()>
 where
-    S: MutablePhysicalStorage,
+    S: MutableScalarStorage,
 {
-    let flat = array.flat_view()?;
+    let flat = array.flatten()?;
 
-    let metas = PhysicalList::get_addressable(flat.array_buffer)?;
-    let child = match flat.array_buffer.get_secondary() {
-        SecondaryBuffer::List(l) => &l.child,
-        _ => return Err(RayexecError::new("Missing secondary buffer for list")),
-    };
+    unimplemented!()
+    // let metas = PhysicalList::get_addressable(flat.array_buffer)?;
+    // let child = match flat.array_buffer.get_secondary() {
+    //     SecondaryBuffer::List(l) => &l.child,
+    //     _ => return Err(RayexecError::new("Missing secondary buffer for list")),
+    // };
 
-    let child_buf = S::get_addressable(&child.data)?;
-    let child_validity = &child.validity;
+    // let child_buf = S::get_addressable(&child.data)?;
+    // let child_validity = &child.validity;
 
-    let mut out_buffer = S::get_addressable_mut(output.data.try_as_mut()?)?;
-    let out_validity = &mut output.validity;
+    // let mut out_buffer = S::get_addressable_mut(output.data.try_as_mut()?)?;
+    // let out_validity = &mut output.validity;
 
-    for (output_idx, input_idx) in sel.into_iter().enumerate() {
-        let sel_idx = flat.selection.get(input_idx).unwrap();
+    // for (output_idx, input_idx) in sel.into_iter().enumerate() {
+    //     let sel_idx = flat.selection.get(input_idx).unwrap();
 
-        if flat.validity.is_valid(sel_idx) {
-            let meta = metas.get(sel_idx).unwrap();
-            if element_idx >= meta.len as usize {
-                // Indexing outside of the list. User is allowed to do that, set
-                // the value to null.
-                out_validity.set_invalid(output_idx);
-                continue;
-            }
+    //     if flat.validity.is_valid(sel_idx) {
+    //         let meta = metas.get(sel_idx).unwrap();
+    //         if element_idx >= meta.len as usize {
+    //             // Indexing outside of the list. User is allowed to do that, set
+    //             // the value to null.
+    //             out_validity.set_invalid(output_idx);
+    //             continue;
+    //         }
 
-            let offset = meta.offset as usize + element_idx;
-            if !child_validity.is_valid(offset) {
-                // Element inside list is null.
-                out_validity.set_invalid(output_idx);
-                continue;
-            }
+    //         let offset = meta.offset as usize + element_idx;
+    //         if !child_validity.is_valid(offset) {
+    //             // Element inside list is null.
+    //             out_validity.set_invalid(output_idx);
+    //             continue;
+    //         }
 
-            let val = child_buf.get(offset).unwrap();
-            out_buffer.put(output_idx, val);
-        } else {
-            out_validity.set_invalid(output_idx);
-        }
-    }
+    //         let val = child_buf.get(offset).unwrap();
+    //         out_buffer.put(output_idx, val);
+    //     } else {
+    //         out_validity.set_invalid(output_idx);
+    //     }
+    // }
 
-    Ok(())
+    // Ok(())
 }
 
 #[cfg(test)]
@@ -225,7 +225,7 @@ mod tests {
         let b = Array::try_from_iter([4, 5, 6]).unwrap();
 
         let mut lists = Array::try_new(
-            &Arc::new(NopBufferManager),
+            &NopBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             3,
         )
@@ -233,8 +233,7 @@ mod tests {
 
         make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
 
-        let mut second_elements =
-            Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        let mut second_elements = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
         list_extract(&lists, 0..3, &mut second_elements, 1).unwrap();
 
         let expected = Array::try_from_iter([4, 5, 6]).unwrap();
@@ -247,7 +246,7 @@ mod tests {
         let b = Array::try_from_iter([4, 5, 6]).unwrap();
 
         let mut lists = Array::try_new(
-            &Arc::new(NopBufferManager),
+            &NopBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             3,
         )
@@ -255,8 +254,7 @@ mod tests {
 
         make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
 
-        let mut extracted_elements =
-            Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        let mut extracted_elements = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
         list_extract(&lists, 0..3, &mut extracted_elements, 2).unwrap();
 
         let expected = Array::try_from_iter([None as Option<i32>, None, None]).unwrap();
@@ -269,7 +267,7 @@ mod tests {
         let b = Array::try_from_iter([Some(4), None, Some(6)]).unwrap();
 
         let mut lists = Array::try_new(
-            &Arc::new(NopBufferManager),
+            &NopBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             3,
         )
@@ -277,16 +275,14 @@ mod tests {
 
         make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
 
-        let mut second_elements =
-            Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        let mut second_elements = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
         list_extract(&lists, 0..3, &mut second_elements, 1).unwrap();
 
         let expected = Array::try_from_iter([Some(4), None, Some(6)]).unwrap();
         assert_arrays_eq(&expected, &second_elements);
 
         // Elements as index 0 should still be all non-null.
-        let mut first_elements =
-            Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        let mut first_elements = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
         list_extract(&lists, 0..3, &mut first_elements, 0).unwrap();
 
         let expected = Array::try_from_iter([1, 2, 3]).unwrap();
@@ -299,7 +295,7 @@ mod tests {
         let b = Array::try_from_iter([4, 5, 6]).unwrap();
 
         let mut lists = Array::try_new(
-            &Arc::new(NopBufferManager),
+            &NopBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             3,
         )
@@ -308,8 +304,7 @@ mod tests {
         make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
         lists.validity.set_invalid(1); // [2, 5] => NULL
 
-        let mut second_elements =
-            Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        let mut second_elements = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
         list_extract(&lists, 0..3, &mut second_elements, 1).unwrap();
 
         let expected = Array::try_from_iter([Some(4), None, Some(6)]).unwrap();

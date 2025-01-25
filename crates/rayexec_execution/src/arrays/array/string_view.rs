@@ -200,20 +200,22 @@ impl fmt::Debug for StringViewMetadataUnion {
 
 #[derive(Debug)]
 pub struct StringViewHeap {
+    is_utf8: bool,
     /// Buffer containing all blob data.
     buffer: Vec<u8>,
 }
 
-impl Default for StringViewHeap {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl StringViewHeap {
     // TODO: Tracker
-    pub const fn new() -> Self {
-        StringViewHeap { buffer: Vec::new() }
+    pub const fn new(is_utf8: bool) -> Self {
+        StringViewHeap {
+            is_utf8,
+            buffer: Vec::new(),
+        }
+    }
+
+    pub fn is_utf8(&self) -> bool {
+        self.is_utf8
     }
 
     pub fn clear(&mut self) {

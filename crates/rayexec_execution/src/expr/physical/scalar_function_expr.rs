@@ -32,7 +32,7 @@ impl PhysicalScalarFunctionExpr {
         let arrays = self
             .inputs
             .iter()
-            .map(|input| Array::try_new(&Arc::new(NopBufferManager), input.datatype(), batch_size))
+            .map(|input| Array::try_new(&NopBufferManager, input.datatype(), batch_size))
             .collect::<Result<Vec<_>>>()?;
 
         let buffer = Batch::try_from_arrays(arrays)?;

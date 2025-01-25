@@ -3,7 +3,7 @@ use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
-use crate::arrays::array::physical_type::MutablePhysicalStorage;
+use crate::arrays::array::physical_type::MutableScalarStorage;
 use crate::arrays::array::Array;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
@@ -23,7 +23,7 @@ impl UnaryInputNumericOperation for AtanOp {
         output: &mut Array,
     ) -> Result<()>
     where
-        S: MutablePhysicalStorage,
+        S: MutableScalarStorage,
         S::StorageType: Float,
     {
         UnaryExecutor::execute::<S, S, _>(

@@ -13,12 +13,12 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalStorage,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
+    ScalarStorage,
 };
 use crate::arrays::array::Array;
 use crate::arrays::executor::scalar::UnaryExecutor;

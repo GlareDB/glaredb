@@ -7,7 +7,7 @@ use crate::arrays::array::physical_type::{
     AddressableMut,
     PhysicalF64,
     PhysicalI64,
-    PhysicalStorage,
+    ScalarStorage,
 };
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
@@ -87,7 +87,7 @@ impl<S> RegrCountImpl<S> {
 
 impl<S> AggregateFunctionImpl for RegrCountImpl<S>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
@@ -110,7 +110,7 @@ pub struct RegrCountState<S> {
 
 impl<S> AggregateState<&S::StorageType, i64> for RegrCountState<S>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
 {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.count += other.count;

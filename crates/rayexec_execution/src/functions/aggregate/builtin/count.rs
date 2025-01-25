@@ -6,8 +6,6 @@ use crate::arrays::array::physical_type::{
     AddressableMut,
     PhysicalBinary,
     PhysicalBool,
-    PhysicalConstant,
-    PhysicalDictionary,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
@@ -18,7 +16,6 @@ use crate::arrays::array::physical_type::{
     PhysicalI8,
     PhysicalInterval,
     PhysicalList,
-    PhysicalStorage,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -27,6 +24,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUntypedNull,
     PhysicalUtf8,
+    ScalarStorage,
 };
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
@@ -112,8 +110,6 @@ impl AggregateFunction for Count {
             PhysicalType::Interval => Box::new(CountNonNullImpl::<PhysicalInterval>::new()),
             PhysicalType::Utf8 => Box::new(CountNonNullImpl::<PhysicalUtf8>::new()),
             PhysicalType::Binary => Box::new(CountNonNullImpl::<PhysicalBinary>::new()),
-            PhysicalType::Dictionary => Box::new(CountNonNullImpl::<PhysicalDictionary>::new()),
-            PhysicalType::Constant => Box::new(CountNonNullImpl::<PhysicalConstant>::new()),
             PhysicalType::List => Box::new(CountNonNullImpl::<PhysicalList>::new()),
             PhysicalType::Struct => not_implemented!("count struct"),
         };
@@ -140,7 +136,7 @@ impl<S> CountNonNullImpl<S> {
 
 impl<S> AggregateFunctionImpl for CountNonNullImpl<S>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
@@ -152,14 +148,14 @@ where
 }
 
 #[derive(Debug, Default)]
-pub struct CountNonNullState<S: PhysicalStorage> {
+pub struct CountNonNullState<S: ScalarStorage> {
     count: i64,
     _s: PhantomData<S>,
 }
 
 impl<S> AggregateState<&S::StorageType, i64> for CountNonNullState<S>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
 {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.count += other.count;

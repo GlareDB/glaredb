@@ -1,8 +1,8 @@
 use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
-use crate::arrays::array::flat::FlatArrayView;
-use crate::arrays::array::physical_type::{Addressable, MutablePhysicalStorage, PhysicalStorage};
+use crate::arrays::array::flat::FlattenedArray;
+use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::Array;
 use crate::arrays::executor::{OutBuffer, PutBuffer};
 
@@ -20,17 +20,14 @@ impl UniformExecutor {
         mut op: Op,
     ) -> Result<()>
     where
-        S: PhysicalStorage,
-        O: MutablePhysicalStorage,
+        S: ScalarStorage,
+        O: MutableScalarStorage,
         for<'a> Op: FnMut(&[&S::StorageType], PutBuffer<O::AddressableMut<'a>>),
     {
-        if arrays
-            .iter()
-            .any(|arr| arr.is_dictionary() || arr.is_constant())
-        {
+        if arrays.iter().any(|arr| arr.should_flatten_for_execution()) {
             let flats = arrays
                 .iter()
-                .map(|arr| arr.flat_view())
+                .map(|arr| arr.flatten())
                 .collect::<Result<Vec<_>>>()?;
 
             return Self::execute_flat::<S, O, Op>(&flats, sel, out, op);
@@ -48,7 +45,7 @@ impl UniformExecutor {
         let mut op_inputs = Vec::with_capacity(arrays.len());
 
         if all_valid {
-            for (output_idx, input_idx) in sel.into_iter().enumerate() {
+            for (output_idx, input_idx) in sel.into_exact_size_iter().enumerate() {
                 op_inputs.clear();
                 for input in &inputs {
                     op_inputs.push(input.get(input_idx).unwrap());
@@ -62,7 +59,7 @@ impl UniformExecutor {
         } else {
             let validities: Vec<_> = arrays.iter().map(|arr| &arr.validity).collect();
 
-            for (output_idx, input_idx) in sel.into_iter().enumerate() {
+            for (output_idx, input_idx) in sel.into_exact_size_iter().enumerate() {
                 let all_valid = validities.iter().all(|v| v.is_valid(input_idx));
 
                 if all_valid {
@@ -85,14 +82,14 @@ impl UniformExecutor {
     }
 
     pub fn execute_flat<S, O, Op>(
-        arrays: &[FlatArrayView],
+        arrays: &[FlattenedArray],
         sel: impl IntoExactSizeIterator<Item = usize>,
         out: OutBuffer,
         mut op: Op,
     ) -> Result<()>
     where
-        S: PhysicalStorage,
-        O: MutablePhysicalStorage,
+        S: ScalarStorage,
+        O: MutableScalarStorage,
         for<'a> Op: FnMut(&[&S::StorageType], PutBuffer<O::AddressableMut<'a>>),
     {
         // TODO: length check
@@ -109,7 +106,7 @@ impl UniformExecutor {
         let mut op_inputs = Vec::with_capacity(arrays.len());
 
         if all_valid {
-            for (output_idx, input_idx) in sel.into_iter().enumerate() {
+            for (output_idx, input_idx) in sel.into_exact_size_iter().enumerate() {
                 op_inputs.clear();
                 for (input, array) in inputs.iter().zip(arrays) {
                     let sel_idx = array.selection.get(input_idx).unwrap();
@@ -122,7 +119,7 @@ impl UniformExecutor {
                 );
             }
         } else {
-            for (output_idx, input_idx) in sel.into_iter().enumerate() {
+            for (output_idx, input_idx) in sel.into_exact_size_iter().enumerate() {
                 let mut all_valid = true;
 
                 for array in arrays {
@@ -168,7 +165,7 @@ mod tests {
         let b = Array::try_from_iter([true, true, false]).unwrap();
         let c = Array::try_from_iter([true, false, false]).unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
 
         UniformExecutor::execute::<PhysicalBool, PhysicalBool, _>(
             &[a, b, c],
@@ -192,7 +189,7 @@ mod tests {
         let b = Array::try_from_iter(["1", "2", "3"]).unwrap();
         let c = Array::try_from_iter(["dog", "cat", "horse"]).unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -221,7 +218,7 @@ mod tests {
         let b = Array::try_from_iter(["1", "2", "3"]).unwrap();
         let c = Array::try_from_iter([Some("dog"), None, Some("horse")]).unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -250,9 +247,9 @@ mod tests {
         let b = Array::try_from_iter(["1", "2", "3"]).unwrap();
         let mut c = Array::try_from_iter(["dog", "cat", "horse"]).unwrap();
         // '["horse", "horse", "dog"]
-        c.select(&Arc::new(NopBufferManager), [2, 2, 0]).unwrap();
+        c.select(&NopBufferManager, [2, 2, 0]).unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -278,10 +275,10 @@ mod tests {
     #[test]
     fn uniform_string_concat_row_wise_with_constant() {
         let a = Array::try_from_iter(["a", "b", "c"]).unwrap();
-        let b = Array::try_new_constant(&Arc::new(NopBufferManager), &"*".into(), 3).unwrap();
+        let b = Array::try_new_constant(&NopBufferManager, &"*".into(), 3).unwrap();
         let c = Array::try_from_iter(["dog", "cat", "horse"]).unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
         UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(

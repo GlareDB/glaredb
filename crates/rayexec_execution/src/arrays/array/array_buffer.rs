@@ -1,12 +1,12 @@
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{RayexecError, Result};
+use stdutil::convert::TryAsMut;
 
-use super::array_data::ArrayData;
 use super::buffer_manager::BufferManager;
-use super::physical_type::{PhysicalStorage, PhysicalType};
-use super::raw::RawBuffer;
+use super::cache::Cached;
+use super::raw::{RawBuffer, TypedRawBuffer};
 use super::string_view::{
     BinaryViewAddressable,
     BinaryViewAddressableMut,
@@ -17,219 +17,430 @@ use super::string_view::{
 };
 use super::validity::Validity;
 use super::Array;
+use crate::arrays::array::physical_type::{
+    Addressable,
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalInterval,
+    PhysicalList,
+    PhysicalType,
+    PhysicalU128,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU8,
+    PhysicalUntypedNull,
+    PhysicalUtf8,
+    ScalarStorage,
+};
+use crate::arrays::datatype::DataType;
 
-/// Buffer for arrays.
+/// Abstraction layer for holding shared or owned array data.
 ///
-/// Buffers are able to hold a fixed number of elements in the primary buffer.
-/// Some types make use of secondary buffers for additional data. In such cases,
-/// the primary buffer may hold things like metadata or offsets depending on the
-/// type.
+/// Arrays typically start out with all owned data allow for mutability. If
+/// another array needs to reference it (e.g. for selection), then the
+/// underlying buffers will be transitioned to shared references.
 #[derive(Debug)]
-pub struct ArrayBuffer<B: BufferManager> {
-    /// Physical type of the buffer.
-    physical_type: PhysicalType,
-    /// The primary data buffer.
-    ///
-    /// For primitive buffers, this will just contain the primitives themselves.
-    /// Other buffers like string buffers will store the metadata here.
-    primary: RawBuffer<B>,
-    /// Secondary buffer if needed for the buffer type.
-    secondary: Box<SecondaryBuffer<B>>,
+pub(crate) struct ArrayBuffer<B: BufferManager> {
+    inner: ArrayBufferType<B>,
 }
 
 impl<B> ArrayBuffer<B>
 where
     B: BufferManager,
 {
-    /// Create an array buffer with the given capacity for the primary data
-    /// buffer.
-    ///
-    /// The secondary buffer will be initialized to None.
-    pub(crate) fn with_primary_capacity<S: PhysicalStorage>(
-        manager: &Arc<B>,
-        capacity: usize,
-    ) -> Result<Self> {
-        let primary = RawBuffer::try_with_capacity::<S::PrimaryBufferType>(manager, capacity)?;
+    pub fn new(inner: impl Into<ArrayBufferType<B>>) -> Self {
+        ArrayBuffer {
+            inner: inner.into(),
+        }
+    }
 
+    /// Creates a new array buffer for the given datatype.
+    ///
+    /// This will never produce a Constant or Dictionary buffer.
+    pub fn try_new_for_datatype(manager: &B, datatype: &DataType, capacity: usize) -> Result<Self> {
+        let inner = match datatype.physical_type() {
+            PhysicalType::UntypedNull => {
+                ScalarBuffer::try_new::<PhysicalUntypedNull>(manager, capacity)?.into()
+            }
+            PhysicalType::Boolean => {
+                ScalarBuffer::try_new::<PhysicalBool>(manager, capacity)?.into()
+            }
+            PhysicalType::Int8 => ScalarBuffer::try_new::<PhysicalI8>(manager, capacity)?.into(),
+            PhysicalType::Int16 => ScalarBuffer::try_new::<PhysicalI16>(manager, capacity)?.into(),
+            PhysicalType::Int32 => ScalarBuffer::try_new::<PhysicalI32>(manager, capacity)?.into(),
+            PhysicalType::Int64 => ScalarBuffer::try_new::<PhysicalI64>(manager, capacity)?.into(),
+            PhysicalType::Int128 => {
+                ScalarBuffer::try_new::<PhysicalI128>(manager, capacity)?.into()
+            }
+            PhysicalType::UInt8 => ScalarBuffer::try_new::<PhysicalU8>(manager, capacity)?.into(),
+            PhysicalType::UInt16 => ScalarBuffer::try_new::<PhysicalU16>(manager, capacity)?.into(),
+            PhysicalType::UInt32 => ScalarBuffer::try_new::<PhysicalU32>(manager, capacity)?.into(),
+            PhysicalType::UInt64 => ScalarBuffer::try_new::<PhysicalU64>(manager, capacity)?.into(),
+            PhysicalType::UInt128 => {
+                ScalarBuffer::try_new::<PhysicalU128>(manager, capacity)?.into()
+            }
+            PhysicalType::Float16 => {
+                ScalarBuffer::try_new::<PhysicalF16>(manager, capacity)?.into()
+            }
+            PhysicalType::Float32 => {
+                ScalarBuffer::try_new::<PhysicalF32>(manager, capacity)?.into()
+            }
+            PhysicalType::Float64 => {
+                ScalarBuffer::try_new::<PhysicalF64>(manager, capacity)?.into()
+            }
+            PhysicalType::Interval => {
+                ScalarBuffer::try_new::<PhysicalInterval>(manager, capacity)?.into()
+            }
+            PhysicalType::Utf8 => StringBuffer::try_new::<PhysicalUtf8>(manager, capacity)?.into(),
+            PhysicalType::Binary => {
+                StringBuffer::try_new::<PhysicalBinary>(manager, capacity)?.into()
+            }
+            PhysicalType::List => {
+                let inner = match datatype {
+                    DataType::List(m) => m.datatype.as_ref().clone(),
+                    other => {
+                        return Err(RayexecError::new(format!(
+                            "Expected list datatype, got {other}"
+                        )))
+                    }
+                };
+                ListBuffer::try_new(manager, inner, capacity)?.into()
+            }
+            _ => unimplemented!(),
+        };
+
+        Ok(ArrayBuffer { inner })
+    }
+
+    pub fn make_shared_and_clone(&mut self) -> Result<Self> {
         Ok(ArrayBuffer {
-            physical_type: S::PHYSICAL_TYPE,
-            primary,
-            secondary: Box::new(SecondaryBuffer::None),
+            inner: self.inner.make_shared_and_clone(),
         })
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn put_secondary_buffer(&mut self, secondary: SecondaryBuffer<B>) {
-        self.secondary = Box::new(secondary)
-    }
-
-    pub const fn physical_type(&self) -> PhysicalType {
-        self.physical_type
-    }
-
-    pub fn primary_capacity(&self) -> usize {
-        self.primary.capacity
-    }
-
-    pub fn get_secondary(&self) -> &SecondaryBuffer<B> {
-        &self.secondary
-    }
-
-    pub fn get_secondary_mut(&mut self) -> &mut SecondaryBuffer<B> {
-        &mut self.secondary
-    }
-
-    pub fn try_as_slice<S: PhysicalStorage>(&self) -> Result<&[S::PrimaryBufferType]> {
-        self.check_type(S::PHYSICAL_TYPE)?;
-        let slice = unsafe { self.primary.as_slice::<S::PrimaryBufferType>() };
-
-        Ok(slice)
-    }
-
-    pub fn try_as_slice_mut<S: PhysicalStorage>(&mut self) -> Result<&mut [S::PrimaryBufferType]> {
-        self.check_type(S::PHYSICAL_TYPE)?;
-        let slice = unsafe { self.primary.as_slice_mut::<S::PrimaryBufferType>() };
-
-        Ok(slice)
-    }
-
-    pub fn try_as_string_view_addressable(&self) -> Result<StringViewAddressable> {
-        self.check_type(PhysicalType::Utf8)?;
-
-        let metadata = unsafe { self.primary.as_slice::<StringViewMetadataUnion>() };
-        let heap = match self.secondary.as_ref() {
-            SecondaryBuffer::StringViewHeap(heap) => heap,
-            _ => return Err(RayexecError::new("Missing string heap")),
-        };
-
-        Ok(StringViewAddressable { metadata, heap })
-    }
-
-    pub fn try_as_string_view_addressable_mut(&mut self) -> Result<StringViewAddressableMut> {
-        self.check_type(PhysicalType::Utf8)?;
-
-        let metadata = unsafe { self.primary.as_slice_mut::<StringViewMetadataUnion>() };
-        let heap = match self.secondary.as_mut() {
-            SecondaryBuffer::StringViewHeap(heap) => heap,
-            _ => return Err(RayexecError::new("Missing string heap")),
-        };
-
-        Ok(StringViewAddressableMut { metadata, heap })
-    }
-
-    pub fn try_as_binary_view_addressable(&self) -> Result<BinaryViewAddressable> {
-        self.check_type_one_of(&[PhysicalType::Utf8, PhysicalType::Binary])?;
-
-        let metadata = unsafe { self.primary.as_slice::<StringViewMetadataUnion>() };
-        let heap = match self.secondary.as_ref() {
-            SecondaryBuffer::StringViewHeap(heap) => heap,
-            _ => return Err(RayexecError::new("Missing string heap")),
-        };
-
-        Ok(BinaryViewAddressable { metadata, heap })
-    }
-
-    pub fn try_as_binary_view_addressable_mut(&mut self) -> Result<BinaryViewAddressableMut> {
-        // Note that unlike the non-mut version of this function, we only allow
-        // physical binary types here. For reads, treating strings as binary is
-        // completely fine, but allowing writing raw binary to a logical string
-        // array could lead to invalid utf8.
-        self.check_type(PhysicalType::Binary)?;
-
-        let metadata = unsafe { self.primary.as_slice_mut::<StringViewMetadataUnion>() };
-        let heap = match self.secondary.as_mut() {
-            SecondaryBuffer::StringViewHeap(heap) => heap,
-            _ => return Err(RayexecError::new("Missing string heap")),
-        };
-
-        Ok(BinaryViewAddressableMut { metadata, heap })
-    }
-
-    /// Ensure the primary buffer can hold `capacity` elements.
-    ///
-    /// Does nothing if the primary buffer already has enough capacity.
-    // TODO: Do we need to enable shrinking buffers? Experiment branch had that,
-    // but I don't believe it was actually needed anywhere.
-    pub fn reserve_primary<S: PhysicalStorage>(&mut self, capacity: usize) -> Result<()> {
-        self.check_type(S::PHYSICAL_TYPE)?;
-
-        let s = self.try_as_slice::<S>()?;
-        if s.len() >= capacity {
-            // Already have the capacity needed.
-            return Ok(());
-        }
-
-        let additional = capacity - s.len();
-        unsafe { self.primary.reserve::<S::PrimaryBufferType>(additional)? };
-
-        Ok(())
-    }
-
-    /// Checks that the physical type of this buffer matches `want`.
-    fn check_type(&self, want: PhysicalType) -> Result<()> {
-        if want != self.physical_type {
-            return Err(RayexecError::new("Physical types don't match")
-                .with_field("have", self.physical_type)
-                .with_field("want", want));
-        }
-
-        Ok(())
-    }
-
-    fn check_type_one_of(&self, oneof: &[PhysicalType]) -> Result<()> {
-        if !oneof.contains(&self.physical_type) {
-            return Err(
-                RayexecError::new("Physical type not one of requested types")
-                    .with_field("have", self.physical_type)
-                    .with_field("oneof", oneof.display_as_list().to_string()),
-            );
-        }
-
-        Ok(())
+    pub fn into_inner(self) -> ArrayBufferType<B> {
+        self.inner
     }
 }
 
-#[derive(Debug)]
-pub enum SecondaryBuffer<B: BufferManager> {
-    StringViewHeap(StringViewHeap),
-    Dictionary(DictionaryBuffer<B>),
-    List(ListBuffer<B>),
-    Constant(ConstantBuffer<B>),
-    None,
-}
-
-impl<B> SecondaryBuffer<B>
+impl<B> AsRef<ArrayBufferType<B>> for ArrayBuffer<B>
 where
     B: BufferManager,
 {
-    pub fn get_list(&self) -> Result<&ListBuffer<B>> {
+    fn as_ref(&self) -> &ArrayBufferType<B> {
+        &self.inner
+    }
+}
+
+impl<B> AsMut<ArrayBufferType<B>> for ArrayBuffer<B>
+where
+    B: BufferManager,
+{
+    fn as_mut(&mut self) -> &mut ArrayBufferType<B> {
+        &mut self.inner
+    }
+}
+
+impl<B> Deref for ArrayBuffer<B>
+where
+    B: BufferManager,
+{
+    type Target = ArrayBufferType<B>;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+
+impl<B> DerefMut for ArrayBuffer<B>
+where
+    B: BufferManager,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_mut()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ArrayBufferType<B: BufferManager> {
+    Scalar(ScalarBuffer<B>),
+    Constant(ConstantBuffer<B>),
+    String(StringBuffer<B>),
+    Dictionary(DictionaryBuffer<B>),
+    List(ListBuffer<B>),
+}
+
+impl<B> ArrayBufferType<B>
+where
+    B: BufferManager,
+{
+    pub fn logical_len(&self) -> usize {
         match self {
-            Self::List(l) => Ok(l),
-            _ => Err(RayexecError::new("Expected list buffer")),
+            Self::Scalar(buf) => buf.logical_len(),
+            Self::Constant(buf) => buf.logical_len(),
+            Self::String(buf) => buf.logical_len(),
+            Self::Dictionary(buf) => buf.logical_len(),
+            Self::List(buf) => buf.logical_len(),
         }
     }
 
-    pub fn get_list_mut(&mut self) -> Result<&mut ListBuffer<B>> {
+    fn make_shared_and_clone(&mut self) -> Self {
         match self {
-            Self::List(l) => Ok(l),
-            _ => Err(RayexecError::new("Expected list buffer")),
+            Self::Scalar(buf) => Self::Scalar(buf.make_shared_and_clone()),
+            Self::Constant(buf) => Self::Constant(buf.make_shared_and_clone()),
+            Self::String(buf) => Self::String(buf.make_shared_and_clone()),
+            Self::Dictionary(buf) => Self::Dictionary(buf.make_shared_and_clone()),
+            Self::List(buf) => Self::List(buf.make_shared_and_clone()),
+        }
+    }
+}
+
+impl<B: BufferManager> From<ScalarBuffer<B>> for ArrayBufferType<B> {
+    fn from(value: ScalarBuffer<B>) -> Self {
+        Self::Scalar(value)
+    }
+}
+
+impl<B: BufferManager> From<ConstantBuffer<B>> for ArrayBufferType<B> {
+    fn from(value: ConstantBuffer<B>) -> Self {
+        Self::Constant(value)
+    }
+}
+
+impl<B: BufferManager> From<StringBuffer<B>> for ArrayBufferType<B> {
+    fn from(value: StringBuffer<B>) -> Self {
+        Self::String(value)
+    }
+}
+
+impl<B: BufferManager> From<DictionaryBuffer<B>> for ArrayBufferType<B> {
+    fn from(value: DictionaryBuffer<B>) -> Self {
+        Self::Dictionary(value)
+    }
+}
+
+impl<B: BufferManager> From<ListBuffer<B>> for ArrayBufferType<B> {
+    fn from(value: ListBuffer<B>) -> Self {
+        Self::List(value)
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ScalarBuffer<B: BufferManager> {
+    pub(crate) physical_type: PhysicalType,
+    pub(crate) raw: SharedOrOwned<RawBuffer<B>>,
+}
+
+impl<B> ScalarBuffer<B>
+where
+    B: BufferManager,
+{
+    pub fn try_as_slice<S>(&self) -> Result<&[S::StorageType]>
+    where
+        S: ScalarStorage,
+        S::StorageType: Sized,
+    {
+        if self.physical_type != S::PHYSICAL_TYPE {
+            return Err(RayexecError::new("Physical type doesn't match for cast")
+                .with_field("need", self.physical_type)
+                .with_field("have", S::PHYSICAL_TYPE));
+        }
+
+        let buf = unsafe { self.raw.as_slice::<S::StorageType>() };
+        Ok(buf)
+    }
+
+    pub fn try_as_slice_mut<S>(&mut self) -> Result<&mut [S::StorageType]>
+    where
+        S: ScalarStorage,
+        S::StorageType: Sized,
+    {
+        if self.physical_type != S::PHYSICAL_TYPE {
+            return Err(RayexecError::new("Physical type doesn't match for cast")
+                .with_field("need", self.physical_type)
+                .with_field("have", S::PHYSICAL_TYPE));
+        }
+
+        let raw = self.raw.try_as_mut()?;
+        let buf = unsafe { raw.as_slice_mut::<S::StorageType>() };
+
+        Ok(buf)
+    }
+
+    /// Create a new scalar buffer for storing sized primitive values.
+    fn try_new<S>(manager: &B, capacity: usize) -> Result<Self>
+    where
+        S: ScalarStorage,
+        S::StorageType: Sized,
+    {
+        let raw = RawBuffer::try_with_capacity::<S::StorageType>(manager, capacity)?;
+        Ok(ScalarBuffer {
+            physical_type: S::PHYSICAL_TYPE,
+            raw: SharedOrOwned::owned(raw),
+        })
+    }
+
+    fn logical_len(&self) -> usize {
+        self.raw.capacity
+    }
+
+    fn make_shared_and_clone(&mut self) -> Self {
+        let raw = self.raw.make_shared_and_clone();
+
+        ScalarBuffer {
+            physical_type: self.physical_type,
+            raw,
         }
     }
 }
 
 #[derive(Debug)]
-pub struct DictionaryBuffer<B: BufferManager> {
-    pub(crate) validity: Validity,
-    pub(crate) buffer: ArrayData<B>,
+pub(crate) struct ConstantBuffer<B: BufferManager> {
+    pub(crate) row_reference: usize,
+    pub(crate) len: usize,
+    pub(crate) child_buffer: SharedOrOwned<ArrayBuffer<B>>,
+}
+
+impl<B> ConstantBuffer<B>
+where
+    B: BufferManager,
+{
+    fn logical_len(&self) -> usize {
+        self.len
+    }
+
+    fn make_shared_and_clone(&mut self) -> Self {
+        ConstantBuffer {
+            row_reference: self.row_reference,
+            len: self.len,
+            child_buffer: self.child_buffer.make_shared_and_clone(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct StringBuffer<B: BufferManager> {
+    pub(crate) metadata: SharedOrOwned<TypedRawBuffer<StringViewMetadataUnion, B>>,
+    pub(crate) heap: SharedOrOwned<StringViewHeap>,
+}
+
+impl<B> StringBuffer<B>
+where
+    B: BufferManager,
+{
+    pub fn try_as_string_view(&self) -> Result<StringViewAddressable> {
+        let heap = &self.heap;
+        if !heap.is_utf8() {
+            return Err(RayexecError::new("Cannot view raw binary as strings"));
+        }
+
+        Ok(StringViewAddressable {
+            metadata: self.metadata.as_slice(),
+            heap,
+        })
+    }
+
+    pub fn try_as_string_view_mut(&mut self) -> Result<StringViewAddressableMut> {
+        let heap = self.heap.try_as_mut()?;
+        if !heap.is_utf8() {
+            return Err(RayexecError::new("Cannot view raw binary as strings"));
+        }
+
+        Ok(StringViewAddressableMut {
+            metadata: self.metadata.try_as_mut()?.as_slice_mut(),
+            heap,
+        })
+    }
+
+    pub fn as_binary_view(&self) -> BinaryViewAddressable {
+        // Note that we don't check if this is utf8 or not. We always allow
+        // getting binary slices even when we're dealing with strings.
+        BinaryViewAddressable {
+            metadata: self.metadata.as_slice(),
+            heap: &self.heap,
+        }
+    }
+
+    pub fn try_as_binary_view_mut(&mut self) -> Result<BinaryViewAddressableMut> {
+        let heap = self.heap.try_as_mut()?;
+        // Unlike binary view, we don't want to allow mutable access to string
+        // data without validating it.
+        if heap.is_utf8() {
+            return Err(RayexecError::new(
+                "Cannot view modify raw binary for string data",
+            ));
+        }
+
+        Ok(BinaryViewAddressableMut {
+            metadata: self.metadata.try_as_mut()?.as_slice_mut(),
+            heap,
+        })
+    }
+
+    fn try_new<S>(manager: &B, capacity: usize) -> Result<Self>
+    where
+        S: ScalarStorage,
+    {
+        let metadata = TypedRawBuffer::try_with_capacity(manager, capacity)?;
+        let is_utf8 = match S::PHYSICAL_TYPE {
+            PhysicalType::Utf8 => true,
+            PhysicalType::Binary => false,
+            other => {
+                return Err(RayexecError::new(format!(
+                    "Unexpected physical type for string buffer: {other}",
+                )))
+            }
+        };
+        let heap = StringViewHeap::new(is_utf8);
+
+        Ok(StringBuffer {
+            metadata: SharedOrOwned::owned(metadata),
+            heap: SharedOrOwned::owned(heap),
+        })
+    }
+
+    fn logical_len(&self) -> usize {
+        self.metadata.capacity()
+    }
+
+    fn make_shared_and_clone(&mut self) -> Self {
+        let metadata = self.metadata.make_shared_and_clone();
+        let heap = self.heap.make_shared_and_clone();
+
+        StringBuffer { metadata, heap }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct DictionaryBuffer<B: BufferManager> {
+    pub(crate) selection: SharedOrOwned<TypedRawBuffer<usize, B>>,
+    pub(crate) child_buffer: SharedOrOwned<ArrayBuffer<B>>,
 }
 
 impl<B> DictionaryBuffer<B>
 where
     B: BufferManager,
 {
-    pub fn new(buffer: ArrayData<B>, validity: Validity) -> Self {
-        debug_assert_eq!(buffer.primary_capacity(), validity.len());
-        DictionaryBuffer { buffer, validity }
+    fn make_shared_and_clone(&mut self) -> Self {
+        DictionaryBuffer {
+            selection: self.selection.make_shared_and_clone(),
+            child_buffer: self.child_buffer.make_shared_and_clone(),
+        }
+    }
+
+    fn logical_len(&self) -> usize {
+        self.selection.capacity()
     }
 }
 
@@ -241,6 +452,7 @@ pub struct ListItemMetadata {
 
 #[derive(Debug)]
 pub struct ListBuffer<B: BufferManager> {
+    pub(crate) metadata: SharedOrOwned<TypedRawBuffer<ListItemMetadata, B>>,
     /// Number of "filled" entries in the child array.
     ///
     /// This differs from the child's capacity as we need to be able
@@ -250,95 +462,114 @@ pub struct ListBuffer<B: BufferManager> {
     /// ignore this as all required info is in the entry metadata.
     #[allow(dead_code)]
     pub(crate) entries: usize,
-    pub(crate) child: Array<B>,
+    pub(crate) child: SharedOrOwned<Array<B>>,
 }
 
 impl<B> ListBuffer<B>
 where
     B: BufferManager,
 {
-    pub fn new(child: Array<B>) -> Self {
-        ListBuffer { entries: 0, child }
+    fn try_new(manager: &B, inner_type: DataType, capacity: usize) -> Result<Self> {
+        let metadata = TypedRawBuffer::try_with_capacity(manager, capacity)?;
+        let child = Array::try_new(manager, inner_type, capacity)?;
+
+        Ok(ListBuffer {
+            metadata: SharedOrOwned::owned(metadata),
+            entries: 0,
+            child: SharedOrOwned::owned(child),
+        })
+    }
+
+    fn logical_len(&self) -> usize {
+        self.metadata.capacity()
+    }
+
+    fn make_shared_and_clone(&mut self) -> Self {
+        let metadata = self.metadata.make_shared_and_clone();
+        let child = self.child.make_shared_and_clone();
+
+        ListBuffer {
+            metadata,
+            entries: self.entries,
+            child,
+        }
     }
 }
 
-/// Holds a single constant value.
+// TODO: This could result in double boxing.
 #[derive(Debug)]
-pub struct ConstantBuffer<B: BufferManager> {
-    pub(crate) row_reference: usize,
-    pub(crate) validity: Validity,
-    pub(crate) buffer: ArrayData<B>,
+pub(crate) enum SharedOrOwned<T> {
+    Shared(Arc<T>),
+    Owned(Box<T>),
+    Uninit,
 }
 
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
-    use crate::arrays::array::physical_type::{
-        Addressable,
-        AddressableMut,
-        PhysicalI32,
-        PhysicalUntypedNull,
-        PhysicalUtf8,
-        UntypedNull,
-    };
-
-    #[test]
-    fn create_untyped_null() {
-        // Untyped null is zero sized, ensure we can properly handle that.
-        let buffer = ArrayBuffer::with_primary_capacity::<PhysicalUntypedNull>(
-            &Arc::new(NopBufferManager),
-            4,
-        )
-        .unwrap();
-
-        assert_eq!(4, buffer.primary_capacity());
-        assert_eq!(0, buffer.primary.reservation.size());
-
-        let s = buffer.try_as_slice::<PhysicalUntypedNull>().unwrap();
-        assert_eq!(&[UntypedNull, UntypedNull, UntypedNull, UntypedNull], s);
+impl<T> SharedOrOwned<T> {
+    pub(crate) fn owned(v: impl Into<Box<T>>) -> Self {
+        SharedOrOwned::Owned(v.into())
     }
 
-    #[test]
-    fn reserve_primitive() {
-        let mut buffer =
-            ArrayBuffer::with_primary_capacity::<PhysicalI32>(&Arc::new(NopBufferManager), 4)
-                .unwrap();
-        assert_eq!(4, buffer.primary_capacity());
-
-        let s = buffer.try_as_slice::<PhysicalI32>().unwrap();
-        assert_eq!(4, s.len());
-
-        buffer.reserve_primary::<PhysicalI32>(8).unwrap();
-        assert_eq!(8, buffer.primary_capacity());
-
-        let s = buffer.try_as_slice_mut::<PhysicalI32>().unwrap();
-        assert_eq!(8, s.len());
-
-        // Sanity check, make sure we can write to it.
-        s.iter_mut().for_each(|v| *v = 12);
-
-        assert_eq!(vec![12; 8].as_slice(), s);
+    pub(crate) const fn is_owned(&self) -> bool {
+        matches!(self, Self::Owned(_))
     }
 
-    #[test]
-    fn as_string_view() {
-        let mut buffer =
-            ArrayBuffer::with_primary_capacity::<PhysicalUtf8>(&Arc::new(NopBufferManager), 4)
-                .unwrap();
-        buffer.put_secondary_buffer(SecondaryBuffer::StringViewHeap(StringViewHeap::new()));
+    pub(crate) fn make_shared_and_clone(&mut self) -> Self {
+        self.make_shared();
+        self.try_clone_shared().expect("to be in shared variant")
+    }
 
-        let mut s = buffer.try_as_string_view_addressable_mut().unwrap();
-        s.put(0, "dog");
-        s.put(1, "cat");
-        s.put(2, "dogcatdogcatdogcat");
-        s.put(3, "");
+    pub(crate) fn make_shared(&mut self) {
+        match self {
+            Self::Shared(_) => (), // Nothing to do.
+            Self::Owned(_) => {
+                // Need to swap out and wrap in an arc.
+                let orig = std::mem::replace(self, SharedOrOwned::Uninit);
+                let owned = match orig {
+                    SharedOrOwned::Owned(owned) => owned,
+                    _ => unreachable!(),
+                };
 
-        let s = buffer.try_as_string_view_addressable().unwrap();
-        assert_eq!("dog", s.get(0).unwrap());
-        assert_eq!("cat", s.get(1).unwrap());
-        assert_eq!("dogcatdogcatdogcat", s.get(2).unwrap());
-        assert_eq!("", s.get(3).unwrap());
+                let shared = Arc::new(*owned);
+                *self = SharedOrOwned::Shared(shared);
+            }
+            Self::Uninit => panic!("invalid state"),
+        }
+    }
+
+    pub(crate) fn try_clone_shared(&self) -> Result<Self> {
+        match self {
+            Self::Owned(_) => Err(RayexecError::new("Cannot clone owned value")),
+            Self::Shared(v) => Ok(Self::Shared(v.clone())),
+            Self::Uninit => panic!("invalid state"),
+        }
+    }
+}
+
+impl<T> AsRef<T> for SharedOrOwned<T> {
+    fn as_ref(&self) -> &T {
+        match self {
+            Self::Shared(v) => v.as_ref(),
+            Self::Owned(v) => v.as_ref(),
+            Self::Uninit => panic!("invalid state"),
+        }
+    }
+}
+
+impl<T> Deref for SharedOrOwned<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+
+impl<T> TryAsMut<T> for SharedOrOwned<T> {
+    type Error = RayexecError;
+
+    fn try_as_mut(&mut self) -> Result<&mut T, Self::Error> {
+        match self {
+            Self::Owned(v) => Ok(v.as_mut()),
+            Self::Shared(_) => Err(RayexecError::new("Cannot get mutable refernce")),
+            Self::Uninit => panic!("invalid state"),
+        }
     }
 }

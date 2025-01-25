@@ -1,10 +1,10 @@
 /// Similar to `IntoIterator`, but for an iterator with an exact size.
 pub trait IntoExactSizeIterator {
     type Item;
-    type IntoIter: ExactSizeIterator<Item = Self::Item>;
+    type IntoExactSizeIter: ExactSizeIterator<Item = Self::Item>;
 
     /// Converts self into the `ExactSizeIteror`.
-    fn into_iter(self) -> Self::IntoIter;
+    fn into_exact_size_iter(self) -> Self::IntoExactSizeIter;
 }
 
 /// Auto-implement for any exact size iterator.
@@ -14,9 +14,9 @@ where
     I::IntoIter: ExactSizeIterator,
 {
     type Item = I::Item;
-    type IntoIter = I::IntoIter;
+    type IntoExactSizeIter = I::IntoIter;
 
-    fn into_iter(self) -> Self::IntoIter {
+    fn into_exact_size_iter(self) -> Self::IntoExactSizeIter {
         self.into_iter()
     }
 }

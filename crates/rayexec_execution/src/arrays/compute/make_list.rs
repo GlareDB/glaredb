@@ -1,11 +1,11 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
-use crate::arrays::array::array_buffer::{ListItemMetadata, SecondaryBuffer};
+use crate::arrays::array::array_buffer::ListItemMetadata;
 use crate::arrays::array::physical_type::{
     Addressable,
     AddressableMut,
-    MutablePhysicalStorage,
+    MutableScalarStorage,
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -81,80 +81,81 @@ pub fn make_list_from_values(
 /// Helper for constructing the list values and writing them to `output`.
 ///
 /// `S` should be the inner type.
-fn make_list_from_values_inner<S: MutablePhysicalStorage>(
+fn make_list_from_values_inner<S: MutableScalarStorage>(
     inputs: &[Array],
     sel: impl IntoExactSizeIterator<Item = usize>,
     output: &mut Array,
 ) -> Result<()> {
     // TODO: Dictionary
 
-    let sel = sel.into_iter();
+    let sel = sel.into_exact_size_iter();
     let sel_len = sel.len();
     let capacity = sel.len() * inputs.len();
 
-    let list_buf = match output.data.try_as_mut()?.get_secondary_mut() {
-        SecondaryBuffer::List(list) => list,
-        _ => return Err(RayexecError::new("Expected list buffer")),
-    };
+    unimplemented!()
+    // let list_buf = match output.data.try_as_mut()?.get_secondary_mut() {
+    //     SecondaryBuffer::List(list) => list,
+    //     _ => return Err(RayexecError::new("Expected list buffer")),
+    // };
 
-    // Resize secondary buffer (and validity) to hold everything.
-    //
-    // TODO: Need to store buffer manager somewhere else.
-    list_buf
-        .child
-        .data
-        .try_as_mut()?
-        .reserve_primary::<S>(capacity)?;
+    // // Resize secondary buffer (and validity) to hold everything.
+    // //
+    // // TODO: Need to store buffer manager somewhere else.
+    // list_buf
+    //     .child
+    //     .data
+    //     .try_as_mut()?
+    //     .reserve_primary::<S>(capacity)?;
 
-    // Replace validity with properly sized one.
-    list_buf
-        .child
-        .put_validity(Validity::new_all_valid(capacity))?;
+    // // Replace validity with properly sized one.
+    // list_buf
+    //     .child
+    //     .put_validity(Validity::new_all_valid(capacity))?;
 
-    // Update metadata on the list buffer itself. Note that this can be less
-    // than the buffer's actual capacity. This only matters during writes to
-    // know if we still have room to push to the child array.
-    list_buf.entries = capacity;
+    // // Update metadata on the list buffer itself. Note that this can be less
+    // // than the buffer's actual capacity. This only matters during writes to
+    // // know if we still have room to push to the child array.
+    // list_buf.entries = capacity;
 
-    let child_next = &mut list_buf.child;
-    let mut child_outputs = S::get_addressable_mut(child_next.data.try_as_mut()?)?;
-    let child_validity = &mut child_next.validity;
+    // let child_next = &mut list_buf.child;
+    // let mut child_outputs = S::get_addressable_mut(child_next.data.try_as_mut()?)?;
+    // let child_validity = &mut child_next.validity;
 
-    // TODO: Possibly avoid allocating here?
-    let col_bufs = inputs
-        .iter()
-        .map(|arr| S::get_addressable(&arr.data))
-        .collect::<Result<Vec<_>>>()?;
+    // // TODO: Possibly avoid allocating here?
+    // let col_bufs = inputs
+    //     .iter()
+    //     .map(|arr| S::get_addressable(&arr.data))
+    //     .collect::<Result<Vec<_>>>()?;
 
-    // Write the list values from the input batch.
-    let mut output_idx = 0;
-    for row_idx in sel {
-        for (col, validity) in col_bufs.iter().zip(inputs.iter().map(|arr| &arr.validity)) {
-            if validity.is_valid(row_idx) {
-                child_outputs.put(output_idx, col.get(row_idx).unwrap());
-            } else {
-                child_validity.set_invalid(output_idx);
-            }
+    // // Write the list values from the input batch.
+    // let mut output_idx = 0;
+    // for row_idx in sel {
+    //     for (col, validity) in col_bufs.iter().zip(inputs.iter().map(|arr| &arr.validity)) {
+    //         if validity.is_valid(row_idx) {
+    //             child_outputs.put(output_idx, col.get(row_idx).unwrap());
+    //         } else {
+    //             child_validity.set_invalid(output_idx);
+    //         }
 
-            output_idx += 1;
-        }
-    }
-    std::mem::drop(child_outputs);
+    //         output_idx += 1;
+    //     }
+    // }
+    // std::mem::drop(child_outputs);
 
-    // Now generate and set the metadatas.
-    let mut out = PhysicalList::get_addressable_mut(output.data.try_as_mut()?)?;
+    // // Now generate and set the metadatas.
+    // let mut out = PhysicalList::get_addressable_mut(output.data.try_as_mut()?)?;
 
-    let len = inputs.len() as i32;
-    for output_idx in 0..sel_len {
-        // Note top-level not possible if we're provided a batch.
-        out.put(
-            output_idx,
-            &ListItemMetadata {
-                offset: (output_idx as i32) * len,
-                len,
-            },
-        );
-    }
+    // let len = inputs.len() as i32;
+    // for output_idx in 0..sel_len {
+    //     // Note top-level not possible if we're provided a batch.
+    //     out.put(
+    //         output_idx,
+    //         &ListItemMetadata {
+    //             offset: (output_idx as i32) * len,
+    //             len,
+    //         },
+    //     );
+    // }
 
-    Ok(())
+    // Ok(())
 }

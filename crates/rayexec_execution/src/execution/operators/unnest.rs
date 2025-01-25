@@ -28,7 +28,6 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalList,
-    PhysicalStorage,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -36,6 +35,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU64,
     PhysicalU8,
     PhysicalUtf8,
+    ScalarStorage,
 };
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;

@@ -5,7 +5,7 @@ use rayexec_error::{not_implemented, Result};
 
 use crate::arrays::array::physical_type::{
     AddressableMut,
-    MutablePhysicalStorage,
+    MutableScalarStorage,
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -122,7 +122,7 @@ impl<S> FirstPrimitiveImpl<S> {
 
 impl<S> AggregateFunctionImpl for FirstPrimitiveImpl<S>
 where
-    S: MutablePhysicalStorage,
+    S: MutableScalarStorage,
     S::StorageType: Debug + Default + Copy,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {

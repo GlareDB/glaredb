@@ -3,8 +3,8 @@ use std::fmt::Debug;
 use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
-use crate::arrays::array::flat::FlatArrayView;
-use crate::arrays::array::physical_type::{Addressable, MutablePhysicalStorage, PhysicalStorage};
+use crate::arrays::array::flat::FlattenedArray;
+use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::Array;
 use crate::arrays::executor::{OutBuffer, PutBuffer};
 
@@ -23,10 +23,10 @@ impl TernaryExecutor {
         mut op: Op,
     ) -> Result<()>
     where
-        S1: PhysicalStorage,
-        S2: PhysicalStorage,
-        S3: PhysicalStorage,
-        O: MutablePhysicalStorage,
+        S1: ScalarStorage,
+        S2: ScalarStorage,
+        S3: ScalarStorage,
+        O: MutableScalarStorage,
         for<'a> Op: FnMut(
             &S1::StorageType,
             &S2::StorageType,
@@ -34,16 +34,13 @@ impl TernaryExecutor {
             PutBuffer<O::AddressableMut<'a>>,
         ),
     {
-        if array1.is_dictionary()
-            || array2.is_dictionary()
-            || array3.is_dictionary()
-            || array1.is_constant()
-            || array2.is_constant()
-            || array3.is_constant()
+        if array1.should_flatten_for_execution()
+            || array2.should_flatten_for_execution()
+            || array3.should_flatten_for_execution()
         {
-            let flat1 = array1.flat_view()?;
-            let flat2 = array2.flat_view()?;
-            let flat3 = array3.flat_view()?;
+            let flat1 = array1.flatten()?;
+            let flat2 = array2.flatten()?;
+            let flat3 = array3.flatten()?;
 
             return Self::execute_flat::<S1, S2, S3, O, _>(
                 flat1, sel1, flat2, sel2, flat3, sel3, out, op,
@@ -64,8 +61,8 @@ impl TernaryExecutor {
 
         if validity1.all_valid() && validity2.all_valid() && validity3.all_valid() {
             for (output_idx, (input1_idx, (input2_idx, input3_idx))) in sel1
-                .into_iter()
-                .zip(sel2.into_iter().zip(sel3.into_iter()))
+                .into_exact_size_iter()
+                .zip(sel2.into_exact_size_iter().zip(sel3.into_exact_size_iter()))
                 .enumerate()
             {
                 let val1 = input1.get(input1_idx).unwrap();
@@ -81,8 +78,8 @@ impl TernaryExecutor {
             }
         } else {
             for (output_idx, (input1_idx, (input2_idx, input3_idx))) in sel1
-                .into_iter()
-                .zip(sel2.into_iter().zip(sel3.into_iter()))
+                .into_exact_size_iter()
+                .zip(sel2.into_exact_size_iter().zip(sel3.into_exact_size_iter()))
                 .enumerate()
             {
                 if validity1.is_valid(input1_idx)
@@ -109,20 +106,20 @@ impl TernaryExecutor {
     }
 
     pub fn execute_flat<'a, S1, S2, S3, O, Op>(
-        array1: FlatArrayView<'a>,
+        array1: FlattenedArray<'a>,
         sel1: impl IntoExactSizeIterator<Item = usize>,
-        array2: FlatArrayView<'a>,
+        array2: FlattenedArray<'a>,
         sel2: impl IntoExactSizeIterator<Item = usize>,
-        array3: FlatArrayView<'a>,
+        array3: FlattenedArray<'a>,
         sel3: impl IntoExactSizeIterator<Item = usize>,
         out: OutBuffer,
         mut op: Op,
     ) -> Result<()>
     where
-        S1: PhysicalStorage,
-        S2: PhysicalStorage,
-        S3: PhysicalStorage,
-        O: MutablePhysicalStorage,
+        S1: ScalarStorage,
+        S2: ScalarStorage,
+        S3: ScalarStorage,
+        O: MutableScalarStorage,
         for<'b> Op: FnMut(
             &S1::StorageType,
             &S2::StorageType,
@@ -144,8 +141,8 @@ impl TernaryExecutor {
 
         if validity1.all_valid() && validity2.all_valid() && validity3.all_valid() {
             for (output_idx, (input1_idx, (input2_idx, input3_idx))) in sel1
-                .into_iter()
-                .zip(sel2.into_iter().zip(sel3.into_iter()))
+                .into_exact_size_iter()
+                .zip(sel2.into_exact_size_iter().zip(sel3.into_exact_size_iter()))
                 .enumerate()
             {
                 let sel1 = array1.selection.get(input1_idx).unwrap();
@@ -165,8 +162,8 @@ impl TernaryExecutor {
             }
         } else {
             for (output_idx, (input1_idx, (input2_idx, input3_idx))) in sel1
-                .into_iter()
-                .zip(sel2.into_iter().zip(sel3.into_iter()))
+                .into_exact_size_iter()
+                .zip(sel2.into_exact_size_iter().zip(sel3.into_exact_size_iter()))
                 .enumerate()
             {
                 let sel1 = array1.selection.get(input1_idx).unwrap();
@@ -213,7 +210,7 @@ mod tests {
         let count = Array::try_from_iter([1, 2, 3]).unwrap();
         let pad = Array::try_from_iter(["<", ".", "!"]).unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -248,7 +245,7 @@ mod tests {
         let count = Array::try_from_iter([None, Some(2), Some(3)]).unwrap();
         let pad = Array::try_from_iter(["<", ".", "!"]).unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -283,9 +280,9 @@ mod tests {
         let count = Array::try_from_iter([1, 2, 3]).unwrap();
         let mut pad = Array::try_from_iter(["<", ".", "!"]).unwrap();
         // '[".", ".", "<"]'
-        pad.select(&Arc::new(NopBufferManager), [1, 1, 0]).unwrap();
+        pad.select(&NopBufferManager, [1, 1, 0]).unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -318,9 +315,9 @@ mod tests {
     fn ternary_left_prepend_constant() {
         let strings = Array::try_from_iter(["a", "b", "c"]).unwrap();
         let count = Array::try_from_iter([1, 2, 3]).unwrap();
-        let pad = Array::try_new_constant(&Arc::new(NopBufferManager), &"<".into(), 3).unwrap();
+        let pad = Array::try_new_constant(&NopBufferManager, &"<".into(), 3).unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
         TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(

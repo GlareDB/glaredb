@@ -104,30 +104,31 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
-        let out = output
-            .data
-            .try_as_mut()?
-            .try_as_slice_mut::<PhysicalBool>()?;
+        unimplemented!()
+        // let out = output
+        //     .data
+        //     .try_as_mut()?
+        //     .try_as_slice_mut::<PhysicalBool>()?;
 
-        if input.physical_type() == PhysicalType::UntypedNull {
-            // Everything null, just set to default value.
-            out.iter_mut().for_each(|v| *v = IS_NULL);
+        // if input.physical_type() == PhysicalType::UntypedNull {
+        //     // Everything null, just set to default value.
+        //     out.iter_mut().for_each(|v| *v = IS_NULL);
 
-            return Ok(());
-        }
+        //     return Ok(());
+        // }
 
-        let flat = input.flat_view()?;
+        // let flat = input.flat_view()?;
 
-        for (output_idx, idx) in sel.into_iter().enumerate() {
-            let is_valid = flat.validity.is_valid(idx);
-            if is_valid {
-                out[output_idx] = !IS_NULL;
-            } else {
-                out[output_idx] = IS_NULL;
-            }
-        }
+        // for (output_idx, idx) in sel.into_iter().enumerate() {
+        //     let is_valid = flat.validity.is_valid(idx);
+        //     if is_valid {
+        //         out[output_idx] = !IS_NULL;
+        //     } else {
+        //         out[output_idx] = IS_NULL;
+        //     }
+        // }
 
-        Ok(())
+        // Ok(())
     }
 }
 
@@ -311,27 +312,28 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT
         let sel = input.selection();
         let input = &input.arrays()[0];
 
-        let out = output
-            .data
-            .try_as_mut()?
-            .try_as_slice_mut::<PhysicalBool>()?;
+        unimplemented!()
+        // let out = output
+        //     .data
+        //     .try_as_mut()?
+        //     .try_as_slice_mut::<PhysicalBool>()?;
 
-        let flat = input.flat_view()?;
-        let input = flat.array_buffer.try_as_slice::<PhysicalBool>()?;
+        // let flat = input.flat_view()?;
+        // let input = flat.array_buffer.try_as_slice::<PhysicalBool>()?;
 
-        for (output_idx, idx) in sel.into_iter().enumerate() {
-            let is_valid = flat.validity.is_valid(idx);
-            if is_valid {
-                let val = input[idx];
-                out[output_idx] = if NOT { val != BOOL } else { val == BOOL }
-            } else {
-                // 'IS TRUE', 'IS FALSE' => false
-                // 'IS NOT TRUE', 'IS NOT FALSE' => true
-                out[output_idx] = NOT;
-            }
-        }
+        // for (output_idx, idx) in sel.into_iter().enumerate() {
+        //     let is_valid = flat.validity.is_valid(idx);
+        //     if is_valid {
+        //         let val = input[idx];
+        //         out[output_idx] = if NOT { val != BOOL } else { val == BOOL }
+        //     } else {
+        //         // 'IS TRUE', 'IS FALSE' => false
+        //         // 'IS NOT TRUE', 'IS NOT FALSE' => true
+        //         out[output_idx] = NOT;
+        //     }
+        // }
 
-        Ok(())
+        // Ok(())
     }
 }
 
@@ -360,10 +362,8 @@ mod tests {
             .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
-
-        let s = out.data.try_as_slice::<PhysicalBool>().unwrap();
 
         let expected = Array::try_from_iter([false, false, false]).unwrap();
 
@@ -384,7 +384,7 @@ mod tests {
             .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
         let expected = Array::try_from_iter([false, true, true]).unwrap();
@@ -406,7 +406,7 @@ mod tests {
             .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
         let expected = Array::try_from_iter([Some(true), Some(false), Some(false)]).unwrap();
@@ -428,7 +428,7 @@ mod tests {
             .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
         let expected = Array::try_from_iter([Some(false), Some(true), Some(true)]).unwrap();

@@ -80,7 +80,7 @@ impl IndicesAccumulator {
 
                 let datatype = cols.first().expect("at least one array").datatype().clone();
                 let mut out =
-                    Array::try_new(&Arc::new(NopBufferManager), datatype, self.indices.len())?;
+                    Array::try_new(&NopBufferManager, datatype, self.indices.len())?;
 
                 interleave(&cols, &self.indices, &mut out)?;
 

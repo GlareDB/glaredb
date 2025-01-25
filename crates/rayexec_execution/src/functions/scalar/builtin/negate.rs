@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{
-    MutablePhysicalStorage,
+    MutableScalarStorage,
     PhysicalBool,
     PhysicalF16,
     PhysicalF32,
@@ -94,7 +94,7 @@ impl<S> NegateImpl<S> {
 
 impl<S> ScalarFunctionImpl for NegateImpl<S>
 where
-    S: MutablePhysicalStorage,
+    S: MutableScalarStorage,
     S::StorageType: std::ops::Neg<Output = S::StorageType> + Copy,
 {
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {

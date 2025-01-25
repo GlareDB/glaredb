@@ -6,10 +6,10 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::array::physical_type::{
-    MutablePhysicalStorage,
+    MutableScalarStorage,
     PhysicalI128,
     PhysicalI64,
-    PhysicalStorage,
+    ScalarStorage,
 };
 
 pub trait DecimalPrimitive:
@@ -37,10 +37,7 @@ pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
     /// The underlying primitive type storing the decimal's value.
     type Primitive: DecimalPrimitive;
     /// Storage type to use for accessing the primitives in a decimal array.
-    type Storage: MutablePhysicalStorage<
-        PrimaryBufferType = Self::Primitive,
-        StorageType = Self::Primitive,
-    >;
+    type Storage: MutableScalarStorage<StorageType = Self::Primitive>;
 
     /// Max precision for this decimal type.
     const MAX_PRECISION: u8;

@@ -17,7 +17,6 @@ use crate::arrays::array::physical_type::{
     PhysicalI8,
     PhysicalInterval,
     PhysicalList,
-    PhysicalStorage,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -26,6 +25,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUntypedNull,
     PhysicalUtf8,
+    ScalarStorage,
     UntypedNull,
 };
 use crate::arrays::array::selection::Selection;
@@ -162,14 +162,14 @@ fn hash_typed_inner<S, H>(
     hashes: &mut [u64],
 ) -> Result<()>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
     S::StorageType: HashValue,
     H: SetHashOp,
 {
-    let sel = sel.into_iter();
+    let sel = sel.into_exact_size_iter();
     debug_assert_eq!(sel.len(), hashes.len());
 
-    let arr = arr.flat_view()?;
+    let arr = arr.flatten()?;
     let values = S::get_addressable(&arr.array_buffer)?;
 
     if arr.validity.all_valid() {
@@ -201,44 +201,45 @@ fn hash_list_array<H>(
 where
     H: SetHashOp,
 {
-    let arr = arr.flat_view()?;
+    let arr = arr.flatten()?;
 
-    let list_buf = arr.array_buffer.get_secondary().get_list()?;
-    let metadatas = PhysicalList::get_addressable(&arr.array_buffer)?;
+    unimplemented!()
+    // let list_buf = arr.array_buffer.get_secondary().get_list()?;
+    // let metadatas = PhysicalList::get_addressable(&arr.array_buffer)?;
 
-    // TODO: Would be cool not having to allocate here.
-    let mut child_hashes = Vec::new();
+    // // TODO: Would be cool not having to allocate here.
+    // let mut child_hashes = Vec::new();
 
-    for (idx, hash) in sel.into_iter().zip(hashes.iter_mut()) {
-        let sel_idx = arr.selection.get(idx).unwrap();
+    // for (idx, hash) in sel.into_iter().zip(hashes.iter_mut()) {
+    //     let sel_idx = arr.selection.get(idx).unwrap();
 
-        if arr.validity.is_valid(sel_idx) {
-            let meta = metadatas.get(sel_idx).unwrap();
+    //     if arr.validity.is_valid(sel_idx) {
+    //         let meta = metadatas.get(sel_idx).unwrap();
 
-            child_hashes.clear();
-            child_hashes.resize(meta.len as usize, 0);
+    //         child_hashes.clear();
+    //         child_hashes.resize(meta.len as usize, 0);
 
-            let sel = Selection::linear(meta.offset as usize, meta.len as usize);
-            hash_inner::<H>(&list_buf.child, sel, &mut child_hashes)?;
+    //         let sel = Selection::linear(meta.offset as usize, meta.len as usize);
+    //         hash_inner::<H>(&list_buf.child, sel, &mut child_hashes)?;
 
-            // Now combine all the child hashes into one.
-            let mut child_hash = match child_hashes.first() {
-                Some(hash) => *hash,
-                None => DefaultHasher::NULL_HASH, // Default to null hash if working with empty list.
-            };
+    //         // Now combine all the child hashes into one.
+    //         let mut child_hash = match child_hashes.first() {
+    //             Some(hash) => *hash,
+    //             None => DefaultHasher::NULL_HASH, // Default to null hash if working with empty list.
+    //         };
 
-            for &hash2 in &child_hashes {
-                child_hash = DefaultHasher::combine_hashes(child_hash, hash2);
-            }
+    //         for &hash2 in &child_hashes {
+    //             child_hash = DefaultHasher::combine_hashes(child_hash, hash2);
+    //         }
 
-            // Set main hash.
-            H::set_hash(hash, child_hash);
-        } else {
-            H::set_hash(hash, DefaultHasher::NULL_HASH);
-        }
-    }
+    //         // Set main hash.
+    //         H::set_hash(hash, child_hash);
+    //     } else {
+    //         H::set_hash(hash, DefaultHasher::NULL_HASH);
+    //     }
+    // }
 
-    Ok(())
+    // Ok(())
 }
 
 /// Helper trait for hashing values.
@@ -352,8 +353,7 @@ mod tests {
     fn hash_i32_dictionary() {
         let mut hashes = vec![0; 4];
         let mut arr = Array::try_from_iter([2, 3]).unwrap();
-        arr.select(&Arc::new(NopBufferManager), [0, 1, 0, 1])
-            .unwrap();
+        arr.select(&NopBufferManager, [0, 1, 0, 1]).unwrap();
 
         hash_array(&arr, 0..4, &mut hashes).unwrap();
 
@@ -366,7 +366,7 @@ mod tests {
         let mut hashes = vec![0; 4];
 
         let mut lists = Array::try_new(
-            &Arc::new(NopBufferManager),
+            &NopBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             4,
         )

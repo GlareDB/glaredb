@@ -1406,8 +1406,8 @@ mod tests {
         ]);
 
         let mut batch = Batch::try_from_arrays(vec![
-            Array::try_new_constant(&Arc::new(NopBufferManager), &"1".into(), 6).unwrap(),
-            Array::try_new_constant(&Arc::new(NopBufferManager), &2.into(), 6).unwrap(),
+            Array::try_new_constant(&NopBufferManager, &"1".into(), 6).unwrap(),
+            Array::try_new_constant(&NopBufferManager, &2.into(), 6).unwrap(),
         ])
         .unwrap();
 

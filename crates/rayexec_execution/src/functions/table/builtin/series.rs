@@ -3,7 +3,7 @@ use std::task::Context;
 
 use rayexec_error::{OptionExt, RayexecError, Result};
 
-use crate::arrays::array::physical_type::{AddressableMut, MutablePhysicalStorage, PhysicalI64};
+use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalI64};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -183,35 +183,36 @@ impl SeriesParams {
     ///
     /// Returns the count of values written to `out`.
     fn generate_next(&mut self, out: &mut Array) -> Result<usize> {
-        let mut out = PhysicalI64::get_addressable_mut(out.data.try_as_mut()?)?;
+        unimplemented!()
+        // let mut out = PhysicalI64::get_addressable_mut(out.data.try_as_mut()?)?;
 
-        let mut idx = 0;
-        if self.curr < self.stop && self.step > 0 {
-            // Going up.
-            while self.curr <= self.stop && idx < out.len() {
-                out.put(idx, &self.curr);
-                self.curr += self.step;
-                idx += 1;
-            }
-        } else if self.curr > self.stop && self.step < 0 {
-            // Going down.
-            while self.curr >= self.stop && idx < out.len() {
-                out.put(idx, &self.curr);
-                self.curr += self.step;
-                idx += 1;
-            }
-        }
+        // let mut idx = 0;
+        // if self.curr < self.stop && self.step > 0 {
+        //     // Going up.
+        //     while self.curr <= self.stop && idx < out.len() {
+        //         out.put(idx, &self.curr);
+        //         self.curr += self.step;
+        //         idx += 1;
+        //     }
+        // } else if self.curr > self.stop && self.step < 0 {
+        //     // Going down.
+        //     while self.curr >= self.stop && idx < out.len() {
+        //         out.put(idx, &self.curr);
+        //         self.curr += self.step;
+        //         idx += 1;
+        //     }
+        // }
 
-        if idx == 0 {
-            // Nothing written.
-            return Ok(0);
-        }
+        // if idx == 0 {
+        //     // Nothing written.
+        //     return Ok(0);
+        // }
 
-        // Calculate the start value for the next iteration.
-        let last = out.get(idx - 1).expect("value to exist");
-        self.curr = *last + self.step;
+        // // Calculate the start value for the next iteration.
+        // let last = out.get(idx - 1).expect("value to exist");
+        // self.curr = *last + self.step;
 
-        Ok(idx)
+        // Ok(idx)
     }
 }
 
@@ -296,13 +297,11 @@ mod tests {
         ])
         .unwrap();
 
-        let mut output = Batch::try_from_arrays([Array::try_new(
-            &Arc::new(NopBufferManager),
-            DataType::Int64,
-            5,
-        )
-        .unwrap()])
-        .unwrap();
+        let mut output =
+            Batch::try_from_arrays(
+                [Array::try_new(&NopBufferManager, DataType::Int64, 5).unwrap()],
+            )
+            .unwrap();
 
         let poll = state
             .poll_execute(ExecuteInOutState {
@@ -345,13 +344,11 @@ mod tests {
         ])
         .unwrap();
 
-        let mut output = Batch::try_from_arrays([Array::try_new(
-            &Arc::new(NopBufferManager),
-            DataType::Int64,
-            3,
-        )
-        .unwrap()])
-        .unwrap();
+        let mut output =
+            Batch::try_from_arrays(
+                [Array::try_new(&NopBufferManager, DataType::Int64, 3).unwrap()],
+            )
+            .unwrap();
 
         let poll = state
             .poll_execute(ExecuteInOutState {
@@ -404,13 +401,11 @@ mod tests {
         ])
         .unwrap();
 
-        let mut output = Batch::try_from_arrays([Array::try_new(
-            &Arc::new(NopBufferManager),
-            DataType::Int64,
-            5,
-        )
-        .unwrap()])
-        .unwrap();
+        let mut output =
+            Batch::try_from_arrays(
+                [Array::try_new(&NopBufferManager, DataType::Int64, 5).unwrap()],
+            )
+            .unwrap();
 
         let poll = state
             .poll_execute(ExecuteInOutState {

@@ -275,7 +275,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int64, 1).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int64, 1).unwrap();
         states_1.drain(&mut out).unwrap();
 
         let expected = Array::try_from_iter([21_i64]).unwrap();
@@ -351,7 +351,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int64, 2).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int64, 2).unwrap();
         states_1.drain(&mut out).unwrap();
 
         let expected = Array::try_from_iter([9_i64, 12_i64]).unwrap();
@@ -429,7 +429,7 @@ mod tests {
             .unwrap();
 
         // Get final output.
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int64, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int64, 3).unwrap();
         states_1.drain(&mut out).unwrap();
 
         let expected = Array::try_from_iter([8_i64, 3_i64, 25_i64]).unwrap();
@@ -462,7 +462,7 @@ mod tests {
             .update_group_states(&[&vals], Selection::linear(0, 6), &[0, 0, 1, 1, 2, 2])
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int64, 2).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int64, 2).unwrap();
 
         let n = states.drain(&mut out).unwrap();
         assert_eq!(2, n);
@@ -470,14 +470,14 @@ mod tests {
         let expected = Array::try_from_iter([3_i64, 7]).unwrap();
         assert_arrays_eq(&expected, &out);
 
-        out.reset_for_write(&Arc::new(NopBufferManager)).unwrap();
+        out.reset_for_write(&NopBufferManager).unwrap();
         let n = states.drain(&mut out).unwrap();
         assert_eq!(1, n);
 
         let expected = Array::try_from_iter([11_i64]).unwrap();
         assert_arrays_eq_sel(&expected, 0..1, &out, 0..1);
 
-        out.reset_for_write(&Arc::new(NopBufferManager)).unwrap();
+        out.reset_for_write(&NopBufferManager).unwrap();
         let n = states.drain(&mut out).unwrap();
         assert_eq!(0, n);
     }

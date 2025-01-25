@@ -76,14 +76,15 @@ impl ScalarFunctionImpl for StringConcatImpl {
             0 => {
                 // TODO: Zero args should actually error during planning.
                 // Currently this just sets everything to an empty string.
-                let mut addressable = output
-                    .data
-                    .try_as_mut()?
-                    .try_as_string_view_addressable_mut()?;
+                // let mut addressable = output
+                //     .data
+                //     .try_as_mut()?
+                //     .try_as_string_view_addressable_mut()?;
 
-                for idx in 0..addressable.len() {
-                    addressable.put(idx, "");
-                }
+                // for idx in 0..addressable.len() {
+                //     addressable.put(idx, "");
+                // }
+                unimplemented!()
             }
             1 => {
                 let input = &input.arrays()[0];

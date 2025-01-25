@@ -47,7 +47,7 @@ impl CrossProductState {
             .expect("batch to exist");
         debug_assert!(self.row_idx < batch.num_rows());
 
-        let manager = Arc::new(NopBufferManager);
+        let manager = NopBufferManager;
 
         // Set constant reference to single row on left side.
         //

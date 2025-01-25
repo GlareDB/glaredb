@@ -17,7 +17,6 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalStorage,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -26,6 +25,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUntypedNull,
     PhysicalUtf8,
+    ScalarStorage,
 };
 use crate::arrays::array::Array;
 
@@ -176,13 +176,13 @@ fn compare_rows_eq<'a, S, I1, I2>(
     not_eq_rows: &mut BTreeSet<usize>,
 ) -> Result<()>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
     S::StorageType: PartialEq,
     I1: Iterator<Item = usize>,
     I2: Iterator<Item = usize>,
 {
-    let flat1 = array1.flat_view()?;
-    let flat2 = array2.flat_view()?;
+    let flat1 = array1.flatten()?;
+    let flat2 = array2.flatten()?;
 
     let selection1 = flat1.selection;
     let selection2 = flat2.selection;

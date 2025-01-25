@@ -55,11 +55,11 @@ impl Batch {
         datatypes: impl stdutil::iter::IntoExactSizeIterator<Item = DataType>,
         capacity: usize,
     ) -> Result<Self> {
-        let datatypes = datatypes.into_iter();
+        let datatypes = datatypes.into_exact_size_iter();
         let mut arrays = Vec::with_capacity(datatypes.len());
 
         for datatype in datatypes {
-            let array = Array::try_new(&Arc::new(NopBufferManager), datatype, capacity)?;
+            let array = Array::try_new(&NopBufferManager, datatype, capacity)?;
             arrays.push(array)
         }
 
@@ -75,7 +75,7 @@ impl Batch {
         let arrays = other
             .arrays_mut()
             .iter_mut()
-            .map(|arr| Array::try_new_from_other(&Arc::new(NopBufferManager), arr))
+            .map(|arr| Array::try_new_from_other(&NopBufferManager, arr))
             .collect::<Result<Vec<_>>>()?;
 
         Ok(Batch {
@@ -152,8 +152,8 @@ impl Batch {
     /// Selects rows from the batch based on `selection`.
     pub fn select(&mut self, selection: Selection) -> Result<()> {
         for arr in &mut self.arrays {
-            println!("ARR: {arr:?}");
-            arr.select(&Arc::new(NopBufferManager), selection)?;
+            println!("ARR: {arr:#?}");
+            arr.select(&NopBufferManager, selection)?;
         }
         self.set_num_rows(selection.len())?;
 
@@ -163,7 +163,7 @@ impl Batch {
     /// Reset all arrays in the batch for writes.
     pub fn reset_for_write(&mut self) -> Result<()> {
         for arr in &mut self.arrays {
-            arr.reset_for_write(&Arc::new(NopBufferManager))?;
+            arr.reset_for_write(&NopBufferManager)?;
         }
         Ok(())
     }
@@ -200,7 +200,7 @@ impl Batch {
         }
 
         for (own, other) in self.arrays.iter_mut().zip(other.arrays.iter_mut()) {
-            own.try_clone_from(&Arc::new(NopBufferManager), other)?;
+            own.try_clone_from(&NopBufferManager, other)?;
         }
 
         self.set_num_rows(other.num_rows())?;
@@ -218,7 +218,7 @@ impl Batch {
         }
 
         for (own, other) in self.arrays.iter_mut().zip(other.arrays.iter_mut()) {
-            own.try_clone_row_from(&Arc::new(NopBufferManager), other, row, count)?;
+            own.try_clone_row_from(&NopBufferManager, other, row, count)?;
         }
 
         self.set_num_rows(count)?;

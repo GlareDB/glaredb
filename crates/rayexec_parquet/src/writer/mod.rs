@@ -12,7 +12,7 @@ use parquet::file::writer::{write_page, SerializedFileWriter};
 use parquet::format::FileMetaData;
 use parquet::schema::types::SchemaDescriptor;
 use rayexec_error::{not_implemented, OptionExt, RayexecError, Result, ResultExt};
-use rayexec_execution::arrays::array::physical_type::{PhysicalBinary, PhysicalStorage};
+use rayexec_execution::arrays::array::physical_type::{PhysicalBinary, ScalarStorage};
 use rayexec_execution::arrays::array::{Array, ArrayData2};
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::datatype::DataType;

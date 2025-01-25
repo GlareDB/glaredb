@@ -1,65 +1,45 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
-use super::array_buffer::{ArrayBuffer, SecondaryBuffer};
+use super::array_buffer::ArrayBuffer;
 use super::buffer_manager::{BufferManager, NopBufferManager};
-use super::physical_type::{PhysicalConstant, PhysicalDictionary};
 use super::selection::Selection;
 use super::validity::Validity;
 use super::Array;
+use crate::arrays::array::array_buffer::ArrayBufferType;
 
 /// A view on top of normal arrays flattening some parts of the nested
 /// structure.
 #[derive(Debug)]
-pub struct FlatArrayView<'a, B: BufferManager = NopBufferManager> {
+pub struct FlattenedArray<'a, B: BufferManager = NopBufferManager> {
     pub(crate) validity: &'a Validity,
     pub(crate) array_buffer: &'a ArrayBuffer<B>,
     pub(crate) selection: Selection<'a>,
 }
 
-impl<'a, B> FlatArrayView<'a, B>
+impl<'a, B> FlattenedArray<'a, B>
 where
     B: BufferManager,
 {
     pub fn from_array(array: &'a Array<B>) -> Result<Self> {
-        let data = &array.data;
-        if array.is_dictionary() {
-            let selection = data.try_as_slice::<PhysicalDictionary>()?;
-
-            let dict_buffer = match data.get_secondary() {
-                SecondaryBuffer::Dictionary(dict) => dict,
-                _ => {
-                    return Err(RayexecError::new(
-                        "Secondary buffer not a dictionary buffer",
-                    ))
-                }
-            };
-
-            Ok(FlatArrayView {
-                validity: &dict_buffer.validity,
-                array_buffer: &dict_buffer.buffer,
-                selection: Selection::slice(selection),
-            })
-        } else if array.is_constant() {
-            let s = data.try_as_slice::<PhysicalConstant>()?;
-
-            let const_buffer = match data.get_secondary() {
-                SecondaryBuffer::Constant(constant) => constant,
-                _ => return Err(RayexecError::new("Secondary buffer not a constant buffer")),
-            };
-
-            Ok(FlatArrayView {
-                validity: &const_buffer.validity,
-                array_buffer: &const_buffer.buffer,
-                selection: Selection::constant(s.len(), const_buffer.row_reference),
-            })
-        } else {
-            let validity = &array.validity;
-
-            Ok(FlatArrayView {
-                validity,
-                array_buffer: data,
-                selection: Selection::linear(0, array.capacity()),
-            })
+        match array.data.as_ref() {
+            ArrayBufferType::Dictionary(dict) => Ok(FlattenedArray {
+                validity: &array.validity,
+                array_buffer: &dict.child_buffer,
+                selection: Selection::slice(dict.selection.as_slice()),
+            }),
+            ArrayBufferType::Constant(constant) => Ok(FlattenedArray {
+                validity: &array.validity,
+                array_buffer: &constant.child_buffer,
+                selection: Selection::constant(constant.len, constant.row_reference),
+            }),
+            _ => {
+                // Everything else just stays as-is.
+                Ok(FlattenedArray {
+                    validity: &array.validity,
+                    array_buffer: &array.data,
+                    selection: Selection::linear(0, array.validity.len()),
+                })
+            }
         }
     }
 

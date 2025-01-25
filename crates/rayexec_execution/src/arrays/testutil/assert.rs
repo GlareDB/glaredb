@@ -3,8 +3,7 @@ use std::fmt::Debug;
 
 use stdutil::iter::IntoExactSizeIterator;
 
-use crate::arrays::array::array_buffer::SecondaryBuffer;
-use crate::arrays::array::flat::FlatArrayView;
+use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     PhysicalBool,
     PhysicalF16,
@@ -16,7 +15,6 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalList,
-    PhysicalStorage,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -24,6 +22,7 @@ use crate::arrays::array::physical_type::{
     PhysicalU64,
     PhysicalU8,
     PhysicalUtf8,
+    ScalarStorage,
 };
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -58,8 +57,8 @@ pub fn assert_arrays_eq_sel(
 ) {
     assert_eq!(array1.datatype, array2.datatype);
 
-    let flat1 = array1.flat_view().unwrap();
-    let flat2 = array2.flat_view().unwrap();
+    let flat1 = array1.flatten().unwrap();
+    let flat2 = array2.flatten().unwrap();
 
     match array1.datatype.physical_type() {
         PhysicalType::Boolean => {
@@ -98,56 +97,57 @@ pub fn assert_arrays_eq_sel(
 
 #[track_caller]
 fn assert_arrays_eq_sel_list_inner(
-    flat1: FlatArrayView,
+    flat1: FlattenedArray,
     sel1: impl IntoExactSizeIterator<Item = usize>,
-    flat2: FlatArrayView,
+    flat2: FlattenedArray,
     sel2: impl IntoExactSizeIterator<Item = usize>,
 ) {
-    let inner1 = match flat1.array_buffer.get_secondary() {
-        SecondaryBuffer::List(list) => &list.child,
-        _ => panic!("Missing child for array 1"),
-    };
+    unimplemented!()
+    // let inner1 = match flat1.array_buffer.get_secondary() {
+    //     SecondaryBuffer::List(list) => &list.child,
+    //     _ => panic!("Missing child for array 1"),
+    // };
 
-    let inner2 = match flat2.array_buffer.get_secondary() {
-        SecondaryBuffer::List(list) => &list.child,
-        _ => panic!("Missing child for array 2"),
-    };
+    // let inner2 = match flat2.array_buffer.get_secondary() {
+    //     SecondaryBuffer::List(list) => &list.child,
+    //     _ => panic!("Missing child for array 2"),
+    // };
 
-    let metas1 = PhysicalList::get_addressable(flat1.array_buffer).unwrap();
-    let metas2 = PhysicalList::get_addressable(flat2.array_buffer).unwrap();
+    // let metas1 = PhysicalList::get_addressable(flat1.array_buffer).unwrap();
+    // let metas2 = PhysicalList::get_addressable(flat2.array_buffer).unwrap();
 
-    let sel1 = sel1.into_iter();
-    let sel2 = sel2.into_iter();
-    assert_eq!(sel1.len(), sel2.len());
+    // let sel1 = sel1.into_iter();
+    // let sel2 = sel2.into_iter();
+    // assert_eq!(sel1.len(), sel2.len());
 
-    for (row_idx, (idx1, idx2)) in sel1.zip(sel2).enumerate() {
-        let idx1 = flat1.selection.get(idx1).unwrap();
-        let idx2 = flat1.selection.get(idx2).unwrap();
+    // for (row_idx, (idx1, idx2)) in sel1.zip(sel2).enumerate() {
+    //     let idx1 = flat1.selection.get(idx1).unwrap();
+    //     let idx2 = flat1.selection.get(idx2).unwrap();
 
-        assert_eq!(
-            flat1.validity.is_valid(idx1),
-            flat2.validity.is_valid(idx2),
-            "validity mismatch for row {row_idx}"
-        );
+    //     assert_eq!(
+    //         flat1.validity.is_valid(idx1),
+    //         flat2.validity.is_valid(idx2),
+    //         "validity mismatch for row {row_idx}"
+    //     );
 
-        let m1 = metas1.get(idx1).unwrap();
-        let m2 = metas2.get(idx2).unwrap();
+    //     let m1 = metas1.get(idx1).unwrap();
+    //     let m2 = metas2.get(idx2).unwrap();
 
-        let sel1 = (m1.offset as usize)..((m1.offset + m1.len) as usize);
-        let sel2 = (m2.offset as usize)..((m2.offset + m2.len) as usize);
+    //     let sel1 = (m1.offset as usize)..((m1.offset + m1.len) as usize);
+    //     let sel2 = (m2.offset as usize)..((m2.offset + m2.len) as usize);
 
-        assert_arrays_eq_sel(inner1, sel1, inner2, sel2);
-    }
+    //     assert_arrays_eq_sel(inner1, sel1, inner2, sel2);
+    // }
 }
 
 #[track_caller]
 fn assert_arrays_eq_sel_inner<S>(
-    flat1: FlatArrayView,
+    flat1: FlattenedArray,
     sel1: impl IntoExactSizeIterator<Item = usize>,
-    flat2: FlatArrayView,
+    flat2: FlattenedArray,
     sel2: impl IntoExactSizeIterator<Item = usize>,
 ) where
-    S: PhysicalStorage,
+    S: ScalarStorage,
     S::StorageType: ToOwned<Owned: Debug + PartialEq>,
 {
     let mut out = BTreeMap::new();
@@ -215,9 +215,7 @@ mod tests {
     fn assert_i32_arrays_eq_with_dictionary() {
         let array1 = Array::try_from_iter([5, 4, 4]).unwrap();
         let mut array2 = Array::try_from_iter([4, 5]).unwrap();
-        array2
-            .select(&Arc::new(NopBufferManager), [1, 0, 0])
-            .unwrap();
+        array2.select(&NopBufferManager, [1, 0, 0]).unwrap();
 
         assert_arrays_eq(&array1, &array2);
     }

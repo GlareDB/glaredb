@@ -38,7 +38,7 @@ impl PhysicalColumnExpr {
         output.try_clone_from(&NopBufferManager, col)?;
 
         if !sel.is_linear() || sel.len() != input.num_rows() {
-            output.select(&Arc::new(NopBufferManager), sel.iter())?;
+            output.select(&NopBufferManager, sel.iter())?;
         }
 
         Ok(())
@@ -89,7 +89,7 @@ mod tests {
             idx: 1,
             datatype: DataType::Int32,
         };
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 4).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 4).unwrap();
         let sel = Selection::linear(0, 4);
 
         expr.eval(&mut input, &mut ExpressionState::empty(), sel, &mut out)
@@ -112,7 +112,7 @@ mod tests {
             datatype: DataType::Int32,
         };
         let mut state = expr.create_state(4).unwrap();
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 4).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 4).unwrap();
         let sel = Selection::slice(&[1, 3]);
 
         expr.eval(&mut input, &mut state, sel, &mut out).unwrap();

@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 /// Maps a logical row index to the physical location in the array.
+#[deprecated]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectionVector {
     indices: Vec<usize>,

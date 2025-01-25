@@ -34,7 +34,7 @@ impl HashTableDrain {
             .iter()
             .map(|agg| {
                 Array::try_new(
-                    &Arc::new(NopBufferManager),
+                    &NopBufferManager,
                     agg.datatype.clone(),
                     self.batch_size,
                 )

@@ -150,7 +150,7 @@ impl<S: SinkOperation> ExecutableOperator for PhysicalSink<S> {
                 Some(count) => {
                     let output = inout.output.required("output batch required")?;
                     let count_arr = &mut output.arrays[0];
-                    count_arr.reset_for_write(&Arc::new(NopBufferManager))?;
+                    count_arr.reset_for_write(&NopBufferManager)?;
                     count_arr.set_value(0, &ScalarValue::Int64(count as i64))?;
                     output.set_num_rows(1)?;
 

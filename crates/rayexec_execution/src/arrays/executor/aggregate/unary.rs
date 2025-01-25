@@ -2,8 +2,8 @@ use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::AggregateState;
-use crate::arrays::array::flat::FlatArrayView;
-use crate::arrays::array::physical_type::{Addressable, PhysicalStorage};
+use crate::arrays::array::flat::FlattenedArray;
+use crate::arrays::array::physical_type::{Addressable, ScalarStorage};
 use crate::arrays::array::Array;
 
 #[derive(Debug, Clone, Copy)]
@@ -17,12 +17,12 @@ impl UnaryNonNullUpdater {
         states: &mut [State],
     ) -> Result<()>
     where
-        S: PhysicalStorage,
+        S: ScalarStorage,
         Output: ?Sized,
         for<'a> State: AggregateState<&'a S::StorageType, Output>,
     {
-        if array.is_dictionary() || array.is_constant() {
-            let flat = array.flat_view()?;
+        if array.should_flatten_for_execution() {
+            let flat = array.flatten()?;
             return Self::update_flat::<S, State, Output>(flat, selection, mapping, states);
         }
 
@@ -32,13 +32,19 @@ impl UnaryNonNullUpdater {
         let validity = &array.validity;
 
         if validity.all_valid() {
-            for (input_idx, state_idx) in selection.into_iter().zip(mapping.into_iter()) {
+            for (input_idx, state_idx) in selection
+                .into_exact_size_iter()
+                .zip(mapping.into_exact_size_iter())
+            {
                 let val = input.get(input_idx).unwrap();
                 let state = &mut states[state_idx];
                 state.update(val)?;
             }
         } else {
-            for (input_idx, state_idx) in selection.into_iter().zip(mapping.into_iter()) {
+            for (input_idx, state_idx) in selection
+                .into_exact_size_iter()
+                .zip(mapping.into_exact_size_iter())
+            {
                 if !validity.is_valid(input_idx) {
                     continue;
                 }
@@ -53,13 +59,13 @@ impl UnaryNonNullUpdater {
     }
 
     pub fn update_flat<S, State, Output>(
-        array: FlatArrayView<'_>,
+        array: FlattenedArray<'_>,
         selection: impl IntoExactSizeIterator<Item = usize>,
         mapping: impl IntoExactSizeIterator<Item = usize>,
         states: &mut [State],
     ) -> Result<()>
     where
-        S: PhysicalStorage,
+        S: ScalarStorage,
         Output: ?Sized,
         for<'b> State: AggregateState<&'b S::StorageType, Output>,
     {
@@ -67,7 +73,10 @@ impl UnaryNonNullUpdater {
         let validity = &array.validity;
 
         if validity.all_valid() {
-            for (input_idx, state_idx) in selection.into_iter().zip(mapping.into_iter()) {
+            for (input_idx, state_idx) in selection
+                .into_exact_size_iter()
+                .zip(mapping.into_exact_size_iter())
+            {
                 let selected_idx = array.selection.get(input_idx).unwrap();
 
                 let val = input.get(selected_idx).unwrap();
@@ -75,7 +84,10 @@ impl UnaryNonNullUpdater {
                 state.update(val)?;
             }
         } else {
-            for (input_idx, state_idx) in selection.into_iter().zip(mapping.into_iter()) {
+            for (input_idx, state_idx) in selection
+                .into_exact_size_iter()
+                .zip(mapping.into_exact_size_iter())
+            {
                 let selected_idx = array.selection.get(input_idx).unwrap();
 
                 if !validity.is_valid(selected_idx) {
@@ -150,7 +162,7 @@ mod tests {
         let mut array = Array::try_from_iter([1, 2, 3, 4, 5]).unwrap();
         // '[1, 5, 5, 5, 5, 2, 2]'
         array
-            .select(&Arc::new(NopBufferManager), [0, 4, 4, 4, 4, 1, 1])
+            .select(&NopBufferManager, [0, 4, 4, 4, 4, 1, 1])
             .unwrap();
 
         UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
@@ -167,7 +179,7 @@ mod tests {
     #[test]
     fn unary_primitive_single_state_constant() {
         let mut states = [TestSumState::default()];
-        let array = Array::try_new_constant(&Arc::new(NopBufferManager), &3.into(), 5).unwrap();
+        let array = Array::try_new_constant(&NopBufferManager, &3.into(), 5).unwrap();
 
         UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
             &array,

@@ -239,7 +239,13 @@ impl FromIterator<bool> for Bitmap {
     fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
         let mut iter = iter.into_iter();
 
-        let mut data = Vec::new();
+        let (lower, _) = iter.size_hint();
+        let mut lower_cap = lower / 8;
+        if lower % 8 == 0 {
+            lower_cap += 1;
+        }
+
+        let mut data = Vec::with_capacity(lower_cap);
         let mut len = 0;
 
         loop {

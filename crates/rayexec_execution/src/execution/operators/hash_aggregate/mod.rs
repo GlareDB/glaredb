@@ -290,7 +290,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         if col_is_null {
                             // Create column with all nulls but retain the datatype.
                             let null_col = Array::try_new_typed_null(
-                                &Arc::new(NopBufferManager),
+                                &NopBufferManager,
                                 grouping_columns[col_idx].datatype().clone(),
                                 num_rows,
                             )?;

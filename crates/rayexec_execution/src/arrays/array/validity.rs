@@ -1,3 +1,5 @@
+use stdutil::iter::IntoExactSizeIterator;
+
 use crate::arrays::bitmap::Bitmap;
 
 /// Validity mask for an array.
@@ -86,6 +88,22 @@ impl Validity {
         ValidityIter {
             idx: 0,
             validity: self,
+        }
+    }
+
+    /// Produce a new validity bitmap by applying a selection on an existing
+    /// mask.
+    pub fn select(&self, selection: impl IntoExactSizeIterator<Item = usize>) -> Self {
+        let selection = selection.into_exact_size_iter();
+        match &self.inner {
+            ValidityInner::AllValid { .. } => Self::new_all_valid(selection.len()),
+            ValidityInner::AllInvalid { .. } => Self::new_all_invalid(selection.len()),
+            ValidityInner::Mask { bitmap } => {
+                let new_mask: Bitmap = selection.map(|sel_idx| bitmap.value(sel_idx)).collect();
+                Validity {
+                    inner: ValidityInner::Mask { bitmap: new_mask },
+                }
+            }
         }
     }
 }

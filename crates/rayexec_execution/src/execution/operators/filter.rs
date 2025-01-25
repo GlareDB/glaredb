@@ -121,8 +121,8 @@ mod tests {
         let wrapper = OperatorWrapper::new(operator);
 
         let mut out = Batch::try_from_arrays([
-            Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 4).unwrap(),
-            Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 4).unwrap(),
+            Array::try_new(&NopBufferManager, DataType::Boolean, 4).unwrap(),
+            Array::try_new(&NopBufferManager, DataType::Int32, 4).unwrap(),
         ])
         .unwrap();
 

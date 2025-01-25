@@ -1,10 +1,41 @@
 use std::alloc::{self, Layout};
 use std::ptr::NonNull;
-use std::sync::Arc;
 
 use rayexec_error::{Result, ResultExt};
+use stdutil::marker::PhantomCovariant;
 
 use super::buffer_manager::{BufferManager, Reservation};
+
+#[derive(Debug)]
+pub struct TypedRawBuffer<T, B: BufferManager> {
+    pub(crate) _type: PhantomCovariant<T>,
+    pub(crate) raw: RawBuffer<B>,
+}
+
+impl<T, B> TypedRawBuffer<T, B>
+where
+    B: BufferManager,
+{
+    pub fn try_with_capacity(manager: &B, cap: usize) -> Result<Self> {
+        let raw = RawBuffer::try_with_capacity::<T>(manager, cap)?;
+        Ok(TypedRawBuffer {
+            _type: PhantomCovariant::new(),
+            raw,
+        })
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.raw.capacity()
+    }
+
+    pub fn as_slice(&self) -> &[T] {
+        unsafe { self.raw.as_slice::<T>() }
+    }
+
+    pub fn as_slice_mut(&mut self) -> &mut [T] {
+        unsafe { self.raw.as_slice_mut() }
+    }
+}
 
 #[derive(Debug)]
 pub struct RawBuffer<B: BufferManager> {
@@ -21,6 +52,10 @@ pub struct RawBuffer<B: BufferManager> {
     /// This is needed in additional to the reservation to properly handle
     /// zero-sized types (untyped null).
     pub(crate) capacity: usize,
+    /// Tracks the alignment of this buffer.
+    ///
+    /// Used during deallocation without requiring type info.
+    pub(crate) align: usize,
 }
 
 unsafe impl<B: BufferManager> Send for RawBuffer<B> {}
@@ -31,14 +66,18 @@ where
     B: BufferManager,
 {
     /// Try to create a new buffer with a given capacity for type `T`.
-    pub fn try_with_capacity<T>(manager: &Arc<B>, cap: usize) -> Result<Self> {
-        let layout = Layout::array::<T>(cap).context("failed to create layout")?;
+    pub fn try_with_capacity<T>(manager: &B, cap: usize) -> Result<Self> {
+        let align = std::mem::align_of::<T>();
+        let size_bytes = std::mem::size_of::<T>() * cap;
+
+        let reservation = manager.try_reserve(size_bytes)?;
 
         if cap == 0 {
             return Ok(RawBuffer {
-                reservation: manager.reserve_from_layout(layout)?,
+                reservation,
                 ptr: NonNull::dangling(),
                 capacity: 0,
+                align,
             });
         }
 
@@ -49,17 +88,20 @@ where
             None => alloc::handle_alloc_error(layout),
         };
 
-        let reservation = manager.reserve_from_layout(layout)?;
-
         Ok(RawBuffer {
             reservation,
             ptr,
             capacity: cap,
+            align,
         })
     }
 
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
     pub unsafe fn as_slice<T>(&self) -> &[T] {
-        debug_assert_eq!(std::mem::align_of::<T>(), self.reservation.align());
+        debug_assert_eq!(std::mem::align_of::<T>(), self.align);
         debug_assert_eq!(
             0,
             if std::mem::size_of::<T>() > 0 {
@@ -77,7 +119,7 @@ where
     }
 
     pub unsafe fn as_slice_mut<T>(&mut self) -> &mut [T] {
-        debug_assert_eq!(std::mem::align_of::<T>(), self.reservation.align());
+        debug_assert_eq!(std::mem::align_of::<T>(), self.align);
         debug_assert_eq!(
             0,
             if std::mem::size_of::<T>() > 0 {
@@ -98,7 +140,7 @@ where
     ///
     /// This will reallocate using the buffer manager on the existing memory reservation.
     pub unsafe fn reserve<T>(&mut self, additional: usize) -> Result<()> {
-        debug_assert_eq!(std::mem::align_of::<T>(), self.reservation.align());
+        debug_assert_eq!(std::mem::align_of::<T>(), self.align);
         debug_assert_eq!(
             0,
             if std::mem::size_of::<T>() > 0 {
@@ -113,25 +155,37 @@ where
         );
 
         let cap = self.reservation.size() / std::mem::size_of::<T>();
-        let layout = Layout::array::<T>(cap + additional).context("failed to create layout")?;
+
+        let old_layout = self.layout();
+        let new_layout =
+            Layout::array::<T>(cap + additional).context("failed to create new layout")?;
+
+        let additional_bytes = std::mem::size_of::<T>() * additional;
+
+        // Reserve additional.
+        let additional_reservation = self.reservation.manager().try_reserve(additional_bytes)?;
 
         let new_ptr = if cap == 0 {
-            unsafe { alloc::alloc(layout) }
+            unsafe { alloc::alloc(new_layout) }
         } else {
             let old_ptr = self.ptr.as_ptr();
-            let old_layout = self.reservation.layout();
-            unsafe { alloc::realloc(old_ptr, old_layout, layout.size()) }
+            unsafe { alloc::realloc(old_ptr, old_layout, new_layout.size()) }
         };
 
         self.ptr = match NonNull::new(new_ptr) {
             Some(p) => p,
-            None => alloc::handle_alloc_error(layout),
+            None => alloc::handle_alloc_error(new_layout),
         };
 
-        self.reservation = self.reservation.manager().reserve_from_layout(layout)?;
         self.capacity += additional;
+        self.reservation.merge(additional_reservation);
+        debug_assert_eq!(self.reservation.size(), new_layout.size());
 
         Ok(())
+    }
+
+    const fn layout(&self) -> Layout {
+        unsafe { Layout::from_size_align_unchecked(self.reservation.size(), self.align) }
     }
 }
 
@@ -141,7 +195,7 @@ where
 {
     fn drop(&mut self) {
         if self.reservation.size() != 0 {
-            let layout = self.reservation.layout();
+            let layout = self.layout();
             unsafe {
                 alloc::dealloc(self.ptr.as_ptr(), layout);
             }
@@ -156,7 +210,7 @@ mod tests {
 
     #[test]
     fn new_drop() {
-        let b = RawBuffer::try_with_capacity::<i64>(&Arc::new(NopBufferManager), 4).unwrap();
+        let b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 4).unwrap();
 
         assert_eq!(32, b.reservation.size());
 
@@ -165,14 +219,14 @@ mod tests {
 
     #[test]
     fn new_zero_cap() {
-        let b = RawBuffer::try_with_capacity::<i64>(&Arc::new(NopBufferManager), 0).unwrap();
+        let b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 0).unwrap();
         assert_eq!(0, b.reservation.size());
-        assert_eq!(8, b.reservation.align());
+        assert_eq!(8, b.align);
     }
 
     #[test]
     fn as_slice_mut() {
-        let mut b = RawBuffer::try_with_capacity::<i64>(&Arc::new(NopBufferManager), 4).unwrap();
+        let mut b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 4).unwrap();
         let s = unsafe { b.as_slice_mut::<i64>() };
         assert_eq!(4, s.len());
 
@@ -187,7 +241,7 @@ mod tests {
 
     #[test]
     fn reserve() {
-        let mut b = RawBuffer::try_with_capacity::<i64>(&Arc::new(NopBufferManager), 4).unwrap();
+        let mut b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 4).unwrap();
         let s = unsafe { b.as_slice_mut::<i64>() };
         assert_eq!(4, s.len());
 

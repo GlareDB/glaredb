@@ -98,8 +98,8 @@ mod tests {
             .unwrap();
 
         let mut output = Batch::try_from_arrays([
-            Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 1024).unwrap(),
-            Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 1024).unwrap(),
+            Array::try_new(&NopBufferManager, DataType::Utf8, 1024).unwrap(),
+            Array::try_new(&NopBufferManager, DataType::Int32, 1024).unwrap(),
         ])
         .unwrap();
 

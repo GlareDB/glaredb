@@ -21,7 +21,7 @@ pub struct SelectionEvaluator {
 impl SelectionEvaluator {
     pub fn try_new(expression: PhysicalScalarExpression, batch_size: usize) -> Result<Self> {
         let evaluator = ExpressionEvaluator::try_new([expression], batch_size)?;
-        let output = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, batch_size)?;
+        let output = Array::try_new(&NopBufferManager, DataType::Boolean, batch_size)?;
         let selection = Vec::with_capacity(batch_size);
 
         Ok(SelectionEvaluator {
@@ -40,7 +40,7 @@ impl SelectionEvaluator {
     /// The internal state is cleared across calls to this method.
     pub fn select(&mut self, input: &mut Batch) -> Result<&[usize]> {
         self.selection.clear();
-        self.output.reset_for_write(&Arc::new(NopBufferManager))?;
+        self.output.reset_for_write(&NopBufferManager)?;
 
         self.evaluator
             .eval_single_expression(input, input.selection(), &mut self.output)?;

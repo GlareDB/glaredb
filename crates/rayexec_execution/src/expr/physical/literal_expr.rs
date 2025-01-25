@@ -45,7 +45,7 @@ impl PhysicalLiteralExpr {
 
         // TODO: Need to be able to provide "constant" selection here.
         output.select(
-            &Arc::new(NopBufferManager),
+            &NopBufferManager,
             std::iter::repeat(0).take(sel.len()),
         )?;
 
@@ -91,7 +91,7 @@ mod tests {
             literal: "catdog".into(),
         };
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 4).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 4).unwrap();
         expr.eval(
             &mut input,
             &mut ExpressionState::empty(),
@@ -112,7 +112,7 @@ mod tests {
             literal: "catdog".into(),
         };
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Utf8, 4).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 4).unwrap();
         expr.eval(
             &mut input,
             &mut ExpressionState::empty(),

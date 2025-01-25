@@ -38,7 +38,7 @@ impl OuterJoinTracker {
     /// Rows from the right that haven't been matched will be in the output,
     /// with all rows from the left columns being set to null.
     pub fn set_right_join_output(&self, right: &mut Batch, output: &mut Batch) -> Result<()> {
-        let manager = Arc::new(NopBufferManager);
+        let manager = NopBufferManager;
 
         let col_offset = output.arrays.len() - right.arrays.len();
 

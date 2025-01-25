@@ -2,7 +2,7 @@ use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::AggregateState;
-use crate::arrays::array::physical_type::{Addressable, PhysicalStorage};
+use crate::arrays::array::physical_type::{Addressable, ScalarStorage};
 use crate::arrays::array::Array;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,8 +17,8 @@ impl BinaryNonNullUpdater {
         states: &mut [State],
     ) -> Result<()>
     where
-        S1: PhysicalStorage,
-        S2: PhysicalStorage,
+        S1: ScalarStorage,
+        S2: ScalarStorage,
         Output: ?Sized,
         for<'a> State: AggregateState<(&'a S1::StorageType, &'a S2::StorageType), Output>,
     {
@@ -33,7 +33,10 @@ impl BinaryNonNullUpdater {
         let validity2 = &array2.validity;
 
         if validity1.all_valid() && validity2.all_valid() {
-            for (input_idx, state_idx) in selection.into_iter().zip(mapping.into_iter()) {
+            for (input_idx, state_idx) in selection
+                .into_exact_size_iter()
+                .zip(mapping.into_exact_size_iter())
+            {
                 let val1 = input1.get(input_idx).unwrap();
                 let val2 = input2.get(input_idx).unwrap();
 
@@ -42,7 +45,10 @@ impl BinaryNonNullUpdater {
                 state.update((val1, val2))?;
             }
         } else {
-            for (input_idx, state_idx) in selection.into_iter().zip(mapping.into_iter()) {
+            for (input_idx, state_idx) in selection
+                .into_exact_size_iter()
+                .zip(mapping.into_exact_size_iter())
+            {
                 if !validity1.is_valid(input_idx) || !validity2.is_valid(input_idx) {
                     continue;
                 }

@@ -51,12 +51,8 @@ impl PhysicalCaseExpr {
         // for the result if condition is true. 'then' and 'else' expressions
         // should evaluate to the same type.
         let buffer = Batch::try_from_arrays([
-            Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, batch_size)?,
-            Array::try_new(
-                &Arc::new(NopBufferManager),
-                self.else_expr.datatype(),
-                batch_size,
-            )?,
+            Array::try_new(&NopBufferManager, DataType::Boolean, batch_size)?,
+            Array::try_new(&NopBufferManager, self.else_expr.datatype(), batch_size)?,
         ])?;
 
         Ok(ExpressionState { buffer, inputs })
@@ -73,7 +69,7 @@ impl PhysicalCaseExpr {
         sel: Selection,
         output: &mut Array,
     ) -> Result<()> {
-        let manager = &Arc::new(NopBufferManager);
+        let manager = &NopBufferManager;
 
         // Indices where 'when' evaluated to true and the 'then' expression
         // needs to be evaluated.
@@ -112,7 +108,7 @@ impl PhysicalCaseExpr {
             )?;
 
             UnaryExecutor::for_each_flat::<PhysicalBool, _>(
-                when_array.flat_view()?,
+                when_array.flatten()?,
                 Selection::slice(&curr_selection),
                 |idx, b| {
                     if let Some(&true) = b {
@@ -227,7 +223,7 @@ mod tests {
 
         let mut state = expr.create_state(3).unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 3), &mut out)
             .unwrap();
 
@@ -269,7 +265,7 @@ mod tests {
             inputs: vec![ExpressionState::empty(), ExpressionState::empty()],
         };
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 3), &mut out)
             .unwrap();
 

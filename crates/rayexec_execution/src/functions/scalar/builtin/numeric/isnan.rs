@@ -9,7 +9,7 @@ use crate::arrays::array::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalStorage,
+    ScalarStorage,
 };
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -89,11 +89,11 @@ impl ScalarFunction for IsNan {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct IsNanImpl<S: PhysicalStorage> {
+pub struct IsNanImpl<S: ScalarStorage> {
     _s: PhantomData<S>,
 }
 
-impl<S: PhysicalStorage> IsNanImpl<S> {
+impl<S: ScalarStorage> IsNanImpl<S> {
     const fn new() -> Self {
         IsNanImpl { _s: PhantomData }
     }
@@ -101,7 +101,7 @@ impl<S: PhysicalStorage> IsNanImpl<S> {
 
 impl<S> ScalarFunctionImpl for IsNanImpl<S>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
     S::StorageType: Float,
 {
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {

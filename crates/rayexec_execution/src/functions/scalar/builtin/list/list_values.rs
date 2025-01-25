@@ -98,7 +98,7 @@ mod tests {
     use super::*;
     use crate::arrays::array::array_buffer::ListItemMetadata;
     use crate::arrays::array::buffer_manager::NopBufferManager;
-    use crate::arrays::array::physical_type::{PhysicalList, PhysicalStorage};
+    use crate::arrays::array::physical_type::{PhysicalList, ScalarStorage};
     use crate::expr;
 
     #[test]
@@ -124,7 +124,7 @@ mod tests {
             .unwrap();
 
         let mut out = Array::try_new(
-            &Arc::new(NopBufferManager),
+            &NopBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             3,
         )

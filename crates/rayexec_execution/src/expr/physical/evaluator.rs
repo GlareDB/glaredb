@@ -67,7 +67,7 @@ impl ExpressionEvaluator {
         let state = &mut self.states[0];
 
         let mut input = Batch::empty_with_num_rows(1);
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), expr.datatype(), 1)?;
+        let mut out = Array::try_new(&NopBufferManager, expr.datatype(), 1)?;
 
         Self::eval_expression(expr, &mut input, state, Selection::linear(0, 1), &mut out)?;
 
@@ -135,7 +135,7 @@ impl ExpressionEvaluator {
         // keep it on the array/buffer/batch/something else. We might need
         // `Arc<dyn ...>` here, ideally the buffer reuse prevents us from
         // needing to call into it often.
-        output.reset_for_write(&Arc::new(NopBufferManager))?;
+        output.reset_for_write(&NopBufferManager)?;
 
         match expr {
             PhysicalScalarExpression::Column(expr) => expr.eval(input, state, sel, output),

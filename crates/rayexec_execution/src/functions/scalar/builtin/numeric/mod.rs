@@ -40,7 +40,7 @@ use stdutil::iter::IntoExactSizeIterator;
 pub use tan::*;
 
 use crate::arrays::array::physical_type::{
-    MutablePhysicalStorage,
+    MutableScalarStorage,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
@@ -87,7 +87,7 @@ pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'stat
         output: &mut Array,
     ) -> Result<()>
     where
-        S: MutablePhysicalStorage,
+        S: MutableScalarStorage,
         S::StorageType: Float;
 }
 

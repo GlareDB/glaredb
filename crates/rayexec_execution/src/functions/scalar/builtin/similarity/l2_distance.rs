@@ -5,11 +5,11 @@ use num_traits::{AsPrimitive, Float};
 use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{
-    MutablePhysicalStorage,
+    MutableScalarStorage,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalStorage,
+    ScalarStorage,
 };
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -94,13 +94,13 @@ impl ScalarFunction for L2Distance {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct L2DistanceImpl<S: PhysicalStorage> {
+pub struct L2DistanceImpl<S: ScalarStorage> {
     _s: PhantomData<S>,
 }
 
 impl<S> L2DistanceImpl<S>
 where
-    S: PhysicalStorage,
+    S: ScalarStorage,
 {
     fn new() -> Self {
         L2DistanceImpl { _s: PhantomData }
@@ -109,7 +109,7 @@ where
 
 impl<S> ScalarFunctionImpl for L2DistanceImpl<S>
 where
-    S: MutablePhysicalStorage,
+    S: MutableScalarStorage,
     S::StorageType: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
@@ -162,7 +162,7 @@ mod tests {
     #[test]
     fn l2_distance_ok() {
         let mut a = Array::try_new(
-            &Arc::new(NopBufferManager),
+            &NopBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Float64)),
             1,
         )
@@ -179,7 +179,7 @@ mod tests {
         .unwrap();
 
         let mut b = Array::try_new(
-            &Arc::new(NopBufferManager),
+            &NopBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Float64)),
             1,
         )
@@ -216,7 +216,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Float64, 1).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Float64, 1).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
         let expected = Array::try_from_iter([1.0]).unwrap();

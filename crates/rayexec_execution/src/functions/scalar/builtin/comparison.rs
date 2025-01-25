@@ -16,13 +16,13 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalStorage,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
     PhysicalUtf8,
+    ScalarStorage,
 };
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -603,7 +603,7 @@ where
 }
 
 #[derive(Debug, Clone)]
-struct UnnestedComparisonImpl<O: ComparisonOperation, S: PhysicalStorage> {
+struct UnnestedComparisonImpl<O: ComparisonOperation, S: ScalarStorage> {
     _op: PhantomData<O>,
     _s: PhantomData<S>,
 }
@@ -611,7 +611,7 @@ struct UnnestedComparisonImpl<O: ComparisonOperation, S: PhysicalStorage> {
 impl<O, S> UnnestedComparisonImpl<O, S>
 where
     O: ComparisonOperation,
-    S: PhysicalStorage,
+    S: ScalarStorage,
 {
     const fn new() -> Self {
         UnnestedComparisonImpl {
@@ -624,7 +624,7 @@ where
 impl<O, S> ScalarFunctionImpl for UnnestedComparisonImpl<O, S>
 where
     O: ComparisonOperation,
-    S: PhysicalStorage,
+    S: ScalarStorage,
     S::StorageType: PartialEq + PartialOrd,
 {
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
@@ -677,7 +677,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
         let expected = Array::try_from_iter([false, true, false]).unwrap();
 
@@ -706,7 +706,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
         let expected = Array::try_from_iter([true, false, true]).unwrap();
 
@@ -735,7 +735,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
         let expected = Array::try_from_iter([true, false, true]).unwrap();
 
@@ -764,7 +764,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
         let expected = Array::try_from_iter([true, true, true]).unwrap();
 
@@ -793,7 +793,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
         let expected = Array::try_from_iter([false, false, false]).unwrap();
 
@@ -822,7 +822,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
         let expected = Array::try_from_iter([false, true, false]).unwrap();
 

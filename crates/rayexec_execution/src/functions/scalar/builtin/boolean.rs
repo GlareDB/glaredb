@@ -75,14 +75,15 @@ impl ScalarFunctionImpl for AndImpl {
         match input.arrays().len() {
             0 => {
                 // TODO: Default to false?
-                let vals = output
-                    .data
-                    .try_as_mut()?
-                    .try_as_slice_mut::<PhysicalBool>()?;
+                // let vals = output
+                //     .data
+                //     .try_as_mut()?
+                //     .try_as_slice_mut::<PhysicalBool>()?;
 
-                for v in vals {
-                    *v = false;
-                }
+                // for v in vals {
+                //     *v = false;
+                // }
+                unimplemented!()
             }
             1 => {
                 let input = &input.arrays()[0];
@@ -178,14 +179,15 @@ impl ScalarFunctionImpl for OrImpl {
         match input.arrays().len() {
             0 => {
                 // TODO: Default to false?
-                let vals = output
-                    .data
-                    .try_as_mut()?
-                    .try_as_slice_mut::<PhysicalBool>()?;
+                // let vals = output
+                //     .data
+                //     .try_as_mut()?
+                //     .try_as_slice_mut::<PhysicalBool>()?;
 
-                for v in vals {
-                    *v = false;
-                }
+                // for v in vals {
+                //     *v = false;
+                // }
+                unimplemented!()
             }
             1 => {
                 let input = &input.arrays()[0];
@@ -254,7 +256,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
         let expected = Array::try_from_iter([true, false, false]).unwrap();
@@ -289,7 +291,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
         let expected = Array::try_from_iter([false, true, false]).unwrap();
@@ -319,7 +321,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Boolean, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
         let expected = Array::try_from_iter([true, true, false]).unwrap();

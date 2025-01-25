@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{
-    MutablePhysicalStorage,
+    MutableScalarStorage,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
@@ -191,7 +191,7 @@ impl<S> SubImpl<S> {
 
 impl<S> ScalarFunctionImpl for SubImpl<S>
 where
-    S: MutablePhysicalStorage,
+    S: MutableScalarStorage,
     S::StorageType: std::ops::Sub<Output = S::StorageType> + Sized + Copy,
 {
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
@@ -245,7 +245,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 3).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
         let expected = Array::try_from_iter([3, 3, 3]).unwrap();

@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use rayexec_error::{RayexecError, Result};
 use stdutil::marker::PhantomCovariant;
 
-use crate::arrays::array::physical_type::{MutablePhysicalStorage, PhysicalStorage};
+use crate::arrays::array::physical_type::{MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::executor::aggregate::{
@@ -197,21 +197,22 @@ impl<'a> OpaqueStatesMut<'a> {
 
 pub fn drain<S, State, I>(states: &mut [State], output: &mut Array) -> Result<()>
 where
-    S: MutablePhysicalStorage,
+    S: MutableScalarStorage,
     State: AggregateState<I, S::StorageType>,
 {
-    let buffer = &mut S::get_addressable_mut(output.data.try_as_mut()?)?;
-    let validity = &mut output.validity;
+    unimplemented!()
+    // let buffer = &mut S::get_addressable_mut(output.data.try_as_mut()?)?;
+    // let validity = &mut output.validity;
 
-    for (idx, state) in states.iter_mut().enumerate() {
-        state.finalize(PutBuffer {
-            idx,
-            buffer,
-            validity,
-        })?;
-    }
+    // for (idx, state) in states.iter_mut().enumerate() {
+    //     state.finalize(PutBuffer {
+    //         idx,
+    //         buffer,
+    //         validity,
+    //     })?;
+    // }
 
-    Ok(())
+    // Ok(())
 }
 
 pub fn unary_update<Storage, Output, State>(
@@ -221,8 +222,8 @@ pub fn unary_update<Storage, Output, State>(
     states: &mut [State],
 ) -> Result<()>
 where
-    Storage: PhysicalStorage,
-    Output: MutablePhysicalStorage,
+    Storage: ScalarStorage,
+    Output: MutableScalarStorage,
     State: for<'a> AggregateState<&'a Storage::StorageType, Output::StorageType>,
 {
     UnaryNonNullUpdater::update::<Storage, State, _>(
@@ -240,9 +241,9 @@ pub fn binary_update<Storage1, Storage2, Output, State>(
     states: &mut [State],
 ) -> Result<()>
 where
-    Storage1: PhysicalStorage,
-    Storage2: PhysicalStorage,
-    Output: MutablePhysicalStorage,
+    Storage1: ScalarStorage,
+    Storage2: ScalarStorage,
+    Output: MutableScalarStorage,
     State: for<'a> AggregateState<
         (&'a Storage1::StorageType, &'a Storage2::StorageType),
         Output::StorageType,

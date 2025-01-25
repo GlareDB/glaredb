@@ -51,7 +51,7 @@ mod tests {
 
         let indices = [(0, 1), (0, 2), (1, 0), (1, 1), (0, 0), (1, 2)];
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 6).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 6).unwrap();
         interleave(&[&arr1, &arr2], &indices, &mut out).unwrap();
 
         let expected = Array::try_from_iter([5, 6, 7, 8, 4, 9]).unwrap();
@@ -65,7 +65,7 @@ mod tests {
 
         let indices = [(0, 1), (1, 1), (0, 1), (1, 1)];
 
-        let mut out = Array::try_new(&Arc::new(NopBufferManager), DataType::Int32, 4).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 4).unwrap();
         interleave(&[&arr1, &arr2], &indices, &mut out).unwrap();
 
         let expected = Array::try_from_iter([5, 8, 5, 8]).unwrap();

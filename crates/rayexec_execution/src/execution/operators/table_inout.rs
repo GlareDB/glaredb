@@ -168,14 +168,14 @@ impl ExecutableOperator for PhysicalTableInOut {
 
                 let input_arr = &mut state.row_batch.arrays[col_expr.idx];
                 let output_arr = &mut output.arrays[out_idx];
-                output_arr.reset_for_write(&Arc::new(NopBufferManager))?;
+                output_arr.reset_for_write(&NopBufferManager)?;
 
                 // TODO: `try_clone_from` should be used here instead, but
                 // currently 'selecting' a managed dictionary doesn't work
                 // (errors due to mutability support).
                 input_arr.copy_rows([(0, 0)], output_arr)?;
                 output_arr.select(
-                    &Arc::new(NopBufferManager),
+                    &NopBufferManager,
                     std::iter::repeat(0).take(num_rows),
                 )?;
             }
