@@ -753,7 +753,7 @@ const fn elide_index<T>(v: &[T]) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

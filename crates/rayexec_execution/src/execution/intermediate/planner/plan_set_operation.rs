@@ -1,10 +1,8 @@
-use std::sync::Arc;
 
 use rayexec_error::{not_implemented, Result};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::execution::operators::hash_aggregate::PhysicalHashAggregate;
-use crate::execution::operators::union::PhysicalUnion;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_setop::{LogicalSetop, SetOpKind};
 use crate::logical::operator::Node;

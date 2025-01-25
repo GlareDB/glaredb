@@ -6,7 +6,6 @@ use super::{
     ExecutableOperator,
     ExecuteInOutState,
     OperatorState,
-    PartitionAndOperatorStates,
     PartitionState,
     PollExecute,
     PollFinalize,
@@ -80,7 +79,7 @@ impl DatabaseProtoConv for PhysicalEmpty {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;

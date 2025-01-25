@@ -149,7 +149,7 @@ impl UniformExecutor {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

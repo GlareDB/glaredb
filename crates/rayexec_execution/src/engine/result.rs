@@ -2,7 +2,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
-use futures::future::BoxFuture;
 use futures::{Future, Stream};
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};

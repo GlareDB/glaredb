@@ -1,17 +1,7 @@
-use std::collections::HashMap;
 use std::fmt;
-use std::sync::Arc;
 
-use rayexec_error::{OptionExt, Result};
-use rayexec_proto::ProtoConv;
-use uuid::Uuid;
 
-use crate::arrays::datatype::DataType;
-use crate::database::DatabaseContext;
 use crate::execution::operators::PhysicalOperator;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::logical::binder::bind_context::MaterializationRef;
-use crate::proto::DatabaseProtoConv;
 
 /// ID of a single intermediate pipeline.
 ///

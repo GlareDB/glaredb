@@ -1,7 +1,6 @@
 pub mod operation;
 
 use std::fmt::Debug;
-use std::sync::Arc;
 use std::task::Context;
 
 use operation::{PartitionSink, SinkOperation};
@@ -12,7 +11,6 @@ use super::{
     ExecutableOperator,
     ExecuteInOutState,
     OperatorState,
-    PartitionAndOperatorStates,
     PartitionState,
     PollExecute,
     PollFinalize,

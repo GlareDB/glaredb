@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::task::Context;
 
 use rayexec_error::{OptionExt, RayexecError, Result};
@@ -7,7 +6,6 @@ use super::{
     ExecutableOperator,
     ExecuteInOutState,
     OperatorState,
-    PartitionAndOperatorStates,
     PartitionState,
     PollExecute,
     PollFinalize,

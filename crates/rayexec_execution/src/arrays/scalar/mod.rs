@@ -5,7 +5,6 @@ pub mod timestamp;
 use std::borrow::Cow;
 use std::fmt;
 use std::hash::Hash;
-use std::sync::Arc;
 
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use half::f16;
@@ -16,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
 use super::array::buffer_manager::NopBufferManager;
-use super::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::compute::cast::format::{
     BoolFormatter,

@@ -5,7 +5,6 @@ use rayexec_error::{RayexecError, Result};
 use stdutil::convert::TryAsMut;
 
 use super::buffer_manager::BufferManager;
-use super::cache::Cached;
 use super::raw::{RawBuffer, TypedRawBuffer};
 use super::string_view::{
     BinaryViewAddressable,
@@ -15,12 +14,10 @@ use super::string_view::{
     StringViewHeap,
     StringViewMetadataUnion,
 };
-use super::validity::Validity;
 use super::Array;
 use crate::arrays::array::physical_type::{
     Addressable,
     AddressableMut,
-    MutableScalarStorage,
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -32,7 +29,6 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalList,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,

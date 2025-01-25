@@ -1,8 +1,7 @@
-use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
-use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
+use super::{IntermediatePipelineBuildState, PipelineIdGen};
 use crate::database::create::CreateViewInfo;
 use crate::execution::operators::create_view::PhysicalCreateView;
 use crate::execution::operators::PhysicalOperator;

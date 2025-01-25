@@ -1,11 +1,8 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::{
-    Addressable,
-    AddressableMut,
     MutableScalarStorage,
-    PhysicalList,
     ScalarStorage,
 };
 use crate::arrays::array::Array;

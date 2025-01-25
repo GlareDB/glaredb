@@ -10,7 +10,6 @@ use super::{
     ExecutableOperator,
     ExecuteInOutState,
     OperatorState,
-    PartitionAndOperatorStates,
     PartitionState,
     PollExecute,
     PollFinalize,

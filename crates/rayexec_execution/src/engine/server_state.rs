@@ -1,20 +1,18 @@
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use uuid::Uuid;
 
-use crate::arrays::batch::Batch;
 use crate::arrays::field::{Field, Schema};
-use crate::config::execution::{ExecutablePlanConfig, IntermediatePlanConfig};
+use crate::config::execution::IntermediatePlanConfig;
 use crate::config::session::SessionConfig;
 use crate::database::catalog::CatalogTx;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
-use crate::execution::executable::planner::ExecutablePipelinePlanner;
 use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
 use crate::hybrid::buffer::ServerStreamBuffers;
-use crate::hybrid::client::{HybridPlanResponse, PullStatus};
+use crate::hybrid::client::HybridPlanResponse;
 use crate::logical::binder::bind_statement::StatementBinder;
 use crate::logical::operator::LogicalOperator;
 use crate::logical::planner::plan_statement::StatementPlanner;

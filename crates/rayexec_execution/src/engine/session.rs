@@ -11,13 +11,12 @@ use super::result::{new_results_sinks, ExecutionResult, ResultErrorSink, ResultS
 use super::verifier::QueryVerifier;
 use super::DataSourceRegistry;
 use crate::arrays::field::{Field, Schema};
-use crate::config::execution::{ExecutablePlanConfig, IntermediatePlanConfig};
+use crate::config::execution::IntermediatePlanConfig;
 use crate::config::session::SessionConfig;
 use crate::database::catalog::CatalogTx;
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, Database, DatabaseContext};
 use crate::execution::executable::pipeline::ExecutablePipeline;
-use crate::execution::executable::planner::ExecutablePipelinePlanner;
 use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
 use crate::hybrid::client::HybridClient;
 use crate::logical::binder::bind_statement::StatementBinder;

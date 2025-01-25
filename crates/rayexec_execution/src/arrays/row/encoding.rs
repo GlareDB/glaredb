@@ -1,27 +1,7 @@
 use half::f16;
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::physical_type::{
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    ScalarStorage,
-};
 use crate::arrays::array::Array;
-use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::scalar::interval::Interval;
 
 /// Binary-encoded rows suitable for comparisons.
@@ -177,7 +157,7 @@ impl ComparableRowEncoder {
         }
 
         let size = self.compute_data_size(columns)?;
-        let mut data = vec![0; size];
+        let data = vec![0; size];
 
         // Track start offset per row.
         //

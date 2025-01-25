@@ -2,7 +2,6 @@ pub mod batch_collection;
 
 use std::task::Context;
 
-use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 

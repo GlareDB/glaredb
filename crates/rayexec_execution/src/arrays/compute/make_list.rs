@@ -1,7 +1,6 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
-use crate::arrays::array::array_buffer::ListItemMetadata;
 use crate::arrays::array::physical_type::{
     Addressable,
     AddressableMut,
@@ -17,7 +16,6 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalList,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -27,7 +25,6 @@ use crate::arrays::array::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
-use crate::arrays::array::validity::Validity;
 use crate::arrays::array::Array;
 use crate::arrays::datatype::DataType;
 

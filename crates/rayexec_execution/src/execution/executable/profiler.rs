@@ -4,8 +4,6 @@ use std::time::Duration;
 
 use super::partition_pipeline::ExecutablePartitionPipeline;
 use crate::execution::intermediate::pipeline::IntermediatePipelineId;
-use crate::explain::context_display::ContextDisplayMode;
-use crate::explain::explainable::ExplainConfig;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ExecutionProfileData {

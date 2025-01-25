@@ -1,13 +1,7 @@
-use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
-use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::database::create::CreateTableInfo;
-use crate::execution::operators::create_table::CreateTableSinkOperation;
-use crate::execution::operators::empty::PhysicalEmpty;
-use crate::execution::operators::sink::PhysicalSink;
-use crate::execution::operators::PhysicalOperator;
+use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::logical::logical_create::LogicalCreateTable;
 use crate::logical::operator::Node;
 

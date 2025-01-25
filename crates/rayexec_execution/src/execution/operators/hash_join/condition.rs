@@ -1,14 +1,13 @@
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::selection::SelectionVector;
 use crate::expr::physical::PhysicalScalarExpression;
-use crate::functions::scalar::builtin::boolean::AndImpl;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::PlannedScalarFunction;
 
 #[derive(Debug, Clone)]
 pub struct HashJoinCondition {

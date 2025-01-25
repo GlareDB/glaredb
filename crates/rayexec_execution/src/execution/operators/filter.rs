@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::task::Context;
 
 use rayexec_error::{OptionExt, Result};

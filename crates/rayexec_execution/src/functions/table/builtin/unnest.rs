@@ -3,17 +3,14 @@ use std::task::{Context, Waker};
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::physical_type::{PhysicalList, PhysicalType};
 use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
-use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize, PollPush};
+use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
+use crate::functions::table::inout::{TableInOutFunction, TableInOutPartitionState};
 use crate::functions::table::{
     InOutPlanner,
     PlannedTableFunction,

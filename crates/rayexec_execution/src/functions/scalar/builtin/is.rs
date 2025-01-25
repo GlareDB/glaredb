@@ -1,6 +1,5 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::{PhysicalBool, PhysicalType};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -339,7 +338,7 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

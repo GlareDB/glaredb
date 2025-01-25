@@ -61,7 +61,7 @@ use join::nested_loop_join::{
 use limit::PhysicalLimit;
 use materialize::{MaterializeSourceOperation, MaterializedSinkOperation};
 use project::{PhysicalProject, ProjectPartitionState};
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, OptionExt, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
 use sink::operation::SinkOperation;

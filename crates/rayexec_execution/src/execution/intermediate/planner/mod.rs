@@ -22,12 +22,11 @@ mod plan_show_var;
 mod plan_sort;
 mod plan_unnest;
 
-use std::sync::Arc;
 
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use uuid::Uuid;
 
-use super::pipeline::{IntermediatePipeline, IntermediatePipelineId, PipelineSink};
+use super::pipeline::IntermediatePipelineId;
 use crate::config::execution::IntermediatePlanConfig;
 use crate::execution::operators::PhysicalOperator;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
@@ -341,7 +340,7 @@ impl<'a> IntermediatePipelineBuildState<'a> {
     fn push_intermediate_operator(
         &mut self,
         operator: PhysicalOperator,
-        mut location: LocationRequirement,
+        location: LocationRequirement,
         id_gen: &mut PipelineIdGen,
     ) -> Result<()> {
         unimplemented!()

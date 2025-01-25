@@ -16,7 +16,6 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalList,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -300,7 +299,7 @@ impl HashValue for UntypedNull {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

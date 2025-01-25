@@ -1,5 +1,4 @@
 use std::fmt;
-use std::sync::Arc;
 
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;

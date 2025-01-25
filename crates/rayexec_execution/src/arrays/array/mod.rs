@@ -16,8 +16,6 @@ use array_buffer::{
     ArrayBufferType,
     ConstantBuffer,
     DictionaryBuffer,
-    ListBuffer,
-    ListItemMetadata,
     ScalarBuffer,
     SharedOrOwned,
 };
@@ -39,21 +37,18 @@ use physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalList,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
-    PhysicalUntypedNull,
     PhysicalUtf8,
     ScalarStorage,
 };
 use raw::TypedRawBuffer;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use stdutil::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};
-use string_view::StringViewHeap;
 use validity::Validity;
 
 use crate::arrays::datatype::DataType;

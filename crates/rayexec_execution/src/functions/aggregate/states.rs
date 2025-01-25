@@ -14,7 +14,6 @@ use crate::arrays::executor::aggregate::{
     StateCombiner,
     UnaryNonNullUpdater,
 };
-use crate::arrays::executor::PutBuffer;
 
 pub struct TypedAggregateGroupStates<
     State,

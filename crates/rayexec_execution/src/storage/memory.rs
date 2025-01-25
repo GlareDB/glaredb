@@ -5,7 +5,7 @@ use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
-use super::table_storage::{DataTable, DataTableScan, ProjectedScan, Projections, TableStorage};
+use super::table_storage::{DataTable, DataTableScan, Projections, TableStorage};
 use crate::arrays::batch::Batch;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::execution::computed_batch::ComputedBatches;
@@ -94,7 +94,7 @@ impl DataTable for MemoryDataTable {
         projections: Projections,
         num_partitions: usize,
     ) -> Result<Vec<Box<dyn DataTableScan>>> {
-        let mut scans: Vec<_> = (0..num_partitions)
+        let scans: Vec<_> = (0..num_partitions)
             .map(|_| MemoryDataTableScan { data: Vec::new() })
             .collect();
 

@@ -1,4 +1,3 @@
-use std::sync::Arc;
 
 use rayexec_error::{Result, ResultExt};
 

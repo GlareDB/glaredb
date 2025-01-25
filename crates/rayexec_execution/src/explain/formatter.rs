@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use super::explainable::{ExplainConfig, ExplainEntry};
-use crate::execution::intermediate::pipeline::{IntermediatePipeline, PipelineSink};
+use crate::execution::intermediate::pipeline::IntermediatePipeline;
 use crate::explain::explainable::Explainable;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::logical_explain::ExplainFormat;
@@ -143,7 +143,7 @@ impl ExplainNode {
     ) -> ExplainNode {
         let _ = bind_context;
 
-        let mut entry = ExplainEntry::new(format!("IntermediatePipeline {}", pipeline.id.0));
+        let entry = ExplainEntry::new(format!("IntermediatePipeline {}", pipeline.id.0));
         // entry = match pipeline.sink {
         //     PipelineSink::QueryOutput => entry.with_value("Sink", "QueryOutput"),
         //     PipelineSink::InPipeline => entry.with_value("Sink", "InPipeline"),

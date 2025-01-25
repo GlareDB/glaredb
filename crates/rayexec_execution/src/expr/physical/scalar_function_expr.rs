@@ -1,5 +1,4 @@
 use std::fmt;
-use std::sync::Arc;
 
 use fmtutil::IntoDisplayableSlice;
 use rayexec_error::Result;

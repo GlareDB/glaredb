@@ -1,8 +1,8 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
-use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::logical::logical_materialization::LogicalMaterializationScan;
-use crate::logical::operator::{LocationRequirement, Node};
+use crate::logical::operator::Node;
 
 impl IntermediatePipelineBuildState<'_> {
     pub fn plan_materialize_scan(

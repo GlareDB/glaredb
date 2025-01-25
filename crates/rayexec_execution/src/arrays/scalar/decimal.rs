@@ -9,7 +9,6 @@ use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalI128,
     PhysicalI64,
-    ScalarStorage,
 };
 
 pub trait DecimalPrimitive:

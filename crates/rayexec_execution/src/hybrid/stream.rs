@@ -1,11 +1,10 @@
 use std::sync::Arc;
 use std::task::Context;
 
-use futures::future::BoxFuture;
 use rayexec_error::Result;
 use rayexec_io::http::HttpClient;
 
-use super::client::{HybridClient, PullStatus};
+use super::client::HybridClient;
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::operators::sink::operation::{PartitionSink, PollPush, SinkOperation};

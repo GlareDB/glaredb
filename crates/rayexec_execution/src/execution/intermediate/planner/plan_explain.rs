@@ -1,13 +1,7 @@
-use std::sync::Arc;
 
 use rayexec_error::{not_implemented, RayexecError, Result};
-use tracing::error;
 
-use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
-use crate::execution::operators::values::PhysicalValues;
-use crate::execution::operators::PhysicalOperator;
+use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::explain::context_display::ContextDisplayMode;
 use crate::explain::explainable::ExplainConfig;
 use crate::explain::formatter::ExplainFormatter;

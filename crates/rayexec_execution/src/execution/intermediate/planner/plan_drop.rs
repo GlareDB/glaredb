@@ -1,8 +1,7 @@
-use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
-use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
+use super::{IntermediatePipelineBuildState, PipelineIdGen};
 use crate::execution::operators::drop::PhysicalDrop;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_drop::LogicalDrop;

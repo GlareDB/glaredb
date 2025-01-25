@@ -1,14 +1,9 @@
-use std::sync::Arc;
 
 use rayexec_error::Result;
 
-use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::{IntermediatePipeline, PipelineSink};
-use crate::execution::operators::sort::gather_sort::PhysicalGatherSort;
-use crate::execution::operators::sort::scatter_sort::PhysicalScatterSort;
-use crate::execution::operators::PhysicalOperator;
+use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::logical::logical_order::LogicalOrder;
-use crate::logical::operator::{LocationRequirement, LogicalNode, Node};
+use crate::logical::operator::{LogicalNode, Node};
 
 impl IntermediatePipelineBuildState<'_> {
     pub fn plan_sort(

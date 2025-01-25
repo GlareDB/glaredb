@@ -11,7 +11,6 @@ use url::{Host, Url};
 use uuid::Uuid;
 
 use crate::arrays::batch::Batch;
-use crate::arrays::field::Schema;
 use crate::database::DatabaseContext;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedStatement;

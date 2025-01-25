@@ -91,7 +91,7 @@ impl ScalarFunctionImpl for ListValuesImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

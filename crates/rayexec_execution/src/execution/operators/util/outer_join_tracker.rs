@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::DataType;

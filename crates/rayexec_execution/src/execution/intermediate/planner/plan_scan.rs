@@ -1,15 +1,10 @@
-use std::sync::Arc;
 
-use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
-use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
+use super::{IntermediatePipelineBuildState, PipelineIdGen};
 use crate::execution::operators::scan::PhysicalScan;
 use crate::execution::operators::table_function::PhysicalTableFunction;
-use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::PhysicalOperator;
-use crate::expr::Expression;
 use crate::logical::logical_scan::{LogicalScan, ScanSource};
 use crate::logical::operator::Node;
 use crate::storage::table_storage::Projections;

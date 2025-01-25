@@ -2,8 +2,6 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::{
-    Addressable,
-    AddressableMut,
     MutableScalarStorage,
     PhysicalBinary,
     PhysicalBool,
@@ -16,7 +14,6 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalList,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -25,7 +22,6 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUntypedNull,
     PhysicalUtf8,
-    ScalarStorage,
 };
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -209,7 +205,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

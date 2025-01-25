@@ -1,5 +1,4 @@
 use std::ops::Mul;
-use std::sync::Arc;
 
 use num::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
 use rayexec_error::{RayexecError, Result};

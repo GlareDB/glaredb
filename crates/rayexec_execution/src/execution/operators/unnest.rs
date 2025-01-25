@@ -1,14 +1,10 @@
-use std::borrow::Borrow;
-use std::sync::Arc;
 use std::task::{Context, Waker};
 
-use half::f16;
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::Result;
 
 use super::{
     ExecutableOperator,
     ExecutionStates,
-    InputOutputStates,
     OperatorState,
     PartitionState,
     PollFinalize,
@@ -16,32 +12,8 @@ use super::{
     PollPush,
     UnaryInputStates,
 };
-use crate::arrays::array::physical_type::{
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalList,
-    PhysicalType,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    PhysicalUtf8,
-    ScalarStorage,
-};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::bitmap::Bitmap;
-use crate::arrays::executor::scalar::UnaryExecutor;
-use crate::arrays::selection::{self, SelectionVector};
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;

@@ -4,7 +4,6 @@ use stdutil::iter::IntoExactSizeIterator;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
-    AddressableMut,
     MutableScalarStorage,
     PhysicalBool,
     ScalarStorage,
@@ -154,7 +153,7 @@ impl UnaryExecutor {
     pub fn execute_in_place<S, Op>(
         array: &mut Array,
         selection: impl IntoExactSizeIterator<Item = usize>,
-        mut op: Op,
+        op: Op,
     ) -> Result<()>
     where
         S: MutableScalarStorage,
@@ -217,18 +216,18 @@ impl UnaryExecutor {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    
 
-    use stdutil::iter::TryFromExactSizeIterator;
+    
 
-    use super::*;
-    use crate::arrays::array::array_buffer::ArrayBuffer;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
-    use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
-    use crate::arrays::array::string_view::{StringViewAddressableMut, StringViewHeap};
-    use crate::arrays::array::validity::Validity;
-    use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::assert_arrays_eq;
+    
+    
+    
+    
+    
+    
+    
+    
 
     // #[test]
     // fn int32_inc_by_2() {

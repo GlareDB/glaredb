@@ -1,12 +1,9 @@
-use std::sync::Arc;
 
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::Result;
 
-use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::operators::project::PhysicalProject;
-use crate::execution::operators::PhysicalOperator;
+use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::logical::logical_materialization::LogicalMagicMaterializationScan;
-use crate::logical::operator::{LocationRequirement, Node};
+use crate::logical::operator::Node;
 
 impl IntermediatePipelineBuildState<'_> {
     pub fn plan_magic_materialize_scan(

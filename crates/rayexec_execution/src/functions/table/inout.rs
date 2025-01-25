@@ -5,7 +5,7 @@ use dyn_clone::DynClone;
 use rayexec_error::Result;
 
 use crate::arrays::batch::Batch;
-use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize, PollPush};
+use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize};
 
 pub trait TableInOutFunction: Debug + Sync + Send + DynClone {
     fn create_states(

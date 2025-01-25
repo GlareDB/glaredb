@@ -1,12 +1,7 @@
-use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
-use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
-use crate::execution::operators::values::PhysicalValues;
-use crate::execution::operators::PhysicalOperator;
+use super::{IntermediatePipelineBuildState, PipelineIdGen};
 use crate::logical::logical_set::LogicalShowVar;
 use crate::logical::operator::Node;
 

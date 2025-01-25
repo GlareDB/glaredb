@@ -4,14 +4,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
-use dashmap::DashMap;
-use futures::future::BoxFuture;
 use parking_lot::{Mutex, RwLock};
 use rayexec_error::{RayexecError, Result};
-use tracing::debug;
-use uuid::Uuid;
 
-use super::client::{IpcBatch, PullStatus};
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::operators::sink::operation::{PartitionSink, PollPush, SinkOperation};

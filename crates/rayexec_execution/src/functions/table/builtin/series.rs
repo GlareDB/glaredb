@@ -3,7 +3,7 @@ use std::task::Context;
 
 use rayexec_error::{OptionExt, RayexecError, Result};
 
-use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalI64};
+use crate::arrays::array::physical_type::AddressableMut;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -270,7 +270,7 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

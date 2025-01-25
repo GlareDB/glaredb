@@ -6,7 +6,6 @@ pub mod entry;
 pub mod hash_table;
 
 use std::collections::BTreeSet;
-use std::sync::Arc;
 use std::task::{Context, Waker};
 
 use distinct::DistinctGroupedStates;
@@ -17,24 +16,16 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::{ExecuteInOutState, PollExecute, PollFinalize, UnaryInputStates};
 use crate::arrays::array::buffer_manager::NopBufferManager;
-use crate::arrays::array::physical_type::PhysicalU64;
 use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
 use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
-use crate::arrays::executor::OutBuffer;
 use crate::arrays::scalar::ScalarValue;
-use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
-use crate::execution::computed_batch::ComputedBatches;
-use crate::execution::operators::util::hash::partition_for_hash;
 use crate::execution::operators::{
     ExecutableOperator,
     OperatorState,
     PartitionState,
-    PollPull,
-    PollPush,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
@@ -263,7 +254,6 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         input
                             .array(*idx)
                             .expect("aggregate input column to exist")
-                            .clone()
                     }) // TODO
                     .collect();
 
