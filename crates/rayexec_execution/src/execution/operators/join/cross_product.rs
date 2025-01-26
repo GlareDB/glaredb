@@ -61,7 +61,7 @@ impl CrossProductState {
         // Reference columns from right as-is
         let col_offset = self.collection.num_columns();
         for (idx, input_array) in input.arrays.iter_mut().enumerate() {
-            output.arrays[idx + col_offset].try_clone_from(&manager, input_array)?;
+            output.arrays[idx + col_offset].try_clone_from_other(input_array)?;
         }
 
         output.set_num_rows(input.num_rows())?;

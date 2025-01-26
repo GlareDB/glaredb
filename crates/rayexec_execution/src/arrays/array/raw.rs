@@ -24,6 +24,10 @@ where
         })
     }
 
+    pub fn reserve(&mut self, additional: usize) -> Result<()> {
+        unsafe { self.raw.reserve::<T>(additional) }
+    }
+
     pub fn capacity(&self) -> usize {
         self.raw.capacity()
     }

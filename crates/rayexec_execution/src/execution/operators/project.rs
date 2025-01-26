@@ -109,7 +109,6 @@ impl Explainable for PhysicalProject {
 
 #[cfg(test)]
 mod tests {
-    
 
     use stdutil::iter::TryFromExactSizeIterator;
 
@@ -142,11 +141,7 @@ mod tests {
 
         let wrapper = OperatorWrapper::new(operator);
 
-        let mut out = Batch::try_from_arrays([
-            Array::try_new(&NopBufferManager, DataType::Int32, 4).unwrap(),
-            Array::try_new(&NopBufferManager, DataType::Utf8, 4).unwrap(),
-        ])
-        .unwrap();
+        let mut out = Batch::try_new([DataType::Int32, DataType::Utf8], 4).unwrap();
 
         let mut in1 = Batch::try_from_arrays([
             Array::try_from_iter([true, false, true, true]).unwrap(),

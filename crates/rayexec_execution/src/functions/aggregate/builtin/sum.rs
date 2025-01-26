@@ -225,7 +225,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    
 
     use stdutil::iter::TryFromExactSizeIterator;
 
@@ -470,14 +469,12 @@ mod tests {
         let expected = Array::try_from_iter([3_i64, 7]).unwrap();
         assert_arrays_eq(&expected, &out);
 
-        out.reset_for_write(&NopBufferManager).unwrap();
         let n = states.drain(&mut out).unwrap();
         assert_eq!(1, n);
 
         let expected = Array::try_from_iter([11_i64]).unwrap();
         assert_arrays_eq_sel(&expected, 0..1, &out, 0..1);
 
-        out.reset_for_write(&NopBufferManager).unwrap();
         let n = states.drain(&mut out).unwrap();
         assert_eq!(0, n);
     }

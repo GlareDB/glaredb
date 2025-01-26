@@ -14,6 +14,7 @@ use crate::arrays::executor::aggregate::{
     StateCombiner,
     UnaryNonNullUpdater,
 };
+use crate::arrays::executor::PutBuffer;
 
 pub struct TypedAggregateGroupStates<
     State,
@@ -199,19 +200,18 @@ where
     S: MutableScalarStorage,
     State: AggregateState<I, S::StorageType>,
 {
-    unimplemented!()
-    // let buffer = &mut S::get_addressable_mut(output.data.try_as_mut()?)?;
-    // let validity = &mut output.validity;
+    let buffer = &mut S::get_addressable_mut(&mut output.data)?;
+    let validity = &mut output.validity;
 
-    // for (idx, state) in states.iter_mut().enumerate() {
-    //     state.finalize(PutBuffer {
-    //         idx,
-    //         buffer,
-    //         validity,
-    //     })?;
-    // }
+    for (idx, state) in states.iter_mut().enumerate() {
+        state.finalize(PutBuffer {
+            idx,
+            buffer,
+            validity,
+        })?;
+    }
 
-    // Ok(())
+    Ok(())
 }
 
 pub fn unary_update<Storage, Output, State>(

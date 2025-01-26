@@ -34,7 +34,7 @@ impl PhysicalColumnExpr {
         output: &mut Array,
     ) -> Result<()> {
         let col = &mut input.arrays_mut()[self.idx];
-        output.try_clone_from(&NopBufferManager, col)?;
+        output.try_clone_from_other(col)?;
 
         if !sel.is_linear() || sel.len() != input.num_rows() {
             output.select(&NopBufferManager, sel.iter())?;

@@ -134,7 +134,7 @@ impl ExecutableOperator for PhysicalUnion {
                     let input = inout.input.required("input batch required")?;
                     let output = inout.output.required("output batch required")?;
 
-                    output.try_clone_from(input)?;
+                    output.try_clone_from_other(input)?;
 
                     return Ok(PollExecute::Ready);
                 }
@@ -150,7 +150,7 @@ impl ExecutableOperator for PhysicalUnion {
                 if buf_state.is_ready_for_pull {
                     // We have batch ready, copy it out and wake up buffering
                     // side for more batches.
-                    output.try_clone_from(&mut buf_state.batch)?;
+                    output.try_clone_from_other(&mut buf_state.batch)?;
                     buf_state.is_ready_for_pull = false;
 
                     if let Some(waker) = buf_state.buffering_waker.take() {
@@ -194,7 +194,7 @@ impl ExecutableOperator for PhysicalUnion {
 
                 // Otherwise copy our input batch in and let pulling side know.
                 let input = inout.input.required("input batch required")?;
-                buf_state.batch.try_clone_from(input)?;
+                buf_state.batch.try_clone_from_other(input)?;
                 buf_state.is_ready_for_pull = true;
 
                 if let Some(waker) = buf_state.pulling_waker.take() {

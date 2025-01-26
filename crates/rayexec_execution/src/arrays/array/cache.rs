@@ -3,13 +3,13 @@ use stdutil::convert::TryAsMut;
 
 use super::array_buffer::{ScalarBuffer, StringBuffer};
 use super::buffer_manager::BufferManager;
+use super::validity::Validity;
 use super::{Array, ArrayBufferType};
 use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::array::ArrayBuffer;
 
-/// Contains a possibly cached buffer for a single array.
 #[derive(Debug)]
-pub struct BufferCache<B: BufferManager> {
+pub struct CachingAllocator<B: BufferManager> {
     /// Contains the (optional) cached buffer.
     cached: Cached<B>,
     /// Capacity of the cached buffer.
@@ -19,6 +19,7 @@ pub struct BufferCache<B: BufferManager> {
     capacity: usize,
 }
 
+/// Contains a possibly cached buffer for a single array.
 #[derive(Debug)]
 pub enum Cached<B: BufferManager> {
     Scalar(ScalarBuffer<B>),
@@ -26,7 +27,7 @@ pub enum Cached<B: BufferManager> {
     None,
 }
 
-impl<B> BufferCache<B>
+impl<B> CachingAllocator<B>
 where
     B: BufferManager,
 {
@@ -35,7 +36,7 @@ where
     /// `capacity` is used when allocating new buffers for arrays if we don't
     /// have a cached buffer.
     pub const fn new(capacity: usize) -> Self {
-        BufferCache {
+        CachingAllocator {
             cached: Cached::None,
             capacity,
         }
@@ -76,15 +77,30 @@ where
                     self.cached = Cached::String(buf)
                 }
             }
+            ArrayBufferType::Constant(constant) => {
+                // Possibly peel off constant row selection.
+                self.maybe_cache(*constant.child_buffer);
+            }
+            ArrayBufferType::Dictionary(dict) => {
+                // Possibly peel off selection.
+                self.maybe_cache(*dict.child_buffer);
+            }
             _ => {
-                // Just drop, not a buffer type we can check yet.
+                // Just drop, not a buffer type we can cache yet.
             }
         }
     }
 
     /// Try to move a cached buffer into the array. If we don't have a cached
     /// buffer available, then allocate a new one.
-    pub fn take_buffer_or_allocate(&mut self, manager: &B, array: &mut Array<B>) -> Result<()> {
+    ///
+    /// This will also reset the validity mask to ensure it matches the
+    /// configured capacity of the buffer.
+    pub fn reset_from_cache_or_allocate(
+        &mut self,
+        manager: &B,
+        array: &mut Array<B>,
+    ) -> Result<()> {
         // TODO: Possibly check ref count.
 
         let cached = std::mem::replace(&mut self.cached, Cached::None);
@@ -106,7 +122,10 @@ where
             }
         };
 
+        assert_eq!(self.capacity, buffer.logical_len());
+
         array.data = buffer;
+        array.validity = Validity::new_all_valid(self.capacity);
 
         Ok(())
     }

@@ -3,7 +3,7 @@ use std::task::Context;
 
 use rayexec_error::{OptionExt, RayexecError, Result};
 
-use crate::arrays::array::physical_type::AddressableMut;
+use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalI64};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -183,36 +183,35 @@ impl SeriesParams {
     ///
     /// Returns the count of values written to `out`.
     fn generate_next(&mut self, out: &mut Array) -> Result<usize> {
-        unimplemented!()
-        // let mut out = PhysicalI64::get_addressable_mut(out.data.try_as_mut()?)?;
+        let mut out = PhysicalI64::get_addressable_mut(&mut out.data)?;
 
-        // let mut idx = 0;
-        // if self.curr < self.stop && self.step > 0 {
-        //     // Going up.
-        //     while self.curr <= self.stop && idx < out.len() {
-        //         out.put(idx, &self.curr);
-        //         self.curr += self.step;
-        //         idx += 1;
-        //     }
-        // } else if self.curr > self.stop && self.step < 0 {
-        //     // Going down.
-        //     while self.curr >= self.stop && idx < out.len() {
-        //         out.put(idx, &self.curr);
-        //         self.curr += self.step;
-        //         idx += 1;
-        //     }
-        // }
+        let mut idx = 0;
+        if self.curr < self.stop && self.step > 0 {
+            // Going up.
+            while self.curr <= self.stop && idx < out.len() {
+                out.put(idx, &self.curr);
+                self.curr += self.step;
+                idx += 1;
+            }
+        } else if self.curr > self.stop && self.step < 0 {
+            // Going down.
+            while self.curr >= self.stop && idx < out.len() {
+                out.put(idx, &self.curr);
+                self.curr += self.step;
+                idx += 1;
+            }
+        }
 
-        // if idx == 0 {
-        //     // Nothing written.
-        //     return Ok(0);
-        // }
+        if idx == 0 {
+            // Nothing written.
+            return Ok(0);
+        }
 
-        // // Calculate the start value for the next iteration.
-        // let last = out.get(idx - 1).expect("value to exist");
-        // self.curr = *last + self.step;
+        // Calculate the start value for the next iteration.
+        let last = out.get(idx - 1).expect("value to exist");
+        self.curr = *last + self.step;
 
-        // Ok(idx)
+        Ok(idx)
     }
 }
 
@@ -270,7 +269,6 @@ impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
 
 #[cfg(test)]
 mod tests {
-    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

@@ -46,11 +46,12 @@ impl PhysicalCaseExpr {
         let else_input = self.else_expr.create_state(batch_size)?;
         inputs.push(else_input);
 
-        // 2 arrays in the buffer, one 'boolean' for conditional evaluation, one
-        // for the result if condition is true. 'then' and 'else' expressions
-        // should evaluate to the same type.
+        // 3 arrays in the buffer, one 'boolean' for conditional evaluation, one
+        // for the result if condition is true, and one for the 'else'. 'then'
+        // and 'else' expressions should evaluate to the same type.
         let buffer = Batch::try_from_arrays([
             Array::try_new(&NopBufferManager, DataType::Boolean, batch_size)?,
+            Array::try_new(&NopBufferManager, self.else_expr.datatype(), batch_size)?,
             Array::try_new(&NopBufferManager, self.else_expr.datatype(), batch_size)?,
         ])?;
 
@@ -95,7 +96,7 @@ impl PhysicalCaseExpr {
             let when_state = &mut state.inputs[case_idx * 2];
             // When array reused for each case.
             let when_array = &mut state.buffer.arrays_mut()[0];
-            when_array.reset_for_write(manager)?;
+            // TODO: `when_array` might need reset.
 
             // Eval 'when'
             ExpressionEvaluator::eval_expression(
@@ -130,7 +131,7 @@ impl PhysicalCaseExpr {
             // Reused, assumes all 'then' expressions and the 'else' expression
             // are the same type.
             let then_array = &mut state.buffer.arrays_mut()[1];
-            then_array.reset_for_write(manager)?;
+            // TODO: `then_array` might need reset.
 
             // Eval 'then' with selection from 'when'.
             ExpressionEvaluator::eval_expression(
@@ -152,8 +153,7 @@ impl PhysicalCaseExpr {
             // We have remaining indices that fell through all cases. Eval with
             // else expression and add those in.
             let else_state = state.inputs.last_mut().unwrap(); // Last state after all when/then states.
-            let else_array = &mut state.buffer.arrays_mut()[1];
-            else_array.reset_for_write(manager)?;
+            let else_array = &mut state.buffer.arrays_mut()[2];
 
             ExpressionEvaluator::eval_expression(
                 &self.else_expr,
@@ -259,10 +259,7 @@ mod tests {
         ])
         .unwrap();
 
-        let mut state = ExpressionState {
-            buffer: Batch::try_new([DataType::Boolean, DataType::Int32], 3).unwrap(),
-            inputs: vec![ExpressionState::empty(), ExpressionState::empty()],
-        };
+        let mut state = expr.create_state(3).unwrap();
 
         let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 3), &mut out)

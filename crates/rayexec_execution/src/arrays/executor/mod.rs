@@ -19,11 +19,10 @@ pub struct OutBuffer<'a, B: BufferManager = NopBufferManager> {
 
 impl<'a> OutBuffer<'a> {
     pub fn from_array(array: &'a mut Array) -> Result<Self> {
-        unimplemented!()
-        // Ok(OutBuffer {
-        //     buffer: array.data.try_as_mut()?,
-        //     validity: &mut array.validity,
-        // })
+        Ok(OutBuffer {
+            buffer: &mut array.data,
+            validity: &mut array.validity,
+        })
     }
 }
 

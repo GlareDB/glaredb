@@ -1,4 +1,3 @@
-
 use rayexec_error::{RayexecError, Result};
 
 use super::PhysicalScalarExpression;
@@ -95,6 +94,8 @@ impl ExpressionEvaluator {
     ) -> Result<()> {
         debug_assert_eq!(self.expressions.len(), output.arrays().len());
 
+        output.reset_for_write()?;
+
         for (idx, expr) in self.expressions.iter().enumerate() {
             let output = &mut output.arrays_mut()[idx];
             let state = &mut self.states[idx];
@@ -107,22 +108,6 @@ impl ExpressionEvaluator {
         Ok(())
     }
 
-    pub fn eval_single_expression(
-        &mut self,
-        input: &mut Batch,
-        sel: Selection,
-        output: &mut Array,
-    ) -> Result<()> {
-        debug_assert_eq!(1, self.expressions.len());
-        Self::eval_expression(
-            &self.expressions[0],
-            input,
-            &mut self.states[0],
-            sel,
-            output,
-        )
-    }
-
     pub(crate) fn eval_expression(
         expr: &PhysicalScalarExpression,
         input: &mut Batch,
@@ -130,12 +115,6 @@ impl ExpressionEvaluator {
         sel: Selection,
         output: &mut Array,
     ) -> Result<()> {
-        // TODO: Figure out how the manager will be threaded down. Might just
-        // keep it on the array/buffer/batch/something else. We might need
-        // `Arc<dyn ...>` here, ideally the buffer reuse prevents us from
-        // needing to call into it often.
-        output.reset_for_write(&NopBufferManager)?;
-
         match expr {
             PhysicalScalarExpression::Column(expr) => expr.eval(input, state, sel, output),
             PhysicalScalarExpression::Case(expr) => expr.eval(input, state, sel, output),

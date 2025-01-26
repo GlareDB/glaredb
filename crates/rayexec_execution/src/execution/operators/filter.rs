@@ -65,8 +65,9 @@ impl ExecutableOperator for PhysicalFilter {
         let input = inout.input.required("batch input")?;
         let output = inout.output.required("batch output")?;
 
+        // TODO: "select_from"
         let selection = state.evaluator.select(input)?;
-        output.try_clone_from(input)?;
+        output.try_clone_from_other(input)?;
 
         if selection.len() != output.num_rows() {
             // Only add selection if we're actually omitting rows.

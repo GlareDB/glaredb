@@ -2,6 +2,8 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::{
+    Addressable,
+    AddressableMut,
     MutableScalarStorage,
     PhysicalBinary,
     PhysicalBool,
@@ -161,51 +163,46 @@ where
 {
     let flat = array.flatten()?;
 
-    unimplemented!()
-    // let metas = PhysicalList::get_addressable(flat.array_buffer)?;
-    // let child = match flat.array_buffer.get_secondary() {
-    //     SecondaryBuffer::List(l) => &l.child,
-    //     _ => return Err(RayexecError::new("Missing secondary buffer for list")),
-    // };
+    let list_buf = flat.array_buffer.get_list_buffer()?;
+    let metas = list_buf.metadata.as_slice();
 
-    // let child_buf = S::get_addressable(&child.data)?;
-    // let child_validity = &child.validity;
+    let child_buf = S::get_addressable(&list_buf.child_buffer)?;
+    let child_validity = &list_buf.child_validity;
 
-    // let mut out_buffer = S::get_addressable_mut(output.data.try_as_mut()?)?;
-    // let out_validity = &mut output.validity;
+    let mut out_buffer = S::get_addressable_mut(&mut output.data)?;
+    let out_validity = &mut output.validity;
 
-    // for (output_idx, input_idx) in sel.into_iter().enumerate() {
-    //     let sel_idx = flat.selection.get(input_idx).unwrap();
+    for (output_idx, input_idx) in sel.into_iter().enumerate() {
+        let sel_idx = flat.selection.get(input_idx).unwrap();
 
-    //     if flat.validity.is_valid(sel_idx) {
-    //         let meta = metas.get(sel_idx).unwrap();
-    //         if element_idx >= meta.len as usize {
-    //             // Indexing outside of the list. User is allowed to do that, set
-    //             // the value to null.
-    //             out_validity.set_invalid(output_idx);
-    //             continue;
-    //         }
+        if flat.validity.is_valid(input_idx) {
+            let meta = metas.get(sel_idx).unwrap();
+            if element_idx >= meta.len as usize {
+                // Indexing outside of the list. User is allowed to do that, set
+                // the value to null.
+                out_validity.set_invalid(output_idx);
+                continue;
+            }
 
-    //         let offset = meta.offset as usize + element_idx;
-    //         if !child_validity.is_valid(offset) {
-    //             // Element inside list is null.
-    //             out_validity.set_invalid(output_idx);
-    //             continue;
-    //         }
+            let offset = meta.offset as usize + element_idx;
+            if !child_validity.is_valid(offset) {
+                // Element inside list is null.
+                out_validity.set_invalid(output_idx);
+                continue;
+            }
 
-    //         let val = child_buf.get(offset).unwrap();
-    //         out_buffer.put(output_idx, val);
-    //     } else {
-    //         out_validity.set_invalid(output_idx);
-    //     }
-    // }
+            let val = child_buf.get(offset).unwrap();
+            out_buffer.put(output_idx, val);
+        } else {
+            out_validity.set_invalid(output_idx);
+        }
+    }
 
-    // Ok(())
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

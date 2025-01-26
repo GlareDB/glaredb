@@ -71,7 +71,7 @@ impl PartitionSource for PartitionBatchSource {
 
         assert!(self.curr_idx < self.batches.len());
 
-        output.try_clone_from(&mut self.batches[self.curr_idx])?;
+        output.try_clone_from_other(&mut self.batches[self.curr_idx])?;
         self.curr_idx += 1;
 
         if self.curr_idx >= self.batches.len() {

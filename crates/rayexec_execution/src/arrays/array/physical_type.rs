@@ -218,6 +218,9 @@ pub trait MutableScalarStorage: ScalarStorage {
     fn get_addressable_mut<B: BufferManager>(
         buffer: &mut ArrayBuffer<B>,
     ) -> Result<Self::AddressableMut<'_>>;
+
+    /// Try to reserve the buffer to hold `addition` number of elements.
+    fn try_reserve<B: BufferManager>(buffer: &mut ArrayBuffer<B>, additional: usize) -> Result<()>;
 }
 
 /// Marker type representing a null value without an associated type.
@@ -226,40 +229,6 @@ pub trait MutableScalarStorage: ScalarStorage {
 /// additional type information in the query.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UntypedNull;
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PhysicalUntypedNull;
-
-impl ScalarStorage for PhysicalUntypedNull {
-    const PHYSICAL_TYPE: PhysicalType = PhysicalType::UntypedNull;
-
-    type StorageType = UntypedNull;
-    type Addressable<'a> = &'a [UntypedNull];
-
-    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
-        match buffer.as_ref() {
-            ArrayBufferType::Scalar(buf) => buf.try_as_slice::<Self>(),
-            _ => Err(RayexecError::new(
-                "invalid buffer type, expected scalar buffer",
-            )),
-        }
-    }
-}
-
-impl MutableScalarStorage for PhysicalUntypedNull {
-    type AddressableMut<'a> = &'a mut [UntypedNull];
-
-    fn get_addressable_mut<B: BufferManager>(
-        buffer: &mut ArrayBuffer<B>,
-    ) -> Result<Self::AddressableMut<'_>> {
-        match buffer.as_mut() {
-            ArrayBufferType::Scalar(buf) => buf.try_as_slice_mut::<Self>(),
-            _ => Err(RayexecError::new(
-                "invalid buffer type, expected scalar buffer",
-            )),
-        }
-    }
-}
 
 macro_rules! generate_primitive {
     ($prim:ty, $name:ident, $variant:ident) => {
@@ -275,12 +244,7 @@ macro_rules! generate_primitive {
             fn get_addressable<B: BufferManager>(
                 buffer: &ArrayBuffer<B>,
             ) -> Result<Self::Addressable<'_>> {
-                match buffer.as_ref() {
-                    ArrayBufferType::Scalar(buf) => buf.try_as_slice::<Self>(),
-                    _ => Err(RayexecError::new(
-                        "invalid buffer type, expected scalar buffer",
-                    )),
-                }
+                buffer.get_scalar_buffer()?.try_as_slice::<Self>()
             }
         }
 
@@ -290,8 +254,15 @@ macro_rules! generate_primitive {
             fn get_addressable_mut<B: BufferManager>(
                 buffer: &mut ArrayBuffer<B>,
             ) -> Result<Self::AddressableMut<'_>> {
+                buffer.get_scalar_buffer_mut()?.try_as_slice_mut::<Self>()
+            }
+
+            fn try_reserve<B: BufferManager>(
+                buffer: &mut ArrayBuffer<B>,
+                additional: usize,
+            ) -> Result<()> {
                 match buffer.as_mut() {
-                    ArrayBufferType::Scalar(buf) => buf.try_as_slice_mut::<Self>(),
+                    ArrayBufferType::Scalar(buf) => buf.try_reserve::<Self>(additional),
                     _ => Err(RayexecError::new(
                         "invalid buffer type, expected scalar buffer",
                     )),
@@ -300,6 +271,8 @@ macro_rules! generate_primitive {
         }
     };
 }
+
+generate_primitive!(UntypedNull, PhysicalUntypedNull, UntypedNull);
 
 generate_primitive!(bool, PhysicalBool, Boolean);
 
@@ -353,6 +326,15 @@ impl MutableScalarStorage for PhysicalBinary {
             )),
         }
     }
+
+    fn try_reserve<B: BufferManager>(buffer: &mut ArrayBuffer<B>, additional: usize) -> Result<()> {
+        match buffer.as_mut() {
+            ArrayBufferType::String(buf) => buf.try_reserve(additional),
+            _ => Err(RayexecError::new(
+                "invalid buffer type, expected string buffer",
+            )),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -387,12 +369,21 @@ impl MutableScalarStorage for PhysicalUtf8 {
             )),
         }
     }
+
+    fn try_reserve<B: BufferManager>(buffer: &mut ArrayBuffer<B>, additional: usize) -> Result<()> {
+        match buffer.as_mut() {
+            ArrayBufferType::String(buf) => buf.try_reserve(additional),
+            _ => Err(RayexecError::new(
+                "invalid buffer type, expected string buffer",
+            )),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalList;
 
-// TODO: Is this useful.
+// TODO: Is this useful?
 impl ScalarStorage for PhysicalList {
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::List;
 

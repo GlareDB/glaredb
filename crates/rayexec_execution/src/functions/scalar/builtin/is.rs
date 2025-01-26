@@ -1,5 +1,11 @@
 use rayexec_error::Result;
 
+use crate::arrays::array::physical_type::{
+    MutableScalarStorage,
+    PhysicalBool,
+    PhysicalType,
+    ScalarStorage,
+};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -103,31 +109,25 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
-        unimplemented!()
-        // let out = output
-        //     .data
-        //     .try_as_mut()?
-        //     .try_as_slice_mut::<PhysicalBool>()?;
+        let out = PhysicalBool::get_addressable_mut(&mut output.data)?;
+        if input.physical_type() == PhysicalType::UntypedNull {
+            // Everything null, just set to default value.
+            out.iter_mut().for_each(|v| *v = IS_NULL);
+            return Ok(());
+        }
 
-        // if input.physical_type() == PhysicalType::UntypedNull {
-        //     // Everything null, just set to default value.
-        //     out.iter_mut().for_each(|v| *v = IS_NULL);
+        let flat = input.flatten()?;
 
-        //     return Ok(());
-        // }
+        for (output_idx, idx) in sel.into_iter().enumerate() {
+            let is_valid = flat.validity.is_valid(idx);
+            if is_valid {
+                out[output_idx] = !IS_NULL;
+            } else {
+                out[output_idx] = IS_NULL;
+            }
+        }
 
-        // let flat = input.flat_view()?;
-
-        // for (output_idx, idx) in sel.into_iter().enumerate() {
-        //     let is_valid = flat.validity.is_valid(idx);
-        //     if is_valid {
-        //         out[output_idx] = !IS_NULL;
-        //     } else {
-        //         out[output_idx] = IS_NULL;
-        //     }
-        // }
-
-        // Ok(())
+        Ok(())
     }
 }
 
@@ -311,34 +311,28 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT
         let sel = input.selection();
         let input = &input.arrays()[0];
 
-        unimplemented!()
-        // let out = output
-        //     .data
-        //     .try_as_mut()?
-        //     .try_as_slice_mut::<PhysicalBool>()?;
+        let out = PhysicalBool::get_addressable_mut(&mut output.data)?;
+        let flat = input.flatten()?;
+        let input = PhysicalBool::get_addressable(&flat.array_buffer)?;
 
-        // let flat = input.flat_view()?;
-        // let input = flat.array_buffer.try_as_slice::<PhysicalBool>()?;
+        for (output_idx, idx) in sel.into_iter().enumerate() {
+            let is_valid = flat.validity.is_valid(idx);
+            if is_valid {
+                let val = input[idx];
+                out[output_idx] = if NOT { val != BOOL } else { val == BOOL }
+            } else {
+                // 'IS TRUE', 'IS FALSE' => false
+                // 'IS NOT TRUE', 'IS NOT FALSE' => true
+                out[output_idx] = NOT;
+            }
+        }
 
-        // for (output_idx, idx) in sel.into_iter().enumerate() {
-        //     let is_valid = flat.validity.is_valid(idx);
-        //     if is_valid {
-        //         let val = input[idx];
-        //         out[output_idx] = if NOT { val != BOOL } else { val == BOOL }
-        //     } else {
-        //         // 'IS TRUE', 'IS FALSE' => false
-        //         // 'IS NOT TRUE', 'IS NOT FALSE' => true
-        //         out[output_idx] = NOT;
-        //     }
-        // }
-
-        // Ok(())
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

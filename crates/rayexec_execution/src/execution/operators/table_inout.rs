@@ -11,7 +11,6 @@ use super::{
     PollFinalize,
     UnaryInputStates,
 };
-use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
@@ -124,13 +123,7 @@ impl ExecutableOperator for PhysicalTableInOut {
                 }
 
                 // "Copy" row we're working into intermediate batch.
-                for (input_arr, buf_arr) in input
-                    .arrays
-                    .iter_mut()
-                    .zip(state.row_batch.arrays.iter_mut())
-                {
-                    buf_arr.try_clone_from(&NopBufferManager, input_arr)?;
-                }
+                state.row_batch.try_clone_from_other(input)?;
 
                 state
                     .row_batch
@@ -166,16 +159,8 @@ impl ExecutableOperator for PhysicalTableInOut {
 
                 let input_arr = &mut state.row_batch.arrays[col_expr.idx];
                 let output_arr = &mut output.arrays[out_idx];
-                output_arr.reset_for_write(&NopBufferManager)?;
 
-                // TODO: `try_clone_from` should be used here instead, but
-                // currently 'selecting' a managed dictionary doesn't work
-                // (errors due to mutability support).
-                input_arr.copy_rows([(0, 0)], output_arr)?;
-                output_arr.select(
-                    &NopBufferManager,
-                    std::iter::repeat(0).take(num_rows),
-                )?;
+                output_arr.try_clone_constant_from_other(input_arr, 0, num_rows)?;
             }
 
             return Ok(poll);

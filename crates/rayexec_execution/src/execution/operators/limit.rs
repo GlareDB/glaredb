@@ -97,7 +97,7 @@ impl ExecutableOperator for PhysicalLimit {
                 state.remaining_count,
             );
 
-            output.try_clone_from(input)?;
+            output.try_clone_from_other(input)?;
             output.select(Selection::linear(state.remaining_offset, count))?;
 
             state.remaining_offset = 0;
@@ -111,7 +111,7 @@ impl ExecutableOperator for PhysicalLimit {
         } else if state.remaining_count < input.num_rows() {
             // Remaining offset is 0, and input batch is has more rows than we
             // need, just slice to the right size.
-            output.try_clone_from(input)?;
+            output.try_clone_from_other(input)?;
             output.set_num_rows(state.remaining_count)?;
             state.remaining_count = 0;
 
@@ -119,7 +119,7 @@ impl ExecutableOperator for PhysicalLimit {
         } else {
             // Remaing offset is 0, and input batch has more rows than our
             // limit, so just use the batch as-is.
-            output.try_clone_from(input)?;
+            output.try_clone_from_other(input)?;
             state.remaining_count -= output.num_rows();
 
             Ok(PollExecute::Ready)

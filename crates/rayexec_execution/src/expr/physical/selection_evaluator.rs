@@ -1,4 +1,3 @@
-
 use rayexec_error::Result;
 
 use super::evaluator::ExpressionEvaluator;
@@ -13,14 +12,14 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 #[derive(Debug)]
 pub struct SelectionEvaluator {
     pub(crate) selection: Vec<usize>,
-    pub(crate) output: Array,
+    pub(crate) output: Batch,
     pub(crate) evaluator: ExpressionEvaluator,
 }
 
 impl SelectionEvaluator {
     pub fn try_new(expression: PhysicalScalarExpression, batch_size: usize) -> Result<Self> {
         let evaluator = ExpressionEvaluator::try_new([expression], batch_size)?;
-        let output = Array::try_new(&NopBufferManager, DataType::Boolean, batch_size)?;
+        let output = Batch::try_new([DataType::Boolean], batch_size)?;
         let selection = Vec::with_capacity(batch_size);
 
         Ok(SelectionEvaluator {
@@ -39,13 +38,17 @@ impl SelectionEvaluator {
     /// The internal state is cleared across calls to this method.
     pub fn select(&mut self, input: &mut Batch) -> Result<&[usize]> {
         self.selection.clear();
-        self.output.reset_for_write(&NopBufferManager)?;
+        self.output.reset_for_write()?;
 
         self.evaluator
-            .eval_single_expression(input, input.selection(), &mut self.output)?;
+            .eval_batch(input, input.selection(), &mut self.output)?;
 
         // Provide selection relative to the boolean output array.
-        UnaryExecutor::select(&self.output, 0..input.num_rows(), &mut self.selection)?;
+        UnaryExecutor::select(
+            &self.output.arrays[0],
+            0..input.num_rows(),
+            &mut self.selection,
+        )?;
 
         Ok(&self.selection)
     }

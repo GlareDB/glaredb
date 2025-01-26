@@ -89,13 +89,6 @@ pub fn cast_array(
     out: &mut Array,
     behavior: CastFailBehavior,
 ) -> Result<()> {
-    if arr.datatype() == out.datatype() {
-        out.try_clone_from(&NopBufferManager, arr)?;
-        out.select(&NopBufferManager, sel)?;
-
-        return Ok(());
-    }
-
     let to = out.datatype();
 
     match arr.datatype() {

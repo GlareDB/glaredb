@@ -20,27 +20,44 @@ impl<'a, B> FlattenedArray<'a, B>
 where
     B: BufferManager,
 {
-    pub fn from_array(array: &'a Array<B>) -> Result<Self> {
-        match array.data.as_ref() {
+    /// Create a new flattend array with a linear selection.
+    ///
+    /// This is useful for when we have borrowed data from an array.
+    ///
+    /// The logical length of the buffer and the length of the validity must be
+    /// the same.
+    pub fn from_buffer_and_validity(
+        buffer: &'a ArrayBuffer<B>,
+        validity: &'a Validity,
+    ) -> Result<Self> {
+        debug_assert_eq!(buffer.logical_len(), validity.len());
+        match buffer.as_ref() {
             ArrayBufferType::Dictionary(dict) => Ok(FlattenedArray {
-                validity: &array.validity,
+                validity,
                 array_buffer: &dict.child_buffer,
                 selection: Selection::slice(dict.selection.as_slice()),
             }),
             ArrayBufferType::Constant(constant) => Ok(FlattenedArray {
-                validity: &array.validity,
+                validity,
                 array_buffer: &constant.child_buffer,
                 selection: Selection::constant(constant.len, constant.row_reference),
             }),
             _ => {
                 // Everything else just stays as-is.
                 Ok(FlattenedArray {
-                    validity: &array.validity,
-                    array_buffer: &array.data,
-                    selection: Selection::linear(0, array.validity.len()),
+                    validity,
+                    array_buffer: buffer,
+                    selection: Selection::linear(0, validity.len()),
                 })
             }
         }
+    }
+
+    /// Create a flattend array from a normal array.
+    ///
+    /// This will pull up any selections from child buffers.
+    pub fn from_array(array: &'a Array<B>) -> Result<Self> {
+        Self::from_buffer_and_validity(&array.data, &array.validity)
     }
 
     pub fn logical_len(&self) -> usize {
