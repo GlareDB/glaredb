@@ -239,7 +239,7 @@ impl RightOuterJoinTracker {
             return Ok(None);
         }
 
-        let right_cols = right.select_old(Arc::new(selection)).into_arrays();
+        // let right_cols = right.select_old(Arc::new(selection)).into_arrays();
 
         unimplemented!()
         // let left_null_cols = left_types

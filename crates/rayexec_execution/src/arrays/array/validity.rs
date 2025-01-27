@@ -4,7 +4,7 @@ use crate::arrays::bitmap::Bitmap;
 
 /// Validity mask for an array.
 // TODO: Remove PartialEq
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Validity {
     inner: ValidityInner,
 }
@@ -125,5 +125,29 @@ impl Iterator for ValidityIter<'_> {
         let val = self.validity.is_valid(self.idx);
         self.idx += 1;
         Some(val)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn select_all_valid() {
+        let v = Validity::new_all_valid(3);
+        let new_v = v.select([1, 2, 0]);
+
+        assert!(new_v.all_valid());
+    }
+
+    #[test]
+    fn select_some_valid() {
+        let mut v = Validity::new_all_valid(3);
+        v.set_invalid(1);
+        let new_v = v.select([1, 2, 0]);
+
+        assert!(!new_v.is_valid(0));
+        assert!(new_v.is_valid(1));
+        assert!(new_v.is_valid(2));
     }
 }

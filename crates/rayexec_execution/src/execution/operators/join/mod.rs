@@ -1,10 +1,13 @@
 //! Join implementations and utilities.
 
-use crate::logical::logical_join::JoinType;
+pub mod hash_join;
 pub mod nested_loop_join;
 
 mod cross_product;
+mod join_hash_table;
 mod outer_join_tracker;
+
+use crate::logical::logical_join::JoinType;
 
 /// If the result of a join should be empty if the build input is empty.
 ///

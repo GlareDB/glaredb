@@ -76,15 +76,8 @@ where
 
         let reservation = manager.try_reserve(size_bytes)?;
 
-        if cap == 0 {
-            return Ok(RawBuffer {
-                reservation,
-                ptr: NonNull::dangling(),
-                capacity: 0,
-                align,
-            });
-        }
-
+        // Note that creating zero cap layouts is fine. We'll end up with a
+        // valid pointer that can be cast to an empty slice.
         let layout = Layout::array::<T>(cap).context("failed to create layout")?;
         let ptr = unsafe { alloc::alloc(layout) };
         let ptr = match NonNull::new(ptr) {
@@ -226,6 +219,10 @@ mod tests {
         let b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 0).unwrap();
         assert_eq!(0, b.reservation.size());
         assert_eq!(8, b.align);
+
+        // Ensure we get empty slices.
+        let s = unsafe { b.as_slice::<i64>() };
+        assert_eq!(&[] as &[i64], s);
     }
 
     #[test]

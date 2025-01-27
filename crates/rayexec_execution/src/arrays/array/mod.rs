@@ -6,7 +6,6 @@ pub mod selection;
 pub mod string_view;
 pub mod validity;
 
-pub(crate) mod cache;
 mod raw;
 
 use std::fmt::Debug;
@@ -52,6 +51,7 @@ use stdutil::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};
 use validity::Validity;
 
 use super::cache::MaybeCache;
+use super::compute::copy::copy_rows_array;
 use crate::arrays::cache::NopCache;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
@@ -66,8 +66,6 @@ pub struct Array<B: BufferManager = NopBufferManager> {
     /// Determines the validity at each row in the array.
     ///
     /// This should match the logical length of the underlying data buffer.
-    // TODO: Is it worth wrapping this in SharedOrOwned? Maybe only if there is
-    // a mask?
     pub(crate) validity: Validity,
     /// Holds the underlying array data.
     pub(crate) data: ArrayBuffer<B>,
@@ -424,27 +422,7 @@ where
         mapping: impl IntoIterator<Item = (usize, usize)>,
         dest: &mut Self,
     ) -> Result<()> {
-        match self.datatype.physical_type() {
-            PhysicalType::Boolean => copy_rows::<PhysicalBool, _>(self, mapping, dest)?,
-            PhysicalType::Int8 => copy_rows::<PhysicalI8, _>(self, mapping, dest)?,
-            PhysicalType::Int16 => copy_rows::<PhysicalI16, _>(self, mapping, dest)?,
-            PhysicalType::Int32 => copy_rows::<PhysicalI32, _>(self, mapping, dest)?,
-            PhysicalType::Int64 => copy_rows::<PhysicalI64, _>(self, mapping, dest)?,
-            PhysicalType::Int128 => copy_rows::<PhysicalI128, _>(self, mapping, dest)?,
-            PhysicalType::UInt8 => copy_rows::<PhysicalU8, _>(self, mapping, dest)?,
-            PhysicalType::UInt16 => copy_rows::<PhysicalU16, _>(self, mapping, dest)?,
-            PhysicalType::UInt32 => copy_rows::<PhysicalU32, _>(self, mapping, dest)?,
-            PhysicalType::UInt64 => copy_rows::<PhysicalU64, _>(self, mapping, dest)?,
-            PhysicalType::UInt128 => copy_rows::<PhysicalU128, _>(self, mapping, dest)?,
-            PhysicalType::Float16 => copy_rows::<PhysicalF16, _>(self, mapping, dest)?,
-            PhysicalType::Float32 => copy_rows::<PhysicalF32, _>(self, mapping, dest)?,
-            PhysicalType::Float64 => copy_rows::<PhysicalF64, _>(self, mapping, dest)?,
-            PhysicalType::Interval => copy_rows::<PhysicalInterval, _>(self, mapping, dest)?,
-            PhysicalType::Utf8 => copy_rows::<PhysicalUtf8, _>(self, mapping, dest)?,
-            _ => unimplemented!(),
-        }
-
-        Ok(())
+        copy_rows_array(self, mapping, dest)
     }
 
     pub fn get_value(&self, idx: usize) -> Result<ScalarValue> {
@@ -760,42 +738,6 @@ where
     }
 }
 
-/// Helper for copying rows.
-fn copy_rows<S, B>(
-    from: &Array<B>,
-    mapping: impl IntoIterator<Item = (usize, usize)>,
-    to: &mut Array<B>,
-) -> Result<()>
-where
-    S: MutableScalarStorage,
-    B: BufferManager,
-{
-    let from_flat = from.flatten()?;
-    let from_storage = S::get_addressable(from_flat.array_buffer)?;
-
-    let mut to_storage = S::get_addressable_mut(&mut to.data)?;
-
-    if from_flat.validity.all_valid() && to.validity.all_valid() {
-        for (from_idx, to_idx) in mapping.into_iter() {
-            let from_idx = from_flat.selection.get(from_idx).unwrap();
-            let v = from_storage.get(from_idx).unwrap();
-            to_storage.put(to_idx, v);
-        }
-    } else {
-        for (from_idx, to_idx) in mapping.into_iter() {
-            let from_idx = from_flat.selection.get(from_idx).unwrap();
-            if from_flat.validity.is_valid(from_idx) {
-                let v = from_storage.get(from_idx).unwrap();
-                to_storage.put(to_idx, v);
-            } else {
-                to.validity.set_invalid(to_idx);
-            }
-        }
-    }
-
-    Ok(())
-}
-
 /// Implements `try_from_iter` for primitive types.
 ///
 /// Note these create arrays using Nop buffer manager and so really only
@@ -920,23 +862,14 @@ mod tests {
     use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]
-    fn new_constant_array() {
+    fn try_new_constant_utf8() {
         let arr = Array::try_new_constant(&NopBufferManager, &"a".into(), 4).unwrap();
         let expected = Array::try_from_iter(["a", "a", "a", "a"]).unwrap();
         assert_arrays_eq(&expected, &arr);
     }
 
     #[test]
-    fn new_typed_null_array() {
-        let arr = Array::try_new_typed_null(&NopBufferManager, DataType::Int32, 4).unwrap();
-        let expected = Array::try_from_iter::<[Option<i32>; 4]>([None, None, None, None]).unwrap();
-        assert_arrays_eq(&expected, &arr);
-
-        assert_eq!(ScalarValue::Null, arr.get_value(2).unwrap());
-    }
-
-    #[test]
-    fn new_from_other_simple() {
+    fn try_new_from_other_simple() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         let new_arr = Array::try_new_from_other(&NopBufferManager, &mut arr).unwrap();
 
@@ -946,7 +879,7 @@ mod tests {
     }
 
     #[test]
-    fn new_from_other_dictionary() {
+    fn try_new_from_other_dictionary() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         // => '["b", "a", "a", "b"]'
         arr.select(&NopBufferManager, [1, 0, 0, 1]).unwrap();
@@ -956,6 +889,25 @@ mod tests {
         let expected = Array::try_from_iter(["b", "a", "a", "b"]).unwrap();
         assert_arrays_eq(&expected, &arr);
         assert_arrays_eq(&expected, &new_arr);
+    }
+
+    #[test]
+    fn try_new_from_other_constant() {
+        let mut arr = Array::try_new_constant(&NopBufferManager, &"cat".into(), 4).unwrap();
+        let new_arr = Array::try_new_from_other(&NopBufferManager, &mut arr).unwrap();
+
+        let expected = Array::try_from_iter(["cat", "cat", "cat", "cat"]).unwrap();
+
+        assert_arrays_eq(&expected, &new_arr);
+    }
+
+    #[test]
+    fn try_new_typed_null_array() {
+        let arr = Array::try_new_typed_null(&NopBufferManager, DataType::Int32, 4).unwrap();
+        let expected = Array::try_from_iter::<[Option<i32>; 4]>([None, None, None, None]).unwrap();
+        assert_arrays_eq(&expected, &arr);
+
+        assert_eq!(ScalarValue::Null, arr.get_value(2).unwrap());
     }
 
     #[test]
@@ -1008,7 +960,7 @@ mod tests {
     }
 
     #[test]
-    fn select_after_making_array_data_managed() {
+    fn select_after_making_array_data_shared() {
         // Try to select from an array that has its array data managed by having
         // it be created from an existing array.
 
@@ -1021,20 +973,18 @@ mod tests {
         assert_arrays_eq(&expected, &arr2);
     }
 
-    // #[test]
-    // fn select_after_making_constant_array_data_managed() {
-    //     // Same as above, just with a constant array.
+    #[test]
+    fn select_after_making_constant_array_data_shared() {
+        // Same as above, just with a constant array.
 
-    //     let mut arr1 = Array::try_new_constant(&NopBufferManager, &14.into(), 3).unwrap();
-    //     let mut arr2 = Array::try_new_from_other(&NopBufferManager, &mut arr1).unwrap();
+        let mut arr1 = Array::try_new_constant(&NopBufferManager, &14.into(), 3).unwrap();
+        let mut arr2 = Array::try_new_from_other(&NopBufferManager, &mut arr1).unwrap();
+        // => [14, 14, 14]
+        arr2.select(&NopBufferManager, [1, 0, 2]).unwrap();
 
-    //     println!("ARR: {arr2:#?}");
-    //     // => [14, 14, 14]
-    //     arr2.select(&NopBufferManager, [1, 0, 2]).unwrap();
-
-    //     let expected = Array::try_from_iter([14, 14, 14]).unwrap();
-    //     assert_arrays_eq(&expected, &arr2);
-    // }
+        let expected = Array::try_from_iter([14, 14, 14]).unwrap();
+        assert_arrays_eq(&expected, &arr2);
+    }
 
     #[test]
     fn get_value_simple() {
@@ -1100,94 +1050,37 @@ mod tests {
     }
 
     #[test]
-    fn copy_rows_simple() {
-        let from = Array::try_from_iter(["a", "b", "c"]).unwrap();
-        let mut to = Array::try_from_iter(["d", "d", "d"]).unwrap();
+    fn try_clone_constant_from_other_i32_valid() {
+        let mut arr = Array::try_from_iter([1, 2, 3]).unwrap();
+        let mut arr2 = Array::try_new(&NopBufferManager, DataType::Int32, 16).unwrap();
 
-        from.copy_rows([(0, 1), (1, 2)], &mut to).unwrap();
+        arr2.try_clone_constant_from_other(&mut arr, 1, 8).unwrap();
 
-        let expected = Array::try_from_iter(["d", "a", "b"]).unwrap();
-
-        assert_arrays_eq(&expected, &to);
+        let expected = Array::try_from_iter([2, 2, 2, 2, 2, 2, 2, 2]).unwrap();
+        assert_arrays_eq(&expected, &arr2);
     }
 
     #[test]
-    fn copy_rows_from_dict() {
-        let mut from = Array::try_from_iter(["a", "b", "c"]).unwrap();
-        // => '["b", "a", "c"]
-        from.select(&NopBufferManager, [1, 0, 2]).unwrap();
+    fn try_clone_constant_from_other_i32_null() {
+        let mut arr = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
+        let mut arr2 = Array::try_new(&NopBufferManager, DataType::Int32, 16).unwrap();
 
-        let mut to = Array::try_from_iter(["d", "d", "d"]).unwrap();
+        arr2.try_clone_constant_from_other(&mut arr, 1, 8).unwrap();
 
-        from.copy_rows([(0, 1), (1, 2)], &mut to).unwrap();
-
-        let expected = Array::try_from_iter(["d", "b", "a"]).unwrap();
-
-        assert_arrays_eq(&expected, &to);
+        let expected = Array::try_from_iter(vec![None as Option<i32>; 8]).unwrap();
+        assert_arrays_eq(&expected, &arr2);
     }
 
-    // #[test]
-    // fn reset_after_clone_from() {
-    //     let mut a1 = Array::try_from_iter(["a", "bb", "ccc"]).unwrap();
-    //     let mut a2 = Array::try_from_iter(["d", "ee", "fff"]).unwrap();
+    #[test]
+    fn try_clone_constant_from_other_i32_dictionary() {
+        let mut arr = Array::try_from_iter([1, 2, 3]).unwrap();
+        // => [2, 3, 1]
+        arr.select(&NopBufferManager, [1, 2, 0]).unwrap();
+        let mut arr2 = Array::try_new(&NopBufferManager, DataType::Int32, 16).unwrap();
 
-    //     a1.try_clone_from(&NopBufferManager, &mut a2).unwrap();
+        arr2.try_clone_constant_from_other(&mut arr, 1, 8).unwrap();
 
-    //     let expected = Array::try_from_iter(["d", "ee", "fff"]).unwrap();
-    //     assert_arrays_eq(&expected, &a1);
-    //     assert_arrays_eq(&expected, &a2);
-
-    //     a1.reset_for_write(&NopBufferManager).unwrap();
-
-    //     unimplemented!()
-    //     // // Ensure we can write to it.
-    //     // let mut strings = a1
-    //     //     .data
-    //     //     .try_as_mut()
-    //     //     .unwrap()
-    //     //     .try_as_string_view_addressable_mut()
-    //     //     .unwrap();
-
-    //     // strings.put(0, "hello");
-    //     // strings.put(1, "world");
-    //     // strings.put(2, "goodbye");
-
-    //     // let expected = Array::try_from_iter(["hello", "world", "goodbye"]).unwrap();
-    //     // assert_arrays_eq(&expected, &a1);
-    // }
-
-    // #[test]
-    // fn reset_resets_validity() {
-    //     let mut a = Array::try_from_iter([Some("a"), None, Some("c")]).unwrap();
-    //     assert!(!a.validity.all_valid());
-
-    //     a.reset_for_write(&NopBufferManager).unwrap();
-    //     assert!(a.validity.all_valid());
-    // }
-
-    // #[test]
-    // fn try_clone_row_from_i32_valid() {
-    //     let manager = NopBufferManager;
-
-    //     let mut arr = Array::try_from_iter([1, 2, 3]).unwrap();
-    //     let mut arr2 = Array::try_new(&manager, DataType::Int32, 16).unwrap();
-
-    //     arr2.try_clone_row_from(&manager, &mut arr, 1, 8).unwrap();
-
-    //     let expected = Array::try_from_iter([2, 2, 2, 2, 2, 2, 2, 2]).unwrap();
-    //     assert_arrays_eq(&expected, &arr2);
-    // }
-
-    // #[test]
-    // fn try_clone_row_from_i32_null() {
-    //     let manager = NopBufferManager;
-
-    //     let mut arr = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
-    //     let mut arr2 = Array::try_new(&manager, DataType::Int32, 16).unwrap();
-
-    //     arr2.try_clone_row_from(&manager, &mut arr, 1, 8).unwrap();
-
-    //     let expected = Array::try_from_iter(vec![None as Option<i32>; 8]).unwrap();
-    //     assert_arrays_eq(&expected, &arr2);
-    // }
+        let expected = Array::try_from_iter([3, 3, 3, 3, 3, 3, 3, 3]).unwrap();
+        assert_arrays_eq(&expected, &arr2);
+    }
 }

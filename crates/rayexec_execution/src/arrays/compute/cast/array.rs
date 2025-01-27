@@ -89,6 +89,11 @@ pub fn cast_array(
     out: &mut Array,
     behavior: CastFailBehavior,
 ) -> Result<()> {
+    if arr.datatype() == out.datatype() {
+        out.select_from_other(&NopBufferManager, arr, sel)?;
+        return Ok(());
+    }
+
     let to = out.datatype();
 
     match arr.datatype() {
@@ -836,6 +841,18 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DecimalTypeMeta;
     use crate::arrays::testutil::assert_arrays_eq;
+
+    #[test]
+    fn array_cast_i32_to_i32() {
+        // Should clone the underlying buffer and not actually do any casting.
+        let mut arr = Array::try_from_iter([4, 5, 6]).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 16).unwrap();
+
+        cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap();
+
+        let expected = Array::try_from_iter([4, 5, 6]).unwrap();
+        assert_arrays_eq(&expected, &out);
+    }
 
     #[test]
     fn array_cast_utf8_to_i32() {

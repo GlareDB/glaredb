@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use rayexec_error::{not_implemented, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::AggregateState;
@@ -23,6 +23,9 @@ impl BinaryNonNullUpdater {
         for<'a> State: AggregateState<(&'a S1::StorageType, &'a S2::StorageType), Output>,
     {
         // TODO: Dictionary/constant
+        if array1.should_flatten_for_execution() || array2.should_flatten_for_execution() {
+            not_implemented!("Array flattening for binary agg update")
+        }
 
         // TODO: Length check.
 

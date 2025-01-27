@@ -170,7 +170,9 @@ impl TernaryExecutor {
                 let sel2 = array2.selection.get(input2_idx).unwrap();
                 let sel3 = array3.selection.get(input3_idx).unwrap();
 
-                if validity1.is_valid(sel1) && validity2.is_valid(sel2) && validity3.is_valid(sel3)
+                if validity1.is_valid(input1_idx)
+                    && validity2.is_valid(input2_idx)
+                    && validity3.is_valid(input3_idx)
                 {
                     let val1 = input1.get(sel1).unwrap();
                     let val2 = input2.get(sel2).unwrap();
@@ -194,8 +196,6 @@ impl TernaryExecutor {
 
 #[cfg(test)]
 mod tests {
-    
-
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
@@ -308,6 +308,42 @@ mod tests {
 
         let expected = Array::try_from_iter([".a", "..b", "<<<c"]).unwrap();
 
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn ternary_left_prepend_dictionary_with_null() {
+        let strings = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        let count = Array::try_from_iter([1, 2, 3]).unwrap();
+        let mut pad = Array::try_from_iter([Some("<"), None, Some("!")]).unwrap();
+        // '[NULL, "!", "<"]'
+        pad.select(&NopBufferManager, [1, 2, 0]).unwrap();
+
+        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+
+        let mut str_buf = String::new();
+
+        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(
+            &strings,
+            0..3,
+            &count,
+            0..3,
+            &pad,
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |s, &count, pad, buf| {
+                str_buf.clear();
+                for _ in 0..count {
+                    str_buf.push_str(pad);
+                }
+                str_buf.push_str(s);
+
+                buf.put(&str_buf);
+            },
+        )
+        .unwrap();
+
+        let expected = Array::try_from_iter([None, Some("!!b"), Some("<<<c")]).unwrap();
         assert_arrays_eq(&expected, &out);
     }
 

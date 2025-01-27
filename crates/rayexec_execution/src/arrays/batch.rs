@@ -4,14 +4,11 @@ use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::array::buffer_manager::{BufferManager, NopBufferManager};
-use super::array::cache::CachingAllocator;
 use super::array::selection::Selection;
 use super::cache::BufferCache;
 use super::datatype::DataType;
 use crate::arrays::array::Array;
-use crate::arrays::cache::NopCache;
 use crate::arrays::row::ScalarRow;
-use crate::arrays::selection::SelectionVector;
 
 /// A batch of same-length arrays.
 #[derive(Debug)]
@@ -327,31 +324,6 @@ impl Batch {
             capacity: self.capacity,
             cache: None,
         }
-    }
-
-    // TODO: Remove
-    /// Selects rows in the batch.
-    ///
-    /// This accepts an Arc selection as it'll be cloned for each array in the
-    /// batch.
-    #[deprecated]
-    pub fn select_old(&self, selection: Arc<SelectionVector>) -> Batch {
-        unimplemented!()
-        // let cols = self
-        //     .arrays
-        //     .iter()
-        //     .map(|c| {
-        //         let mut col = c.clone();
-        //         col.select_mut2(selection.clone());
-        //         col
-        //     })
-        //     .collect();
-
-        // Batch {
-        //     arrays: cols,
-        //     num_rows: selection.as_ref().num_rows(),
-        //     capacity: selection.as_ref().num_rows(),
-        // }
     }
 
     /// Get the row at some index.

@@ -150,6 +150,7 @@ fn assert_arrays_eq_sel_inner<S>(
     S: ScalarStorage,
     S::StorageType: ToOwned<Owned: Debug + PartialEq>,
 {
+    // Maps index to value.
     let mut out = BTreeMap::new();
 
     UnaryExecutor::for_each_flat::<S, _>(flat1, sel1, |idx, v| {
@@ -157,6 +158,7 @@ fn assert_arrays_eq_sel_inner<S>(
     })
     .unwrap();
 
+    // TODO: Bubble up these errors for better line numbers when asserts fail.
     UnaryExecutor::for_each_flat::<S, _>(flat2, sel2, |idx, v| match out.remove(&idx) {
         Some(existing) => {
             let v = v.map(|v| v.to_owned());

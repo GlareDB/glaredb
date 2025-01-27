@@ -108,6 +108,8 @@ pub fn hash_array(
 ///
 /// Length of selection and hashes slice must be the same. The same selection is
 /// applied to every input array.
+///
+/// This will overwrite any existing hash in `hashes`.
 pub fn hash_many_arrays<'a>(
     arrs: impl IntoIterator<Item = &'a Array>,
     sel: Selection,

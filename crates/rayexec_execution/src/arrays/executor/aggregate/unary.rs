@@ -90,7 +90,7 @@ impl UnaryNonNullUpdater {
             {
                 let selected_idx = array.selection.get(input_idx).unwrap();
 
-                if !validity.is_valid(selected_idx) {
+                if !validity.is_valid(input_idx) {
                     continue;
                 }
 
@@ -106,8 +106,6 @@ impl UnaryNonNullUpdater {
 
 #[cfg(test)]
 mod tests {
-    
-
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
@@ -174,6 +172,26 @@ mod tests {
         .unwrap();
 
         assert_eq!(16, states[0].val);
+    }
+
+    #[test]
+    fn unary_primitive_single_state_dictionary_invalid() {
+        let mut states = [TestSumState::default()];
+        let mut array = Array::try_from_iter([Some(1), Some(2), Some(3), Some(4), None]).unwrap();
+        // => '[1, NULL, NULL, NULL, NULL, 2, 2]'
+        array
+            .select(&NopBufferManager, [0, 4, 4, 4, 4, 1, 1])
+            .unwrap();
+
+        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
+            &array,
+            [0, 1, 2, 4], // Select from the resulting dictionary.
+            [0, 0, 0, 0],
+            &mut states,
+        )
+        .unwrap();
+
+        assert_eq!(1, states[0].val);
     }
 
     #[test]

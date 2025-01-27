@@ -1,6 +1,5 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::validity::Validity;
 use crate::arrays::batch::Batch;
@@ -59,7 +58,7 @@ impl OuterJoinTracker {
         // Set all column on the left side to null.
         for idx in 0..col_offset {
             let out_array = &mut output.arrays[idx];
-            let validity = Validity::new_all_invalid(out_array.capacity());
+            let validity = Validity::new_all_invalid(out_array.validity.len());
             out_array.put_validity(validity)?;
         }
 

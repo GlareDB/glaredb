@@ -1,10 +1,12 @@
 use rayexec_error::{RayexecError, Result};
 
+use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 
 #[derive(Debug)]
-pub struct BatchCollection {
+pub struct ColumnCollection {
     /// Column types.
     types: Vec<DataType>,
     /// Batches that make up the collection.
@@ -17,13 +19,13 @@ pub struct BatchCollection {
     row_count: usize,
 }
 
-impl BatchCollection {
+impl ColumnCollection {
     /// Create a collection for storing columns of the given types.
     ///
     /// `batch_capacity` determines the capacity for each batch within this
     /// collection.
     pub fn new(types: impl IntoIterator<Item = DataType>, batch_capacity: usize) -> Self {
-        BatchCollection {
+        ColumnCollection {
             types: types.into_iter().collect(),
             batches: Vec::new(),
             batch_capacity,
@@ -93,7 +95,7 @@ impl BatchCollection {
     ///
     /// This will append all batches from `other` the end of the current list of
     /// batches.
-    pub fn merge(&mut self, other: BatchCollection) -> Result<()> {
+    pub fn merge(&mut self, other: ColumnCollection) -> Result<()> {
         if self.types != other.types {
             return Err(RayexecError::new(
                 "Attempted to merge two batch collections with different types",
@@ -119,7 +121,7 @@ mod tests {
 
     #[test]
     fn append_fits_in_single_buffer() {
-        let mut collection = BatchCollection::new([DataType::Int32], 16);
+        let mut collection = ColumnCollection::new([DataType::Int32], 16);
 
         let input = Batch::try_from_arrays([Array::try_from_iter([1, 2, 3]).unwrap()]).unwrap();
         collection.append(&input).unwrap();
@@ -132,7 +134,7 @@ mod tests {
 
     #[test]
     fn append_exceeds_single_buffer() {
-        let mut collection = BatchCollection::new([DataType::Int32], 16);
+        let mut collection = ColumnCollection::new([DataType::Int32], 16);
 
         let input = Batch::try_from_arrays([Array::try_from_iter(0..17_i32).unwrap()]).unwrap();
         collection.append(&input).unwrap();
@@ -148,7 +150,7 @@ mod tests {
 
     #[test]
     fn append_requireds_many_buffers() {
-        let mut collection = BatchCollection::new([DataType::Int32], 16);
+        let mut collection = ColumnCollection::new([DataType::Int32], 16);
 
         let input = Batch::try_from_arrays([Array::try_from_iter(0..33_i32).unwrap()]).unwrap();
         collection.append(&input).unwrap();

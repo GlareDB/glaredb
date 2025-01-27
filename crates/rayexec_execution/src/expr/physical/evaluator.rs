@@ -79,7 +79,7 @@ impl ExpressionEvaluator {
     ///
     /// Output batch must contain the same number of arrays as expressions in
     /// this evaluator. Arrays will be written to in the same order as the
-    /// expressions.
+    /// expressions. The output will be reset before being written to.
     ///
     /// `input` is mutable only to allow converting arrays from owned to
     /// managed.

@@ -10,7 +10,7 @@ use crate::arrays::array::selection::Selection;
 use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::execution::operators::join::empty_output_on_empty_build;
-use crate::execution::operators::materialize::batch_collection::BatchCollection;
+use crate::execution::operators::materialize::column_collection::ColumnCollection;
 use crate::execution::operators::{
     BinaryInputStates,
     ExecutableOperator,
@@ -49,11 +49,11 @@ pub struct NestedLoopJoinOperatorState {
 enum OperatorStateInner {
     CollectingLeft {
         remaining_inputs: usize,
-        collected: BatchCollection,
+        collected: ColumnCollection,
         probe_wakers: Vec<Option<Waker>>,
     },
     ReadyForProbe {
-        collected: Arc<BatchCollection>,
+        collected: Arc<ColumnCollection>,
     },
 }
 
@@ -129,7 +129,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
         let op_state = OperatorState::NestedLoopJoin(NestedLoopJoinOperatorState {
             inner: Mutex::new(OperatorStateInner::CollectingLeft {
                 remaining_inputs: partitions,
-                collected: BatchCollection::new(self.left_types.clone(), batch_size),
+                collected: ColumnCollection::new(self.left_types.clone(), batch_size),
                 probe_wakers: (0..partitions).map(|_| None).collect(),
             }),
         });
@@ -204,52 +204,64 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                     }
                 }
 
-                let did_write_out = cross_product.try_set_next_row(input, output)?;
-                if !did_write_out {
-                    match self.join_type {
-                        JoinType::LeftSemi => unimplemented!(),
-                        JoinType::LeftAnti => unimplemented!(),
-                        _ => (),
-                    }
-
-                    if let Some(right_outer) = &mut state.right_outer {
-                        // Set any unvisited rows on output.
-                        right_outer.set_right_join_output(input, output)?;
-                        right_outer.reset();
-
-                        // Push batch through rest of pipeline.
-                        return Ok(PollExecute::Ready);
-                    }
-
-                    // Need to get the next input batch.
-                    return Ok(PollExecute::NeedsMore);
-                }
-
-                // Eval condition if we have it.
-                if let Some(evaluator) = &mut state.evaluator {
-                    let selection = evaluator.select(output)?;
-
-                    match self.join_type {
-                        JoinType::LeftSemi | JoinType::LeftAnti => {
-                            // TODO
-                            unimplemented!()
+                // Loops in case the filter we have produces a zero sized batch.
+                // We'll just loop to try the next cross product.
+                //
+                // TODO: We should use this loop to try to fill up the output
+                // batch as much as possible.
+                loop {
+                    output.reset_for_write()?;
+                    let did_write_out = cross_product.try_set_next_row(input, output)?;
+                    if !did_write_out {
+                        match self.join_type {
+                            JoinType::LeftSemi => unimplemented!(),
+                            JoinType::LeftAnti => unimplemented!(),
+                            _ => (),
                         }
-                        _ => {
-                            // Set rows matched by selection.
-                            if let Some(right_outer) = &mut state.right_outer {
-                                right_outer.set_matches(selection.iter().copied());
+
+                        if let Some(right_outer) = &mut state.right_outer {
+                            // Set any unvisited rows on output.
+                            right_outer.set_right_join_output(input, output)?;
+                            right_outer.reset();
+
+                            // Push batch through rest of pipeline.
+                            return Ok(PollExecute::Ready);
+                        }
+
+                        // Need to get the next input batch.
+                        return Ok(PollExecute::NeedsMore);
+                    }
+
+                    // Eval condition if we have it.
+                    if let Some(evaluator) = &mut state.evaluator {
+                        let selection = evaluator.select(output)?;
+
+                        match self.join_type {
+                            JoinType::LeftSemi | JoinType::LeftAnti => {
+                                // TODO
+                                unimplemented!()
                             }
+                            _ => {
+                                // Set rows matched by selection.
+                                if let Some(right_outer) = &mut state.right_outer {
+                                    right_outer.set_matches(selection.iter().copied());
+                                }
 
-                            // Apply selection to output.
-                            output.select(Selection::slice(selection))?;
+                                // Apply selection to output.
+                                output.select(Selection::slice(selection))?;
+                                if output.num_rows() == 0 {
+                                    // Try next row.
+                                    continue;
+                                }
 
-                            Ok(PollExecute::HasMore)
+                                return Ok(PollExecute::HasMore);
+                            }
                         }
+                    } else {
+                        // Just normal cross product, output already has everything,
+                        // so keep going with same input.
+                        return Ok(PollExecute::HasMore);
                     }
-                } else {
-                    // Just normal cross product, output already has everything,
-                    // so keep going with same input.
-                    Ok(PollExecute::HasMore)
                 }
             }
             other => panic!("invalid partition state: {other:?}"),
@@ -283,7 +295,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
 
                             // TODO: Try not to need the dummy collection.
                             let collected =
-                                std::mem::replace(collected, BatchCollection::new([], 0));
+                                std::mem::replace(collected, ColumnCollection::new([], 0));
 
                             for waker in probe_wakers {
                                 if let Some(waker) = waker.take() {
@@ -327,8 +339,8 @@ mod tests {
     use super::*;
     use crate::arrays::batch::Batch;
     use crate::arrays::testutil::{assert_batches_eq, generate_batch};
-    use crate::execution::operators::testutil::OperatorWrapper;
-    
+    use crate::execution::operators::testutil::{plan_scalar, OperatorWrapper};
+    use crate::expr;
 
     #[test]
     fn cross_join_single_build_batch_single_partition() {
@@ -374,37 +386,46 @@ mod tests {
         assert_eq!(PollFinalize::Finalized, poll);
     }
 
-    // #[test]
-    // fn inner_join_single_build_batch_single_partition() {
-    //     // left[1] == right[0]
-    //     let filter = plan_scalar(
-    //         &expr::eq(expr::col_ref(0, 1), expr::col_ref(1, 0)),
-    //         &[&[DataType::Int32, DataType::Utf8], &[DataType::Utf8]],
-    //     );
-    //     let mut operator = OperatorWrapper::new(PhysicalNestedLoopJoin::new(
-    //         JoinType::Inner,
-    //         [DataType::Int32, DataType::Utf8],
-    //         [DataType::Utf8],
-    //         Some(filter),
-    //     ));
-    //     let mut states = operator.create_binary_states(1024, 1);
+    #[test]
+    fn inner_join_single_build_batch_single_partition() {
+        // left[1] == right[0]
+        let filter = plan_scalar(
+            &expr::eq(expr::col_ref(0, 1), expr::col_ref(1, 0)),
+            &[&[DataType::Int32, DataType::Utf8], &[DataType::Utf8]],
+        );
+        let mut operator = OperatorWrapper::new(PhysicalNestedLoopJoin::new(
+            JoinType::Inner,
+            [DataType::Int32, DataType::Utf8],
+            [DataType::Utf8],
+            Some(filter),
+        ));
+        let mut states = operator.create_binary_states(1024, 1);
 
-    //     // Build and finalize build side.
-    //     let mut build_input = generate_batch!([1, 2, 3], ["key1", "key2", "key3"],);
-    //     let poll = operator.binary_execute_sink(&mut states, 0, &mut build_input);
-    //     assert_eq!(PollExecute::NeedsMore, poll);
-    //     let poll = operator.binary_finalize_sink(&mut states, 0);
-    //     assert_eq!(PollFinalize::Finalized, poll);
+        // Build and finalize build side.
+        let mut build_input = generate_batch!([1, 2, 3], ["key1", "key2", "key3"],);
+        let poll = operator.binary_execute_sink(&mut states, 0, &mut build_input);
+        assert_eq!(PollExecute::NeedsMore, poll);
+        let poll = operator.binary_finalize_sink(&mut states, 0);
+        assert_eq!(PollFinalize::Finalized, poll);
 
-    //     let mut out =
-    //         Batch::try_new([DataType::Int32, DataType::Utf8, DataType::Utf8], 1024).unwrap();
+        let mut out =
+            Batch::try_new([DataType::Int32, DataType::Utf8, DataType::Utf8], 1024).unwrap();
 
-    //     // Probe with "key2" & "key3"
-    //     let mut probe_input = generate_batch!(["key2", "key3"]);
-    //     let poll = operator.binary_execute_inout(&mut states, 0, &mut probe_input, &mut out);
-    //     assert_eq!(PollExecute::HasMore, poll);
+        // Probe with "key2" & "key3"
+        let mut probe_input = generate_batch!(["key2", "key3"]);
+        let poll = operator.binary_execute_inout(&mut states, 0, &mut probe_input, &mut out);
+        assert_eq!(PollExecute::HasMore, poll);
 
-    //     let expected1 = generate_batch!(["key2"], [2]);
-    //     assert_batches_eq(&expected1, &out);
-    // }
+        let expected1 = generate_batch!([2], ["key2"], ["key2"]);
+        assert_batches_eq(&expected1, &out);
+
+        let poll = operator.binary_execute_inout(&mut states, 0, &mut probe_input, &mut out);
+        assert_eq!(PollExecute::HasMore, poll);
+
+        let expected2 = generate_batch!([3], ["key3"], ["key3"]);
+        assert_batches_eq(&expected2, &out);
+
+        let poll = operator.binary_execute_inout(&mut states, 0, &mut probe_input, &mut out);
+        assert_eq!(PollExecute::NeedsMore, poll);
+    }
 }

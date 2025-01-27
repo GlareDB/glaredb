@@ -3,19 +3,18 @@ use std::sync::Arc;
 use rayexec_error::Result;
 
 use crate::arrays::array::buffer_manager::NopBufferManager;
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::execution::operators::materialize::batch_collection::BatchCollection;
+use crate::execution::operators::materialize::column_collection::ColumnCollection;
 
 #[derive(Debug)]
 pub struct CrossProductState {
-    collection: Arc<BatchCollection>,
+    collection: Arc<ColumnCollection>,
     batch_idx: usize,
     row_idx: usize,
 }
 
 impl CrossProductState {
-    pub fn new(collection: Arc<BatchCollection>) -> Self {
+    pub fn new(collection: Arc<ColumnCollection>) -> Self {
         CrossProductState {
             collection,
             batch_idx: 0,
@@ -23,11 +22,13 @@ impl CrossProductState {
         }
     }
 
-    pub fn collection(&self) -> &BatchCollection {
+    pub fn collection(&self) -> &ColumnCollection {
         self.collection.as_ref()
     }
 
     /// Tries to load the next row from the batch collection into output.
+    ///
+    /// `output` should have already been reset for write.
     ///
     /// If we ran out of rows to reference in the batch collection, Ok(false)
     /// will be returned indicating we need to use a new input batch.
@@ -50,12 +51,10 @@ impl CrossProductState {
         let manager = NopBufferManager;
 
         // Set constant reference to single row on left side.
-        //
-        // TODO: Try to avoid needing to create a new array.
         for (idx, collected_array) in batch.arrays.iter().enumerate() {
-            let scalar = collected_array.get_value(self.row_idx)?;
-            let new_arr = Array::try_new_constant(&manager, &scalar, input.num_rows())?;
-            output.arrays[idx] = new_arr;
+            let value = collected_array.get_value(self.row_idx)?;
+            output.arrays[idx].set_value(0, &value)?;
+            output.arrays[idx].select(&manager, std::iter::repeat(0).take(input.num_rows()))?;
         }
 
         // Reference columns from right as-is
@@ -83,12 +82,13 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
+    use crate::arrays::array::Array;
     use crate::arrays::datatype::DataType;
     use crate::arrays::testutil::assert_batches_eq;
 
     #[test]
     fn cross_product_single_collected_batch() {
-        let mut collection = BatchCollection::new([DataType::Utf8], 2);
+        let mut collection = ColumnCollection::new([DataType::Utf8], 2);
         let batches =
             [Batch::try_from_arrays([Array::try_from_iter(["a", "b"]).unwrap()]).unwrap()];
 
@@ -116,6 +116,7 @@ mod tests {
         ])
         .unwrap();
 
+        out.reset_for_write().unwrap();
         let did_write = cross_product
             .try_set_next_row(&mut input, &mut out)
             .unwrap();

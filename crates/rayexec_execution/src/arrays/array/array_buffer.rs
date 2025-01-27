@@ -122,10 +122,26 @@ where
         Ok(ArrayBuffer { inner })
     }
 
+    /// Make all underlying buffers shared and returns an array buffer
+    /// containing only shared references.
     pub(crate) fn make_shared_and_clone(&mut self) -> Self {
         ArrayBuffer {
             inner: self.inner.make_shared_and_clone(),
         }
+    }
+
+    /// Make all underlying buffers shared.
+    pub(crate) fn make_shared(&mut self) {
+        self.inner.make_shared();
+    }
+
+    /// Try to clone this buffer.
+    ///
+    /// This will error if any buffer is not already shared.
+    pub(crate) fn try_clone_shared(&self) -> Result<Self> {
+        Ok(ArrayBuffer {
+            inner: self.inner.try_clone_shared()?,
+        })
     }
 
     pub(crate) fn into_inner(self) -> ArrayBufferType<B> {
@@ -261,6 +277,26 @@ where
         }
     }
 
+    pub fn get_string_buffer(&self) -> Result<&StringBuffer<B>> {
+        match self {
+            Self::String(b) => Ok(b),
+            other => Err(RayexecError::new(format!(
+                "Expected string buffer, got {}",
+                other.kind()
+            ))),
+        }
+    }
+
+    pub fn get_string_buffer_mut(&self) -> Result<&StringBuffer<B>> {
+        match self {
+            Self::String(b) => Ok(b),
+            other => Err(RayexecError::new(format!(
+                "Expected string buffer, got {}",
+                other.kind()
+            ))),
+        }
+    }
+
     pub fn logical_len(&self) -> usize {
         match self {
             Self::Scalar(buf) => buf.logical_len(),
@@ -279,6 +315,26 @@ where
             Self::Dictionary(buf) => Self::Dictionary(buf.make_shared_and_clone()),
             Self::List(buf) => Self::List(buf.make_shared_and_clone()),
         }
+    }
+
+    fn make_shared(&mut self) {
+        match self {
+            Self::Scalar(buf) => buf.make_shared(),
+            Self::Constant(buf) => buf.make_shared(),
+            Self::String(buf) => buf.make_shared(),
+            Self::Dictionary(buf) => buf.make_shared(),
+            Self::List(buf) => buf.make_shared(),
+        }
+    }
+
+    fn try_clone_shared(&self) -> Result<Self> {
+        Ok(match self {
+            Self::Scalar(buf) => Self::Scalar(buf.try_clone_shared()?),
+            Self::Constant(buf) => Self::Constant(buf.try_clone_shared()?),
+            Self::String(buf) => Self::String(buf.try_clone_shared()?),
+            Self::Dictionary(buf) => Self::Dictionary(buf.try_clone_shared()?),
+            Self::List(buf) => Self::List(buf.try_clone_shared()?),
+        })
     }
 }
 
@@ -380,6 +436,10 @@ where
         self.raw.capacity
     }
 
+    fn make_shared(&mut self) {
+        self.raw.make_shared();
+    }
+
     fn make_shared_and_clone(&mut self) -> Self {
         let raw = self.raw.make_shared_and_clone();
 
@@ -387,6 +447,13 @@ where
             physical_type: self.physical_type,
             raw,
         }
+    }
+
+    fn try_clone_shared(&self) -> Result<Self> {
+        Ok(ScalarBuffer {
+            physical_type: self.physical_type,
+            raw: self.raw.try_clone_shared()?,
+        })
     }
 }
 
@@ -405,12 +472,24 @@ where
         self.len
     }
 
+    fn make_shared(&mut self) {
+        self.child_buffer.make_shared();
+    }
+
     fn make_shared_and_clone(&mut self) -> Self {
         ConstantBuffer {
             row_reference: self.row_reference,
             len: self.len,
             child_buffer: Box::new(self.child_buffer.make_shared_and_clone()),
         }
+    }
+
+    fn try_clone_shared(&self) -> Result<Self> {
+        Ok(ConstantBuffer {
+            row_reference: self.row_reference,
+            len: self.len,
+            child_buffer: Box::new(self.child_buffer.try_clone_shared()?),
+        })
     }
 }
 
@@ -503,11 +582,23 @@ where
         self.metadata.capacity()
     }
 
+    fn make_shared(&mut self) {
+        self.metadata.make_shared();
+        self.heap.make_shared();
+    }
+
     fn make_shared_and_clone(&mut self) -> Self {
         let metadata = self.metadata.make_shared_and_clone();
         let heap = self.heap.make_shared_and_clone();
 
         StringBuffer { metadata, heap }
+    }
+
+    fn try_clone_shared(&self) -> Result<Self> {
+        Ok(StringBuffer {
+            metadata: self.metadata.try_clone_shared()?,
+            heap: self.heap.try_clone_shared()?,
+        })
     }
 }
 
@@ -521,11 +612,23 @@ impl<B> DictionaryBuffer<B>
 where
     B: BufferManager,
 {
+    fn make_shared(&mut self) {
+        self.selection.make_shared();
+        self.child_buffer.make_shared();
+    }
+
     fn make_shared_and_clone(&mut self) -> Self {
         DictionaryBuffer {
             selection: self.selection.make_shared_and_clone(),
             child_buffer: Box::new(self.child_buffer.make_shared_and_clone()),
         }
+    }
+
+    fn try_clone_shared(&self) -> Result<Self> {
+        Ok(DictionaryBuffer {
+            selection: self.selection.try_clone_shared()?,
+            child_buffer: Box::new(self.child_buffer.try_clone_shared()?),
+        })
     }
 
     fn logical_len(&self) -> usize {
@@ -576,6 +679,12 @@ where
         self.metadata.capacity()
     }
 
+    fn make_shared(&mut self) {
+        self.metadata.make_shared();
+        self.child_validity.make_shared();
+        self.child_buffer.make_shared();
+    }
+
     fn make_shared_and_clone(&mut self) -> Self {
         let metadata = self.metadata.make_shared_and_clone();
         let child_buffer = self.child_buffer.make_shared_and_clone();
@@ -587,6 +696,15 @@ where
             child_buffer: Box::new(child_buffer),
             child_validity,
         }
+    }
+
+    fn try_clone_shared(&self) -> Result<Self> {
+        Ok(ListBuffer {
+            metadata: self.metadata.try_clone_shared()?,
+            entries: self.entries,
+            child_buffer: Box::new(self.child_buffer.try_clone_shared()?),
+            child_validity: self.child_validity.try_clone_shared()?,
+        })
     }
 }
 

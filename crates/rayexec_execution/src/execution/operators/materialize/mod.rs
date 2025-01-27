@@ -1,4 +1,4 @@
-pub mod batch_collection;
+pub mod column_collection;
 
 use std::task::Context;
 
