@@ -161,6 +161,14 @@ impl StringViewMetadataUnion {
         unsafe { std::mem::transmute::<Self, [u8; 16]>(self) }
     }
 
+    pub const fn from_bytes(buf: [u8; 16]) -> Self {
+        // SAFETY: Const assersion guarantees this is 16 bytes.
+        //
+        // Note that this doesn't guarantee validity of the data, just that
+        // these bytes can always be represented as the union.
+        unsafe { std::mem::transmute::<[u8; 16], Self>(buf) }
+    }
+
     pub(crate) const fn zero() -> Self {
         Self {
             small: StringViewSmallMetadata {
