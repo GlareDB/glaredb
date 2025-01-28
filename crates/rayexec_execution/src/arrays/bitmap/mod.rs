@@ -1,4 +1,4 @@
-pub mod zip;
+pub mod view;
 
 use std::borrow::BorrowMut;
 use std::fmt;
@@ -8,6 +8,7 @@ use rayexec_error::{RayexecError, Result};
 use crate::arrays::compute::util::IntoExtactSizeIterator;
 
 /// An LSB ordered bitmap.
+#[deprecated]
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct Bitmap {
     len: usize,

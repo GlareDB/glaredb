@@ -6,7 +6,7 @@ pub mod selection;
 pub mod string_view;
 pub mod validity;
 
-mod raw;
+pub(in crate::arrays) mod raw;
 
 use std::fmt::Debug;
 

@@ -6,6 +6,10 @@ use stdutil::marker::PhantomCovariant;
 
 use super::buffer_manager::{BufferManager, Reservation};
 
+/// Wrapper around a raw buffer that knows its type.
+///
+/// This should be used instead of a `Vec` when we want to tie data to a buffer
+/// manager.
 #[derive(Debug)]
 pub struct TypedRawBuffer<T, B: BufferManager> {
     pub(crate) _type: PhantomCovariant<T>,
@@ -16,6 +20,7 @@ impl<T, B> TypedRawBuffer<T, B>
 where
     B: BufferManager,
 {
+    /// Create a new buffer that can hold `cap` number of entries.
     pub fn try_with_capacity(manager: &B, cap: usize) -> Result<Self> {
         let raw = RawBuffer::try_with_capacity::<T>(manager, cap)?;
         Ok(TypedRawBuffer {
@@ -24,20 +29,42 @@ where
         })
     }
 
+    /// Resize this buffer to hold `additional` number of entries.
     pub fn reserve(&mut self, additional: usize) -> Result<()> {
         unsafe { self.raw.reserve::<T>(additional) }
     }
 
+    /// Returns the capacity of this buffer.
     pub fn capacity(&self) -> usize {
         self.raw.capacity()
     }
 
+    /// Convert this buffer to a slice.
     pub fn as_slice(&self) -> &[T] {
         unsafe { self.raw.as_slice::<T>() }
     }
 
+    /// Convert this buffer to a mutable slice.
     pub fn as_slice_mut(&mut self) -> &mut [T] {
         unsafe { self.raw.as_slice_mut() }
+    }
+}
+
+impl<T, B> AsRef<[T]> for TypedRawBuffer<T, B>
+where
+    B: BufferManager,
+{
+    fn as_ref(&self) -> &[T] {
+        self.as_slice()
+    }
+}
+
+impl<T, B> AsMut<[T]> for TypedRawBuffer<T, B>
+where
+    B: BufferManager,
+{
+    fn as_mut(&mut self) -> &mut [T] {
+        self.as_slice_mut()
     }
 }
 
@@ -85,6 +112,8 @@ where
             None => alloc::handle_alloc_error(layout),
         };
 
+        assert_eq!(size_bytes, layout.size());
+
         Ok(RawBuffer {
             reservation,
             ptr,
@@ -131,6 +160,11 @@ where
         );
 
         std::slice::from_raw_parts_mut(self.ptr.as_ptr().cast::<T>(), self.capacity)
+    }
+
+    /// Return the underlying bytes for this buffer.
+    pub fn as_bytes(&self) -> &[u8] {
+        unimplemented!()
     }
 
     /// Reserves memory for holding `additional` number of `T` elements.

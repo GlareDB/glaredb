@@ -256,9 +256,6 @@ where
     B: BufferManager,
     S: MutableScalarStorage,
 {
-    debug_assert_eq!(src_buf.logical_len(), src_validity.len());
-    debug_assert_eq!(dest_buf.logical_len(), dest_validity.len());
-
     let src_buf = S::get_addressable(src_buf)?;
     let mut dest_buf = S::get_addressable_mut(dest_buf)?;
 

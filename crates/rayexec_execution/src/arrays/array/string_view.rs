@@ -130,6 +130,8 @@ impl Default for StringViewMetadataUnion {
 }
 
 impl StringViewMetadataUnion {
+    const _SIZE_ASSERTION: () = assert!(std::mem::size_of::<Self>() == 16);
+
     #[inline]
     pub fn as_metadata(&self) -> StringViewMetadata {
         unsafe {
@@ -152,6 +154,11 @@ impl StringViewMetadataUnion {
     pub fn data_len(&self) -> i32 {
         // SAFETY: `len` field is in the same place in both variants.
         unsafe { self.small.len }
+    }
+
+    pub const fn to_bytes(self) -> [u8; 16] {
+        // SAFETY: Const assertion guarantees this is 16 bytes.
+        unsafe { std::mem::transmute::<Self, [u8; 16]>(self) }
     }
 
     pub(crate) const fn zero() -> Self {
