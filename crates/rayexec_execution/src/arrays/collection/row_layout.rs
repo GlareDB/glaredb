@@ -55,7 +55,8 @@ pub struct RowLayout {
 }
 
 impl RowLayout {
-    pub fn new(types: Vec<DataType>) -> Self {
+    pub fn new(types: impl IntoIterator<Item = DataType>) -> Self {
+        let types: Vec<_> = types.into_iter().collect();
         let validity_width = num_bytes_for_bitmap(types.len());
 
         let mut offset = validity_width;
@@ -90,7 +91,7 @@ impl RowLayout {
     ///
     /// This includes the width of each value in a row alongside the bytes
     /// needed for the validity mask;
-    pub fn buffer_size(&self, rows: usize) -> usize {
+    pub const fn buffer_size(&self, rows: usize) -> usize {
         self.row_width * rows
     }
 
