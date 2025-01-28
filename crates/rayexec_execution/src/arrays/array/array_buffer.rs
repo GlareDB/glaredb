@@ -542,13 +542,15 @@ where
 
     pub fn try_as_binary_view_mut(&mut self) -> Result<BinaryViewAddressableMut<B>> {
         let heap = self.heap.try_as_mut()?;
-        // Unlike binary view, we don't want to allow mutable access to string
-        // data without validating it.
-        if self.is_utf8 {
-            return Err(RayexecError::new(
-                "Cannot view modify raw binary for string data",
-            ));
-        }
+        // TODO: Probably do want this check. Currently skipping this for easier
+        // row decoding between binary/utf8 data.
+        // // Unlike binary view, we don't want to allow mutable access to string
+        // // data without validating it.
+        // if self.is_utf8 {
+        //     return Err(RayexecError::new(
+        //         "Cannot view modify raw binary for string data",
+        //     ));
+        // }
 
         Ok(BinaryViewAddressableMut {
             metadata: self.metadata.try_as_mut()?.as_slice_mut(),

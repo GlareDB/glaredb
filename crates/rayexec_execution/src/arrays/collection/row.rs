@@ -162,7 +162,7 @@ where
         let buf = &mut self.data.as_slice_mut()[offset..(offset + size)];
 
         let selection = src_offset..(src_offset + count);
-        layout.encode_arrays(src, selection, buf)?;
+        layout.encode_arrays(src, selection, buf, &mut self.heap)?;
 
         self.filled += count;
 
@@ -178,7 +178,7 @@ where
     ) -> Result<()> {
         let buf = self.data.as_slice();
         let selection = src_row_offset..(src_row_offset + count);
-        layout.decode_arrays(buf, selection, dest)?;
+        layout.decode_arrays(buf, &self.heap, selection, dest)?;
 
         Ok(())
     }
