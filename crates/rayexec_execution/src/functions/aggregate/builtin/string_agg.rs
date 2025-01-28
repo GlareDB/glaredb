@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use rayexec_error::{RayexecError, Result};
 
+use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{AddressableMut, PhysicalUtf8};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
@@ -151,9 +152,10 @@ impl AggregateState<&str, str> for StringAggState {
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
     where
-        M: AddressableMut<T = str>,
+        M: AddressableMut<B, T = str>,
+        B: BufferManager,
     {
         match &self.string {
             Some(s) => output.put(s),

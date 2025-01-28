@@ -204,11 +204,7 @@ where
     let validity = &mut output.validity;
 
     for (idx, state) in states.iter_mut().enumerate() {
-        state.finalize(PutBuffer {
-            idx,
-            buffer,
-            validity,
-        })?;
+        state.finalize(PutBuffer::new(idx, buffer, validity))?;
     }
 
     Ok(())

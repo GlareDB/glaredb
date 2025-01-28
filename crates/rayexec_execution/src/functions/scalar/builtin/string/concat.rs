@@ -1,6 +1,12 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::{AddressableMut, PhysicalUtf8};
+use crate::arrays::array::physical_type::{
+    Addressable,
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalUtf8,
+    ScalarStorage,
+};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -76,20 +82,15 @@ impl ScalarFunctionImpl for StringConcatImpl {
             0 => {
                 // TODO: Zero args should actually error during planning.
                 // Currently this just sets everything to an empty string.
-                // let mut addressable = output
-                //     .data
-                //     .try_as_mut()?
-                //     .try_as_string_view_addressable_mut()?;
-
-                // for idx in 0..addressable.len() {
-                //     addressable.put(idx, "");
-                // }
-                unimplemented!()
+                let mut s = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
+                for idx in 0..s.len() {
+                    s.put(idx, "");
+                }
             }
             1 => {
                 let input = &input.arrays()[0];
 
-                UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+                UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
                     input,
                     sel,
                     OutBuffer::from_array(output)?,
@@ -102,7 +103,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
 
                 let mut str_buf = String::new();
 
-                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _, _>(
                     a,
                     sel,
                     b,
@@ -119,7 +120,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
             _ => {
                 let mut str_buf = String::new();
 
-                UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+                UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
                     input.arrays(),
                     sel,
                     OutBuffer::from_array(output)?,

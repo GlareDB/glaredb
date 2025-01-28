@@ -69,7 +69,7 @@ impl ScalarFunctionImpl for StrLengthImpl {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
-        UnaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _>(
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
             input,
             sel,
             OutBuffer::from_array(output)?,
@@ -152,7 +152,7 @@ impl ScalarFunctionImpl for ByteLengthImpl {
         let input = &input.arrays()[0];
 
         // Binary applicable to both str and [u8].
-        UnaryExecutor::execute::<PhysicalBinary, PhysicalI64, _>(
+        UnaryExecutor::execute::<PhysicalBinary, PhysicalI64, _, _>(
             input,
             sel,
             OutBuffer::from_array(output)?,
@@ -228,7 +228,7 @@ impl ScalarFunctionImpl for BitLengthImpl {
         let input = &input.arrays()[0];
 
         // Binary applicable to both str and [u8].
-        UnaryExecutor::execute::<PhysicalBinary, PhysicalI64, _>(
+        UnaryExecutor::execute::<PhysicalBinary, PhysicalI64, _, _>(
             input,
             sel,
             OutBuffer::from_array(output)?,

@@ -1,9 +1,9 @@
 use rayexec_error::Result;
 
+use super::row_heap::RowHeap;
 use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::raw::TypedRawBuffer;
-use crate::arrays::array::string_view::StringViewHeap;
 
 /// Stores row encoded data.
 #[derive(Debug)]
@@ -20,13 +20,8 @@ struct RowChunk<B: BufferManager> {
     capacity: usize,
     /// Number of rows we've written to this chunk.
     filled: usize,
-    /// Heap for string values.
-    // TODO: More generic heap?
-    //
-    // Need a way to store lists.
-    //
-    // Also this will intermingle utf8 and binary data.
-    heap: StringViewHeap,
+    /// Heap for varlen and nested data.
+    heap: RowHeap<B>,
 }
 
 impl<B> RowChunk<B>
@@ -37,7 +32,7 @@ where
         let byte_capacity = capacity * layout.row_width;
 
         let data = TypedRawBuffer::try_with_capacity(manager, byte_capacity)?;
-        let heap = StringViewHeap::new(false);
+        let heap = RowHeap::with_capacity(manager, 0)?;
 
         Ok(RowChunk {
             data,

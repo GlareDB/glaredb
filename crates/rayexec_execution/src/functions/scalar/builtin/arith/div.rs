@@ -238,7 +238,7 @@ where
         let a = &input.arrays()[0];
         let b = &input.arrays()[1];
 
-        BinaryExecutor::execute::<S, S, S, _>(
+        BinaryExecutor::execute::<S, S, S, _, _>(
             a,
             sel,
             b,
@@ -251,7 +251,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

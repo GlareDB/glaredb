@@ -89,13 +89,13 @@ impl ScalarFunctionImpl for StartsWithImpl {
         let sel = input.selection();
 
         match self.constant.as_ref() {
-            Some(prefix) => UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _>(
+            Some(prefix) => UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _, _>(
                 &input.arrays()[0],
                 sel,
                 OutBuffer::from_array(output)?,
                 |s, buf| buf.put(&s.starts_with(prefix)),
             ),
-            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
+            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _, _>(
                 &input.arrays()[0],
                 sel,
                 &input.arrays()[1],

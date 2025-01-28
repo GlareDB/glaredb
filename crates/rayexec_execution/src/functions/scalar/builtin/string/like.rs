@@ -89,7 +89,7 @@ impl ScalarFunctionImpl for LikeConstImpl {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
-        UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _>(
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _, _>(
             input,
             sel,
             OutBuffer::from_array(output)?,
@@ -112,7 +112,7 @@ impl ScalarFunctionImpl for LikeImpl {
 
         let mut s_buf = String::new();
 
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
+        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _, _>(
             strings,
             sel,
             patterns,

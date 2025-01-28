@@ -226,7 +226,7 @@ impl<F: StringTrimOp> ScalarFunctionImpl for TrimWhitespaceImpl<F> {
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
-        UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
             &input.arrays()[0],
             sel,
             OutBuffer::from_array(output)?,
@@ -253,7 +253,7 @@ impl<F: StringTrimOp> ScalarFunctionImpl for TrimPatternImpl<F> {
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
+        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _, _>(
             &input.arrays()[0],
             sel,
             &input.arrays()[1],

@@ -1,6 +1,7 @@
 use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
+use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -17,20 +18,21 @@ pub struct UnaryExecutor;
 
 impl UnaryExecutor {
     /// Execute a unary operation on `array`, placing results in `out`.
-    pub fn execute<S, O, Op>(
-        array: &Array,
+    pub fn execute<S, O, Op, B>(
+        array: &Array<B>,
         selection: impl IntoExactSizeIterator<Item = usize>,
-        out: OutBuffer,
+        out: OutBuffer<B>,
         mut op: Op,
     ) -> Result<()>
     where
         S: ScalarStorage,
         O: MutableScalarStorage,
-        for<'a> Op: FnMut(&S::StorageType, PutBuffer<O::AddressableMut<'a>>),
+        for<'a> Op: FnMut(&S::StorageType, PutBuffer<O::AddressableMut<'a, B>, B>),
+        B: BufferManager,
     {
         if array.should_flatten_for_execution() {
             let view = array.flatten()?;
-            return Self::execute_flat::<S, _, _>(view, selection, out, op);
+            return Self::execute_flat::<S, _, _, _>(view, selection, out, op);
         }
 
         let input = S::get_addressable(&array.data)?;
@@ -61,16 +63,17 @@ impl UnaryExecutor {
         Ok(())
     }
 
-    pub fn execute_flat<S, O, Op>(
-        array: FlattenedArray<'_>,
+    pub fn execute_flat<S, O, Op, B>(
+        array: FlattenedArray<'_, B>,
         selection: impl IntoExactSizeIterator<Item = usize>,
-        out: OutBuffer,
+        out: OutBuffer<B>,
         mut op: Op,
     ) -> Result<()>
     where
         S: ScalarStorage,
         O: MutableScalarStorage,
-        for<'b> Op: FnMut(&S::StorageType, PutBuffer<O::AddressableMut<'b>>),
+        for<'b> Op: FnMut(&S::StorageType, PutBuffer<O::AddressableMut<'b, B>, B>),
+        B: BufferManager,
     {
         let input = S::get_addressable(array.array_buffer)?;
         let mut output = O::get_addressable_mut(out.buffer)?;
@@ -220,8 +223,11 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
-    use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
-    use crate::arrays::array::string_view::StringViewAddressableMut;
+    use crate::arrays::array::physical_type::{
+        PhysicalI32,
+        PhysicalUtf8,
+        StringViewAddressableMut,
+    };
     use crate::arrays::array::Array;
     use crate::arrays::datatype::DataType;
     use crate::arrays::testutil::assert_arrays_eq;
@@ -231,7 +237,7 @@ mod tests {
         let array = Array::try_from_iter([1, 2, 3]).unwrap();
         let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
-        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
+        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
             &array,
             0..3,
             OutBuffer::from_array(&mut out).unwrap(),
@@ -256,7 +262,7 @@ mod tests {
         array.select(&NopBufferManager, [1, 2, 0]).unwrap();
         let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
-        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
+        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
             &array,
             0..3,
             OutBuffer::from_array(&mut out).unwrap(),
@@ -275,7 +281,7 @@ mod tests {
         array.select(&NopBufferManager, [1, 2, 0]).unwrap();
         let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
-        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
+        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
             &array,
             0..3,
             OutBuffer::from_array(&mut out).unwrap(),
@@ -294,7 +300,7 @@ mod tests {
 
         let flat = FlattenedArray::from_array(&array).unwrap();
 
-        UnaryExecutor::execute_flat::<PhysicalI32, PhysicalI32, _>(
+        UnaryExecutor::execute_flat::<PhysicalI32, PhysicalI32, _, _>(
             flat,
             0..3,
             OutBuffer::from_array(&mut out).unwrap(),
@@ -343,13 +349,16 @@ mod tests {
 
         let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 6).unwrap();
 
-        fn my_string_double(s: &str, buf: PutBuffer<StringViewAddressableMut>) {
+        fn my_string_double<B: BufferManager>(
+            s: &str,
+            buf: PutBuffer<StringViewAddressableMut<B>, B>,
+        ) {
             let mut double = s.to_string();
             double.push_str(s);
             buf.put(&double);
         }
 
-        UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
             &array,
             0..6,
             OutBuffer::from_array(&mut out).unwrap(),
@@ -393,7 +402,7 @@ mod tests {
 
         let mut string_buf = String::new();
 
-        UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
             &array,
             0..6,
             OutBuffer::from_array(&mut out).unwrap(),
@@ -456,7 +465,7 @@ mod tests {
 
         let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 6).unwrap();
 
-        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
+        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
             &array,
             0..6,
             OutBuffer::from_array(&mut out).unwrap(),
@@ -480,7 +489,7 @@ mod tests {
 
         let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 2).unwrap();
 
-        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
+        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
             &array,
             0..2,
             OutBuffer::from_array(&mut out).unwrap(),

@@ -1,6 +1,8 @@
 pub mod aggregate;
 pub mod scalar;
 
+use std::marker::PhantomData;
+
 use rayexec_error::Result;
 
 use super::array::array_buffer::ArrayBuffer;
@@ -28,18 +30,21 @@ impl<'a> OutBuffer<'a> {
 
 /// Helper for assigning a value to a location in a buffer.
 #[derive(Debug)]
-pub struct PutBuffer<'a, M>
+pub struct PutBuffer<'a, M, B>
 where
-    M: AddressableMut,
+    M: AddressableMut<B>,
+    B: BufferManager,
 {
     pub(crate) idx: usize,
     pub(crate) buffer: &'a mut M,
     pub(crate) validity: &'a mut Validity,
+    _b: PhantomData<B>,
 }
 
-impl<'a, M> PutBuffer<'a, M>
+impl<'a, M, B> PutBuffer<'a, M, B>
 where
-    M: AddressableMut,
+    M: AddressableMut<B>,
+    B: BufferManager,
 {
     pub(crate) fn new(idx: usize, buffer: &'a mut M, validity: &'a mut Validity) -> Self {
         debug_assert_eq!(buffer.len(), validity.len());
@@ -47,6 +52,7 @@ where
             idx,
             buffer,
             validity,
+            _b: PhantomData,
         }
     }
 

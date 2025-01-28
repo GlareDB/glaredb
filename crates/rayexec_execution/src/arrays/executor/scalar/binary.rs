@@ -1,6 +1,7 @@
 use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
+use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::Array;
@@ -10,25 +11,27 @@ use crate::arrays::executor::{OutBuffer, PutBuffer};
 pub struct BinaryExecutor;
 
 impl BinaryExecutor {
-    pub fn execute<S1, S2, O, Op>(
-        array1: &Array,
+    pub fn execute<S1, S2, O, Op, B>(
+        array1: &Array<B>,
         sel1: impl IntoExactSizeIterator<Item = usize>,
-        array2: &Array,
+        array2: &Array<B>,
         sel2: impl IntoExactSizeIterator<Item = usize>,
-        out: OutBuffer,
+        out: OutBuffer<B>,
         mut op: Op,
     ) -> Result<()>
     where
         S1: ScalarStorage,
         S2: ScalarStorage,
         O: MutableScalarStorage,
-        for<'a> Op: FnMut(&S1::StorageType, &S2::StorageType, PutBuffer<O::AddressableMut<'a>>),
+        for<'a> Op:
+            FnMut(&S1::StorageType, &S2::StorageType, PutBuffer<O::AddressableMut<'a, B>, B>),
+        B: BufferManager,
     {
         if array1.should_flatten_for_execution() || array2.should_flatten_for_execution() {
             let view1 = FlattenedArray::from_array(array1)?;
             let view2 = FlattenedArray::from_array(array2)?;
 
-            return Self::execute_flat::<S1, S2, _, _>(view1, sel1, view2, sel2, out, op);
+            return Self::execute_flat::<S1, S2, _, _, _>(view1, sel1, view2, sel2, out, op);
         }
 
         // TODO: length validation
@@ -80,19 +83,21 @@ impl BinaryExecutor {
         Ok(())
     }
 
-    pub fn execute_flat<'a, S1, S2, O, Op>(
-        array1: FlattenedArray<'a>,
+    pub fn execute_flat<'a, S1, S2, O, Op, B>(
+        array1: FlattenedArray<'a, B>,
         sel1: impl IntoExactSizeIterator<Item = usize>,
-        array2: FlattenedArray<'a>,
+        array2: FlattenedArray<'a, B>,
         sel2: impl IntoExactSizeIterator<Item = usize>,
-        out: OutBuffer,
+        out: OutBuffer<B>,
         mut op: Op,
     ) -> Result<()>
     where
         S1: ScalarStorage,
         S2: ScalarStorage,
         O: MutableScalarStorage,
-        for<'b> Op: FnMut(&S1::StorageType, &S2::StorageType, PutBuffer<O::AddressableMut<'b>>),
+        for<'b> Op:
+            FnMut(&S1::StorageType, &S2::StorageType, PutBuffer<O::AddressableMut<'b, B>, B>),
+        B: BufferManager,
     {
         // TODO: length validation
 
@@ -157,7 +162,6 @@ mod tests {
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
     use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
-    use crate::arrays::array::string_view::StringViewAddressableMut;
     use crate::arrays::array::Array;
     use crate::arrays::datatype::DataType;
     use crate::arrays::testutil::assert_arrays_eq;
@@ -169,7 +173,7 @@ mod tests {
 
         let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
-        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
+        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _, _>(
             &left,
             0..3,
             &right,
@@ -190,7 +194,7 @@ mod tests {
 
         let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
-        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
+        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _, _>(
             &left,
             0..3,
             &right,
@@ -211,7 +215,7 @@ mod tests {
 
         let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
-        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
+        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _, _>(
             &left,
             0..3,
             &right,
@@ -235,7 +239,7 @@ mod tests {
 
         let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
-        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
+        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _, _>(
             &left,
             0..3,
             &right,
@@ -258,7 +262,7 @@ mod tests {
 
         let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
-        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
+        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _, _>(
             &left,
             0..3,
             &right,
@@ -280,7 +284,7 @@ mod tests {
         let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut string_buf = String::new();
-        BinaryExecutor::execute::<PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(
+        BinaryExecutor::execute::<PhysicalI32, PhysicalUtf8, PhysicalUtf8, _, _>(
             &left,
             0..3,
             &right,

@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
+use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
@@ -239,9 +240,10 @@ where
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
     where
-        M: AddressableMut<T = f64>,
+        M: AddressableMut<B, T = f64>,
+        B: BufferManager,
     {
         match F::finalize(self.co_moment, self.count) {
             Some(val) => output.put(&val),

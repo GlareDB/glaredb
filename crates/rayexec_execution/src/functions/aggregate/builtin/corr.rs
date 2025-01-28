@@ -4,6 +4,7 @@ use rayexec_error::Result;
 
 use super::covar::{CovarPopFinalize, CovarState};
 use super::stddev::{StddevPopFinalize, VarianceState};
+use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
@@ -127,9 +128,10 @@ impl AggregateState<(&f64, &f64), f64> for CorrelationState {
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
     where
-        M: AddressableMut<T = f64>,
+        M: AddressableMut<B, T = f64>,
+        B: BufferManager,
     {
         match self.finalize_value() {
             Some(val) => output.put(&val),

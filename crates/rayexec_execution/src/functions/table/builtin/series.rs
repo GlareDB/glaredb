@@ -208,7 +208,7 @@ impl SeriesParams {
         }
 
         // Calculate the start value for the next iteration.
-        let last = out.get(idx - 1).expect("value to exist");
+        let last = out.slice.get(idx - 1).expect("value to exist");
         self.curr = *last + self.step;
 
         Ok(idx)

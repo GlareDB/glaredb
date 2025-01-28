@@ -26,7 +26,7 @@ impl UnaryInputNumericOperation for ExpOp {
         S: MutableScalarStorage,
         S::StorageType: Float,
     {
-        UnaryExecutor::execute::<S, S, _>(
+        UnaryExecutor::execute::<S, S, _, _>(
             input,
             selection,
             OutBuffer::from_array(output)?,

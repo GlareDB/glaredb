@@ -91,7 +91,6 @@ impl ScalarFunctionImpl for ListValuesImpl {
 
 #[cfg(test)]
 mod tests {
-    
 
     use stdutil::iter::TryFromExactSizeIterator;
 
@@ -140,6 +139,6 @@ mod tests {
         ];
 
         let s = PhysicalList::get_addressable(&out.data).unwrap();
-        assert_eq!(expected_metas, s);
+        assert_eq!(expected_metas, s.slice);
     }
 }

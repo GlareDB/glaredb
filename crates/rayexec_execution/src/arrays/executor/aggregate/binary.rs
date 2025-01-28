@@ -74,6 +74,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
+    use crate::arrays::array::buffer_manager::BufferManager;
     use crate::arrays::array::physical_type::{AddressableMut, PhysicalI32};
     use crate::arrays::executor::PutBuffer;
 
@@ -103,9 +104,10 @@ mod tests {
             Ok(())
         }
 
-        fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+        fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
         where
-            M: AddressableMut<T = i32>,
+            M: AddressableMut<B, T = i32>,
+            B: BufferManager,
         {
             output.put(&(self.sum + self.product));
             Ok(())

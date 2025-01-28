@@ -135,7 +135,7 @@ fn case_convert_execute<F>(
 where
     F: Fn(&str) -> String,
 {
-    UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+    UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
         input,
         sel,
         OutBuffer::from_array(output)?,

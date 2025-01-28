@@ -87,7 +87,7 @@ impl ScalarFunctionImpl for StringContainsConstantImpl {
         let sel = input.selection();
         let haystack = &input.arrays()[0];
 
-        UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _>(
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _, _>(
             haystack,
             sel,
             OutBuffer::from_array(output)?,
@@ -108,7 +108,7 @@ impl ScalarFunctionImpl for StringContainsImpl {
         let haystack = &input.arrays()[0];
         let needle = &input.arrays()[1];
 
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
+        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _, _>(
             haystack,
             sel,
             needle,

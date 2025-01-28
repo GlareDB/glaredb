@@ -2,6 +2,7 @@ use half::f16;
 use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
+use super::row_heap::RowHeapMetadataUnion;
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
@@ -30,7 +31,6 @@ use crate::arrays::array::physical_type::{
     ScalarStorage,
     UntypedNull,
 };
-use crate::arrays::array::string_view::StringViewMetadataUnion;
 use crate::arrays::array::Array;
 use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMut};
 use crate::arrays::datatype::DataType;
@@ -169,8 +169,8 @@ pub(crate) const fn row_width_for_physical_type(phys_type: PhysicalType) -> usiz
         PhysicalType::Float32 => f32::ENCODE_WIDTH,
         PhysicalType::Float64 => f64::ENCODE_WIDTH,
         PhysicalType::Interval => Interval::ENCODE_WIDTH,
-        PhysicalType::Binary => StringViewMetadataUnion::ENCODE_WIDTH,
-        PhysicalType::Utf8 => StringViewMetadataUnion::ENCODE_WIDTH,
+        // PhysicalType::Binary => StringViewMetadataUnion::ENCODE_WIDTH,
+        // PhysicalType::Utf8 => StringViewMetadataUnion::ENCODE_WIDTH,
         _ => unimplemented!(),
     }
 }
@@ -485,7 +485,7 @@ impl Encode for Interval {
     }
 }
 
-impl Encode for StringViewMetadataUnion {
+impl Encode for RowHeapMetadataUnion {
     const ENCODE_WIDTH: usize = 16;
 
     fn encode(&self, buf: &mut [u8]) {

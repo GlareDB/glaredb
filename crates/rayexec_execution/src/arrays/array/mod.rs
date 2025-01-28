@@ -3,7 +3,6 @@ pub mod buffer_manager;
 pub mod flat;
 pub mod physical_type;
 pub mod selection;
-pub mod string_view;
 pub mod validity;
 
 pub(in crate::arrays) mod raw;
@@ -756,7 +755,7 @@ macro_rules! impl_primitive_from_iter {
                 let mut array = Array::try_new(&manager, DataType::$typ_variant, iter.len())?;
                 let slice = <$phys>::get_addressable_mut(&mut array.data)?;
 
-                for (src, dest) in iter.zip(slice) {
+                for (src, dest) in iter.zip(slice.slice) {
                     *dest = src
                 }
 

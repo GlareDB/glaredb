@@ -188,7 +188,7 @@ where
     B: Fn(i64) -> DateTime<Utc>,
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _>(
+    UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
         arr,
         sel,
         OutBuffer::from_array(out)?,
@@ -208,7 +208,7 @@ fn date32_extract_with_fn<F>(
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI32, PhysicalI64, _>(
+    UnaryExecutor::execute::<PhysicalI32, PhysicalI64, _, _>(
         arr,
         sel,
         OutBuffer::from_array(out)?,
@@ -229,7 +229,7 @@ fn date64_extract_with_fn<F>(
 where
     F: Fn(DateTime<Utc>) -> i64,
 {
-    UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _>(
+    UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
         arr,
         sel,
         OutBuffer::from_array(out)?,

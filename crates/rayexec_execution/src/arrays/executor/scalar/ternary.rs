@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
+use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::Array;
@@ -12,14 +13,14 @@ use crate::arrays::executor::{OutBuffer, PutBuffer};
 pub struct TernaryExecutor;
 
 impl TernaryExecutor {
-    pub fn execute<S1, S2, S3, O, Op>(
-        array1: &Array,
+    pub fn execute<S1, S2, S3, O, Op, B>(
+        array1: &Array<B>,
         sel1: impl IntoExactSizeIterator<Item = usize>,
-        array2: &Array,
+        array2: &Array<B>,
         sel2: impl IntoExactSizeIterator<Item = usize>,
-        array3: &Array,
+        array3: &Array<B>,
         sel3: impl IntoExactSizeIterator<Item = usize>,
-        out: OutBuffer,
+        out: OutBuffer<B>,
         mut op: Op,
     ) -> Result<()>
     where
@@ -31,8 +32,9 @@ impl TernaryExecutor {
             &S1::StorageType,
             &S2::StorageType,
             &S3::StorageType,
-            PutBuffer<O::AddressableMut<'a>>,
+            PutBuffer<O::AddressableMut<'a, B>, B>,
         ),
+        B: BufferManager,
     {
         if array1.should_flatten_for_execution()
             || array2.should_flatten_for_execution()
@@ -42,7 +44,7 @@ impl TernaryExecutor {
             let flat2 = array2.flatten()?;
             let flat3 = array3.flatten()?;
 
-            return Self::execute_flat::<S1, S2, S3, O, _>(
+            return Self::execute_flat::<S1, S2, S3, O, _, _>(
                 flat1, sel1, flat2, sel2, flat3, sel3, out, op,
             );
         }
@@ -105,14 +107,14 @@ impl TernaryExecutor {
         Ok(())
     }
 
-    pub fn execute_flat<'a, S1, S2, S3, O, Op>(
-        array1: FlattenedArray<'a>,
+    pub fn execute_flat<'a, S1, S2, S3, O, Op, B>(
+        array1: FlattenedArray<'a, B>,
         sel1: impl IntoExactSizeIterator<Item = usize>,
-        array2: FlattenedArray<'a>,
+        array2: FlattenedArray<'a, B>,
         sel2: impl IntoExactSizeIterator<Item = usize>,
-        array3: FlattenedArray<'a>,
+        array3: FlattenedArray<'a, B>,
         sel3: impl IntoExactSizeIterator<Item = usize>,
-        out: OutBuffer,
+        out: OutBuffer<B>,
         mut op: Op,
     ) -> Result<()>
     where
@@ -124,8 +126,9 @@ impl TernaryExecutor {
             &S1::StorageType,
             &S2::StorageType,
             &S3::StorageType,
-            PutBuffer<O::AddressableMut<'b>>,
+            PutBuffer<O::AddressableMut<'b, B>, B>,
         ),
+        B: BufferManager,
     {
         // TODO: length validation.
 
@@ -214,7 +217,7 @@ mod tests {
 
         let mut str_buf = String::new();
 
-        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(
+        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _, _>(
             &strings,
             0..3,
             &count,
@@ -249,7 +252,7 @@ mod tests {
 
         let mut str_buf = String::new();
 
-        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(
+        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _, _>(
             &strings,
             0..3,
             &count,
@@ -286,7 +289,7 @@ mod tests {
 
         let mut str_buf = String::new();
 
-        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(
+        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _, _>(
             &strings,
             0..3,
             &count,
@@ -323,7 +326,7 @@ mod tests {
 
         let mut str_buf = String::new();
 
-        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(
+        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _, _>(
             &strings,
             0..3,
             &count,
@@ -356,7 +359,7 @@ mod tests {
         let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
-        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(
+        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _, _>(
             &strings,
             0..3,
             &count,

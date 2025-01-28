@@ -112,7 +112,7 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
         let out = PhysicalBool::get_addressable_mut(&mut output.data)?;
         if input.physical_type() == PhysicalType::UntypedNull {
             // Everything null, just set to default value.
-            out.iter_mut().for_each(|v| *v = IS_NULL);
+            out.slice.iter_mut().for_each(|v| *v = IS_NULL);
             return Ok(());
         }
 
@@ -121,9 +121,9 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
         for (output_idx, idx) in sel.into_iter().enumerate() {
             let is_valid = flat.validity.is_valid(idx);
             if is_valid {
-                out[output_idx] = !IS_NULL;
+                out.slice[output_idx] = !IS_NULL;
             } else {
-                out[output_idx] = IS_NULL;
+                out.slice[output_idx] = IS_NULL;
             }
         }
 
@@ -318,12 +318,12 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT
         for (output_idx, idx) in sel.into_iter().enumerate() {
             let is_valid = flat.validity.is_valid(idx);
             if is_valid {
-                let val = input[idx];
-                out[output_idx] = if NOT { val != BOOL } else { val == BOOL }
+                let val = input.slice[idx];
+                out.slice[output_idx] = if NOT { val != BOOL } else { val == BOOL }
             } else {
                 // 'IS TRUE', 'IS FALSE' => false
                 // 'IS NOT TRUE', 'IS NOT FALSE' => true
-                out[output_idx] = NOT;
+                out.slice[output_idx] = NOT;
             }
         }
 

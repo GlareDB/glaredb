@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use rayexec_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::physical_type::PhysicalBool;
+use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalBool};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -75,19 +75,14 @@ impl ScalarFunctionImpl for AndImpl {
         match input.arrays().len() {
             0 => {
                 // TODO: Default to false?
-                // let vals = output
-                //     .data
-                //     .try_as_mut()?
-                //     .try_as_slice_mut::<PhysicalBool>()?;
-
-                // for v in vals {
-                //     *v = false;
-                // }
-                unimplemented!()
+                let vals = PhysicalBool::get_addressable_mut(&mut output.data)?;
+                for v in vals.slice {
+                    *v = false;
+                }
             }
             1 => {
                 let input = &input.arrays()[0];
-                UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _>(
+                UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
                     input,
                     sel,
                     OutBuffer::from_array(output)?,
@@ -98,7 +93,7 @@ impl ScalarFunctionImpl for AndImpl {
                 let a = &input.arrays()[0];
                 let b = &input.arrays()[1];
 
-                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _>(
+                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _, _>(
                     a,
                     sel,
                     b,
@@ -107,7 +102,7 @@ impl ScalarFunctionImpl for AndImpl {
                     |&a, &b, buf| buf.put(&(a && b)),
                 )?;
             }
-            _ => UniformExecutor::execute::<PhysicalBool, PhysicalBool, _>(
+            _ => UniformExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
                 input.arrays(),
                 sel,
                 OutBuffer::from_array(output)?,
@@ -179,19 +174,14 @@ impl ScalarFunctionImpl for OrImpl {
         match input.arrays().len() {
             0 => {
                 // TODO: Default to false?
-                // let vals = output
-                //     .data
-                //     .try_as_mut()?
-                //     .try_as_slice_mut::<PhysicalBool>()?;
-
-                // for v in vals {
-                //     *v = false;
-                // }
-                unimplemented!()
+                let vals = PhysicalBool::get_addressable_mut(&mut output.data)?;
+                for v in vals.slice {
+                    *v = false;
+                }
             }
             1 => {
                 let input = &input.arrays()[0];
-                UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _>(
+                UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
                     input,
                     sel,
                     OutBuffer::from_array(output)?,
@@ -202,7 +192,7 @@ impl ScalarFunctionImpl for OrImpl {
                 let a = &input.arrays()[0];
                 let b = &input.arrays()[1];
 
-                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _>(
+                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _, _>(
                     a,
                     sel,
                     b,
@@ -211,7 +201,7 @@ impl ScalarFunctionImpl for OrImpl {
                     |&a, &b, buf| buf.put(&(a || b)),
                 )?;
             }
-            _ => UniformExecutor::execute::<PhysicalBool, PhysicalBool, _>(
+            _ => UniformExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
                 input.arrays(),
                 sel,
                 OutBuffer::from_array(output)?,
@@ -225,7 +215,6 @@ impl ScalarFunctionImpl for OrImpl {
 
 #[cfg(test)]
 mod tests {
-    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

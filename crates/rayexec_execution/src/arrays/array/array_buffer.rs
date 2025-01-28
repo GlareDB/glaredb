@@ -6,15 +6,13 @@ use rayexec_error::{RayexecError, Result};
 use stdutil::convert::TryAsMut;
 
 use super::buffer_manager::BufferManager;
-use super::raw::{RawBuffer, TypedRawBuffer};
-use super::string_view::{
+use super::physical_type::{
     BinaryViewAddressable,
     BinaryViewAddressableMut,
     StringViewAddressable,
     StringViewAddressableMut,
-    StringViewHeap,
-    StringViewMetadataUnion,
 };
+use super::raw::{RawBuffer, TypedRawBuffer};
 use super::validity::Validity;
 use crate::arrays::array::physical_type::{
     PhysicalBinary,
@@ -38,6 +36,7 @@ use crate::arrays::array::physical_type::{
     PhysicalUtf8,
     ScalarStorage,
 };
+use crate::arrays::collection::row_heap::{RowHeap, RowHeapMetadataUnion};
 use crate::arrays::datatype::DataType;
 
 /// Abstraction layer for holding shared or owned array data.
@@ -495,8 +494,9 @@ where
 
 #[derive(Debug)]
 pub struct StringBuffer<B: BufferManager> {
-    pub(crate) metadata: SharedOrOwned<TypedRawBuffer<StringViewMetadataUnion, B>>,
-    pub(crate) heap: SharedOrOwned<StringViewHeap>,
+    pub(crate) is_utf8: bool,
+    pub(crate) metadata: SharedOrOwned<TypedRawBuffer<RowHeapMetadataUnion, B>>,
+    pub(crate) heap: SharedOrOwned<RowHeap<B>>,
 }
 
 impl<B> StringBuffer<B>
@@ -507,9 +507,9 @@ where
         self.metadata.try_as_mut()?.reserve(additional)
     }
 
-    pub fn try_as_string_view(&self) -> Result<StringViewAddressable> {
+    pub fn try_as_string_view(&self) -> Result<StringViewAddressable<B>> {
         let heap = &self.heap;
-        if !heap.is_utf8() {
+        if !self.is_utf8 {
             return Err(RayexecError::new("Cannot view raw binary as strings"));
         }
 
@@ -519,9 +519,9 @@ where
         })
     }
 
-    pub fn try_as_string_view_mut(&mut self) -> Result<StringViewAddressableMut> {
+    pub fn try_as_string_view_mut(&mut self) -> Result<StringViewAddressableMut<B>> {
         let heap = self.heap.try_as_mut()?;
-        if !heap.is_utf8() {
+        if !self.is_utf8 {
             return Err(RayexecError::new("Cannot view raw binary as strings"));
         }
 
@@ -531,7 +531,7 @@ where
         })
     }
 
-    pub fn as_binary_view(&self) -> BinaryViewAddressable {
+    pub fn as_binary_view(&self) -> BinaryViewAddressable<B> {
         // Note that we don't check if this is utf8 or not. We always allow
         // getting binary slices even when we're dealing with strings.
         BinaryViewAddressable {
@@ -540,11 +540,11 @@ where
         }
     }
 
-    pub fn try_as_binary_view_mut(&mut self) -> Result<BinaryViewAddressableMut> {
+    pub fn try_as_binary_view_mut(&mut self) -> Result<BinaryViewAddressableMut<B>> {
         let heap = self.heap.try_as_mut()?;
         // Unlike binary view, we don't want to allow mutable access to string
         // data without validating it.
-        if heap.is_utf8() {
+        if self.is_utf8 {
             return Err(RayexecError::new(
                 "Cannot view modify raw binary for string data",
             ));
@@ -570,9 +570,10 @@ where
                 )))
             }
         };
-        let heap = StringViewHeap::new(is_utf8);
+        let heap = RowHeap::with_capacity(manager, 0)?;
 
         Ok(StringBuffer {
+            is_utf8,
             metadata: SharedOrOwned::owned(metadata),
             heap: SharedOrOwned::owned(heap),
         })
@@ -591,11 +592,16 @@ where
         let metadata = self.metadata.make_shared_and_clone();
         let heap = self.heap.make_shared_and_clone();
 
-        StringBuffer { metadata, heap }
+        StringBuffer {
+            is_utf8: self.is_utf8,
+            metadata,
+            heap,
+        }
     }
 
     fn try_clone_shared(&self) -> Result<Self> {
         Ok(StringBuffer {
+            is_utf8: self.is_utf8,
             metadata: self.metadata.try_clone_shared()?,
             heap: self.heap.try_clone_shared()?,
         })

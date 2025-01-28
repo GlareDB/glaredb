@@ -109,7 +109,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::array::buffer_manager::{BufferManager, NopBufferManager};
     use crate::arrays::array::physical_type::{AddressableMut, PhysicalI32, PhysicalUtf8};
     use crate::arrays::executor::PutBuffer;
 
@@ -129,9 +129,10 @@ mod tests {
             Ok(())
         }
 
-        fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+        fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
         where
-            M: AddressableMut<T = i32>,
+            M: AddressableMut<B, T = i32>,
+            B: BufferManager,
         {
             output.put(&self.val);
             Ok(())
@@ -259,9 +260,10 @@ mod tests {
             Ok(())
         }
 
-        fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+        fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
         where
-            M: AddressableMut<T = str>,
+            M: AddressableMut<B, T = str>,
+            B: BufferManager,
         {
             output.put(&self.val);
             Ok(())

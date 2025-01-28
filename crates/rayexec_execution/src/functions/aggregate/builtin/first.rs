@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 
 use rayexec_error::{not_implemented, Result};
 
+use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
@@ -183,9 +184,10 @@ where
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
     where
-        M: AddressableMut<T = T>,
+        M: AddressableMut<B, T = T>,
+        B: BufferManager,
     {
         match &self.value {
             Some(val) => output.put(val),
@@ -215,9 +217,10 @@ impl AggregateState<&[u8], [u8]> for FirstBinaryState {
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
     where
-        M: AddressableMut<T = [u8]>,
+        M: AddressableMut<B, T = [u8]>,
+        B: BufferManager,
     {
         match &self.value {
             Some(val) => output.put(val),
@@ -247,9 +250,10 @@ impl AggregateState<&str, str> for FirstStringState {
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
     where
-        M: AddressableMut<T = str>,
+        M: AddressableMut<B, T = str>,
+        B: BufferManager,
     {
         match &self.value {
             Some(val) => output.put(val),

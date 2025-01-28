@@ -632,7 +632,7 @@ where
         let left = &input.arrays()[0];
         let right = &input.arrays()[1];
 
-        BinaryExecutor::execute::<S, S, PhysicalBool, _>(
+        BinaryExecutor::execute::<S, S, PhysicalBool, _, _>(
             left,
             sel,
             right,
@@ -645,8 +645,6 @@ where
 
 #[cfg(test)]
 mod tests {
-
-    
 
     use stdutil::iter::TryFromExactSizeIterator;
 

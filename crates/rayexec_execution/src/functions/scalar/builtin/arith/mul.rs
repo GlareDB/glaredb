@@ -234,7 +234,7 @@ where
 
         let (lhs, rhs) = if LHS_RHS_FLIPPED { (b, a) } else { (a, b) };
 
-        BinaryExecutor::execute::<PhysicalInterval, Rhs, PhysicalInterval, _>(
+        BinaryExecutor::execute::<PhysicalInterval, Rhs, PhysicalInterval, _, _>(
             lhs,
             sel,
             rhs,
@@ -272,7 +272,7 @@ where
         let a = &input.arrays()[0];
         let b = &input.arrays()[1];
 
-        BinaryExecutor::execute::<D::Storage, D::Storage, D::Storage, _>(
+        BinaryExecutor::execute::<D::Storage, D::Storage, D::Storage, _, _>(
             a,
             sel,
             b,
@@ -304,7 +304,7 @@ where
         let a = &input.arrays()[0];
         let b = &input.arrays()[1];
 
-        BinaryExecutor::execute::<S, S, S, _>(
+        BinaryExecutor::execute::<S, S, S, _, _>(
             a,
             sel,
             b,
@@ -317,7 +317,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    
 
     use stdutil::iter::TryFromExactSizeIterator;
 
