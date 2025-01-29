@@ -1,3 +1,5 @@
+use std::sync::atomic::{self, AtomicU64};
+
 use rayexec_error::Result;
 
 use crate::arrays::array::buffer_manager::NopBufferManager;
@@ -5,9 +7,10 @@ use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64};
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::collection::row::RowCollection;
+use crate::arrays::collection::row::{RowAddress, RowCollection};
 use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
+use crate::execution::operators::join::hash_table_entry::HashTableEntry;
 use crate::execution::operators::join::produce_all_build_side_rows;
 use crate::logical::logical_join::JoinType;
 
@@ -21,6 +24,8 @@ pub struct JoinHashTable {
     build_key_columns: Vec<usize>,
     /// Column indices for data we're not joining on.
     build_data_columns: Vec<usize>,
+    /// Byte offset into a row for where the hash/next entry value is stored.
+    build_hash_offset: usize,
 }
 
 impl JoinHashTable {
@@ -34,7 +39,7 @@ impl JoinHashTable {
     /// This will hash the key columns and insert batches into the row
     /// collection.
     pub fn collect_build(&mut self, state: &mut BuildState, input: &Batch) -> Result<()> {
-        // Array references: [keys, hashes, data, matches]
+        // Array references: [keys, hashes/next_entry, data, matches]
         let mut arrays = Vec::with_capacity(self.data.layout().types.len());
         // Get key arrays.
         for &col_idx in &self.build_key_columns {
@@ -43,6 +48,9 @@ impl JoinHashTable {
 
         // Produce hashes from key arrays. Note we only have the keys in
         // `arrays` here.
+        //
+        // Hashes will get replaced by a next entry in the chain when inserting
+        // the hashes.
         let mut hashes = Array::try_new(&NopBufferManager, DataType::UInt64, input.num_rows())?;
         let hash_vals = PhysicalU64::get_addressable_mut(&mut hashes.data)?;
         hash_many_arrays(arrays.iter().copied(), 0..input.num_rows(), hash_vals.slice)?;
@@ -73,6 +81,55 @@ impl JoinHashTable {
         hash_many_arrays(&rhs_keys.arrays, rhs_keys.selection(), &mut state.hashes)?;
 
         unimplemented!()
+    }
+
+    /// Attempts to insert a new row entry into an existing entry that we expect
+    /// to be empty.
+    ///
+    /// Returns a bool indicating if the write succeeded. If `false`, then a
+    /// separate thread wrote to the same entry that we were writing to.
+    fn insert_empty(&self, curr_ent: &AtomicU64, row: RowAddress, row_hash: u64) -> bool {
+        let dir_ent = HashTableEntry::new(row, row_hash);
+
+        // Attempt to swap out the entry that we expect to be empty.
+        let did_write = curr_ent
+            .compare_exchange(
+                HashTableEntry::DANGLING_U64,
+                dir_ent.as_u64(),
+                atomic::Ordering::Acquire,
+                atomic::Ordering::Relaxed,
+            )
+            .is_ok();
+
+        did_write
+    }
+
+    /// Attempts to insert a new row entry at the beginning of the chain.
+    fn insert_occupied(&self, curr_ent: &AtomicU64, row: RowAddress, row_hash: u64) {
+        let dir_ent = HashTableEntry::new(row, row_hash);
+
+        // SAFETY: ...
+        //
+        // An assumption is made that we're only ever generating valid row
+        // addresses when inserting into the hash table.
+        let row_ptr = unsafe { self.data.row_ptr(row) };
+
+        let ent = curr_ent.load(atomic::Ordering::Relaxed);
+        loop {}
+
+        unimplemented!()
+    }
+
+    /// Gets a raw pointer for for getting the next entry for a row when
+    /// following the hash chain.
+    ///
+    /// # Safety
+    ///
+    /// The row address must point to a valid row in the collected row data.
+    unsafe fn next_entry_ptr_mut(&self, row: RowAddress) -> *const u64 {
+        let row_ptr = self.data.row_ptr(row);
+        let next_ent_ptr = row_ptr.byte_add(self.build_hash_offset);
+        next_ent_ptr.cast()
     }
 }
 

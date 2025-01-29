@@ -1,7 +1,12 @@
+use crate::arrays::collection::row::RowAddress;
+
 /// An entry in the join hash table pointing to a row in a chunk.
 ///
 /// This is expected to be interchangeable with the hash value for a row (so
 /// must be 64 bits)
+///
+/// Entries with all fields set to zero are considered dangling, meaning it does
+/// not point to a row.
 // TODO: This will leave some performance on the table compared to raw pointers,
 // but don't want to get into the mess of pointers in rust yet (whatever the
 // "provenance" stuff is).
@@ -23,16 +28,26 @@ pub struct HashTableEntry {
 
 impl HashTableEntry {
     const _SIZE_ASSERTION: () = assert!(std::mem::size_of::<Self>() == std::mem::size_of::<u64>());
-    const DANGLING_CHUNK_IDX: u32 = u32::MAX;
 
-    const SIZE: usize = std::mem::size_of::<*const u8>();
-
-    /// Represents an entry that points to no rows.
     pub const DANGLING: Self = HashTableEntry {
-        chunk_idx: Self::DANGLING_CHUNK_IDX,
+        chunk_idx: 0,
         row_idx: 0,
         hash_prefix: 0,
     };
+
+    pub const DANGLING_U64: u64 = Self::DANGLING.as_u64();
+
+    pub const fn new(addr: RowAddress, hash: u64) -> Self {
+        HashTableEntry {
+            chunk_idx: addr.chunk_idx,
+            row_idx: addr.row_idx,
+            hash_prefix: hash_prefix(hash),
+        }
+    }
+
+    pub const fn is_dangling(self) -> bool {
+        self.as_u64() == Self::DANGLING_U64
+    }
 
     /// Converts self to a u64.
     pub const fn as_u64(self) -> u64 {

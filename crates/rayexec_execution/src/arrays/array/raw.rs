@@ -97,22 +97,34 @@ where
     B: BufferManager,
 {
     /// Try to create a new buffer with a given capacity for type `T`.
+    ///
+    /// This will allocate the underlying buffer to fit exactly `cap` elements.
+    /// The block of memory may or may not be initialized. Data must be written
+    /// to buffer locations prior to reading from those locations.
     pub fn try_with_capacity<T>(manager: &B, cap: usize) -> Result<Self> {
         let align = std::mem::align_of::<T>();
         let size_bytes = std::mem::size_of::<T>() * cap;
 
         let reservation = manager.try_reserve(size_bytes)?;
 
-        // Note that creating zero cap layouts is fine. We'll end up with a
-        // valid pointer that can be cast to an empty slice.
-        let layout = Layout::array::<T>(cap).context("failed to create layout")?;
-        let ptr = unsafe { alloc::alloc(layout) };
-        let ptr = match NonNull::new(ptr) {
-            Some(ptr) => ptr,
-            None => alloc::handle_alloc_error(layout),
-        };
+        let ptr = if size_bytes == 0 {
+            // If the amount we're trying to allocate is zero, we still want a
+            // valid pointer. A dangling pointer is still well aligned so is
+            // usable here.
+            //
+            // Previously we attempted to init a layout with zero cap to avoid
+            // the conditional, but that UB when using the global allocator.
+            NonNull::<T>::dangling().cast()
+        } else {
+            let layout = Layout::array::<T>(cap).context("failed to create layout")?;
+            assert_eq!(size_bytes, layout.size());
 
-        assert_eq!(size_bytes, layout.size());
+            let ptr = unsafe { alloc::alloc(layout) };
+            match NonNull::new(ptr) {
+                Some(ptr) => ptr,
+                None => alloc::handle_alloc_error(layout),
+            }
+        };
 
         Ok(RawBuffer {
             reservation,
@@ -124,6 +136,14 @@ where
 
     pub fn capacity(&self) -> usize {
         self.capacity
+    }
+
+    pub fn as_ptr(&self) -> *const u8 {
+        self.ptr.as_ptr().cast_const()
+    }
+
+    pub fn as_mut_ptr(&self) -> *mut u8 {
+        self.ptr.as_ptr()
     }
 
     pub unsafe fn as_slice<T>(&self) -> &[T] {
@@ -162,11 +182,6 @@ where
         std::slice::from_raw_parts_mut(self.ptr.as_ptr().cast::<T>(), self.capacity)
     }
 
-    /// Return the underlying bytes for this buffer.
-    pub fn as_bytes(&self) -> &[u8] {
-        unimplemented!()
-    }
-
     /// Reserves memory for holding `additional` number of `T` elements.
     ///
     /// This will reallocate using the buffer manager on the existing memory reservation.
@@ -184,6 +199,24 @@ where
             self.reservation.size(),
             self.capacity * std::mem::size_of::<T>()
         );
+
+        if additional == 0 {
+            // Nothing to do.
+            return Ok(());
+        }
+
+        if self.capacity == 0 {
+            // Just replace self with a new buffer to avoid the below logic (and
+            // avoid needing to special case zero-cap layouts).
+            *self = Self::try_with_capacity::<T>(self.reservation.manager(), additional)?;
+            return Ok(());
+        }
+
+        if std::mem::size_of::<T>() == 0 {
+            // Just need to update capacity.
+            self.capacity += additional;
+            return Ok(());
+        }
 
         let cap = self.reservation.size() / std::mem::size_of::<T>();
 
@@ -260,6 +293,19 @@ mod tests {
     }
 
     #[test]
+    fn new_zero_sized_type() {
+        #[derive(Debug, PartialEq, Eq)]
+        struct Zst;
+
+        let b = RawBuffer::try_with_capacity::<Zst>(&NopBufferManager, 4).unwrap();
+        assert_eq!(0, b.reservation.size());
+        assert_eq!(1, b.align);
+
+        let s = unsafe { b.as_slice::<Zst>() };
+        assert_eq!(&[Zst, Zst, Zst, Zst], s);
+    }
+
+    #[test]
     fn as_slice_mut() {
         let mut b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 4).unwrap();
         let s = unsafe { b.as_slice_mut::<i64>() };
@@ -275,7 +321,7 @@ mod tests {
     }
 
     #[test]
-    fn reserve() {
+    fn reserve_additional() {
         let mut b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 4).unwrap();
         let s = unsafe { b.as_slice_mut::<i64>() };
         assert_eq!(4, s.len());
@@ -296,5 +342,64 @@ mod tests {
 
         let s = unsafe { b.as_slice::<i64>() };
         assert_eq!(&[0, 1, 2, 3, 0, 2, 4, 6], s);
+    }
+
+    #[test]
+    fn reserve_additional_zero() {
+        let mut b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 4).unwrap();
+        let s = unsafe { b.as_slice_mut::<i64>() };
+        for i in 0..4 {
+            s[i] = i as i64;
+        }
+
+        unsafe { b.reserve::<i64>(0).unwrap() };
+
+        let s = unsafe { b.as_slice::<i64>() };
+        assert_eq!(&[0, 1, 2, 3], s)
+    }
+
+    #[test]
+    fn reserve_initial_zero_cap() {
+        let mut b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 0).unwrap();
+        unsafe { b.reserve::<i64>(8).unwrap() };
+        let s = unsafe { b.as_slice::<i64>() };
+        assert_eq!(8, s.len());
+    }
+
+    #[test]
+    fn reserve_addition_with_zst() {
+        #[derive(Debug, PartialEq, Eq)]
+        struct Zst;
+
+        let mut b = RawBuffer::try_with_capacity::<Zst>(&NopBufferManager, 2).unwrap();
+        unsafe { b.reserve::<Zst>(4).unwrap() };
+
+        let s = unsafe { b.as_slice::<Zst>() };
+        assert_eq!(&[Zst, Zst, Zst, Zst, Zst, Zst], s);
+    }
+
+    #[test]
+    fn distinct_mut_pointers() {
+        // Test that we can have multiple pointers that can be written to to the
+        // same underlying buffer.
+        //
+        // This is the basis for how we build the hash join table where we write
+        // to multiple non-overlapping pointers as needed.
+        //
+        // This avoid undefined behavior by:
+        //
+        // - Ensuring there's no shared slice reference.
+        // - Ensuring the pointers don't overlap during writes.
+
+        let b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 2).unwrap();
+
+        let p1 = b.as_mut_ptr();
+        let p2 = unsafe { b.as_mut_ptr().add(8) };
+
+        unsafe { p1.cast::<i64>().write_unaligned(18) };
+        unsafe { p2.cast::<i64>().write_unaligned(1024) };
+
+        let s = unsafe { b.as_slice::<i64>() };
+        assert_eq!(&[18, 1024], s);
     }
 }

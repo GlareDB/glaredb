@@ -8,29 +8,10 @@ use super::row_heap::{RowHeap, RowHeapMetadataUnion};
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
-    Addressable,
-    AddressableMut,
-    MutableScalarStorage,
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI128,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI8,
-    PhysicalInterval,
-    PhysicalType,
-    PhysicalU128,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU8,
-    PhysicalUntypedNull,
-    ScalarStorage,
-    UntypedNull,
+    Addressable, AddressableMut, MutableScalarStorage, PhysicalBinary, PhysicalBool, PhysicalF16,
+    PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI8,
+    PhysicalInterval, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64,
+    PhysicalU8, PhysicalUntypedNull, ScalarStorage, UntypedNull,
 };
 use crate::arrays::array::Array;
 use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMut};
@@ -110,6 +91,9 @@ impl RowLayout {
         A: Borrow<Array<B>>,
         B: BufferManager,
     {
+        let num_rows = selection.clone().into_exact_size_iter().len();
+        init_row_validities(self, num_rows, buffer);
+
         for (array_idx, array) in arrays.iter().enumerate() {
             let array = array.borrow();
             let phys_type = array.datatype().physical_type();
@@ -187,6 +171,20 @@ pub(crate) const fn row_width_for_physical_type(phys_type: PhysicalType) -> usiz
         PhysicalType::Binary => RowHeapMetadataUnion::ENCODE_WIDTH,
         PhysicalType::Utf8 => RowHeapMetadataUnion::ENCODE_WIDTH,
         _ => unimplemented!(),
+    }
+}
+
+/// Initializes row validities for some number of rows in the buffer.
+///
+/// This serves two purposes:
+///
+/// - Ensures that the memory is initialized
+/// - Prevent needing to explicitly set columns as valid
+fn init_row_validities(layout: &RowLayout, num_rows: usize, buffer: &mut [u8]) {
+    for row in 0..num_rows {
+        let validity_offset = layout.row_width * row;
+        let out_buf = &mut buffer[validity_offset..(validity_offset + layout.validity_width)];
+        out_buf.iter_mut().for_each(|b| *b = u8::MAX);
     }
 }
 
@@ -289,14 +287,6 @@ where
 
     if validity.all_valid() {
         for (output_idx, input_idx) in selection.into_iter().enumerate() {
-            // TODO: Skip this?
-            //
-            // Would require that we init the buffer with u8::MAX for the
-            // validity bytes.
-            let validity_offset = layout.row_width * output_idx;
-            let out_buf = &mut buffer[validity_offset..(validity_offset + layout.validity_width)];
-            BitmapViewMut::new(out_buf, layout.num_columns()).set(array_idx);
-
             let sel_idx = array.selection.get(input_idx).unwrap();
             let v = data.get(sel_idx).unwrap();
 
@@ -309,12 +299,6 @@ where
     } else {
         for (output_idx, input_idx) in selection.into_iter().enumerate() {
             if validity.is_valid(input_idx) {
-                // TODO: See above
-                let validity_offset = layout.row_width * output_idx;
-                let out_buf =
-                    &mut buffer[validity_offset..(validity_offset + layout.validity_width)];
-                BitmapViewMut::new(out_buf, layout.num_columns()).set(array_idx);
-
                 let sel_idx = array.selection.get(input_idx).unwrap();
                 let v = data.get(sel_idx).unwrap();
 
@@ -353,14 +337,6 @@ where
 
     if validity.all_valid() {
         for (output_idx, input_idx) in selection.into_iter().enumerate() {
-            // TODO: Skip this?
-            //
-            // Would require that we init the buffer with u8::MAX for the
-            // validity bytes.
-            let validity_offset = layout.row_width * output_idx;
-            let out_buf = &mut buffer[validity_offset..(validity_offset + layout.validity_width)];
-            BitmapViewMut::new(out_buf, layout.num_columns()).set(array_idx);
-
             let sel_idx = array.selection.get(input_idx).unwrap();
             let v = data.get(sel_idx).unwrap();
 
@@ -371,12 +347,6 @@ where
     } else {
         for (output_idx, input_idx) in selection.into_iter().enumerate() {
             if validity.is_valid(input_idx) {
-                // TODO: See above
-                let validity_offset = layout.row_width * output_idx;
-                let out_buf =
-                    &mut buffer[validity_offset..(validity_offset + layout.validity_width)];
-                BitmapViewMut::new(out_buf, layout.num_columns()).set(array_idx);
-
                 let sel_idx = array.selection.get(input_idx).unwrap();
                 let v = data.get(sel_idx).unwrap();
 

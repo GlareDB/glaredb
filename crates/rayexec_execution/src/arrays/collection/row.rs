@@ -9,6 +9,13 @@ use crate::arrays::array::raw::TypedRawBuffer;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 
+/// Address to a single row in the collection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RowAddress {
+    pub chunk_idx: u32,
+    pub row_idx: u16,
+}
+
 /// Collects array data by first row-encoding the data and storing it in raw
 /// buffers.
 #[derive(Debug)]
@@ -135,6 +142,20 @@ impl RowCollection {
         // Scan state has been update, nothing else to do here...
 
         Ok(row_count)
+    }
+
+    /// Returns a pointer to the start of a row in the collection.
+    ///
+    /// # Safety
+    ///
+    /// The row address provided must point to a valid row to ensure the pointer
+    /// remains in bounds.
+    pub(crate) unsafe fn row_ptr(&self, addr: RowAddress) -> *const u8 {
+        let chunk = &self.chunks[addr.chunk_idx as usize];
+        debug_assert!(addr.row_idx as usize <= chunk.filled);
+
+        let offset = self.layout.row_width * (addr.row_idx as usize);
+        chunk.data.as_slice().as_ptr().byte_offset(offset as isize)
     }
 }
 
