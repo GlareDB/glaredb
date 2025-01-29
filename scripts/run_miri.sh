@@ -5,5 +5,5 @@
 # It's not expected that all tests can pass miri (unsupported features) so we
 # need to be a bit more granular with which tests to run.
 
-cargo +nightly miri test -p rayexec_execution arrays
+cargo +nightly miri test -p rayexec_execution
 
