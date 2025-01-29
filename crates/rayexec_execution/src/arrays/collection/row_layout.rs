@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use half::f16;
 use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
@@ -97,17 +99,19 @@ impl RowLayout {
     /// Encodes arrays into a buffer using this layout.
     ///
     /// The buffer must be the exact size for encoding the length of the selection.
-    pub(crate) fn encode_arrays<B>(
+    pub(crate) fn encode_arrays<A, B>(
         &self,
-        arrays: &[Array<B>],
+        arrays: &[A],
         selection: impl IntoExactSizeIterator<Item = usize> + Clone,
         buffer: &mut [u8],
         heap: &mut RowHeap<B>,
     ) -> Result<()>
     where
+        A: Borrow<Array<B>>,
         B: BufferManager,
     {
         for (array_idx, array) in arrays.iter().enumerate() {
+            let array = array.borrow();
             let phys_type = array.datatype().physical_type();
             let array = array.flatten()?;
             encode_array(
@@ -544,12 +548,12 @@ macro_rules! primitive_encode {
             const ENCODE_WIDTH: usize = $encode_width;
 
             fn encode(&self, buf: &mut [u8]) {
-                let b = self.to_be_bytes();
+                let b = self.to_le_bytes();
                 buf.copy_from_slice(&b);
             }
 
             fn decode(buf: &[u8]) -> Self {
-                Self::from_be_bytes(buf.try_into().unwrap())
+                Self::from_le_bytes(buf.try_into().unwrap())
             }
         }
     };

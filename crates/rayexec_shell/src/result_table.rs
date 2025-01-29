@@ -237,20 +237,21 @@ impl<'a> Iterator for MaterializedRowIter<'a> {
     #[allow(deprecated)]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let batch = self.table.batches.get(self.batch_idx)?;
+            unimplemented!()
+            // let batch = self.table.batches.get(self.batch_idx)?;
 
-            // TODO: Reuse underlying vec
-            match batch.row(self.row_idx) {
-                Some(row) => {
-                    self.row_idx += 1;
-                    return Some(row);
-                }
-                None => {
-                    // Try next batch.
-                    self.row_idx = 0;
-                    self.batch_idx += 1;
-                }
-            }
+            // // TODO: Reuse underlying vec
+            // match batch.row(self.row_idx) {
+            //     Some(row) => {
+            //         self.row_idx += 1;
+            //         return Some(row);
+            //     }
+            //     None => {
+            //         // Try next batch.
+            //         self.row_idx = 0;
+            //         self.batch_idx += 1;
+            //     }
+            // }
         }
     }
 }

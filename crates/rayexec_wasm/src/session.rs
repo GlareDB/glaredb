@@ -161,22 +161,23 @@ impl WasmMaterializedColumn {
     }
 
     pub fn value_as_string(&self, row_idx: usize) -> Result<Option<String>> {
-        const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
-        let v = self.0.with_row(
-            |arr, row| {
-                let valid = arr.is_valid(row).expect("row in bounds");
-                if valid {
-                    Ok(Some(
-                        FORMATTER.format_array_value(arr, row).unwrap().to_string(),
-                    ))
-                } else {
-                    Ok(None)
-                }
-            },
-            row_idx,
-        )?;
+        unimplemented!()
+        // const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
+        // let v = self.0.with_row(
+        //     |arr, row| {
+        //         let valid = arr.is_valid(row).expect("row in bounds");
+        //         if valid {
+        //             Ok(Some(
+        //                 FORMATTER.format_array_value(arr, row).unwrap().to_string(),
+        //             ))
+        //         } else {
+        //             Ok(None)
+        //         }
+        //     },
+        //     row_idx,
+        // )?;
 
-        Ok(v)
+        // Ok(v)
     }
 }
 

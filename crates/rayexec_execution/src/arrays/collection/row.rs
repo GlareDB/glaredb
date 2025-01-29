@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use rayexec_error::Result;
 
 use super::row_heap::RowHeap;
@@ -28,12 +30,29 @@ impl RowCollection {
         }
     }
 
+    pub fn layout(&self) -> &RowLayout {
+        &self.layout
+    }
+
     pub fn row_count(&self) -> usize {
         self.chunks.iter().map(|c| c.filled).sum()
     }
 
     /// Appends a batch to the collection.
+    ///
+    /// The array types for this batch should match the types specified in the
+    /// row layout.
     pub fn append_batch(&mut self, batch: &Batch) -> Result<()> {
+        self.append_arrays(&batch.arrays, batch.num_rows)
+    }
+
+    /// Internal method for appending arrays to this collection.
+    ///
+    /// Array capacities must equal or exceed `num_rows`.
+    pub(crate) fn append_arrays<A>(&mut self, arrays: &[A], num_rows: usize) -> Result<()>
+    where
+        A: Borrow<Array>,
+    {
         // Init first chunk if needed.
         if self.chunks.is_empty() {
             let chunk = RowChunk::try_new(&NopBufferManager, &self.layout, self.chunk_capacity)?;
@@ -41,13 +60,13 @@ impl RowCollection {
         }
 
         let mut input_offset = 0; // Offset to begin copying from in the input.
-        let mut rows_remaining = batch.num_rows();
+        let mut rows_remaining = num_rows;
 
         while rows_remaining != 0 {
             let chunk = self.chunks.last_mut().expect("at least one chunk");
             let copy_count = usize::min(chunk.capacity - chunk.filled, rows_remaining);
 
-            chunk.copy_rows(&self.layout, &batch.arrays, input_offset, copy_count)?;
+            chunk.copy_rows(&self.layout, arrays, input_offset, copy_count)?;
             input_offset += copy_count;
             rows_remaining -= copy_count;
 
@@ -149,13 +168,16 @@ where
     }
 
     /// Copy rows to the chunk by encoding them into a row format.
-    fn copy_rows(
+    fn copy_rows<A>(
         &mut self,
         layout: &RowLayout,
-        src: &[Array<B>],
+        src: &[A],
         src_offset: usize,
         count: usize,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        A: Borrow<Array<B>>,
+    {
         // Compute the exact size buffer to use for the encode.
         let offset = layout.buffer_size(self.filled);
         let size = layout.buffer_size(count);

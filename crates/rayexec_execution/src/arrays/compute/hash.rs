@@ -112,10 +112,11 @@ pub fn hash_array(
 /// This will overwrite any existing hash in `hashes`.
 pub fn hash_many_arrays<'a>(
     arrs: impl IntoIterator<Item = &'a Array>,
-    sel: Selection,
+    sel: impl IntoExactSizeIterator<Item = usize> + Clone,
     hashes: &mut [u64],
 ) -> Result<()> {
     for (idx, arr) in arrs.into_iter().enumerate() {
+        let sel = sel.clone();
         let datatype = arr.datatype();
         let arr = arr.flatten()?;
         if idx == 0 {

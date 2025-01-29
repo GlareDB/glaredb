@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
@@ -8,9 +9,8 @@ use super::array::selection::Selection;
 use super::cache::BufferCache;
 use super::datatype::DataType;
 use crate::arrays::array::Array;
-use crate::arrays::row::ScalarRow;
 
-/// A batch of same-length arrays.
+/// A batch of owned same-length arrays.
 #[derive(Debug)]
 pub struct Batch<B: BufferManager = NopBufferManager> {
     /// Arrays making up the batch.
@@ -303,35 +303,6 @@ impl Batch {
         Ok(())
     }
 
-    #[deprecated]
-    pub fn project(self, indices: &[usize]) -> Self {
-        let cols = self
-            .arrays
-            .into_iter()
-            .enumerate()
-            .filter_map(|(idx, arr)| {
-                if indices.contains(&idx) {
-                    Some(arr)
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        Batch {
-            arrays: cols,
-            num_rows: self.num_rows,
-            capacity: self.capacity,
-            cache: None,
-        }
-    }
-
-    /// Get the row at some index.
-    #[deprecated]
-    pub fn row(&self, idx: usize) -> Option<ScalarRow> {
-        unimplemented!()
-    }
-
     pub fn array(&self, idx: usize) -> Option<&Array> {
         self.arrays.get(idx)
     }
@@ -456,25 +427,4 @@ mod tests {
         assert_batches_eq(&expected, &batch1);
         assert_batches_eq(&expected, &batch2);
     }
-
-    // #[test]
-    // fn clone_row_from_simple() {
-    //     let mut batch1 = Batch::try_from_arrays([
-    //         Array::try_from_iter([1, 2, 3, 4]).unwrap(),
-    //         Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
-    //     ])
-    //     .unwrap();
-
-    //     let mut batch2 = Batch::try_new([DataType::Int32, DataType::Utf8], 4).unwrap();
-
-    //     batch2.try_clone_row_from(&mut batch1, 2, 3).unwrap();
-
-    //     let expected = Batch::try_from_arrays([
-    //         Array::try_from_iter([3, 3, 3]).unwrap(),
-    //         Array::try_from_iter(["c", "c", "c"]).unwrap(),
-    //     ])
-    //     .unwrap();
-
-    //     assert_batches_eq(&expected, &batch2);
-    // }
 }

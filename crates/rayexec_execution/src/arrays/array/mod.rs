@@ -571,33 +571,6 @@ impl Array {
     pub fn logical_len(&self) -> usize {
         unimplemented!()
     }
-
-    #[deprecated]
-    pub fn is_valid(&self, idx: usize) -> Option<bool> {
-        unimplemented!()
-    }
-
-    /// Get the value at a logical index.
-    ///
-    /// Takes into account the validity and selection vector.
-    #[deprecated]
-    pub fn logical_value(&self, idx: usize) -> Result<ScalarValue> {
-        unimplemented!()
-        // let idx = match self.selection_vector() {
-        //     Some(v) => v
-        //         .get_opt(idx)
-        //         .ok_or_else(|| RayexecError::new(format!("Logical index {idx} out of bounds")))?,
-        //     None => idx,
-        // };
-
-        // if let Some(validity) = &self.validity2 {
-        //     if !validity.as_ref().value(idx) {
-        //         return Ok(ScalarValue::Null);
-        //     }
-        // }
-
-        // self.physical_scalar(idx)
-    }
 }
 
 /// Helper for getting the value from an array.

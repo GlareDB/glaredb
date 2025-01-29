@@ -125,13 +125,14 @@ impl<S: DataTableScan> ProjectedScan<S> {
             None => return Ok(None),
         };
 
-        match self.projections.column_indices.as_ref() {
-            Some(indices) => {
-                let batch = batch.project(indices);
-                Ok(Some(batch))
-            }
-            None => Ok(Some(batch)),
-        }
+        unimplemented!()
+        // match self.projections.column_indices.as_ref() {
+        //     Some(indices) => {
+        //         let batch = batch.project(indices);
+        //         Ok(Some(batch))
+        //     }
+        //     None => Ok(Some(batch)),
+        // }
     }
 }
 
