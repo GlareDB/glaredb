@@ -9,13 +9,13 @@ use std::hash::Hash;
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use half::f16;
 use interval::Interval;
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
-use crate::arrays::array::{Array, ArrayData2};
-use crate::arrays::bitmap::Bitmap;
+use super::array::buffer_manager::NopBufferManager;
+use crate::arrays::array::Array;
 use crate::arrays::compute::cast::format::{
     BoolFormatter,
     Date32Formatter,
@@ -48,15 +48,6 @@ use crate::arrays::datatype::{
     ListTypeMeta,
     TimeUnit,
     TimestampTypeMeta,
-};
-use crate::arrays::executor::scalar::concat;
-use crate::arrays::selection::SelectionVector;
-use crate::arrays::storage::{
-    BooleanStorage,
-    GermanVarlenStorage,
-    ListItemMetadata2,
-    ListStorage,
-    PrimitiveStorage,
 };
 
 /// A single scalar value.
@@ -205,66 +196,7 @@ impl ScalarValue<'_> {
 
     /// Create an array of size `n` using the scalar value.
     pub fn as_array(&self, n: usize) -> Result<Array> {
-        let data: ArrayData2 = match self {
-            Self::Null => return Ok(Array::new_untyped_null_array(n)),
-            Self::Boolean(v) => BooleanStorage(Bitmap::new_with_val(*v, 1)).into(),
-            Self::Float16(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Float32(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Float64(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int8(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int16(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int32(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int64(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int128(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt8(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt16(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt32(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt64(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt128(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Decimal64(v) => PrimitiveStorage::from(vec![v.value]).into(),
-            Self::Decimal128(v) => PrimitiveStorage::from(vec![v.value]).into(),
-            Self::Date32(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Date64(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Timestamp(v) => PrimitiveStorage::from(vec![v.value]).into(),
-            Self::Interval(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Utf8(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
-            Self::Binary(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
-            Self::List(v) => {
-                if v.is_empty() {
-                    let metadata = ListItemMetadata2 { offset: 0, len: 0 };
-
-                    ListStorage {
-                        metadata: vec![metadata].into(),
-                        array: Array::new_untyped_null_array(0),
-                    }
-                    .into()
-                } else {
-                    let arrays = v
-                        .iter()
-                        .map(|v| v.as_array(1))
-                        .collect::<Result<Vec<_>>>()?;
-                    let refs: Vec<_> = arrays.iter().collect();
-                    let array = concat(&refs)?;
-
-                    let metadata = ListItemMetadata2 {
-                        offset: 0,
-                        len: array.logical_len() as i32,
-                    };
-
-                    ListStorage {
-                        metadata: vec![metadata].into(),
-                        array,
-                    }
-                    .into()
-                }
-            }
-            other => not_implemented!("{other:?} to array"), // Struct, List
-        };
-
-        let mut array = Array::new_with_array_data(self.datatype(), data);
-        array.selection2 = Some(SelectionVector::repeated(n, 0).into());
-
-        Ok(array)
+        Array::try_new_constant(&NopBufferManager, self, n)
     }
 
     pub fn try_as_bool(&self) -> Result<bool> {
@@ -413,83 +345,35 @@ impl fmt::Display for ScalarValue<'_> {
     }
 }
 
-impl From<bool> for ScalarValue<'_> {
-    fn from(value: bool) -> Self {
-        ScalarValue::Boolean(value)
-    }
+macro_rules! impl_primitive_from {
+    ($prim:ty, $variant:ident) => {
+        impl From<$prim> for ScalarValue<'_> {
+            fn from(value: $prim) -> Self {
+                ScalarValue::$variant(value)
+            }
+        }
+    };
 }
 
-impl From<f16> for ScalarValue<'_> {
-    fn from(value: f16) -> Self {
-        ScalarValue::Float16(value)
-    }
-}
+impl_primitive_from!(bool, Boolean);
 
-impl From<f32> for ScalarValue<'_> {
-    fn from(value: f32) -> Self {
-        ScalarValue::Float32(value)
-    }
-}
+impl_primitive_from!(i8, Int8);
+impl_primitive_from!(i16, Int16);
+impl_primitive_from!(i32, Int32);
+impl_primitive_from!(i64, Int64);
+impl_primitive_from!(i128, Int128);
 
-impl From<f64> for ScalarValue<'_> {
-    fn from(value: f64) -> Self {
-        ScalarValue::Float64(value)
-    }
-}
+impl_primitive_from!(u8, UInt8);
+impl_primitive_from!(u16, UInt16);
+impl_primitive_from!(u32, UInt32);
+impl_primitive_from!(u64, UInt64);
+impl_primitive_from!(u128, UInt128);
 
-impl From<i8> for ScalarValue<'_> {
-    fn from(value: i8) -> Self {
-        ScalarValue::Int8(value)
-    }
-}
+impl_primitive_from!(f16, Float16);
+impl_primitive_from!(f32, Float32);
+impl_primitive_from!(f64, Float64);
 
-impl From<i16> for ScalarValue<'_> {
-    fn from(value: i16) -> Self {
-        ScalarValue::Int16(value)
-    }
-}
-
-impl From<i32> for ScalarValue<'_> {
-    fn from(value: i32) -> Self {
-        ScalarValue::Int32(value)
-    }
-}
-
-impl From<i64> for ScalarValue<'_> {
-    fn from(value: i64) -> Self {
-        ScalarValue::Int64(value)
-    }
-}
-
-impl From<u8> for ScalarValue<'_> {
-    fn from(value: u8) -> Self {
-        ScalarValue::UInt8(value)
-    }
-}
-
-impl From<u16> for ScalarValue<'_> {
-    fn from(value: u16) -> Self {
-        ScalarValue::UInt16(value)
-    }
-}
-
-impl From<u32> for ScalarValue<'_> {
-    fn from(value: u32) -> Self {
-        ScalarValue::UInt32(value)
-    }
-}
-
-impl From<u64> for ScalarValue<'_> {
-    fn from(value: u64) -> Self {
-        ScalarValue::UInt64(value)
-    }
-}
-
-impl From<Interval> for ScalarValue<'_> {
-    fn from(value: Interval) -> Self {
-        ScalarValue::Interval(value)
-    }
-}
+impl_primitive_from!(Interval, Interval);
 
 impl<'a> From<&'a str> for ScalarValue<'a> {
     fn from(value: &'a str) -> Self {
@@ -611,5 +495,33 @@ impl ProtoConv for OwnedScalarValue {
                 Self::List(values)
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::arrays::testutil::assert_arrays_eq;
+
+    #[test]
+    fn scalar_i32_as_array() {
+        let s = ScalarValue::from(14);
+        let arr = s.as_array(4).unwrap();
+
+        let expected = Array::try_from_iter([14, 14, 14, 14]).unwrap();
+
+        assert_arrays_eq(&expected, &arr);
+    }
+
+    #[test]
+    fn scalar_utf8_as_array() {
+        let s = ScalarValue::from("dog");
+        let arr = s.as_array(4).unwrap();
+
+        let expected = Array::try_from_iter(["dog", "dog", "dog", "dog"]).unwrap();
+
+        assert_arrays_eq(&expected, &arr);
     }
 }

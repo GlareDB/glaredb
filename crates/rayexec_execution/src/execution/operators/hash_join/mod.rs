@@ -14,6 +14,7 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::util::outer_join_tracker::{LeftOuterJoinDrainState, LeftOuterJoinTracker};
 use super::{
+    BinaryInputStates,
     ComputedBatches,
     ExecutableOperator,
     ExecutionStates,
@@ -26,7 +27,6 @@ use super::{
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::arrays::executor::scalar::HashExecutor;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::logical_join::JoinType;
@@ -171,7 +171,7 @@ impl PhysicalHashJoin {
         // accomplish the deduplication.
         matches!(
             self.join_type,
-            JoinType::Left | JoinType::Full | JoinType::Semi | JoinType::LeftMark { .. }
+            JoinType::Left | JoinType::Full | JoinType::LeftSemi | JoinType::LeftMark { .. }
         )
     }
 
@@ -183,12 +183,17 @@ impl PhysicalHashJoin {
         // Note this includes SEMI join since it's just an extension of a mark
         // join, just that we return the left visited rows instead of bools that
         // they've been visited.
-        matches!(self.join_type, JoinType::Semi | JoinType::LeftMark { .. })
+        matches!(
+            self.join_type,
+            JoinType::LeftSemi | JoinType::LeftMark { .. }
+        )
     }
 }
 
 impl ExecutableOperator for PhysicalHashJoin {
-    fn create_states(
+    type States = BinaryInputStates;
+
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -316,11 +321,12 @@ impl ExecutableOperator for PhysicalHashJoin {
                 for (idx, equality) in self.equalities.iter().enumerate() {
                     let result = equality.right.eval(&batch)?;
 
-                    if idx == 0 {
-                        HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
-                    } else {
-                        HashExecutor::hash_combine(&result, &mut state.hash_buf)?;
-                    }
+                    unimplemented!()
+                    // if idx == 0 {
+                    //     HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
+                    // } else {
+                    //     HashExecutor::hash_combine(&result, &mut state.hash_buf)?;
+                    // }
                 }
 
                 let hashtable = state.global.as_ref().expect("hash table to exist");
@@ -347,7 +353,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -546,18 +552,19 @@ impl ExecutableOperator for PhysicalHashJoin {
                         }
                     };
 
-                    state.outer_join_drain_state = Some(LeftOuterJoinDrainState::new(
-                        start_idx,
-                        skip,
-                        global.clone(),
-                        shared
-                            .global_hash_table
-                            .as_ref()
-                            .unwrap()
-                            .collected_batches()
-                            .to_vec(),
-                        self.right_types.clone(),
-                    ));
+                    unimplemented!()
+                    // state.outer_join_drain_state = Some(LeftOuterJoinDrainState::new(
+                    //     start_idx,
+                    //     skip,
+                    //     global.clone(),
+                    //     shared
+                    //         .global_hash_table
+                    //         .as_ref()
+                    //         .unwrap()
+                    //         .collected_batches()
+                    //         .to_vec(),
+                    //     self.right_types.clone(),
+                    // ));
                 }
 
                 // Check if we're still draining unvisited left rows.
@@ -568,7 +575,7 @@ impl ExecutableOperator for PhysicalHashJoin {
                             Some(batch) => return Ok(PollPull::Computed(batch.into())),
                             None => return Ok(PollPull::Exhausted),
                         }
-                    } else if matches!(self.join_type, JoinType::Semi) {
+                    } else if matches!(self.join_type, JoinType::LeftSemi) {
                         // Semi drain
                         match drain_state.drain_semi_next()? {
                             Some(batch) => return Ok(PollPull::Computed(batch.into())),
@@ -615,11 +622,12 @@ impl PhysicalHashJoin {
         for (idx, equality) in self.equalities.iter().enumerate() {
             let result = equality.left.eval(&batch)?;
 
-            if idx == 0 {
-                HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
-            } else {
-                HashExecutor::hash_combine(&result, &mut state.hash_buf)?;
-            }
+            unimplemented!()
+            // if idx == 0 {
+            //     HashExecutor::hash_no_combine(&result, &mut state.hash_buf)?;
+            // } else {
+            //     HashExecutor::hash_combine(&result, &mut state.hash_buf)?;
+            // }
         }
 
         state

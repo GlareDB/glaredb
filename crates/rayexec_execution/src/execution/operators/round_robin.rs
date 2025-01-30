@@ -7,7 +7,7 @@ use std::task::{Context, Waker};
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
-use super::{ExecutionStates, InputOutputStates, PollFinalize};
+use super::{ExecutionStates, InputOutputStates, PollFinalize, UnaryInputStates};
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
@@ -58,7 +58,9 @@ pub struct RoundRobinOperatorState {
 pub struct PhysicalRoundRobinRepartition;
 
 impl ExecutableOperator for PhysicalRoundRobinRepartition {
-    fn create_states(
+    type States = UnaryInputStates;
+
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -163,7 +165,7 @@ impl ExecutableOperator for PhysicalRoundRobinRepartition {
         Ok(PollPush::Pushed)
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,

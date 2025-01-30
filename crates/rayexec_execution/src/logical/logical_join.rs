@@ -21,9 +21,9 @@ pub enum JoinType {
     /// Standard full/outer join.
     Full,
     /// Left semi join.
-    Semi,
+    LeftSemi,
     /// Left anti join.
-    Anti,
+    LeftAnti,
     /// A left join that emits all rows on the left side joined with a column
     /// that indicates if there was a join partner on the right.
     ///
@@ -63,8 +63,8 @@ impl fmt::Display for JoinType {
             Self::Left => write!(f, "LEFT"),
             Self::Right => write!(f, "RIGHT"),
             Self::Full => write!(f, "FULL"),
-            Self::Semi => write!(f, "SEMI"),
-            Self::Anti => write!(f, "ANTI"),
+            Self::LeftSemi => write!(f, "SEMI"),
+            Self::LeftAnti => write!(f, "ANTI"),
             Self::LeftMark { table_ref } => write!(f, "LEFT MARK (ref = {table_ref})"),
         }
     }

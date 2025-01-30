@@ -10,6 +10,7 @@ use super::{
     PollFinalize,
     PollPull,
     PollPush,
+    UnaryInputStates,
 };
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
@@ -20,7 +21,9 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 pub struct PhysicalAnalyze {}
 
 impl ExecutableOperator for PhysicalAnalyze {
-    fn create_states(
+    type States = UnaryInputStates;
+
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         _partitions: Vec<usize>,
@@ -38,7 +41,7 @@ impl ExecutableOperator for PhysicalAnalyze {
         unimplemented!()
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,

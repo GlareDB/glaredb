@@ -5,18 +5,12 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::bitmap::Bitmap;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
-use crate::arrays::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
-use crate::arrays::storage::{GermanVarlenStorage, ListItemMetadata2, ListStorage};
-use crate::database::catalog::CatalogTx;
-use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, DatabaseContext};
 use crate::expr;
@@ -61,27 +55,28 @@ impl SystemFunctionImpl for ListDatabasesImpl {
     }
 
     fn new_batch(
-        databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
+        _databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
     ) -> Result<Batch> {
-        let len = databases.len();
+        unimplemented!()
+        // let len = databases.len();
 
-        let mut database_names = GermanVarlenBuffer::<str>::with_len(len);
-        let mut datasources = GermanVarlenBuffer::<str>::with_len(len);
+        // let mut database_names = GermanVarlenBuffer::<str>::with_len(len);
+        // let mut datasources = GermanVarlenBuffer::<str>::with_len(len);
 
-        for (idx, (name, _catalog, info)) in databases.drain(..).enumerate() {
-            database_names.put(idx, name.as_str());
-            datasources.put(
-                idx,
-                info.map(|i| i.datasource)
-                    .unwrap_or("default".to_string())
-                    .as_str(),
-            );
-        }
+        // for (idx, (name, _catalog, info)) in databases.drain(..).enumerate() {
+        //     database_names.put(idx, name.as_str());
+        //     datasources.put(
+        //         idx,
+        //         info.map(|i| i.datasource)
+        //             .unwrap_or("default".to_string())
+        //             .as_str(),
+        //     );
+        // }
 
-        Batch::try_from_arrays([
-            Array::new_with_array_data(DataType::Utf8, database_names.into_data()),
-            Array::new_with_array_data(DataType::Utf8, datasources.into_data()),
-        ])
+        // Batch::try_from_arrays([
+        //     Array::new_with_array_data(DataType::Utf8, database_names.into_data()),
+        //     Array::new_with_array_data(DataType::Utf8, datasources.into_data()),
+        // ])
     }
 }
 
@@ -117,152 +112,153 @@ impl SystemFunctionImpl for ListFunctionsImpl {
     }
 
     fn new_batch(
-        databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
+        _databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
     ) -> Result<Batch> {
-        let database = databases.pop_front().required("database")?;
+        // let database = databases.pop_front().required("database")?;
 
-        let mut database_names = GermanVarlenStorage::with_metadata_capacity(0);
-        let mut schema_names = GermanVarlenStorage::with_metadata_capacity(0);
-        let mut function_names = GermanVarlenStorage::with_metadata_capacity(0);
-        let mut function_types = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut database_names = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut schema_names = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut function_names = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut function_types = GermanVarlenStorage::with_metadata_capacity(0);
 
-        // TODO: List ergonomics.
-        let mut argument_types_metadatas = Vec::new();
-        let mut argument_types = GermanVarlenStorage::with_metadata_capacity(0);
+        // // TODO: List ergonomics.
+        // let mut argument_types_metadatas = Vec::new();
+        // let mut argument_types = GermanVarlenStorage::with_metadata_capacity(0);
 
-        let mut argument_names_metadatas = Vec::new();
-        let mut argument_names = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut argument_names_metadatas = Vec::new();
+        // let mut argument_names = GermanVarlenStorage::with_metadata_capacity(0);
 
-        let mut return_types = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut return_types = GermanVarlenStorage::with_metadata_capacity(0);
 
-        let mut descriptions_validity = Bitmap::default();
-        let mut descriptions = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut descriptions_validity = Bitmap::default();
+        // let mut descriptions = GermanVarlenStorage::with_metadata_capacity(0);
 
-        let mut examples_validity = Bitmap::default();
-        let mut examples = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut examples_validity = Bitmap::default();
+        // let mut examples = GermanVarlenStorage::with_metadata_capacity(0);
 
-        let mut example_outputs_validity = Bitmap::default();
-        let mut example_outputs = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut example_outputs_validity = Bitmap::default();
+        // let mut example_outputs = GermanVarlenStorage::with_metadata_capacity(0);
 
-        let tx = &CatalogTx {};
+        // let tx = &CatalogTx {};
 
-        database.1.for_each_schema(tx, &mut |schema_name, schema| {
-            schema.for_each_entry(tx, &mut |_, entry| {
-                let (sigs, function_type) = match &entry.entry {
-                    CatalogEntryInner::ScalarFunction(func) => {
-                        (func.function.signatures(), "scalar")
-                    }
-                    CatalogEntryInner::AggregateFunction(func) => {
-                        (func.function.signatures(), "aggregate")
-                    }
-                    CatalogEntryInner::TableFunction(func) => (func.function.signatures(), "table"),
-                    _ => return Ok(()),
-                };
+        // database.1.for_each_schema(tx, &mut |schema_name, schema| {
+        //     schema.for_each_entry(tx, &mut |_, entry| {
+        //         let (sigs, function_type) = match &entry.entry {
+        //             CatalogEntryInner::ScalarFunction(func) => {
+        //                 (func.function.signatures(), "scalar")
+        //             }
+        //             CatalogEntryInner::AggregateFunction(func) => {
+        //                 (func.function.signatures(), "aggregate")
+        //             }
+        //             CatalogEntryInner::TableFunction(func) => (func.function.signatures(), "table"),
+        //             _ => return Ok(()),
+        //         };
 
-                for sig in sigs {
-                    database_names.try_push(database.0.as_bytes())?;
-                    schema_names.try_push(schema_name.as_bytes())?;
-                    function_names.try_push(entry.name.as_bytes())?;
-                    function_types.try_push(function_type.as_bytes())?;
+        //         for sig in sigs {
+        //             database_names.try_push(database.0.as_bytes())?;
+        //             schema_names.try_push(schema_name.as_bytes())?;
+        //             function_names.try_push(entry.name.as_bytes())?;
+        //             function_types.try_push(function_type.as_bytes())?;
 
-                    argument_types_metadatas.push(ListItemMetadata2 {
-                        offset: argument_types.len() as i32,
-                        len: sig.positional_args.len() as i32,
-                    });
-                    for arg in sig.positional_args {
-                        argument_types.try_push(arg.as_str().as_bytes())?;
-                    }
+        //             argument_types_metadatas.push(ListItemMetadata2 {
+        //                 offset: argument_types.len() as i32,
+        //                 len: sig.positional_args.len() as i32,
+        //             });
+        //             for arg in sig.positional_args {
+        //                 argument_types.try_push(arg.as_str().as_bytes())?;
+        //             }
 
-                    argument_names_metadatas.push(ListItemMetadata2 {
-                        offset: argument_names.len() as i32,
-                        len: sig.positional_args.len() as i32,
-                    });
-                    match sig.doc {
-                        Some(doc) => {
-                            for idx in 0..sig.positional_args.len() {
-                                match doc.arguments.get(idx) {
-                                    Some(name) => argument_names.try_push(name.as_bytes())?,
-                                    None => {
-                                        argument_names.try_push(format!("col{idx}").as_bytes())?
-                                    }
-                                }
-                            }
-                        }
-                        None => {
-                            for idx in 0..sig.positional_args.len() {
-                                argument_names.try_push(format!("col{idx}").as_bytes())?;
-                            }
-                        }
-                    }
+        //             argument_names_metadatas.push(ListItemMetadata2 {
+        //                 offset: argument_names.len() as i32,
+        //                 len: sig.positional_args.len() as i32,
+        //             });
+        //             match sig.doc {
+        //                 Some(doc) => {
+        //                     for idx in 0..sig.positional_args.len() {
+        //                         match doc.arguments.get(idx) {
+        //                             Some(name) => argument_names.try_push(name.as_bytes())?,
+        //                             None => {
+        //                                 argument_names.try_push(format!("col{idx}").as_bytes())?
+        //                             }
+        //                         }
+        //                     }
+        //                 }
+        //                 None => {
+        //                     for idx in 0..sig.positional_args.len() {
+        //                         argument_names.try_push(format!("col{idx}").as_bytes())?;
+        //                     }
+        //                 }
+        //             }
 
-                    return_types.try_push(sig.return_type.as_str().as_bytes())?;
+        //             return_types.try_push(sig.return_type.as_str().as_bytes())?;
 
-                    match sig.doc {
-                        Some(doc) => {
-                            descriptions_validity.push(true);
-                            descriptions.try_push(doc.description.as_bytes())?;
-                        }
-                        None => {
-                            descriptions_validity.push(false);
-                            descriptions.try_push(&[])?;
-                        }
-                    }
+        //             match sig.doc {
+        //                 Some(doc) => {
+        //                     descriptions_validity.push(true);
+        //                     descriptions.try_push(doc.description.as_bytes())?;
+        //                 }
+        //                 None => {
+        //                     descriptions_validity.push(false);
+        //                     descriptions.try_push(&[])?;
+        //                 }
+        //             }
 
-                    match sig.doc.and_then(|doc| doc.example.as_ref()) {
-                        Some(example) => {
-                            examples_validity.push(true);
-                            examples.try_push(example.example.as_bytes())?;
+        //             match sig.doc.and_then(|doc| doc.example.as_ref()) {
+        //                 Some(example) => {
+        //                     examples_validity.push(true);
+        //                     examples.try_push(example.example.as_bytes())?;
 
-                            example_outputs_validity.push(true);
-                            example_outputs.try_push(example.output.as_bytes())?;
-                        }
-                        None => {
-                            examples_validity.push(false);
-                            examples.try_push(&[])?;
+        //                     example_outputs_validity.push(true);
+        //                     example_outputs.try_push(example.output.as_bytes())?;
+        //                 }
+        //                 None => {
+        //                     examples_validity.push(false);
+        //                     examples.try_push(&[])?;
 
-                            example_outputs_validity.push(false);
-                            example_outputs.try_push(&[])?;
-                        }
-                    }
-                }
+        //                     example_outputs_validity.push(false);
+        //                     example_outputs.try_push(&[])?;
+        //                 }
+        //             }
+        //         }
 
-                Ok(())
-            })?;
-            Ok(())
-        })?;
+        //         Ok(())
+        //     })?;
+        //     Ok(())
+        // })?;
 
-        Batch::try_from_arrays([
-            Array::new_with_array_data(DataType::Utf8, database_names),
-            Array::new_with_array_data(DataType::Utf8, schema_names),
-            Array::new_with_array_data(DataType::Utf8, function_names),
-            Array::new_with_array_data(DataType::Utf8, function_types),
-            Array::new_with_array_data(
-                DataType::List(ListTypeMeta::new(DataType::Utf8)),
-                ListStorage::try_new(
-                    argument_types_metadatas,
-                    Array::new_with_array_data(DataType::Utf8, argument_types),
-                )?,
-            ),
-            Array::new_with_array_data(
-                DataType::List(ListTypeMeta::new(DataType::Utf8)),
-                ListStorage::try_new(
-                    argument_names_metadatas,
-                    Array::new_with_array_data(DataType::Utf8, argument_names),
-                )?,
-            ),
-            Array::new_with_array_data(DataType::Utf8, return_types),
-            Array::new_with_validity_and_array_data(
-                DataType::Utf8,
-                descriptions_validity,
-                descriptions,
-            ),
-            Array::new_with_validity_and_array_data(DataType::Utf8, examples_validity, examples),
-            Array::new_with_validity_and_array_data(
-                DataType::Utf8,
-                example_outputs_validity,
-                example_outputs,
-            ),
-        ])
+        unimplemented!()
+        // Batch::try_from_arrays([
+        //     Array::new_with_array_data(DataType::Utf8, database_names),
+        //     Array::new_with_array_data(DataType::Utf8, schema_names),
+        //     Array::new_with_array_data(DataType::Utf8, function_names),
+        //     Array::new_with_array_data(DataType::Utf8, function_types),
+        //     Array::new_with_array_data(
+        //         DataType::List(ListTypeMeta::new(DataType::Utf8)),
+        //         ListStorage::try_new(
+        //             argument_types_metadatas,
+        //             Array::new_with_array_data(DataType::Utf8, argument_types),
+        //         )?,
+        //     ),
+        //     Array::new_with_array_data(
+        //         DataType::List(ListTypeMeta::new(DataType::Utf8)),
+        //         ListStorage::try_new(
+        //             argument_names_metadatas,
+        //             Array::new_with_array_data(DataType::Utf8, argument_names),
+        //         )?,
+        //     ),
+        //     Array::new_with_array_data(DataType::Utf8, return_types),
+        //     Array::new_with_validity_and_array_data(
+        //         DataType::Utf8,
+        //         descriptions_validity,
+        //         descriptions,
+        //     ),
+        //     Array::new_with_validity_and_array_data(DataType::Utf8, examples_validity, examples),
+        //     Array::new_with_validity_and_array_data(
+        //         DataType::Utf8,
+        //         example_outputs_validity,
+        //         example_outputs,
+        //     ),
+        // ])
     }
 }
 
@@ -283,36 +279,37 @@ impl SystemFunctionImpl for ListTablesImpl {
     }
 
     fn new_batch(
-        databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
+        _databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
     ) -> Result<Batch> {
-        let database = databases.pop_front().required("database")?;
+        // let database = databases.pop_front().required("database")?;
 
-        let mut database_names = GermanVarlenStorage::with_metadata_capacity(0);
-        let mut schema_names = GermanVarlenStorage::with_metadata_capacity(0);
-        let mut table_names = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut database_names = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut schema_names = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut table_names = GermanVarlenStorage::with_metadata_capacity(0);
 
-        let tx = &CatalogTx {};
+        // let tx = &CatalogTx {};
 
-        database.1.for_each_schema(tx, &mut |schema_name, schema| {
-            schema.for_each_entry(tx, &mut |_, entry| {
-                if entry.entry_type() != CatalogEntryType::Table {
-                    return Ok(());
-                }
+        // database.1.for_each_schema(tx, &mut |schema_name, schema| {
+        //     schema.for_each_entry(tx, &mut |_, entry| {
+        //         if entry.entry_type() != CatalogEntryType::Table {
+        //             return Ok(());
+        //         }
 
-                database_names.try_push(database.0.as_bytes())?;
-                schema_names.try_push(schema_name.as_bytes())?;
-                table_names.try_push(entry.name.as_bytes())?;
+        //         database_names.try_push(database.0.as_bytes())?;
+        //         schema_names.try_push(schema_name.as_bytes())?;
+        //         table_names.try_push(entry.name.as_bytes())?;
 
-                Ok(())
-            })?;
-            Ok(())
-        })?;
+        //         Ok(())
+        //     })?;
+        //     Ok(())
+        // })?;
 
-        Batch::try_from_arrays([
-            Array::new_with_array_data(DataType::Utf8, database_names),
-            Array::new_with_array_data(DataType::Utf8, schema_names),
-            Array::new_with_array_data(DataType::Utf8, table_names),
-        ])
+        unimplemented!()
+        // Batch::try_from_arrays([
+        //     Array::new_with_array_data(DataType::Utf8, database_names),
+        //     Array::new_with_array_data(DataType::Utf8, schema_names),
+        //     Array::new_with_array_data(DataType::Utf8, table_names),
+        // ])
     }
 }
 
@@ -332,26 +329,27 @@ impl SystemFunctionImpl for ListSchemasImpl {
     }
 
     fn new_batch(
-        databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
+        _databases: &mut VecDeque<(String, Arc<MemoryCatalog>, Option<AttachInfo>)>,
     ) -> Result<Batch> {
-        let database = databases.pop_front().required("database")?;
+        // let database = databases.pop_front().required("database")?;
 
-        let mut database_names = GermanVarlenStorage::with_metadata_capacity(0);
-        let mut schema_names = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut database_names = GermanVarlenStorage::with_metadata_capacity(0);
+        // let mut schema_names = GermanVarlenStorage::with_metadata_capacity(0);
 
-        let tx = &CatalogTx {};
+        // let tx = &CatalogTx {};
 
-        database.1.for_each_schema(tx, &mut |schema_name, _| {
-            database_names.try_push(database.0.as_bytes())?;
-            schema_names.try_push(schema_name.as_bytes())?;
+        // database.1.for_each_schema(tx, &mut |schema_name, _| {
+        //     database_names.try_push(database.0.as_bytes())?;
+        //     schema_names.try_push(schema_name.as_bytes())?;
 
-            Ok(())
-        })?;
+        //     Ok(())
+        // })?;
 
-        Batch::try_from_arrays([
-            Array::new_with_array_data(DataType::Utf8, database_names),
-            Array::new_with_array_data(DataType::Utf8, schema_names),
-        ])
+        unimplemented!()
+        // Batch::try_from_arrays([
+        //     Array::new_with_array_data(DataType::Utf8, database_names),
+        //     Array::new_with_array_data(DataType::Utf8, schema_names),
+        // ])
     }
 }
 

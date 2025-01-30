@@ -12,6 +12,7 @@ use crate::execution::operators::{
     PollFinalize,
     PollPull,
     PollPush,
+    UnaryInputStates,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -25,7 +26,9 @@ pub struct TopKOperatorState {}
 pub struct PhysicalTopK {}
 
 impl ExecutableOperator for PhysicalTopK {
-    fn create_states(
+    type States = UnaryInputStates;
+
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         _partitions: Vec<usize>,
@@ -43,7 +46,7 @@ impl ExecutableOperator for PhysicalTopK {
         unimplemented!()
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
