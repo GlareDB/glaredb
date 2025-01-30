@@ -47,6 +47,13 @@ impl HashTableEntry {
         }
     }
 
+    pub const fn row_address(&self) -> RowAddress {
+        RowAddress {
+            chunk_idx: self.chunk_idx,
+            row_idx: self.row_idx,
+        }
+    }
+
     pub const fn is_dangling(self) -> bool {
         self.as_u64() == Self::DANGLING_U64
     }

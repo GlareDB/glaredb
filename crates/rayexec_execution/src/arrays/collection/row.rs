@@ -1,4 +1,5 @@
 use std::borrow::{Borrow, BorrowMut};
+use std::collections::VecDeque;
 
 use rayexec_error::Result;
 
@@ -89,8 +90,21 @@ impl RowCollection {
         Ok(())
     }
 
-    pub fn init_scan(&self) -> RowCollectionScanState {
+    /// Initialize a scan state for scanning all chunks in the collection.
+    pub fn init_full_scan(&self) -> RowCollectionScanState {
         RowCollectionScanState {
+            chunks_to_scan: (0..self.chunks.len()).collect(),
+            row_addresses: Vec::new(),
+        }
+    }
+
+    /// Initialize a scan of only some of the chunks.
+    pub fn init_partial_scan(
+        &self,
+        chunk_indices: impl IntoIterator<Item = usize>,
+    ) -> RowCollectionScanState {
+        RowCollectionScanState {
+            chunks_to_scan: chunk_indices.into_iter().collect(),
             row_addresses: Vec::new(),
         }
     }
@@ -134,28 +148,33 @@ impl RowCollection {
         assert_eq!(columns.len(), output.len());
 
         // Get chunk/row to start scanning at from the most recent scan if we
-        // have it.
-        let (mut chunk_idx, mut row_idx) = state
-            .row_addresses
-            .last()
-            .map(|addr| (addr.chunk_idx as usize, addr.row_idx as usize + 1))
-            .unwrap_or((0, 0));
+        // have it. Otherwise init from the chunks to scan.
+        let (mut chunk_idx, mut row_idx) = match state.row_addresses.last() {
+            Some(addr) => (addr.chunk_idx as usize, addr.row_idx as usize + 1),
+            None => {
+                match state.chunks_to_scan.pop_front() {
+                    Some(chunk_idx) => (chunk_idx, 0),
+                    None => return Ok(0), // State has no addresses or chunks.
+                }
+            }
+        };
 
         state.row_addresses.clear();
 
         let mut remaining_cap = count;
 
         while remaining_cap > 0 {
-            let chunk = match self.chunks.get(chunk_idx) {
-                Some(chunk) => chunk,
-                None => break, // No more chunks, break out of loop to ensure batch gets updated.
-            };
-
+            let chunk = &self.chunks[chunk_idx];
             if row_idx >= chunk.filled {
                 // No more rows in this chunk, try to move to the next chunk.
-                chunk_idx += 1;
-                row_idx = 0;
-                continue;
+                match state.chunks_to_scan.pop_front() {
+                    Some(next_idx) => {
+                        chunk_idx = next_idx;
+                        row_idx = 0;
+                        continue;
+                    }
+                    None => break, // No more chunks to scan.
+                }
             }
 
             // We have a chunk with rows to scan.
@@ -278,6 +297,8 @@ where
 /// State for resumable scanning of the row collection.
 #[derive(Debug)]
 pub struct RowCollectionScanState {
+    /// Remaining chunks to scan.
+    chunks_to_scan: VecDeque<usize>,
     /// Collects row addresses as we scan them.
     row_addresses: Vec<RowAddress>,
 }
@@ -305,7 +326,7 @@ mod tests {
 
         let mut output = Batch::try_new([DataType::Int32], 16).unwrap();
 
-        let mut state = collection.init_scan();
+        let mut state = collection.init_full_scan();
         collection.scan(&mut state, &mut output).unwrap();
         assert_eq!(6, state.row_addresses().len());
 
@@ -322,7 +343,7 @@ mod tests {
 
         let mut output = Batch::try_new([DataType::Int32], 16).unwrap();
 
-        let mut state = collection.init_scan();
+        let mut state = collection.init_full_scan();
         let scan_count = collection.scan(&mut state, &mut output).unwrap();
         assert_eq!(6, scan_count);
         assert_eq!(6, state.row_addresses().len());
@@ -341,7 +362,7 @@ mod tests {
         assert_eq!(32, collection.row_count());
 
         let mut output = Batch::try_new([DataType::Int32], 16).unwrap();
-        let mut state = collection.init_scan();
+        let mut state = collection.init_full_scan();
 
         let scan_count = collection.scan(&mut state, &mut output).unwrap();
         assert_eq!(16, scan_count);
@@ -368,13 +389,59 @@ mod tests {
         // Scan just the string column.
         let mut output = Array::try_new(&NopBufferManager, DataType::Utf8, 4).unwrap();
 
-        let mut state = collection.init_scan();
+        let mut state = collection.init_full_scan();
         collection
             .scan_columns(&mut state, &[1], &mut [&mut output], 4)
             .unwrap();
 
         let expected = Array::try_from_iter(["a", "b", "c", "d"]).unwrap();
         assert_arrays_eq(&expected, &output);
+    }
+
+    #[test]
+    fn append_batch_scan_no_chunks() {
+        let mut collection =
+            RowCollection::new(RowLayout::new([DataType::Int32, DataType::Utf8]), 16);
+        let input = generate_batch!([1, 2, 3, 4], ["a", "b", "c", "d"]);
+        collection.append_batch(&input).unwrap();
+
+        // Dummy output, nothing should be written.
+        let mut output = Array::try_new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+
+        let mut state = collection.init_partial_scan([]);
+        let count = collection
+            .scan_columns(&mut state, &[1], &mut [&mut output], 4)
+            .unwrap();
+        assert_eq!(0, count);
+    }
+
+    #[test]
+    fn append_multiple_batches_scan_single_chunk() {
+        let mut collection =
+            RowCollection::new(RowLayout::new([DataType::Int32, DataType::Utf8]), 4);
+
+        let input1 = generate_batch!([1, 2, 3, 4], ["a", "b", "c", "d"]);
+        collection.append_batch(&input1).unwrap();
+        let input2 = generate_batch!([5, 6, 7, 8], ["e", "f", "g", "h"]);
+        collection.append_batch(&input2).unwrap();
+        let input3 = generate_batch!([9, 10, 11, 12], ["i", "j", "k", "l"]);
+        collection.append_batch(&input3).unwrap();
+
+        let mut output = Array::try_new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+
+        let mut state = collection.init_partial_scan([1]);
+        let count = collection
+            .scan_columns(&mut state, &[1], &mut [&mut output], 4)
+            .unwrap();
+        assert_eq!(4, count);
+
+        let expected = Array::try_from_iter(["e", "f", "g", "h"]).unwrap();
+        assert_arrays_eq(&expected, &output);
+
+        let count = collection
+            .scan_columns(&mut state, &[1], &mut [&mut output], 4)
+            .unwrap();
+        assert_eq!(0, count);
     }
 
     #[test]

@@ -3,12 +3,13 @@ use std::sync::atomic::{self, AtomicU64};
 use rayexec_error::Result;
 
 use crate::arrays::array::buffer_manager::NopBufferManager;
-use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64};
+use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
 use crate::arrays::array::raw::TypedRawBuffer;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::collection::row::{RowAddress, RowCollection};
+use crate::arrays::collection::row_layout::RowLayout;
 use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
 use crate::execution::operators::join::hash_table_entry::HashTableEntry;
@@ -22,19 +23,58 @@ pub struct JoinHashTable {
     /// Collected data for the hash table.
     data: RowCollection,
     /// Hash table entries pointing to rows in the data collection.
-    directory: Directory,
+    ///
+    /// Initialize after we collect all data.
+    directory: Option<Directory>,
     /// Column indices for keys on the build side.
     build_key_columns: Vec<usize>,
     /// Column indices for data we're not joining on.
     build_data_columns: Vec<usize>,
     /// Byte offset into a row for where the hash/next entry value is stored.
-    build_hash_offset: usize,
+    build_hash_byte_offset: usize,
+    /// Configured batch size for the join operator.
+    batch_size: usize,
 }
 
 impl JoinHashTable {
-    /// Returns the row count for this hash table.
+    pub fn new(
+        join_type: JoinType,
+        datatypes: impl IntoIterator<Item = DataType>,
+        build_key_columns: impl IntoIterator<Item = usize>,
+        build_data_columns: impl IntoIterator<Item = usize>,
+        batch_size: usize,
+    ) -> Self {
+        let build_key_columns: Vec<_> = build_key_columns.into_iter().collect();
+        let build_data_columns: Vec<_> = build_data_columns.into_iter().collect();
+        let mut datatypes: Vec<_> = datatypes.into_iter().collect();
+
+        // Insert hash datatype in the right spot, immediately after keys.
+        datatypes.insert(build_key_columns.len(), DataType::UInt64);
+
+        let layout = RowLayout::new(datatypes);
+        let build_hash_byte_offset = layout.offsets[build_key_columns.len()];
+        let data = RowCollection::new(layout, batch_size);
+
+        JoinHashTable {
+            join_type,
+            data,
+            directory: None,
+            batch_size,
+            build_key_columns,
+            build_data_columns,
+            build_hash_byte_offset,
+        }
+    }
+
+    pub fn init_build_state(&self) -> BuildState {
+        BuildState {
+            match_init: Array::try_new_constant(&NopBufferManager, &false.into(), self.batch_size)
+                .expect("constant array to build"),
+        }
+    }
+
     pub fn row_count(&self) -> usize {
-        unimplemented!()
+        self.data.row_count()
     }
 
     /// Collects data for the build side of a join.
@@ -57,6 +97,7 @@ impl JoinHashTable {
         let mut hashes = Array::try_new(&NopBufferManager, DataType::UInt64, input.num_rows())?;
         let hash_vals = PhysicalU64::get_addressable_mut(&mut hashes.data)?;
         hash_many_arrays(arrays.iter().copied(), 0..input.num_rows(), hash_vals.slice)?;
+        arrays.push(&hashes);
 
         // Append plain data columns.
         for &col_idx in &self.build_data_columns {
@@ -85,7 +126,94 @@ impl JoinHashTable {
     pub fn init_directory(&mut self) -> Result<()> {
         let num_rows = self.data.row_count();
         let directory = Directory::new_for_num_rows(num_rows)?;
-        self.directory = directory;
+        self.directory = Some(directory);
+
+        Ok(())
+    }
+
+    /// Inserts hashes for the given chunks into the hash table.
+    ///
+    /// This should be called after all data has been collected for the build
+    /// side, and the directory having been initialized.
+    ///
+    /// Each thread will have a set of chunks that they're responsible for
+    /// inserting. All chunks need to be handled prior to probing the hash
+    /// table.
+    ///
+    /// This can be called concurrently by multiple threads. Entries in the hash
+    /// table are atomically updated.
+    pub fn insert_hashes_for_chunks(
+        &self,
+        chunk_indices: impl IntoIterator<Item = usize>,
+    ) -> Result<()> {
+        let mut hashes = Array::try_new(&NopBufferManager, DataType::UInt64, self.batch_size)?;
+        let mut scan_state = self.data.init_partial_scan(chunk_indices);
+
+        let scan_cols = &[self.hash_column()];
+
+        loop {
+            let count = self.data.scan_columns(
+                &mut scan_state,
+                scan_cols,
+                &mut [&mut hashes],
+                self.batch_size,
+            )?;
+
+            if count == 0 {
+                // No more hashes to scan.
+                break;
+            }
+
+            // Hashes should always be valid.
+            debug_assert!(hashes.validity.all_valid());
+
+            let hashes = PhysicalU64::get_addressable(&hashes.data)?;
+            let hashes = &hashes.slice[0..count];
+
+            self.insert_hashes(hashes, scan_state.row_addresses())?;
+        }
+
+        Ok(())
+    }
+
+    /// Inserts hashes into the hash table.
+    fn insert_hashes(&self, hashes: &[u64], row_addresses: &[RowAddress]) -> Result<()> {
+        debug_assert_eq!(hashes.len(), row_addresses.len());
+
+        let directory = &self
+            .directory
+            .as_ref()
+            .expect("directory to be initialized");
+
+        // Compute positions for each entry using the hashes.
+        let pos_mask = directory.capacity_mask();
+        let positions = hashes
+            .iter()
+            .copied()
+            .map(|hash| (hash & pos_mask) as usize);
+
+        let entries = row_addresses
+            .iter()
+            .copied()
+            .zip(hashes.iter().copied())
+            .map(|(addr, hash)| HashTableEntry::new(addr, hash));
+
+        for (pos, new_ent) in positions.zip(entries) {
+            let atomic_ent = directory.get_entry_as_atomic_u64(pos);
+            let current_ent = atomic_ent.load(atomic::Ordering::Relaxed);
+
+            if current_ent == HashTableEntry::DANGLING_U64 {
+                // Entry is free, try to insert into it.
+                if self.insert_empty(atomic_ent, new_ent) {
+                    // We inserted, move to next row to insert.
+                    continue;
+                }
+            }
+
+            // Either the entry isn't dangling, or we failed to insert into
+            // empty entry ( it became occupied as we tried to insert).
+            self.insert_occupied(atomic_ent, new_ent);
+        }
 
         Ok(())
     }
@@ -110,11 +238,9 @@ impl JoinHashTable {
     /// that every pointer we write to in the row collection is non-overlapping.
     /// The logic of the hash table should ensure that each thread is writing to
     /// separate set of rows.
-    fn insert_empty(&self, atomic_ent: &AtomicU64, row: RowAddress, row_hash: u64) -> bool {
-        let dir_ent = HashTableEntry::new(row, row_hash);
-
+    fn insert_empty(&self, atomic_ent: &AtomicU64, new_ent: HashTableEntry) -> bool {
         // SAFETY: ...
-        let chain_ptr = unsafe { self.next_entry_ptr(row) }.cast_mut();
+        let chain_ptr = unsafe { self.next_entry_ptr(new_ent.row_address()) }.cast_mut();
 
         // Write dangling to indicate end of chain.
         unsafe { chain_ptr.write_unaligned(HashTableEntry::DANGLING_U64) };
@@ -123,7 +249,7 @@ impl JoinHashTable {
         let did_write = atomic_ent
             .compare_exchange(
                 HashTableEntry::DANGLING_U64,
-                dir_ent.as_u64(),
+                new_ent.as_u64(),
                 atomic::Ordering::Acquire,
                 atomic::Ordering::Relaxed,
             )
@@ -137,14 +263,12 @@ impl JoinHashTable {
     /// # Safety
     ///
     /// See `insert_empty`.
-    fn insert_occupied(&self, atomic_ent: &AtomicU64, row: RowAddress, row_hash: u64) {
-        let dir_ent = HashTableEntry::new(row, row_hash);
-
+    fn insert_occupied(&self, atomic_ent: &AtomicU64, new_ent: HashTableEntry) {
         // SAFETY: ...
         //
         // An assumption is made that we're only ever generating valid row
         // addresses when inserting into the hash table.
-        let chain_ptr = unsafe { self.next_entry_ptr(row) }.cast_mut();
+        let chain_ptr = unsafe { self.next_entry_ptr(new_ent.row_address()) }.cast_mut();
 
         let mut curr_ent = atomic_ent.load(atomic::Ordering::Relaxed);
         loop {
@@ -154,7 +278,7 @@ impl JoinHashTable {
             // Now try to update the atomic entry to point to this row.
             match atomic_ent.compare_exchange_weak(
                 curr_ent,
-                dir_ent.as_u64(),
+                new_ent.as_u64(),
                 atomic::Ordering::Acquire,
                 atomic::Ordering::Relaxed,
             ) {
@@ -172,8 +296,15 @@ impl JoinHashTable {
     /// The row address must point to a valid row in the collected row data.
     unsafe fn next_entry_ptr(&self, row: RowAddress) -> *const u64 {
         let row_ptr = self.data.row_ptr(row);
-        let next_ent_ptr = row_ptr.byte_add(self.build_hash_offset);
+        let next_ent_ptr = row_ptr.byte_add(self.build_hash_byte_offset);
         next_ent_ptr.cast()
+    }
+
+    /// Index to the hash column the row collection.
+    ///
+    /// The hash/next entry columns is always the first column after the keys.
+    fn hash_column(&self) -> usize {
+        self.build_key_columns.len()
     }
 }
 
@@ -191,6 +322,12 @@ impl Directory {
         Directory {
             entries: TypedRawBuffer::try_with_capacity(&NopBufferManager, 0).unwrap(),
         }
+    }
+
+    /// Mask to use when determining the position for an entry in the hash
+    /// table.
+    const fn capacity_mask(&self) -> u64 {
+        self.entries.capacity() as u64 - 1
     }
 
     /// Create a new directory for the given number of rows.
@@ -269,6 +406,7 @@ impl HashTableScanState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::arrays::testutil::generate_batch;
 
     #[test]
     fn directory_as_atomic_entries() {
@@ -294,5 +432,17 @@ mod tests {
         };
         let got = dir.get_entry(3);
         assert_eq!(expected, got)
+    }
+
+    #[test]
+    fn insert_key_only() {
+        let mut table = JoinHashTable::new(JoinType::Inner, [DataType::Int32], [0], [], 16);
+        let mut build_state = table.init_build_state();
+
+        let input = generate_batch!([1, 2, 3, 4]);
+        table.collect_build(&mut build_state, &input).unwrap();
+
+        table.init_directory().unwrap();
+        table.insert_hashes_for_chunks([0]).unwrap();
     }
 }

@@ -35,7 +35,7 @@ where
     }
 
     /// Returns the capacity of this buffer.
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.raw.capacity()
     }
 
@@ -142,7 +142,7 @@ where
         })
     }
 
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.capacity
     }
 
@@ -258,6 +258,15 @@ where
 
     const fn layout(&self) -> Layout {
         unsafe { Layout::from_size_align_unchecked(self.reservation.size(), self.align) }
+    }
+
+    /// Writes all bytes in this buffer to the provided value.
+    #[cfg(debug_assertions)]
+    #[allow(unused)]
+    pub fn debug_fill(&mut self, val: u8) {
+        unsafe { self.as_slice_mut::<u8>() }
+            .iter_mut()
+            .for_each(|v| *v = val);
     }
 }
 

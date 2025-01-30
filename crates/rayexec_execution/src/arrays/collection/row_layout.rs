@@ -42,7 +42,7 @@ use crate::arrays::scalar::interval::Interval;
 pub struct RowLayout {
     /// Data types for each column in the row.
     pub(crate) types: Vec<DataType>,
-    /// Offsets within the encoded row to the start of the value.
+    /// Byte offsets within the encoded row to the start of the value.
     pub(crate) offsets: Vec<usize>,
     /// Sized in bytes for the (inline) encoded row. Does not include the size
     /// encoded and pushed to the string heap.
