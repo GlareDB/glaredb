@@ -39,6 +39,14 @@ where
         self.raw.capacity()
     }
 
+    pub fn as_ptr(&self) -> *const T {
+        self.raw.as_ptr().cast()
+    }
+
+    pub fn as_mut_ptr(&self) -> *mut T {
+        self.raw.as_mut_ptr().cast()
+    }
+
     /// Convert this buffer to a slice.
     pub fn as_slice(&self) -> &[T] {
         unsafe { self.raw.as_slice::<T>() }

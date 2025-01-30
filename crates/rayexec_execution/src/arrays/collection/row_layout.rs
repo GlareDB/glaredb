@@ -8,10 +8,29 @@ use super::row_heap::{RowHeap, RowHeapMetadataUnion};
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
-    Addressable, AddressableMut, MutableScalarStorage, PhysicalBinary, PhysicalBool, PhysicalF16,
-    PhysicalF32, PhysicalF64, PhysicalI128, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI8,
-    PhysicalInterval, PhysicalType, PhysicalU128, PhysicalU16, PhysicalU32, PhysicalU64,
-    PhysicalU8, PhysicalUntypedNull, ScalarStorage, UntypedNull,
+    Addressable,
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalInterval,
+    PhysicalType,
+    PhysicalU128,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU8,
+    PhysicalUntypedNull,
+    ScalarStorage,
+    UntypedNull,
 };
 use crate::arrays::array::Array;
 use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMut};
@@ -114,6 +133,9 @@ impl RowLayout {
 
     /// Decodes a buffer into the output arrays using this layout.
     ///
+    /// The output array iterator provides (column_idx, array) pairs for
+    /// indicating which column we should be scanning for an array.
+    ///
     /// The selection is used to determine which rows to decode from the buffer
     /// into the output.
     pub(crate) fn decode_arrays<'a, B>(
@@ -121,12 +143,12 @@ impl RowLayout {
         buffer: &[u8],
         heap: &RowHeap<B>,
         selection: impl IntoExactSizeIterator<Item = usize> + Clone,
-        output_arrays: impl IntoIterator<Item = &'a mut Array<B>>,
+        output_arrays: impl IntoIterator<Item = (usize, &'a mut Array<B>)>,
     ) -> Result<()>
     where
         B: BufferManager + 'a,
     {
-        for (array_idx, output) in output_arrays.into_iter().enumerate() {
+        for (array_idx, output) in output_arrays.into_iter() {
             let phys_type = output.datatype().physical_type();
             decode_array(
                 self,
@@ -664,7 +686,7 @@ mod tests {
 
         let mut output = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
         layout
-            .decode_arrays(&buf, &heap, 0..3, [&mut output])
+            .decode_arrays(&buf, &heap, 0..3, [(0, &mut output)])
             .unwrap();
 
         let expected = Array::try_from_iter([1, 2, 3]).unwrap();
@@ -685,7 +707,7 @@ mod tests {
 
         let mut output = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
         layout
-            .decode_arrays(&buf, &heap, 0..3, [&mut output])
+            .decode_arrays(&buf, &heap, 0..3, [(0, &mut output)])
             .unwrap();
 
         let expected = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
@@ -706,7 +728,7 @@ mod tests {
 
         let mut output = Batch::try_new([DataType::Int32, DataType::Float64], 16).unwrap();
         layout
-            .decode_arrays(&buf, &heap, 0..3, &mut output.arrays)
+            .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
             .unwrap();
         output.set_num_rows(3).unwrap();
 
@@ -728,7 +750,7 @@ mod tests {
 
         let mut output = Batch::try_new([DataType::Int32, DataType::Float64], 16).unwrap();
         layout
-            .decode_arrays(&buf, &heap, 0..3, &mut output.arrays)
+            .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
             .unwrap();
         output.set_num_rows(3).unwrap();
 
@@ -750,7 +772,7 @@ mod tests {
 
         let mut output = Batch::try_new([DataType::Utf8], 16).unwrap();
         layout
-            .decode_arrays(&buf, &heap, 0..3, &mut output.arrays)
+            .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
             .unwrap();
         output.set_num_rows(3).unwrap();
 
@@ -772,7 +794,7 @@ mod tests {
 
         let mut output = Batch::try_new([DataType::Utf8], 16).unwrap();
         layout
-            .decode_arrays(&buf, &heap, 0..3, &mut output.arrays)
+            .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
             .unwrap();
         output.set_num_rows(3).unwrap();
 

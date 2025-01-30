@@ -14,7 +14,7 @@ use crate::arrays::collection::row::RowAddress;
 // However for something like an "unchained" hash table, this might be
 // sufficient: <https://db.in.tum.de/~birler/papers/hashtable.pdf>
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(C)]
+#[repr(C, align(8))]
 pub struct HashTableEntry {
     /// Index of the chunk containing this row.
     pub chunk_idx: u32,
@@ -28,6 +28,8 @@ pub struct HashTableEntry {
 
 impl HashTableEntry {
     const _SIZE_ASSERTION: () = assert!(std::mem::size_of::<Self>() == std::mem::size_of::<u64>());
+    const _ALIGN_ASSERTION: () =
+        assert!(std::mem::align_of::<Self>() == std::mem::align_of::<u64>());
 
     pub const DANGLING: Self = HashTableEntry {
         chunk_idx: 0,

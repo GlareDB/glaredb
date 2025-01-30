@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+use std::borrow::{Borrow, BorrowMut};
 
 use rayexec_error::Result;
 
@@ -91,8 +91,7 @@ impl RowCollection {
 
     pub fn init_scan(&self) -> RowCollectionScanState {
         RowCollectionScanState {
-            chunk_idx: 0,
-            row_idx: 0,
+            row_addresses: Vec::new(),
         }
     }
 
@@ -104,44 +103,90 @@ impl RowCollection {
     ///
     /// This updates the scan state to allow for resuming scans.
     pub fn scan(&self, state: &mut RowCollectionScanState, output: &mut Batch) -> Result<usize> {
-        let mut row_count = 0;
-        let mut remaining_cap = output.capacity;
+        let count = self.scan_columns(
+            state,
+            &(0..output.arrays.len()).collect::<Vec<_>>(), // TODO: Don't do this.
+            &mut output.arrays,
+            output.capacity,
+        )?;
+        // Ensure we set the row count in the output batch.
+        output.set_num_rows(count)?;
+
+        Ok(count)
+    }
+
+    /// Scan a subset of columns into the output arrays.
+    ///
+    /// `column` provide the columns to scan into the `output` arrays.
+    ///
+    /// `count` indicates the max number of rows to write to the array. This
+    /// must be less than or equal to the array capacities.
+    pub fn scan_columns<A>(
+        &self,
+        state: &mut RowCollectionScanState,
+        columns: &[usize],
+        output: &mut [A],
+        count: usize,
+    ) -> Result<usize>
+    where
+        A: BorrowMut<Array>,
+    {
+        assert_eq!(columns.len(), output.len());
+
+        // Get chunk/row to start scanning at from the most recent scan if we
+        // have it.
+        let (mut chunk_idx, mut row_idx) = state
+            .row_addresses
+            .last()
+            .map(|addr| (addr.chunk_idx as usize, addr.row_idx as usize + 1))
+            .unwrap_or((0, 0));
+
+        state.row_addresses.clear();
+
+        let mut remaining_cap = count;
 
         while remaining_cap > 0 {
-            let chunk = match self.chunks.get(state.chunk_idx) {
+            let chunk = match self.chunks.get(chunk_idx) {
                 Some(chunk) => chunk,
                 None => break, // No more chunks, break out of loop to ensure batch gets updated.
             };
 
-            if state.row_idx >= chunk.filled {
+            if row_idx >= chunk.filled {
                 // No more rows in this chunk, try to move to the next chunk.
-                state.chunk_idx += 1;
-                state.row_idx = 0;
+                chunk_idx += 1;
+                row_idx = 0;
                 continue;
             }
 
             // We have a chunk with rows to scan.
             //
             // Compute how many rows we can scan from the chunk.
-            let scan_row_count = usize::min(remaining_cap, chunk.filled - state.row_idx);
+            let scan_row_count = usize::min(remaining_cap, chunk.filled - row_idx);
             chunk.scan(
                 &self.layout,
-                state.row_idx,
+                row_idx,
                 scan_row_count,
-                &mut output.arrays,
+                columns
+                    .iter()
+                    .copied()
+                    .zip(output.iter_mut().map(|a| a.borrow_mut())),
             )?;
 
-            row_count += scan_row_count;
-            state.row_idx += scan_row_count;
+            // Update scan state with row addresses for rows we just scanned.
+            state
+                .row_addresses
+                .extend(
+                    (row_idx..(row_idx + scan_row_count)).map(|row_idx| RowAddress {
+                        chunk_idx: chunk_idx as u32,
+                        row_idx: row_idx as u16,
+                    }),
+                );
+
+            row_idx += scan_row_count;
             remaining_cap -= scan_row_count;
         }
 
-        // Ensure we set the row count in the output batch.
-        output.set_num_rows(row_count)?;
-
-        // Scan state has been update, nothing else to do here...
-
-        Ok(row_count)
+        Ok(state.row_addresses.len())
     }
 
     /// Returns a pointer to the start of a row in the collection.
@@ -155,7 +200,7 @@ impl RowCollection {
         debug_assert!(addr.row_idx as usize <= chunk.filled);
 
         let offset = self.layout.row_width * (addr.row_idx as usize);
-        chunk.data.as_slice().as_ptr().byte_offset(offset as isize)
+        chunk.data.raw.as_ptr().byte_add(offset)
     }
 }
 
@@ -212,16 +257,19 @@ where
         Ok(())
     }
 
-    fn scan(
+    fn scan<'a>(
         &self,
         layout: &RowLayout,
         src_row_offset: usize,
         count: usize,
-        dest: &mut [Array<B>],
-    ) -> Result<()> {
+        output_arrays: impl IntoIterator<Item = (usize, &'a mut Array<B>)>,
+    ) -> Result<()>
+    where
+        B: BufferManager + 'a,
+    {
         let buf = self.data.as_slice();
         let selection = src_row_offset..(src_row_offset + count);
-        layout.decode_arrays(buf, &self.heap, selection, dest)?;
+        layout.decode_arrays(buf, &self.heap, selection, output_arrays)?;
 
         Ok(())
     }
@@ -230,17 +278,24 @@ where
 /// State for resumable scanning of the row collection.
 #[derive(Debug)]
 pub struct RowCollectionScanState {
-    /// Index of the chunk we should resume scanning from.
-    chunk_idx: usize,
-    /// Row within the chunk we should resume scanning from.
-    row_idx: usize,
+    /// Collects row addresses as we scan them.
+    row_addresses: Vec<RowAddress>,
+}
+
+impl RowCollectionScanState {
+    /// Get the row addresses from the most recent scan.
+    pub fn row_addresses(&self) -> &[RowAddress] {
+        &self.row_addresses
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::{assert_batches_eq, generate_batch};
+    use crate::arrays::testutil::{assert_arrays_eq, assert_batches_eq, generate_batch};
 
     #[test]
     fn append_single_batch_i32() {
@@ -252,6 +307,7 @@ mod tests {
 
         let mut state = collection.init_scan();
         collection.scan(&mut state, &mut output).unwrap();
+        assert_eq!(6, state.row_addresses().len());
 
         let expected = generate_batch!([1, 2, 3, 4, 5, 6]);
         assert_batches_eq(&expected, &output);
@@ -269,6 +325,7 @@ mod tests {
         let mut state = collection.init_scan();
         let scan_count = collection.scan(&mut state, &mut output).unwrap();
         assert_eq!(6, scan_count);
+        assert_eq!(6, state.row_addresses().len());
 
         let expected = generate_batch!([Some(1), Some(2), None, Some(4), None, Some(6)]);
         assert_batches_eq(&expected, &output);
@@ -288,14 +345,59 @@ mod tests {
 
         let scan_count = collection.scan(&mut state, &mut output).unwrap();
         assert_eq!(16, scan_count);
+        assert_eq!(16, state.row_addresses().len());
 
         let expected1 = generate_batch!(0..16);
         assert_batches_eq(&expected1, &output);
 
         let scan_count = collection.scan(&mut state, &mut output).unwrap();
         assert_eq!(16, scan_count);
+        assert_eq!(16, state.row_addresses().len());
 
         let expected2 = generate_batch!(16..32);
         assert_batches_eq(&expected2, &output);
+    }
+
+    #[test]
+    fn append_batch_scan_column_subset() {
+        let mut collection =
+            RowCollection::new(RowLayout::new([DataType::Int32, DataType::Utf8]), 16);
+        let input = generate_batch!([1, 2, 3, 4], ["a", "b", "c", "d"]);
+        collection.append_batch(&input).unwrap();
+
+        // Scan just the string column.
+        let mut output = Array::try_new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+
+        let mut state = collection.init_scan();
+        collection
+            .scan_columns(&mut state, &[1], &mut [&mut output], 4)
+            .unwrap();
+
+        let expected = Array::try_from_iter(["a", "b", "c", "d"]).unwrap();
+        assert_arrays_eq(&expected, &output);
+    }
+
+    #[test]
+    fn row_ptr_read_column_value() {
+        // Read a column value by getting a pointer to the row and offsetting
+        // into it using layout.
+        let mut collection = RowCollection::new(
+            RowLayout::new([DataType::Int32, DataType::Utf8, DataType::Int32]),
+            16,
+        );
+        let input = generate_batch!([1, 2, 3, 4], ["cat", "dog", "goose", "moose"], [5, 6, 7, 8]);
+        collection.append_batch(&input).unwrap();
+
+        let row_ptr = unsafe {
+            collection.row_ptr(RowAddress {
+                chunk_idx: 0,
+                row_idx: 2, // '3, "goose", 7'
+            })
+        };
+
+        let ptr = unsafe { row_ptr.byte_add(collection.layout().offsets[2]) };
+        let v = unsafe { ptr.cast::<i32>().read_unaligned() };
+
+        assert_eq!(7, v);
     }
 }

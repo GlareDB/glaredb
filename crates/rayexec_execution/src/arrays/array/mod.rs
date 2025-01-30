@@ -5,7 +5,7 @@ pub mod physical_type;
 pub mod selection;
 pub mod validity;
 
-pub(in crate::arrays) mod raw;
+pub(crate) mod raw;
 
 use std::fmt::Debug;
 
