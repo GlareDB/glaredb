@@ -33,7 +33,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_bytes = "0.11.15"
 erased-serde = { workspace = true }
-rand = "0.8.5"
+rand = "0.9.0"
 uuid = { workspace = true }
 dashmap = "6.0.1"
 strsim = "0.11.1"
