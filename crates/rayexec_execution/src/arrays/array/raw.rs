@@ -7,9 +7,6 @@ use stdutil::marker::PhantomCovariant;
 use super::buffer_manager::{BufferManager, Reservation};
 
 /// Wrapper around a raw buffer that knows its type.
-///
-/// This should be used instead of a `Vec` when we want to tie data to a buffer
-/// manager.
 #[derive(Debug)]
 pub struct TypedRawBuffer<T, B: BufferManager> {
     pub(crate) _type: PhantomCovariant<T>,
@@ -36,7 +33,7 @@ where
 
     /// Returns the capacity of this buffer.
     pub const fn capacity(&self) -> usize {
-        self.raw.capacity()
+        self.raw.typed_capacity()
     }
 
     pub fn as_ptr(&self) -> *const T {
@@ -76,6 +73,14 @@ where
     }
 }
 
+/// A raw buffer densely allocated on the heap.
+///
+/// Tracks memory usage through reservations that get released when this buffer
+/// gets dropped.
+///
+/// Note that this is not a general purpose container, and should only be used
+/// for storing array data (or raw bytes). Items stored in this buffer **will
+/// not** have their `Drop` implementations called.
 #[derive(Debug)]
 pub struct RawBuffer<B: BufferManager> {
     /// Memory reservation for this buffer.
@@ -142,14 +147,18 @@ where
         })
     }
 
-    pub const fn capacity(&self) -> usize {
+    /// Returns the capacity of this buffer in relation to the type this buffer
+    /// was initialized with.
+    pub const fn typed_capacity(&self) -> usize {
         self.capacity
     }
 
+    /// Returns a const pointer to the start of this buffer.
     pub fn as_ptr(&self) -> *const u8 {
         self.ptr.as_ptr().cast_const()
     }
 
+    /// Returns a mut pointer to the start of this buffer.
     pub fn as_mut_ptr(&self) -> *mut u8 {
         self.ptr.as_ptr()
     }
@@ -264,9 +273,18 @@ where
     #[cfg(debug_assertions)]
     #[allow(unused)]
     pub fn debug_fill(&mut self, val: u8) {
-        unsafe { self.as_slice_mut::<u8>() }
-            .iter_mut()
-            .for_each(|v| *v = val);
+        unsafe { self.as_slice_mut::<u8>() }.fill(val);
+    }
+
+    /// Returns if this buffer contains the given address.
+    ///
+    /// This should only be used for verifying pointer arithmetic and not be
+    /// part of any core logic.
+    #[allow(unused)]
+    pub fn contains_addr(&self, addr: usize) -> bool {
+        let min = self.as_ptr().addr();
+        let max = min + self.reservation.size();
+        addr >= min && addr < max
     }
 }
 
@@ -418,5 +436,16 @@ mod tests {
 
         let s = unsafe { b.as_slice::<i64>() };
         assert_eq!(&[18, 1024], s);
+    }
+
+    #[test]
+    fn contains_addr() {
+        let b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 2).unwrap();
+
+        let addr = b.as_ptr().addr();
+
+        assert!(b.contains_addr(addr));
+        assert!(b.contains_addr(addr + 8));
+        assert!(!b.contains_addr(addr + 16));
     }
 }

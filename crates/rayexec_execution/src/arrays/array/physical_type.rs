@@ -8,7 +8,6 @@ use rayexec_proto::ProtoConv;
 use super::array_buffer::{ArrayBuffer, ListItemMetadata, StringViewBuffer};
 use super::buffer_manager::BufferManager;
 use crate::arrays::array::array_buffer::ArrayBufferType;
-use crate::arrays::collection::row_heap::{RowHeap, RowHeapMetadataUnion};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::view::{StringView, MAX_INLINE_LEN};
 

@@ -1,4 +1,4 @@
-use std::sync::atomic::{self, AtomicU64};
+use std::sync::atomic::{self, AtomicPtr, AtomicU64};
 
 use rayexec_error::Result;
 
@@ -8,12 +8,11 @@ use crate::arrays::array::raw::TypedRawBuffer;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::collection::row::{RowAddress, RowCollection};
+use crate::arrays::collection::row::{RowAddress, RowAppendState, RowCollection};
 use crate::arrays::collection::row_layout::RowLayout;
 use crate::arrays::collection::row_matcher::PredicateRowMatcher;
 use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
-use crate::execution::operators::join::hash_table_entry::HashTableEntry;
 use crate::execution::operators::join::produce_all_build_side_rows;
 use crate::logical::logical_join::JoinType;
 
@@ -70,10 +69,12 @@ impl JoinHashTable {
         }
     }
 
+    /// Initializes a build state for this hash table.
     pub fn init_build_state(&self) -> BuildState {
         BuildState {
             match_init: Array::try_new_constant(&NopBufferManager, &false.into(), self.batch_size)
                 .expect("constant array to build"),
+            row_append: self.data.init_append(),
         }
     }
 
@@ -117,11 +118,11 @@ impl JoinHashTable {
             arrays.push(&state.match_init);
         }
 
-        unimplemented!()
-        // // Now append to row collection.
-        // self.data.append_arrays(&arrays, input.num_rows())?;
+        // Now append to row collection.
+        self.data
+            .append_arrays(&mut state.row_append, &arrays, input.num_rows())?;
 
-        // Ok(())
+        Ok(())
     }
 
     /// Initialize the directory for the hash table.
@@ -136,23 +137,23 @@ impl JoinHashTable {
         Ok(())
     }
 
-    /// Inserts hashes for the given chunks into the hash table.
+    /// Inserts hashes for the given blocks into the hash table.
     ///
     /// This should be called after all data has been collected for the build
     /// side, and the directory having been initialized.
     ///
-    /// Each thread will have a set of chunks that they're responsible for
-    /// inserting. All chunks need to be handled prior to probing the hash
+    /// Each thread will have a set of blocks that it's responsible for
+    /// inserting. All blocks need to be handled prior to probing the hash
     /// table.
     ///
     /// This can be called concurrently by multiple threads. Entries in the hash
     /// table are atomically updated.
-    pub fn insert_hashes_for_chunks(
+    pub fn insert_hashes_for_blocks(
         &self,
-        chunk_indices: impl IntoIterator<Item = usize>,
+        block_indices: impl IntoIterator<Item = usize>,
     ) -> Result<()> {
         let mut hashes = Array::try_new(&NopBufferManager, DataType::UInt64, self.batch_size)?;
-        let mut scan_state = self.data.init_partial_scan(chunk_indices);
+        let mut scan_state = self.data.init_partial_scan(block_indices);
 
         let scan_cols = &[self.hash_column()];
 
@@ -175,15 +176,15 @@ impl JoinHashTable {
             let hashes = PhysicalU64::get_addressable(&hashes.data)?;
             let hashes = &hashes.slice[0..count];
 
-            self.insert_hashes(hashes, scan_state.row_addresses())?;
+            self.insert_hashes(hashes, scan_state.scanned_row_pointers())?;
         }
 
         Ok(())
     }
 
     /// Inserts hashes into the hash table.
-    fn insert_hashes(&self, hashes: &[u64], row_addresses: &[RowAddress]) -> Result<()> {
-        debug_assert_eq!(hashes.len(), row_addresses.len());
+    fn insert_hashes(&self, hashes: &[u64], row_pointers: &[*const u8]) -> Result<()> {
+        debug_assert_eq!(hashes.len(), row_pointers.len());
 
         let directory = &self
             .directory
@@ -197,19 +198,13 @@ impl JoinHashTable {
             .copied()
             .map(|hash| (hash & pos_mask) as usize);
 
-        let entries = row_addresses
-            .iter()
-            .copied()
-            .zip(hashes.iter().copied())
-            .map(|(addr, hash)| HashTableEntry::new(addr, hash));
+        for (pos, &row_ptr) in positions.zip(row_pointers) {
+            let atomic_ptr = directory.get_entry_atomic(pos);
+            let current_ent = atomic_ptr.load(atomic::Ordering::Relaxed);
 
-        for (pos, new_ent) in positions.zip(entries) {
-            let atomic_ent = directory.get_entry_as_atomic_u64(pos);
-            let current_ent = atomic_ent.load(atomic::Ordering::Relaxed);
-
-            if current_ent == HashTableEntry::DANGLING_U64 {
+            if current_ent.is_null() {
                 // Entry is free, try to insert into it.
-                if self.insert_empty(atomic_ent, new_ent) {
+                if self.insert_empty(atomic_ptr, row_ptr) {
                     // We inserted, move to next row to insert.
                     continue;
                 }
@@ -217,7 +212,7 @@ impl JoinHashTable {
 
             // Either the entry isn't dangling, or we failed to insert into
             // empty entry ( it became occupied as we tried to insert).
-            self.insert_occupied(atomic_ent, new_ent);
+            self.insert_occupied(atomic_ptr, row_ptr);
         }
 
         Ok(())
@@ -238,7 +233,7 @@ impl JoinHashTable {
 
         // Resize entries to number of keys we're probing with. These will be
         // overwritten in the below loop.
-        state.entries.resize(count, HashTableEntry::DANGLING);
+        state.row_pointers.resize(count, std::ptr::null());
 
         let directory = &self
             .directory
@@ -255,8 +250,8 @@ impl JoinHashTable {
 
         // Store entries on the scan state. We'll do the equality/comparison
         // checking during the actual scan call.
-        for (matching_ent, position) in state.entries.iter_mut().zip(positions) {
-            *matching_ent = directory.get_entry(position);
+        for (row_ptr, position) in state.row_pointers.iter_mut().zip(positions) {
+            *row_ptr = directory.get_entry(position);
         }
 
         Ok(())
@@ -274,18 +269,18 @@ impl JoinHashTable {
     /// that every pointer we write to in the row collection is non-overlapping.
     /// The logic of the hash table should ensure that each thread is writing to
     /// separate set of rows.
-    fn insert_empty(&self, atomic_ent: &AtomicU64, new_ent: HashTableEntry) -> bool {
+    fn insert_empty(&self, atomic_ent: &AtomicPtr<u8>, new_ent: *const u8) -> bool {
+        // Update next entry for this chain to null.
         // SAFETY: ...
-        let chain_ptr = unsafe { self.next_entry_ptr(new_ent.row_address()) }.cast_mut();
-
-        // Write dangling to indicate end of chain.
-        unsafe { chain_ptr.write_unaligned(HashTableEntry::DANGLING_U64) };
+        unsafe {
+            self.write_next_entry_ptr(new_ent, std::ptr::null());
+        }
 
         // Attempt to swap out the entry that we expect to be empty.
         let did_write = atomic_ent
             .compare_exchange(
-                HashTableEntry::DANGLING_U64,
-                new_ent.as_u64(),
+                std::ptr::null_mut(),
+                new_ent.cast_mut(),
                 atomic::Ordering::Acquire,
                 atomic::Ordering::Relaxed,
             )
@@ -299,22 +294,22 @@ impl JoinHashTable {
     /// # Safety
     ///
     /// See `insert_empty`.
-    fn insert_occupied(&self, atomic_ent: &AtomicU64, new_ent: HashTableEntry) {
-        // SAFETY: ...
-        //
-        // An assumption is made that we're only ever generating valid row
-        // addresses when inserting into the hash table.
-        let chain_ptr = unsafe { self.next_entry_ptr(new_ent.row_address()) }.cast_mut();
-
+    fn insert_occupied(&self, atomic_ent: &AtomicPtr<u8>, new_ent: *const u8) {
         let mut curr_ent = atomic_ent.load(atomic::Ordering::Relaxed);
         loop {
             // Update pointer to next entry in chain.
-            unsafe { chain_ptr.write_unaligned(curr_ent) };
+            // SAFETY: ...
+            //
+            // An assumption is made that we're only ever generating valid row
+            // addresses when inserting into the hash table.
+            unsafe {
+                self.write_next_entry_ptr(new_ent, curr_ent);
+            };
 
             // Now try to update the atomic entry to point to this row.
             match atomic_ent.compare_exchange_weak(
                 curr_ent,
-                new_ent.as_u64(),
+                new_ent.cast_mut(),
                 atomic::Ordering::Acquire,
                 atomic::Ordering::Relaxed,
             ) {
@@ -324,29 +319,19 @@ impl JoinHashTable {
         }
     }
 
-    /// Gets a raw pointer for for getting the next entry for a row when
-    /// following the hash chain.
-    ///
-    /// The returns pointer is not guaranteed to be aligned.
-    ///
-    /// # Safety
-    ///
-    /// The row address must point to a valid row in the collected row data.
-    unsafe fn next_entry_ptr(&self, row: RowAddress) -> *const u64 {
-        let row_ptr = self.data.row_ptr(row);
-        let next_ent_ptr = row_ptr.byte_add(self.build_hash_byte_offset);
-        next_ent_ptr.cast()
+    unsafe fn write_next_entry_ptr(&self, row_ptr: *const u8, next_ent: *const u8) {
+        let next_ent_ptr = row_ptr
+            .byte_add(self.build_hash_byte_offset)
+            .cast::<*const u8>()
+            .cast_mut();
+        next_ent_ptr.write_unaligned(next_ent);
     }
 
-    /// Reads the next entry for the a given row.
-    ///
-    /// # Safety
-    ///
-    /// Same concerns as `next_entry_ptr`.
-    unsafe fn read_next_entry(&self, row: RowAddress) -> HashTableEntry {
-        let ptr = self.next_entry_ptr(row);
-        let v = ptr.read_unaligned();
-        HashTableEntry::from_u64(v)
+    unsafe fn read_next_entry_ptr(&self, row_ptr: *const u8) -> *const u8 {
+        let next_ent_ptr = row_ptr
+            .byte_add(self.build_hash_byte_offset)
+            .cast::<*const u8>();
+        next_ent_ptr.read_unaligned()
     }
 
     /// Index to the hash column the row collection.
@@ -357,10 +342,14 @@ impl JoinHashTable {
     }
 }
 
-/// Hash table directory.
+/// (Chained) hash table directory.
+///
+/// Each entry is a row pointer pointing to the front of a chain. Each row will
+/// point to the next entry in the chain through a serialized pointer. The end
+/// of a chain is denoted by a null pointer.
 #[derive(Debug)]
 struct Directory {
-    entries: TypedRawBuffer<HashTableEntry, NopBufferManager>,
+    entries: TypedRawBuffer<*mut u8, NopBufferManager>,
 }
 
 impl Directory {
@@ -388,25 +377,21 @@ impl Directory {
         let actual = usize::max(desired.next_power_of_two(), Self::MIN_SIZE);
 
         let mut entries = TypedRawBuffer::try_with_capacity(&NopBufferManager, actual)?;
-        entries
-            .as_slice_mut()
-            .iter_mut()
-            .for_each(|ent| *ent = HashTableEntry::DANGLING);
+        entries.as_slice_mut().fill(std::ptr::null_mut());
 
         Ok(Directory { entries })
     }
 
-    fn get_entry(&self, idx: usize) -> HashTableEntry {
+    fn get_entry(&self, idx: usize) -> *const u8 {
         debug_assert!(idx < self.entries.capacity());
         let ptr = unsafe { self.entries.as_ptr().add(idx) };
         unsafe { *ptr }
     }
 
-    fn get_entry_as_atomic_u64(&self, idx: usize) -> &AtomicU64 {
+    fn get_entry_atomic(&self, idx: usize) -> &AtomicPtr<u8> {
         debug_assert!(idx < self.entries.capacity());
-        let ptr = unsafe { self.entries.as_ptr().add(idx) };
-        let ptr = ptr.cast::<AtomicU64>();
-        unsafe { &*ptr }
+        let ptr = unsafe { self.entries.as_mut_ptr().add(idx) };
+        unsafe { AtomicPtr::from_ptr(ptr) }
     }
 }
 
@@ -418,6 +403,8 @@ pub struct BuildState {
     /// When we insert into the hash table, we'll use these values (all false)
     /// to initialize matches.
     match_init: Array,
+    /// State for appending rows to the collection.
+    row_append: RowAppendState,
 }
 
 /// Scan state for resuming probes of the hash table.
@@ -427,8 +414,10 @@ pub struct HashTableScanState {
     ///
     /// Once this is empty, we know we're done scanning this set of keys.
     selection: Vec<usize>,
-    /// Current set of entries we're working with.
-    entries: Vec<HashTableEntry>,
+    /// Current set of pointers we're working with.
+    ///
+    /// We'll continually update these until we reach the end of the chain.
+    row_pointers: Vec<*const u8>,
     /// Reusable hashes buffer. Filled when we probe the hash table with
     /// rhs_keys.
     hashes: Vec<u64>,
@@ -468,7 +457,7 @@ impl HashTableScanState {
             let lhs_rows = self
                 .selection
                 .iter()
-                .map(|&row_idx| self.entries[row_idx].row_address());
+                .map(|&row_idx| self.row_pointers[row_idx]);
 
             // Rows to read from the right.
             let rhs_rows = self.selection.iter().copied();
@@ -503,24 +492,25 @@ impl HashTableScanState {
     /// next entry to read from.
     fn follow_next_in_chain(&mut self, table: &JoinHashTable) {
         for &ent_idx in &self.selection {
-            let ent = &mut self.entries[ent_idx];
-            // SAFETY: ...
-            //
-            // Assumes that we're generating row addresses correctly and that
-            // they are in bounds.
-            *ent = unsafe { table.read_next_entry(ent.row_address()) };
+            let ent = &mut self.row_pointers[ent_idx];
+            if !ent.is_null() {
+                // Move to next in the chain.
+                // SAFETY: ...
+                //
+                // Assumes that we're generating row addresses correctly and that
+                // they are in bounds.
+                *ent = unsafe { table.read_next_entry_ptr(*ent) }
+            }
         }
 
         // Update the selection to only include entries that are not dangling.
         self.selection.clear();
-        self.selection
-            .extend(self.entries.iter().enumerate().filter_map(|(idx, ent)| {
-                if ent.is_dangling() {
-                    None
-                } else {
-                    Some(idx)
-                }
-            }));
+        self.selection.extend(
+            self.row_pointers
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, ent)| if ent.is_null() { None } else { Some(idx) }),
+        );
     }
 }
 
@@ -528,32 +518,6 @@ impl HashTableScanState {
 mod tests {
     use super::*;
     use crate::arrays::testutil::generate_batch;
-
-    #[test]
-    fn directory_as_atomic_entries() {
-        // Sanity check with Miri.
-
-        let dir = Directory::new_for_num_rows(16).unwrap();
-        dir.get_entry_as_atomic_u64(3).store(
-            HashTableEntry::new(
-                RowAddress {
-                    chunk_idx: 4,
-                    row_idx: 3,
-                },
-                0xABCD_FFFF_FFFF_FFFF,
-            )
-            .as_u64(),
-            atomic::Ordering::Relaxed,
-        );
-
-        let expected = HashTableEntry {
-            chunk_idx: 4,
-            row_idx: 3,
-            hash_prefix: 0xABCD,
-        };
-        let got = dir.get_entry(3);
-        assert_eq!(expected, got)
-    }
 
     #[test]
     fn insert_key_only() {
@@ -564,6 +528,6 @@ mod tests {
         table.collect_build(&mut build_state, &input).unwrap();
 
         table.init_directory().unwrap();
-        table.insert_hashes_for_chunks([0]).unwrap();
+        table.insert_hashes_for_blocks([0]).unwrap();
     }
 }

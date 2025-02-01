@@ -36,7 +36,6 @@ use crate::arrays::array::physical_type::{
     PhysicalUtf8,
     ScalarStorage,
 };
-use crate::arrays::collection::row_heap::{RowHeap, RowHeapMetadataUnion};
 use crate::arrays::datatype::DataType;
 use crate::arrays::view::{StringView, MAX_INLINE_LEN};
 

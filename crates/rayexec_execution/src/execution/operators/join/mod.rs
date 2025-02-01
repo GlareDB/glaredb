@@ -4,7 +4,6 @@ pub mod hash_join;
 pub mod nested_loop_join;
 
 mod cross_product;
-mod hash_table_entry;
 mod join_hash_table;
 mod outer_join_tracker;
 

@@ -12,7 +12,7 @@ impl PredicateRowMatcher {
     pub fn find_matches(
         &self,
         collection: &RowCollection,
-        lhs_rows: impl IntoExactSizeIterator<Item = RowAddress>,
+        lhs_rows: impl IntoExactSizeIterator<Item = *const u8>,
         lhs_columns: &[usize],
         rhs_columns: &[Array],
         rhs_selection: impl IntoExactSizeIterator<Item = usize>,
