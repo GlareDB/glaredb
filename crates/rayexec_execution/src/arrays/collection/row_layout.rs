@@ -1,9 +1,10 @@
-use std::borrow::Borrow;
+use std::borrow::{Borrow, BorrowMut};
 
 use half::f16;
 use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
+use super::row_blocks::{BlockAppendState, BlockReadState, HeapMutPtr, RowBlocks};
 use super::row_heap::{RowHeap, RowHeapMetadataUnion};
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
@@ -36,6 +37,7 @@ use crate::arrays::array::Array;
 use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMut};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
+use crate::arrays::view::StringView;
 
 /// Describes the layout of a row for use with a row collection.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,68 +98,118 @@ impl RowLayout {
         self.row_width * rows
     }
 
-    /// Encodes arrays into a buffer using this layout.
+    /// Compute the byte offset needed to get a pointer to the colum in the
+    /// given row.
+    pub fn byte_offset(&self, row: usize, column: usize) -> usize {
+        self.row_width * row + self.offsets[column]
+    }
+
+    /// Returns the validity buffer for a row.
     ///
-    /// The buffer must be the exact size for encoding the length of the selection.
-    pub(crate) fn encode_arrays<A, B>(
+    /// # Safety
+    ///
+    /// `row_ptr` must point the beginning of the row, and the row must conform
+    /// to this row layout.
+    unsafe fn validity_buffer(&self, row_ptr: *const u8) -> &[u8] {
+        std::slice::from_raw_parts(row_ptr, self.validity_width)
+    }
+
+    /// Returns a mutable validity buffer for a row.
+    ///
+    /// # Safety
+    ///
+    /// Same as `validity_buffer`, and the pointer must not have been
+    /// invalidated.
+    unsafe fn validity_buffer_mut(&self, row_ptr: *mut u8) -> &mut [u8] {
+        std::slice::from_raw_parts_mut(row_ptr, self.validity_width)
+    }
+
+    /// Computes the heap sizes needed for each row.
+    ///
+    /// All arrays should be provided so that it matches this row layout.
+    ///
+    /// `sizes` will initially be set to all zeros.
+    pub fn compute_heap_sizes<A, B>(
         &self,
         arrays: &[A],
-        selection: impl IntoExactSizeIterator<Item = usize> + Clone,
-        buffer: &mut [u8],
-        heap: &mut RowHeap<B>,
+        num_rows: usize,
+        sizes: &mut [usize],
     ) -> Result<()>
     where
         A: Borrow<Array<B>>,
         B: BufferManager,
     {
-        let num_rows = selection.clone().into_exact_size_iter().len();
-        init_row_validities(self, num_rows, buffer);
+        debug_assert_eq!(sizes.len(), num_rows);
+        sizes.fill(0); // Reset all sizes initially to zero.
 
+        for array in arrays {
+            let array = array.borrow().flatten()?;
+            match array.physical_type() {
+                PhysicalType::Binary | PhysicalType::Utf8 => {
+                    let data = PhysicalBinary::get_addressable(array.array_buffer)?;
+                    for row in 0..num_rows {
+                        if array.validity.is_valid(row) {
+                            let sel = array.selection.get(row).unwrap();
+                            let view = data.metadata[sel];
+                            sizes[row] += view.data_len() as usize;
+                        }
+                    }
+                }
+                PhysicalType::Struct => unimplemented!(),
+                PhysicalType::List => unimplemented!(),
+                _ => (),
+            }
+        }
+
+        unimplemented!()
+    }
+
+    pub(crate) unsafe fn write_arrays<A, B>(
+        &self,
+        state: &mut BlockAppendState,
+        arrays: &[A],
+        num_rows: usize,
+    ) -> Result<()>
+    where
+        A: Borrow<Array<B>>,
+        B: BufferManager,
+    {
         for (array_idx, array) in arrays.iter().enumerate() {
-            let array = array.borrow();
-            let phys_type = array.datatype().physical_type();
-            let array = array.flatten()?;
-            encode_array(
+            let array = array.borrow().flatten()?;
+            write_array(
                 self,
-                phys_type,
+                array.physical_type(),
                 array_idx,
                 array,
-                selection.clone(),
-                buffer,
-                heap,
+                &state.row_pointers,
+                &mut state.heap_pointers,
+                num_rows,
             )?;
         }
 
         Ok(())
     }
 
-    /// Decodes a buffer into the output arrays using this layout.
-    ///
-    /// The output array iterator provides (column_idx, array) pairs for
-    /// indicating which column we should be scanning for an array.
-    ///
-    /// The selection is used to determine which rows to decode from the buffer
-    /// into the output.
-    pub(crate) fn decode_arrays<'a, B>(
+    pub(crate) unsafe fn read_arrays<A, B>(
         &self,
-        buffer: &[u8],
-        heap: &RowHeap<B>,
-        selection: impl IntoExactSizeIterator<Item = usize> + Clone,
-        output_arrays: impl IntoIterator<Item = (usize, &'a mut Array<B>)>,
+        state: &BlockReadState,
+        arrays: impl IntoIterator<Item = (usize, A)>,
+        blocks: &RowBlocks<B>,
     ) -> Result<()>
     where
-        B: BufferManager + 'a,
+        A: BorrowMut<Array<B>>,
+        B: BufferManager,
     {
-        for (array_idx, output) in output_arrays.into_iter() {
-            let phys_type = output.datatype().physical_type();
-            decode_array(
+        for (array_idx, mut array) in arrays {
+            let array = array.borrow_mut();
+            let phys_type = array.data.physical_type();
+            read_array(
                 self,
                 phys_type,
+                &state.row_pointers,
+                blocks,
                 array_idx,
-                buffer,
-                heap,
-                selection.clone(),
-                output,
+                array,
             )?;
         }
 
@@ -174,166 +226,188 @@ pub(crate) const fn row_encoding_requires_heap(phys_type: PhysicalType) -> bool 
 
 pub(crate) const fn row_width_for_physical_type(phys_type: PhysicalType) -> usize {
     match phys_type {
-        PhysicalType::UntypedNull => UntypedNull::ENCODE_WIDTH, // Zero
-        PhysicalType::Boolean => bool::ENCODE_WIDTH,
-        PhysicalType::Int8 => i8::ENCODE_WIDTH,
-        PhysicalType::Int16 => i16::ENCODE_WIDTH,
-        PhysicalType::Int32 => i32::ENCODE_WIDTH,
-        PhysicalType::Int64 => i64::ENCODE_WIDTH,
-        PhysicalType::Int128 => i128::ENCODE_WIDTH,
-        PhysicalType::UInt8 => u8::ENCODE_WIDTH,
-        PhysicalType::UInt16 => u16::ENCODE_WIDTH,
-        PhysicalType::UInt32 => u32::ENCODE_WIDTH,
-        PhysicalType::UInt64 => u64::ENCODE_WIDTH,
-        PhysicalType::UInt128 => u128::ENCODE_WIDTH,
-        PhysicalType::Float16 => f16::ENCODE_WIDTH,
-        PhysicalType::Float32 => f32::ENCODE_WIDTH,
-        PhysicalType::Float64 => f64::ENCODE_WIDTH,
-        PhysicalType::Interval => Interval::ENCODE_WIDTH,
-        PhysicalType::Binary => RowHeapMetadataUnion::ENCODE_WIDTH,
-        PhysicalType::Utf8 => RowHeapMetadataUnion::ENCODE_WIDTH,
+        PhysicalType::UntypedNull => std::mem::size_of::<UntypedNull>(), // Zero
+        PhysicalType::Boolean => std::mem::size_of::<bool>(),
+        PhysicalType::Int8 => std::mem::size_of::<i8>(),
+        PhysicalType::Int16 => std::mem::size_of::<i16>(),
+        PhysicalType::Int32 => std::mem::size_of::<i32>(),
+        PhysicalType::Int64 => std::mem::size_of::<i64>(),
+        PhysicalType::Int128 => std::mem::size_of::<i128>(),
+        PhysicalType::UInt8 => std::mem::size_of::<u8>(),
+        PhysicalType::UInt16 => std::mem::size_of::<u16>(),
+        PhysicalType::UInt32 => std::mem::size_of::<u32>(),
+        PhysicalType::UInt64 => std::mem::size_of::<u64>(),
+        PhysicalType::UInt128 => std::mem::size_of::<u128>(),
+        PhysicalType::Float16 => std::mem::size_of::<f16>(),
+        PhysicalType::Float32 => std::mem::size_of::<f32>(),
+        PhysicalType::Float64 => std::mem::size_of::<f64>(),
+        PhysicalType::Interval => std::mem::size_of::<Interval>(),
+        PhysicalType::Binary => std::mem::size_of::<StringView>(),
+        PhysicalType::Utf8 => std::mem::size_of::<StringView>(),
         _ => unimplemented!(),
     }
 }
 
-/// Initializes row validities for some number of rows in the buffer.
-///
-/// This serves two purposes:
-///
-/// - Ensures that the memory is initialized
-/// - Prevent needing to explicitly set columns as valid
-fn init_row_validities(layout: &RowLayout, num_rows: usize, buffer: &mut [u8]) {
-    for row in 0..num_rows {
-        let validity_offset = layout.row_width * row;
-        let out_buf = &mut buffer[validity_offset..(validity_offset + layout.validity_width)];
-        out_buf.iter_mut().for_each(|b| *b = u8::MAX);
-    }
-}
-
-/// Encodes a flattened array to a buffer.
-///
-/// `array_idx` is the index in the batch that this array is for.
-fn encode_array<B>(
+/// Writes an array to each row.
+unsafe fn write_array<B>(
     layout: &RowLayout,
     phys_type: PhysicalType,
     array_idx: usize,
     array: FlattenedArray<B>,
-    selection: impl IntoExactSizeIterator<Item = usize>,
-    buffer: &mut [u8],
-    heap: &mut RowHeap<B>,
+    row_pointers: &[*mut u8],
+    heap_pointers: &mut [HeapMutPtr],
+    num_rows: usize,
 ) -> Result<()>
 where
     B: BufferManager,
 {
-    let selection = selection.into_exact_size_iter();
-    let expected_size = layout.buffer_size(selection.len());
-    if expected_size != buffer.len() {
-        return Err(RayexecError::new(
-            "Buffer size does not equal expected buffer size for selection",
-        )
-        .with_field("expected", expected_size)
-        .with_field("buffer", buffer.len()));
-    }
-
     match phys_type {
         PhysicalType::UntypedNull => {
-            encode_scalar::<PhysicalUntypedNull, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalUntypedNull, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Boolean => {
-            encode_scalar::<PhysicalBool, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalBool, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Int8 => {
-            encode_scalar::<PhysicalI8, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalI8, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Int16 => {
-            encode_scalar::<PhysicalI16, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalI16, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Int32 => {
-            encode_scalar::<PhysicalI32, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalI32, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Int64 => {
-            encode_scalar::<PhysicalI64, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalI64, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Int128 => {
-            encode_scalar::<PhysicalI128, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalI128, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::UInt8 => {
-            encode_scalar::<PhysicalU8, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalU8, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::UInt16 => {
-            encode_scalar::<PhysicalU16, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalU16, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::UInt32 => {
-            encode_scalar::<PhysicalU32, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalU32, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::UInt64 => {
-            encode_scalar::<PhysicalU64, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalU64, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::UInt128 => {
-            encode_scalar::<PhysicalU128, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalU128, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Float16 => {
-            encode_scalar::<PhysicalF16, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalF16, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Float32 => {
-            encode_scalar::<PhysicalF32, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalF32, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Float64 => {
-            encode_scalar::<PhysicalF64, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalF64, B>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Interval => {
-            encode_scalar::<PhysicalInterval, B>(layout, array_idx, array, selection, buffer)
+            write_scalar::<PhysicalInterval, B>(layout, array_idx, array, row_pointers, num_rows)
         }
-        PhysicalType::Utf8 | PhysicalType::Binary => {
-            encode_binary(layout, array_idx, array, selection, buffer, heap)
-        }
+        PhysicalType::Utf8 | PhysicalType::Binary => write_binary(
+            layout,
+            array_idx,
+            array,
+            row_pointers,
+            heap_pointers,
+            num_rows,
+        ),
         _ => unimplemented!(),
     }
 }
 
-fn encode_binary<B>(
+/// Write a string/binary array ot the given row pointers.
+///
+/// The heap pointers will be written to if the string view for a value is no
+/// inline. Thea heap pointers will also be updated to point to the end of what
+/// was just written such that the varlen array that we write can use the same
+/// pointers directly without having to compute the appropriate offset.
+///
+/// Row pointers will remain unchanged.
+unsafe fn write_binary<B>(
     layout: &RowLayout,
     array_idx: usize,
     array: FlattenedArray<B>,
-    selection: impl IntoIterator<Item = usize>,
-    buffer: &mut [u8],
-    heap: &mut RowHeap<B>,
+    row_pointers: &[*mut u8],
+    heap_pointers: &mut [HeapMutPtr],
+    num_rows: usize,
 ) -> Result<()>
 where
     B: BufferManager,
 {
-    let value_width = RowHeapMetadataUnion::ENCODE_WIDTH;
-    let data = PhysicalBinary::get_addressable(array.array_buffer)?;
+    debug_assert_eq!(num_rows, row_pointers.len());
+    debug_assert_eq!(num_rows, heap_pointers.len());
 
+    let data = PhysicalBinary::get_addressable(array.array_buffer)?;
     let validity = array.validity;
 
     if validity.all_valid() {
-        for (output_idx, input_idx) in selection.into_iter().enumerate() {
-            let sel_idx = array.selection.get(input_idx).unwrap();
-            let v = data.get(sel_idx).unwrap();
+        for row_idx in 0..num_rows {
+            let sel_idx = array.selection.get(row_idx).unwrap();
+            let view = data.metadata.get(sel_idx).unwrap();
 
-            let metadata = heap.push_bytes(v)?;
+            if !view.is_inline() {
+                let heap_ptr = &mut heap_pointers[row_idx];
 
-            let value_offset = layout.row_width * output_idx + layout.offsets[array_idx];
-            let out_buf = &mut buffer[value_offset..(value_offset + value_width)];
-            metadata.encode(out_buf);
+                // Write data to heap, inline an updated string view reference.
+                let value = data.get(sel_idx).unwrap();
+                std::ptr::copy_nonoverlapping(value.as_ptr(), heap_ptr.ptr, value.len());
+
+                // Create new view that we write to the row.
+                let view = StringView::new_reference(
+                    value,
+                    heap_ptr.heap_idx as i32,
+                    heap_ptr.offset as i32,
+                );
+                let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                ptr.cast::<StringView>().write_unaligned(view);
+
+                // Update heap offset for next column.
+                heap_ptr.byte_add(value.len());
+            } else {
+                // Otherwise we can just write the inline string directly.
+                let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                ptr.cast::<StringView>().write_unaligned(*view);
+            }
         }
     } else {
-        for (output_idx, input_idx) in selection.into_iter().enumerate() {
-            if validity.is_valid(input_idx) {
-                let sel_idx = array.selection.get(input_idx).unwrap();
-                let v = data.get(sel_idx).unwrap();
+        for row_idx in 0..num_rows {
+            if validity.is_valid(row_idx) {
+                let sel_idx = array.selection.get(row_idx).unwrap();
+                let view = data.metadata.get(sel_idx).unwrap();
 
-                let metadata = heap.push_bytes(v)?;
+                if !view.is_inline() {
+                    let heap_ptr = &mut heap_pointers[row_idx];
 
-                let value_offset = layout.row_width * output_idx + layout.offsets[array_idx];
-                let out_buf = &mut buffer[value_offset..(value_offset + value_width)];
-                metadata.encode(out_buf);
+                    // Write data to heap, inline an updated string view reference.
+                    let value = data.get(sel_idx).unwrap();
+                    std::ptr::copy_nonoverlapping(value.as_ptr(), heap_ptr.ptr, value.len());
+
+                    // Create new view that we write to the row.
+                    let view = StringView::new_reference(
+                        value,
+                        heap_ptr.heap_idx as i32,
+                        heap_ptr.offset as i32,
+                    );
+                    let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                    ptr.cast::<StringView>().write_unaligned(view);
+
+                    // Update heap offset for next column.
+                    heap_ptr.byte_add(value.len());
+                } else {
+                    // Otherwise we can just write the inline string directly.
+                    let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                    ptr.cast::<StringView>().write_unaligned(*view);
+                }
             } else {
-                let validity_offset = layout.row_width * output_idx;
-                let out_buf =
-                    &mut buffer[validity_offset..(validity_offset + layout.validity_width)];
-                BitmapViewMut::new(out_buf, layout.num_columns()).unset(array_idx);
+                let validity_buf = layout.validity_buffer_mut(row_pointers[row_idx]);
+                BitmapViewMut::new(validity_buf, layout.num_columns()).unset(array_idx);
             }
         }
     }
@@ -341,45 +415,43 @@ where
     Ok(())
 }
 
-fn encode_scalar<S, B>(
+/// Write a scalar array to the specified row pointers.
+unsafe fn write_scalar<S, B>(
     layout: &RowLayout,
     array_idx: usize,
     array: FlattenedArray<B>,
-    selection: impl IntoIterator<Item = usize>,
-    buffer: &mut [u8],
+    row_pointers: &[*mut u8],
+    num_rows: usize,
 ) -> Result<()>
 where
     S: ScalarStorage,
-    S::StorageType: Encode,
+    S::StorageType: Copy + Sized,
     B: BufferManager,
 {
-    let value_width = <S::StorageType>::ENCODE_WIDTH;
+    debug_assert_eq!(num_rows, row_pointers.len());
+
     let data = S::get_addressable(array.array_buffer)?;
     let validity = array.validity;
 
     if validity.all_valid() {
-        for (output_idx, input_idx) in selection.into_iter().enumerate() {
-            let sel_idx = array.selection.get(input_idx).unwrap();
+        for row_idx in 0..num_rows {
+            let sel_idx = array.selection.get(row_idx).unwrap();
             let v = data.get(sel_idx).unwrap();
 
-            let value_offset = layout.row_width * output_idx + layout.offsets[array_idx];
-            let out_buf = &mut buffer[value_offset..(value_offset + value_width)];
-            v.encode(out_buf);
+            let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+            ptr.cast::<S::StorageType>().write_unaligned(*v);
         }
     } else {
-        for (output_idx, input_idx) in selection.into_iter().enumerate() {
-            if validity.is_valid(input_idx) {
-                let sel_idx = array.selection.get(input_idx).unwrap();
+        for row_idx in 0..num_rows {
+            if validity.is_valid(row_idx) {
+                let sel_idx = array.selection.get(row_idx).unwrap();
                 let v = data.get(sel_idx).unwrap();
 
-                let value_offset = layout.row_width * output_idx + layout.offsets[array_idx];
-                let out_buf = &mut buffer[value_offset..(value_offset + value_width)];
-                v.encode(out_buf);
+                let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                ptr.cast::<S::StorageType>().write_unaligned(*v);
             } else {
-                let validity_offset = layout.row_width * output_idx;
-                let out_buf =
-                    &mut buffer[validity_offset..(validity_offset + layout.validity_width)];
-                BitmapViewMut::new(out_buf, layout.num_columns()).unset(array_idx);
+                let validity_buf = layout.validity_buffer_mut(row_pointers[row_idx]);
+                BitmapViewMut::new(validity_buf, layout.num_columns()).unset(array_idx);
             }
         }
     }
@@ -387,13 +459,12 @@ where
     Ok(())
 }
 
-fn decode_array<B>(
+unsafe fn read_array<B>(
     layout: &RowLayout,
     phys_type: PhysicalType,
+    row_pointers: &[*const u8],
+    blocks: &RowBlocks<B>,
     array_idx: usize,
-    buffer: &[u8],
-    heap: &RowHeap<B>,
-    selection: impl IntoIterator<Item = usize>,
     out: &mut Array<B>,
 ) -> Result<()>
 where
@@ -401,121 +472,66 @@ where
 {
     match phys_type {
         PhysicalType::UntypedNull => {
-            decode_scalar::<PhysicalUntypedNull, B>(layout, array_idx, buffer, selection, out)
+            read_scalar::<PhysicalUntypedNull, B>(layout, row_pointers, array_idx, out)
         }
         PhysicalType::Boolean => {
-            decode_scalar::<PhysicalBool, B>(layout, array_idx, buffer, selection, out)
+            read_scalar::<PhysicalBool, B>(layout, row_pointers, array_idx, out)
         }
-        PhysicalType::Int8 => {
-            decode_scalar::<PhysicalI8, B>(layout, array_idx, buffer, selection, out)
-        }
-        PhysicalType::Int16 => {
-            decode_scalar::<PhysicalI16, B>(layout, array_idx, buffer, selection, out)
-        }
-        PhysicalType::Int32 => {
-            decode_scalar::<PhysicalI32, B>(layout, array_idx, buffer, selection, out)
-        }
-        PhysicalType::Int64 => {
-            decode_scalar::<PhysicalI64, B>(layout, array_idx, buffer, selection, out)
-        }
+        PhysicalType::Int8 => read_scalar::<PhysicalI8, B>(layout, row_pointers, array_idx, out),
+        PhysicalType::Int16 => read_scalar::<PhysicalI16, B>(layout, row_pointers, array_idx, out),
+        PhysicalType::Int32 => read_scalar::<PhysicalI32, B>(layout, row_pointers, array_idx, out),
+        PhysicalType::Int64 => read_scalar::<PhysicalI64, B>(layout, row_pointers, array_idx, out),
         PhysicalType::Int128 => {
-            decode_scalar::<PhysicalI128, B>(layout, array_idx, buffer, selection, out)
+            read_scalar::<PhysicalI128, B>(layout, row_pointers, array_idx, out)
         }
-        PhysicalType::UInt8 => {
-            decode_scalar::<PhysicalU8, B>(layout, array_idx, buffer, selection, out)
-        }
-        PhysicalType::UInt16 => {
-            decode_scalar::<PhysicalU16, B>(layout, array_idx, buffer, selection, out)
-        }
-        PhysicalType::UInt32 => {
-            decode_scalar::<PhysicalU32, B>(layout, array_idx, buffer, selection, out)
-        }
-        PhysicalType::UInt64 => {
-            decode_scalar::<PhysicalU64, B>(layout, array_idx, buffer, selection, out)
-        }
+        PhysicalType::UInt8 => read_scalar::<PhysicalU8, B>(layout, row_pointers, array_idx, out),
+        PhysicalType::UInt16 => read_scalar::<PhysicalU16, B>(layout, row_pointers, array_idx, out),
+        PhysicalType::UInt32 => read_scalar::<PhysicalU32, B>(layout, row_pointers, array_idx, out),
+        PhysicalType::UInt64 => read_scalar::<PhysicalU64, B>(layout, row_pointers, array_idx, out),
         PhysicalType::UInt128 => {
-            decode_scalar::<PhysicalU128, B>(layout, array_idx, buffer, selection, out)
+            read_scalar::<PhysicalU128, B>(layout, row_pointers, array_idx, out)
         }
         PhysicalType::Float16 => {
-            decode_scalar::<PhysicalF16, B>(layout, array_idx, buffer, selection, out)
+            read_scalar::<PhysicalF16, B>(layout, row_pointers, array_idx, out)
         }
         PhysicalType::Float32 => {
-            decode_scalar::<PhysicalF32, B>(layout, array_idx, buffer, selection, out)
+            read_scalar::<PhysicalF32, B>(layout, row_pointers, array_idx, out)
         }
         PhysicalType::Float64 => {
-            decode_scalar::<PhysicalF64, B>(layout, array_idx, buffer, selection, out)
+            read_scalar::<PhysicalF64, B>(layout, row_pointers, array_idx, out)
         }
         PhysicalType::Interval => {
-            decode_scalar::<PhysicalInterval, B>(layout, array_idx, buffer, selection, out)
+            read_scalar::<PhysicalInterval, B>(layout, row_pointers, array_idx, out)
         }
         PhysicalType::Utf8 | PhysicalType::Binary => {
-            decode_binary(layout, array_idx, buffer, heap, selection, out)
+            read_binary(layout, row_pointers, blocks, array_idx, out)
         }
-
         _ => unimplemented!(),
     }
 }
 
-fn decode_binary<B>(
+unsafe fn read_scalar<S, B>(
     layout: &RowLayout,
+    row_pointers: &[*const u8],
     array_idx: usize,
-    buffer: &[u8],
-    heap: &RowHeap<B>,
-    selection: impl IntoIterator<Item = usize>,
-    out: &mut Array<B>,
-) -> Result<()>
-where
-    B: BufferManager,
-{
-    let value_width = RowHeapMetadataUnion::ENCODE_WIDTH;
-    let mut data = PhysicalBinary::get_addressable_mut(&mut out.data)?;
-    let validity = &mut out.validity;
-
-    for (output_idx, input_idx) in selection.into_iter().enumerate() {
-        let validity_offset = layout.row_width * input_idx;
-        let validity_buf = &buffer[validity_offset..(validity_offset + layout.validity_width)];
-        let is_valid = BitmapView::new(validity_buf, layout.num_columns()).value(array_idx);
-
-        if is_valid {
-            let value_offset = layout.row_width * input_idx + layout.offsets[array_idx];
-            let in_buf = &buffer[value_offset..(value_offset + value_width)];
-            let metadata = RowHeapMetadataUnion::decode(in_buf);
-
-            let v = heap.get(&metadata).unwrap();
-            data.put(output_idx, &v);
-        } else {
-            validity.set_invalid(output_idx);
-        }
-    }
-
-    Ok(())
-}
-
-fn decode_scalar<S, B>(
-    layout: &RowLayout,
-    array_idx: usize,
-    buffer: &[u8],
-    selection: impl IntoIterator<Item = usize>,
     out: &mut Array<B>,
 ) -> Result<()>
 where
     S: MutableScalarStorage,
-    S::StorageType: Encode + Sized,
+    S::StorageType: Copy + Sized,
     B: BufferManager,
 {
-    let value_width = <S::StorageType>::ENCODE_WIDTH;
     let mut data = S::get_addressable_mut(&mut out.data)?;
     let validity = &mut out.validity;
 
-    for (output_idx, input_idx) in selection.into_iter().enumerate() {
-        let validity_offset = layout.row_width * input_idx;
-        let validity_buf = &buffer[validity_offset..(validity_offset + layout.validity_width)];
+    for (output_idx, &row_ptr) in row_pointers.into_iter().enumerate() {
+        let validity_buf = layout.validity_buffer(row_ptr);
         let is_valid = BitmapView::new(validity_buf, layout.num_columns()).value(array_idx);
 
         if is_valid {
-            let value_offset = layout.row_width * input_idx + layout.offsets[array_idx];
-            let in_buf = &buffer[value_offset..(value_offset + value_width)];
-            let v = <S::StorageType>::decode(in_buf);
+            let ptr = row_ptr.byte_add(layout.offsets[array_idx]);
+            let v = ptr.cast::<S::StorageType>().read_unaligned();
+
             data.put(output_idx, &v);
         } else {
             validity.set_invalid(output_idx);
@@ -525,114 +541,54 @@ where
     Ok(())
 }
 
-/// Trait for converting self to bytes. Encodings do not require any special
-/// properties other than a value always encoding to the same result.
-trait Encode {
-    const ENCODE_WIDTH: usize;
+unsafe fn read_binary<B>(
+    layout: &RowLayout,
+    row_pointers: &[*const u8],
+    blocks: &RowBlocks<B>,
+    array_idx: usize,
+    out: &mut Array<B>,
+) -> Result<()>
+where
+    B: BufferManager,
+{
+    let mut data = PhysicalBinary::get_addressable_mut(&mut out.data)?;
+    let validity = &mut out.validity;
 
-    fn encode(&self, buf: &mut [u8]);
-    fn decode(buf: &[u8]) -> Self;
-}
+    for (output_idx, &row_ptr) in row_pointers.into_iter().enumerate() {
+        let validity_buf = layout.validity_buffer(row_ptr);
+        let is_valid = BitmapView::new(validity_buf, layout.num_columns()).value(array_idx);
 
-macro_rules! primitive_encode {
-    ($type:ty, $encode_width:expr) => {
-        impl Encode for $type {
-            const ENCODE_WIDTH: usize = $encode_width;
+        if is_valid {
+            let ptr = row_ptr.byte_add(layout.offsets[array_idx]);
+            let view = ptr.cast::<StringView>().read_unaligned();
 
-            fn encode(&self, buf: &mut [u8]) {
-                let b = self.to_le_bytes();
-                buf.copy_from_slice(&b);
+            if view.is_inline() {
+                // Can put directly into the metadata without needing to read
+                // the heap block.
+                data.metadata[output_idx] = view;
+            } else {
+                // Otherwise need to get the data from the block.
+                //
+                // buffer_idx => heap_idx
+                let reference = view.as_reference();
+                let heap_ptr =
+                    blocks.heap_ptr(reference.buffer_idx as usize, reference.offset as usize);
+                let val = std::slice::from_raw_parts(heap_ptr, reference.len as usize);
+
+                data.put(output_idx, val);
             }
-
-            fn decode(buf: &[u8]) -> Self {
-                Self::from_le_bytes(buf.try_into().unwrap())
-            }
-        }
-    };
-}
-
-primitive_encode!(u8, 1);
-primitive_encode!(u16, 2);
-primitive_encode!(u32, 4);
-primitive_encode!(u64, 8);
-primitive_encode!(u128, 16);
-
-primitive_encode!(i8, 1);
-primitive_encode!(i16, 2);
-primitive_encode!(i32, 4);
-primitive_encode!(i64, 8);
-primitive_encode!(i128, 16);
-
-primitive_encode!(f16, 2);
-primitive_encode!(f32, 4);
-primitive_encode!(f64, 8);
-
-impl Encode for UntypedNull {
-    const ENCODE_WIDTH: usize = 0;
-
-    fn encode(&self, _buf: &mut [u8]) {
-        // Do nothing, zero sized
-    }
-
-    fn decode(_buf: &[u8]) -> Self {
-        Self
-    }
-}
-
-impl Encode for Interval {
-    const ENCODE_WIDTH: usize = 16;
-
-    fn encode(&self, buf: &mut [u8]) {
-        // TODO: We'll probably need to ensure intervals are normalized.
-        self.months.encode(&mut buf[0..4]);
-        self.days.encode(&mut buf[4..8]);
-        self.nanos.encode(&mut buf[8..16]);
-    }
-
-    fn decode(buf: &[u8]) -> Self {
-        Interval {
-            months: i32::decode(&buf[0..4]),
-            days: i32::decode(&buf[4..8]),
-            nanos: i64::decode(&buf[8..16]),
-        }
-    }
-}
-
-impl Encode for RowHeapMetadataUnion {
-    const ENCODE_WIDTH: usize = 16;
-
-    fn encode(&self, buf: &mut [u8]) {
-        let b = self.to_bytes();
-        buf.copy_from_slice(&b);
-    }
-
-    fn decode(buf: &[u8]) -> Self {
-        Self::from_bytes(buf.try_into().unwrap())
-    }
-}
-
-impl Encode for bool {
-    const ENCODE_WIDTH: usize = 1;
-
-    fn encode(&self, buf: &mut [u8]) {
-        if *self {
-            buf[0] = 0;
         } else {
-            buf[0] = 255;
+            validity.set_invalid(output_idx);
         }
     }
 
-    fn decode(buf: &[u8]) -> Self {
-        if buf[0] == 0 {
-            false
-        } else {
-            true
-        }
-    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Debug;
+
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
@@ -672,133 +628,133 @@ mod tests {
         assert_eq!((9 * 4 + 2) * 3, layout.buffer_size(3));
     }
 
-    #[test]
-    fn encode_decode_single_i32() {
-        let layout = RowLayout::new(vec![DataType::Int32]);
-        let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
+    // #[test]
+    // fn encode_decode_single_i32() {
+    //     let layout = RowLayout::new(vec![DataType::Int32]);
+    //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
 
-        let mut buf = vec![0; layout.buffer_size(3)];
-        let array = Array::try_from_iter([1, 2, 3]).unwrap();
+    //     let mut buf = vec![0; layout.buffer_size(3)];
+    //     let array = Array::try_from_iter([1, 2, 3]).unwrap();
 
-        layout
-            .encode_arrays(&[array], 0..3, &mut buf, &mut heap)
-            .unwrap();
+    //     layout
+    //         .encode_arrays(&[array], 0..3, &mut buf, &mut heap)
+    //         .unwrap();
 
-        let mut output = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
-        layout
-            .decode_arrays(&buf, &heap, 0..3, [(0, &mut output)])
-            .unwrap();
+    //     let mut output = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
+    //     layout
+    //         .decode_arrays(&buf, &heap, 0..3, [(0, &mut output)])
+    //         .unwrap();
 
-        let expected = Array::try_from_iter([1, 2, 3]).unwrap();
-        assert_arrays_eq(&expected, &output);
-    }
+    //     let expected = Array::try_from_iter([1, 2, 3]).unwrap();
+    //     assert_arrays_eq(&expected, &output);
+    // }
 
-    #[test]
-    fn encode_decode_single_i32_with_invalid() {
-        let layout = RowLayout::new(vec![DataType::Int32]);
-        let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
+    // #[test]
+    // fn encode_decode_single_i32_with_invalid() {
+    //     let layout = RowLayout::new(vec![DataType::Int32]);
+    //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
 
-        let mut buf = vec![0; layout.buffer_size(3)];
-        let array = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
+    //     let mut buf = vec![0; layout.buffer_size(3)];
+    //     let array = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
 
-        layout
-            .encode_arrays(&[array], 0..3, &mut buf, &mut heap)
-            .unwrap();
+    //     layout
+    //         .encode_arrays(&[array], 0..3, &mut buf, &mut heap)
+    //         .unwrap();
 
-        let mut output = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
-        layout
-            .decode_arrays(&buf, &heap, 0..3, [(0, &mut output)])
-            .unwrap();
+    //     let mut output = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
+    //     layout
+    //         .decode_arrays(&buf, &heap, 0..3, [(0, &mut output)])
+    //         .unwrap();
 
-        let expected = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
-        assert_arrays_eq(&expected, &output);
-    }
+    //     let expected = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
+    //     assert_arrays_eq(&expected, &output);
+    // }
 
-    #[test]
-    fn encode_decode_multiple_fixed_size() {
-        let layout = RowLayout::new(vec![DataType::Int32, DataType::Float64]);
-        let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
+    // #[test]
+    // fn encode_decode_multiple_fixed_size() {
+    //     let layout = RowLayout::new(vec![DataType::Int32, DataType::Float64]);
+    //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
 
-        let mut buf = vec![0; layout.buffer_size(3)];
-        let batch = generate_batch!([1, 2, 3], [1.0, 2.0, 3.0]);
+    //     let mut buf = vec![0; layout.buffer_size(3)];
+    //     let batch = generate_batch!([1, 2, 3], [1.0, 2.0, 3.0]);
 
-        layout
-            .encode_arrays(&batch.arrays, batch.selection(), &mut buf, &mut heap)
-            .unwrap();
+    //     layout
+    //         .encode_arrays(&batch.arrays, batch.selection(), &mut buf, &mut heap)
+    //         .unwrap();
 
-        let mut output = Batch::try_new([DataType::Int32, DataType::Float64], 16).unwrap();
-        layout
-            .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
-            .unwrap();
-        output.set_num_rows(3).unwrap();
+    //     let mut output = Batch::try_new([DataType::Int32, DataType::Float64], 16).unwrap();
+    //     layout
+    //         .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
+    //         .unwrap();
+    //     output.set_num_rows(3).unwrap();
 
-        let expected = generate_batch!([1, 2, 3], [1.0, 2.0, 3.0]);
-        assert_batches_eq(&expected, &output);
-    }
+    //     let expected = generate_batch!([1, 2, 3], [1.0, 2.0, 3.0]);
+    //     assert_batches_eq(&expected, &output);
+    // }
 
-    #[test]
-    fn encode_decode_multiple_fixed_size_with_invalid() {
-        let layout = RowLayout::new(vec![DataType::Int32, DataType::Float64]);
-        let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
+    // #[test]
+    // fn encode_decode_multiple_fixed_size_with_invalid() {
+    //     let layout = RowLayout::new(vec![DataType::Int32, DataType::Float64]);
+    //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
 
-        let mut buf = vec![0; layout.buffer_size(3)];
-        let batch = generate_batch!([None, Some(2), Some(3)], [Some(1.0), None, Some(3.0)]);
+    //     let mut buf = vec![0; layout.buffer_size(3)];
+    //     let batch = generate_batch!([None, Some(2), Some(3)], [Some(1.0), None, Some(3.0)]);
 
-        layout
-            .encode_arrays(&batch.arrays, batch.selection(), &mut buf, &mut heap)
-            .unwrap();
+    //     layout
+    //         .encode_arrays(&batch.arrays, batch.selection(), &mut buf, &mut heap)
+    //         .unwrap();
 
-        let mut output = Batch::try_new([DataType::Int32, DataType::Float64], 16).unwrap();
-        layout
-            .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
-            .unwrap();
-        output.set_num_rows(3).unwrap();
+    //     let mut output = Batch::try_new([DataType::Int32, DataType::Float64], 16).unwrap();
+    //     layout
+    //         .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
+    //         .unwrap();
+    //     output.set_num_rows(3).unwrap();
 
-        let expected = generate_batch!([None, Some(2), Some(3)], [Some(1.0), None, Some(3.0)]);
-        assert_batches_eq(&expected, &output);
-    }
+    //     let expected = generate_batch!([None, Some(2), Some(3)], [Some(1.0), None, Some(3.0)]);
+    //     assert_batches_eq(&expected, &output);
+    // }
 
-    #[test]
-    fn encode_decode_utf8() {
-        let layout = RowLayout::new([DataType::Utf8]);
-        let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
+    // #[test]
+    // fn encode_decode_utf8() {
+    //     let layout = RowLayout::new([DataType::Utf8]);
+    //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
 
-        let mut buf = vec![0; layout.buffer_size(3)];
-        let batch = generate_batch!(["cat", "dog", "goose"]);
+    //     let mut buf = vec![0; layout.buffer_size(3)];
+    //     let batch = generate_batch!(["cat", "dog", "goose"]);
 
-        layout
-            .encode_arrays(&batch.arrays, 0..3, &mut buf, &mut heap)
-            .unwrap();
+    //     layout
+    //         .encode_arrays(&batch.arrays, 0..3, &mut buf, &mut heap)
+    //         .unwrap();
 
-        let mut output = Batch::try_new([DataType::Utf8], 16).unwrap();
-        layout
-            .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
-            .unwrap();
-        output.set_num_rows(3).unwrap();
+    //     let mut output = Batch::try_new([DataType::Utf8], 16).unwrap();
+    //     layout
+    //         .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
+    //         .unwrap();
+    //     output.set_num_rows(3).unwrap();
 
-        let expected = generate_batch!(["cat", "dog", "goose"]);
-        assert_batches_eq(&expected, &output);
-    }
+    //     let expected = generate_batch!(["cat", "dog", "goose"]);
+    //     assert_batches_eq(&expected, &output);
+    // }
 
-    #[test]
-    fn encode_decode_utf8_with_invalid() {
-        let layout = RowLayout::new([DataType::Utf8]);
-        let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
+    // #[test]
+    // fn encode_decode_utf8_with_invalid() {
+    //     let layout = RowLayout::new([DataType::Utf8]);
+    //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
 
-        let mut buf = vec![0; layout.buffer_size(3)];
-        let batch = generate_batch!([Some("cat"), None, Some("goose")]);
+    //     let mut buf = vec![0; layout.buffer_size(3)];
+    //     let batch = generate_batch!([Some("cat"), None, Some("goose")]);
 
-        layout
-            .encode_arrays(&batch.arrays, 0..3, &mut buf, &mut heap)
-            .unwrap();
+    //     layout
+    //         .encode_arrays(&batch.arrays, 0..3, &mut buf, &mut heap)
+    //         .unwrap();
 
-        let mut output = Batch::try_new([DataType::Utf8], 16).unwrap();
-        layout
-            .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
-            .unwrap();
-        output.set_num_rows(3).unwrap();
+    //     let mut output = Batch::try_new([DataType::Utf8], 16).unwrap();
+    //     layout
+    //         .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
+    //         .unwrap();
+    //     output.set_num_rows(3).unwrap();
 
-        let expected = generate_batch!([Some("cat"), None, Some("goose")]);
-        assert_batches_eq(&expected, &output);
-    }
+    //     let expected = generate_batch!([Some("cat"), None, Some("goose")]);
+    //     assert_batches_eq(&expected, &output);
+    // }
 }

@@ -29,7 +29,7 @@ where
         })
     }
 
-    /// Resize this buffer to hold `additional` number of entries.
+    /// Resize this buffer to hold exactly `additional` number of entries.
     pub fn reserve(&mut self, additional: usize) -> Result<()> {
         unsafe { self.raw.reserve::<T>(additional) }
     }

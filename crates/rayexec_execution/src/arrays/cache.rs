@@ -152,8 +152,8 @@ where
                 }
             }
             ArrayBufferType::String(mut buf) => {
-                if buf.metadata.is_owned() && buf.heap.is_owned() {
-                    let heap = buf.heap.try_as_mut().expect("heap to be owned");
+                if buf.metadata.is_owned() && buf.buffer.is_owned() {
+                    let heap = buf.buffer.try_as_mut().expect("heap to be owned");
                     heap.clear();
 
                     // TODO: Zero out metadatas?

@@ -10,6 +10,7 @@ use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::collection::row::{RowAddress, RowCollection};
 use crate::arrays::collection::row_layout::RowLayout;
+use crate::arrays::collection::row_matcher::PredicateRowMatcher;
 use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
 use crate::execution::operators::join::hash_table_entry::HashTableEntry;
@@ -34,6 +35,8 @@ pub struct JoinHashTable {
     build_hash_byte_offset: usize,
     /// Configured batch size for the join operator.
     batch_size: usize,
+    /// Matcher for evaluating predicates on the rows.
+    row_matcher: PredicateRowMatcher,
 }
 
 impl JoinHashTable {
@@ -63,6 +66,7 @@ impl JoinHashTable {
             build_key_columns,
             build_data_columns,
             build_hash_byte_offset,
+            row_matcher: PredicateRowMatcher {}, // TODO
         }
     }
 
@@ -113,10 +117,11 @@ impl JoinHashTable {
             arrays.push(&state.match_init);
         }
 
-        // Now append to row collection.
-        self.data.append_arrays(&arrays, input.num_rows())?;
+        unimplemented!()
+        // // Now append to row collection.
+        // self.data.append_arrays(&arrays, input.num_rows())?;
 
-        Ok(())
+        // Ok(())
     }
 
     /// Initialize the directory for the hash table.
@@ -218,12 +223,43 @@ impl JoinHashTable {
         Ok(())
     }
 
-    pub fn probe(&self, state: &mut HashTableScanState, rhs_keys: &Batch) -> Result<()> {
+    /// Probe the hash table with the given keys.
+    ///
+    /// The scan state will be updated for scanning.
+    pub fn probe(
+        &self,
+        state: &mut HashTableScanState,
+        rhs_keys: &[Array],
+        count: usize,
+    ) -> Result<()> {
         // Hash keys.
-        state.hashes.resize(rhs_keys.num_rows(), 0);
-        hash_many_arrays(&rhs_keys.arrays, rhs_keys.selection(), &mut state.hashes)?;
+        state.hashes.resize(count, 0);
+        hash_many_arrays(rhs_keys, 0..count, &mut state.hashes)?;
 
-        unimplemented!()
+        // Resize entries to number of keys we're probing with. These will be
+        // overwritten in the below loop.
+        state.entries.resize(count, HashTableEntry::DANGLING);
+
+        let directory = &self
+            .directory
+            .as_ref()
+            .expect("directory to be initialized");
+
+        // Compute positions for each entry using the hashes.
+        let pos_mask = directory.capacity_mask();
+        let positions = state
+            .hashes
+            .iter()
+            .copied()
+            .map(|hash| (hash & pos_mask) as usize);
+
+        // Store entries on the scan state. We'll do the equality/comparison
+        // checking during the actual scan call.
+        for (matching_ent, position) in state.entries.iter_mut().zip(positions) {
+            *matching_ent = directory.get_entry(position);
+        }
+
+        Ok(())
     }
 
     /// Attempts to insert a new row entry into an existing entry that we expect
@@ -291,6 +327,8 @@ impl JoinHashTable {
     /// Gets a raw pointer for for getting the next entry for a row when
     /// following the hash chain.
     ///
+    /// The returns pointer is not guaranteed to be aligned.
+    ///
     /// # Safety
     ///
     /// The row address must point to a valid row in the collected row data.
@@ -298,6 +336,17 @@ impl JoinHashTable {
         let row_ptr = self.data.row_ptr(row);
         let next_ent_ptr = row_ptr.byte_add(self.build_hash_byte_offset);
         next_ent_ptr.cast()
+    }
+
+    /// Reads the next entry for the a given row.
+    ///
+    /// # Safety
+    ///
+    /// Same concerns as `next_entry_ptr`.
+    unsafe fn read_next_entry(&self, row: RowAddress) -> HashTableEntry {
+        let ptr = self.next_entry_ptr(row);
+        let v = ptr.read_unaligned();
+        HashTableEntry::from_u64(v)
     }
 
     /// Index to the hash column the row collection.
@@ -374,21 +423,28 @@ pub struct BuildState {
 /// Scan state for resuming probes of the hash table.
 #[derive(Debug)]
 pub struct HashTableScanState {
+    /// Selection to use for entries that we're still scanning.
+    ///
+    /// Once this is empty, we know we're done scanning this set of keys.
+    selection: Vec<usize>,
+    /// Current set of entries we're working with.
+    entries: Vec<HashTableEntry>,
     /// Reusable hashes buffer. Filled when we probe the hash table with
     /// rhs_keys.
-    pub(crate) hashes: Vec<u64>,
+    hashes: Vec<u64>,
+    /// Selection of rows from the rhs that we've matched for a scan. Resusable
+    /// buffer.
+    predicates_matched: Vec<usize>,
 }
 
 impl HashTableScanState {
     pub fn scan(
         &mut self,
-        join_type: JoinType,
         table: &JoinHashTable,
         rhs_keys: &Batch,
         output: &mut Batch,
     ) -> Result<()> {
-        match join_type {
-            JoinType::Inner => self.scan_inner_join(table, rhs_keys, output),
+        match table.join_type {
             _ => unimplemented!(),
         }
     }
@@ -396,10 +452,75 @@ impl HashTableScanState {
     pub fn scan_inner_join(
         &mut self,
         table: &JoinHashTable,
-        rhs_keys: &Batch,
+        rhs_keys: &[Array],
+        rhs: &[Array],
         output: &mut Batch,
     ) -> Result<()> {
+        if self.selection.is_empty() {
+            // Done, need new of keys.
+            output.set_num_rows(0)?;
+            return Ok(());
+        }
+
+        self.predicates_matched.clear();
+        loop {
+            // Rows to read from the left.
+            let lhs_rows = self
+                .selection
+                .iter()
+                .map(|&row_idx| self.entries[row_idx].row_address());
+
+            // Rows to read from the right.
+            let rhs_rows = self.selection.iter().copied();
+
+            table.row_matcher.find_matches(
+                &table.data,
+                lhs_rows,
+                &table.build_key_columns,
+                rhs_keys,
+                rhs_rows,
+                &mut self.predicates_matched,
+            )?;
+
+            if !self.predicates_matched.is_empty() {
+                // Predicates matched, need to produce output.
+                break;
+            }
+
+            // Otherwise none of the predicates matched, move to next entries.
+            self.follow_next_in_chain(table);
+            if self.selection.is_empty() {
+                // We're at the end of all chains, nothing more to read.
+                output.set_num_rows(0)?;
+                return Ok(());
+            }
+        }
+
         unimplemented!()
+    }
+
+    /// For each entry in the current scan state, follow the chain to load the
+    /// next entry to read from.
+    fn follow_next_in_chain(&mut self, table: &JoinHashTable) {
+        for &ent_idx in &self.selection {
+            let ent = &mut self.entries[ent_idx];
+            // SAFETY: ...
+            //
+            // Assumes that we're generating row addresses correctly and that
+            // they are in bounds.
+            *ent = unsafe { table.read_next_entry(ent.row_address()) };
+        }
+
+        // Update the selection to only include entries that are not dangling.
+        self.selection.clear();
+        self.selection
+            .extend(self.entries.iter().enumerate().filter_map(|(idx, ent)| {
+                if ent.is_dangling() {
+                    None
+                } else {
+                    Some(idx)
+                }
+            }));
     }
 }
 

@@ -2,6 +2,7 @@ use rayexec_error::Result;
 
 use super::array_buffer::ArrayBuffer;
 use super::buffer_manager::{BufferManager, NopBufferManager};
+use super::physical_type::PhysicalType;
 use super::selection::Selection;
 use super::validity::Validity;
 use super::Array;
@@ -60,6 +61,11 @@ where
         Self::from_buffer_and_validity(&array.data, &array.validity)
     }
 
+    pub fn physical_type(&self) -> PhysicalType {
+        self.array_buffer.physical_type()
+    }
+
+    /// Get the logical length of the array based on the selection.
     pub fn logical_len(&self) -> usize {
         self.selection.len()
     }

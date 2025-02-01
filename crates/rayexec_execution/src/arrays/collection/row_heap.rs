@@ -133,24 +133,36 @@ impl fmt::Debug for RowHeapMetadataUnion {
 
 #[derive(Debug)]
 pub struct RowHeap<B: BufferManager> {
-    /// Buffer containing all blob data.
-    buffer: TypedRawBuffer<u8, B>,
-    /// How much of the buffer is filled.
-    filled: usize,
+    manager: B,
+    buffers: Vec<RowHeapBuffer<B>>,
 }
 
 impl<B> RowHeap<B>
 where
     B: BufferManager,
 {
+    pub const MAX_BUFFER_SIZE: usize = 1024 * 1024 * 1024;
+    pub const DEFAULT_BUFFER_SIZE: usize = 1024;
+
     /// Create a new heap with an initial capacity.
-    pub fn with_capacity(manager: &B, capacity: usize) -> Result<Self> {
-        let buffer = TypedRawBuffer::try_with_capacity(manager, capacity)?;
-        Ok(RowHeap { buffer, filled: 0 })
+    pub fn with_capacity(manager: &B, mut capacity: usize) -> Result<Self> {
+        let mut buffers = Vec::with_capacity(1);
+
+        while capacity > 0 {
+            let buf_cap = usize::min(capacity, Self::MAX_BUFFER_SIZE);
+            let buffer = RowHeapBuffer::with_capacity(manager, buf_cap)?;
+            buffers.push(buffer);
+            capacity -= buf_cap;
+        }
+
+        Ok(RowHeap {
+            manager: manager.clone(),
+            buffers,
+        })
     }
 
     pub fn clear(&mut self) {
-        self.filled = 0;
+        self.buffers.iter_mut().for_each(|b| b.filled = 0);
     }
 
     /// Push bytes into the heap.
@@ -173,11 +185,9 @@ where
             // Store prefix, buf index, and offset in line. Store complete copy
             // in buffer.
 
-            if self.buffer.capacity() - self.filled < value.len() {
-                self.resize_buffer(value.len())?;
-            }
+            let (buf_idx, buffer) = self.get_or_allocate_buffer(value.len())?;
 
-            let offset = self.filled;
+            let offset = buffer.filled;
 
             // Copy prefix to metadata.
             let mut prefix = [0; 4];
@@ -185,19 +195,46 @@ where
             prefix[0..prefix_len].copy_from_slice(&value[0..prefix_len]);
 
             // Copy entire value to buffer.
-            let buf = &mut self.buffer.as_mut()[self.filled..(self.filled + value.len())];
+            let buf = &mut buffer.buffer.as_mut()[offset..(offset + value.len())];
             buf.copy_from_slice(value);
 
-            self.filled += value.len();
+            buffer.filled += value.len();
 
             Ok(RowHeapLargeMetadata {
                 len: value.len() as i32,
                 prefix,
-                buffer_idx: 0,
+                buffer_idx: buf_idx as i32,
                 offset: offset as i32,
             }
             .into())
         }
+    }
+
+    fn get_or_allocate_buffer(&mut self, len: usize) -> Result<(usize, &mut RowHeapBuffer<B>)> {
+        if self.buffers.is_empty() {
+            let buf = RowHeapBuffer::with_capacity(&self.manager, Self::DEFAULT_BUFFER_SIZE)?;
+            self.buffers.push(buf);
+        }
+
+        let last_idx = self.buffers.len() - 1;
+
+        if self.buffers[last_idx].remaining_capacity() >= len {
+            // We have enough capacity.
+            return Ok((last_idx, &mut self.buffers[last_idx]));
+        }
+
+        // Check if we can resize.
+        if self.buffers[last_idx].buffer.capacity() + len <= Self::MAX_BUFFER_SIZE {
+            // We can, go ahead and resize and return it.
+            self.buffers[last_idx].reserve(len)?;
+            return Ok((last_idx, &mut self.buffers[last_idx]));
+        }
+
+        let new_buf = RowHeapBuffer::with_capacity(&self.manager, Self::DEFAULT_BUFFER_SIZE)?;
+        self.buffers.push(new_buf);
+
+        // Return the new buffer instead
+        Ok((self.buffers.len() - 1, self.buffers.last_mut().unwrap()))
     }
 
     pub fn get<'a, 'b: 'a>(&'b self, metadata: &'a RowHeapMetadataUnion) -> Option<&'a [u8]> {
@@ -208,7 +245,10 @@ where
                 let offset = metadata.large.offset as usize;
                 let len = metadata.large.len as usize;
 
-                self.buffer.as_slice().get(offset..(offset + len))
+                self.buffers[metadata.large.buffer_idx as usize]
+                    .buffer
+                    .as_slice()
+                    .get(offset..(offset + len))
             }
         }
     }
@@ -224,28 +264,53 @@ where
                 let offset = metadata.large.offset as usize;
                 let len = metadata.large.len as usize;
 
-                self.buffer.as_slice_mut().get_mut(offset..(offset + len))
+                self.buffers[metadata.large.buffer_idx as usize]
+                    .buffer
+                    .as_slice_mut()
+                    .get_mut(offset..(offset + len))
             }
         }
     }
+}
 
-    /// Try to resize the buffer to fix `len` additional bytes.
-    fn resize_buffer(&mut self, len: usize) -> Result<()> {
-        let mut additional = self.buffer.capacity() * 2;
-        if additional == 0 {
-            additional = 16;
+#[derive(Debug)]
+struct RowHeapBuffer<B: BufferManager> {
+    /// Buffer containing all blob data.
+    buffer: TypedRawBuffer<u8, B>,
+    /// How much of the buffer is filled.
+    filled: usize,
+}
+
+impl<B> RowHeapBuffer<B>
+where
+    B: BufferManager,
+{
+    fn with_capacity(manager: &B, capacity: usize) -> Result<Self> {
+        let buffer = TypedRawBuffer::try_with_capacity(manager, capacity)?;
+        Ok(RowHeapBuffer { buffer, filled: 0 })
+    }
+
+    const fn remaining_capacity(&self) -> usize {
+        self.buffer.capacity() - self.filled
+    }
+
+    /// Try to reserve `additional` bytes for the buffer.
+    fn reserve(&mut self, additional: usize) -> Result<()> {
+        let mut new_size = self.buffer.capacity() * 2;
+        if new_size == 0 {
+            new_size = 16;
         }
 
         loop {
-            if additional + (self.buffer.capacity() - self.filled) > len {
+            if new_size + (self.buffer.capacity() - self.filled) > additional {
                 // This is enough to fix `len` bytes.
                 break;
             }
             // Otherwise try doubling.
-            additional *= 2;
+            new_size *= 2;
         }
 
-        self.buffer.reserve(additional)
+        self.buffer.reserve(new_size)
     }
 }
 

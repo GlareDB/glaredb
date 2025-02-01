@@ -5,11 +5,12 @@ use half::f16;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
-use super::array_buffer::{ArrayBuffer, ListItemMetadata};
+use super::array_buffer::{ArrayBuffer, ListItemMetadata, StringViewBuffer};
 use super::buffer_manager::BufferManager;
 use crate::arrays::array::array_buffer::ArrayBufferType;
 use crate::arrays::collection::row_heap::{RowHeap, RowHeapMetadataUnion};
 use crate::arrays::scalar::interval::Interval;
+use crate::arrays::view::{StringView, MAX_INLINE_LEN};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {
@@ -324,8 +325,8 @@ generate_primitive!(Interval, PhysicalInterval, Interval);
 
 #[derive(Debug)]
 pub struct StringViewAddressable<'a, B: BufferManager> {
-    pub(crate) metadata: &'a [RowHeapMetadataUnion],
-    pub(crate) heap: &'a RowHeap<B>,
+    pub(crate) metadata: &'a [StringView],
+    pub(crate) buffer: &'a StringViewBuffer<B>,
 }
 
 impl<'a, B> Addressable<'a, B> for StringViewAddressable<'a, B>
@@ -336,7 +337,8 @@ where
 
     fn get(&self, idx: usize) -> Option<&'a Self::T> {
         let m = self.metadata.get(idx)?;
-        let bs = self.heap.get(m)?;
+        let bs = self.buffer.get(m);
+
         Some(unsafe { std::str::from_utf8_unchecked(bs) })
     }
 
@@ -347,8 +349,8 @@ where
 
 #[derive(Debug)]
 pub struct StringViewAddressableMut<'a, B: BufferManager> {
-    pub(crate) metadata: &'a mut [RowHeapMetadataUnion],
-    pub(crate) heap: &'a mut RowHeap<B>,
+    pub(crate) metadata: &'a mut [StringView],
+    pub(crate) buffer: &'a mut StringViewBuffer<B>,
 }
 
 impl<B> AddressableMut<B> for StringViewAddressableMut<'_, B>
@@ -359,14 +361,14 @@ where
 
     fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
         let m = self.metadata.get_mut(idx)?;
-        let bs = self.heap.get_mut(m)?;
+        let bs = self.buffer.get_mut(m);
+
         Some(unsafe { std::str::from_utf8_unchecked_mut(bs) })
     }
 
     fn put(&mut self, idx: usize, val: &Self::T) {
-        let bs = val.as_bytes();
-        let new_m = self.heap.push_bytes(bs).expect("push bytes to not error"); // TODO: Need to handle this
-        self.metadata[idx] = new_m;
+        let view = self.buffer.push_bytes(val.as_bytes()).unwrap(); // TODO
+        self.metadata[idx] = view;
     }
 
     fn len(&self) -> usize {
@@ -376,8 +378,8 @@ where
 
 #[derive(Debug)]
 pub struct BinaryViewAddressable<'a, B: BufferManager> {
-    pub(crate) metadata: &'a [RowHeapMetadataUnion],
-    pub(crate) heap: &'a RowHeap<B>,
+    pub(crate) metadata: &'a [StringView],
+    pub(crate) buffer: &'a StringViewBuffer<B>,
 }
 
 impl<'a, B> Addressable<'a, B> for BinaryViewAddressable<'a, B>
@@ -388,7 +390,8 @@ where
 
     fn get(&self, idx: usize) -> Option<&'a Self::T> {
         let m = self.metadata.get(idx)?;
-        self.heap.get(m)
+        let bs = self.buffer.get(m);
+        Some(bs)
     }
 
     fn len(&self) -> usize {
@@ -398,8 +401,8 @@ where
 
 #[derive(Debug)]
 pub struct BinaryViewAddressableMut<'a, B: BufferManager> {
-    pub(crate) metadata: &'a mut [RowHeapMetadataUnion],
-    pub(crate) heap: &'a mut RowHeap<B>,
+    pub(crate) metadata: &'a mut [StringView],
+    pub(crate) buffer: &'a mut StringViewBuffer<B>,
 }
 
 impl<B> AddressableMut<B> for BinaryViewAddressableMut<'_, B>
@@ -410,12 +413,13 @@ where
 
     fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
         let m = self.metadata.get_mut(idx)?;
-        self.heap.get_mut(m)
+        let bs = self.buffer.get_mut(m);
+        Some(bs)
     }
 
     fn put(&mut self, idx: usize, val: &Self::T) {
-        let new_m = self.heap.push_bytes(val).expect("push bytes to not fail"); // TODO: Handle this.
-        self.metadata[idx] = new_m;
+        let view = self.buffer.push_bytes(val).unwrap(); // TODO
+        self.metadata[idx] = view;
     }
 
     fn len(&self) -> usize {

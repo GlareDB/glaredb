@@ -38,6 +38,7 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::collection::row_heap::{RowHeap, RowHeapMetadataUnion};
 use crate::arrays::datatype::DataType;
+use crate::arrays::view::{StringView, MAX_INLINE_LEN};
 
 /// Abstraction layer for holding shared or owned array data.
 ///
@@ -233,6 +234,22 @@ where
             Self::String(_) => ArrayBufferKind::String,
             Self::Dictionary(_) => ArrayBufferKind::Dictionary,
             Self::List(_) => ArrayBufferKind::List,
+        }
+    }
+
+    pub fn physical_type(&self) -> PhysicalType {
+        match self {
+            Self::Scalar(b) => b.physical_type,
+            Self::Constant(b) => b.child_buffer.physical_type(),
+            Self::String(b) => {
+                if b.is_utf8 {
+                    PhysicalType::Utf8
+                } else {
+                    PhysicalType::Binary
+                }
+            }
+            Self::Dictionary(b) => b.child_buffer.physical_type(),
+            Self::List(_) => PhysicalType::List,
         }
     }
 
@@ -492,11 +509,14 @@ where
     }
 }
 
+/// Uses string views to represent strings and binary data.
+///
+/// The string view buffer index is always set to '0' within this buffer.
 #[derive(Debug)]
 pub struct StringBuffer<B: BufferManager> {
     pub(crate) is_utf8: bool,
-    pub(crate) metadata: SharedOrOwned<TypedRawBuffer<RowHeapMetadataUnion, B>>,
-    pub(crate) heap: SharedOrOwned<RowHeap<B>>,
+    pub(crate) metadata: SharedOrOwned<TypedRawBuffer<StringView, B>>,
+    pub(crate) buffer: SharedOrOwned<StringViewBuffer<B>>,
 }
 
 impl<B> StringBuffer<B>
@@ -508,26 +528,26 @@ where
     }
 
     pub fn try_as_string_view(&self) -> Result<StringViewAddressable<B>> {
-        let heap = &self.heap;
+        let buffer = &self.buffer;
         if !self.is_utf8 {
             return Err(RayexecError::new("Cannot view raw binary as strings"));
         }
 
         Ok(StringViewAddressable {
             metadata: self.metadata.as_slice(),
-            heap,
+            buffer,
         })
     }
 
     pub fn try_as_string_view_mut(&mut self) -> Result<StringViewAddressableMut<B>> {
-        let heap = self.heap.try_as_mut()?;
+        let buffer = self.buffer.try_as_mut()?;
         if !self.is_utf8 {
             return Err(RayexecError::new("Cannot view raw binary as strings"));
         }
 
         Ok(StringViewAddressableMut {
             metadata: self.metadata.try_as_mut()?.as_slice_mut(),
-            heap,
+            buffer,
         })
     }
 
@@ -536,12 +556,12 @@ where
         // getting binary slices even when we're dealing with strings.
         BinaryViewAddressable {
             metadata: self.metadata.as_slice(),
-            heap: &self.heap,
+            buffer: &self.buffer,
         }
     }
 
     pub fn try_as_binary_view_mut(&mut self) -> Result<BinaryViewAddressableMut<B>> {
-        let heap = self.heap.try_as_mut()?;
+        let buffer = self.buffer.try_as_mut()?;
         // TODO: Probably do want this check. Currently skipping this for easier
         // row decoding between binary/utf8 data.
         // // Unlike binary view, we don't want to allow mutable access to string
@@ -554,7 +574,7 @@ where
 
         Ok(BinaryViewAddressableMut {
             metadata: self.metadata.try_as_mut()?.as_slice_mut(),
-            heap,
+            buffer,
         })
     }
 
@@ -572,12 +592,12 @@ where
                 )))
             }
         };
-        let heap = RowHeap::with_capacity(manager, 0)?;
+        let buffer = StringViewBuffer::with_capacity(manager, 0)?;
 
         Ok(StringBuffer {
             is_utf8,
             metadata: SharedOrOwned::owned(metadata),
-            heap: SharedOrOwned::owned(heap),
+            buffer: SharedOrOwned::owned(buffer),
         })
     }
 
@@ -587,17 +607,17 @@ where
 
     fn make_shared(&mut self) {
         self.metadata.make_shared();
-        self.heap.make_shared();
+        self.buffer.make_shared();
     }
 
     fn make_shared_and_clone(&mut self) -> Self {
         let metadata = self.metadata.make_shared_and_clone();
-        let heap = self.heap.make_shared_and_clone();
+        let buffer = self.buffer.make_shared_and_clone();
 
         StringBuffer {
             is_utf8: self.is_utf8,
             metadata,
-            heap,
+            buffer,
         }
     }
 
@@ -605,8 +625,107 @@ where
         Ok(StringBuffer {
             is_utf8: self.is_utf8,
             metadata: self.metadata.try_clone_shared()?,
-            heap: self.heap.try_clone_shared()?,
+            buffer: self.buffer.try_clone_shared()?,
         })
+    }
+}
+
+#[derive(Debug)]
+pub struct StringViewBuffer<B: BufferManager> {
+    bytes_filled: usize,
+    buffer: TypedRawBuffer<u8, B>,
+}
+
+impl<B> StringViewBuffer<B>
+where
+    B: BufferManager,
+{
+    pub fn with_capacity(manager: &B, capacity: usize) -> Result<Self> {
+        let buffer = TypedRawBuffer::try_with_capacity(manager, capacity)?;
+        Ok(StringViewBuffer {
+            bytes_filled: 0,
+            buffer,
+        })
+    }
+
+    pub fn clear(&mut self) {
+        self.bytes_filled = 0;
+    }
+
+    pub fn get<'a>(&'a self, view: &'a StringView) -> &'a [u8] {
+        if view.is_inline() {
+            let inline = view.as_inline();
+            &inline.inline[0..inline.len as usize]
+        } else {
+            let reference = view.as_reference();
+            debug_assert_eq!(0, reference.buffer_idx);
+            let offset = reference.offset as usize;
+            let len = reference.len as usize;
+            &self.buffer.as_slice()[offset..(offset + len)]
+        }
+    }
+
+    pub fn get_mut<'a>(&'a mut self, view: &'a mut StringView) -> &'a mut [u8] {
+        if view.is_inline() {
+            let inline = view.as_inline_mut();
+            &mut inline.inline[0..inline.len as usize]
+        } else {
+            let reference = view.as_reference();
+            debug_assert_eq!(0, reference.buffer_idx);
+            let offset = reference.offset as usize;
+            let len = reference.len as usize;
+            &mut self.buffer.as_slice_mut()[offset..(offset + len)]
+        }
+    }
+
+    pub fn push_bytes(&mut self, value: &[u8]) -> Result<StringView> {
+        if value.len() <= MAX_INLINE_LEN {
+            Ok(StringView::new_inline(value))
+        } else {
+            let remaining = self.buffer.capacity() - self.bytes_filled;
+            if remaining < value.len() {
+                let additional = value.len() - remaining;
+                let reserve_amount = Self::compute_amount_to_reserve(
+                    self.buffer.capacity(),
+                    self.bytes_filled,
+                    additional,
+                );
+                self.buffer.reserve(reserve_amount)?;
+            }
+
+            let offset = self.bytes_filled;
+            self.bytes_filled += value.len();
+
+            // Copy entire value to buffer.
+            let buf = &mut self.buffer.as_mut()[offset..(offset + value.len())];
+            buf.copy_from_slice(value);
+
+            Ok(StringView::new_reference(value, 0, offset as i32))
+        }
+    }
+
+    /// Compute how much we need to reserve for a buffer for it to fit `additional`
+    /// number of bytes.
+    const fn compute_amount_to_reserve(
+        curr_cap: usize,
+        curr_filled: usize,
+        additional: usize,
+    ) -> usize {
+        let mut new_size = curr_cap * 2;
+        if new_size == 0 {
+            new_size = 16;
+        }
+
+        loop {
+            if new_size + (curr_cap - curr_filled) >= additional {
+                // This is enough to fix `len` bytes.
+                break;
+            }
+            // Otherwise try doubling.
+            new_size *= 2;
+        }
+
+        new_size
     }
 }
 
@@ -791,5 +910,41 @@ impl<T> TryAsMut<T> for SharedOrOwned<T> {
             Self::Shared(_) => Err(RayexecError::new("Cannot get mutable refernce")),
             Self::Uninit => panic!("invalid state"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
+
+    #[test]
+    fn string_view_buffer_push_inlined() {
+        let mut buffer = StringViewBuffer::with_capacity(&NopBufferManager, 0).unwrap();
+        let m = buffer.push_bytes(&[0, 1, 2, 3]).unwrap();
+        assert!(m.is_inline());
+
+        let got = buffer.get(&m);
+        assert_eq!(&[0, 1, 2, 3], got);
+    }
+
+    #[test]
+    fn string_view_buffer_push_referenced() {
+        let mut buffer = StringViewBuffer::with_capacity(&NopBufferManager, 0).unwrap();
+        let m1 = buffer.push_bytes(&vec![4; 32]).unwrap();
+        assert!(!m1.is_inline());
+
+        let got = buffer.get(&m1);
+        assert_eq!(&vec![4; 32], got);
+
+        let m2 = buffer.push_bytes(&vec![5; 32]).unwrap();
+        assert!(!m2.is_inline());
+
+        let got = buffer.get(&m2);
+        assert_eq!(&vec![5; 32], got);
+
+        // Ensure first wasn't overwritten.
+        let got = buffer.get(&m1);
+        assert_eq!(&vec![4; 32], got);
     }
 }
