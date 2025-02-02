@@ -438,10 +438,12 @@ unsafe fn write_scalar<S, B>(
 ) -> Result<()>
 where
     S: ScalarStorage,
-    S::StorageType: Copy + Sized,
+    S::StorageType: Default + Copy + Sized,
     B: BufferManager,
 {
     debug_assert_eq!(num_rows, row_pointers.len());
+
+    let null_val = <S::StorageType>::default();
 
     let data = S::get_addressable(array.array_buffer)?;
     let validity = array.validity;
@@ -463,6 +465,11 @@ where
                 let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
                 ptr.cast::<S::StorageType>().write_unaligned(*v);
             } else {
+                // Ensure memory is initialized since we always read it in the
+                // row matcher.
+                let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                ptr.cast::<S::StorageType>().write_unaligned(null_val);
+
                 let validity_buf = layout.validity_buffer_mut(row_pointers[row_idx]);
                 BitmapViewMut::new(validity_buf, layout.num_columns()).unset(array_idx);
             }
