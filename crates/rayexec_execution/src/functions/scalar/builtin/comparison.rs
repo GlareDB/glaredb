@@ -391,15 +391,86 @@ impl ScalarFunction for GtEq {
     }
 }
 
+/// Describes a comparison operation between a left and right element and takes
+/// into account if either value is valid.
+pub trait NullableComparisonOperation: Debug + Sync + Send + Copy + 'static {
+    fn compare_with_valid<T>(left: T, right: T, left_valid: bool, right_valid: bool) -> bool
+    where
+        T: PartialEq + PartialOrd;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IsDistinctFrom;
+
+impl NullableComparisonOperation for IsDistinctFrom {
+    fn compare_with_valid<T>(left: T, right: T, left_valid: bool, right_valid: bool) -> bool
+    where
+        T: PartialEq + PartialOrd,
+    {
+        if !left_valid || !right_valid {
+            return left_valid != right_valid;
+        }
+        NotEqOperation::compare(left, right)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IsNotDistinctFrom;
+
+impl NullableComparisonOperation for IsNotDistinctFrom {
+    fn compare_with_valid<T>(left: T, right: T, left_valid: bool, right_valid: bool) -> bool
+    where
+        T: PartialEq + PartialOrd,
+    {
+        if !left_valid || !right_valid {
+            return left_valid == right_valid;
+        }
+        EqOperation::compare(left, right)
+    }
+}
+
+/// Wrapper around a normal comparison operation (==, !=, etc) that coerces
+/// output that should be NULL to instead be false.
+///
+/// E.g. `5 == NULL` outputs false instead of NULL.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NullCoercedComparison<C: ComparisonOperation> {
+    _c: PhantomData<C>,
+}
+
+impl<C> NullCoercedComparison<C>
+where
+    C: ComparisonOperation,
+{
+    pub const fn new() -> Self {
+        NullCoercedComparison { _c: PhantomData }
+    }
+}
+
+impl<C> NullableComparisonOperation for NullCoercedComparison<C>
+where
+    C: ComparisonOperation,
+{
+    fn compare_with_valid<T>(left: T, right: T, left_valid: bool, right_valid: bool) -> bool
+    where
+        T: PartialEq + PartialOrd,
+    {
+        if !left_valid || !right_valid {
+            return false;
+        }
+        C::compare(left, right)
+    }
+}
+
 /// Describes a comparison betweeen a left and right element.
-trait ComparisonOperation: Debug + Sync + Send + Copy + 'static {
+pub trait ComparisonOperation: Debug + Sync + Send + Copy + 'static {
     fn compare<T>(left: T, right: T) -> bool
     where
         T: PartialEq + PartialOrd;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct EqOperation;
+pub struct EqOperation;
 
 impl ComparisonOperation for EqOperation {
     fn compare<T>(left: T, right: T) -> bool
@@ -411,7 +482,7 @@ impl ComparisonOperation for EqOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct NotEqOperation;
+pub struct NotEqOperation;
 
 impl ComparisonOperation for NotEqOperation {
     fn compare<T>(left: T, right: T) -> bool
@@ -423,7 +494,7 @@ impl ComparisonOperation for NotEqOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct LtOperation;
+pub struct LtOperation;
 
 impl ComparisonOperation for LtOperation {
     fn compare<T>(left: T, right: T) -> bool
@@ -435,7 +506,7 @@ impl ComparisonOperation for LtOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct LtEqOperation;
+pub struct LtEqOperation;
 
 impl ComparisonOperation for LtEqOperation {
     fn compare<T>(left: T, right: T) -> bool
@@ -447,7 +518,7 @@ impl ComparisonOperation for LtEqOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct GtOperation;
+pub struct GtOperation;
 
 impl ComparisonOperation for GtOperation {
     fn compare<T>(left: T, right: T) -> bool
@@ -459,7 +530,7 @@ impl ComparisonOperation for GtOperation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct GtEqOperation;
+pub struct GtEqOperation;
 
 impl ComparisonOperation for GtEqOperation {
     fn compare<T>(left: T, right: T) -> bool

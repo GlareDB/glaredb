@@ -9,13 +9,6 @@ use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 
-/// Address to a single row in the collection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RowAddress {
-    pub chunk_idx: u32,
-    pub row_idx: u16,
-}
-
 /// State for appending data to the collection.
 #[derive(Debug)]
 pub struct RowAppendState {
@@ -59,8 +52,14 @@ impl RowCollection {
         }
     }
 
+    /// Gets a reference to the row layout for this collection.
     pub fn layout(&self) -> &RowLayout {
         &self.blocks.layout
+    }
+
+    /// Gets a reference to the underlying blocks backing this row collection.
+    pub fn blocks(&self) -> &RowBlocks<NopBufferManager> {
+        &self.blocks
     }
 
     pub fn row_count(&self) -> usize {
@@ -223,13 +222,12 @@ impl RowCollection {
             )?;
 
             unsafe {
-                self.layout().read_arrays(
+                self.scan_raw(
                     &state.block_read,
                     columns.iter().copied().zip(outputs.iter_mut()),
                     scanned_count,
-                    &self.blocks,
-                )?;
-            }
+                )
+            }?;
 
             // Update state.
             state.row_idx += scan_count;
@@ -238,6 +236,19 @@ impl RowCollection {
         }
 
         Ok(scanned_count)
+    }
+
+    pub(crate) unsafe fn scan_raw<'a, A>(
+        &self,
+        state: &BlockReadState,
+        arrays: impl IntoIterator<Item = (usize, &'a mut A)>,
+        write_offset: usize,
+    ) -> Result<()>
+    where
+        A: BorrowMut<Array> + 'a,
+    {
+        self.layout()
+            .read_arrays(state, arrays, write_offset, &self.blocks)
     }
 }
 

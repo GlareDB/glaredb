@@ -4,4 +4,4 @@ pub mod row;
 pub mod row_layout;
 pub mod row_matcher;
 
-mod row_blocks;
+pub(crate) mod row_blocks;

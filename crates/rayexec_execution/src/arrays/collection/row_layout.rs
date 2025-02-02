@@ -109,7 +109,7 @@ impl RowLayout {
     ///
     /// `row_ptr` must point the beginning of the row, and the row must conform
     /// to this row layout.
-    unsafe fn validity_buffer(&self, row_ptr: *const u8) -> &[u8] {
+    pub(crate) unsafe fn validity_buffer(&self, row_ptr: *const u8) -> &[u8] {
         std::slice::from_raw_parts(row_ptr, self.validity_width)
     }
 

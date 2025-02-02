@@ -1,14 +1,15 @@
-use std::sync::atomic::{self, AtomicPtr, AtomicU64};
+use std::sync::atomic::{self, AtomicBool, AtomicPtr, AtomicU64};
 
 use rayexec_error::Result;
 
+use super::hash_table_scan::HashTableScanState;
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
 use crate::arrays::array::raw::TypedRawBuffer;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::collection::row::{RowAddress, RowAppendState, RowCollection};
+use crate::arrays::collection::row::{RowAppendState, RowCollection};
 use crate::arrays::collection::row_layout::RowLayout;
 use crate::arrays::collection::row_matcher::PredicateRowMatcher;
 use crate::arrays::compute::hash::hash_many_arrays;
@@ -18,23 +19,23 @@ use crate::logical::logical_join::JoinType;
 #[derive(Debug)]
 pub struct JoinHashTable {
     /// Join type this hash table is for.
-    join_type: JoinType,
+    pub join_type: JoinType,
     /// Collected data for the hash table.
-    data: RowCollection,
+    pub data: RowCollection,
     /// Hash table entries pointing to rows in the data collection.
     ///
     /// Initialize after we collect all data.
-    directory: Option<Directory>,
+    pub directory: Option<Directory>,
     /// Column indices for keys on the build side.
-    build_key_columns: Vec<usize>,
+    pub build_key_columns: Vec<usize>,
     /// Column indices for data we're not joining on.
-    build_data_columns: Vec<usize>,
+    pub build_data_columns: Vec<usize>,
     /// Byte offset into a row for where the hash/next entry value is stored.
-    build_hash_byte_offset: usize,
+    pub build_hash_byte_offset: usize,
     /// Configured batch size for the join operator.
-    batch_size: usize,
+    pub batch_size: usize,
     /// Matcher for evaluating predicates on the rows.
-    row_matcher: PredicateRowMatcher,
+    pub row_matcher: PredicateRowMatcher,
 }
 
 impl JoinHashTable {
@@ -51,6 +52,12 @@ impl JoinHashTable {
 
         // Insert hash datatype in the right spot, immediately after keys.
         datatypes.insert(build_key_columns.len(), DataType::UInt64);
+
+        // Append extra boolean column if were a LEFT/OUTER join to track
+        // matches.
+        if join_type.produce_all_build_side_rows() {
+            datatypes.push(DataType::Boolean);
+        }
 
         let layout = RowLayout::new(datatypes);
         let build_hash_byte_offset = layout.offsets[build_key_columns.len()];
@@ -87,6 +94,15 @@ impl JoinHashTable {
     /// collection.
     pub fn collect_build(&mut self, state: &mut BuildState, input: &Batch) -> Result<()> {
         // Array references: [keys, hashes/next_entry, data, matches]
+        //
+        // The hashes/next_entry column is initially all hash values. Once we've
+        // collected all build-side data, we overwrite the hash values with
+        // pointers to the next entry in the chain.
+        //
+        // Note that the hashes/next_entry column is stored as 64 bits. For
+        // systems that use 32 bit pointers (wasm), this should still function
+        // correctly. The first 32 bits will be the actual pointer, the trailing
+        // 32 bits will be meaningless data (that we don't read).
         let mut arrays = Vec::with_capacity(self.data.layout().types.len());
         // Get key arrays.
         for &col_idx in &self.build_key_columns {
@@ -318,6 +334,36 @@ impl JoinHashTable {
         }
     }
 
+    /// Writes to the rows indicating that they were matched in a probe.
+    ///
+    /// This is used to mark rows as matched during LEFT/OUTER joins.
+    ///
+    /// # Safety
+    ///
+    /// The pointers must point to the beginning of rows in the collection.
+    ///
+    /// The 'matches' column data must not be concurrently accessed outside of
+    /// this function. This should hold as probing never touches this column,
+    /// even when executing predicates.
+    pub unsafe fn write_rows_matched(&self, row_ptrs: impl IntoIterator<Item = *const u8>) {
+        let match_offset = *self
+            .data
+            .layout()
+            .offsets
+            .last()
+            .expect("match offset to exist");
+
+        for row_ptr in row_ptrs {
+            // Note the morsels paper says it's advantageous to check the bool
+            // before setting it to avoid contention. I'm assuming they mean
+            // without atomic access. That's technically UB, and miri would
+            // complain. So just do it atomically.
+            let match_ptr = row_ptr.byte_add(match_offset).cast_mut().cast::<bool>();
+            let match_bool = AtomicBool::from_ptr(match_ptr);
+            match_bool.store(true, atomic::Ordering::Relaxed);
+        }
+    }
+
     unsafe fn write_next_entry_ptr(&self, row_ptr: *const u8, next_ent: *const u8) {
         let next_ent_ptr = row_ptr
             .byte_add(self.build_hash_byte_offset)
@@ -326,7 +372,7 @@ impl JoinHashTable {
         next_ent_ptr.write_unaligned(next_ent);
     }
 
-    unsafe fn read_next_entry_ptr(&self, row_ptr: *const u8) -> *const u8 {
+    pub unsafe fn read_next_entry_ptr(&self, row_ptr: *const u8) -> *const u8 {
         let next_ent_ptr = row_ptr
             .byte_add(self.build_hash_byte_offset)
             .cast::<*const u8>();
@@ -347,7 +393,7 @@ impl JoinHashTable {
 /// point to the next entry in the chain through a serialized pointer. The end
 /// of a chain is denoted by a null pointer.
 #[derive(Debug)]
-struct Directory {
+pub struct Directory {
     entries: TypedRawBuffer<*mut u8, NopBufferManager>,
 }
 
@@ -404,125 +450,6 @@ pub struct BuildState {
     match_init: Array,
     /// State for appending rows to the collection.
     row_append: RowAppendState,
-}
-
-/// Scan state for resuming probes of the hash table.
-#[derive(Debug)]
-pub struct HashTableScanState {
-    /// Selection to use for entries that we're still scanning.
-    ///
-    /// Once this is empty, we know we're done scanning this set of keys.
-    selection: Vec<usize>,
-    /// Current set of pointers we're working with.
-    ///
-    /// We'll continually update these until we reach the end of the chain.
-    row_pointers: Vec<*const u8>,
-    /// Reusable hashes buffer. Filled when we probe the hash table with
-    /// rhs_keys.
-    hashes: Vec<u64>,
-    /// Selection of rows from the rhs that we've matched for a scan. Resusable
-    /// buffer.
-    predicates_matched: Vec<usize>,
-    /// Offset into `predicates_matched` to start reading from. This is set when
-    /// the number of predicates that we matched for a single pass is greater
-    /// than the output capacity of the batch.
-    predicates_matched_offset: usize,
-}
-
-impl HashTableScanState {
-    pub fn scan(
-        &mut self,
-        table: &JoinHashTable,
-        rhs_keys: &Batch,
-        output: &mut Batch,
-    ) -> Result<()> {
-        match table.join_type {
-            _ => unimplemented!(),
-        }
-    }
-
-    pub fn scan_inner_join(
-        &mut self,
-        table: &JoinHashTable,
-        rhs_keys: &[Array],
-        rhs: &[Array],
-        output: &mut Batch,
-    ) -> Result<()> {
-        if self.selection.is_empty() {
-            // Done, need new of keys.
-            output.set_num_rows(0)?;
-            return Ok(());
-        }
-
-        self.match_inner_join(table, rhs_keys)?;
-
-        unimplemented!()
-    }
-
-    /// Find the rows from `rhs_keys` that match the predicates.
-    ///
-    /// Outputs will be placed in `predicated_matched` vector, and the number of
-    /// matches returned.
-    fn match_inner_join(&mut self, table: &JoinHashTable, rhs_keys: &[Array]) -> Result<usize> {
-        self.predicates_matched.clear();
-
-        loop {
-            // Rows to read from the left.
-            let lhs_rows = self
-                .selection
-                .iter()
-                .map(|&row_idx| self.row_pointers[row_idx]);
-
-            // Rows to read from the right.
-            let rhs_rows = self.selection.iter().copied();
-
-            table.row_matcher.find_matches(
-                &table.data,
-                lhs_rows,
-                &table.build_key_columns,
-                rhs_keys,
-                rhs_rows,
-                &mut self.predicates_matched,
-            )?;
-
-            if !self.predicates_matched.is_empty() {
-                // Predicates matched, need to produce output.
-                return Ok(self.predicates_matched.len());
-            }
-
-            // Otherwise none of the predicates matched, move to next entries.
-            self.follow_next_in_chain(table);
-            if self.selection.is_empty() {
-                // We're at the end of all chains, nothing more to read.
-                return Ok(0);
-            }
-        }
-    }
-
-    /// For each entry in the current scan state, follow the chain to load the
-    /// next entry to read from.
-    fn follow_next_in_chain(&mut self, table: &JoinHashTable) {
-        for &ent_idx in &self.selection {
-            let ent = &mut self.row_pointers[ent_idx];
-            if !ent.is_null() {
-                // Move to next in the chain.
-                // SAFETY: ...
-                //
-                // Assumes that we're generating row addresses correctly and that
-                // they are in bounds.
-                *ent = unsafe { table.read_next_entry_ptr(*ent) }
-            }
-        }
-
-        // Update the selection to only include entries that are not dangling.
-        self.selection.clear();
-        self.selection.extend(
-            self.row_pointers
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, ent)| if ent.is_null() { None } else { Some(idx) }),
-        );
-    }
 }
 
 #[cfg(test)]

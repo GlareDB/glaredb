@@ -54,6 +54,7 @@ pub struct BlockReadState {
 }
 
 impl BlockReadState {
+    /// Clear all pointers from this state.
     pub fn clear(&mut self) {
         self.row_pointers.clear();
     }
