@@ -13,7 +13,6 @@ use crate::arrays::collection::row_layout::RowLayout;
 use crate::arrays::collection::row_matcher::PredicateRowMatcher;
 use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
-use crate::execution::operators::join::produce_all_build_side_rows;
 use crate::logical::logical_join::JoinType;
 
 #[derive(Debug)]
@@ -110,7 +109,7 @@ impl JoinHashTable {
         }
 
         // Ensure we include the "matches" initial values.
-        if produce_all_build_side_rows(self.join_type) {
+        if self.join_type.produce_all_build_side_rows() {
             // Resize to match the input rows.
             state
                 .match_init
@@ -424,6 +423,10 @@ pub struct HashTableScanState {
     /// Selection of rows from the rhs that we've matched for a scan. Resusable
     /// buffer.
     predicates_matched: Vec<usize>,
+    /// Offset into `predicates_matched` to start reading from. This is set when
+    /// the number of predicates that we matched for a single pass is greater
+    /// than the output capacity of the batch.
+    predicates_matched_offset: usize,
 }
 
 impl HashTableScanState {
@@ -451,7 +454,18 @@ impl HashTableScanState {
             return Ok(());
         }
 
+        self.match_inner_join(table, rhs_keys)?;
+
+        unimplemented!()
+    }
+
+    /// Find the rows from `rhs_keys` that match the predicates.
+    ///
+    /// Outputs will be placed in `predicated_matched` vector, and the number of
+    /// matches returned.
+    fn match_inner_join(&mut self, table: &JoinHashTable, rhs_keys: &[Array]) -> Result<usize> {
         self.predicates_matched.clear();
+
         loop {
             // Rows to read from the left.
             let lhs_rows = self
@@ -473,19 +487,16 @@ impl HashTableScanState {
 
             if !self.predicates_matched.is_empty() {
                 // Predicates matched, need to produce output.
-                break;
+                return Ok(self.predicates_matched.len());
             }
 
             // Otherwise none of the predicates matched, move to next entries.
             self.follow_next_in_chain(table);
             if self.selection.is_empty() {
                 // We're at the end of all chains, nothing more to read.
-                output.set_num_rows(0)?;
-                return Ok(());
+                return Ok(0);
             }
         }
-
-        unimplemented!()
     }
 
     /// For each entry in the current scan state, follow the chain to load the

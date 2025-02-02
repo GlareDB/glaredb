@@ -40,6 +40,26 @@ pub enum JoinType {
 }
 
 impl JoinType {
+    /// If the result of a join should be empty if the build input is empty.
+    ///
+    /// Assumes "left" is the build side.
+    pub const fn empty_output_on_empty_build(&self) -> bool {
+        match self {
+            JoinType::Inner | JoinType::Left | JoinType::LeftSemi | JoinType::LeftAnti => true,
+            JoinType::Full | JoinType::Right | JoinType::LeftMark { .. } => false,
+        }
+    }
+
+    /// If this join produces all rows from the build side.
+    ///
+    /// Assumes "left" is the build side.
+    pub const fn produce_all_build_side_rows(&self) -> bool {
+        match self {
+            JoinType::Left | JoinType::Full | JoinType::LeftAnti | JoinType::LeftSemi => true,
+            JoinType::Inner | JoinType::Right | JoinType::LeftMark { .. } => false,
+        }
+    }
+
     /// Helper for determining the output refs for a given node type.
     fn output_refs<T>(self, node: &Node<T>, bind_context: &BindContext) -> Vec<TableRef> {
         if let JoinType::LeftMark { table_ref } = self {

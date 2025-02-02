@@ -1,8 +1,7 @@
-
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::operators::hash_join::PhysicalHashJoin;
+use crate::execution::operators::hash_join2::PhysicalHashJoin;
 use crate::execution::operators::PhysicalOperator;
 use crate::expr;
 use crate::expr::comparison_expr::ComparisonOperator;

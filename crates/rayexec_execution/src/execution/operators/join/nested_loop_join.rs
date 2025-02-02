@@ -9,7 +9,6 @@ use super::outer_join_tracker::OuterJoinTracker;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
-use crate::execution::operators::join::empty_output_on_empty_build;
 use crate::execution::operators::materialize::column_collection::ColumnCollection;
 use crate::execution::operators::{
     BinaryInputStates,
@@ -196,7 +195,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
                 let cross_product = state.cross_product.as_mut().unwrap(); // Should have been set above.
 
                 if cross_product.collection().row_count() == 0 {
-                    if empty_output_on_empty_build(self.join_type) {
+                    if self.join_type.empty_output_on_empty_build() {
                         output.set_num_rows(0)?;
                         return Ok(PollExecute::Exhausted);
                     } else {

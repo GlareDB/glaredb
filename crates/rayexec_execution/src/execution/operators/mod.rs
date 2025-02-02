@@ -10,6 +10,7 @@ pub mod empty;
 pub mod filter;
 pub mod hash_aggregate;
 pub mod hash_join;
+pub mod hash_join2;
 pub mod insert;
 pub mod join;
 pub mod limit;
@@ -45,7 +46,7 @@ use drop::{DropPartitionState, PhysicalDrop};
 use empty::PhysicalEmpty;
 use filter::{FilterPartitionState, PhysicalFilter};
 use hash_aggregate::PhysicalHashAggregate;
-use hash_join::{
+use hash_join2::{
     HashJoinBuildPartitionState,
     HashJoinOperatorState,
     HashJoinProbePartitionState,

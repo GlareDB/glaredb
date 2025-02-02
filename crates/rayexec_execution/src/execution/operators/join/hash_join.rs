@@ -5,13 +5,13 @@ use parking_lot::Mutex;
 use rayexec_error::{OptionExt, Result};
 
 use super::cross_product::CrossProductState;
-use super::join_hash_table::{HashTableScanState, JoinHashTable};
+// use super::join_hash_table::{HashTableScanState, JoinHashTable};
 use super::outer_join_tracker::OuterJoinTracker;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
-use crate::execution::operators::join::empty_output_on_empty_build;
+// use crate::execution::operators::join::empty_output_on_empty_build;
 use crate::execution::operators::{
     BinaryInputStates,
     ExecutableOperator,
@@ -93,8 +93,8 @@ pub struct HashJoinBuildPartitionState {}
 pub struct HashJoinProbePartitionState {
     probe_eval: ExpressionEvaluator,
     rhs_keys: Batch,
-    hash_table: Option<Arc<JoinHashTable>>,
-    scan_state: HashTableScanState,
+    // hash_table: Option<Arc<JoinHashTable>>,
+    // scan_state: HashTableScanState,
 }
 
 impl HashJoinProbePartitionState {
@@ -105,19 +105,19 @@ impl HashJoinProbePartitionState {
         input: &mut Batch,
         output: &mut Batch,
     ) -> Result<PollExecute> {
-        let hash_table = self
-            .hash_table
-            .as_ref()
-            .expect("hash table to have been built");
+        // let hash_table = self
+        //     .hash_table
+        //     .as_ref()
+        //     .expect("hash table to have been built");
 
-        if hash_table.row_count() == 0 {
-            if empty_output_on_empty_build(join_type) {
-                output.set_num_rows(0)?;
-                return Ok(PollExecute::Exhausted);
-            } else {
-                unimplemented!()
-            }
-        }
+        // if hash_table.row_count() == 0 {
+        //     if empty_output_on_empty_build(join_type) {
+        //         output.set_num_rows(0)?;
+        //         return Ok(PollExecute::Exhausted);
+        //     } else {
+        //         unimplemented!()
+        //     }
+        // }
 
         // if self.scan_state.is_none() {
         //     unimplemented!()

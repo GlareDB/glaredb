@@ -8,7 +8,7 @@ use super::literal_expr::PhysicalLiteralExpr;
 use super::scalar_function_expr::PhysicalScalarFunctionExpr;
 use super::PhysicalSortExpression;
 use crate::arrays::scalar::ScalarValue;
-use crate::execution::operators::hash_join::condition::HashJoinCondition;
+use crate::execution::operators::hash_join2::condition::HashJoinCondition;
 use crate::expr::physical::case_expr::PhysicalWhenThen;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{AsScalarFunction, Expression};
