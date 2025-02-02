@@ -71,7 +71,7 @@ impl JoinHashTable {
             build_key_columns,
             build_data_columns,
             build_hash_byte_offset,
-            row_matcher: PredicateRowMatcher {}, // TODO
+            row_matcher: PredicateRowMatcher::new([]), // TODO
         }
     }
 

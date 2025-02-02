@@ -407,6 +407,18 @@ where
                     ptr.cast::<StringView>().write_unaligned(*view);
                 }
             } else {
+                // Write an empty value.
+                //
+                // We do this since we want to be able to read the value _and_
+                // validity during row matching as it makes comparison logic
+                // easier.
+                //
+                // If we didn't write an empty value, we might read in garbage
+                // data which could lead to out of bounds access if we try to
+                // interpret it.
+                let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                ptr.cast::<StringView>().write_unaligned(StringView::EMPTY);
+
                 let validity_buf = layout.validity_buffer_mut(row_pointers[row_idx]);
                 BitmapViewMut::new(validity_buf, layout.num_columns()).unset(array_idx);
             }
@@ -611,14 +623,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::Debug;
-
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
-    use crate::arrays::batch::Batch;
-    use crate::arrays::testutil::{assert_arrays_eq, assert_batches_eq, generate_batch};
+    use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]
     fn buffer_size_i32() {
@@ -652,47 +661,80 @@ mod tests {
         assert_eq!((9 * 4 + 2) * 3, layout.buffer_size(3));
     }
 
-    // #[test]
-    // fn encode_decode_single_i32() {
-    //     let layout = RowLayout::new(vec![DataType::Int32]);
-    //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
+    /// Assert that we can write a single array and read it back.
+    fn assert_write_read_array(array: Array) {
+        let array_cap = array.capacity();
+        let layout = RowLayout::new([array.datatype().clone()]);
 
-    //     let mut buf = vec![0; layout.buffer_size(3)];
-    //     let array = Array::try_from_iter([1, 2, 3]).unwrap();
+        let heap_sizes = if layout.requires_heap {
+            let mut heap_sizes = vec![0; array_cap];
+            layout
+                .compute_heap_sizes(&[&array], array_cap, &mut heap_sizes)
+                .unwrap();
+            Some(heap_sizes)
+        } else {
+            None
+        };
 
-    //     layout
-    //         .encode_arrays(&[array], 0..3, &mut buf, &mut heap)
-    //         .unwrap();
+        let mut blocks = RowBlocks::new(NopBufferManager, layout.clone(), 16);
+        let mut state = BlockAppendState {
+            row_pointers: Vec::new(),
+            heap_pointers: Vec::new(),
+        };
 
-    //     let mut output = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
-    //     layout
-    //         .decode_arrays(&buf, &heap, 0..3, [(0, &mut output)])
-    //         .unwrap();
+        blocks
+            .prepare_append(&mut state, array_cap, heap_sizes.as_deref())
+            .unwrap();
 
-    //     let expected = Array::try_from_iter([1, 2, 3]).unwrap();
-    //     assert_arrays_eq(&expected, &output);
-    // }
+        unsafe {
+            layout
+                .write_arrays(&mut state, &[&array], array_cap)
+                .unwrap();
+        }
 
-    // #[test]
-    // fn encode_decode_single_i32_with_invalid() {
-    //     let layout = RowLayout::new(vec![DataType::Int32]);
-    //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
+        let mut out =
+            Array::try_new(&NopBufferManager, array.datatype().clone(), array_cap).unwrap();
 
-    //     let mut buf = vec![0; layout.buffer_size(3)];
-    //     let array = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
+        let state = BlockReadState {
+            row_pointers: state
+                .row_pointers
+                .iter()
+                .map(|ptr| ptr.cast_const())
+                .collect(),
+        };
 
-    //     layout
-    //         .encode_arrays(&[array], 0..3, &mut buf, &mut heap)
-    //         .unwrap();
+        unsafe {
+            layout
+                .read_arrays(&state, [(0, &mut out)], 0, &blocks)
+                .unwrap();
+        }
 
-    //     let mut output = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
-    //     layout
-    //         .decode_arrays(&buf, &heap, 0..3, [(0, &mut output)])
-    //         .unwrap();
+        assert_arrays_eq(&array, &out);
+    }
 
-    //     let expected = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
-    //     assert_arrays_eq(&expected, &output);
-    // }
+    #[test]
+    fn write_read_i32() {
+        let array = Array::try_from_iter([1, 2, 3]).unwrap();
+        assert_write_read_array(array);
+    }
+
+    #[test]
+    fn write_read_i32_with_invalid() {
+        let array = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
+        assert_write_read_array(array);
+    }
+
+    #[test]
+    fn write_read_utf8() {
+        let array = Array::try_from_iter(["cat", "dog", "goose"]).unwrap();
+        assert_write_read_array(array);
+    }
+
+    #[test]
+    fn write_read_utf8_with_invalid() {
+        let array = Array::try_from_iter([Some("cat"), None, Some("goose")]).unwrap();
+        assert_write_read_array(array);
+    }
 
     // #[test]
     // fn encode_decode_multiple_fixed_size() {
@@ -735,50 +777,6 @@ mod tests {
     //     output.set_num_rows(3).unwrap();
 
     //     let expected = generate_batch!([None, Some(2), Some(3)], [Some(1.0), None, Some(3.0)]);
-    //     assert_batches_eq(&expected, &output);
-    // }
-
-    // #[test]
-    // fn encode_decode_utf8() {
-    //     let layout = RowLayout::new([DataType::Utf8]);
-    //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
-
-    //     let mut buf = vec![0; layout.buffer_size(3)];
-    //     let batch = generate_batch!(["cat", "dog", "goose"]);
-
-    //     layout
-    //         .encode_arrays(&batch.arrays, 0..3, &mut buf, &mut heap)
-    //         .unwrap();
-
-    //     let mut output = Batch::try_new([DataType::Utf8], 16).unwrap();
-    //     layout
-    //         .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
-    //         .unwrap();
-    //     output.set_num_rows(3).unwrap();
-
-    //     let expected = generate_batch!(["cat", "dog", "goose"]);
-    //     assert_batches_eq(&expected, &output);
-    // }
-
-    // #[test]
-    // fn encode_decode_utf8_with_invalid() {
-    //     let layout = RowLayout::new([DataType::Utf8]);
-    //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
-
-    //     let mut buf = vec![0; layout.buffer_size(3)];
-    //     let batch = generate_batch!([Some("cat"), None, Some("goose")]);
-
-    //     layout
-    //         .encode_arrays(&batch.arrays, 0..3, &mut buf, &mut heap)
-    //         .unwrap();
-
-    //     let mut output = Batch::try_new([DataType::Utf8], 16).unwrap();
-    //     layout
-    //         .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
-    //         .unwrap();
-    //     output.set_num_rows(3).unwrap();
-
-    //     let expected = generate_batch!([Some("cat"), None, Some("goose")]);
     //     assert_batches_eq(&expected, &output);
     // }
 }

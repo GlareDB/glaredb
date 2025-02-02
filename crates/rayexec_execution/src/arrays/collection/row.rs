@@ -12,8 +12,23 @@ use crate::arrays::batch::Batch;
 /// State for appending data to the collection.
 #[derive(Debug)]
 pub struct RowAppendState {
+    /// State for appending to row/heap blocks.
     block_append: BlockAppendState,
+    /// Reusable buffer for computing heaps sizes needed per row.
     heap_sizes: Vec<usize>,
+}
+
+impl RowAppendState {
+    /// Returns a reference to the row pointers for the most recent insert into
+    /// the collection.
+    ///
+    /// This can be used to get access to the raw data without needing to scan
+    /// it into Arrays.
+    pub fn row_pointers(&self) -> &[*const u8] {
+        // SAFETY: Same in-memory representation. Mut/const pointers don't
+        // actually mean anything in regards to value mutability.
+        unsafe { std::mem::transmute::<&[*mut u8], &[*const u8]>(&self.block_append.row_pointers) }
+    }
 }
 
 /// State for resumable scanning of the row collection.

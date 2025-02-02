@@ -27,6 +27,13 @@ pub struct ViewReference {
 }
 
 impl StringView {
+    pub const EMPTY: Self = StringView {
+        inline: ViewInline {
+            len: 0,
+            inline: [0; 12],
+        },
+    };
+
     const _SIZE_ASSERTION: () = assert!(std::mem::size_of::<Self>() == 16);
 
     /// Creates a new inline view.

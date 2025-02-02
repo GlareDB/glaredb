@@ -70,7 +70,7 @@ impl HashTableScanState {
         self.block_read.clear();
         self.block_read.row_pointers.extend(
             self.match_state
-                .get_rhs_matches()
+                .get_row_matches()
                 .iter()
                 .map(|&pred_idx| self.row_pointers[pred_idx]),
         );
@@ -101,7 +101,7 @@ impl HashTableScanState {
             rhs_out.select_from_other(
                 &NopBufferManager,
                 rhs,
-                self.match_state.get_rhs_matches().iter().copied(),
+                self.match_state.get_row_matches().iter().copied(),
             )?;
         }
 
@@ -123,15 +123,9 @@ impl HashTableScanState {
     fn match_inner_join(&mut self, table: &JoinHashTable, keys: &[Array]) -> Result<usize> {
         loop {
             // Rows to read from the left.
-            // TODO: Avoid the collect.
-            let lhs_rows: Vec<_> = self
-                .selection
-                .iter()
-                .map(|&row_idx| self.row_pointers[row_idx])
-                .collect();
-
-            // Rows to read from the right.
-            let rhs_rows = &self.selection;
+            let lhs_rows = &self.row_pointers;
+            // Row indices to compare between left and right.
+            let selection = self.selection.iter().copied();
 
             let match_count = table.row_matcher.find_matches(
                 &mut self.match_state,
@@ -140,7 +134,7 @@ impl HashTableScanState {
                 &lhs_rows,
                 &table.build_key_columns,
                 keys,
-                rhs_rows,
+                selection,
             )?;
 
             if match_count > 0 {
