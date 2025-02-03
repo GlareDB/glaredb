@@ -35,7 +35,7 @@ use crate::arrays::array::Array;
 use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMut};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::string::{StringPtr, StringView};
+use crate::arrays::string::StringPtr;
 
 /// Describes the layout of a row for use with a row collection.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -240,8 +240,8 @@ pub(crate) const fn row_width_for_physical_type(phys_type: PhysicalType) -> usiz
         PhysicalType::Float32 => std::mem::size_of::<f32>(),
         PhysicalType::Float64 => std::mem::size_of::<f64>(),
         PhysicalType::Interval => std::mem::size_of::<Interval>(),
-        PhysicalType::Binary => std::mem::size_of::<StringView>(),
-        PhysicalType::Utf8 => std::mem::size_of::<StringView>(),
+        PhysicalType::Binary => std::mem::size_of::<StringPtr>(),
+        PhysicalType::Utf8 => std::mem::size_of::<StringPtr>(),
         _ => unimplemented!(),
     }
 }
@@ -410,7 +410,7 @@ where
                 // data which could lead to out of bounds access if we try to
                 // interpret it.
                 let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
-                ptr.cast::<StringView>().write_unaligned(StringView::EMPTY);
+                ptr.cast::<StringPtr>().write_unaligned(StringPtr::EMPTY);
 
                 let validity_buf = layout.validity_buffer_mut(row_pointers[row_idx]);
                 BitmapViewMut::new(validity_buf, layout.num_columns()).unset(array_idx);

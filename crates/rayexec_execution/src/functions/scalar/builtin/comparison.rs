@@ -725,6 +725,21 @@ mod tests {
     use crate::expr;
 
     #[test]
+    fn null_coerced_eq() {
+        // 4 = 4 => true
+        let out = NullCoercedComparison::<EqOperation>::compare_with_valid(4, 4, true, true);
+        assert!(out);
+
+        // 4 = 5 => false
+        let out = NullCoercedComparison::<EqOperation>::compare_with_valid(4, 5, true, true);
+        assert!(!out);
+
+        // 4 = NULL => false
+        let out = NullCoercedComparison::<EqOperation>::compare_with_valid(4, 4, true, false);
+        assert!(!out);
+    }
+
+    #[test]
     fn eq_i32() {
         let a = Array::try_from_iter([1, 2, 3]).unwrap();
         let b = Array::try_from_iter([2, 2, 6]).unwrap();

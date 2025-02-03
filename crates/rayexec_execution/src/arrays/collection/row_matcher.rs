@@ -4,7 +4,6 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
-use super::row_blocks::RowBlocks;
 use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::{BufferManager, NopBufferManager};
 use crate::arrays::array::flat::FlattenedArray;
@@ -32,7 +31,7 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::array::Array;
 use crate::arrays::bitmap::view::BitmapView;
-use crate::arrays::string::StringView;
+use crate::arrays::string::StringPtr;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::functions::scalar::builtin::comparison::{
     EqOperation,
@@ -105,7 +104,6 @@ impl PredicateRowMatcher {
         &self,
         state: &mut MatchState,
         layout: &RowLayout,
-        blocks: &RowBlocks<NopBufferManager>,
         lhs_rows: &[*const u8],
         lhs_columns: &[usize],
         rhs_columns: &[A],
@@ -139,7 +137,6 @@ impl PredicateRowMatcher {
             unsafe {
                 matcher.compute_matches(
                     layout,
-                    blocks,
                     lhs_rows,
                     lhs_column,
                     rhs_column,
@@ -212,7 +209,6 @@ trait Matcher<B: BufferManager>: Debug + Sync + Send + 'static {
     unsafe fn compute_matches(
         &self,
         layout: &RowLayout,
-        _blocks: &RowBlocks<B>,
         lhs_rows: &[*const u8],
         lhs_column: usize,
         rhs_column: FlattenedArray,
@@ -249,7 +245,6 @@ where
     unsafe fn compute_matches(
         &self,
         layout: &RowLayout,
-        _blocks: &RowBlocks<NopBufferManager>,
         lhs_rows: &[*const u8],
         lhs_column: usize,
         rhs_column: FlattenedArray,
@@ -301,7 +296,6 @@ where
     unsafe fn compute_matches(
         &self,
         layout: &RowLayout,
-        blocks: &RowBlocks<NopBufferManager>,
         lhs_rows: &[*const u8],
         lhs_column: usize,
         rhs_column: FlattenedArray,
@@ -316,18 +310,10 @@ where
             let validity_buf = layout.validity_buffer(lhs_row_ptr);
             let lhs_valid = BitmapView::new(validity_buf, layout.num_columns()).value(lhs_column);
             let lhs_ptr = lhs_row_ptr.byte_add(layout.offsets[lhs_column]);
-            let lhs_ptr = lhs_ptr.cast::<StringView>();
-            let view = lhs_ptr.read_unaligned();
+            let lhs_ptr = lhs_ptr.cast::<StringPtr>();
+            let string_ptr = lhs_ptr.read_unaligned();
 
-            let lhs_val = if view.is_inline() {
-                let inline = view.as_inline();
-                &inline.inline[0..inline.len as usize]
-            } else {
-                let reference = view.as_reference();
-                let heap_ptr =
-                    blocks.heap_ptr(reference.buffer_idx as usize, reference.offset as usize);
-                std::slice::from_raw_parts(heap_ptr, reference.len as usize)
-            };
+            let lhs_val = string_ptr.as_bytes();
 
             let rhs_valid = rhs_column.validity.is_valid(row_idx);
             let rhs_sel = rhs_column.selection.get(row_idx).unwrap();
@@ -366,7 +352,6 @@ mod tests {
             .find_matches(
                 &mut match_state,
                 collection.layout(),
-                collection.blocks(),
                 append_state.row_pointers(),
                 &[0],
                 &rhs.arrays,
@@ -398,7 +383,6 @@ mod tests {
             .find_matches(
                 &mut match_state,
                 collection.layout(),
-                collection.blocks(),
                 append_state.row_pointers(),
                 &[0],
                 &rhs.arrays,
@@ -434,7 +418,37 @@ mod tests {
             .find_matches(
                 &mut match_state,
                 collection.layout(),
-                collection.blocks(),
+                append_state.row_pointers(),
+                &[0, 1],
+                &rhs.arrays,
+                0..4,
+            )
+            .unwrap();
+
+        assert_eq!(2, match_count);
+        assert_eq!(&[0, 2], match_state.get_row_matches());
+    }
+
+    #[test]
+    fn match_ut8_eq_not_inline() {
+        let mut collection = RowCollection::new(RowLayout::new([DataType::Utf8]), 16);
+        let mut append_state = collection.init_append();
+        collection
+            .append_batch(
+                &mut append_state,
+                &generate_batch!(["cat", "dog", "goosegoosegoosegoosegoose", "moose"]),
+            )
+            .unwrap();
+
+        let matcher = PredicateRowMatcher::new([(PhysicalType::Utf8, ComparisonOperator::Eq)]);
+
+        let rhs = generate_batch!(["cat", "catdogmouse", "goosegoosegoosegoosegoose", "rooster"]);
+
+        let mut match_state = matcher.init_match_state();
+        let match_count = matcher
+            .find_matches(
+                &mut match_state,
+                collection.layout(),
                 append_state.row_pointers(),
                 &[0, 1],
                 &rhs.arrays,

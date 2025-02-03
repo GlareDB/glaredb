@@ -1,4 +1,4 @@
-use std::sync::atomic::{self, AtomicBool, AtomicPtr, AtomicU64};
+use std::sync::atomic::{self, AtomicBool, AtomicPtr};
 
 use rayexec_error::Result;
 
@@ -149,6 +149,7 @@ impl JoinHashTable {
         }
     }
 
+    /// Get the row count for the build side of the hash table.
     pub fn row_count(&self) -> usize {
         self.data.row_count()
     }
@@ -578,6 +579,47 @@ mod tests {
         state.scan_next(&table, &mut rhs, &mut out).unwrap();
 
         let expected = generate_batch!(["b", "c"], [2, 3], [2, 3]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn inner_join_single_eq_predicate_chained() {
+        let mut table = JoinHashTable::new(
+            JoinType::Inner,
+            [DataType::Utf8, DataType::Int32],
+            [DataType::Int32],
+            [HashJoinCondition {
+                left: 1,
+                right: 0,
+                op: ComparisonOperator::Eq,
+            }],
+            16,
+        );
+        let mut build_state = table.init_build_state();
+
+        let input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 3]);
+        table.collect_build(&mut build_state, &input).unwrap();
+
+        table.init_directory().unwrap();
+        table.insert_hashes_for_blocks([0]).unwrap();
+
+        let mut state = table.init_scan_state();
+        let mut rhs = generate_batch!([2, 3, 5]);
+        table.probe(&mut state, &rhs).unwrap();
+
+        let mut out =
+            Batch::try_new([DataType::Utf8, DataType::Int32, DataType::Int32], 16).unwrap();
+        state.scan_next(&table, &mut rhs, &mut out).unwrap();
+
+        let expected = generate_batch!(["b", "d"], [2, 3], [2, 3]);
+        assert_batches_eq(&expected, &out);
+
+        // Continue to next, following the chain.
+        // TODO: We should modify the scan to try to read up to the capacity of
+        // the output batch.
+        state.scan_next(&table, &mut rhs, &mut out).unwrap();
+
+        let expected = generate_batch!(["c"], [3], [3]);
         assert_batches_eq(&expected, &out);
     }
 }
