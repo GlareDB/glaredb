@@ -200,8 +200,6 @@ impl RowCollection {
     {
         debug_assert_eq!(columns.len(), outputs.len());
 
-        state.block_read.clear();
-
         let mut scanned_count = 0;
         let mut remaining_cap = count;
 
@@ -232,6 +230,7 @@ impl RowCollection {
             }
 
             let scan_count = usize::min(remaining_cap, num_rows - state.row_idx);
+            state.block_read.clear();
             self.blocks.prepare_read(
                 &mut state.block_read,
                 current_block,
@@ -264,15 +263,12 @@ impl RowCollection {
     where
         A: BorrowMut<Array> + 'a,
     {
-        self.layout()
-            .read_arrays(state, arrays, write_offset, &self.blocks)
+        self.layout().read_arrays(state, arrays, write_offset)
     }
 
     /// Merges `other` into self.
     ///
     /// Both collections must have the same layout.
-    ///
-    /// Updates references to heap blocks for columns that need heap space.
     pub fn merge(&mut self, other: Self) -> Result<()> {
         if self.layout() != other.layout() {
             return Err(RayexecError::new(
@@ -280,15 +276,9 @@ impl RowCollection {
             ));
         }
 
-        if self.row_count() == 0 {
-            *self = other;
-            return Ok(());
-        }
-
-        let heap_chunk_offset = self.blocks.num_heap_blocks();
         self.blocks.merge_blocks(other.blocks);
 
-        unimplemented!()
+        Ok(())
     }
 
     /// Produces a batch containing all data in the row collection.
@@ -441,5 +431,47 @@ mod tests {
             .scan_columns(&mut state, &[1], &mut [&mut output], 4)
             .unwrap();
         assert_eq!(0, count);
+    }
+
+    #[test]
+    fn merge_with_utf8() {
+        let mut collection1 = RowCollection::new(RowLayout::new([DataType::Utf8]), 16);
+        let mut state1 = collection1.init_append();
+
+        collection1
+            .append_batch(
+                &mut state1,
+                &generate_batch!(["a", "b", "c", "dmakesurethisdoesntgetinline"]),
+            )
+            .unwrap();
+
+        let mut collection2 = RowCollection::new(RowLayout::new([DataType::Utf8]), 16);
+        let mut state2 = collection2.init_append();
+
+        collection2
+            .append_batch(
+                &mut state2,
+                &generate_batch!(["cat", "dogdogdogdogdogdogdog", "goose"]),
+            )
+            .unwrap();
+
+        collection1.merge(collection2).unwrap();
+
+        let mut output = Batch::try_new([DataType::Utf8], 16).unwrap();
+        let mut state = collection1.init_full_scan();
+        let count = collection1.scan(&mut state, &mut output).unwrap();
+        assert_eq!(7, count);
+
+        let expected = generate_batch!([
+            "a",
+            "b",
+            "c",
+            "dmakesurethisdoesntgetinline",
+            "cat",
+            "dogdogdogdogdogdogdog",
+            "goose",
+        ]);
+
+        assert_batches_eq(&expected, &output);
     }
 }

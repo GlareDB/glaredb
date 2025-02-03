@@ -1,10 +1,9 @@
 use std::borrow::{Borrow, BorrowMut};
 
 use half::f16;
-use rayexec_error::{RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
+use rayexec_error::Result;
 
-use super::row_blocks::{BlockAppendState, BlockReadState, HeapMutPtr, RowBlocks};
+use super::row_blocks::{BlockAppendState, BlockReadState, HeapMutPtr};
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
@@ -36,7 +35,7 @@ use crate::arrays::array::Array;
 use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMut};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::string::StringView;
+use crate::arrays::string::{StringPtr, StringView};
 
 /// Describes the layout of a row for use with a row collection.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -194,7 +193,6 @@ impl RowLayout {
         state: &BlockReadState,
         arrays: impl IntoIterator<Item = (usize, &'a mut A)>,
         write_offset: usize,
-        blocks: &RowBlocks<B>,
     ) -> Result<()>
     where
         A: BorrowMut<Array<B>> + 'a,
@@ -207,7 +205,6 @@ impl RowLayout {
                 self,
                 phys_type,
                 &state.row_pointers,
-                blocks,
                 array_idx,
                 array,
                 write_offset,
@@ -359,22 +356,20 @@ where
                 // Write data to heap, inline an updated string view reference.
                 let value = data.get(sel_idx).unwrap();
                 std::ptr::copy_nonoverlapping(value.as_ptr(), heap_ptr.ptr, value.len());
+                let bs = std::slice::from_raw_parts(heap_ptr.ptr, value.len());
 
                 // Create new view that we write to the row.
-                let view = StringView::new_reference(
-                    value,
-                    heap_ptr.heap_idx as i32,
-                    heap_ptr.offset as i32,
-                );
+                let string_ptr = StringPtr::new_reference(bs);
                 let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
-                ptr.cast::<StringView>().write_unaligned(view);
+                ptr.cast::<StringPtr>().write_unaligned(string_ptr);
 
                 // Update heap offset for next column.
                 heap_ptr.byte_add(value.len());
             } else {
                 // Otherwise we can just write the inline string directly.
                 let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
-                ptr.cast::<StringView>().write_unaligned(*view);
+                ptr.cast::<StringPtr>()
+                    .write_unaligned(StringPtr::from(*view.as_inline()));
             }
         }
     } else {
@@ -389,22 +384,20 @@ where
                     // Write data to heap, inline an updated string view reference.
                     let value = data.get(sel_idx).unwrap();
                     std::ptr::copy_nonoverlapping(value.as_ptr(), heap_ptr.ptr, value.len());
+                    let bs = std::slice::from_raw_parts(heap_ptr.ptr, value.len());
 
                     // Create new view that we write to the row.
-                    let view = StringView::new_reference(
-                        value,
-                        heap_ptr.heap_idx as i32,
-                        heap_ptr.offset as i32,
-                    );
+                    let string_ptr = StringPtr::new_reference(bs);
                     let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
-                    ptr.cast::<StringView>().write_unaligned(view);
+                    ptr.cast::<StringPtr>().write_unaligned(string_ptr);
 
                     // Update heap offset for next column.
                     heap_ptr.byte_add(value.len());
                 } else {
                     // Otherwise we can just write the inline string directly.
                     let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
-                    ptr.cast::<StringView>().write_unaligned(*view);
+                    ptr.cast::<StringPtr>()
+                        .write_unaligned(StringPtr::from(*view.as_inline()));
                 }
             } else {
                 // Write an empty value.
@@ -483,7 +476,6 @@ unsafe fn read_array<B>(
     layout: &RowLayout,
     phys_type: PhysicalType,
     row_pointers: &[*const u8],
-    blocks: &RowBlocks<B>,
     array_idx: usize,
     out: &mut Array<B>,
     write_offset: usize,
@@ -545,7 +537,7 @@ where
             read_scalar::<PhysicalInterval, B>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::Utf8 | PhysicalType::Binary => {
-            read_binary(layout, row_pointers, blocks, array_idx, out, write_offset)
+            read_binary(layout, row_pointers, array_idx, out, write_offset)
         }
         _ => unimplemented!(),
     }
@@ -586,7 +578,6 @@ where
 unsafe fn read_binary<B>(
     layout: &RowLayout,
     row_pointers: &[*const u8],
-    blocks: &RowBlocks<B>,
     array_idx: usize,
     out: &mut Array<B>,
     write_offset: usize,
@@ -603,23 +594,10 @@ where
 
         if is_valid {
             let ptr = row_ptr.byte_add(layout.offsets[array_idx]);
-            let view = ptr.cast::<StringView>().read_unaligned();
+            let string_ptr = ptr.cast::<StringPtr>().read_unaligned();
 
-            if view.is_inline() {
-                // Can put directly into the metadata without needing to read
-                // the heap block.
-                data.metadata[output_idx] = view;
-            } else {
-                // Otherwise need to get the data from the block.
-                //
-                // buffer_idx => heap_idx
-                let reference = view.as_reference();
-                let heap_ptr =
-                    blocks.heap_ptr(reference.buffer_idx as usize, reference.offset as usize);
-                let val = std::slice::from_raw_parts(heap_ptr, reference.len as usize);
-
-                data.put(output_idx, val);
-            }
+            let bs = string_ptr.as_bytes();
+            data.put(output_idx, bs);
         } else {
             validity.set_invalid(output_idx);
         }
@@ -634,6 +612,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::collection::row_blocks::RowBlocks;
     use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]
@@ -711,9 +690,7 @@ mod tests {
         };
 
         unsafe {
-            layout
-                .read_arrays(&state, [(0, &mut out)], 0, &blocks)
-                .unwrap();
+            layout.read_arrays(&state, [(0, &mut out)], 0).unwrap();
         }
 
         assert_arrays_eq(&array, &out);
@@ -734,6 +711,12 @@ mod tests {
     #[test]
     fn write_read_utf8() {
         let array = Array::try_from_iter(["cat", "dog", "goose"]).unwrap();
+        assert_write_read_array(array);
+    }
+
+    #[test]
+    fn write_read_utf8_with_no_inlineable() {
+        let array = Array::try_from_iter(["cat", "dog", "goosegoosegoosemoosecatdog"]).unwrap();
         assert_write_read_array(array);
     }
 

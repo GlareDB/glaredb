@@ -224,6 +224,16 @@ impl StringPtr {
         StringPtr { reference }
     }
 
+    pub fn as_bytes(&self) -> &[u8] {
+        unsafe {
+            if self.is_inline() {
+                &self.inline.inline[0..(self.inline.len as usize)]
+            } else {
+                std::slice::from_raw_parts(self.reference.ptr, self.reference.len as usize)
+            }
+        }
+    }
+
     pub const fn is_inline(&self) -> bool {
         // SAFETYE: i32 len is first field in both, safe to access from either
         // variant.
