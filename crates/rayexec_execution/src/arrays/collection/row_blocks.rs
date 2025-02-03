@@ -108,6 +108,14 @@ where
         self.heap_blocks.len()
     }
 
+    /// Moves the blocks from other to self.
+    ///
+    /// This does not verify or update any data inside the blocks.
+    pub fn merge_blocks(&mut self, other: Self) {
+        self.row_blocks.extend(other.row_blocks);
+        self.heap_blocks.extend(other.heap_blocks);
+    }
+
     /// Prepares the read state for a single row block.
     ///
     /// `selection` selects which rows from the row block to read.

@@ -1,7 +1,7 @@
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::VecDeque;
 
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use super::row_blocks::{BlockAppendState, BlockReadState, RowBlocks};
 use super::row_layout::RowLayout;
@@ -114,6 +114,8 @@ impl RowCollection {
     where
         A: Borrow<Array>,
     {
+        debug_assert_eq!(arrays.len(), self.layout().num_columns());
+
         state.block_append.clear();
         if self.layout().requires_heap {
             // Compute heap sizes per row.
@@ -264,6 +266,29 @@ impl RowCollection {
     {
         self.layout()
             .read_arrays(state, arrays, write_offset, &self.blocks)
+    }
+
+    /// Merges `other` into self.
+    ///
+    /// Both collections must have the same layout.
+    ///
+    /// Updates references to heap blocks for columns that need heap space.
+    pub fn merge(&mut self, other: Self) -> Result<()> {
+        if self.layout() != other.layout() {
+            return Err(RayexecError::new(
+                "Attemped to merge row collections with different layouts",
+            ));
+        }
+
+        if self.row_count() == 0 {
+            *self = other;
+            return Ok(());
+        }
+
+        let heap_chunk_offset = self.blocks.num_heap_blocks();
+        self.blocks.merge_blocks(other.blocks);
+
+        unimplemented!()
     }
 
     /// Produces a batch containing all data in the row collection.

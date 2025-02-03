@@ -37,7 +37,7 @@ use crate::arrays::array::physical_type::{
     ScalarStorage,
 };
 use crate::arrays::datatype::DataType;
-use crate::arrays::view::{StringView, MAX_INLINE_LEN};
+use crate::arrays::string::{StringView, MAX_INLINE_LEN};
 
 /// Abstraction layer for holding shared or owned array data.
 ///

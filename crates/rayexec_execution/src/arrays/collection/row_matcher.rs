@@ -32,7 +32,7 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::array::Array;
 use crate::arrays::bitmap::view::BitmapView;
-use crate::arrays::view::StringView;
+use crate::arrays::string::StringView;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::functions::scalar::builtin::comparison::{
     EqOperation,

@@ -36,7 +36,7 @@ use crate::arrays::array::Array;
 use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMut};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::view::StringView;
+use crate::arrays::string::StringView;
 
 /// Describes the layout of a row for use with a row collection.
 #[derive(Debug, Clone, PartialEq, Eq)]
