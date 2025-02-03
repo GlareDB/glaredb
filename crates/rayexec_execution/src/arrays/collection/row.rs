@@ -68,7 +68,7 @@ impl RowCollection {
     }
 
     /// Gets a reference to the row layout for this collection.
-    pub fn layout(&self) -> &RowLayout {
+    pub const fn layout(&self) -> &RowLayout {
         &self.blocks.layout
     }
 
@@ -264,6 +264,17 @@ impl RowCollection {
     {
         self.layout()
             .read_arrays(state, arrays, write_offset, &self.blocks)
+    }
+
+    /// Produces a batch containing all data in the row collection.
+    #[cfg(debug_assertions)]
+    #[allow(unused)]
+    pub fn debug_dump(&self) -> Batch {
+        let mut batch = Batch::try_new(self.layout().types.clone(), self.row_count()).unwrap();
+        let mut state = self.init_full_scan();
+        self.scan(&mut state, &mut batch).unwrap();
+
+        batch
     }
 }
 

@@ -10,12 +10,41 @@ use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::collection::row::{RowAppendState, RowCollection};
+use crate::arrays::collection::row_blocks::BlockReadState;
 use crate::arrays::collection::row_layout::RowLayout;
 use crate::arrays::collection::row_matcher::PredicateRowMatcher;
 use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
+use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::logical_join::JoinType;
 
+/// Join condition between left and right batches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HashJoinCondition {
+    /// Index of the column on the left (build) side.
+    pub left: usize,
+    /// Index of the column on the right (probe) side.
+    pub right: usize,
+    /// The comparison operator.
+    pub op: ComparisonOperator,
+}
+
+/// Chained hash table for joins.
+///
+/// Build side layout: [columns, hash/next_entry, matches]
+///
+/// - 'columns': The columns from the build side batches. Retains the same order
+///   they were provided in.
+/// - 'hash/next_entry': During build, this column stores 64-bit hashes. Once we
+///   finalize the hash table and build the directory, this will change to store
+///   pointers to the next row in the chain.
+/// - 'matches': Optional bool column for tracking rows that matched between the
+///   left and right sides. Used for LEFT/OUTER joins.
+///
+/// Note that the hashes/next_entry column is stored as 64 bits. For
+/// systems that use 32 bit pointers (wasm), this should still function
+/// correctly. The first 32 bits will be the actual pointer, the trailing
+/// 32 bits will be meaningless data (that we don't read).
 #[derive(Debug)]
 pub struct JoinHashTable {
     /// Join type this hash table is for.
@@ -26,11 +55,19 @@ pub struct JoinHashTable {
     ///
     /// Initialize after we collect all data.
     pub directory: Option<Directory>,
-    /// Column indices for keys on the build side.
+    /// Column indices on the input batch for keys on the build side.
     pub build_key_columns: Vec<usize>,
-    /// Column indices for data we're not joining on.
-    pub build_data_columns: Vec<usize>,
+    /// Column indices for all columns on the probe side that need to be
+    /// compared (not just equality checked).
+    pub build_comparison_columns: Vec<usize>,
+    /// Column indices on the input batch for keys on the probe side.
+    pub probe_key_columns: Vec<usize>,
+    /// Column indices for all columns on the probe side that need to be
+    /// compared (not just equality checked).
+    pub probe_comparison_columns: Vec<usize>,
     /// Byte offset into a row for where the hash/next entry value is stored.
+    ///
+    /// Precomputed from layout.
     pub build_hash_byte_offset: usize,
     /// Configured batch size for the join operator.
     pub batch_size: usize,
@@ -41,37 +78,65 @@ pub struct JoinHashTable {
 impl JoinHashTable {
     pub fn new(
         join_type: JoinType,
-        datatypes: impl IntoIterator<Item = DataType>,
-        build_key_columns: impl IntoIterator<Item = usize>,
-        build_data_columns: impl IntoIterator<Item = usize>,
+        left_datatypes: impl IntoIterator<Item = DataType>,
+        right_datatypes: impl IntoIterator<Item = DataType>,
+        conditions: impl IntoIterator<Item = HashJoinCondition>,
         batch_size: usize,
     ) -> Self {
-        let build_key_columns: Vec<_> = build_key_columns.into_iter().collect();
-        let build_data_columns: Vec<_> = build_data_columns.into_iter().collect();
-        let mut datatypes: Vec<_> = datatypes.into_iter().collect();
+        let mut left_datatypes: Vec<_> = left_datatypes.into_iter().collect();
+        let right_datatypes: Vec<_> = right_datatypes.into_iter().collect();
 
-        // Insert hash datatype in the right spot, immediately after keys.
-        datatypes.insert(build_key_columns.len(), DataType::UInt64);
+        let mut build_key_columns = Vec::new();
+        let mut build_comparison_columns = Vec::new();
+        let mut probe_key_columns = Vec::new();
+        let mut probe_comparison_columns = Vec::new();
+        let mut matcher_conditions = Vec::new();
 
-        // Append extra boolean column if were a LEFT/OUTER join to track
-        // matches.
-        if join_type.produce_all_build_side_rows() {
-            datatypes.push(DataType::Boolean);
+        for condition in conditions {
+            if condition.op == ComparisonOperator::Eq {
+                // Add columns as keys.
+                build_key_columns.push(condition.left);
+                probe_key_columns.push(condition.right);
+            }
+
+            let phys_type = left_datatypes[condition.left].physical_type();
+            debug_assert_eq!(phys_type, right_datatypes[condition.right].physical_type());
+
+            matcher_conditions.push((phys_type, condition.op));
+
+            build_comparison_columns.push(condition.left);
+            probe_comparison_columns.push(condition.right);
         }
 
-        let layout = RowLayout::new(datatypes);
-        let build_hash_byte_offset = layout.offsets[build_key_columns.len()];
+        debug_assert!(!build_key_columns.is_empty());
+        debug_assert!(!probe_key_columns.is_empty());
+
+        let row_matcher = PredicateRowMatcher::new(matcher_conditions);
+
+        // Add hash to build types.
+        let hash_col = left_datatypes.len();
+        left_datatypes.push(DataType::UInt64);
+
+        if join_type.produce_all_build_side_rows() {
+            // Add 'matches' column, we're dealing with LEFT/OUTER join.
+            left_datatypes.push(DataType::Boolean);
+        }
+
+        let layout = RowLayout::new(left_datatypes);
+        let build_hash_byte_offset = layout.offsets[hash_col];
         let data = RowCollection::new(layout, batch_size);
 
         JoinHashTable {
             join_type,
             data,
             directory: None,
-            batch_size,
             build_key_columns,
-            build_data_columns,
+            build_comparison_columns,
+            probe_key_columns,
+            probe_comparison_columns,
             build_hash_byte_offset,
-            row_matcher: PredicateRowMatcher::new([]), // TODO
+            batch_size,
+            row_matcher,
         }
     }
 
@@ -88,41 +153,47 @@ impl JoinHashTable {
         self.data.row_count()
     }
 
+    /// Get the column index for the hash in the row collection.
+    fn hash_column_idx(&self) -> usize {
+        if self.join_type.produce_all_build_side_rows() {
+            self.data.layout().num_columns() - 2 // Hash second to last.
+        } else {
+            self.data.layout().num_columns() - 1 // Hash is last column.
+        }
+    }
+
+    /// Return the number of extra columns on the build side.
+    pub const fn extra_column_count(&self) -> usize {
+        if self.join_type.produce_all_build_side_rows() {
+            2 // Hashes + matches
+        } else {
+            1 // Hashes
+        }
+    }
+
     /// Collects data for the build side of a join.
     ///
     /// This will hash the key columns and insert batches into the row
     /// collection.
     pub fn collect_build(&mut self, state: &mut BuildState, input: &Batch) -> Result<()> {
-        // Array references: [keys, hashes/next_entry, data, matches]
-        //
-        // The hashes/next_entry column is initially all hash values. Once we've
-        // collected all build-side data, we overwrite the hash values with
-        // pointers to the next entry in the chain.
-        //
-        // Note that the hashes/next_entry column is stored as 64 bits. For
-        // systems that use 32 bit pointers (wasm), this should still function
-        // correctly. The first 32 bits will be the actual pointer, the trailing
-        // 32 bits will be meaningless data (that we don't read).
-        let mut arrays = Vec::with_capacity(self.data.layout().types.len());
-        // Get key arrays.
-        for &col_idx in &self.build_key_columns {
-            arrays.push(&input.arrays[col_idx]);
-        }
+        let cap = input.arrays.len() + self.extra_column_count();
+        let mut build_arrays = Vec::with_capacity(cap);
 
-        // Produce hashes from key arrays. Note we only have the keys in
-        // `arrays` here.
-        //
-        // Hashes will get replaced by a next entry in the chain when inserting
-        // the hashes.
+        // Get build keys from the left for hashing.
+        build_arrays.extend(self.build_key_columns.iter().map(|&idx| &input.arrays[idx]));
+
         let mut hashes = Array::try_new(&NopBufferManager, DataType::UInt64, input.num_rows())?;
         let hash_vals = PhysicalU64::get_addressable_mut(&mut hashes.data)?;
-        hash_many_arrays(arrays.iter().copied(), 0..input.num_rows(), hash_vals.slice)?;
-        arrays.push(&hashes);
+        hash_many_arrays(
+            build_arrays.iter().copied(),
+            0..input.num_rows(),
+            hash_vals.slice,
+        )?;
 
-        // Append plain data columns.
-        for &col_idx in &self.build_data_columns {
-            arrays.push(&input.arrays[col_idx]);
-        }
+        // Now just get all build-side arrays.
+        build_arrays.clear();
+        build_arrays.extend(input.arrays.iter());
+        build_arrays.push(&hashes);
 
         // Ensure we include the "matches" initial values.
         if self.join_type.produce_all_build_side_rows() {
@@ -130,12 +201,14 @@ impl JoinHashTable {
             state
                 .match_init
                 .select(&NopBufferManager, Selection::constant(input.num_rows(), 0))?;
-            arrays.push(&state.match_init);
+
+            // And add to the arrays we'll be appending.
+            build_arrays.push(&state.match_init);
         }
 
-        // Now append to row collection.
+        // Append to row collection
         self.data
-            .append_arrays(&mut state.row_append, &arrays, input.num_rows())?;
+            .append_arrays(&mut state.row_append, &build_arrays, input.num_rows())?;
 
         Ok(())
     }
@@ -170,7 +243,7 @@ impl JoinHashTable {
         let mut hashes = Array::try_new(&NopBufferManager, DataType::UInt64, self.batch_size)?;
         let mut scan_state = self.data.init_partial_scan(block_indices);
 
-        let scan_cols = &[self.hash_column()];
+        let scan_cols = &[self.hash_column_idx()];
 
         loop {
             let count = self.data.scan_columns(
@@ -233,22 +306,36 @@ impl JoinHashTable {
         Ok(())
     }
 
+    pub fn init_scan_state(&self) -> HashTableScanState {
+        HashTableScanState {
+            selection: Vec::new(),
+            row_pointers: Vec::new(),
+            hashes: Vec::new(),
+            match_state: self.row_matcher.init_match_state(),
+            block_read: BlockReadState {
+                row_pointers: Vec::new(),
+            },
+        }
+    }
+
     /// Probe the hash table with the given keys.
     ///
     /// The scan state will be updated for scanning.
-    pub fn probe(
-        &self,
-        state: &mut HashTableScanState,
-        rhs_keys: &[Array],
-        count: usize,
-    ) -> Result<()> {
+    pub fn probe(&self, state: &mut HashTableScanState, rhs: &Batch) -> Result<()> {
+        // TODO: Reuse array.
+        let keys: Vec<_> = self
+            .probe_key_columns
+            .iter()
+            .map(|&idx| &rhs.arrays[idx])
+            .collect();
+
         // Hash keys.
-        state.hashes.resize(count, 0);
-        hash_many_arrays(rhs_keys, 0..count, &mut state.hashes)?;
+        state.hashes.resize(rhs.num_rows, 0);
+        hash_many_arrays(keys, 0..rhs.num_rows, &mut state.hashes)?;
 
         // Resize entries to number of keys we're probing with. These will be
         // overwritten in the below loop.
-        state.row_pointers.resize(count, std::ptr::null());
+        state.row_pointers.resize(rhs.num_rows, std::ptr::null());
 
         let directory = &self
             .directory
@@ -268,6 +355,16 @@ impl JoinHashTable {
         for (row_ptr, position) in state.row_pointers.iter_mut().zip(positions) {
             *row_ptr = directory.get_entry(position);
         }
+
+        // Initialize selection where pointers are not null.
+        state.selection.clear();
+        state.selection.extend(
+            state
+                .row_pointers
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, ptr)| if ptr.is_null() { None } else { Some(idx) }),
+        );
 
         Ok(())
     }
@@ -378,13 +475,6 @@ impl JoinHashTable {
             .cast::<*const u8>();
         next_ent_ptr.read_unaligned()
     }
-
-    /// Index to the hash column the row collection.
-    ///
-    /// The hash/next entry columns is always the first column after the keys.
-    fn hash_column(&self) -> usize {
-        self.build_key_columns.len()
-    }
 }
 
 /// (Chained) hash table directory.
@@ -454,18 +544,40 @@ pub struct BuildState {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
-    use crate::arrays::testutil::generate_batch;
+    use crate::arrays::testutil::{assert_batches_eq, generate_batch};
 
     #[test]
-    fn insert_key_only() {
-        let mut table = JoinHashTable::new(JoinType::Inner, [DataType::Int32], [0], [], 16);
+    fn inner_join_single_eq_predicate() {
+        let mut table = JoinHashTable::new(
+            JoinType::Inner,
+            [DataType::Utf8, DataType::Int32],
+            [DataType::Int32],
+            [HashJoinCondition {
+                left: 1,
+                right: 0,
+                op: ComparisonOperator::Eq,
+            }],
+            16,
+        );
         let mut build_state = table.init_build_state();
 
-        let input = generate_batch!([1, 2, 3, 4]);
+        let input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 4]);
         table.collect_build(&mut build_state, &input).unwrap();
 
         table.init_directory().unwrap();
         table.insert_hashes_for_blocks([0]).unwrap();
+
+        let mut state = table.init_scan_state();
+        let mut rhs = generate_batch!([2, 3, 5]);
+        table.probe(&mut state, &rhs).unwrap();
+
+        let mut out =
+            Batch::try_new([DataType::Utf8, DataType::Int32, DataType::Int32], 16).unwrap();
+        state.scan_next(&table, &mut rhs, &mut out).unwrap();
+
+        let expected = generate_batch!(["b", "c"], [2, 3], [2, 3]);
+        assert_batches_eq(&expected, &out);
     }
 }

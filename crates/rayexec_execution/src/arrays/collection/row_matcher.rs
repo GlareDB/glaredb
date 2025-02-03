@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -32,7 +33,17 @@ use crate::arrays::array::physical_type::{
 use crate::arrays::array::Array;
 use crate::arrays::bitmap::view::BitmapView;
 use crate::arrays::view::StringView;
-use crate::functions::scalar::builtin::comparison::NullableComparisonOperation;
+use crate::expr::comparison_expr::ComparisonOperator;
+use crate::functions::scalar::builtin::comparison::{
+    EqOperation,
+    GtEqOperation,
+    GtOperation,
+    LtEqOperation,
+    LtOperation,
+    NotEqOperation,
+    NullCoercedComparison,
+    NullableComparisonOperation,
+};
 
 /// Match state to hold selection/match buffers.
 #[derive(Debug)]
@@ -57,10 +68,17 @@ pub struct PredicateRowMatcher {
 }
 
 impl PredicateRowMatcher {
-    pub fn new(matchers: impl IntoIterator<Item = Box<dyn Matcher<NopBufferManager>>>) -> Self {
-        PredicateRowMatcher {
-            matchers: matchers.into_iter().collect(),
-        }
+    /// Create a new predicate row matcher from comparison operators.
+    ///
+    /// The given iterator provides (type, op) pairs where 'type' is the
+    /// physical type for both sides of the comparison.
+    pub fn new(matchers: impl IntoIterator<Item = (PhysicalType, ComparisonOperator)>) -> Self {
+        let matchers = matchers
+            .into_iter()
+            .map(|(phys_type, op)| create_predicate_matcher_from_operator(op, phys_type))
+            .collect();
+
+        PredicateRowMatcher { matchers }
     }
 
     /// Initializes a match state.
@@ -83,16 +101,19 @@ impl PredicateRowMatcher {
     /// `row_matches` in the state.
     ///
     /// Returns the number of rows matched.
-    pub fn find_matches(
+    pub fn find_matches<A>(
         &self,
         state: &mut MatchState,
         layout: &RowLayout,
         blocks: &RowBlocks<NopBufferManager>,
         lhs_rows: &[*const u8],
         lhs_columns: &[usize],
-        rhs_columns: &[Array],
+        rhs_columns: &[A],
         selection: impl IntoIterator<Item = usize>,
-    ) -> Result<usize> {
+    ) -> Result<usize>
+    where
+        A: Borrow<Array>,
+    {
         state.row_matches.clear();
         state.row_selection.clear();
 
@@ -113,7 +134,7 @@ impl PredicateRowMatcher {
             // Clear matches, each matcher pushes a fresh set of rows matched.
             state.row_matches.clear();
 
-            let rhs_column = rhs_column.flatten()?;
+            let rhs_column = rhs_column.borrow().flatten()?;
 
             unsafe {
                 matcher.compute_matches(
@@ -132,8 +153,35 @@ impl PredicateRowMatcher {
     }
 }
 
+fn create_predicate_matcher_from_operator(
+    op: ComparisonOperator,
+    phys_type: PhysicalType,
+) -> Box<dyn Matcher<NopBufferManager>> {
+    // TODO: IS (NOT) DISTINCT FROM
+    match op {
+        ComparisonOperator::Eq => {
+            create_predicate_matcher::<NullCoercedComparison<EqOperation>>(phys_type)
+        }
+        ComparisonOperator::NotEq => {
+            create_predicate_matcher::<NullCoercedComparison<NotEqOperation>>(phys_type)
+        }
+        ComparisonOperator::Lt => {
+            create_predicate_matcher::<NullCoercedComparison<LtOperation>>(phys_type)
+        }
+        ComparisonOperator::LtEq => {
+            create_predicate_matcher::<NullCoercedComparison<LtEqOperation>>(phys_type)
+        }
+        ComparisonOperator::Gt => {
+            create_predicate_matcher::<NullCoercedComparison<GtOperation>>(phys_type)
+        }
+        ComparisonOperator::GtEq => {
+            create_predicate_matcher::<NullCoercedComparison<GtEqOperation>>(phys_type)
+        }
+    }
+}
+
 /// Creates a predicate match for a comparison operation.
-pub fn create_predicate_matcher<C>(phys_type: PhysicalType) -> Box<dyn Matcher<NopBufferManager>>
+fn create_predicate_matcher<C>(phys_type: PhysicalType) -> Box<dyn Matcher<NopBufferManager>>
 where
     C: NullableComparisonOperation,
 {
@@ -160,7 +208,7 @@ where
     }
 }
 
-pub trait Matcher<B: BufferManager>: Debug + Sync + Send + 'static {
+trait Matcher<B: BufferManager>: Debug + Sync + Send + 'static {
     unsafe fn compute_matches(
         &self,
         layout: &RowLayout,
@@ -300,11 +348,6 @@ mod tests {
     use crate::arrays::collection::row::RowCollection;
     use crate::arrays::datatype::DataType;
     use crate::arrays::testutil::generate_batch;
-    use crate::functions::scalar::builtin::comparison::{
-        EqOperation,
-        LtEqOperation,
-        NullCoercedComparison,
-    };
 
     #[test]
     fn match_single_i32_eq() {
@@ -314,9 +357,7 @@ mod tests {
             .append_batch(&mut append_state, &generate_batch!([1, 2, 3, 4]))
             .unwrap();
 
-        let eq =
-            create_predicate_matcher::<NullCoercedComparison<EqOperation>>(PhysicalType::Int32);
-        let matcher = PredicateRowMatcher::new([eq]);
+        let matcher = PredicateRowMatcher::new([(PhysicalType::Int32, ComparisonOperator::Eq)]);
 
         let rhs = generate_batch!([0, 2, 5, 4]); // Batch we'll be matching on.
 
@@ -348,9 +389,7 @@ mod tests {
             )
             .unwrap();
 
-        let eq =
-            create_predicate_matcher::<NullCoercedComparison<EqOperation>>(PhysicalType::Int32);
-        let matcher = PredicateRowMatcher::new([eq]);
+        let matcher = PredicateRowMatcher::new([(PhysicalType::Int32, ComparisonOperator::Eq)]);
 
         let rhs = generate_batch!([Some(0), None, Some(5), Some(4)]);
 
@@ -383,10 +422,10 @@ mod tests {
             )
             .unwrap();
 
-        let lteq =
-            create_predicate_matcher::<NullCoercedComparison<LtEqOperation>>(PhysicalType::Int32);
-        let eq = create_predicate_matcher::<NullCoercedComparison<EqOperation>>(PhysicalType::Utf8);
-        let matcher = PredicateRowMatcher::new([lteq, eq]);
+        let matcher = PredicateRowMatcher::new([
+            (PhysicalType::Int32, ComparisonOperator::LtEq),
+            (PhysicalType::Utf8, ComparisonOperator::Eq),
+        ]);
 
         let rhs = generate_batch!([1, 2, 5, 7], ["cat", "catdogmouse", "goose", "rooster"]);
 

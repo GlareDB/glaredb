@@ -6,6 +6,7 @@ use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::collection::row_blocks::BlockReadState;
 use crate::arrays::collection::row_matcher::MatchState;
+use crate::logical::logical_join::JoinType;
 
 /// Scan state for resuming probes of the hash table.
 ///
@@ -38,10 +39,11 @@ impl HashTableScanState {
     pub fn scan_next(
         &mut self,
         table: &JoinHashTable,
-        rhs_keys: &Batch,
+        rhs: &mut Batch,
         output: &mut Batch,
     ) -> Result<()> {
         match table.join_type {
+            JoinType::Inner => self.scan_next_inner_join(table, rhs, output),
             _ => unimplemented!(),
         }
     }
@@ -49,17 +51,23 @@ impl HashTableScanState {
     fn scan_next_inner_join(
         &mut self,
         table: &JoinHashTable,
-        keys: &[Array],
-        rhs: &mut [Array],
+        rhs: &mut Batch,
         output: &mut Batch,
     ) -> Result<()> {
         if self.selection.is_empty() {
+            println!("SEL EMPTY");
             // Done, need new of keys.
             output.set_num_rows(0)?;
             return Ok(());
         }
 
-        let match_count = self.match_inner_join(table, keys)?;
+        let comparison_cols: Vec<_> = table
+            .probe_comparison_columns
+            .iter()
+            .map(|&idx| &rhs.arrays[idx])
+            .collect();
+
+        let match_count = self.match_inner_join(table, &comparison_cols)?;
         if match_count == 0 {
             // All chains at the end, found no matches.
             output.set_num_rows(0)?;
@@ -84,26 +92,26 @@ impl HashTableScanState {
             }
         }
 
-        // Get lhs data from table.
-        //
-        // Output data comes after the keys and hash/next_entry column.
-        let lhs_offset = table.build_key_columns.len() + 1;
-        let lhs_len = table.build_data_columns.len();
-        debug_assert_eq!(lhs_len + rhs.len(), output.arrays.len());
+        // Get LHS data from the table. Skips trying to read hashes or the
+        // matches column.
+        let lhs_col_count = table.data.layout().num_columns() - table.extra_column_count();
+        debug_assert_eq!(lhs_col_count + rhs.arrays.len(), output.arrays.len());
 
-        let lhs_arrays = (lhs_offset..(lhs_offset + lhs_len)).zip(&mut output.arrays);
+        let lhs_arrays = (0..lhs_col_count).zip(&mut output.arrays);
         // SAFETY: ...
         unsafe { table.data.scan_raw(&self.block_read, lhs_arrays, 0) }?;
 
         // Select rhs data.
-        let rhs_out = &mut output.arrays[lhs_offset..];
-        for (rhs_out, rhs) in rhs_out.iter_mut().zip(rhs) {
+        let rhs_out = &mut output.arrays[lhs_col_count..];
+        for (rhs_out, rhs) in rhs_out.iter_mut().zip(&mut rhs.arrays) {
             rhs_out.select_from_other(
                 &NopBufferManager,
                 rhs,
                 self.match_state.get_row_matches().iter().copied(),
             )?;
         }
+
+        output.set_num_rows(match_count)?;
 
         // Go to next entries in the chain, next call to scan will then match
         // against those entries.
@@ -120,7 +128,11 @@ impl HashTableScanState {
     /// This will follow the pointer chain if the current set of pointers
     /// produces no matches. If zero is returned, we're at the end of all of the
     /// chains.
-    fn match_inner_join(&mut self, table: &JoinHashTable, keys: &[Array]) -> Result<usize> {
+    fn match_inner_join(
+        &mut self,
+        table: &JoinHashTable,
+        comparison_cols: &[&Array],
+    ) -> Result<usize> {
         loop {
             // Rows to read from the left.
             let lhs_rows = &self.row_pointers;
@@ -132,8 +144,8 @@ impl HashTableScanState {
                 table.data.layout(),
                 table.data.blocks(),
                 &lhs_rows,
-                &table.build_key_columns,
-                keys,
+                &table.build_comparison_columns,
+                comparison_cols,
                 selection,
             )?;
 

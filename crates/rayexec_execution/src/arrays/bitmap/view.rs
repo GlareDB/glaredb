@@ -24,8 +24,8 @@ impl<'a> BitmapView<'a> {
     ///
     /// Index must be in bounds.
     #[inline]
-    pub const fn value(&self, idx: usize) -> bool {
-        debug_assert!(idx <= self.len);
+    pub fn value(&self, idx: usize) -> bool {
+        debug_assert!(idx <= self.len, "idx: {}, len: {}", idx, self.len);
         let byte = self.data[idx >> 3]; // Equivalent to idx / 8
         (byte >> (idx & 7)) & 1 != 0 // `idx & 7` equivalent to `idx % 8`
     }
