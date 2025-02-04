@@ -200,6 +200,27 @@ jobs:
         run: |
           cargo test slt/clickbench
 
+  miri:
+    name: Run Miri
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Miri
+        run: |
+          rustup toolchain install nightly --component miri
+          rustup override set nightly
+          cargo miri setup
+
+      - name: Run Miri
+        run: ./scripts/run_miri.sh
+
   wasm:
     name: Build wasm
     runs-on: ubuntu-latest

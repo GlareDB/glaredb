@@ -2,7 +2,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
-use futures::future::BoxFuture;
 use futures::{Future, Stream};
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
@@ -12,7 +11,8 @@ use super::profiler::PlanningProfileData;
 use crate::arrays::batch::Batch;
 use crate::arrays::field::Schema;
 use crate::database::DatabaseContext;
-use crate::execution::operators::sink::{PartitionSink, SinkOperation};
+use crate::execution::operators::sink::operation::{PartitionSink, PollPush, SinkOperation};
+use crate::execution::operators::PollFinalize;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::runtime::handle::QueryHandle;
 use crate::runtime::ErrorSink;
@@ -85,11 +85,11 @@ pub struct ResultSink {
 
 impl SinkOperation for ResultSink {
     fn create_partition_sinks(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
-        num_sinks: usize,
+        partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {
-        let sinks = (0..num_sinks)
+        let sinks = (0..partitions)
             .map(|_| {
                 Box::new(ResultPartitionSink {
                     inner: self.inner.clone(),
@@ -100,7 +100,7 @@ impl SinkOperation for ResultSink {
         Ok(sinks)
     }
 
-    fn partition_requirement(&self) -> Option<usize> {
+    fn partitioning_requirement(&self) -> Option<usize> {
         Some(1)
     }
 }
@@ -117,17 +117,12 @@ pub struct ResultPartitionSink {
 }
 
 impl PartitionSink for ResultPartitionSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
-        Box::pin(PushFuture {
-            batch: Some(batch),
-            inner: self.inner.clone(),
-        })
+    fn poll_push(&mut self, cx: &mut Context, input: &mut Batch) -> Result<PollPush> {
+        unimplemented!()
     }
 
-    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
-        Box::pin(FinalizeFuture {
-            inner: self.inner.clone(),
-        })
+    fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize> {
+        unimplemented!()
     }
 }
 

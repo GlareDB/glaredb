@@ -506,7 +506,7 @@ impl FilterPushdown {
                         && matches!(plan.node.join_type, JoinType::LeftMark { .. })
                         && matches!(filter.filter, Expression::Column(_))
                     {
-                        plan.node.join_type = JoinType::Semi;
+                        plan.node.join_type = JoinType::LeftSemi;
                         continue;
                     }
 

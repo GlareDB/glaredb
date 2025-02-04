@@ -24,5 +24,4 @@ enum PhysicalType {
     UTF8                  = 18;
     LIST                  = 19;
     STRUCT                = 20;
-    DICTIONARY            = 21;
 }

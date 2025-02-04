@@ -1,19 +1,9 @@
-use std::sync::Arc;
 
 use rayexec_error::Result;
 
-use super::{InProgressPipeline, IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::intermediate::pipeline::{
-    IntermediateOperator,
-    IntermediatePipeline,
-    PipelineSink,
-    PipelineSource,
-};
-use crate::execution::operators::sort::gather_sort::PhysicalGatherSort;
-use crate::execution::operators::sort::scatter_sort::PhysicalScatterSort;
-use crate::execution::operators::PhysicalOperator;
+use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
 use crate::logical::logical_order::LogicalOrder;
-use crate::logical::operator::{LocationRequirement, LogicalNode, Node};
+use crate::logical::operator::{LogicalNode, Node};
 
 impl IntermediatePipelineBuildState<'_> {
     pub fn plan_sort(
@@ -32,65 +22,60 @@ impl IntermediatePipelineBuildState<'_> {
             .expr_planner
             .plan_sorts(&input_refs, &order.node.exprs)?;
 
-        // Resize input batches.
-        //
-        // The local sort is going to be converting things into a row
-        // represenations so better to do that on large batches.
-        self.push_batch_resizer(id_gen)?;
+        // // Partition-local sorting.
+        // let operator = IntermediateOperator {
+        //     operator: Arc::new(PhysicalOperator::LocalSort(PhysicalScatterSort::new(
+        //         exprs.clone(),
+        //     ))),
+        //     partitioning_requirement: None,
+        // };
+        // self.push_intermediate_operator(operator, location, id_gen)?;
 
-        // Partition-local sorting.
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::LocalSort(PhysicalScatterSort::new(
-                exprs.clone(),
-            ))),
-            partitioning_requirement: None,
-        };
-        self.push_intermediate_operator(operator, location, id_gen)?;
-
-        // Global sorting.
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::MergeSorted(PhysicalGatherSort::new(
-                exprs,
-            ))),
-            partitioning_requirement: None,
-        };
-        self.push_intermediate_operator(operator, location, id_gen)?;
+        // // Global sorting.
+        // let operator = IntermediateOperator {
+        //     operator: Arc::new(PhysicalOperator::MergeSorted(PhysicalGatherSort::new(
+        //         exprs,
+        //     ))),
+        //     partitioning_requirement: None,
+        // };
+        // self.push_intermediate_operator(operator, location, id_gen)?;
 
         // Global sorting accepts n-partitions, but produces only a single
         // partition. We finish the current pipeline
 
-        let in_progress = self.take_in_progress_pipeline()?;
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: Vec::new(),
-            location,
-            source: PipelineSource::OtherPipeline {
-                pipeline: in_progress.id,
-                partitioning_requirement: Some(1),
-            },
-        });
+        // let in_progress = self.take_in_progress_pipeline()?;
+        // self.in_progress = Some(InProgressPipeline {
+        //     id: id_gen.next_pipeline_id(),
+        //     operators: Vec::new(),
+        //     location,
+        //     source: PipelineSource::OtherPipeline {
+        //         pipeline: in_progress.id,
+        //         partitioning_requirement: Some(1),
+        //     },
+        // });
 
-        let pipeline = IntermediatePipeline {
-            id: in_progress.id,
-            sink: PipelineSink::InPipeline,
-            source: in_progress.source,
-            operators: in_progress.operators,
-        };
-        // TODO: This should not be happening here.
-        // https://github.com/GlareDB/glaredb/issues/3352
-        match location {
-            LocationRequirement::ClientLocal => {
-                self.local_group.pipelines.insert(pipeline.id, pipeline);
-            }
-            LocationRequirement::Remote => {
-                self.remote_group.pipelines.insert(pipeline.id, pipeline);
-            }
-            LocationRequirement::Any => {
-                // TODO
-                self.local_group.pipelines.insert(pipeline.id, pipeline);
-            }
-        }
+        unimplemented!()
+        // let pipeline = IntermediatePipeline {
+        //     id: in_progress.id,
+        //     sink: PipelineSink::InPipeline,
+        //     source: in_progress.source,
+        //     operators: in_progress.operators,
+        // };
+        // // TODO: This should not be happening here.
+        // // https://github.com/GlareDB/glaredb/issues/3352
+        // match location {
+        //     LocationRequirement::ClientLocal => {
+        //         self.local_group.pipelines.insert(pipeline.id, pipeline);
+        //     }
+        //     LocationRequirement::Remote => {
+        //         self.remote_group.pipelines.insert(pipeline.id, pipeline);
+        //     }
+        //     LocationRequirement::Any => {
+        //         // TODO
+        //         self.local_group.pipelines.insert(pipeline.id, pipeline);
+        //     }
+        // }
 
-        Ok(())
+        // Ok(())
     }
 }

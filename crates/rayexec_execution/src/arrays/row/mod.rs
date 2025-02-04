@@ -22,16 +22,6 @@ impl<'a> ScalarRow<'a> {
         }
     }
 
-    /// Create a new row representation backed by data from arrays.
-    pub fn try_new_from_arrays(arrays: &[&'a Array], row: usize) -> Result<ScalarRow<'a>> {
-        let vals = arrays
-            .iter()
-            .map(|a| a.logical_value(row))
-            .collect::<Result<Vec<_>>>()?;
-
-        Ok(ScalarRow { columns: vals })
-    }
-
     /// Return an iterator over all columns in the row.
     pub fn iter(&self) -> impl Iterator<Item = &ScalarValue> {
         self.columns.iter()

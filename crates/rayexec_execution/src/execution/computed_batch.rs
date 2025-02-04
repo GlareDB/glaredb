@@ -5,7 +5,7 @@ use rayexec_error::Result;
 use crate::arrays::batch::Batch;
 
 /// Computed batch results from an operator.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum ComputedBatches {
     /// A single batch was computed.
     Single(Batch),

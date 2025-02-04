@@ -1,6 +1,7 @@
 pub mod aggregate;
-pub mod builder;
 pub mod scalar;
+
+use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
@@ -20,29 +21,30 @@ pub struct OutBuffer<'a, B: BufferManager = NopBufferManager> {
 
 impl<'a> OutBuffer<'a> {
     pub fn from_array(array: &'a mut Array) -> Result<Self> {
-        let next = array.next.as_mut().unwrap();
-
         Ok(OutBuffer {
-            buffer: next.data.try_as_mut()?,
-            validity: &mut next.validity,
+            buffer: &mut array.data,
+            validity: &mut array.validity,
         })
     }
 }
 
 /// Helper for assigning a value to a location in a buffer.
 #[derive(Debug)]
-pub struct PutBuffer<'a, M>
+pub struct PutBuffer<'a, M, B>
 where
-    M: AddressableMut,
+    M: AddressableMut<B>,
+    B: BufferManager,
 {
     pub(crate) idx: usize,
     pub(crate) buffer: &'a mut M,
     pub(crate) validity: &'a mut Validity,
+    _b: PhantomData<B>,
 }
 
-impl<'a, M> PutBuffer<'a, M>
+impl<'a, M, B> PutBuffer<'a, M, B>
 where
-    M: AddressableMut,
+    M: AddressableMut<B>,
+    B: BufferManager,
 {
     pub(crate) fn new(idx: usize, buffer: &'a mut M, validity: &'a mut Validity) -> Self {
         debug_assert_eq!(buffer.len(), validity.len());
@@ -50,6 +52,7 @@ where
             idx,
             buffer,
             validity,
+            _b: PhantomData,
         }
     }
 

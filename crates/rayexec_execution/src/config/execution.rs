@@ -30,4 +30,6 @@ pub struct ExecutablePlanConfig {
     ///
     /// Partitionining determines parallelism for a single pipeline.
     pub partitions: usize,
+    /// Target batch size.
+    pub batch_size: usize,
 }

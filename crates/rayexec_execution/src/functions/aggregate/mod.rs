@@ -10,7 +10,6 @@ use states::AggregateGroupStates;
 
 use super::FunctionInfo;
 use crate::arrays::datatype::DataType;
-use crate::arrays::executor::aggregate::RowToStateMapping;
 use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
@@ -103,7 +102,7 @@ impl<'a> ChunkGroupAddressIter<'a> {
 }
 
 impl Iterator for ChunkGroupAddressIter<'_> {
-    type Item = RowToStateMapping;
+    type Item = (usize, usize);
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -111,10 +110,7 @@ impl Iterator for ChunkGroupAddressIter<'_> {
             if addr.chunk_idx == self.chunk_idx {
                 let row = self.row_idx;
                 self.row_idx += 1;
-                return Some(RowToStateMapping {
-                    from_row: row,
-                    to_state: addr.row_idx as usize,
-                });
+                return Some((row, addr.row_idx as usize));
             }
             self.row_idx += 1;
         }
