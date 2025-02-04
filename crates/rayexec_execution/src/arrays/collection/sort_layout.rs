@@ -120,6 +120,10 @@ impl SortLayout {
         }
     }
 
+    pub fn num_columns(&self) -> usize {
+        self.columns.len()
+    }
+
     pub fn requires_heap(&self) -> bool {
         self.heap_layout.num_columns() > 0
     }

@@ -1,6 +1,7 @@
 use rayexec_error::{RayexecError, Result};
 
-use super::block::{Block, FixedSizedBlockInitializer};
+use super::block::{Block, FixedSizedBlockInitializer, RowLayoutBlockInitializer};
+use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::BufferManager;
 
 /// Wrapper around a plan pointer to a heap block to also give us information
@@ -62,12 +63,25 @@ pub struct RowBlocks<B: BufferManager, I: FixedSizedBlockInitializer> {
     pub manager: B,
     /// Row capacity per row block. Does not impact size of heap blocks.
     pub row_capacity: usize,
+    /// Size in bytes of a single row stored in a fixed-size block.
+    pub row_width: usize,
     /// Fixed size blocks initializer.
     pub initializer: I,
     /// Blocks for encoded rows.
     pub row_blocks: Vec<Block<B>>,
     /// Blocks for varlen and nested data.
     pub heap_blocks: Vec<Block<B>>,
+}
+
+impl<B> RowBlocks<B, RowLayoutBlockInitializer>
+where
+    B: BufferManager,
+{
+    pub fn new_using_row_layout(manager: B, row_layout: RowLayout, row_capacity: usize) -> Self {
+        let row_width = row_layout.row_width;
+        let initializer = RowLayoutBlockInitializer::new(row_layout);
+        Self::new(manager, initializer, row_width, row_capacity)
+    }
 }
 
 impl<B, I> RowBlocks<B, I>
@@ -77,10 +91,11 @@ where
 {
     const MAX_HEAP_SIZE: usize = 1024 * 1024 * 1024 * 32; // 32GB
 
-    pub fn new(manager: B, initializer: I, row_capacity: usize) -> Self {
+    pub fn new(manager: B, initializer: I, row_width: usize, row_capacity: usize) -> Self {
         RowBlocks {
             manager,
             row_capacity,
+            row_width,
             initializer,
             row_blocks: Vec::new(),
             heap_blocks: Vec::new(),
@@ -90,12 +105,12 @@ where
     pub fn reserved_row_count(&self) -> usize {
         self.row_blocks
             .iter()
-            .map(|b| b.num_rows(self.initializer.row_width()))
+            .map(|b| b.num_rows(self.row_width))
             .sum()
     }
 
     pub fn rows_in_row_block(&self, row_block_idx: usize) -> usize {
-        self.row_blocks[row_block_idx].num_rows(self.initializer.row_width())
+        self.row_blocks[row_block_idx].num_rows(self.row_width)
     }
 
     pub fn num_row_blocks(&self) -> usize {
@@ -114,6 +129,16 @@ where
         self.heap_blocks.extend(other.heap_blocks);
     }
 
+    /// Allocates a new fixed-sized block based on the configure row width and
+    /// capacity.
+    ///
+    /// This will initialize the block before returning it.
+    fn allocate_and_init_fixed_size_block(&self) -> Result<Block<B>> {
+        let buf_size = self.row_width * self.row_capacity;
+        let block = Block::try_new(&self.manager, buf_size)?;
+        self.initializer.initialize(block)
+    }
+
     /// Prepares the read state for a single row block.
     ///
     /// `selection` selects which rows from the row block to read.
@@ -128,10 +153,10 @@ where
         let block = &self.row_blocks[row_block_idx];
 
         for sel_idx in selection {
-            debug_assert!(sel_idx < block.num_rows(self.initializer.row_width()));
+            debug_assert!(sel_idx < block.num_rows(self.row_width));
 
             let ptr = block.as_ptr();
-            let ptr = unsafe { ptr.byte_add(self.initializer.row_width() * sel_idx) };
+            let ptr = unsafe { ptr.byte_add(self.row_width * sel_idx) };
             debug_assert!(block.data.raw.contains_addr(ptr.addr()));
 
             state.row_pointers.push(ptr)
@@ -161,9 +186,7 @@ where
     ) -> Result<()> {
         // Ensure we have at least one row block to work with.
         if self.row_blocks.is_empty() {
-            let block = self
-                .initializer
-                .initialize(&self.manager, self.row_capacity)?;
+            let block = self.allocate_and_init_fixed_size_block()?;
             self.row_blocks.push(block);
         }
 
@@ -175,12 +198,9 @@ where
         // Handle generating pointers to the row blocks.
         while remaining > 0 {
             let block = self.row_blocks.get_mut(block_idx).expect("block to exist");
-            let copy_count = usize::min(
-                block.remaing_row_capacity(self.initializer.row_width()),
-                remaining,
-            );
+            let copy_count = usize::min(block.remaing_row_capacity(self.row_width), remaining);
 
-            let block_offset = block.num_rows(self.initializer.row_width());
+            let block_offset = block.num_rows(self.row_width);
 
             // Create pointers to row locations.
             state
@@ -191,21 +211,19 @@ where
                     // for can hold `copy_count` number of rows.
                     //
                     // Assumes that we allocated the correct size for the buffer.
-                    let ptr = unsafe { ptr.byte_add(self.initializer.row_width() * offset) };
+                    let ptr = unsafe { ptr.byte_add(self.row_width * offset) };
                     debug_assert!(block.data.raw.contains_addr(ptr.addr()));
 
                     ptr
                 }));
 
             remaining -= copy_count;
-            block.reserved_bytes += copy_count * self.initializer.row_width();
+            block.reserved_bytes += copy_count * self.row_width;
 
             if remaining > 0 {
                 // Means we filled the block to max capacity. Allocate new block
                 // and update block idx we're pointing to.
-                let block = self
-                    .initializer
-                    .initialize(&self.manager, self.row_capacity)?;
+                let block = self.allocate_and_init_fixed_size_block()?;
                 self.row_blocks.push(block);
                 block_idx = self.row_blocks.len() - 1
             }
@@ -267,15 +285,13 @@ where
 mod tests {
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
-    use crate::arrays::collection::block::RowLayoutBlockInitializer;
     use crate::arrays::collection::row_layout::RowLayout;
     use crate::arrays::datatype::DataType;
 
     #[test]
     fn prepare_append_allocate_single_row_block() {
         let layout = RowLayout::new([DataType::Int32]);
-        let mut blocks =
-            RowBlocks::new(NopBufferManager, RowLayoutBlockInitializer::new(layout), 16);
+        let mut blocks = RowBlocks::new_using_row_layout(NopBufferManager, layout, 16);
 
         let mut append_state = BlockAppendState {
             row_pointers: Vec::new(),
@@ -299,8 +315,7 @@ mod tests {
     #[test]
     fn prepare_append_allocate_multiple_row_blocks() {
         let layout = RowLayout::new([DataType::Int32]);
-        let mut blocks =
-            RowBlocks::new(NopBufferManager, RowLayoutBlockInitializer::new(layout), 16);
+        let mut blocks = RowBlocks::new_using_row_layout(NopBufferManager, layout, 16);
 
         let mut append_state = BlockAppendState {
             row_pointers: Vec::new(),

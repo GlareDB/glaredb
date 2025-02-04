@@ -64,11 +64,7 @@ pub struct RowCollection {
 impl RowCollection {
     pub fn new(layout: RowLayout, block_capacity: usize) -> Self {
         RowCollection {
-            blocks: RowBlocks::new(
-                NopBufferManager,
-                RowLayoutBlockInitializer::new(layout),
-                block_capacity,
-            ),
+            blocks: RowBlocks::new_using_row_layout(NopBufferManager, layout, block_capacity),
         }
     }
 

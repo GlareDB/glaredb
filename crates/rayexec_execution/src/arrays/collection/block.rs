@@ -8,11 +8,8 @@ use crate::arrays::array::raw::TypedRawBuffer;
 
 /// Describes how we initialize fixed sized blocks.
 pub trait FixedSizedBlockInitializer: Debug {
-    /// Return the size in bytes of a single row.
-    fn row_width(&self) -> usize;
-
-    /// Initialize a fixed-sized block that can hold `row_capacity` rows.
-    fn initialize<B>(&self, manager: &B, row_capacity: usize) -> Result<Block<B>>
+    /// Initialize a fixed-sized block.
+    fn initialize<B>(&self, block: Block<B>) -> Result<Block<B>>
     where
         B: BufferManager;
 }
@@ -36,15 +33,11 @@ impl RowLayoutBlockInitializer {
 }
 
 impl FixedSizedBlockInitializer for RowLayoutBlockInitializer {
-    fn row_width(&self) -> usize {
-        self.layout.row_width
-    }
-
-    fn initialize<B>(&self, manager: &B, row_capacity: usize) -> Result<Block<B>>
+    fn initialize<B>(&self, mut block: Block<B>) -> Result<Block<B>>
     where
         B: BufferManager,
     {
-        let mut block = Block::try_new(manager, self.layout.buffer_size(row_capacity))?;
+        let row_capacity = block.remaing_row_capacity(self.layout.row_width);
         let buffer = block.data.as_slice_mut();
 
         for row in 0..row_capacity {
@@ -54,6 +47,19 @@ impl FixedSizedBlockInitializer for RowLayoutBlockInitializer {
             out_buf.fill(u8::MAX);
         }
 
+        Ok(block)
+    }
+}
+
+/// A no-op initializer. Just returns the block as-is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NopInitializer;
+
+impl FixedSizedBlockInitializer for NopInitializer {
+    fn initialize<B>(&self, block: Block<B>) -> Result<Block<B>>
+    where
+        B: BufferManager,
+    {
         Ok(block)
     }
 }
@@ -70,19 +76,6 @@ impl<B> Block<B>
 where
     B: BufferManager,
 {
-    pub fn try_new_row_block(manager: &B, layout: &RowLayout, row_capacity: usize) -> Result<Self> {
-        let mut block = Block::try_new(manager, layout.buffer_size(row_capacity))?;
-        let buffer = block.data.as_slice_mut();
-
-        for row in 0..row_capacity {
-            let validity_offset = layout.row_width * row;
-            let out_buf = &mut buffer[validity_offset..(validity_offset + layout.validity_width)];
-            out_buf.fill(u8::MAX);
-        }
-
-        Ok(block)
-    }
-
     pub fn try_new(manager: &B, byte_capacity: usize) -> Result<Self> {
         let data = TypedRawBuffer::try_with_capacity(manager, byte_capacity)?;
         Ok(Block {
