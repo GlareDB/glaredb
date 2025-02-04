@@ -1268,7 +1268,7 @@ fn increment_utf8(mut data: Vec<u8>) -> Option<Vec<u8>> {
 mod tests {
     use std::sync::Arc;
 
-    use rand::distributions::uniform::SampleUniform;
+    use rand::distr::uniform::SampleUniform;
 
     use super::*;
     use crate::column::page::PageReader;

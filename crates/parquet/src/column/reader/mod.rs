@@ -572,7 +572,7 @@ mod tests {
     use std::collections::VecDeque;
     use std::sync::Arc;
 
-    use rand::distributions::uniform::SampleUniform;
+    use rand::distr::uniform::SampleUniform;
 
     use super::*;
     use crate::basic::Type as PhysicalType;
