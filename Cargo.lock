@@ -265,7 +265,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "bench_bin"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "rayexec_bench",
  "rayexec_bullet",
@@ -704,7 +704,7 @@ dependencies = [
 
 [[package]]
 name = "docgen"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "logutil",
  "rayexec_csv",
@@ -872,7 +872,7 @@ dependencies = [
 
 [[package]]
 name = "fmtutil"
-version = "0.0.94"
+version = "0.0.95"
 
 [[package]]
 name = "fnv"
@@ -1428,7 +1428,7 @@ dependencies = [
 
 [[package]]
 name = "lakefront"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "axum",
  "clap",
@@ -1525,7 +1525,7 @@ checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 
 [[package]]
 name = "logutil"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -1786,7 +1786,7 @@ dependencies = [
 
 [[package]]
 name = "parquet"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "ahash",
  "base64 0.22.1",
@@ -2147,7 +2147,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bench"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "clap",
  "futures",
@@ -2161,7 +2161,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bin"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "clap",
  "crossterm",
@@ -2184,7 +2184,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_bullet"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "ahash",
  "bytes",
@@ -2201,7 +2201,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_csv"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "bytes",
  "csv",
@@ -2220,7 +2220,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_debug"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "bytes",
  "futures",
@@ -2237,7 +2237,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_delta"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "bytes",
  "erased-serde",
@@ -2257,7 +2257,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_error"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "erased-serde",
  "serde",
@@ -2265,7 +2265,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_execution"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "ahash",
  "chrono",
@@ -2306,7 +2306,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_iceberg"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "apache-avro",
  "bytes",
@@ -2327,7 +2327,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_io"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "bytes",
  "chrono",
@@ -2348,7 +2348,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parquet"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "bytes",
  "erased-serde",
@@ -2366,7 +2366,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_parser"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "pretty_assertions",
  "rayexec_error",
@@ -2378,7 +2378,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_postgres"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "erased-serde",
  "futures",
@@ -2392,7 +2392,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_proto"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "prost",
  "prost-build",
@@ -2402,7 +2402,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_python"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "futures",
  "parking_lot",
@@ -2422,7 +2422,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_rt_native"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "bytes",
  "futures",
@@ -2441,7 +2441,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_server"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "axum",
  "clap",
@@ -2464,7 +2464,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_shell"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "futures",
  "parking_lot",
@@ -2478,7 +2478,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_slt"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "async-trait",
  "crossterm",
@@ -2498,7 +2498,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_unity_catalog"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "futures",
  "rayexec_error",
@@ -2511,7 +2511,7 @@ dependencies = [
 
 [[package]]
 name = "rayexec_wasm"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
@@ -3032,7 +3032,7 @@ dependencies = [
 
 [[package]]
 name = "stackutil"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "rayexec_error",
  "stacker",
@@ -3046,7 +3046,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "stdutil"
-version = "0.0.94"
+version = "0.0.95"
 
 [[package]]
 name = "stringprep"
@@ -3165,7 +3165,7 @@ dependencies = [
 
 [[package]]
 name = "test_bin"
-version = "0.0.94"
+version = "0.0.95"
 dependencies = [
  "rayexec_csv",
  "rayexec_debug",
