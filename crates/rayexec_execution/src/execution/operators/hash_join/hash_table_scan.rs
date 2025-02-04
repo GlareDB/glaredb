@@ -8,6 +8,12 @@ use crate::arrays::collection::row_blocks::BlockReadState;
 use crate::arrays::collection::row_matcher::MatchState;
 use crate::logical::logical_join::JoinType;
 
+// TODO:
+// - [ ] LEFT/OUTER drain
+// - [ ] RIGHT
+// - [ ] SEMI/ANTI
+// - [ ] MARK
+
 /// Scan state for resuming probes of the hash table.
 ///
 /// This gets updated after a single probe to the hash table. `scan_next` should
@@ -55,8 +61,7 @@ impl HashTableScanState {
         output: &mut Batch,
     ) -> Result<()> {
         if self.selection.is_empty() {
-            println!("SEL EMPTY");
-            // Done, need new of keys.
+            // Done, need new rhs.
             output.set_num_rows(0)?;
             return Ok(());
         }

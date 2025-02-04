@@ -604,7 +604,7 @@ mod tests {
         table.insert_hashes_for_blocks([0]).unwrap();
 
         let mut state = table.init_scan_state();
-        let mut rhs = generate_batch!([2, 3, 5]);
+        let mut rhs = generate_batch!([2, 4, 3, 5]);
         table.probe(&mut state, &rhs).unwrap();
 
         let mut out =
