@@ -612,6 +612,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::collection::block::RowLayoutBlockInitializer;
     use crate::arrays::collection::row_blocks::RowBlocks;
     use crate::arrays::testutil::assert_arrays_eq;
 
@@ -662,7 +663,11 @@ mod tests {
             None
         };
 
-        let mut blocks = RowBlocks::new(NopBufferManager, layout.clone(), 16);
+        let mut blocks = RowBlocks::new(
+            NopBufferManager,
+            RowLayoutBlockInitializer::new(layout.clone()),
+            16,
+        );
         let mut state = BlockAppendState {
             row_pointers: Vec::new(),
             heap_pointers: Vec::new(),

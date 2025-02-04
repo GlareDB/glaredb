@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 
 use rayexec_error::{RayexecError, Result};
 
+use super::block::RowLayoutBlockInitializer;
 use super::row_blocks::{BlockAppendState, BlockReadState, RowBlocks};
 use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::NopBufferManager;
@@ -57,23 +58,27 @@ impl RowScanState {
 /// buffers.
 #[derive(Debug)]
 pub struct RowCollection {
-    blocks: RowBlocks<NopBufferManager>,
+    blocks: RowBlocks<NopBufferManager, RowLayoutBlockInitializer>,
 }
 
 impl RowCollection {
     pub fn new(layout: RowLayout, block_capacity: usize) -> Self {
         RowCollection {
-            blocks: RowBlocks::new(NopBufferManager, layout, block_capacity),
+            blocks: RowBlocks::new(
+                NopBufferManager,
+                RowLayoutBlockInitializer::new(layout),
+                block_capacity,
+            ),
         }
     }
 
     /// Gets a reference to the row layout for this collection.
     pub const fn layout(&self) -> &RowLayout {
-        &self.blocks.layout
+        &self.blocks.initializer.layout
     }
 
     /// Gets a reference to the underlying blocks backing this row collection.
-    pub fn blocks(&self) -> &RowBlocks<NopBufferManager> {
+    pub fn blocks(&self) -> &RowBlocks<NopBufferManager, RowLayoutBlockInitializer> {
         &self.blocks
     }
 

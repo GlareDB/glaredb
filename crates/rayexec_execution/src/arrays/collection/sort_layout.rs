@@ -1,9 +1,12 @@
+use std::collections::HashMap;
+
 use half::f16;
 use rayexec_error::Result;
 
+use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
-use crate::arrays::array::physical_type::{Addressable, ScalarStorage};
+use crate::arrays::array::physical_type::{Addressable, PhysicalType, ScalarStorage, UntypedNull};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
 
@@ -24,10 +27,6 @@ pub struct SortColumn {
     pub nulls_first: bool,
     /// Datatype of the column.
     pub datatype: DataType,
-    /// If this column requires writing to heap blocks (varlen or nested data).
-    pub requires_heap: bool,
-    /// Size in bytes of the encoded column.
-    pub column_width: usize,
 }
 
 impl SortColumn {
@@ -68,15 +67,68 @@ impl SortColumn {
 pub struct SortLayout {
     /// Columns that are part of the sort.
     pub(crate) columns: Vec<SortColumn>,
+    /// Size in bytes for each column in the sort layout.
+    pub(crate) column_widths: Vec<usize>,
     /// Byte offsets within the encoded row to the start of the value.
     pub(crate) offsets: Vec<usize>,
-    /// Size in bytes for a single (inline) encoded row.
+    /// Size in bytes for a single (inline) encoded row that can be compared.
     pub(crate) compare_width: usize,
-    /// If any column in the layout requires the heap.
-    pub(crate) requires_heap: bool,
+    /// Row layout for columns that require heap blocks (varlen, nested).
+    pub(crate) heap_layout: RowLayout,
+    /// Mapping between columns in the sort layout to column the heap layout.
+    ///
+    /// Empty if there are no columns in this layout that require heap blocks.
+    pub(crate) heap_mapping: HashMap<usize, usize>,
 }
 
 impl SortLayout {
+    pub fn new(columns: impl IntoIterator<Item = SortColumn>) -> Self {
+        let columns: Vec<_> = columns.into_iter().collect();
+
+        let mut heap_types = Vec::new();
+        let mut heap_mapping = HashMap::new();
+
+        let mut offset = 0;
+        let mut offsets = Vec::with_capacity(columns.len());
+
+        let mut column_widths = Vec::with_capacity(columns.len());
+
+        for (idx, col) in columns.iter().enumerate() {
+            let phys_type = col.datatype.physical_type();
+            let width = key_width_for_physical_type(phys_type);
+
+            offsets.push(offset);
+            offset += width;
+
+            column_widths.push(width);
+
+            if matches!(col.datatype, DataType::Utf8 | DataType::Binary) {
+                heap_mapping.insert(idx, heap_types.len());
+                heap_types.push(col.datatype.clone());
+            }
+        }
+
+        let heap_layout = RowLayout::new(heap_types);
+
+        SortLayout {
+            columns,
+            column_widths,
+            offsets,
+            compare_width: offset,
+            heap_layout,
+            heap_mapping,
+        }
+    }
+
+    pub fn requires_heap(&self) -> bool {
+        self.heap_layout.num_columns() > 0
+    }
+
+    /// Return the buffer size needed to store some number of rows.
+    pub const fn buffer_size(&self, rows: usize) -> usize {
+        self.compare_width * rows
+    }
+
     /// Get a mutable buffer of the exact size for a column in a row.
     ///
     /// # Safety
@@ -85,10 +137,38 @@ impl SortLayout {
     /// according to this layout.
     unsafe fn column_buffer_mut(&self, row_ptr: *mut u8, col: usize) -> &mut [u8] {
         let buf = std::slice::from_raw_parts_mut(row_ptr, self.compare_width);
-        let size = self.columns[col].column_width;
+        let size = self.column_widths[col];
         let offset = self.offsets[col];
         &mut buf[offset..offset + size]
     }
+}
+
+/// Get the sort key width for a physical type.
+const fn key_width_for_physical_type(phys_type: PhysicalType) -> usize {
+    let val_width = match phys_type {
+        PhysicalType::UntypedNull => UntypedNull::ENCODE_WIDTH,
+        PhysicalType::Boolean => bool::ENCODE_WIDTH,
+        PhysicalType::Int8 => i8::ENCODE_WIDTH,
+        PhysicalType::Int16 => i16::ENCODE_WIDTH,
+        PhysicalType::Int32 => i32::ENCODE_WIDTH,
+        PhysicalType::Int64 => i64::ENCODE_WIDTH,
+        PhysicalType::Int128 => i128::ENCODE_WIDTH,
+        PhysicalType::UInt8 => u8::ENCODE_WIDTH,
+        PhysicalType::UInt16 => u16::ENCODE_WIDTH,
+        PhysicalType::UInt32 => u32::ENCODE_WIDTH,
+        PhysicalType::UInt64 => u64::ENCODE_WIDTH,
+        PhysicalType::UInt128 => u128::ENCODE_WIDTH,
+        PhysicalType::Float16 => f16::ENCODE_WIDTH,
+        PhysicalType::Float32 => f32::ENCODE_WIDTH,
+        PhysicalType::Float64 => f64::ENCODE_WIDTH,
+        PhysicalType::Interval => Interval::ENCODE_WIDTH,
+        PhysicalType::Binary => StringPrefix::ENCODE_WIDTH,
+        PhysicalType::Utf8 => StringPrefix::ENCODE_WIDTH,
+        _ => unimplemented!(),
+    };
+
+    // Include 1 for the validity byte at the start.
+    val_width + 1
 }
 
 unsafe fn write_scalar<S, B>(
@@ -139,6 +219,14 @@ where
 trait ComparableEncode: Sized {
     const ENCODE_WIDTH: usize = std::mem::size_of::<Self>();
     fn encode(&self, buf: &mut [u8]);
+}
+
+impl ComparableEncode for UntypedNull {
+    const ENCODE_WIDTH: usize = 0;
+    fn encode(&self, buf: &mut [u8]) {
+        // Do nothing, we encode nothing for null values as a column containing
+        // just nulls has no order.
+    }
 }
 
 /// Implements `ComparableEncode` for unsigned ints.
