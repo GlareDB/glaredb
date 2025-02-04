@@ -61,7 +61,7 @@ lz4_flex = { version = "0.11", default-features = false, features = ["std", "fra
 zstd = { version = "0.13", default-features = false }
 serde_json = { version = "1.0", features = ["std"], default-features = false }
 tokio = { version = "1.42", default-features = false, features = ["macros", "rt", "io-util", "fs"] }
-rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
+rand = { version = "0.9", default-features = false, features = ["std", "std_rng"] }
 
 # TODO: temporary to fix parquet wasm build
 # upstream issue: https://github.com/gyscos/zstd-rs/issues/269
