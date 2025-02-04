@@ -44,7 +44,7 @@ serde = { version = "1.0", default-features = false, features = ["derive"], opti
 serde_json = { version = "1.0", default-features = false, features = ["std"], optional = true }
 seq-macro = { version = "0.3", default-features = false }
 futures = { version = "0.3", default-features = false, features = ["std"], optional = true }
-tokio = { version = "1.42", optional = true, default-features = false, features = ["macros", "rt", "io-util"] }
+tokio = { version = "1.43", optional = true, default-features = false, features = ["macros", "rt", "io-util"] }
 hashbrown = { version = "0.14", default-features = false }
 twox-hash = { version = "1.6", default-features = false }
 paste = { version = "1.0" }
@@ -54,13 +54,13 @@ half = { version = "2.1", default-features = false, features = ["num-traits"] }
 base64 = { version = "0.22", default-features = false, features = ["std"] }
 criterion = { version = "0.5", default-features = false }
 snap = { version = "1.0", default-features = false }
-tempfile = { version = "3.0", default-features = false }
+tempfile = { version = "3.16", default-features = false }
 brotli = { version = "6.0", default-features = false, features = ["std"] }
 flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }
 lz4_flex = { version = "0.11", default-features = false, features = ["std", "frame"] }
 zstd = { version = "0.13", default-features = false }
 serde_json = { version = "1.0", features = ["std"], default-features = false }
-tokio = { version = "1.42", default-features = false, features = ["macros", "rt", "io-util", "fs"] }
+tokio = { version = "1.43", default-features = false, features = ["macros", "rt", "io-util", "fs"] }
 rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
 
 # TODO: temporary to fix parquet wasm build
