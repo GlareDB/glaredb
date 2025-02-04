@@ -1,0 +1,245 @@
+use half::f16;
+use rayexec_error::Result;
+
+use crate::arrays::array::buffer_manager::BufferManager;
+use crate::arrays::array::flat::FlattenedArray;
+use crate::arrays::array::physical_type::{Addressable, ScalarStorage};
+use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::interval::Interval;
+
+/// Configuration for how to encode a column for sorting.
+#[derive(Debug, Clone)]
+pub struct SortColumn {
+    /// If we should encode columns to reverse the natural sort order for
+    /// values.
+    ///
+    /// If this is false, this should correspond to sorting in ascending order
+    /// (e.g. '1 < 2' evaluates to true).
+    ///
+    /// If true, this is reverse the sort order (e.g. '1 < 2' evaluates to
+    /// false, causing '2' to come before '1').
+    pub desc: bool,
+    /// If we should encode nulls such that they should be ordered before any
+    /// valid values.
+    pub nulls_first: bool,
+    /// Datatype of the column.
+    pub datatype: DataType,
+    /// If this column requires writing to heap blocks (varlen or nested data).
+    pub requires_heap: bool,
+    /// Size in bytes of the encoded column.
+    pub column_width: usize,
+}
+
+impl SortColumn {
+    const fn invalid_byte(&self) -> u8 {
+        if self.nulls_first {
+            0
+        } else {
+            0xFF
+        }
+    }
+
+    const fn valid_byte(&self) -> u8 {
+        if self.nulls_first {
+            0xFF
+        } else {
+            0
+        }
+    }
+
+    /// Invert all bits in buf if this column should be ordered descending.
+    ///
+    /// Does nothing if the column is ascending.
+    ///
+    /// This is done to encode ordering in the encoding which lets us skip
+    /// having extra logic to handle ordering in the operators. While that would
+    /// be easy with something like 'ORDER BY a DESC', it would get tricky with
+    /// 'ORDER BY a DESC, b ASC, c DESC'.
+    fn invert_if_desc(&self, buf: &mut [u8]) {
+        if self.desc {
+            for b in buf {
+                *b = !*b;
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SortLayout {
+    /// Columns that are part of the sort.
+    pub(crate) columns: Vec<SortColumn>,
+    /// Byte offsets within the encoded row to the start of the value.
+    pub(crate) offsets: Vec<usize>,
+    /// Size in bytes for a single (inline) encoded row.
+    pub(crate) compare_width: usize,
+    /// If any column in the layout requires the heap.
+    pub(crate) requires_heap: bool,
+}
+
+impl SortLayout {
+    /// Get a mutable buffer of the exact size for a column in a row.
+    ///
+    /// # Safety
+    ///
+    /// The row pointer must be a pointer to a row with the correct width
+    /// according to this layout.
+    unsafe fn column_buffer_mut(&self, row_ptr: *mut u8, col: usize) -> &mut [u8] {
+        let buf = std::slice::from_raw_parts_mut(row_ptr, self.compare_width);
+        let size = self.columns[col].column_width;
+        let offset = self.offsets[col];
+        &mut buf[offset..offset + size]
+    }
+}
+
+unsafe fn write_scalar<S, B>(
+    layout: &SortLayout,
+    array_idx: usize,
+    array: FlattenedArray<B>,
+    row_pointers: &[*mut u8],
+    num_rows: usize,
+) -> Result<()>
+where
+    S: ScalarStorage,
+    S::StorageType: ComparableEncode + Default + Copy + Sized,
+    B: BufferManager,
+{
+    debug_assert_eq!(num_rows, row_pointers.len());
+
+    let col = &layout.columns[array_idx];
+    let valid_b = col.valid_byte();
+    let invalid_b = col.invalid_byte();
+
+    let null_val = <S::StorageType>::default();
+
+    let data = S::get_addressable(array.array_buffer)?;
+    let validity = array.validity;
+
+    for row_idx in 0..num_rows {
+        let col_buf = layout.column_buffer_mut(row_pointers[row_idx], array_idx);
+
+        if validity.is_valid(row_idx) {
+            let sel_idx = array.selection.get(row_idx).unwrap();
+            col_buf[0] = valid_b;
+
+            let v = data.get(sel_idx).unwrap();
+            let val_buf = &mut col_buf[1..];
+            v.encode(val_buf);
+            col.invert_if_desc(val_buf);
+        } else {
+            col_buf[0] = invalid_b;
+            null_val.encode(&mut col_buf[1..]);
+        }
+    }
+
+    Ok(())
+}
+
+/// Trait for types that can encode themselves into a comparable binary
+/// representation.
+trait ComparableEncode: Sized {
+    const ENCODE_WIDTH: usize = std::mem::size_of::<Self>();
+    fn encode(&self, buf: &mut [u8]);
+}
+
+/// Implements `ComparableEncode` for unsigned ints.
+macro_rules! comparable_encode_unsigned {
+    ($type:ty) => {
+        impl ComparableEncode for $type {
+            fn encode(&self, buf: &mut [u8]) {
+                let b = self.to_be_bytes();
+                buf.copy_from_slice(&b);
+            }
+        }
+    };
+}
+
+comparable_encode_unsigned!(u8);
+comparable_encode_unsigned!(u16);
+comparable_encode_unsigned!(u32);
+comparable_encode_unsigned!(u64);
+comparable_encode_unsigned!(u128);
+
+/// Implements `ComparableEncode` for signed ints.
+macro_rules! comparable_encode_signed {
+    ($type:ty) => {
+        impl ComparableEncode for $type {
+            fn encode(&self, buf: &mut [u8]) {
+                let mut b = self.to_be_bytes();
+                b[0] ^= 128; // Flip sign bit.
+                buf.copy_from_slice(&b);
+            }
+        }
+    };
+}
+
+comparable_encode_signed!(i8);
+comparable_encode_signed!(i16);
+comparable_encode_signed!(i32);
+comparable_encode_signed!(i64);
+comparable_encode_signed!(i128);
+
+impl ComparableEncode for f16 {
+    fn encode(&self, buf: &mut [u8]) {
+        let bits = self.to_bits() as i16;
+        let v = bits ^ (((bits >> 15) as u16) >> 1) as i16;
+        v.encode(buf)
+    }
+}
+
+impl ComparableEncode for f32 {
+    fn encode(&self, buf: &mut [u8]) {
+        // Adapted from <https://github.com/rust-lang/rust/blob/791adf759cc065316f054961875052d5bc03e16c/library/core/src/num/f32.rs#L1456-L1485>
+        let bits = self.to_bits() as i32;
+        let v = bits ^ (((bits >> 31) as u32) >> 1) as i32;
+        v.encode(buf)
+    }
+}
+
+impl ComparableEncode for f64 {
+    fn encode(&self, buf: &mut [u8]) {
+        // Adapted from <https://github.com/rust-lang/rust/blob/791adf759cc065316f054961875052d5bc03e16c/library/core/src/num/f32.rs#L1456-L1485>
+        let bits = self.to_bits() as i64;
+        let v = bits ^ (((bits >> 31) as u64) >> 1) as i64;
+        v.encode(buf)
+    }
+}
+
+impl ComparableEncode for Interval {
+    fn encode(&self, buf: &mut [u8]) {
+        // TODO: We'll probably need to ensure intervals are normalized.
+        self.months.encode(&mut buf[0..4]);
+        self.days.encode(&mut buf[4..8]);
+        self.nanos.encode(&mut buf[8..]);
+    }
+}
+
+// FALSE < TRUE
+impl ComparableEncode for bool {
+    fn encode(&self, buf: &mut [u8]) {
+        if *self {
+            buf[0] = 0;
+        } else {
+            buf[0] = 1;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct StringPrefix {
+    len: i32,
+    prefix: [u8; 12],
+}
+
+impl StringPrefix {
+    const EMPTY: Self = StringPrefix {
+        len: 0,
+        prefix: [0; 12],
+    };
+}
+
+impl ComparableEncode for StringPrefix {
+    fn encode(&self, buf: &mut [u8]) {
+        self.len.encode(&mut buf[0..4]);
+        buf[4..].copy_from_slice(&self.prefix);
+    }
+}
