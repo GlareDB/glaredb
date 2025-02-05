@@ -6,6 +6,8 @@ use super::row_layout::RowLayout;
 use super::sort_layout::SortLayout;
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
+use crate::arrays::collection::block::Block;
+use crate::arrays::collection::sorted_block::SortedBlock;
 
 #[derive(Debug)]
 pub struct SortedRowAppendState {
@@ -45,6 +47,8 @@ pub struct SortedRowCollection {
     key_heap_blocks: RowBlocks<NopBufferManager, RowLayoutBlockInitializer>,
     /// Storage for data not part of the keys.
     data_blocks: RowBlocks<NopBufferManager, RowLayoutBlockInitializer>,
+    /// All blocks sorted so far.
+    sorted: Vec<SortedBlock<NopBufferManager>>,
 }
 
 impl SortedRowCollection {
@@ -52,7 +56,7 @@ impl SortedRowCollection {
         let key_blocks = RowBlocks::new(
             NopBufferManager,
             NopInitializer,
-            key_layout.compare_width,
+            key_layout.row_width,
             block_capacity,
         );
 
@@ -71,6 +75,7 @@ impl SortedRowCollection {
             key_blocks,
             key_heap_blocks,
             data_blocks,
+            sorted: Vec::new(),
         }
     }
 
@@ -119,7 +124,7 @@ impl SortedRowCollection {
         }
 
         // Encode sort keys that require heap blocks.
-        if self.key_layout.requires_heap() {
+        if self.key_layout.any_requires_heap() {
             let heap_keys: Vec<_> = self
                 .key_layout
                 .heap_mapping
@@ -169,6 +174,36 @@ impl SortedRowCollection {
         }
 
         Ok(())
+    }
+
+    /// Sorts all currently unsorted data that we've collected.
+    fn sort_collected(&mut self) -> Result<()> {
+        let (keys, _) = self.key_blocks.take_blocks(); // Keys should never have heap blocks.
+        let (heap_keys, heap_keys_heap) = self.key_heap_blocks.take_blocks();
+        let (data, data_heap) = self.data_blocks.take_blocks();
+
+        // Concat all fixed sized blocks into one.
+        //
+        // Note we don't concat heap blocks as we have active pointers to them
+        // in the fixed sized blocks.
+        let keys = Block::concat(&NopBufferManager, keys)?;
+        let heap_keys = Block::concat(&NopBufferManager, heap_keys)?;
+        let data = Block::concat(&NopBufferManager, data)?;
+
+        // let sorted_block = SortedBlock::sort_from_blocks(
+        //     &self.key_layout,
+        //     &self.data_layout,
+        //     keys,
+        //     heap_keys,
+        //     heap_keys_heap,
+        //     data,
+        //     data_heap,
+        // )?;
+
+        // self.sorted.push(sorted_block);
+
+        // Ok(())
+        unimplemented!()
     }
 }
 

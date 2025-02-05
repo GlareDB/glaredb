@@ -88,6 +88,20 @@ impl SortColumn {
     }
 }
 
+/// Row layout for sorting.
+///
+/// Each column is encoded where the resulting bytes can be compared directly
+/// and retain the sort properties desired (nulls first/last, asc/desc).
+///
+/// Key columns that require heap blocks (strings, nested) will an associated
+/// row layout to use in additional to prefix encoding. This avoids the need to
+/// encode entire strings or nested data in our sort blocks which means they're
+/// able to be fixed sized.
+///
+/// Each encoded row will have space at the end of a single i32. This will be
+/// the original row index for a single block prior to sorting that block. After
+/// we sort, the reordered indices then can be used to reorder the heap keys and
+/// data blocks.
 #[derive(Debug, Clone)]
 pub struct SortLayout {
     /// Columns that are part of the sort.
@@ -96,8 +110,8 @@ pub struct SortLayout {
     pub(crate) column_widths: Vec<usize>,
     /// Byte offsets within the encoded row to the start of the value.
     pub(crate) offsets: Vec<usize>,
-    /// Size in bytes for a single (inline) encoded row that can be compared.
-    pub(crate) compare_width: usize,
+    /// Size in bytes of a single row to compare.
+    pub(crate) row_width: usize,
     /// Row layout for columns that require heap blocks (varlen, nested).
     pub(crate) heap_layout: RowLayout,
     /// Mapping between columns in the sort layout to column the heap layout.
@@ -137,12 +151,13 @@ impl SortLayout {
         }
 
         let heap_layout = RowLayout::new(heap_types);
+        let row_width = offset;
 
         SortLayout {
             columns,
             column_widths,
             offsets,
-            compare_width: offset,
+            row_width,
             heap_layout,
             heap_mapping,
         }
@@ -152,13 +167,17 @@ impl SortLayout {
         self.columns.len()
     }
 
-    pub fn requires_heap(&self) -> bool {
+    pub fn any_requires_heap(&self) -> bool {
         self.heap_layout.num_columns() > 0
+    }
+
+    pub fn column_requires_heap(&self, col: usize) -> bool {
+        self.heap_mapping.contains_key(&col)
     }
 
     /// Return the buffer size needed to store some number of rows.
     pub const fn buffer_size(&self, rows: usize) -> usize {
-        self.compare_width * rows
+        self.row_width * rows
     }
 
     pub(crate) unsafe fn write_key_arrays<A, B>(
@@ -193,7 +212,7 @@ impl SortLayout {
     /// The row pointer must be a pointer to a row with the correct width
     /// according to this layout.
     unsafe fn column_buffer_mut(&self, row_ptr: *mut u8, col: usize) -> &mut [u8] {
-        let buf = std::slice::from_raw_parts_mut(row_ptr, self.compare_width);
+        let buf = std::slice::from_raw_parts_mut(row_ptr, self.row_width);
         let size = self.column_widths[col];
         let offset = self.offsets[col];
         &mut buf[offset..offset + size]

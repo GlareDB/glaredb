@@ -76,16 +76,38 @@ impl<B> Block<B>
 where
     B: BufferManager,
 {
+    /// Concats many blocks into a single block.
+    ///
+    /// This will allocate a block of the exact capacity needed, and each input
+    /// block will be written to the output block in order.
+    pub fn concat(manager: &B, blocks: Vec<Self>) -> Result<Self> {
+        let capacity: usize = blocks.iter().map(|block| block.reserved_bytes).sum();
+        let mut out_buf = TypedRawBuffer::try_with_capacity(manager, capacity)?;
+
+        let out_slice = out_buf.as_slice_mut();
+
+        let mut write_offset = 0;
+        for block in blocks {
+            let src_slice = &block.data.as_slice()[0..block.reserved_bytes];
+            let dest_slice = &mut out_slice[write_offset..write_offset + block.reserved_bytes];
+
+            dest_slice.copy_from_slice(src_slice);
+
+            write_offset += block.reserved_bytes;
+        }
+
+        Ok(Block {
+            data: out_buf,
+            reserved_bytes: capacity,
+        })
+    }
+
     pub fn try_new(manager: &B, byte_capacity: usize) -> Result<Self> {
         let data = TypedRawBuffer::try_with_capacity(manager, byte_capacity)?;
         Ok(Block {
             data,
             reserved_bytes: 0,
         })
-    }
-
-    pub fn data(&self) -> &TypedRawBuffer<u8, B> {
-        &self.data
     }
 
     pub fn as_mut_ptr(&mut self) -> *mut u8 {
@@ -106,5 +128,38 @@ where
 
     pub const fn remaing_row_capacity(&self, row_width: usize) -> usize {
         self.remaining_byte_capacity() / row_width
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
+
+    #[test]
+    fn concat_empty() {
+        let block = Block::concat(&NopBufferManager, vec![]).unwrap();
+        assert_eq!(0, block.reserved_bytes);
+        assert_eq!(0, block.data.capacity());
+    }
+
+    #[test]
+    fn concat_many() {
+        let mut blocks = Vec::new();
+        for i in 0..4 {
+            let mut block = Block::try_new(&NopBufferManager, 128).unwrap();
+            let s = &mut block.data.as_slice_mut()[0..i];
+            for b in s {
+                *b = i as u8;
+            }
+            block.reserved_bytes = i;
+            blocks.push(block);
+        }
+
+        let concat = Block::concat(&NopBufferManager, blocks).unwrap();
+        assert_eq!(6, concat.reserved_bytes);
+
+        let s = concat.data.as_slice();
+        assert_eq!(&[1, 2, 2, 3, 3, 3], s);
     }
 }

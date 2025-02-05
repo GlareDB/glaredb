@@ -272,6 +272,16 @@ where
         Ok(())
     }
 
+    /// Takes both the row and heap blocks and returns them as (row_blocks,
+    /// heap_blocks).
+    ///
+    /// This collection can continue to be used after taking the blocks.
+    pub fn take_blocks(&mut self) -> (Vec<Block<B>>, Vec<Block<B>>) {
+        let row_blocks = std::mem::take(&mut self.row_blocks);
+        let heap_blocks = std::mem::take(&mut self.heap_blocks);
+        (row_blocks, heap_blocks)
+    }
+
     /// Get a pointer to a heap block at the given byte offset.
     pub(crate) unsafe fn heap_ptr(&self, heap_idx: usize, offset: usize) -> *const u8 {
         let heap_block = &self.heap_blocks[heap_idx];

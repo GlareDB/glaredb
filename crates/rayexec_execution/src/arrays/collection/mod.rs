@@ -9,3 +9,4 @@ pub mod sort_layout;
 
 pub(crate) mod block;
 pub(crate) mod row_blocks;
+pub(crate) mod sorted_block;
