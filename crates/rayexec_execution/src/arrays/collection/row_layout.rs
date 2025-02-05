@@ -612,9 +612,15 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
-    use crate::arrays::collection::block::RowLayoutBlockInitializer;
     use crate::arrays::collection::row_blocks::RowBlocks;
     use crate::arrays::testutil::assert_arrays_eq;
+
+    #[test]
+    fn new_empty() {
+        let layout = RowLayout::new([]);
+        assert_eq!(0, layout.num_columns());
+        assert_eq!(0, layout.row_width);
+    }
 
     #[test]
     fn buffer_size_i32() {

@@ -1,12 +1,37 @@
-use std::collections::HashMap;
+use std::borrow::Borrow;
+use std::collections::BTreeMap;
 
 use half::f16;
 use rayexec_error::Result;
 
+use super::row_blocks::BlockAppendState;
 use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
-use crate::arrays::array::physical_type::{Addressable, PhysicalType, ScalarStorage, UntypedNull};
+use crate::arrays::array::physical_type::{
+    Addressable,
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI128,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI8,
+    PhysicalInterval,
+    PhysicalType,
+    PhysicalU128,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU8,
+    PhysicalUntypedNull,
+    ScalarStorage,
+    UntypedNull,
+};
+use crate::arrays::array::Array;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
 
@@ -78,7 +103,10 @@ pub struct SortLayout {
     /// Mapping between columns in the sort layout to column the heap layout.
     ///
     /// Empty if there are no columns in this layout that require heap blocks.
-    pub(crate) heap_mapping: HashMap<usize, usize>,
+    ///
+    /// BTreeMap as we want to iterate this in order when pulling out keys that
+    /// require heap blocks when appending.
+    pub(crate) heap_mapping: BTreeMap<usize, usize>,
 }
 
 impl SortLayout {
@@ -86,7 +114,7 @@ impl SortLayout {
         let columns: Vec<_> = columns.into_iter().collect();
 
         let mut heap_types = Vec::new();
-        let mut heap_mapping = HashMap::new();
+        let mut heap_mapping = BTreeMap::new();
 
         let mut offset = 0;
         let mut offsets = Vec::with_capacity(columns.len());
@@ -133,6 +161,31 @@ impl SortLayout {
         self.compare_width * rows
     }
 
+    pub(crate) unsafe fn write_key_arrays<A, B>(
+        &self,
+        state: &mut BlockAppendState,
+        arrays: &[A],
+        num_rows: usize,
+    ) -> Result<()>
+    where
+        A: Borrow<Array<B>>,
+        B: BufferManager,
+    {
+        for (array_idx, array) in arrays.iter().enumerate() {
+            let array = array.borrow().flatten()?;
+            write_key_array(
+                self,
+                array.physical_type(),
+                array_idx,
+                array,
+                &state.row_pointers,
+                num_rows,
+            )?;
+        }
+
+        Ok(())
+    }
+
     /// Get a mutable buffer of the exact size for a column in a row.
     ///
     /// # Safety
@@ -173,6 +226,70 @@ const fn key_width_for_physical_type(phys_type: PhysicalType) -> usize {
 
     // Include 1 for the validity byte at the start.
     val_width + 1
+}
+
+unsafe fn write_key_array<B>(
+    layout: &SortLayout,
+    phys_type: PhysicalType,
+    array_idx: usize,
+    array: FlattenedArray<B>,
+    row_pointers: &[*mut u8],
+    num_rows: usize,
+) -> Result<()>
+where
+    B: BufferManager,
+{
+    match phys_type {
+        PhysicalType::UntypedNull => {
+            write_scalar::<PhysicalUntypedNull, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::Boolean => {
+            write_scalar::<PhysicalBool, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::Int8 => {
+            write_scalar::<PhysicalI8, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::Int16 => {
+            write_scalar::<PhysicalI16, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::Int32 => {
+            write_scalar::<PhysicalI32, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::Int64 => {
+            write_scalar::<PhysicalI64, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::Int128 => {
+            write_scalar::<PhysicalI128, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::UInt8 => {
+            write_scalar::<PhysicalU8, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::UInt16 => {
+            write_scalar::<PhysicalU16, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::UInt32 => {
+            write_scalar::<PhysicalU32, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::UInt64 => {
+            write_scalar::<PhysicalU64, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::UInt128 => {
+            write_scalar::<PhysicalU128, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::Float16 => {
+            write_scalar::<PhysicalF16, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::Float32 => {
+            write_scalar::<PhysicalF32, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::Float64 => {
+            write_scalar::<PhysicalF64, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        PhysicalType::Interval => {
+            write_scalar::<PhysicalInterval, B>(layout, array_idx, array, row_pointers, num_rows)
+        }
+        _ => unimplemented!(),
+    }
 }
 
 unsafe fn write_scalar<S, B>(
