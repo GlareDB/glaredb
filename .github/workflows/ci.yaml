@@ -241,7 +241,8 @@ jobs:
 
       - name: Upload to Coveralls
         uses: coverallsapp/github-action@v2
-        file: lcov.info
+        with:
+          file: lcov.info
 
   wasm:
     name: Build wasm
