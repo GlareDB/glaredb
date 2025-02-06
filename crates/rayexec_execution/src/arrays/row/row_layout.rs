@@ -149,7 +149,11 @@ impl RowLayout {
                         if array.validity.is_valid(row) {
                             let sel = array.selection.get(row).unwrap();
                             let view = data.metadata[sel];
-                            sizes[row] += view.data_len() as usize;
+                            if !view.is_inline() {
+                                // Only increase size if we actually need to
+                                // write to a heap block.
+                                sizes[row] += view.data_len() as usize;
+                            }
                         }
                     }
                 }
@@ -652,6 +656,46 @@ mod tests {
         assert_eq!((9 * 4 + 2) * 1, layout.buffer_size(1));
         assert_eq!((9 * 4 + 2) * 2, layout.buffer_size(2));
         assert_eq!((9 * 4 + 2) * 3, layout.buffer_size(3));
+    }
+
+    #[test]
+    fn compute_heap_size_for_fixed_size() {
+        let layout = RowLayout::new([DataType::Int32]);
+        let arr = Array::try_from_iter([1, 2, 3]).unwrap();
+        let mut heap_sizes = vec![1, 2, 3]; // Start with dummy data to ensure it gets zeroed out.
+
+        layout
+            .compute_heap_sizes(&[arr], 3, &mut heap_sizes)
+            .unwrap();
+
+        assert_eq!(&[0, 0, 0], heap_sizes.as_slice());
+    }
+
+    #[test]
+    fn compute_heap_size_all_inlineable_strings() {
+        let layout = RowLayout::new([DataType::Int32]);
+        let arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        let mut heap_sizes = vec![1, 2, 3]; // Start with dummy data to ensure it gets zeroed out.
+
+        layout
+            .compute_heap_sizes(&[arr], 3, &mut heap_sizes)
+            .unwrap();
+
+        assert_eq!(&[0, 0, 0], heap_sizes.as_slice());
+    }
+
+    #[test]
+    fn compute_heap_size_all_heap_strings() {
+        let layout = RowLayout::new([DataType::Int32]);
+        let arr =
+            Array::try_from_iter(["aaaaaaaaaaaaa", "bbbbbbbbbbbbbb", "ccccccccccccccc"]).unwrap();
+        let mut heap_sizes = vec![1, 2, 3]; // Start with dummy data to ensure it gets zeroed out.
+
+        layout
+            .compute_heap_sizes(&[arr], 3, &mut heap_sizes)
+            .unwrap();
+
+        assert_eq!(&[13, 14, 15], heap_sizes.as_slice());
     }
 
     /// Assert that we can write a single array and read it back.

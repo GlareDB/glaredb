@@ -52,6 +52,12 @@ pub struct BlockReadState {
 }
 
 impl BlockReadState {
+    pub const fn empty() -> Self {
+        BlockReadState {
+            row_pointers: Vec::new(),
+        }
+    }
+
     /// Clear all pointers from this state.
     pub fn clear(&mut self) {
         self.row_pointers.clear();
@@ -151,12 +157,11 @@ where
         selection: impl IntoIterator<Item = usize>,
     ) -> Result<()> {
         let block = &self.row_blocks[row_block_idx];
+        let block_ptr = block.as_ptr();
 
         for sel_idx in selection {
             debug_assert!(sel_idx < block.num_rows(self.row_width));
-
-            let ptr = block.as_ptr();
-            let ptr = unsafe { ptr.byte_add(self.row_width * sel_idx) };
+            let ptr = unsafe { block_ptr.byte_add(self.row_width * sel_idx) };
             debug_assert!(block.data.raw.contains_addr(ptr.addr()));
 
             state.row_pointers.push(ptr)
@@ -249,20 +254,30 @@ where
             let heap_idx = self.heap_blocks.len() - 1;
             let block = self.heap_blocks.last_mut().expect("heap block to exist");
 
+            let block_ptr = block.as_mut_ptr();
             // Create pointer locations.
             let mut offset = 0;
             for &heap_size in heap_sizes {
-                let ptr = block.as_mut_ptr();
                 // SAFETEY: We should have allocated the exact size needed for
                 // the heap block. Everything should be contained within that
                 // block.
-                let ptr = unsafe { ptr.byte_add(offset) };
+                let ptr = unsafe { block_ptr.byte_add(offset) };
                 state.heap_pointers.push(HeapMutPtr {
                     ptr,
                     heap_idx,
                     offset,
                 });
-                debug_assert!(block.data.raw.contains_addr(ptr.addr()));
+                // Assert that this block contains the computed pointer. Note
+                // that for 0-sized heap requirements, the 'contains' check may
+                // fail since it may point to the end of the allocation (which
+                // is fine, we're not writing to it in that case). The 0 check
+                // just catches this.
+                debug_assert!(
+                    heap_size == 0 || block.data.raw.contains_addr(ptr.addr()),
+                    "ptr: {}, block: {}",
+                    ptr.addr(),
+                    block_ptr.addr(),
+                );
                 block.reserved_bytes += heap_size;
 
                 offset += heap_size;

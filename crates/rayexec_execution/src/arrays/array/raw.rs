@@ -280,6 +280,8 @@ where
     ///
     /// This should only be used for verifying pointer arithmetic and not be
     /// part of any core logic.
+    ///
+    /// Note this will fail for any address if this buffer is zero sized.
     #[allow(unused)]
     pub fn contains_addr(&self, addr: usize) -> bool {
         let min = self.as_ptr().addr();

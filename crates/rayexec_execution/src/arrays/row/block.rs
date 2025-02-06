@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use rayexec_error::Result;
 
+use super::row_blocks::BlockReadState;
 use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::raw::TypedRawBuffer;

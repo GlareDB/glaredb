@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use rayexec_error::Result;
 
 use super::sort_layout::SortLayout;
@@ -109,13 +111,16 @@ impl SortedRowCollection {
         }
     }
 
-    pub fn append_unsorted_keys_and_data(
+    pub fn append_unsorted_keys_and_data<A>(
         &mut self,
         state: &mut SortedRowAppendState,
-        keys: &[Array],
-        data: &[Array],
+        keys: &[A],
+        data: &[A],
         count: usize,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        A: Borrow<Array>,
+    {
         debug_assert_eq!(keys.len(), self.key_layout.columns.len());
         debug_assert_eq!(data.len(), self.data_layout.num_columns());
 
@@ -135,7 +140,7 @@ impl SortedRowCollection {
                 .key_layout
                 .heap_mapping
                 .keys()
-                .map(|&idx| &keys[idx])
+                .map(|&idx| keys[idx].borrow())
                 .collect();
 
             // Compute heap sizes needed.
@@ -164,6 +169,7 @@ impl SortedRowCollection {
 
         // Now encode data not part of the key.
         if self.data_layout.num_columns() > 0 {
+            // TODO: Only compute heap sizes if heap is actually needed.
             state.heap_sizes.resize(count, 0);
             self.data_layout
                 .compute_heap_sizes(&data, count, &mut state.heap_sizes)?;
@@ -219,29 +225,84 @@ mod tests {
 
     use super::*;
     use crate::arrays::datatype::DataType;
+    use crate::arrays::row::row_blocks::BlockReadState;
     use crate::arrays::sort::sort_layout::SortColumn;
+    use crate::arrays::testutil::assert_arrays_eq;
+
+    /// Helper for asserting that key/data inputs sort correctly with the
+    /// resulting data matching `expected`.
+    ///
+    /// This will create sorted row collection with a capacity for 16 for each
+    /// block. The keys/data will immediately be inserted then sorted. We assume
+    /// this produces a single sorted block, and scan the data from that to use
+    /// in the assertions.
+    fn assert_sort_as_expected<A>(
+        key_layout: SortLayout,
+        data_layout: RowLayout,
+        keys: &[A],
+        data: &[A],
+        expected_sort_data: &[Array],
+    ) where
+        A: Borrow<Array>,
+    {
+        let mut collection = SortedRowCollection::new(key_layout, data_layout, 16);
+        let row_count = keys.first().unwrap().borrow().capacity();
+        assert!(row_count <= 16); // For testing purposes.
+
+        let mut state = collection.init_append_state();
+        collection
+            .append_unsorted_keys_and_data(&mut state, keys, data, row_count)
+            .unwrap();
+
+        assert_eq!(row_count, collection.unsorted_row_count());
+        assert_eq!(0, collection.sorted_row_count());
+
+        collection.sort_unsorted().unwrap();
+        assert_eq!(0, collection.unsorted_row_count());
+        assert_eq!(row_count, collection.sorted_row_count());
+
+        assert_eq!(1, collection.sorted.len());
+
+        let mut read_state = BlockReadState::empty();
+        unsafe {
+            collection.sorted[0]
+                .prepare_data_read(&mut read_state, &collection.data_layout, 0..row_count)
+                .unwrap();
+        }
+
+        let mut arrays = collection
+            .data_layout
+            .types
+            .iter()
+            .map(|datatype| Array::try_new(&NopBufferManager, datatype.clone(), row_count))
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+
+        unsafe {
+            collection
+                .data_layout
+                .read_arrays(&read_state, arrays.iter_mut().enumerate(), 0)
+                .unwrap();
+        }
+
+        assert_eq!(expected_sort_data.len(), arrays.len());
+        for (expected, got) in expected_sort_data.iter().zip(&arrays) {
+            assert_arrays_eq(expected, got);
+        }
+    }
 
     #[test]
-    fn append_single_key_column() {
+    fn sort_single_key_i32_already_sorted() {
         let key_layout = SortLayout::new([SortColumn {
             desc: false,
             nulls_first: false,
             datatype: DataType::Int32,
         }]);
-        let data_layout = RowLayout::new([]);
-        let mut collection = SortedRowCollection::new(key_layout, data_layout, 16);
+        let data_layout = RowLayout::new([DataType::Int32]);
 
-        let mut state = collection.init_append_state();
         let keys = Array::try_from_iter([1, 2, 3]).unwrap();
-        collection
-            .append_unsorted_keys_and_data(&mut state, &[keys], &[], 3)
-            .unwrap();
+        let expected = Array::try_from_iter([1, 2, 3]).unwrap();
 
-        assert_eq!(3, collection.unsorted_row_count());
-        assert_eq!(0, collection.sorted_row_count());
-
-        collection.sort_unsorted().unwrap();
-        assert_eq!(0, collection.unsorted_row_count());
-        assert_eq!(3, collection.sorted_row_count());
+        assert_sort_as_expected(key_layout, data_layout, &[&keys], &[&keys], &[expected]);
     }
 }
