@@ -6,6 +6,7 @@ use super::row_layout::RowLayout;
 use super::sort_layout::SortLayout;
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::collection::block::Block;
 use crate::arrays::collection::sorted_block::SortedBlock;
 
@@ -81,6 +82,13 @@ impl SortedRowCollection {
 
     pub fn unsorted_row_count(&self) -> usize {
         self.key_blocks.reserved_row_count()
+    }
+
+    pub fn sorted_row_count(&self) -> usize {
+        self.sorted
+            .iter()
+            .map(|block| block.keys.num_rows(self.key_layout.row_width))
+            .sum()
     }
 
     pub fn init_append_state(&self) -> SortedRowAppendState {
@@ -177,7 +185,7 @@ impl SortedRowCollection {
     }
 
     /// Sorts all currently unsorted data that we've collected.
-    fn sort_collected(&mut self) -> Result<()> {
+    pub fn sort_unsorted(&mut self) -> Result<()> {
         let (keys, _) = self.key_blocks.take_blocks(); // Keys should never have heap blocks.
         let (heap_keys, heap_keys_heap) = self.key_heap_blocks.take_blocks();
         let (data, data_heap) = self.data_blocks.take_blocks();
@@ -190,20 +198,20 @@ impl SortedRowCollection {
         let heap_keys = Block::concat(&NopBufferManager, heap_keys)?;
         let data = Block::concat(&NopBufferManager, data)?;
 
-        // let sorted_block = SortedBlock::sort_from_blocks(
-        //     &self.key_layout,
-        //     &self.data_layout,
-        //     keys,
-        //     heap_keys,
-        //     heap_keys_heap,
-        //     data,
-        //     data_heap,
-        // )?;
+        let sorted_block = SortedBlock::sort_from_blocks(
+            &NopBufferManager,
+            &self.key_layout,
+            &self.data_layout,
+            keys,
+            heap_keys,
+            heap_keys_heap,
+            data,
+            data_heap,
+        )?;
 
-        // self.sorted.push(sorted_block);
+        self.sorted.push(sorted_block);
 
-        // Ok(())
-        unimplemented!()
+        Ok(())
     }
 }
 
@@ -232,5 +240,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(3, collection.unsorted_row_count());
+        assert_eq!(0, collection.sorted_row_count());
+
+        collection.sort_unsorted().unwrap();
+        assert_eq!(0, collection.unsorted_row_count());
+        assert_eq!(3, collection.sorted_row_count());
     }
 }

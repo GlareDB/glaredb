@@ -98,7 +98,7 @@ impl SortColumn {
 /// encode entire strings or nested data in our sort blocks which means they're
 /// able to be fixed sized.
 ///
-/// Each encoded row will have space at the end of a single i32. This will be
+/// Each encoded row will have space at the end of a single u32. This will be
 /// the original row index for a single block prior to sorting that block. After
 /// we sort, the reordered indices then can be used to reorder the heap keys and
 /// data blocks.
@@ -110,7 +110,9 @@ pub struct SortLayout {
     pub(crate) column_widths: Vec<usize>,
     /// Byte offsets within the encoded row to the start of the value.
     pub(crate) offsets: Vec<usize>,
-    /// Size in bytes of a single row to compare.
+    /// Size in bytes of the portion of the row to compare.
+    pub(crate) compare_width: usize,
+    /// Size in bytes of a single row.
     pub(crate) row_width: usize,
     /// Row layout for columns that require heap blocks (varlen, nested).
     pub(crate) heap_layout: RowLayout,
@@ -124,6 +126,8 @@ pub struct SortLayout {
 }
 
 impl SortLayout {
+    pub const ROW_INDEX_WIDTH: usize = std::mem::size_of::<u32>();
+
     pub fn new(columns: impl IntoIterator<Item = SortColumn>) -> Self {
         let columns: Vec<_> = columns.into_iter().collect();
 
@@ -151,12 +155,14 @@ impl SortLayout {
         }
 
         let heap_layout = RowLayout::new(heap_types);
-        let row_width = offset;
+        let compare_width = offset;
+        let row_width = compare_width + Self::ROW_INDEX_WIDTH;
 
         SortLayout {
             columns,
             column_widths,
             offsets,
+            compare_width,
             row_width,
             heap_layout,
             heap_mapping,
@@ -216,6 +222,17 @@ impl SortLayout {
         let size = self.column_widths[col];
         let offset = self.offsets[col];
         &mut buf[offset..offset + size]
+    }
+
+    /// Get a mut ptr to the row index for a row.
+    ///
+    /// The returned pointer is **not** guaranteed to be aligned.
+    ///
+    /// # Safetey
+    ///
+    /// ...
+    pub(crate) unsafe fn row_index_mut_ptr(&self, row_ptr: *mut u8) -> *mut u32 {
+        row_ptr.byte_add(self.compare_width).cast()
     }
 }
 

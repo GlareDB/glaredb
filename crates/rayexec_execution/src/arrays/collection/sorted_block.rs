@@ -1,26 +1,27 @@
 use rayexec_error::{RayexecError, Result};
+use stdutil::iter::IntoExactSizeIterator;
 
 use super::block::Block;
 use super::row_layout::RowLayout;
 use super::sort_layout::SortLayout;
-use crate::arrays::array::buffer_manager::{BufferManager, NopBufferManager};
+use crate::arrays::array::buffer_manager::BufferManager;
 
 #[derive(Debug)]
 pub struct SortedBlock<B: BufferManager> {
     /// All sort keys in this block.
     ///
     /// Encoded using a sort layout.
-    keys: Block<B>,
+    pub(crate) keys: Block<B>,
     /// Keys that also require the heap.
     ///
     /// Encoded using a row layout.
-    heap_keys: Block<B>,
+    pub(crate) heap_keys: Block<B>,
     /// Heap blocks for `heap_keys`.
-    heap_keys_heap: Vec<Block<B>>,
+    pub(crate) heap_keys_heap: Vec<Block<B>>,
     /// Data not part of the sort keys.
-    data: Block<B>,
+    pub(crate) data: Block<B>,
     /// Heap blocks for data.
-    data_heap: Vec<Block<B>>,
+    pub(crate) data_heap: Vec<Block<B>>,
 }
 
 impl<B> SortedBlock<B>
@@ -31,7 +32,7 @@ where
         manager: &B,
         key_layout: &SortLayout,
         data_layout: &RowLayout,
-        keys: Block<B>,
+        mut keys: Block<B>,
         heap_keys: Block<B>,
         heap_keys_heap: Vec<Block<B>>,
         data: Block<B>,
@@ -45,14 +46,24 @@ where
             return Err(RayexecError::new("Cannot sort zero rows"));
         }
 
-        let mut sort_indices: Vec<_> = (0..num_rows).collect();
-        let mut sort_width = 0;
+        // Write row index to each row.
+        let keys_ptr = keys.as_mut_ptr();
+        for row_idx in 0..num_rows {
+            unsafe {
+                let row_idx_ptr = keys_ptr
+                    .byte_add(key_layout.row_width * row_idx + key_layout.compare_width)
+                    .cast::<u32>();
+                row_idx_ptr.write_unaligned(row_idx as u32);
+            }
+        }
 
+        let mut sort_width = 0;
         let mut first_sort = true;
         // Indicate if row at index 'i' is tied with row at index 'i+1'.
         let mut tied_with_next = vec![true; num_rows - 1];
 
-        let mut out_keys = Block::try_new(manager, keys.reserved_bytes);
+        let mut sorted_keys = Block::try_new(manager, keys.reserved_bytes)?;
+        sorted_keys.reserved_bytes = keys.reserved_bytes;
 
         for col_idx in 0..key_layout.num_columns() {
             sort_width += key_layout.column_widths[col_idx];
@@ -60,11 +71,12 @@ where
             // Continue to add to sort width while we haven't reached a column
             // that requires us to look at the heap. This just lets us do fewere
             // comparisons.
-            if col_idx <= key_layout.num_columns() - 1 && key_layout.column_requires_heap(col_idx) {
+            if col_idx < key_layout.num_columns() - 1 && !key_layout.column_requires_heap(col_idx) {
                 continue;
             }
 
             if first_sort {
+                let mut sort_indices: Vec<_> = (0..num_rows).collect();
                 let keys_ptr = keys.as_ptr();
 
                 sort_indices.sort_unstable_by(|&a, &b| {
@@ -81,31 +93,74 @@ where
                     };
                     a.cmp(b)
                 });
-
                 first_sort = false;
+
+                // Apply first sort pass, writing to sorted keys block.
+                apply_sort_indices(&keys, &mut sorted_keys, sort_indices, row_width);
+
+                // All columns sorted and none require checking the heap, we're
+                // done after the first sort.
+                if col_idx == key_layout.num_columns() - 1
+                    && !key_layout.column_requires_heap(col_idx)
+                {
+                    break;
+                }
             } else {
             }
+
+            unimplemented!()
         }
 
-        unimplemented!()
+        // Reorder heap keys and data according to the sorted keys.
+        //
+        // Note this doesn't reorder heap blocks as we have active pointers to
+        // those from the row blocks.
+        let mut sorted_heap_keys = Block::try_new(manager, heap_keys.reserved_bytes)?;
+        if key_layout.any_requires_heap() {
+            sorted_heap_keys.reserved_bytes = heap_keys.reserved_bytes;
+            let row_idx_iter = BlockRowIndexIter::new(&key_layout, &sorted_keys, num_rows);
+            apply_sort_indices(
+                &heap_keys,
+                &mut sorted_heap_keys,
+                row_idx_iter,
+                key_layout.heap_layout.row_width,
+            );
+        }
+
+        let mut sorted_data = Block::try_new(manager, data.reserved_bytes)?;
+        if data_layout.num_columns() > 0 {
+            sorted_data.reserved_bytes = data.reserved_bytes;
+            let row_idx_iter = BlockRowIndexIter::new(&key_layout, &sorted_keys, num_rows);
+            apply_sort_indices(&data, &mut sorted_data, row_idx_iter, data_layout.row_width);
+        }
+
+        Ok(SortedBlock {
+            keys: sorted_keys,
+            heap_keys: sorted_heap_keys,
+            heap_keys_heap,
+            data: sorted_data,
+            data_heap,
+        })
     }
 }
 
 fn apply_sort_indices<B>(
-    src: &mut Block<B>,
+    src: &Block<B>,
     dest: &mut Block<B>,
-    indices: &[usize],
+    indices: impl IntoExactSizeIterator<Item = usize>,
     row_width: usize,
 ) where
     B: BufferManager,
 {
+    let indices = indices.into_exact_size_iter();
+
     debug_assert_eq!(src.data.capacity(), indices.len() * row_width);
     debug_assert_eq!(dest.data.capacity(), indices.len() * row_width);
 
     let src_ptr = src.as_ptr();
     let dest_ptr = dest.as_mut_ptr();
 
-    for (dest_idx, &src_idx) in indices.iter().enumerate() {
+    for (dest_idx, src_idx) in indices.enumerate() {
         unsafe {
             let src_ptr = src_ptr.byte_add(row_width * src_idx);
             let dest_ptr = dest_ptr.byte_add(row_width * dest_idx);
@@ -113,3 +168,58 @@ fn apply_sort_indices<B>(
         }
     }
 }
+
+/// Iterator over a block conforming to a sort layout for producing the row
+/// indexes from the block.
+///
+/// Key blocks contain a row index at the end of each row. When we sort the key
+/// blocks, those row indexes are included in the data that's moved. This iterator
+/// serves to iterate over those reordered indices.
+#[derive(Debug)]
+struct BlockRowIndexIter<'a> {
+    block_ptr: *const u8,
+    count: usize,
+    curr: usize,
+    layout: &'a SortLayout,
+}
+
+impl<'a> BlockRowIndexIter<'a> {
+    fn new<B>(layout: &'a SortLayout, block: &Block<B>, count: usize) -> Self
+    where
+        B: BufferManager,
+    {
+        BlockRowIndexIter {
+            block_ptr: block.as_ptr(),
+            count,
+            curr: 0,
+            layout,
+        }
+    }
+}
+
+impl<'a> Iterator for BlockRowIndexIter<'a> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.curr >= self.count {
+            return None;
+        }
+
+        let val = unsafe {
+            self.block_ptr
+                .byte_add(self.layout.row_width * self.curr + self.layout.compare_width)
+                .cast::<u32>()
+                .read_unaligned() as usize
+        };
+        self.curr += 1;
+
+        Some(val)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let rem = self.count - self.curr;
+        (rem, Some(rem))
+    }
+}
+
+impl<'a> ExactSizeIterator for BlockRowIndexIter<'a> {}
