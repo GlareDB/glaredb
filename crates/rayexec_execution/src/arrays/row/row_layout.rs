@@ -612,7 +612,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
-    use crate::arrays::collection::row_blocks::RowBlocks;
+    use crate::arrays::row::row_blocks::RowBlocks;
     use crate::arrays::testutil::assert_arrays_eq;
 
     #[test]

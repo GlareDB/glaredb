@@ -9,12 +9,12 @@ use crate::arrays::array::raw::TypedRawBuffer;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::collection::row::{RowAppendState, RowCollection};
-use crate::arrays::collection::row_blocks::BlockReadState;
-use crate::arrays::collection::row_layout::RowLayout;
-use crate::arrays::collection::row_matcher::PredicateRowMatcher;
 use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
+use crate::arrays::row::row_blocks::BlockReadState;
+use crate::arrays::row::row_collection::{RowAppendState, RowCollection};
+use crate::arrays::row::row_layout::RowLayout;
+use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::logical_join::JoinType;
 

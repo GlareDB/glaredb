@@ -4,8 +4,8 @@ use super::join_hash_table::JoinHashTable;
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::collection::row_blocks::BlockReadState;
-use crate::arrays::collection::row_matcher::MatchState;
+use crate::arrays::row::row_blocks::BlockReadState;
+use crate::arrays::row::row_matcher::MatchState;
 use crate::logical::logical_join::JoinType;
 
 // TODO:

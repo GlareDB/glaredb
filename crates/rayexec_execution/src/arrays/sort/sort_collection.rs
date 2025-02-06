@@ -1,14 +1,12 @@
 use rayexec_error::Result;
 
-use super::block::{NopInitializer, RowLayoutBlockInitializer};
-use super::row_blocks::{BlockAppendState, RowBlocks};
-use super::row_layout::RowLayout;
 use super::sort_layout::SortLayout;
+use super::sorted_block::SortedBlock;
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
-use crate::arrays::collection::block::Block;
-use crate::arrays::collection::sorted_block::SortedBlock;
+use crate::arrays::row::block::{Block, NopInitializer, RowLayoutBlockInitializer};
+use crate::arrays::row::row_blocks::{BlockAppendState, RowBlocks};
+use crate::arrays::row::row_layout::RowLayout;
 
 #[derive(Debug)]
 pub struct SortedRowAppendState {
@@ -220,8 +218,8 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::collection::sort_layout::SortColumn;
     use crate::arrays::datatype::DataType;
+    use crate::arrays::sort::sort_layout::SortColumn;
 
     #[test]
     fn append_single_key_column() {

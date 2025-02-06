@@ -4,8 +4,6 @@ use std::collections::BTreeMap;
 use half::f16;
 use rayexec_error::Result;
 
-use super::row_blocks::BlockAppendState;
-use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
@@ -33,6 +31,8 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::array::Array;
 use crate::arrays::datatype::DataType;
+use crate::arrays::row::row_blocks::BlockAppendState;
+use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::scalar::interval::Interval;
 
 /// Configuration for how to encode a column for sorting.

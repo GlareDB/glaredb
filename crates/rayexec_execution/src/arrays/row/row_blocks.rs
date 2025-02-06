@@ -295,7 +295,6 @@ where
 mod tests {
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
-    use crate::arrays::collection::row_layout::RowLayout;
     use crate::arrays::datatype::DataType;
 
     #[test]
