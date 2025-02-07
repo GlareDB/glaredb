@@ -35,6 +35,6 @@ getrandom = { version = "0.2", features = ["js"] }
 tokio = { workspace = true, default-features = false, features = [ "rt" ] } # TODO: Remove tokio from runtime interface
 console_error_panic_hook = "0.1.7"
 url = { workspace = true }
-bytes = { version = "1.1", default-features = false, features = ["std"] }
+bytes = { version = "1.10", default-features = false, features = ["std"] }
 reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls", "stream"] }
 once_cell = { workspace = true }
