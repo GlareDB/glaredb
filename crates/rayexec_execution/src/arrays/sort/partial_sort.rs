@@ -26,9 +26,14 @@ pub struct SortedRowAppendState {
     heap_sizes: Vec<usize>,
 }
 
+/// A collection of partially sorted rows.
+///
+/// As rows are appended, they get incrementally sorted such that a "block" in
+/// the collection is sorted, but blocks are not totally sorted amongst
+/// themselves.
 // TODO: Chunky (608 bytes)
 #[derive(Debug)]
-pub struct SortedRowCollection {
+pub struct PartialSortedRowCollection {
     /// Layout for the sorting keys.
     key_layout: SortLayout,
     /// layout for data that's not part of the sorting key.
@@ -52,7 +57,7 @@ pub struct SortedRowCollection {
     sorted: Vec<SortedBlock<NopBufferManager>>,
 }
 
-impl SortedRowCollection {
+impl PartialSortedRowCollection {
     pub fn new(key_layout: SortLayout, data_layout: RowLayout, block_capacity: usize) -> Self {
         let key_blocks = RowBlocks::new(
             NopBufferManager,
@@ -70,7 +75,7 @@ impl SortedRowCollection {
         let data_blocks =
             RowBlocks::new_using_row_layout(NopBufferManager, data_layout.clone(), block_capacity);
 
-        SortedRowCollection {
+        PartialSortedRowCollection {
             key_layout,
             data_layout,
             key_blocks,
@@ -245,7 +250,7 @@ mod tests {
     ) where
         A: Borrow<Array>,
     {
-        let mut collection = SortedRowCollection::new(key_layout, data_layout, 16);
+        let mut collection = PartialSortedRowCollection::new(key_layout, data_layout, 16);
         let row_count = keys.first().unwrap().borrow().capacity();
         assert!(row_count <= 16); // For testing purposes.
 
@@ -304,5 +309,81 @@ mod tests {
         let expected = Array::try_from_iter([1, 2, 3]).unwrap();
 
         assert_sort_as_expected(key_layout, data_layout, &[&keys], &[&keys], &[expected]);
+    }
+
+    #[test]
+    fn sort_single_key_i32() {
+        let key_layout = SortLayout::new([SortColumn {
+            desc: false,
+            nulls_first: false,
+            datatype: DataType::Int32,
+        }]);
+        let data_layout = RowLayout::new([DataType::Int32]);
+
+        let keys = Array::try_from_iter([2, 3, 1]).unwrap();
+        let expected = Array::try_from_iter([1, 2, 3]).unwrap();
+
+        assert_sort_as_expected(key_layout, data_layout, &[&keys], &[&keys], &[expected]);
+    }
+
+    #[test]
+    fn sort_multiple_keys_with_ties_i32() {
+        // Tie on fixed length column.
+
+        let key_layout = SortLayout::new([
+            SortColumn {
+                desc: false,
+                nulls_first: false,
+                datatype: DataType::Int32,
+            },
+            SortColumn {
+                desc: false,
+                nulls_first: false,
+                datatype: DataType::Int32,
+            },
+        ]);
+        let data_layout = RowLayout::new([DataType::Int32, DataType::Int32]);
+
+        let keys = [
+            Array::try_from_iter([2, 2, 1]).unwrap(),
+            Array::try_from_iter([6, 5, 4]).unwrap(),
+        ];
+        let expected = [
+            Array::try_from_iter([1, 2, 2]).unwrap(),
+            Array::try_from_iter([4, 5, 6]).unwrap(),
+        ];
+
+        assert_sort_as_expected(key_layout, data_layout, &keys, &keys, &expected);
+    }
+
+    #[test]
+    fn sort_multiple_keys_with_ties_desc_i32() {
+        // Tie on fixed length column, descending on tied column, asc on second
+        // column.
+
+        let key_layout = SortLayout::new([
+            SortColumn {
+                desc: true,
+                nulls_first: false,
+                datatype: DataType::Int32,
+            },
+            SortColumn {
+                desc: false,
+                nulls_first: false,
+                datatype: DataType::Int32,
+            },
+        ]);
+        let data_layout = RowLayout::new([DataType::Int32, DataType::Int32]);
+
+        let keys = [
+            Array::try_from_iter([2, 2, 1]).unwrap(),
+            Array::try_from_iter([6, 5, 4]).unwrap(),
+        ];
+        let expected = [
+            Array::try_from_iter([2, 2, 1]).unwrap(),
+            Array::try_from_iter([5, 6, 4]).unwrap(), // Second column still ascending within tied rows.
+        ];
+
+        assert_sort_as_expected(key_layout, data_layout, &keys, &keys, &expected);
     }
 }

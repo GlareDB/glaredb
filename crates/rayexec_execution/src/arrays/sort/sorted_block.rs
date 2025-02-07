@@ -7,6 +7,7 @@ use crate::arrays::row::block::Block;
 use crate::arrays::row::row_blocks::BlockReadState;
 use crate::arrays::row::row_layout::RowLayout;
 
+/// Contains a single block with all keys in sorted order.
 #[derive(Debug)]
 pub struct SortedBlock<B: BufferManager> {
     /// All sort keys in this block.
