@@ -4,7 +4,8 @@ use std::collections::VecDeque;
 use rayexec_error::{RayexecError, Result};
 
 use super::block::RowLayoutBlockInitializer;
-use super::row_blocks::{BlockAppendState, BlockReadState, RowBlocks};
+use super::block_scanner::BlockScanState;
+use super::row_blocks::{BlockAppendState, RowBlocks};
 use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
@@ -44,7 +45,7 @@ pub struct RowScanState {
     /// Row index of the most recent row scanned within the block.
     row_idx: usize,
     /// State containing the pointers for the most recent scan.
-    block_read: BlockReadState,
+    block_read: BlockScanState,
 }
 
 impl RowScanState {
@@ -76,6 +77,10 @@ impl RowCollection {
     /// Gets a reference to the underlying blocks backing this row collection.
     pub fn blocks(&self) -> &RowBlocks<NopBufferManager, RowLayoutBlockInitializer> {
         &self.blocks
+    }
+
+    pub fn blocks_mut(&mut self) -> &mut RowBlocks<NopBufferManager, RowLayoutBlockInitializer> {
+        &mut self.blocks
     }
 
     pub fn row_count(&self) -> usize {
@@ -162,7 +167,7 @@ impl RowCollection {
             blocks_to_scan,
             current_block: None,
             row_idx: 0,
-            block_read: BlockReadState {
+            block_read: BlockScanState {
                 row_pointers: Vec::new(),
             },
         }
@@ -231,7 +236,6 @@ impl RowCollection {
             }
 
             let scan_count = usize::min(remaining_cap, num_rows - state.row_idx);
-            state.block_read.clear();
             self.blocks.prepare_read(
                 &mut state.block_read,
                 current_block,
@@ -257,7 +261,7 @@ impl RowCollection {
 
     pub(crate) unsafe fn scan_raw<'a, A>(
         &self,
-        state: &BlockReadState,
+        state: &BlockScanState,
         arrays: impl IntoIterator<Item = (usize, &'a mut A)>,
         write_offset: usize,
     ) -> Result<()>

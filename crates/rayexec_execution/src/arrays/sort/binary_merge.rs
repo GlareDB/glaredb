@@ -3,6 +3,7 @@
 use rayexec_error::Result;
 
 use super::sort_layout::SortLayout;
+use super::sorted_block::SortedBlock;
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::row_layout::RowLayout;
@@ -15,6 +16,21 @@ pub struct SortedRun<B: BufferManager> {
     pub(crate) heap_keys_heap: Vec<Block<B>>,
     pub(crate) data: Vec<Block<B>>,
     pub(crate) data_heap: Vec<Block<B>>,
+}
+
+impl<B> SortedRun<B>
+where
+    B: BufferManager,
+{
+    pub fn from_sorted_block(block: SortedBlock<B>) -> Self {
+        SortedRun {
+            keys: vec![block.keys],
+            heap_keys: vec![block.heap_keys],
+            heap_keys_heap: block.heap_keys_heap,
+            data: vec![block.data],
+            data_heap: block.data_heap,
+        }
+    }
 }
 
 /// Which side we should copy a row from.
@@ -73,6 +89,20 @@ impl<'a, B> BinaryMerger<'a, B>
 where
     B: BufferManager,
 {
+    pub fn new(
+        manager: &'a B,
+        key_layout: &'a SortLayout,
+        data_layout: &'a RowLayout,
+        block_capacity: usize,
+    ) -> Self {
+        BinaryMerger {
+            manager,
+            key_layout,
+            data_layout,
+            block_capacity,
+        }
+    }
+
     pub fn init_merge_state(&self) -> BinaryMergeState {
         BinaryMergeState {
             left_scan: ScanState::default(),
@@ -84,8 +114,6 @@ where
     /// Merge left and right, producing a new sorted run.
     ///
     /// This will internally reset the provided state.
-    // TODO: Need to be consistent with state management. This internally
-    // resets, but other things require explicit "clears".
     pub fn merge(
         &self,
         state: &mut BinaryMergeState,

@@ -1,4 +1,5 @@
 pub mod aggregate_layout;
+pub mod block_scanner;
 pub mod row_collection;
 pub mod row_layout;
 pub mod row_matcher;

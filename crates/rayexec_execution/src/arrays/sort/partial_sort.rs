@@ -222,6 +222,15 @@ impl PartialSortedRowCollection {
 
         Ok(())
     }
+
+    /// Try sort any remaining unsorted blocks, and return all sorted blocks in
+    /// the collection.
+    pub fn try_into_sorted_blocks(mut self) -> Result<Vec<SortedBlock<NopBufferManager>>> {
+        self.sort_unsorted()?;
+        debug_assert_eq!(0, self.unsorted_row_count());
+
+        Ok(self.sorted)
+    }
 }
 
 #[cfg(test)]
@@ -230,7 +239,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::row::row_blocks::BlockReadState;
+    use crate::arrays::row::block_scanner::BlockScanState;
     use crate::arrays::sort::sort_layout::SortColumn;
     use crate::arrays::testutil::assert_arrays_eq;
 
@@ -268,7 +277,7 @@ mod tests {
 
         assert_eq!(1, collection.sorted.len());
 
-        let mut read_state = BlockReadState::empty();
+        let mut read_state = BlockScanState::empty();
         unsafe {
             collection.sorted[0]
                 .prepare_data_read(&mut read_state, &collection.data_layout, 0..row_count)

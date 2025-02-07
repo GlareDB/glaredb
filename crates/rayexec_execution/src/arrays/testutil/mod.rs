@@ -17,3 +17,6 @@ pub use assert::*;
 
 mod batch;
 pub use batch::*;
+
+mod block;
+pub use block::*;

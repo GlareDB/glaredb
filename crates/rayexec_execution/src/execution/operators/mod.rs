@@ -19,6 +19,7 @@ pub mod project;
 pub mod round_robin;
 pub mod scan;
 pub mod sink;
+pub mod sort;
 pub mod source;
 pub mod table_function;
 pub mod table_inout;
@@ -66,6 +67,7 @@ use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
 use sink::operation::SinkOperation;
 use sink::{PhysicalSink, SinkOperatorState, SinkPartitionState};
+use sort::{SortOperatorState, SortPartitionState};
 use source::operation::SourceOperation;
 use source::{PhysicalSource, SourcePartitionState};
 use table_function::{PhysicalTableFunction, TableFunctionPartitionState};
@@ -115,6 +117,7 @@ pub enum PartitionState {
     UnionBuffering(UnionBufferingPartitionState),
     NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState),
     NestedLoopJoinProbe(NestedLoopJoinProbePartitionState),
+    Sort(SortPartitionState),
 
     HashAggregate(HashAggregatePartitionState),
     UngroupedAggregate(UngroupedAggregatePartitionState),
@@ -144,6 +147,7 @@ pub enum PartitionState {
 pub enum OperatorState {
     Union(UnionOperatorState),
     NestedLoopJoin(NestedLoopJoinOperatorState),
+    Sort(SortOperatorState),
 
     HashAggregate(HashAggregateOperatorState),
     UngroupedAggregate(UngroupedAggregateOperatorState),

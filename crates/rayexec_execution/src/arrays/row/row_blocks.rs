@@ -1,6 +1,7 @@
 use rayexec_error::{RayexecError, Result};
 
 use super::block::{Block, FixedSizedBlockInitializer, RowLayoutBlockInitializer};
+use super::block_scanner::BlockScanState;
 use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::BufferManager;
 
@@ -42,25 +43,6 @@ impl BlockAppendState {
     pub fn clear(&mut self) {
         self.row_pointers.clear();
         self.heap_pointers.clear();
-    }
-}
-
-#[derive(Debug)]
-pub struct BlockReadState {
-    /// Pointers to the start of each row to read from.
-    pub row_pointers: Vec<*const u8>,
-}
-
-impl BlockReadState {
-    pub const fn empty() -> Self {
-        BlockReadState {
-            row_pointers: Vec::new(),
-        }
-    }
-
-    /// Clear all pointers from this state.
-    pub fn clear(&mut self) {
-        self.row_pointers.clear();
     }
 }
 
@@ -149,22 +131,16 @@ where
     ///
     /// `selection` selects which rows from the row block to read.
     ///
-    /// This will append the pointers to the current state.
+    /// This will clear any existing pointers on the scan state.
     pub fn prepare_read(
         &self,
-        state: &mut BlockReadState,
+        state: &mut BlockScanState,
         row_block_idx: usize,
         selection: impl IntoIterator<Item = usize>,
     ) -> Result<()> {
         let block = &self.row_blocks[row_block_idx];
-        let block_ptr = block.as_ptr();
-
-        for sel_idx in selection {
-            debug_assert!(sel_idx < block.num_rows(self.row_width));
-            let ptr = unsafe { block_ptr.byte_add(self.row_width * sel_idx) };
-            debug_assert!(block.data.raw.contains_addr(ptr.addr()));
-
-            state.row_pointers.push(ptr)
+        unsafe {
+            state.prepare_block_scan(block, self.row_width, selection);
         }
 
         Ok(())
@@ -328,7 +304,7 @@ mod tests {
         assert_eq!(0, blocks.num_heap_blocks());
         assert_eq!(4, blocks.reserved_row_count());
 
-        let mut read_state = BlockReadState {
+        let mut read_state = BlockScanState {
             row_pointers: Vec::new(),
         };
         blocks.prepare_read(&mut read_state, 0, 0..4).unwrap();
@@ -353,7 +329,7 @@ mod tests {
         assert_eq!(0, blocks.num_heap_blocks());
         assert_eq!(24, blocks.reserved_row_count());
 
-        let mut read_state = BlockReadState {
+        let mut read_state = BlockScanState {
             row_pointers: Vec::new(),
         };
         blocks.prepare_read(&mut read_state, 0, 0..16).unwrap();

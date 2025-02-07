@@ -4,7 +4,7 @@ use stdutil::iter::IntoExactSizeIterator;
 use super::sort_layout::SortLayout;
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::row::block::Block;
-use crate::arrays::row::row_blocks::BlockReadState;
+use crate::arrays::row::block_scanner::BlockScanState;
 use crate::arrays::row::row_layout::RowLayout;
 
 /// Contains a single block with all keys in sorted order.
@@ -148,7 +148,7 @@ where
     /// Prepares the read state for reading the _data_ block for this sorted row
     /// block.
     ///
-    /// State is not cleared prior to pushing pointers.
+    /// State is cleared prior to pushing pointers.
     ///
     /// # Safety
     ///
@@ -157,20 +157,11 @@ where
     /// - The selection must provide valid row indices for initialized rows.
     pub(crate) unsafe fn prepare_data_read(
         &self,
-        state: &mut BlockReadState,
+        state: &mut BlockScanState,
         data_layout: &RowLayout,
         selection: impl IntoIterator<Item = usize>,
     ) -> Result<()> {
-        let block_ptr = self.data.as_ptr();
-
-        for sel_idx in selection {
-            debug_assert!(sel_idx < self.data.num_rows(data_layout.row_width));
-            let ptr = block_ptr.byte_add(data_layout.row_width * sel_idx);
-            debug_assert!(self.data.data.raw.contains_addr(ptr.addr()));
-
-            state.row_pointers.push(ptr);
-        }
-
+        state.prepare_block_scan(&self.data, data_layout.row_width, selection);
         Ok(())
     }
 }

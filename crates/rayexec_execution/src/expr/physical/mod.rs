@@ -201,7 +201,7 @@ impl DatabaseProtoConv for PhysicalAggregateExpression {
 #[derive(Debug, Clone)]
 pub struct PhysicalSortExpression {
     /// Column this expression is for.
-    pub column: PhysicalColumnExpr,
+    pub column: PhysicalScalarExpression,
     /// If sort should be descending.
     pub desc: bool,
     /// If nulls should be ordered first.
@@ -212,18 +212,20 @@ impl DatabaseProtoConv for PhysicalSortExpression {
     type ProtoType = rayexec_proto::generated::physical_expr::PhysicalSortExpression;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            column: Some(self.column.to_proto_ctx(context)?),
-            desc: self.desc,
-            nulls_first: self.nulls_first,
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     column: Some(self.column.to_proto_ctx(context)?),
+        //     desc: self.desc,
+        //     nulls_first: self.nulls_first,
+        // })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            column: DatabaseProtoConv::from_proto_ctx(proto.column.required("column")?, context)?,
-            desc: proto.desc,
-            nulls_first: proto.nulls_first,
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     column: DatabaseProtoConv::from_proto_ctx(proto.column.required("column")?, context)?,
+        //     desc: proto.desc,
+        //     nulls_first: proto.nulls_first,
+        // })
     }
 }

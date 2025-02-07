@@ -102,6 +102,7 @@ impl SortColumn {
 /// the original row index for a single block prior to sorting that block. After
 /// we sort, the reordered indices then can be used to reorder the heap keys and
 /// data blocks.
+// TODO: Size (184)
 #[derive(Debug, Clone)]
 pub struct SortLayout {
     /// Columns that are part of the sort.

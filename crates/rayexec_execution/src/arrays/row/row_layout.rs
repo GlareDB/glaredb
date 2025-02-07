@@ -3,7 +3,8 @@ use std::borrow::{Borrow, BorrowMut};
 use half::f16;
 use rayexec_error::Result;
 
-use super::row_blocks::{BlockAppendState, BlockReadState, HeapMutPtr};
+use super::block_scanner::BlockScanState;
+use super::row_blocks::{BlockAppendState, HeapMutPtr};
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
@@ -194,7 +195,7 @@ impl RowLayout {
 
     pub(crate) unsafe fn read_arrays<'a, A, B>(
         &self,
-        state: &BlockReadState,
+        state: &BlockScanState,
         arrays: impl IntoIterator<Item = (usize, &'a mut A)>,
         write_offset: usize,
     ) -> Result<()>
@@ -732,7 +733,7 @@ mod tests {
         let mut out =
             Array::try_new(&NopBufferManager, array.datatype().clone(), array_cap).unwrap();
 
-        let state = BlockReadState {
+        let state = BlockScanState {
             row_pointers: state
                 .row_pointers
                 .iter()

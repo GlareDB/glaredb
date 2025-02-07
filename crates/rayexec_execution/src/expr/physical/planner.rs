@@ -251,15 +251,10 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         expr: &BoundOrderByExpr,
     ) -> Result<PhysicalSortExpression> {
         let scalar = self.plan_scalar(table_refs, &expr.expr)?;
-        match scalar {
-            PhysicalScalarExpression::Column(column) => Ok(PhysicalSortExpression {
-                column,
-                desc: expr.desc,
-                nulls_first: expr.nulls_first,
-            }),
-            other => Err(RayexecError::new(format!(
-                "Expected column expression for sort expression, got: {other}"
-            ))),
-        }
+        Ok(PhysicalSortExpression {
+            column: scalar,
+            desc: expr.desc,
+            nulls_first: expr.nulls_first,
+        })
     }
 }
