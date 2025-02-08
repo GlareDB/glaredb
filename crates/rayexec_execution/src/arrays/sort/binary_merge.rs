@@ -1,9 +1,6 @@
-//! Iterative binary merge to produce a total order.
-
 use rayexec_error::Result;
 
 use super::sort_layout::SortLayout;
-use super::sorted_block::SortedBlock;
 use super::sorted_run::SortedRun;
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::row::block::Block;
@@ -50,6 +47,7 @@ impl ScanState {
     }
 }
 
+/// Merger for merging two sorted runs into a single sorted run.
 #[derive(Debug)]
 pub struct BinaryMerger<'a, B: BufferManager> {
     pub(crate) manager: &'a B,
@@ -116,7 +114,7 @@ where
                 break;
             }
 
-            let (interleave_count, find_left, find_right) = self.find_merge_side(
+            let (interleave_count, _, _) = self.find_merge_side(
                 &left,
                 &right,
                 state.left_scan.clone(),
@@ -165,8 +163,6 @@ where
             // The updates are duplicated across all merge functions, but it
             // seemed easier to pass in a cloned state and have each update
             // independently than trying to reset a single state.
-            assert_eq!(find_left, new_left_scan);
-            assert_eq!(find_right, new_right_scan);
 
             state.left_scan = new_left_scan;
             state.right_scan = new_right_scan;
@@ -327,7 +323,7 @@ where
 
         Self::merge_fixed_size_blocks(
             self.manager,
-            self.key_layout.row_width,
+            self.key_layout.heap_layout.row_width,
             left,
             right,
             block_fn,
@@ -353,7 +349,7 @@ where
 
         Self::merge_fixed_size_blocks(
             self.manager,
-            self.key_layout.row_width,
+            self.data_layout.row_width,
             left,
             right,
             block_fn,
@@ -383,7 +379,7 @@ where
         debug_assert!(left_scan.remaining + right_scan.remaining >= scan_sides.len());
 
         // Output is exact size for holding the merge.
-        let mut out = Block::try_new(manager, row_width * scan_sides.len())?;
+        let mut out = Block::try_new_reserve_all(manager, row_width * scan_count)?;
         let mut curr_count = 0;
 
         while curr_count < scan_sides.len() {
@@ -446,8 +442,8 @@ where
         if scan_count > scan_sides.len() {
             // One side is exhausted, need to copy in bulk from the non-exausted
             // side.
-            let left_exhausted = left_scan.block_idx == left.keys.len();
-            let right_exhausted = right_scan.block_idx == right.keys.len();
+            let left_exhausted = left_scan.remaining == 0;
+            let right_exhausted = right_scan.remaining == 0;
             debug_assert_ne!(left_exhausted, right_exhausted); // Only one side should be exhausted.
 
             let rem_rows = scan_count - scan_sides.len();
@@ -493,7 +489,7 @@ where
                 continue;
             }
 
-            let src_ptr = unsafe { block.as_ptr().byte_add(row_width * src_scan.block_idx) };
+            let src_ptr = unsafe { block.as_ptr().byte_add(row_width * src_scan.row_idx) };
 
             let copy_count = usize::min(num_rows, rem_rows);
             unsafe {
@@ -506,5 +502,99 @@ where
         }
 
         Ok(src_scan)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::batch::Batch;
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::{assert_batches_eq, generate_batch, TestSortedRowBlock};
+
+    /// Helper that will binary merge left and right, returning the result.
+    ///
+    /// Note that this will place the left and right batches into their own
+    /// sorted blocks, which will locally sort the batch prior to the binary
+    /// merge.
+    fn binary_merge_left_right(
+        left: &Batch,
+        left_keys: impl IntoIterator<Item = usize>,
+        right: &Batch,
+        right_keys: impl IntoIterator<Item = usize>,
+    ) -> Batch {
+        let cap = left.num_rows() + right.num_rows();
+
+        let left_block = TestSortedRowBlock::from_batch(&left, left_keys);
+        let right_block = TestSortedRowBlock::from_batch(&right, right_keys);
+
+        let left_run = SortedRun::from_sorted_block(left_block.sorted_block);
+        let right_run = SortedRun::from_sorted_block(right_block.sorted_block);
+
+        let merger = BinaryMerger::new(
+            &NopBufferManager,
+            &left_block.key_layout,
+            &left_block.data_layout,
+            cap,
+        );
+        let mut state = merger.init_merge_state();
+        let out = merger.merge(&mut state, left_run, right_run).unwrap();
+        assert_eq!(1, out.keys.len());
+
+        let mut scan = out.init_scan_state();
+        let mut out_batch = Batch::try_new([DataType::Int32, DataType::Utf8], cap).unwrap();
+        out.scan_data(&mut scan, &left_block.data_layout, &mut out_batch)
+            .unwrap();
+
+        out_batch
+    }
+
+    #[test]
+    fn binary_merge_interleave() {
+        let left = generate_batch!([1, 3, 5], ["a", "c", "e"]);
+        let right = generate_batch!([2, 4, 6], ["b", "d", "f"]);
+        let out = binary_merge_left_right(&left, [0], &right, [0]);
+
+        let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_interleave_flipped() {
+        // Same as above, but left/right has data flipped. This ensure we
+        // properly copy the last element from the left (6, "f").
+
+        let left = generate_batch!([2, 4, 6], ["b", "d", "f"]);
+        let right = generate_batch!([1, 3, 5], ["a", "c", "e"]);
+        let out = binary_merge_left_right(&left, [0], &right, [0]);
+
+        let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_presorted() {
+        // Left and right sort one after another, tests the we properly bulk
+        // copy more than one row.
+
+        let left = generate_batch!([1, 2, 3], ["a", "b", "c"]);
+        let right = generate_batch!([4, 5, 6], ["d", "e", "f"]);
+        let out = binary_merge_left_right(&left, [0], &right, [0]);
+
+        let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_presorted_flipped() {
+        // Same as above, just flipped to ensure bulk copy from left.
+
+        let left = generate_batch!([4, 5, 6], ["d", "e", "f"]);
+        let right = generate_batch!([1, 2, 3], ["a", "b", "c"]);
+        let out = binary_merge_left_right(&left, [0], &right, [0]);
+
+        let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
+        assert_batches_eq(&expected, &out);
     }
 }

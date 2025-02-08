@@ -75,6 +75,7 @@ where
             if state.row_idx >= block_rows {
                 state.block_idx += 1;
                 state.row_idx = 0;
+                continue;
             }
 
             let scan_count = usize::min(block_rows - state.row_idx, rem_cap);
@@ -88,6 +89,7 @@ where
 
             rem_cap -= scan_count;
             count += scan_count;
+            state.row_idx += scan_count;
         }
 
         unsafe {

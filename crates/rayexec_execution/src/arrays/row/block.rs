@@ -102,11 +102,25 @@ where
         })
     }
 
-    pub fn try_new(manager: &B, byte_capacity: usize) -> Result<Self> {
+    /// Try to create a new block with the given byte capacity.
+    ///
+    /// This sets the initial reserved bytes to 0 indicating this block is
+    /// "empty".
+    pub fn try_new_reserve_none(manager: &B, byte_capacity: usize) -> Result<Self> {
         let data = TypedRawBuffer::try_with_capacity(manager, byte_capacity)?;
         Ok(Block {
             data,
             reserved_bytes: 0,
+        })
+    }
+
+    /// Like `try_new`, but sets reserved bytes the provided byte capacity. This
+    /// marks the block as "full".
+    pub fn try_new_reserve_all(manager: &B, byte_capacity: usize) -> Result<Self> {
+        let data = TypedRawBuffer::try_with_capacity(manager, byte_capacity)?;
+        Ok(Block {
+            data,
+            reserved_bytes: byte_capacity,
         })
     }
 
@@ -147,7 +161,7 @@ mod tests {
     fn concat_many() {
         let mut blocks = Vec::new();
         for i in 0..4 {
-            let mut block = Block::try_new(&NopBufferManager, 128).unwrap();
+            let mut block = Block::try_new_reserve_none(&NopBufferManager, 128).unwrap();
             let s = &mut block.data.as_slice_mut()[0..i];
             for b in s {
                 *b = i as u8;

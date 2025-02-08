@@ -123,7 +123,7 @@ where
     /// This will initialize the block before returning it.
     fn allocate_and_init_fixed_size_block(&self) -> Result<Block<B>> {
         let buf_size = self.row_width * self.row_capacity;
-        let block = Block::try_new(&self.manager, buf_size)?;
+        let block = Block::try_new_reserve_none(&self.manager, buf_size)?;
         self.initializer.initialize(block)
     }
 
@@ -224,7 +224,7 @@ where
             }
 
             // Create new heap block, no initialization needs to happen.
-            let block = Block::try_new(&self.manager, total_heap_size)?;
+            let block = Block::try_new_reserve_none(&self.manager, total_heap_size)?;
             self.heap_blocks.push(block);
 
             let heap_idx = self.heap_blocks.len() - 1;
