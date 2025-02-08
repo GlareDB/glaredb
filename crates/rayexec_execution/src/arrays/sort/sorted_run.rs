@@ -100,3 +100,60 @@ where
         Ok(count)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arrays::datatype::DataType;
+    use crate::arrays::testutil::{assert_batches_eq, generate_batch, TestSortedRowBlock};
+
+    #[test]
+    fn scan_data_single_block_exact_capacity() {
+        let batch = generate_batch!([2, 4, 1, 3], ["b", "d", "a", "c"]);
+        let block = TestSortedRowBlock::from_batch(&batch, [0]);
+
+        let run = SortedRun::from_sorted_block(block.sorted_block);
+        let mut state = run.init_scan_state();
+
+        let mut out = Batch::try_new([DataType::Int32, DataType::Utf8], 4).unwrap();
+        let count = run
+            .scan_data(&mut state, &block.data_layout, &mut out)
+            .unwrap();
+        assert_eq!(4, count);
+
+        let expected = generate_batch!([1, 2, 3, 4], ["a", "b", "c", "d"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn scan_data_single_block_small_capacity() {
+        let batch = generate_batch!([2, 4, 1, 3], ["b", "d", "a", "c"]);
+        let block = TestSortedRowBlock::from_batch(&batch, [0]);
+
+        let run = SortedRun::from_sorted_block(block.sorted_block);
+        let mut state = run.init_scan_state();
+
+        let mut out = Batch::try_new([DataType::Int32, DataType::Utf8], 3).unwrap();
+        let count = run
+            .scan_data(&mut state, &block.data_layout, &mut out)
+            .unwrap();
+        assert_eq!(3, count);
+
+        let expected = generate_batch!([1, 2, 3], ["a", "b", "c"]);
+        assert_batches_eq(&expected, &out);
+
+        let count = run
+            .scan_data(&mut state, &block.data_layout, &mut out)
+            .unwrap();
+        assert_eq!(1, count);
+
+        let expected = generate_batch!([4], ["d"]);
+        assert_batches_eq(&expected, &out);
+
+        let count = run
+            .scan_data(&mut state, &block.data_layout, &mut out)
+            .unwrap();
+        assert_eq!(0, count);
+        assert_eq!(0, out.num_rows());
+    }
+}
