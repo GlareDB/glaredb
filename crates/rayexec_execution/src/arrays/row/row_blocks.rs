@@ -140,7 +140,7 @@ where
     ) -> Result<()> {
         let block = &self.row_blocks[row_block_idx];
         unsafe {
-            state.prepare_block_scan(block, self.row_width, selection);
+            state.prepare_block_scan(block, self.row_width, selection, true);
         }
 
         Ok(())

@@ -170,6 +170,10 @@ impl SortLayout {
         }
     }
 
+    pub fn datatypes(&self) -> impl ExactSizeIterator<Item = DataType> + '_ {
+        self.columns.iter().map(|col| col.datatype.clone())
+    }
+
     pub fn num_columns(&self) -> usize {
         self.columns.len()
     }

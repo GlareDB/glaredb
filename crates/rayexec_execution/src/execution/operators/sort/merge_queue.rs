@@ -1,14 +1,15 @@
 use std::collections::VecDeque;
-use std::task::{Context, Poll, Waker};
+use std::task::{Context, Waker};
 
 use parking_lot::Mutex;
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::row::row_layout::RowLayout;
-use crate::arrays::sort::binary_merge::{BinaryMerger, SortedRun};
+use crate::arrays::sort::binary_merge::BinaryMerger;
 use crate::arrays::sort::partial_sort::PartialSortedRowCollection;
 use crate::arrays::sort::sort_layout::SortLayout;
+use crate::arrays::sort::sorted_run::SortedRun;
 
 /// Result of a single merge pass.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,8 +35,8 @@ pub enum PollMerge {
 /// threads have added their local collections to the queue.
 #[derive(Debug)]
 pub struct MergeQueue {
-    key_layout: SortLayout,
-    data_layout: RowLayout,
+    pub key_layout: SortLayout,
+    pub data_layout: RowLayout,
     block_capacity: usize,
     inner: Mutex<MergeQueueInner>,
 }
@@ -157,5 +158,24 @@ impl MergeQueue {
         }
 
         Ok(PollMerge::Merged)
+    }
+
+    /// Takes the final sorted run from the queue.
+    ///
+    /// Errors if the queue isn't finished.
+    ///
+    /// If there are no sorted runs (e.g. sorting no rows), then None will be
+    /// returned.
+    pub fn take_sorted_run(&self) -> Result<Option<SortedRun<NopBufferManager>>> {
+        let mut inner = self.inner.lock();
+        if !inner.is_complete() {
+            return Err(RayexecError::new(
+                "Attempted to take final run from queue before merging complete",
+            ));
+        }
+
+        let run = inner.runs.pop_front();
+
+        Ok(run)
     }
 }

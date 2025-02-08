@@ -4,34 +4,10 @@ use rayexec_error::Result;
 
 use super::sort_layout::SortLayout;
 use super::sorted_block::SortedBlock;
+use super::sorted_run::SortedRun;
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::row_layout::RowLayout;
-
-/// Contains multiple blocks that have been totally sorted.
-#[derive(Debug)]
-pub struct SortedRun<B: BufferManager> {
-    pub(crate) keys: Vec<Block<B>>,
-    pub(crate) heap_keys: Vec<Block<B>>,
-    pub(crate) heap_keys_heap: Vec<Block<B>>,
-    pub(crate) data: Vec<Block<B>>,
-    pub(crate) data_heap: Vec<Block<B>>,
-}
-
-impl<B> SortedRun<B>
-where
-    B: BufferManager,
-{
-    pub fn from_sorted_block(block: SortedBlock<B>) -> Self {
-        SortedRun {
-            keys: vec![block.keys],
-            heap_keys: vec![block.heap_keys],
-            heap_keys_heap: block.heap_keys_heap,
-            data: vec![block.data],
-            data_heap: block.data_heap,
-        }
-    }
-}
 
 /// Which side we should copy a row from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

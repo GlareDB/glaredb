@@ -40,6 +40,7 @@ pub struct Batch<B: BufferManager = NopBufferManager> {
     pub(crate) cache: Option<BufferCache<B>>,
 }
 
+// TODO: <B>
 impl Batch {
     pub const fn empty() -> Self {
         Batch {
@@ -137,33 +138,6 @@ impl Batch {
             capacity,
             cache: None,
         })
-    }
-
-    /// Returns a selection that selects rows [0, num_rows).
-    pub fn selection<'a>(&self) -> Selection<'a> {
-        Selection::Linear {
-            start: 0,
-            len: self.num_rows,
-        }
-    }
-
-    pub fn num_rows(&self) -> usize {
-        self.num_rows
-    }
-
-    /// Sets the logical number of rows for the batch.
-    ///
-    /// Errors if `rows` is greater than the capacity of the batch.
-    pub fn set_num_rows(&mut self, rows: usize) -> Result<()> {
-        // TODO: Need to solidify what capacity should be with dictionaries.
-        // if rows > self.capacity {
-        //     return Err(RayexecError::new("Number of rows exceeds capacity")
-        //         .with_field("capacity", self.capacity)
-        //         .with_field("requested_num_rows", rows));
-        // }
-        self.num_rows = rows;
-
-        Ok(())
     }
 
     /// Try to clone arrays from another batch into self.
@@ -339,6 +313,38 @@ impl Batch {
 
         PrettyTable::try_new(&schema, &[self], 100, None)
             .expect("to be able to create pretty table")
+    }
+}
+
+impl<B> Batch<B>
+where
+    B: BufferManager,
+{
+    /// Returns a selection that selects rows [0, num_rows).
+    pub fn selection<'a>(&self) -> Selection<'a> {
+        Selection::Linear {
+            start: 0,
+            len: self.num_rows,
+        }
+    }
+
+    pub fn num_rows(&self) -> usize {
+        self.num_rows
+    }
+
+    /// Sets the logical number of rows for the batch.
+    ///
+    /// Errors if `rows` is greater than the capacity of the batch.
+    pub fn set_num_rows(&mut self, rows: usize) -> Result<()> {
+        // TODO: Need to solidify what capacity should be with dictionaries.
+        // if rows > self.capacity {
+        //     return Err(RayexecError::new("Number of rows exceeds capacity")
+        //         .with_field("capacity", self.capacity)
+        //         .with_field("requested_num_rows", rows));
+        // }
+        self.num_rows = rows;
+
+        Ok(())
     }
 }
 

@@ -30,6 +30,9 @@ impl<B> SortedBlock<B>
 where
     B: BufferManager,
 {
+    /// Create a sorted block from the given key/data blocks.
+    ///
+    /// Returns None if the number of rows in the block is zero.
     pub fn sort_from_blocks(
         manager: &B,
         key_layout: &SortLayout,
@@ -39,13 +42,13 @@ where
         heap_keys_heap: Vec<Block<B>>,
         data: Block<B>,
         data_heap: Vec<Block<B>>,
-    ) -> Result<Self> {
+    ) -> Result<Option<Self>> {
         let row_width = key_layout.row_width;
         let num_rows = keys.num_rows(row_width);
 
         if num_rows == 0 {
             // Mostly just makes the below stuff easier.
-            return Err(RayexecError::new("Cannot sort zero rows"));
+            return Ok(None);
         }
 
         // Write row index to each row.
@@ -136,13 +139,13 @@ where
             apply_sort_indices(&data, &mut sorted_data, row_idx_iter, data_layout.row_width);
         }
 
-        Ok(SortedBlock {
+        Ok(Some(SortedBlock {
             keys: sorted_keys,
             heap_keys: sorted_heap_keys,
             heap_keys_heap,
             data: sorted_data,
             data_heap,
-        })
+        }))
     }
 
     /// Prepares the read state for reading the _data_ block for this sorted row
@@ -161,7 +164,7 @@ where
         data_layout: &RowLayout,
         selection: impl IntoIterator<Item = usize>,
     ) -> Result<()> {
-        state.prepare_block_scan(&self.data, data_layout.row_width, selection);
+        state.prepare_block_scan(&self.data, data_layout.row_width, selection, true);
         Ok(())
     }
 }

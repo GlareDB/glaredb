@@ -218,7 +218,9 @@ impl PartialSortedRowCollection {
             data_heap,
         )?;
 
-        self.sorted.push(sorted_block);
+        if let Some(block) = sorted_block {
+            self.sorted.push(block);
+        }
 
         Ok(())
     }

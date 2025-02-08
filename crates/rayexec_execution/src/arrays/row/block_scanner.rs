@@ -25,7 +25,7 @@ impl BlockScanState {
     /// `selection` provides a row selection for which rows to scan from the
     /// block.
     ///
-    /// This will clear out existing pointers.
+    /// This will clear out existing pointers if `clear` is true.
     ///
     /// # Safety
     ///
@@ -43,10 +43,13 @@ impl BlockScanState {
         block: &Block<B>,
         row_width: usize,
         selection: impl IntoIterator<Item = usize>,
+        clear: bool,
     ) where
         B: BufferManager,
     {
-        self.row_pointers.clear();
+        if clear {
+            self.row_pointers.clear();
+        }
         let block_ptr = block.as_ptr();
 
         for sel_idx in selection {
