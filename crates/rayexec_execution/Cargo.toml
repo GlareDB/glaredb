@@ -21,7 +21,6 @@ hashbrown = { workspace = true, features = ["raw"] }
 num-traits = "0.2.19"
 num = "0.4.3"
 num_cpus = "1.16.0"
-once_cell = { workspace = true }
 parking_lot = { workspace = true }
 rayon = { workspace = true }
 smallvec = { workspace = true }

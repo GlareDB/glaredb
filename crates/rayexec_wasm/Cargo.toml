@@ -37,4 +37,3 @@ console_error_panic_hook = "0.1.7"
 url = { workspace = true }
 bytes = { version = "1.10", default-features = false, features = ["std"] }
 reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls", "stream"] }
-once_cell = { workspace = true }
