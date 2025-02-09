@@ -15,13 +15,16 @@ use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType}
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     drain,
-    unary_update,
+    unary_update2,
+    AggregateFunctionImpl,
     AggregateGroupStates,
+    AggregateStateLogic,
     TypedAggregateGroupStates,
+    UnaryStateLogic,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
-    AggregateFunctionImpl,
+    AggregateFunctionImpl2,
     PlannedAggregateFunction,
 };
 use crate::functions::documentation::{Category, Documentation};
@@ -81,9 +84,16 @@ impl AggregateFunction for Avg {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        let (function_impl, return_type): (Box<dyn AggregateFunctionImpl>, _) =
+        let (function_impl, return_type): (Box<dyn AggregateFunctionImpl2>, _) =
             match inputs[0].datatype(table_list)? {
-                DataType::Int64 => (Box::new(AvgInt64Impl), DataType::Float64),
+                DataType::Int64 => {
+                    // Testing ...
+                    let function_impl = AggregateFunctionImpl::new::<
+                        UnaryStateLogic<AvgStateF64<f64, f64>, PhysicalF64, PhysicalF64>,
+                    >(None);
+
+                    (Box::new(AvgInt64Impl), DataType::Float64)
+                }
                 DataType::Float64 => (Box::new(AvgFloat64Impl), DataType::Float64),
                 dt @ DataType::Decimal64(_) => {
                     // Datatype only used in order to convert decimal to float
@@ -128,7 +138,7 @@ impl<D> AvgDecimalImpl<D> {
     }
 }
 
-impl<D> AggregateFunctionImpl for AvgDecimalImpl<D>
+impl<D> AggregateFunctionImpl2 for AvgDecimalImpl<D>
 where
     D: DecimalType,
     D::Primitive: Into<i128>,
@@ -148,7 +158,7 @@ where
                 count: 0,
                 _input: PhantomData,
             },
-            unary_update::<D::Storage, PhysicalF64, _>,
+            unary_update2::<D::Storage, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }
@@ -157,11 +167,11 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AvgFloat64Impl;
 
-impl AggregateFunctionImpl for AvgFloat64Impl {
+impl AggregateFunctionImpl2 for AvgFloat64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             AvgStateF64::<f64, f64>::default,
-            unary_update::<PhysicalF64, PhysicalF64, _>,
+            unary_update2::<PhysicalF64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }
@@ -170,11 +180,11 @@ impl AggregateFunctionImpl for AvgFloat64Impl {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AvgInt64Impl;
 
-impl AggregateFunctionImpl for AvgInt64Impl {
+impl AggregateFunctionImpl2 for AvgInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             AvgStateF64::<i64, i128>::default,
-            unary_update::<PhysicalI64, PhysicalF64, _>,
+            unary_update2::<PhysicalI64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }

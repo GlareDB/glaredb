@@ -11,13 +11,13 @@ use crate::arrays::scalar::ScalarValue;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     drain,
-    unary_update,
+    unary_update2,
     AggregateGroupStates,
     TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
-    AggregateFunctionImpl,
+    AggregateFunctionImpl2,
     PlannedAggregateFunction,
 };
 use crate::functions::documentation::{Category, Documentation};
@@ -97,7 +97,7 @@ pub struct StringAggImpl {
     pub sep: String,
 }
 
-impl AggregateFunctionImpl for StringAggImpl {
+impl AggregateFunctionImpl2 for StringAggImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         let sep = self.sep.clone();
         let state_init = move || StringAggState {
@@ -107,7 +107,7 @@ impl AggregateFunctionImpl for StringAggImpl {
 
         Box::new(TypedAggregateGroupStates::new(
             state_init,
-            unary_update::<PhysicalUtf8, PhysicalUtf8, _>,
+            unary_update2::<PhysicalUtf8, PhysicalUtf8, _>,
             drain::<PhysicalUtf8, _, _>,
         ))
     }

@@ -10,14 +10,14 @@ use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    binary_update,
+    binary_update2,
     drain,
     AggregateGroupStates,
     TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
-    AggregateFunctionImpl,
+    AggregateFunctionImpl2,
     PlannedAggregateFunction,
 };
 use crate::functions::documentation::{Category, Documentation};
@@ -73,11 +73,11 @@ impl AggregateFunction for RegrR2 {
 #[derive(Debug, Clone)]
 pub struct RegrR2Impl;
 
-impl AggregateFunctionImpl for RegrR2Impl {
+impl AggregateFunctionImpl2 for RegrR2Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             RegrR2State::default,
-            binary_update::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
+            binary_update2::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }

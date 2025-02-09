@@ -11,13 +11,13 @@ use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     drain,
-    unary_update,
+    unary_update2,
     AggregateGroupStates,
     TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
-    AggregateFunctionImpl,
+    AggregateFunctionImpl2,
     PlannedAggregateFunction,
 };
 use crate::functions::documentation::{Category, Documentation};
@@ -70,11 +70,11 @@ impl AggregateFunction for StddevPop {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StddevPopImpl;
 
-impl AggregateFunctionImpl for StddevPopImpl {
+impl AggregateFunctionImpl2 for StddevPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             VarianceState::<StddevPopFinalize>::default,
-            unary_update::<PhysicalF64, PhysicalF64, _>,
+            unary_update2::<PhysicalF64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }
@@ -130,11 +130,11 @@ impl AggregateFunction for StddevSamp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StddevSampImpl;
 
-impl AggregateFunctionImpl for StddevSampImpl {
+impl AggregateFunctionImpl2 for StddevSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             VarianceState::<StddevSampFinalize>::default,
-            unary_update::<PhysicalF64, PhysicalF64, _>,
+            unary_update2::<PhysicalF64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }
@@ -186,11 +186,11 @@ impl AggregateFunction for VarPop {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VarPopImpl;
 
-impl AggregateFunctionImpl for VarPopImpl {
+impl AggregateFunctionImpl2 for VarPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             VarianceState::<VariancePopFinalize>::default,
-            unary_update::<PhysicalF64, PhysicalF64, _>,
+            unary_update2::<PhysicalF64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }
@@ -242,11 +242,11 @@ impl AggregateFunction for VarSamp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VarSampImpl;
 
-impl AggregateFunctionImpl for VarSampImpl {
+impl AggregateFunctionImpl2 for VarSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             VarianceState::<VarianceSampFinalize>::default,
-            unary_update::<PhysicalF64, PhysicalF64, _>,
+            unary_update2::<PhysicalF64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }

@@ -16,13 +16,13 @@ use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     drain,
-    unary_update,
+    unary_update2,
     AggregateGroupStates,
     TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
-    AggregateFunctionImpl,
+    AggregateFunctionImpl2,
     PlannedAggregateFunction,
 };
 use crate::functions::documentation::{Category, Documentation};
@@ -86,14 +86,14 @@ impl<S> RegrCountImpl<S> {
     }
 }
 
-impl<S> AggregateFunctionImpl for RegrCountImpl<S>
+impl<S> AggregateFunctionImpl2 for RegrCountImpl<S>
 where
     S: ScalarStorage,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             RegrCountState::<S>::default,
-            unary_update::<S, PhysicalI64, _>,
+            unary_update2::<S, PhysicalI64, _>,
             drain::<PhysicalI64, _, _>,
         ))
     }

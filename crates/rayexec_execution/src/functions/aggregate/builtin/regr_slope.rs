@@ -11,14 +11,14 @@ use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    binary_update,
+    binary_update2,
     drain,
     AggregateGroupStates,
     TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
-    AggregateFunctionImpl,
+    AggregateFunctionImpl2,
     PlannedAggregateFunction,
 };
 use crate::functions::documentation::{Category, Documentation};
@@ -74,11 +74,11 @@ impl AggregateFunction for RegrSlope {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegrSlopeImpl;
 
-impl AggregateFunctionImpl for RegrSlopeImpl {
+impl AggregateFunctionImpl2 for RegrSlopeImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             RegrSlopeState::default,
-            binary_update::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
+            binary_update2::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }

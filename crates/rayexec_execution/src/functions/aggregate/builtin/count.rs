@@ -33,13 +33,13 @@ use crate::arrays::executor::PutBuffer;
 use crate::expr::{self, Expression};
 use crate::functions::aggregate::states::{
     drain,
-    unary_update,
+    unary_update2,
     AggregateGroupStates,
     TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
-    AggregateFunctionImpl,
+    AggregateFunctionImpl2,
     PlannedAggregateFunction,
 };
 use crate::functions::documentation::{Category, Documentation};
@@ -89,7 +89,7 @@ impl AggregateFunction for Count {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        let function_impl: Box<dyn AggregateFunctionImpl> = match inputs[0]
+        let function_impl: Box<dyn AggregateFunctionImpl2> = match inputs[0]
             .datatype(table_list)?
             .physical_type()
         {
@@ -135,14 +135,14 @@ impl<S> CountNonNullImpl<S> {
     }
 }
 
-impl<S> AggregateFunctionImpl for CountNonNullImpl<S>
+impl<S> AggregateFunctionImpl2 for CountNonNullImpl<S>
 where
     S: ScalarStorage,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             CountNonNullState::<S>::default,
-            unary_update::<S, PhysicalI64, _>,
+            unary_update2::<S, PhysicalI64, _>,
             drain::<PhysicalI64, _, _>,
         ))
     }

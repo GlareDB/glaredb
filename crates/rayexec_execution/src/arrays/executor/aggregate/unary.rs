@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::AggregateState;
@@ -13,44 +13,42 @@ impl UnaryNonNullUpdater {
     pub fn update<S, State, Output>(
         array: &Array,
         selection: impl IntoExactSizeIterator<Item = usize>,
-        mapping: impl IntoExactSizeIterator<Item = usize>,
-        states: &mut [State],
+        states: &mut [*mut State],
     ) -> Result<()>
     where
         S: ScalarStorage,
         Output: ?Sized,
         for<'a> State: AggregateState<&'a S::StorageType, Output>,
     {
-        if array.should_flatten_for_execution() {
-            let flat = array.flatten()?;
-            return Self::update_flat::<S, State, Output>(flat, selection, mapping, states);
+        let selection = selection.into_exact_size_iter();
+        if selection.len() != states.len() {
+            return Err(RayexecError::new("Invalid number of states for selection")
+                .with_field("sel_len", selection.len())
+                .with_field("states_len", states.len()));
         }
 
-        // TODO: Length check.
+        if array.should_flatten_for_execution() {
+            let flat = array.flatten()?;
+            return Self::update_flat::<S, State, Output>(flat, selection, states);
+        }
 
         let input = S::get_addressable(&array.data)?;
         let validity = &array.validity;
 
         if validity.all_valid() {
-            for (input_idx, state_idx) in selection
-                .into_exact_size_iter()
-                .zip(mapping.into_exact_size_iter())
-            {
+            for (state_idx, input_idx) in selection.enumerate() {
                 let val = input.get(input_idx).unwrap();
-                let state = &mut states[state_idx];
+                let state = unsafe { &mut *states[state_idx] };
                 state.update(val)?;
             }
         } else {
-            for (input_idx, state_idx) in selection
-                .into_exact_size_iter()
-                .zip(mapping.into_exact_size_iter())
-            {
+            for (state_idx, input_idx) in selection.enumerate() {
                 if !validity.is_valid(input_idx) {
                     continue;
                 }
 
                 let val = input.get(input_idx).unwrap();
-                let state = &mut states[state_idx];
+                let state = unsafe { &mut *states[state_idx] };
                 state.update(val)?;
             }
         }
@@ -58,11 +56,10 @@ impl UnaryNonNullUpdater {
         Ok(())
     }
 
-    pub fn update_flat<S, State, Output>(
+    fn update_flat<S, State, Output>(
         array: FlattenedArray<'_>,
         selection: impl IntoExactSizeIterator<Item = usize>,
-        mapping: impl IntoExactSizeIterator<Item = usize>,
-        states: &mut [State],
+        states: &mut [*mut State],
     ) -> Result<()>
     where
         S: ScalarStorage,
@@ -73,29 +70,22 @@ impl UnaryNonNullUpdater {
         let validity = &array.validity;
 
         if validity.all_valid() {
-            for (input_idx, state_idx) in selection
-                .into_exact_size_iter()
-                .zip(mapping.into_exact_size_iter())
-            {
+            for (state_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
                 let selected_idx = array.selection.get(input_idx).unwrap();
 
                 let val = input.get(selected_idx).unwrap();
-                let state = &mut states[state_idx];
+                let state = unsafe { &mut *states[state_idx] };
                 state.update(val)?;
             }
         } else {
-            for (input_idx, state_idx) in selection
-                .into_exact_size_iter()
-                .zip(mapping.into_exact_size_iter())
-            {
-                let selected_idx = array.selection.get(input_idx).unwrap();
-
+            for (state_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
                 if !validity.is_valid(input_idx) {
                     continue;
                 }
 
+                let selected_idx = array.selection.get(input_idx).unwrap();
                 let val = input.get(selected_idx).unwrap();
-                let state = &mut states[state_idx];
+                let state = unsafe { &mut *states[state_idx] };
                 state.update(val)?;
             }
         }
@@ -141,23 +131,24 @@ mod tests {
 
     #[test]
     fn unary_primitive_single_state() {
-        let mut states = [TestSumState::default()];
+        let mut state = TestSumState::default();
+        let state_ptr: *mut TestSumState = &mut state;
+        let mut states = vec![state_ptr; 4];
+
         let array = Array::try_from_iter([1, 2, 3, 4, 5]).unwrap();
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
-            &array,
-            [0, 1, 2, 4],
-            [0, 0, 0, 0],
-            &mut states,
-        )
-        .unwrap();
+        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(&array, [0, 1, 2, 4], &mut states)
+            .unwrap();
 
-        assert_eq!(11, states[0].val);
+        assert_eq!(11, state.val);
     }
 
     #[test]
     fn unary_primitive_single_state_dictionary() {
-        let mut states = [TestSumState::default()];
+        let mut state = TestSumState::default();
+        let state_ptr: *mut TestSumState = &mut state;
+        let mut states = vec![state_ptr; 4];
+
         let mut array = Array::try_from_iter([1, 2, 3, 4, 5]).unwrap();
         // '[1, 5, 5, 5, 5, 2, 2]'
         array
@@ -167,17 +158,19 @@ mod tests {
         UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
             &array,
             [0, 1, 2, 4], // Select from the resulting dictionary.
-            [0, 0, 0, 0],
             &mut states,
         )
         .unwrap();
 
-        assert_eq!(16, states[0].val);
+        assert_eq!(16, state.val);
     }
 
     #[test]
     fn unary_primitive_single_state_dictionary_invalid() {
-        let mut states = [TestSumState::default()];
+        let mut state = TestSumState::default();
+        let state_ptr: *mut TestSumState = &mut state;
+        let mut states = vec![state_ptr; 4];
+
         let mut array = Array::try_from_iter([Some(1), Some(2), Some(3), Some(4), None]).unwrap();
         // => '[1, NULL, NULL, NULL, NULL, 2, 2]'
         array
@@ -187,61 +180,65 @@ mod tests {
         UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
             &array,
             [0, 1, 2, 4], // Select from the resulting dictionary.
-            [0, 0, 0, 0],
             &mut states,
         )
         .unwrap();
 
-        assert_eq!(1, states[0].val);
+        assert_eq!(1, state.val);
     }
 
     #[test]
     fn unary_primitive_single_state_constant() {
-        let mut states = [TestSumState::default()];
+        let mut state = TestSumState::default();
+        let state_ptr: *mut TestSumState = &mut state;
+        let mut states = vec![state_ptr; 4];
+
         let array = Array::try_new_constant(&NopBufferManager, &3.into(), 5).unwrap();
 
         UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
             &array,
             [0, 1, 2, 4], // Select from the resulting dictionary.
-            [0, 0, 0, 0],
             &mut states,
         )
         .unwrap();
 
-        assert_eq!(12, states[0].val);
+        assert_eq!(12, state.val);
     }
 
     #[test]
     fn unary_primitive_single_state_skip_null() {
-        let mut states = [TestSumState::default()];
+        let mut state = TestSumState::default();
+        let state_ptr: *mut TestSumState = &mut state;
+        let mut states = vec![state_ptr; 4];
+
         let array = Array::try_from_iter([None, Some(2), Some(3), Some(4), Some(5)]).unwrap();
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
-            &array,
-            [0, 1, 2, 4],
-            [0, 0, 0, 0],
-            &mut states,
-        )
-        .unwrap();
+        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(&array, [0, 1, 2, 4], &mut states)
+            .unwrap();
 
-        assert_eq!(10, states[0].val);
+        assert_eq!(10, state.val);
     }
 
     #[test]
     fn unary_primitive_multiple_states() {
-        let mut states = [TestSumState::default(), TestSumState::default()];
+        let mut state1 = TestSumState::default();
+        let mut state2 = TestSumState::default();
+        let ptr1: *mut TestSumState = &mut state1;
+        let ptr2: *mut TestSumState = &mut state2;
+
+        let mut states = [ptr1, ptr1, ptr1, ptr1, ptr2, ptr2, ptr1];
+
         let array = Array::try_from_iter([1, 2, 3, 4, 5]).unwrap();
 
         UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
             &array,
             [0, 1, 2, 4, 0, 3, 3],
-            [0, 0, 0, 0, 1, 1, 0],
             &mut states,
         )
         .unwrap();
 
-        assert_eq!(15, states[0].val);
-        assert_eq!(5, states[1].val);
+        assert_eq!(15, state1.val);
+        assert_eq!(5, state2.val);
     }
 
     #[derive(Debug, Default)]
@@ -273,17 +270,14 @@ mod tests {
     #[test]
     fn unary_string_single_state() {
         // Test just checks to ensure working with varlen is sane.
-        let mut states = [TestStringAgg::default()];
+        let mut state = TestStringAgg::default();
+        let state_ptr: *mut TestStringAgg = &mut state;
+        let mut states = vec![state_ptr; 3];
+
         let array = Array::try_from_iter(["aa", "bbb", "cccc"]).unwrap();
 
-        UnaryNonNullUpdater::update::<PhysicalUtf8, _, _>(
-            &array,
-            [0, 1, 2],
-            [0, 0, 0],
-            &mut states,
-        )
-        .unwrap();
+        UnaryNonNullUpdater::update::<PhysicalUtf8, _, _>(&array, [0, 1, 2], &mut states).unwrap();
 
-        assert_eq!("aabbbcccc", &states[0].val);
+        assert_eq!("aabbbcccc", &state.val);
     }
 }

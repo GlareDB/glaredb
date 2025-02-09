@@ -49,7 +49,7 @@ pub struct PlannedAggregateFunction {
     pub function: Box<dyn AggregateFunction>,
     pub return_type: DataType,
     pub inputs: Vec<Expression>,
-    pub function_impl: Box<dyn AggregateFunctionImpl>,
+    pub function_impl: Box<dyn AggregateFunctionImpl2>,
 }
 
 /// Assumes that a function with same inputs and return type is using the same
@@ -72,11 +72,11 @@ impl Hash for PlannedAggregateFunction {
     }
 }
 
-pub trait AggregateFunctionImpl: Debug + Sync + Send + DynClone {
+pub trait AggregateFunctionImpl2: Debug + Sync + Send + DynClone {
     fn new_states(&self) -> Box<dyn AggregateGroupStates>;
 }
 
-impl Clone for Box<dyn AggregateFunctionImpl> {
+impl Clone for Box<dyn AggregateFunctionImpl2> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }

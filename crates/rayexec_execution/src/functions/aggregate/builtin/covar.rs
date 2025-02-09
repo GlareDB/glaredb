@@ -10,14 +10,14 @@ use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    binary_update,
+    binary_update2,
     drain,
     AggregateGroupStates,
     TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
-    AggregateFunctionImpl,
+    AggregateFunctionImpl2,
     PlannedAggregateFunction,
 };
 use crate::functions::documentation::{Category, Documentation};
@@ -73,11 +73,11 @@ impl AggregateFunction for CovarPop {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CovarPopImpl;
 
-impl AggregateFunctionImpl for CovarPopImpl {
+impl AggregateFunctionImpl2 for CovarPopImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             CovarState::<CovarPopFinalize>::default,
-            binary_update::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
+            binary_update2::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }
@@ -132,11 +132,11 @@ impl AggregateFunction for CovarSamp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CovarSampImpl;
 
-impl AggregateFunctionImpl for CovarSampImpl {
+impl AggregateFunctionImpl2 for CovarSampImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             CovarState::<CovarSampFinalize>::default,
-            binary_update::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
+            binary_update2::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }

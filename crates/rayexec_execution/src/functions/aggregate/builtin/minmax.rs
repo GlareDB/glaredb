@@ -33,13 +33,13 @@ use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     drain,
-    unary_update,
+    unary_update2,
     AggregateGroupStates,
     TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
-    AggregateFunctionImpl,
+    AggregateFunctionImpl2,
     PlannedAggregateFunction,
 };
 use crate::functions::documentation::{Category, Documentation};
@@ -79,7 +79,7 @@ impl AggregateFunction for Min {
 
         let datatype = inputs[0].datatype(table_list)?;
 
-        let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type() {
+        let function_impl: Box<dyn AggregateFunctionImpl2> = match datatype.physical_type() {
             PhysicalType::UntypedNull => Box::new(MinPrimitiveImpl::<PhysicalUntypedNull>::new()),
             PhysicalType::Boolean => Box::new(MinPrimitiveImpl::<PhysicalBool>::new()),
             PhysicalType::Int8 => Box::new(MinPrimitiveImpl::<PhysicalI8>::new()),
@@ -143,7 +143,7 @@ impl AggregateFunction for Max {
 
         let datatype = inputs[0].datatype(table_list)?;
 
-        let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type() {
+        let function_impl: Box<dyn AggregateFunctionImpl2> = match datatype.physical_type() {
             PhysicalType::UntypedNull => Box::new(MaxPrimitiveImpl::<PhysicalUntypedNull>::new()),
             PhysicalType::Boolean => Box::new(MaxPrimitiveImpl::<PhysicalBool>::new()),
             PhysicalType::Int8 => Box::new(MaxPrimitiveImpl::<PhysicalI8>::new()),
@@ -185,7 +185,7 @@ impl<S> MaxPrimitiveImpl<S> {
     }
 }
 
-impl<S> AggregateFunctionImpl for MaxPrimitiveImpl<S>
+impl<S> AggregateFunctionImpl2 for MaxPrimitiveImpl<S>
 where
     S: MutableScalarStorage,
     S::StorageType: Default + Debug + Sync + Send + PartialOrd + Copy,
@@ -193,7 +193,7 @@ where
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             MaxStatePrimitive::<S::StorageType>::default,
-            unary_update::<S, S, _>,
+            unary_update2::<S, S, _>,
             drain::<S, _, _>,
         ))
     }
@@ -202,11 +202,11 @@ where
 #[derive(Debug, Clone, Copy)]
 pub struct MaxBinaryImpl;
 
-impl AggregateFunctionImpl for MaxBinaryImpl {
+impl AggregateFunctionImpl2 for MaxBinaryImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             MaxStateBinary::default,
-            unary_update::<PhysicalBinary, PhysicalBinary, _>,
+            unary_update2::<PhysicalBinary, PhysicalBinary, _>,
             drain::<PhysicalBinary, _, _>,
         ))
     }
@@ -215,11 +215,11 @@ impl AggregateFunctionImpl for MaxBinaryImpl {
 #[derive(Debug, Clone, Copy)]
 pub struct MaxStringImpl;
 
-impl AggregateFunctionImpl for MaxStringImpl {
+impl AggregateFunctionImpl2 for MaxStringImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             MaxStateString::default,
-            unary_update::<PhysicalUtf8, PhysicalUtf8, _>,
+            unary_update2::<PhysicalUtf8, PhysicalUtf8, _>,
             drain::<PhysicalUtf8, _, _>,
         ))
     }
@@ -386,7 +386,7 @@ impl<S> MinPrimitiveImpl<S> {
     }
 }
 
-impl<S> AggregateFunctionImpl for MinPrimitiveImpl<S>
+impl<S> AggregateFunctionImpl2 for MinPrimitiveImpl<S>
 where
     S: MutableScalarStorage,
     S::StorageType: Default + Debug + Sync + Send + PartialOrd + Copy,
@@ -394,7 +394,7 @@ where
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             MinStatePrimitive::<S::StorageType>::default,
-            unary_update::<S, S, _>,
+            unary_update2::<S, S, _>,
             drain::<S, _, _>,
         ))
     }
@@ -403,11 +403,11 @@ where
 #[derive(Debug, Clone, Copy)]
 pub struct MinBinaryImpl;
 
-impl AggregateFunctionImpl for MinBinaryImpl {
+impl AggregateFunctionImpl2 for MinBinaryImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             MinStateBinary::default,
-            unary_update::<PhysicalBinary, PhysicalBinary, _>,
+            unary_update2::<PhysicalBinary, PhysicalBinary, _>,
             drain::<PhysicalBinary, _, _>,
         ))
     }
@@ -416,11 +416,11 @@ impl AggregateFunctionImpl for MinBinaryImpl {
 #[derive(Debug, Clone, Copy)]
 pub struct MinStringImpl;
 
-impl AggregateFunctionImpl for MinStringImpl {
+impl AggregateFunctionImpl2 for MinStringImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             MinStateString::default,
-            unary_update::<PhysicalUtf8, PhysicalUtf8, _>,
+            unary_update2::<PhysicalUtf8, PhysicalUtf8, _>,
             drain::<PhysicalUtf8, _, _>,
         ))
     }

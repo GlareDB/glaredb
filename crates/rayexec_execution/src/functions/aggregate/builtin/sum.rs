@@ -14,13 +14,13 @@ use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType}
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     drain,
-    unary_update,
+    unary_update2,
     AggregateGroupStates,
     TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
-    AggregateFunctionImpl,
+    AggregateFunctionImpl2,
     PlannedAggregateFunction,
 };
 use crate::functions::documentation::{Category, Documentation};
@@ -80,7 +80,7 @@ impl AggregateFunction for Sum {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        let (function_impl, return_type): (Box<dyn AggregateFunctionImpl>, _) =
+        let (function_impl, return_type): (Box<dyn AggregateFunctionImpl2>, _) =
             match inputs[0].datatype(table_list)? {
                 DataType::Int64 => (Box::new(SumInt64Impl), DataType::Int64),
                 DataType::Float64 => (Box::new(SumFloat64Impl), DataType::Float64),
@@ -107,11 +107,11 @@ impl AggregateFunction for Sum {
 #[derive(Debug, Clone)]
 pub struct SumInt64Impl;
 
-impl AggregateFunctionImpl for SumInt64Impl {
+impl AggregateFunctionImpl2 for SumInt64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             SumStateCheckedAdd::<i64>::default,
-            unary_update::<PhysicalI64, PhysicalI64, _>,
+            unary_update2::<PhysicalI64, PhysicalI64, _>,
             drain::<PhysicalI64, _, _>,
         ))
     }
@@ -120,11 +120,11 @@ impl AggregateFunctionImpl for SumInt64Impl {
 #[derive(Debug, Clone)]
 pub struct SumFloat64Impl;
 
-impl AggregateFunctionImpl for SumFloat64Impl {
+impl AggregateFunctionImpl2 for SumFloat64Impl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             SumStateAdd::<f64>::default,
-            unary_update::<PhysicalF64, PhysicalF64, _>,
+            unary_update2::<PhysicalF64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }
@@ -141,14 +141,14 @@ impl<D> SumDecimalImpl<D> {
     }
 }
 
-impl<D> AggregateFunctionImpl for SumDecimalImpl<D>
+impl<D> AggregateFunctionImpl2 for SumDecimalImpl<D>
 where
     D: DecimalType,
 {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             SumStateCheckedAdd::<D::Primitive>::default,
-            unary_update::<D::Storage, D::Storage, _>,
+            unary_update2::<D::Storage, D::Storage, _>,
             drain::<D::Storage, _, _>,
         ))
     }

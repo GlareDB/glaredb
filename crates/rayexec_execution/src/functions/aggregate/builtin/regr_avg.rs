@@ -10,14 +10,14 @@ use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
-    binary_update,
+    binary_update2,
     drain,
     AggregateGroupStates,
     TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
-    AggregateFunctionImpl,
+    AggregateFunctionImpl2,
     PlannedAggregateFunction,
 };
 use crate::functions::documentation::{Category, Documentation};
@@ -73,11 +73,11 @@ impl AggregateFunction for RegrAvgY {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RegrAvgYImpl;
 
-impl AggregateFunctionImpl for RegrAvgYImpl {
+impl AggregateFunctionImpl2 for RegrAvgYImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             RegrAvgState::<Self>::default,
-            binary_update::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
+            binary_update2::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }
@@ -139,11 +139,11 @@ impl AggregateFunction for RegrAvgX {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RegrAvgXImpl;
 
-impl AggregateFunctionImpl for RegrAvgXImpl {
+impl AggregateFunctionImpl2 for RegrAvgXImpl {
     fn new_states(&self) -> Box<dyn AggregateGroupStates> {
         Box::new(TypedAggregateGroupStates::new(
             RegrAvgState::<Self>::default,
-            binary_update::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
+            binary_update2::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
             drain::<PhysicalF64, _, _>,
         ))
     }

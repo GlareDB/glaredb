@@ -22,21 +22,17 @@ use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::ScalarValue;
 use crate::database::DatabaseContext;
-use crate::execution::operators::{
-    ExecutableOperator,
-    OperatorState,
-    PartitionState,
-};
+use crate::execution::operators::{ExecutableOperator, OperatorState, PartitionState};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
 use crate::functions::aggregate::states::AggregateGroupStates;
-use crate::functions::aggregate::AggregateFunctionImpl;
+use crate::functions::aggregate::AggregateFunctionImpl2;
 use crate::logical::logical_aggregate::GroupingFunction;
 
 #[derive(Debug)]
 pub struct Aggregate {
     /// Function for producing the aggregate state.
-    pub function: Box<dyn AggregateFunctionImpl>,
+    pub function: Box<dyn AggregateFunctionImpl2>,
     /// Return type for the aggregate.
     pub datatype: DataType,
     /// Columns that will be inputs into the aggregate.
@@ -250,11 +246,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                 let aggregate_columns: Vec<_> = self
                     .aggregate_columns
                     .iter()
-                    .map(|idx| {
-                        input
-                            .array(*idx)
-                            .expect("aggregate input column to exist")
-                    }) // TODO
+                    .map(|idx| input.array(*idx).expect("aggregate input column to exist")) // TODO
                     .collect();
 
                 // Get the columns containg the "group" values (the columns in a

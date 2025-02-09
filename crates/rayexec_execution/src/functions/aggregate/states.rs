@@ -18,16 +18,15 @@ use crate::arrays::executor::aggregate::{
 use crate::arrays::executor::PutBuffer;
 
 pub trait AggregateStateLogic {
-    type State: for<'a> AggregateState<&'a Self::Input, Self::Output>;
-    type Input;
-    type Output;
+    type State;
 
     fn init_state(extra: Option<&dyn Any>) -> Self::State;
 
     fn update(
         extra: Option<&dyn Any>,
         inputs: &[&Array],
-        states: &mut [&mut Self::State],
+        num_rows: usize,
+        states: &mut [*mut Self::State],
     ) -> Result<()>;
 
     fn combine(
@@ -43,6 +42,70 @@ pub trait AggregateStateLogic {
     ) -> Result<()>;
 }
 
+#[derive(Debug)]
+pub struct UnaryStateLogic<State, Input, Output> {
+    _input: PhantomCovariant<Input>,
+    _output: PhantomCovariant<Output>,
+    _state: PhantomCovariant<State>,
+}
+
+impl<State, Input, Output> AggregateStateLogic for UnaryStateLogic<State, Input, Output>
+where
+    State: for<'a> AggregateState<&'a Input::StorageType, Output::StorageType> + Default,
+    Input: ScalarStorage,
+    Output: MutableScalarStorage,
+{
+    type State = State;
+
+    fn init_state(_extra: Option<&dyn Any>) -> Self::State {
+        Default::default()
+    }
+
+    fn update(
+        _extra: Option<&dyn Any>,
+        inputs: &[&Array],
+        num_rows: usize,
+        states: &mut [*mut Self::State],
+    ) -> Result<()> {
+        UnaryNonNullUpdater::update::<Input, _, _>(inputs[0], 0..num_rows, states)
+    }
+
+    fn combine(
+        _extra: Option<&dyn Any>,
+        src: &mut [&mut Self::State],
+        dest: &mut [&mut Self::State],
+    ) -> Result<()> {
+        if src.len() != dest.len() {
+            return Err(RayexecError::new(
+                "Source and destination have different number of states",
+            )
+            .with_field("source", src.len())
+            .with_field("dest", dest.len()));
+        }
+
+        for (src, dest) in src.iter_mut().zip(dest) {
+            dest.merge(src)?;
+        }
+
+        Ok(())
+    }
+
+    fn finalize(
+        _extra: Option<&dyn Any>,
+        states: &mut [&mut Self::State],
+        output: &mut Array,
+    ) -> Result<()> {
+        let buffer = &mut Output::get_addressable_mut(&mut output.data)?;
+        let validity = &mut output.validity;
+
+        for (idx, state) in states.iter_mut().enumerate() {
+            state.finalize(PutBuffer::new(idx, buffer, validity))?;
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AggregateFunctionImpl {
     /// Alignment requirement of the state.
@@ -53,34 +116,41 @@ pub struct AggregateFunctionImpl {
     /// Extra state to use when initializing an updating states.
     ///
     /// For example, this would contain the string separate for STRING_AGG.
-    extra: Option<Arc<dyn Any>>,
+    pub extra: Option<Arc<dyn Any>>,
 
     /// Initialize a new aggregate state at the given pointer.
-    init_fn: fn(extra: Option<&dyn Any>, state: *mut u8),
+    pub init_fn: unsafe fn(extra: Option<&dyn Any>, state: *mut u8),
     /// Update the states using the provided inputs.
     ///
     /// The 'i'th row should update the 'i'th state.
-    // TODO: num_rows or selection.
-    update_fn: fn(extra: Option<&dyn Any>, inputs: &[&Array], states: &mut [*mut u8]) -> Result<()>,
+    pub update_fn: unsafe fn(
+        extra: Option<&dyn Any>,
+        inputs: &[&Array],
+        num_rows: usize,
+        states: &mut [*mut u8],
+    ) -> Result<()>,
     /// Combine states.
     ///
     /// This will consume states from `src` combining them with states in
     /// `dest`.
     ///
     /// State objects in `src` will be dropped.
-    combine_fn:
-        fn(extra: Option<&dyn Any>, src: &mut [*mut u8], dest: &mut [*mut u8]) -> Result<()>,
+    pub combine_fn:
+        unsafe fn(extra: Option<&dyn Any>, src: &mut [*mut u8], dest: &mut [*mut u8]) -> Result<()>,
     /// Finalize the given states writing the outputs to `output`.
     ///
     /// This is guaranteed to be called exactly once in the aggregate operators.
     ///
     /// This will also Drop the state object to ensure cleanup.
-    finalize_fn:
-        fn(extra: Option<&dyn Any>, states: &mut [*mut u8], output: &mut Array) -> Result<()>,
+    pub finalize_fn: unsafe fn(
+        extra: Option<&dyn Any>,
+        states: &mut [*mut u8],
+        output: &mut Array,
+    ) -> Result<()>,
 }
 
 impl AggregateFunctionImpl {
-    pub fn new<Agg>() -> Self
+    pub fn new<Agg>(extra: Option<Arc<dyn Any>>) -> Self
     where
         Agg: AggregateStateLogic,
     {
@@ -89,14 +159,17 @@ impl AggregateFunctionImpl {
             unsafe { state_ptr.cast::<Agg::State>().write(state) };
         };
 
-        let update_fn = |extra: Option<&dyn Any>, inputs: &[&Array], states: &mut [*mut u8]| {
-            let states: &mut [&mut Agg::State] = unsafe {
+        let update_fn = |extra: Option<&dyn Any>,
+                         inputs: &[&Array],
+                         num_rows: usize,
+                         states: &mut [*mut u8]| {
+            let states: &mut [*mut Agg::State] = unsafe {
                 std::slice::from_raw_parts_mut(
-                    states.as_mut_ptr() as *mut &mut Agg::State,
+                    states.as_mut_ptr() as *mut *mut Agg::State,
                     states.len(),
                 )
             };
-            Agg::update(extra, inputs, states)
+            Agg::update(extra, inputs, num_rows, states)
         };
 
         let combine_fn = |extra: Option<&dyn Any>,
@@ -160,7 +233,7 @@ impl AggregateFunctionImpl {
         AggregateFunctionImpl {
             state_align: std::mem::align_of::<Agg::State>(),
             state_size: std::mem::size_of::<Agg::State>(),
-            extra: None,
+            extra,
             init_fn,
             update_fn,
             combine_fn,
@@ -363,7 +436,7 @@ where
     Ok(())
 }
 
-pub fn unary_update<Storage, Output, State>(
+pub fn unary_update2<Storage, Output, State>(
     arrays: &[&Array],
     selection: Selection,
     mapping: &[usize],
@@ -383,7 +456,7 @@ where
     // )
 }
 
-pub fn binary_update<Storage1, Storage2, Output, State>(
+pub fn binary_update2<Storage1, Storage2, Output, State>(
     arrays: &[&Array],
     selection: Selection,
     mapping: &[usize],
