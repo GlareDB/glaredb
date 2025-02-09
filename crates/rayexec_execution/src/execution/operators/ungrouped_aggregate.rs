@@ -17,7 +17,10 @@ use super::{
     PollPush,
     UnaryInputStates,
 };
+use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::arrays::array::raw::AlignedTypedBuffer;
 use crate::arrays::batch::Batch;
+use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::database::DatabaseContext;
 use crate::execution::operators::InputOutputStates;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -29,7 +32,9 @@ use crate::proto::DatabaseProtoConv;
 pub enum UngroupedAggregatePartitionState {
     Aggregating {
         /// Binary data containing values for each aggregate.
-        values: Vec<Vec<u8>>,
+        ///
+        /// This will be aligned and sized according to the aggregate layout.
+        values: AlignedTypedBuffer<u8, NopBufferManager>,
     },
 }
 
@@ -47,11 +52,16 @@ pub struct PhysicalUngroupedAggregate {
     ///
     /// Used to create the initial states.
     aggregates: Vec<PhysicalAggregateExpression>,
+    /// Aggregate layout.
+    ///
+    /// This will have no groups associated with it.
+    layout: AggregateLayout,
 }
 
 impl PhysicalUngroupedAggregate {
     pub fn new(aggregates: Vec<PhysicalAggregateExpression>) -> Self {
-        PhysicalUngroupedAggregate { aggregates }
+        unimplemented!()
+        // PhysicalUngroupedAggregate { aggregates }
     }
 }
 
