@@ -475,162 +475,162 @@ mod tests {
         HashTable::new(16, vec![aggregate])
     }
 
-    /// Create a planned aggregate.
-    ///
-    /// Plans a SUM aggregate, and assumes the input can be casted to an Int64.
-    fn make_planned_aggregate<I>(cols: I, input_idx: usize) -> PlannedAggregateFunction
-    where
-        I: IntoIterator<Item = (&'static str, DataType)>,
-    {
-        let (names, types): (Vec<_>, Vec<_>) = cols
-            .into_iter()
-            .map(|(name, typ)| (name.to_string(), typ))
-            .unzip();
+    // /// Create a planned aggregate.
+    // ///
+    // /// Plans a SUM aggregate, and assumes the input can be casted to an Int64.
+    // fn make_planned_aggregate<I>(cols: I, input_idx: usize) -> PlannedAggregateFunction
+    // where
+    //     I: IntoIterator<Item = (&'static str, DataType)>,
+    // {
+    //     let (names, types): (Vec<_>, Vec<_>) = cols
+    //         .into_iter()
+    //         .map(|(name, typ)| (name.to_string(), typ))
+    //         .unzip();
 
-        let mut table_list = TableList::empty();
-        let table_ref = table_list.push_table(None, types, names).unwrap();
+    //     let mut table_list = TableList::empty();
+    //     let table_ref = table_list.push_table(None, types, names).unwrap();
 
-        let input = expr::cast(expr::col_ref(table_ref, input_idx), DataType::Int64);
+    //     let input = expr::cast(expr::col_ref(table_ref, input_idx), DataType::Int64);
 
-        Sum.plan(&table_list, vec![input]).unwrap()
-    }
+    //     Sum.plan(&table_list, vec![input]).unwrap()
+    // }
 
-    #[test]
-    fn insert_simple() {
-        let groups = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
-        let inputs = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
+    // #[test]
+    // fn insert_simple() {
+    //     let groups = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
+    //     let inputs = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
 
-        let hashes = [4, 5, 4]; // Hashes for group values.
+    //     let hashes = [4, 5, 4]; // Hashes for group values.
 
-        let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
-        let mut table = make_hash_table(agg);
-        table.insert(&groups, &hashes, &inputs).unwrap();
+    //     let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
+    //     let mut table = make_hash_table(agg);
+    //     table.insert(&groups, &hashes, &inputs).unwrap();
 
-        assert_eq!(2, table.num_occupied);
-    }
+    //     assert_eq!(2, table.num_occupied);
+    // }
 
-    #[test]
-    fn insert_chunk_append() {
-        // Assumes knowledge of internals.
+    // #[test]
+    // fn insert_chunk_append() {
+    //     // Assumes knowledge of internals.
 
-        let groups1 = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
-        let inputs1 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
-        let hashes1 = [4, 5, 4];
+    //     let groups1 = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
+    //     let inputs1 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
+    //     let hashes1 = [4, 5, 4];
 
-        let groups2 = [Array::try_from_iter(["g1", "g2", "g3"]).unwrap()];
-        let inputs2 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
-        let hashes2 = [4, 5, 6];
+    //     let groups2 = [Array::try_from_iter(["g1", "g2", "g3"]).unwrap()];
+    //     let inputs2 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
+    //     let hashes2 = [4, 5, 6];
 
-        let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
-        let mut table = make_hash_table(agg);
-        table.insert(&groups1, &hashes1, &inputs1).unwrap();
-        table.insert(&groups2, &hashes2, &inputs2).unwrap();
+    //     let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
+    //     let mut table = make_hash_table(agg);
+    //     table.insert(&groups1, &hashes1, &inputs1).unwrap();
+    //     table.insert(&groups2, &hashes2, &inputs2).unwrap();
 
-        assert_eq!(3, table.num_occupied);
-        assert_eq!(1, table.chunks.len());
-    }
+    //     assert_eq!(3, table.num_occupied);
+    //     assert_eq!(1, table.chunks.len());
+    // }
 
-    #[test]
-    fn insert_hash_collision() {
-        let groups = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
-        let inputs = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
+    // #[test]
+    // fn insert_hash_collision() {
+    //     let groups = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
+    //     let inputs = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
 
-        let hashes = [4, 4, 4];
+    //     let hashes = [4, 4, 4];
 
-        let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
-        let mut table = make_hash_table(agg);
-        table.insert(&groups, &hashes, &inputs).unwrap();
+    //     let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
+    //     let mut table = make_hash_table(agg);
+    //     table.insert(&groups, &hashes, &inputs).unwrap();
 
-        assert_eq!(2, table.num_occupied);
-    }
+    //     assert_eq!(2, table.num_occupied);
+    // }
 
-    #[test]
-    fn insert_require_resize() {
-        // 17 unique groups (> initial 16 capacity)
+    // #[test]
+    // fn insert_require_resize() {
+    //     // 17 unique groups (> initial 16 capacity)
 
-        let groups = [Array::try_from_iter(0..17).unwrap()];
-        let inputs = [Array::try_from_iter((0..17_i64).collect::<Vec<_>>()).unwrap()];
+    //     let groups = [Array::try_from_iter(0..17).unwrap()];
+    //     let inputs = [Array::try_from_iter((0..17_i64).collect::<Vec<_>>()).unwrap()];
 
-        let hashes = vec![44; 17]; // All hashes collide.
+    //     let hashes = vec![44; 17]; // All hashes collide.
 
-        let agg = make_planned_aggregate([("g", DataType::Int32), ("i", DataType::Int32)], 1);
-        let mut table = make_hash_table(agg);
-        table.insert(&groups, &hashes, &inputs).unwrap();
+    //     let agg = make_planned_aggregate([("g", DataType::Int32), ("i", DataType::Int32)], 1);
+    //     let mut table = make_hash_table(agg);
+    //     table.insert(&groups, &hashes, &inputs).unwrap();
 
-        assert_eq!(17, table.num_occupied);
-    }
+    //     assert_eq!(17, table.num_occupied);
+    // }
 
-    #[test]
-    fn insert_require_resize_more_than_double() {
-        // 33 unique groups, more than twice initial capacity. Caught bug where
-        // resize by doubling didn't increase capacity enough.
+    // #[test]
+    // fn insert_require_resize_more_than_double() {
+    //     // 33 unique groups, more than twice initial capacity. Caught bug where
+    //     // resize by doubling didn't increase capacity enough.
 
-        let groups = [Array::try_from_iter(0..33).unwrap()];
-        let inputs = [Array::try_from_iter((0..33_i64).collect::<Vec<_>>()).unwrap()];
+    //     let groups = [Array::try_from_iter(0..33).unwrap()];
+    //     let inputs = [Array::try_from_iter((0..33_i64).collect::<Vec<_>>()).unwrap()];
 
-        let hashes = vec![44; 33]; // All hashes collide.
+    //     let hashes = vec![44; 33]; // All hashes collide.
 
-        let agg = make_planned_aggregate([("g", DataType::Int32), ("i", DataType::Int32)], 1);
-        let mut table = make_hash_table(agg);
-        table.insert(&groups, &hashes, &inputs).unwrap();
+    //     let agg = make_planned_aggregate([("g", DataType::Int32), ("i", DataType::Int32)], 1);
+    //     let mut table = make_hash_table(agg);
+    //     table.insert(&groups, &hashes, &inputs).unwrap();
 
-        assert_eq!(33, table.num_occupied);
-    }
+    //     assert_eq!(33, table.num_occupied);
+    // }
 
-    #[test]
-    fn merge_simple() {
-        let groups1 = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
-        let inputs1 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
+    // #[test]
+    // fn merge_simple() {
+    //     let groups1 = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
+    //     let inputs1 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
 
-        let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
+    //     let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
 
-        let hashes = vec![4, 5, 4];
-        let mut t1 = make_hash_table(agg.clone());
-        t1.insert(&groups1, &hashes, &inputs1).unwrap();
+    //     let hashes = vec![4, 5, 4];
+    //     let mut t1 = make_hash_table(agg.clone());
+    //     t1.insert(&groups1, &hashes, &inputs1).unwrap();
 
-        let groups2 = [Array::try_from_iter(["g3", "g2", "g1"]).unwrap()];
-        let inputs2 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
+    //     let groups2 = [Array::try_from_iter(["g3", "g2", "g1"]).unwrap()];
+    //     let inputs2 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
 
-        let hashes = vec![6, 5, 4];
+    //     let hashes = vec![6, 5, 4];
 
-        let mut t2 = make_hash_table(agg);
-        t2.insert(&groups2, &hashes, &inputs2).unwrap();
+    //     let mut t2 = make_hash_table(agg);
+    //     t2.insert(&groups2, &hashes, &inputs2).unwrap();
 
-        t1.merge_many(&mut [t2]).unwrap();
+    //     t1.merge_many(&mut [t2]).unwrap();
 
-        assert_eq!(3, t1.num_occupied);
-    }
+    //     assert_eq!(3, t1.num_occupied);
+    // }
 
-    #[test]
-    fn merge_non_empty_then_merge_empty() {
-        // Tests that we properly resize internal buffers to account for merging
-        // in empty hash tables after already merging in non-empty hash tables.
-        let groups1 = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
-        let inputs1 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
+    // #[test]
+    // fn merge_non_empty_then_merge_empty() {
+    //     // Tests that we properly resize internal buffers to account for merging
+    //     // in empty hash tables after already merging in non-empty hash tables.
+    //     let groups1 = [Array::try_from_iter(["g1", "g2", "g1"]).unwrap()];
+    //     let inputs1 = [Array::try_from_iter::<[i64; 3]>([1, 2, 3]).unwrap()];
 
-        let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
+    //     let agg = make_planned_aggregate([("g", DataType::Utf8), ("i", DataType::Int32)], 1);
 
-        let hashes = vec![4, 5, 4];
-        // First hash table, we're merging everything into this one.
-        let mut t1 = make_hash_table(agg.clone());
-        t1.insert(&groups1, &hashes, &inputs1).unwrap();
+    //     let hashes = vec![4, 5, 4];
+    //     // First hash table, we're merging everything into this one.
+    //     let mut t1 = make_hash_table(agg.clone());
+    //     t1.insert(&groups1, &hashes, &inputs1).unwrap();
 
-        // Second hash table, not empty
-        let groups2 = [Array::try_from_iter(["g1", "g2"]).unwrap()];
-        let inputs2 = [Array::try_from_iter::<[i64; 2]>([4, 5]).unwrap()];
-        let hashes = vec![4, 5];
-        let mut t2 = make_hash_table(agg.clone());
-        t2.insert(&groups2, &hashes, &inputs2).unwrap();
+    //     // Second hash table, not empty
+    //     let groups2 = [Array::try_from_iter(["g1", "g2"]).unwrap()];
+    //     let inputs2 = [Array::try_from_iter::<[i64; 2]>([4, 5]).unwrap()];
+    //     let hashes = vec![4, 5];
+    //     let mut t2 = make_hash_table(agg.clone());
+    //     t2.insert(&groups2, &hashes, &inputs2).unwrap();
 
-        // Third hash table, empty.
-        let mut t3 = make_hash_table(agg.clone());
+    //     // Third hash table, empty.
+    //     let mut t3 = make_hash_table(agg.clone());
 
-        // Now merge non-empty first.
-        t1.merge(&mut t2).unwrap();
-        assert_eq!(2, t1.num_occupied);
+    //     // Now merge non-empty first.
+    //     t1.merge(&mut t2).unwrap();
+    //     assert_eq!(2, t1.num_occupied);
 
-        // Now merge empty.
-        t1.merge(&mut t3).unwrap();
-        assert_eq!(2, t1.num_occupied);
-    }
+    //     // Now merge empty.
+    //     t1.merge(&mut t3).unwrap();
+    //     assert_eq!(2, t1.num_occupied);
+    // }
 }

@@ -1,6 +1,7 @@
 use core::fmt;
 use std::any::Any;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 use stdutil::marker::PhantomCovariant;
@@ -15,6 +16,158 @@ use crate::arrays::executor::aggregate::{
     UnaryNonNullUpdater,
 };
 use crate::arrays::executor::PutBuffer;
+
+pub trait AggregateStateLogic {
+    type State: for<'a> AggregateState<&'a Self::Input, Self::Output>;
+    type Input;
+    type Output;
+
+    fn init_state(extra: Option<&dyn Any>) -> Self::State;
+
+    fn update(
+        extra: Option<&dyn Any>,
+        inputs: &[&Array],
+        states: &mut [&mut Self::State],
+    ) -> Result<()>;
+
+    fn combine(
+        extra: Option<&dyn Any>,
+        src: &mut [&mut Self::State],
+        dest: &mut [&mut Self::State],
+    ) -> Result<()>;
+
+    fn finalize(
+        extra: Option<&dyn Any>,
+        states: &mut [&mut Self::State],
+        output: &mut Array,
+    ) -> Result<()>;
+}
+
+#[derive(Debug, Clone)]
+pub struct AggregateFunctionImpl {
+    /// Alignment requirement of the state.
+    pub state_align: usize,
+    /// Size in bytes of the state (stack).
+    pub state_size: usize,
+
+    /// Extra state to use when initializing an updating states.
+    ///
+    /// For example, this would contain the string separate for STRING_AGG.
+    extra: Option<Arc<dyn Any>>,
+
+    /// Initialize a new aggregate state at the given pointer.
+    init_fn: fn(extra: Option<&dyn Any>, state: *mut u8),
+    /// Update the states using the provided inputs.
+    ///
+    /// The 'i'th row should update the 'i'th state.
+    // TODO: num_rows or selection.
+    update_fn: fn(extra: Option<&dyn Any>, inputs: &[&Array], states: &mut [*mut u8]) -> Result<()>,
+    /// Combine states.
+    ///
+    /// This will consume states from `src` combining them with states in
+    /// `dest`.
+    ///
+    /// State objects in `src` will be dropped.
+    combine_fn:
+        fn(extra: Option<&dyn Any>, src: &mut [*mut u8], dest: &mut [*mut u8]) -> Result<()>,
+    /// Finalize the given states writing the outputs to `output`.
+    ///
+    /// This is guaranteed to be called exactly once in the aggregate operators.
+    ///
+    /// This will also Drop the state object to ensure cleanup.
+    finalize_fn:
+        fn(extra: Option<&dyn Any>, states: &mut [*mut u8], output: &mut Array) -> Result<()>,
+}
+
+impl AggregateFunctionImpl {
+    pub fn new<Agg>() -> Self
+    where
+        Agg: AggregateStateLogic,
+    {
+        let init_fn = |extra: Option<&dyn Any>, state_ptr: *mut u8| {
+            let state = Agg::init_state(extra);
+            unsafe { state_ptr.cast::<Agg::State>().write(state) };
+        };
+
+        let update_fn = |extra: Option<&dyn Any>, inputs: &[&Array], states: &mut [*mut u8]| {
+            let states: &mut [&mut Agg::State] = unsafe {
+                std::slice::from_raw_parts_mut(
+                    states.as_mut_ptr() as *mut &mut Agg::State,
+                    states.len(),
+                )
+            };
+            Agg::update(extra, inputs, states)
+        };
+
+        let combine_fn = |extra: Option<&dyn Any>,
+                          src_ptrs: &mut [*mut u8],
+                          dest_ptrs: &mut [*mut u8]|
+         -> Result<()> {
+            if src_ptrs.len() != dest_ptrs.len() {
+                return Err(
+                    RayexecError::new("Different lengths with src and dest ptrs")
+                        .with_field("src", src_ptrs.len())
+                        .with_field("dest", dest_ptrs.len()),
+                );
+            }
+
+            let src: &mut [&mut Agg::State] = unsafe {
+                std::slice::from_raw_parts_mut(
+                    src_ptrs.as_mut_ptr() as *mut &mut Agg::State,
+                    src_ptrs.len(),
+                )
+            };
+
+            let dest: &mut [&mut Agg::State] = unsafe {
+                std::slice::from_raw_parts_mut(
+                    dest_ptrs.as_mut_ptr() as *mut &mut Agg::State,
+                    dest_ptrs.len(),
+                )
+            };
+
+            Agg::combine(extra, src, dest)?;
+
+            // Drop src states.
+            for src_ptr in src_ptrs {
+                unsafe {
+                    src_ptr.drop_in_place();
+                }
+            }
+
+            Ok(())
+        };
+
+        let finalize_fn =
+            |extra: Option<&dyn Any>, states: &mut [*mut u8], output: &mut Array| -> Result<()> {
+                let typed_states: &mut [&mut Agg::State] = unsafe {
+                    std::slice::from_raw_parts_mut(
+                        states.as_mut_ptr() as *mut &mut Agg::State,
+                        states.len(),
+                    )
+                };
+                Agg::finalize(extra, typed_states, output)?;
+
+                // Drop all states, they'll never be read from again.
+                for state_ptr in states {
+                    unsafe {
+                        state_ptr.drop_in_place();
+                    }
+                }
+
+                Ok(())
+            };
+
+        AggregateFunctionImpl {
+            state_align: std::mem::align_of::<Agg::State>(),
+            state_size: std::mem::size_of::<Agg::State>(),
+            extra: None,
+            init_fn,
+            update_fn,
+            combine_fn,
+            finalize_fn,
+        }
+    }
+}
 
 pub struct TypedAggregateGroupStates<
     State,
@@ -221,12 +374,13 @@ where
     Output: MutableScalarStorage,
     State: for<'a> AggregateState<&'a Storage::StorageType, Output::StorageType>,
 {
-    UnaryNonNullUpdater::update::<Storage, State, _>(
-        arrays[0],
-        selection,
-        mapping.iter().copied(),
-        states,
-    )
+    unimplemented!()
+    // UnaryNonNullUpdater::update::<Storage, State, _>(
+    //     arrays[0],
+    //     selection,
+    //     mapping.iter().copied(),
+    //     states,
+    // )
 }
 
 pub fn binary_update<Storage1, Storage2, Output, State>(
@@ -244,11 +398,12 @@ where
         Output::StorageType,
     >,
 {
-    BinaryNonNullUpdater::update::<Storage1, Storage2, State, _>(
-        arrays[0],
-        arrays[1],
-        selection,
-        mapping.iter().copied(),
-        states,
-    )
+    unimplemented!()
+    // BinaryNonNullUpdater::update::<Storage1, Storage2, State, _>(
+    //     arrays[0],
+    //     arrays[1],
+    //     selection,
+    //     mapping.iter().copied(),
+    //     states,
+    // )
 }

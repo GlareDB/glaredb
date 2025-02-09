@@ -103,11 +103,8 @@ impl Hash for PlannedScalarFunction {
     }
 }
 
+// TODO: Function pointer?
 pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
-    fn execute2(&self, _inputs: &[&Array]) -> Result<Array> {
-        unimplemented!()
-    }
-
     /// Execute the function the input batch, writing the output for each row
     /// into `output` at the same index.
     ///
