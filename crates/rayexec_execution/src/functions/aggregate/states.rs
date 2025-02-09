@@ -9,12 +9,7 @@ use stdutil::marker::PhantomCovariant;
 use crate::arrays::array::physical_type::{MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
-use crate::arrays::executor::aggregate::{
-    AggregateState,
-    BinaryNonNullUpdater,
-    StateCombiner,
-    UnaryNonNullUpdater,
-};
+use crate::arrays::executor::aggregate::{AggregateState, StateCombiner, UnaryNonNullUpdater};
 use crate::arrays::executor::PutBuffer;
 
 pub trait AggregateStateLogic {

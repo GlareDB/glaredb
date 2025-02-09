@@ -1,7 +1,8 @@
 use std::alloc::{self, Layout};
+use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
-use rayexec_error::{Result, ResultExt};
+use rayexec_error::{RayexecError, Result, ResultExt};
 use stdutil::marker::PhantomCovariant;
 
 use super::buffer_manager::{BufferManager, Reservation};
@@ -73,6 +74,61 @@ where
     }
 }
 
+/// Wrapper around a typed raw buffer that has a manual alignemnt.
+#[derive(Debug)]
+pub struct AlignedTypedBuffer<T, B: BufferManager>(TypedRawBuffer<T, B>);
+
+impl<T, B> AlignedTypedBuffer<T, B>
+where
+    B: BufferManager,
+{
+    pub fn try_with_capacity_and_alignment(manager: &B, cap: usize, align: usize) -> Result<Self> {
+        let raw = RawBuffer::try_with_capacity_and_alignment::<T>(manager, cap, align)?;
+        Ok(AlignedTypedBuffer(TypedRawBuffer {
+            _type: PhantomCovariant::new(),
+            raw,
+        }))
+    }
+}
+
+impl<T, B> AsRef<TypedRawBuffer<T, B>> for AlignedTypedBuffer<T, B>
+where
+    B: BufferManager,
+{
+    fn as_ref(&self) -> &TypedRawBuffer<T, B> {
+        &self.0
+    }
+}
+
+impl<T, B> AsMut<TypedRawBuffer<T, B>> for AlignedTypedBuffer<T, B>
+where
+    B: BufferManager,
+{
+    fn as_mut(&mut self) -> &mut TypedRawBuffer<T, B> {
+        &mut self.0
+    }
+}
+
+impl<T, B> Deref for AlignedTypedBuffer<T, B>
+where
+    B: BufferManager,
+{
+    type Target = TypedRawBuffer<T, B>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T, B> DerefMut for AlignedTypedBuffer<T, B>
+where
+    B: BufferManager,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 /// A raw buffer densely allocated on the heap.
 ///
 /// Tracks memory usage through reservations that get released when this buffer
@@ -116,8 +172,29 @@ where
     /// to buffer locations prior to reading from those locations.
     pub fn try_with_capacity<T>(manager: &B, cap: usize) -> Result<Self> {
         let align = std::mem::align_of::<T>();
-        let size_bytes = std::mem::size_of::<T>() * cap;
+        Self::try_with_capacity_and_alignment::<T>(manager, cap, align)
+    }
 
+    /// Like `try_with_capacity`, but with manually specified alignment.
+    ///
+    /// `align` must be:
+    ///
+    /// - At least 1
+    /// - A power of 2
+    /// - A multiple of the true alignment of `T`.
+    pub fn try_with_capacity_and_alignment<T>(
+        manager: &B,
+        cap: usize,
+        align: usize,
+    ) -> Result<Self> {
+        let true_align = std::mem::align_of::<T>();
+        if align % true_align != 0 {
+            return Err(RayexecError::new("Invalid alignment specified")
+                .with_field("specified", align)
+                .with_field("true_alignment", true_align));
+        }
+
+        let size_bytes = std::mem::size_of::<T>() * cap;
         let reservation = manager.try_reserve(size_bytes)?;
 
         let ptr = if size_bytes == 0 {
@@ -129,8 +206,8 @@ where
             // the conditional, but that UB when using the global allocator.
             NonNull::<T>::dangling().cast()
         } else {
-            let layout = Layout::array::<T>(cap).context("failed to create layout")?;
-            assert_eq!(size_bytes, layout.size());
+            let layout =
+                Layout::from_size_align(size_bytes, align).context("failed to create layout")?;
 
             let ptr = unsafe { alloc::alloc(layout) };
             match NonNull::new(ptr) {
@@ -164,7 +241,7 @@ where
     }
 
     pub unsafe fn as_slice<T>(&self) -> &[T] {
-        debug_assert_eq!(std::mem::align_of::<T>(), self.align);
+        debug_assert_eq!(0, self.align % std::mem::align_of::<T>());
         debug_assert_eq!(
             0,
             if std::mem::size_of::<T>() > 0 {
@@ -182,7 +259,7 @@ where
     }
 
     pub unsafe fn as_slice_mut<T>(&mut self) -> &mut [T] {
-        debug_assert_eq!(std::mem::align_of::<T>(), self.align);
+        debug_assert_eq!(0, self.align % std::mem::align_of::<T>());
         debug_assert_eq!(
             0,
             if std::mem::size_of::<T>() > 0 {
@@ -203,7 +280,7 @@ where
     ///
     /// This will reallocate using the buffer manager on the existing memory reservation.
     pub unsafe fn reserve<T>(&mut self, additional: usize) -> Result<()> {
-        debug_assert_eq!(std::mem::align_of::<T>(), self.align);
+        debug_assert_eq!(0, self.align % std::mem::align_of::<T>());
         debug_assert_eq!(
             0,
             if std::mem::size_of::<T>() > 0 {
@@ -235,18 +312,19 @@ where
             return Ok(());
         }
 
-        let cap = self.reservation.size() / std::mem::size_of::<T>();
-
-        let old_layout = self.layout();
-        let new_layout =
-            Layout::array::<T>(cap + additional).context("failed to create new layout")?;
+        let old_layout = self.current_layout();
+        let new_layout = Layout::from_size_align(
+            (self.capacity + additional) * std::mem::size_of::<T>(),
+            self.align,
+        )
+        .context("failed to create layout")?;
 
         let additional_bytes = std::mem::size_of::<T>() * additional;
 
         // Reserve additional.
         let additional_reservation = self.reservation.manager().try_reserve(additional_bytes)?;
 
-        let new_ptr = if cap == 0 {
+        let new_ptr = if self.capacity == 0 {
             unsafe { alloc::alloc(new_layout) }
         } else {
             let old_ptr = self.ptr.as_ptr();
@@ -265,7 +343,9 @@ where
         Ok(())
     }
 
-    const fn layout(&self) -> Layout {
+    fn current_layout(&self) -> Layout {
+        // If we were able to construct this buffer, then the layout here should
+        // always be valid.
         unsafe { Layout::from_size_align_unchecked(self.reservation.size(), self.align) }
     }
 
@@ -296,7 +376,7 @@ where
 {
     fn drop(&mut self) {
         if self.reservation.size() != 0 {
-            let layout = self.layout();
+            let layout = self.current_layout();
             unsafe {
                 alloc::dealloc(self.ptr.as_ptr(), layout);
             }
@@ -340,6 +420,20 @@ mod tests {
 
         let s = unsafe { b.as_slice::<Zst>() };
         assert_eq!(&[Zst, Zst, Zst, Zst], s);
+    }
+
+    #[test]
+    fn new_manual_alignment() {
+        // Miri helps test this.
+
+        let b =
+            RawBuffer::try_with_capacity_and_alignment::<i64>(&NopBufferManager, 4, 32).unwrap();
+        assert_eq!(32, b.align);
+
+        let _ = unsafe { b.as_slice::<i64>() };
+
+        let ptr = b.as_ptr();
+        assert_eq!(0, ptr.addr() % 32);
     }
 
     #[test]
@@ -413,6 +507,19 @@ mod tests {
 
         let s = unsafe { b.as_slice::<Zst>() };
         assert_eq!(&[Zst, Zst, Zst, Zst, Zst, Zst], s);
+    }
+
+    #[test]
+    fn reserve_keeps_manual_align() {
+        // Miri helps test this.
+
+        let mut b =
+            RawBuffer::try_with_capacity_and_alignment::<i64>(&NopBufferManager, 4, 32).unwrap();
+        unsafe { b.reserve::<i64>(4).unwrap() };
+        assert_eq!(32, b.align);
+
+        let ptr = b.as_ptr();
+        assert_eq!(0, ptr.addr() % 32);
     }
 
     #[test]
