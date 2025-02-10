@@ -9,7 +9,12 @@ use stdutil::marker::PhantomCovariant;
 use crate::arrays::array::physical_type::{MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
-use crate::arrays::executor::aggregate::{AggregateState, StateCombiner, UnaryNonNullUpdater};
+use crate::arrays::executor::aggregate::{
+    AggregateState,
+    BinaryNonNullUpdater,
+    StateCombiner,
+    UnaryNonNullUpdater,
+};
 use crate::arrays::executor::PutBuffer;
 
 pub trait AggregateStateLogic {
@@ -63,6 +68,81 @@ where
         states: &mut [*mut Self::State],
     ) -> Result<()> {
         UnaryNonNullUpdater::update::<Input, _, _>(inputs[0], 0..num_rows, states)
+    }
+
+    fn combine(
+        _extra: Option<&dyn Any>,
+        src: &mut [&mut Self::State],
+        dest: &mut [&mut Self::State],
+    ) -> Result<()> {
+        if src.len() != dest.len() {
+            return Err(RayexecError::new(
+                "Source and destination have different number of states",
+            )
+            .with_field("source", src.len())
+            .with_field("dest", dest.len()));
+        }
+
+        for (src, dest) in src.iter_mut().zip(dest) {
+            dest.merge(src)?;
+        }
+
+        Ok(())
+    }
+
+    fn finalize(
+        _extra: Option<&dyn Any>,
+        states: &mut [&mut Self::State],
+        output: &mut Array,
+    ) -> Result<()> {
+        let buffer = &mut Output::get_addressable_mut(&mut output.data)?;
+        let validity = &mut output.validity;
+
+        for (idx, state) in states.iter_mut().enumerate() {
+            state.finalize(PutBuffer::new(idx, buffer, validity))?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct BinaryStateLogic<State, Input1, Input2, Output> {
+    _input1: PhantomCovariant<Input1>,
+    _input2: PhantomCovariant<Input2>,
+    _output: PhantomCovariant<Output>,
+    _state: PhantomCovariant<State>,
+}
+
+impl<State, Input1, Input2, Output> AggregateStateLogic
+    for BinaryStateLogic<State, Input1, Input2, Output>
+where
+    State: for<'a> AggregateState<
+            (&'a Input1::StorageType, &'a Input2::StorageType),
+            Output::StorageType,
+        > + Default,
+    Input1: ScalarStorage,
+    Input2: ScalarStorage,
+    Output: MutableScalarStorage,
+{
+    type State = State;
+
+    fn init_state(_extra: Option<&dyn Any>) -> Self::State {
+        Default::default()
+    }
+
+    fn update(
+        _extra: Option<&dyn Any>,
+        inputs: &[&Array],
+        num_rows: usize,
+        states: &mut [*mut Self::State],
+    ) -> Result<()> {
+        BinaryNonNullUpdater::update::<Input1, Input2, _, _>(
+            inputs[0],
+            inputs[1],
+            0..num_rows,
+            states,
+        )
     }
 
     fn combine(

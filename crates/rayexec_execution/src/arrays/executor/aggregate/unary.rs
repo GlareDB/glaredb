@@ -22,9 +22,11 @@ impl UnaryNonNullUpdater {
     {
         let selection = selection.into_exact_size_iter();
         if selection.len() != states.len() {
-            return Err(RayexecError::new("Invalid number of states for selection")
-                .with_field("sel_len", selection.len())
-                .with_field("states_len", states.len()));
+            return Err(RayexecError::new(
+                "Invalid number of states for selection in unary agggregate executor",
+            )
+            .with_field("sel_len", selection.len())
+            .with_field("states_len", states.len()));
         }
 
         if array.should_flatten_for_execution() {
