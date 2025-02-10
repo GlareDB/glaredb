@@ -77,6 +77,30 @@ impl PhysicalUngroupedAggregate {
 
         PhysicalUngroupedAggregate { aggregates, layout }
     }
+
+    /// Intializes a new buffer for the aggregates in this operator.
+    fn try_init_buffer(&self) -> Result<AlignedBuffer<u8, NopBufferManager>> {
+        let values = AlignedBuffer::<u8, _>::try_with_capacity_and_alignment(
+            &NopBufferManager,
+            self.layout.row_width,
+            self.layout.base_align,
+        )?;
+
+        for (agg_idx, agg) in self.aggregates.iter().enumerate() {
+            let extra = agg.function.function_impl.extra.as_deref().map(|v| v as _);
+            // SAFETY: Buffer allocated according to the layout width and
+            // alignement. The state pointer should be correctly aligned.
+            unsafe {
+                let state_ptr = values
+                    .as_mut_ptr()
+                    .byte_add(self.layout.aggregate_offsets[agg_idx]);
+
+                (agg.function.function_impl.init_fn)(extra, state_ptr)
+            }
+        }
+
+        Ok(values)
+    }
 }
 
 impl ExecutableOperator for PhysicalUngroupedAggregate {
@@ -92,11 +116,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
             .map(|_| {
                 Ok(PartitionState::UngroupedAggregate(
                     UngroupedAggregatePartitionState::Aggregating {
-                        values: AlignedBuffer::try_with_capacity_and_alignment(
-                            &NopBufferManager,
-                            self.layout.row_width,
-                            self.layout.base_align,
-                        )?,
+                        values: self.try_init_buffer()?,
                         ptr_buf: Vec::with_capacity(batch_size),
                     },
                 ))
@@ -106,11 +126,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         let operator_state = OperatorState::UngroupedAggregate(UngroupedAggregateOperatorState {
             inner: Mutex::new(OperatorStateInner {
                 remaining: partitions,
-                values: AlignedBuffer::try_with_capacity_and_alignment(
-                    &NopBufferManager,
-                    self.layout.row_width,
-                    self.layout.base_align,
-                )?,
+                values: self.try_init_buffer()?,
             }),
         });
 
