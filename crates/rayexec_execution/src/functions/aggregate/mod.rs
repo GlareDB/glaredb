@@ -6,7 +6,7 @@ use std::hash::Hash;
 
 use dyn_clone::DynClone;
 use rayexec_error::Result;
-use states::AggregateGroupStates;
+use states::{AggregateFunctionImpl, AggregateGroupStates};
 
 use super::FunctionInfo;
 use crate::arrays::datatype::DataType;
@@ -49,7 +49,7 @@ pub struct PlannedAggregateFunction {
     pub function: Box<dyn AggregateFunction>,
     pub return_type: DataType,
     pub inputs: Vec<Expression>,
-    pub function_impl: Box<dyn AggregateFunctionImpl2>,
+    pub function_impl: AggregateFunctionImpl,
 }
 
 /// Assumes that a function with same inputs and return type is using the same

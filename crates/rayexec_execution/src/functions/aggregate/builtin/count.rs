@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use rayexec_error::{not_implemented, Result};
@@ -31,17 +32,8 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::expr::{self, Expression};
-use crate::functions::aggregate::states::{
-    drain,
-    unary_update2,
-    AggregateGroupStates,
-    TypedAggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl2,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -56,7 +48,7 @@ impl Count {
             function: Box::new(*self),
             return_type: DataType::Int64,
             inputs: vec![expr::lit(true)],
-            function_impl: Box::new(CountNonNullImpl::<PhysicalBool>::new()),
+            function_impl: create_impl::<PhysicalBool>(),
         }
     }
 }
@@ -89,29 +81,26 @@ impl AggregateFunction for Count {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        let function_impl: Box<dyn AggregateFunctionImpl2> = match inputs[0]
-            .datatype(table_list)?
-            .physical_type()
-        {
-            PhysicalType::UntypedNull => Box::new(CountNonNullImpl::<PhysicalUntypedNull>::new()),
-            PhysicalType::Boolean => Box::new(CountNonNullImpl::<PhysicalBool>::new()),
-            PhysicalType::Int8 => Box::new(CountNonNullImpl::<PhysicalI8>::new()),
-            PhysicalType::Int16 => Box::new(CountNonNullImpl::<PhysicalI16>::new()),
-            PhysicalType::Int32 => Box::new(CountNonNullImpl::<PhysicalI32>::new()),
-            PhysicalType::Int64 => Box::new(CountNonNullImpl::<PhysicalI64>::new()),
-            PhysicalType::Int128 => Box::new(CountNonNullImpl::<PhysicalI128>::new()),
-            PhysicalType::UInt8 => Box::new(CountNonNullImpl::<PhysicalU8>::new()),
-            PhysicalType::UInt16 => Box::new(CountNonNullImpl::<PhysicalU16>::new()),
-            PhysicalType::UInt32 => Box::new(CountNonNullImpl::<PhysicalU32>::new()),
-            PhysicalType::UInt64 => Box::new(CountNonNullImpl::<PhysicalU64>::new()),
-            PhysicalType::UInt128 => Box::new(CountNonNullImpl::<PhysicalU128>::new()),
-            PhysicalType::Float16 => Box::new(CountNonNullImpl::<PhysicalF16>::new()),
-            PhysicalType::Float32 => Box::new(CountNonNullImpl::<PhysicalF32>::new()),
-            PhysicalType::Float64 => Box::new(CountNonNullImpl::<PhysicalF64>::new()),
-            PhysicalType::Interval => Box::new(CountNonNullImpl::<PhysicalInterval>::new()),
-            PhysicalType::Utf8 => Box::new(CountNonNullImpl::<PhysicalUtf8>::new()),
-            PhysicalType::Binary => Box::new(CountNonNullImpl::<PhysicalBinary>::new()),
-            PhysicalType::List => Box::new(CountNonNullImpl::<PhysicalList>::new()),
+        let function_impl = match inputs[0].datatype(table_list)?.physical_type() {
+            PhysicalType::UntypedNull => create_impl::<PhysicalUntypedNull>(),
+            PhysicalType::Boolean => create_impl::<PhysicalBool>(),
+            PhysicalType::Int8 => create_impl::<PhysicalI8>(),
+            PhysicalType::Int16 => create_impl::<PhysicalI16>(),
+            PhysicalType::Int32 => create_impl::<PhysicalI32>(),
+            PhysicalType::Int64 => create_impl::<PhysicalI64>(),
+            PhysicalType::Int128 => create_impl::<PhysicalI128>(),
+            PhysicalType::UInt8 => create_impl::<PhysicalU8>(),
+            PhysicalType::UInt16 => create_impl::<PhysicalU16>(),
+            PhysicalType::UInt32 => create_impl::<PhysicalU32>(),
+            PhysicalType::UInt64 => create_impl::<PhysicalU64>(),
+            PhysicalType::UInt128 => create_impl::<PhysicalU128>(),
+            PhysicalType::Float16 => create_impl::<PhysicalF16>(),
+            PhysicalType::Float32 => create_impl::<PhysicalF32>(),
+            PhysicalType::Float64 => create_impl::<PhysicalF64>(),
+            PhysicalType::Interval => create_impl::<PhysicalInterval>(),
+            PhysicalType::Utf8 => create_impl::<PhysicalUtf8>(),
+            PhysicalType::Binary => create_impl::<PhysicalBinary>(),
+            PhysicalType::List => create_impl::<PhysicalList>(),
             PhysicalType::Struct => not_implemented!("count struct"),
         };
 
@@ -124,28 +113,11 @@ impl AggregateFunction for Count {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct CountNonNullImpl<S> {
-    _s: PhantomData<S>,
-}
-
-impl<S> CountNonNullImpl<S> {
-    const fn new() -> Self {
-        CountNonNullImpl { _s: PhantomData }
-    }
-}
-
-impl<S> AggregateFunctionImpl2 for CountNonNullImpl<S>
+fn create_impl<S>() -> AggregateFunctionImpl
 where
     S: ScalarStorage,
 {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            CountNonNullState::<S>::default,
-            unary_update2::<S, PhysicalI64, _>,
-            drain::<PhysicalI64, _, _>,
-        ))
-    }
+    AggregateFunctionImpl::new::<UnaryStateLogic<CountNonNullState<S>, S, PhysicalI64>>(None)
 }
 
 #[derive(Debug, Default)]

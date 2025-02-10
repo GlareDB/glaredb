@@ -30,6 +30,9 @@ pub struct AggregateLayout {
     pub(crate) row_width: usize,
     /// Byte offsets to the aggregates in the row.
     ///
+    /// This is relative to the entire row width (both the group values and the
+    /// aggregate states).
+    ///
     /// These will be aligned to the aggregate object.
     pub(crate) aggregate_offsets: Vec<usize>,
 }

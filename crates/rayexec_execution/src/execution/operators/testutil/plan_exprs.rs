@@ -2,8 +2,9 @@
 
 use crate::arrays::datatype::DataType;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
-use crate::expr::physical::PhysicalScalarExpression;
-use crate::expr::Expression;
+use crate::expr::physical::{PhysicalAggregateExpression, PhysicalScalarExpression};
+use crate::expr::{self, Expression};
+use crate::functions::aggregate::AggregateFunction;
 use crate::logical::binder::table_list::{TableList, TableRef};
 
 /// Plans a logical expression.
@@ -30,6 +31,40 @@ pub fn plan_scalars<'a>(
     planner.plan_scalars(&table_refs, exprs).unwrap()
 }
 
+/// Plan an aggregate function.
+///
+/// This assumes the input to the aggregate is a column whose types are provided
+/// by `inputs.
+pub fn plan_aggregate(
+    agg: &dyn AggregateFunction,
+    inputs: impl IntoIterator<Item = DataType>,
+) -> PhysicalAggregateExpression {
+    let inputs: Vec<_> = inputs.into_iter().collect();
+    let (table_list, refs) = create_table_list(&[&inputs]);
+    assert_eq!(1, refs.len());
+
+    let exprs: Vec<_> = inputs
+        .iter()
+        .enumerate()
+        .map(|(idx, _)| expr::col_ref(refs[0], idx))
+        .collect();
+
+    let planned = agg.plan(&table_list, exprs).unwrap();
+    let columns: Vec<_> = plan_scalars(&planned.inputs, &[&inputs])
+        .into_iter()
+        .map(|expr| match expr {
+            PhysicalScalarExpression::Column(col) => col,
+            other => panic!("Not a column expr: {other:?}"),
+        })
+        .collect();
+
+    PhysicalAggregateExpression {
+        function: planned,
+        columns,
+        is_distinct: false,
+    }
+}
+
 #[track_caller]
 fn create_table_list(inputs: &[&[DataType]]) -> (TableList, Vec<TableRef>) {
     let mut table_list = TableList::empty();
@@ -54,6 +89,7 @@ mod tests {
     use super::*;
     use crate::expr;
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
+    use crate::functions::aggregate::builtin::sum;
 
     #[test]
     fn plan_literal() {
@@ -78,5 +114,10 @@ mod tests {
             }
             other => panic!("unexpected physical expression: {other:?}"),
         }
+    }
+
+    #[test]
+    fn plan_aggregate_sanity() {
+        let _agg = plan_aggregate(&sum::Sum, [DataType::Int64]);
     }
 }

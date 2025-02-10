@@ -76,22 +76,22 @@ where
 
 /// Wrapper around a typed raw buffer that has a manual alignemnt.
 #[derive(Debug)]
-pub struct AlignedTypedBuffer<T, B: BufferManager>(TypedRawBuffer<T, B>);
+pub struct AlignedBuffer<T, B: BufferManager>(TypedRawBuffer<T, B>);
 
-impl<T, B> AlignedTypedBuffer<T, B>
+impl<T, B> AlignedBuffer<T, B>
 where
     B: BufferManager,
 {
     pub fn try_with_capacity_and_alignment(manager: &B, cap: usize, align: usize) -> Result<Self> {
         let raw = RawBuffer::try_with_capacity_and_alignment::<T>(manager, cap, align)?;
-        Ok(AlignedTypedBuffer(TypedRawBuffer {
+        Ok(AlignedBuffer(TypedRawBuffer {
             _type: PhantomCovariant::new(),
             raw,
         }))
     }
 }
 
-impl<T, B> AsRef<TypedRawBuffer<T, B>> for AlignedTypedBuffer<T, B>
+impl<T, B> AsRef<TypedRawBuffer<T, B>> for AlignedBuffer<T, B>
 where
     B: BufferManager,
 {
@@ -100,7 +100,7 @@ where
     }
 }
 
-impl<T, B> AsMut<TypedRawBuffer<T, B>> for AlignedTypedBuffer<T, B>
+impl<T, B> AsMut<TypedRawBuffer<T, B>> for AlignedBuffer<T, B>
 where
     B: BufferManager,
 {
@@ -109,7 +109,7 @@ where
     }
 }
 
-impl<T, B> Deref for AlignedTypedBuffer<T, B>
+impl<T, B> Deref for AlignedBuffer<T, B>
 where
     B: BufferManager,
 {
@@ -120,7 +120,7 @@ where
     }
 }
 
-impl<T, B> DerefMut for AlignedTypedBuffer<T, B>
+impl<T, B> DerefMut for AlignedBuffer<T, B>
 where
     B: BufferManager,
 {

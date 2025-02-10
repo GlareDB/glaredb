@@ -12,8 +12,10 @@ use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     drain,
     unary_update2,
+    AggregateFunctionImpl,
     AggregateGroupStates,
     TypedAggregateGroupStates,
+    UnaryStateLogic,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
@@ -60,7 +62,9 @@ impl AggregateFunction for StddevPop {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(StddevPopImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    UnaryStateLogic<VarianceState<StddevPopFinalize>, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
@@ -120,7 +124,9 @@ impl AggregateFunction for StddevSamp {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(StddevSampImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    UnaryStateLogic<VarianceState<StddevSampFinalize>, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
@@ -176,7 +182,9 @@ impl AggregateFunction for VarPop {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(VarPopImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    UnaryStateLogic<VarianceState<VariancePopFinalize>, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
@@ -232,7 +240,9 @@ impl AggregateFunction for VarSamp {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(VarSampImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    UnaryStateLogic<VarianceState<VarianceSampFinalize>, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             other => Err(invalid_input_types_error(self, &[other])),
         }

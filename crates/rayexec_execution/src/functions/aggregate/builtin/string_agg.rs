@@ -1,19 +1,25 @@
+use std::any::Any;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::buffer_manager::BufferManager;
-use crate::arrays::array::physical_type::{AddressableMut, PhysicalUtf8};
+use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
+use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::aggregate::{AggregateState, UnaryNonNullUpdater};
 use crate::arrays::executor::PutBuffer;
 use crate::arrays::scalar::ScalarValue;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     drain,
     unary_update2,
+    AggregateFunctionImpl,
     AggregateGroupStates,
+    AggregateStateLogic,
     TypedAggregateGroupStates,
+    UnaryStateLogic,
 };
 use crate::functions::aggregate::{
     AggregateFunction,
@@ -83,33 +89,77 @@ impl AggregateFunction for StringAgg {
             }
         };
 
+        let extra = Arc::new(sep) as Arc<_>;
+
         Ok(PlannedAggregateFunction {
             function: Box::new(*self),
             return_type: DataType::Utf8,
             inputs,
-            function_impl: Box::new(StringAggImpl { sep }),
+            function_impl: AggregateFunctionImpl::new::<StringAggImpl>(Some(extra)),
         })
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct StringAggImpl {
     pub sep: String,
 }
 
-impl AggregateFunctionImpl2 for StringAggImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        let sep = self.sep.clone();
-        let state_init = move || StringAggState {
+impl AggregateStateLogic for StringAggImpl {
+    type State = StringAggState;
+
+    fn init_state(extra: Option<&dyn Any>) -> Self::State {
+        let sep = extra.unwrap().downcast_ref::<String>().unwrap();
+        StringAggState {
             sep: sep.clone(),
             string: None,
-        };
+        }
+    }
 
-        Box::new(TypedAggregateGroupStates::new(
-            state_init,
-            unary_update2::<PhysicalUtf8, PhysicalUtf8, _>,
-            drain::<PhysicalUtf8, _, _>,
-        ))
+    fn update(
+        _extra: Option<&dyn Any>,
+        inputs: &[&Array],
+        num_rows: usize,
+        states: &mut [*mut Self::State],
+    ) -> Result<()> {
+        UnaryNonNullUpdater::update::<PhysicalUtf8, _, _>(inputs[0], 0..num_rows, states)
+    }
+
+    fn combine(
+        _extra: Option<&dyn Any>,
+        src: &mut [&mut Self::State],
+        dest: &mut [&mut Self::State],
+    ) -> Result<()> {
+        // TODO: Reduce duplication.
+        if src.len() != dest.len() {
+            return Err(RayexecError::new(
+                "Source and destination have different number of states",
+            )
+            .with_field("source", src.len())
+            .with_field("dest", dest.len()));
+        }
+
+        for (src, dest) in src.iter_mut().zip(dest) {
+            dest.merge(src)?;
+        }
+
+        Ok(())
+    }
+
+    fn finalize(
+        _extra: Option<&dyn Any>,
+        states: &mut [&mut Self::State],
+        output: &mut Array,
+    ) -> Result<()> {
+        // TODO: Reduce duplication
+        let buffer = &mut PhysicalUtf8::get_addressable_mut(&mut output.data)?;
+        let validity = &mut output.validity;
+
+        for (idx, state) in states.iter_mut().enumerate() {
+            state.finalize(PutBuffer::new(idx, buffer, validity))?;
+        }
+
+        Ok(())
     }
 }
 

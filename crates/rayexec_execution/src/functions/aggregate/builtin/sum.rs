@@ -1,28 +1,17 @@
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::ops::AddAssign;
 
 use num_traits::CheckedAdd;
 use rayexec_error::Result;
 
 use crate::arrays::array::buffer_manager::BufferManager;
-use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64, PhysicalI64};
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64, PhysicalI128, PhysicalI64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
-use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    drain,
-    unary_update2,
-    AggregateGroupStates,
-    TypedAggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl2,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -80,20 +69,35 @@ impl AggregateFunction for Sum {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        let (function_impl, return_type): (Box<dyn AggregateFunctionImpl2>, _) =
-            match inputs[0].datatype(table_list)? {
-                DataType::Int64 => (Box::new(SumInt64Impl), DataType::Int64),
-                DataType::Float64 => (Box::new(SumFloat64Impl), DataType::Float64),
-                DataType::Decimal64(m) => {
-                    let datatype = DataType::Decimal64(m);
-                    (Box::new(SumDecimalImpl::<Decimal64Type>::new()), datatype)
-                }
-                DataType::Decimal128(m) => {
-                    let datatype = DataType::Decimal128(m);
-                    (Box::new(SumDecimalImpl::<Decimal128Type>::new()), datatype)
-                }
-                other => return Err(invalid_input_types_error(self, &[other])),
-            };
+        let (function_impl, return_type) = match inputs[0].datatype(table_list)? {
+            DataType::Int64 => {
+                let function_impl = AggregateFunctionImpl::new::<
+                    UnaryStateLogic<SumStateCheckedAdd<i64>, PhysicalI64, PhysicalI64>,
+                >(None);
+                (function_impl, DataType::Int64)
+            }
+            DataType::Float64 => {
+                let function_impl = AggregateFunctionImpl::new::<
+                    UnaryStateLogic<SumStateAdd<f64>, PhysicalF64, PhysicalF64>,
+                >(None);
+                (function_impl, DataType::Int64)
+            }
+            DataType::Decimal64(m) => {
+                let datatype = DataType::Decimal64(m);
+                let function_impl = AggregateFunctionImpl::new::<
+                    UnaryStateLogic<SumStateCheckedAdd<i64>, PhysicalI64, PhysicalI64>,
+                >(None);
+                (function_impl, datatype)
+            }
+            DataType::Decimal128(m) => {
+                let datatype = DataType::Decimal128(m);
+                let function_impl = AggregateFunctionImpl::new::<
+                    UnaryStateLogic<SumStateCheckedAdd<i128>, PhysicalI128, PhysicalI128>,
+                >(None);
+                (function_impl, datatype)
+            }
+            other => return Err(invalid_input_types_error(self, &[other])),
+        };
 
         Ok(PlannedAggregateFunction {
             function: Box::new(*self),
@@ -101,56 +105,6 @@ impl AggregateFunction for Sum {
             inputs,
             function_impl,
         })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SumInt64Impl;
-
-impl AggregateFunctionImpl2 for SumInt64Impl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            SumStateCheckedAdd::<i64>::default,
-            unary_update2::<PhysicalI64, PhysicalI64, _>,
-            drain::<PhysicalI64, _, _>,
-        ))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SumFloat64Impl;
-
-impl AggregateFunctionImpl2 for SumFloat64Impl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            SumStateAdd::<f64>::default,
-            unary_update2::<PhysicalF64, PhysicalF64, _>,
-            drain::<PhysicalF64, _, _>,
-        ))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SumDecimalImpl<D> {
-    _d: PhantomData<D>,
-}
-
-impl<D> SumDecimalImpl<D> {
-    const fn new() -> Self {
-        SumDecimalImpl { _d: PhantomData }
-    }
-}
-
-impl<D> AggregateFunctionImpl2 for SumDecimalImpl<D>
-where
-    D: DecimalType,
-{
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            SumStateCheckedAdd::<D::Primitive>::default,
-            unary_update2::<D::Storage, D::Storage, _>,
-            drain::<D::Storage, _, _>,
-        ))
     }
 }
 
@@ -233,6 +187,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::array::raw::AlignedBuffer;
     use crate::arrays::array::selection::Selection;
     use crate::arrays::array::Array;
     use crate::arrays::testutil::{assert_arrays_eq, assert_arrays_eq_sel};
@@ -250,9 +205,16 @@ mod tests {
     //         .push_table(None, vec![DataType::Int64], vec!["c0".to_string()])
     //         .unwrap();
 
-    //     let specialized = Sum
+    //     let planned = Sum
     //         .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
     //         .unwrap();
+
+    //     let mut buf = AlignedBuffer::try_with_capacity_and_alignment(
+    //         &NopBufferManager,
+    //         planned.function_impl.state_size * 2,
+    //         planned.function_impl.state_align,
+    //     )
+    //     .unwrap();
 
     //     let mut states_1 = specialized.function_impl.new_states();
     //     let mut states_2 = specialized.function_impl.new_states();

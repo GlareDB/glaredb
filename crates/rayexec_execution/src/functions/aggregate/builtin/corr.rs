@@ -10,17 +10,8 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    binary_update2,
-    drain,
-    AggregateGroupStates,
-    TypedAggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl2,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, BinaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -65,23 +56,12 @@ impl AggregateFunction for Corr {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(CorrImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    BinaryStateLogic<CorrelationState, PhysicalF64, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CorrImpl;
-
-impl AggregateFunctionImpl2 for CorrImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            CorrelationState::default,
-            binary_update2::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
-            drain::<PhysicalF64, _, _>,
-        ))
     }
 }
 

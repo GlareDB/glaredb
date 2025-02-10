@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use rayexec_error::{not_implemented, Result};
 
@@ -31,17 +30,8 @@ use crate::arrays::datatype::DataTypeId;
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    drain,
-    unary_update2,
-    AggregateGroupStates,
-    TypedAggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl2,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -79,25 +69,30 @@ impl AggregateFunction for First {
 
         let datatype = inputs[0].datatype(table_list)?;
 
-        let function_impl: Box<dyn AggregateFunctionImpl2> = match datatype.physical_type() {
-            PhysicalType::UntypedNull => Box::new(FirstPrimitiveImpl::<PhysicalUntypedNull>::new()),
-            PhysicalType::Boolean => Box::new(FirstPrimitiveImpl::<PhysicalBool>::new()),
-            PhysicalType::Int8 => Box::new(FirstPrimitiveImpl::<PhysicalI8>::new()),
-            PhysicalType::Int16 => Box::new(FirstPrimitiveImpl::<PhysicalI16>::new()),
-            PhysicalType::Int32 => Box::new(FirstPrimitiveImpl::<PhysicalI32>::new()),
-            PhysicalType::Int64 => Box::new(FirstPrimitiveImpl::<PhysicalI64>::new()),
-            PhysicalType::Int128 => Box::new(FirstPrimitiveImpl::<PhysicalI128>::new()),
-            PhysicalType::UInt8 => Box::new(FirstPrimitiveImpl::<PhysicalU8>::new()),
-            PhysicalType::UInt16 => Box::new(FirstPrimitiveImpl::<PhysicalU16>::new()),
-            PhysicalType::UInt32 => Box::new(FirstPrimitiveImpl::<PhysicalU32>::new()),
-            PhysicalType::UInt64 => Box::new(FirstPrimitiveImpl::<PhysicalU64>::new()),
-            PhysicalType::UInt128 => Box::new(FirstPrimitiveImpl::<PhysicalU128>::new()),
-            PhysicalType::Float16 => Box::new(FirstPrimitiveImpl::<PhysicalF16>::new()),
-            PhysicalType::Float32 => Box::new(FirstPrimitiveImpl::<PhysicalF32>::new()),
-            PhysicalType::Float64 => Box::new(FirstPrimitiveImpl::<PhysicalF64>::new()),
-            PhysicalType::Interval => Box::new(FirstPrimitiveImpl::<PhysicalInterval>::new()),
-            PhysicalType::Utf8 => Box::new(FirstStringImpl),
-            PhysicalType::Binary => Box::new(FirstBinaryImpl),
+        let function_impl = match datatype.physical_type() {
+            PhysicalType::UntypedNull => create_primitive_impl::<PhysicalUntypedNull>(),
+            PhysicalType::Boolean => create_primitive_impl::<PhysicalBool>(),
+            PhysicalType::Int8 => create_primitive_impl::<PhysicalI8>(),
+            PhysicalType::Int16 => create_primitive_impl::<PhysicalI16>(),
+            PhysicalType::Int32 => create_primitive_impl::<PhysicalI32>(),
+            PhysicalType::Int64 => create_primitive_impl::<PhysicalI64>(),
+            PhysicalType::Int128 => create_primitive_impl::<PhysicalI128>(),
+            PhysicalType::UInt8 => create_primitive_impl::<PhysicalU8>(),
+            PhysicalType::UInt16 => create_primitive_impl::<PhysicalU16>(),
+            PhysicalType::UInt32 => create_primitive_impl::<PhysicalU32>(),
+            PhysicalType::UInt64 => create_primitive_impl::<PhysicalU64>(),
+            PhysicalType::UInt128 => create_primitive_impl::<PhysicalU128>(),
+            PhysicalType::Float16 => create_primitive_impl::<PhysicalF16>(),
+            PhysicalType::Float32 => create_primitive_impl::<PhysicalF32>(),
+            PhysicalType::Float64 => create_primitive_impl::<PhysicalF64>(),
+            PhysicalType::Interval => create_primitive_impl::<PhysicalInterval>(),
+            PhysicalType::Utf8 => AggregateFunctionImpl::new::<
+                UnaryStateLogic<FirstStringState, PhysicalUtf8, PhysicalUtf8>,
+            >(None),
+            PhysicalType::Binary => AggregateFunctionImpl::new::<
+                UnaryStateLogic<FirstBinaryState, PhysicalBinary, PhysicalBinary>,
+            >(None),
+
             other => not_implemented!("FIRST for physical type: {other}"),
         };
 
@@ -110,55 +105,12 @@ impl AggregateFunction for First {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct FirstPrimitiveImpl<S> {
-    _s: PhantomData<S>,
-}
-
-impl<S> FirstPrimitiveImpl<S> {
-    const fn new() -> Self {
-        FirstPrimitiveImpl { _s: PhantomData }
-    }
-}
-
-impl<S> AggregateFunctionImpl2 for FirstPrimitiveImpl<S>
+fn create_primitive_impl<S>() -> AggregateFunctionImpl
 where
     S: MutableScalarStorage,
-    S::StorageType: Debug + Default + Copy,
+    S::StorageType: Copy + Sized + Default + Debug,
 {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            FirstPrimitiveState::<S::StorageType>::default,
-            unary_update2::<S, S, _>,
-            drain::<S, _, _>,
-        ))
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct FirstBinaryImpl;
-
-impl AggregateFunctionImpl2 for FirstBinaryImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            FirstBinaryState::default,
-            unary_update2::<PhysicalBinary, PhysicalBinary, _>,
-            drain::<PhysicalBinary, _, _>,
-        ))
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct FirstStringImpl;
-
-impl AggregateFunctionImpl2 for FirstStringImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            FirstStringState::default,
-            unary_update2::<PhysicalUtf8, PhysicalUtf8, _>,
-            drain::<PhysicalUtf8, _, _>,
-        ))
-    }
+    AggregateFunctionImpl::new::<UnaryStateLogic<FirstPrimitiveState<S::StorageType>, S, S>>(None)
 }
 
 #[derive(Debug, Default)]

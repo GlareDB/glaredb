@@ -13,7 +13,9 @@ use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     binary_update2,
     drain,
+    AggregateFunctionImpl,
     AggregateGroupStates,
+    BinaryStateLogic,
     TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
@@ -64,23 +66,12 @@ impl AggregateFunction for RegrSlope {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(RegrSlopeImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    BinaryStateLogic<RegrSlopeState, PhysicalF64, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RegrSlopeImpl;
-
-impl AggregateFunctionImpl2 for RegrSlopeImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            RegrSlopeState::default,
-            binary_update2::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
-            drain::<PhysicalF64, _, _>,
-        ))
     }
 }
 

@@ -12,7 +12,9 @@ use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     binary_update2,
     drain,
+    AggregateFunctionImpl,
     AggregateGroupStates,
+    BinaryStateLogic,
     TypedAggregateGroupStates,
 };
 use crate::functions::aggregate::{
@@ -63,23 +65,12 @@ impl AggregateFunction for RegrR2 {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(RegrR2Impl),
+                function_impl: AggregateFunctionImpl::new::<
+                    BinaryStateLogic<RegrR2State, PhysicalF64, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct RegrR2Impl;
-
-impl AggregateFunctionImpl2 for RegrR2Impl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            RegrR2State::default,
-            binary_update2::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
-            drain::<PhysicalF64, _, _>,
-        ))
     }
 }
 

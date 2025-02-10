@@ -9,17 +9,8 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    binary_update2,
-    drain,
-    AggregateGroupStates,
-    TypedAggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl2,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, BinaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -63,27 +54,16 @@ impl AggregateFunction for RegrAvgY {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(RegrAvgYImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    BinaryStateLogic<RegrAvgState<Self>, PhysicalF64, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct RegrAvgYImpl;
-
-impl AggregateFunctionImpl2 for RegrAvgYImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            RegrAvgState::<Self>::default,
-            binary_update2::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
-            drain::<PhysicalF64, _, _>,
-        ))
-    }
-}
-
-impl RegrAvgInput for RegrAvgYImpl {
+impl RegrAvgInput for RegrAvgY {
     fn input(vals: (f64, f64)) -> f64 {
         // 'y' in (y, x)
         vals.0
@@ -129,38 +109,27 @@ impl AggregateFunction for RegrAvgX {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(RegrAvgXImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    BinaryStateLogic<RegrAvgState<Self>, PhysicalF64, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct RegrAvgXImpl;
-
-impl AggregateFunctionImpl2 for RegrAvgXImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            RegrAvgState::<Self>::default,
-            binary_update2::<PhysicalF64, PhysicalF64, PhysicalF64, _>,
-            drain::<PhysicalF64, _, _>,
-        ))
-    }
-}
-
-impl RegrAvgInput for RegrAvgXImpl {
+impl RegrAvgInput for RegrAvgX {
     fn input(vals: (f64, f64)) -> f64 {
         // 'x' in (y, x)
         vals.1
     }
 }
 
-pub trait RegrAvgInput: Sync + Send + Default + Debug + 'static {
+pub trait RegrAvgInput: Sync + Send + Debug + 'static {
     fn input(vals: (f64, f64)) -> f64;
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct RegrAvgState<F>
 where
     F: RegrAvgInput,
@@ -168,6 +137,19 @@ where
     sum: f64,
     count: i64,
     _input: PhantomData<F>,
+}
+
+impl<F> Default for RegrAvgState<F>
+where
+    F: RegrAvgInput,
+{
+    fn default() -> Self {
+        RegrAvgState {
+            sum: 0.0,
+            count: 0,
+            _input: PhantomData,
+        }
+    }
 }
 
 impl<F> AggregateState<(&f64, &f64), f64> for RegrAvgState<F>

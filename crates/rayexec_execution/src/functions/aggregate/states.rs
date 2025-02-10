@@ -17,11 +17,24 @@ use crate::arrays::executor::aggregate::{
 };
 use crate::arrays::executor::PutBuffer;
 
+/// Logic for handling aggregate state changes.
+///
+/// `UnaryStateLogic` or `BinaryStateLogic` should be used if `extra` isn't
+/// needed.
 pub trait AggregateStateLogic {
     type State;
 
+    /// Initialize a new state.
     fn init_state(extra: Option<&dyn Any>) -> Self::State;
 
+    /// Update states using rows from `inputs`.
+    ///
+    /// Note that `states` is a slice of pointers instead of state references as
+    /// we may be updating the same state for different rows (e.g. rows
+    /// corresponding to the same group).
+    ///
+    /// Implementations must ensure there only exists a single reference per
+    /// state at a time.
     fn update(
         extra: Option<&dyn Any>,
         inputs: &[&Array],
@@ -29,12 +42,14 @@ pub trait AggregateStateLogic {
         states: &mut [*mut Self::State],
     ) -> Result<()>;
 
+    /// Combine states from `src` into `dest`.
     fn combine(
         extra: Option<&dyn Any>,
         src: &mut [&mut Self::State],
         dest: &mut [&mut Self::State],
     ) -> Result<()>;
 
+    /// Finalize `states`, writing the final output to the output array.
     fn finalize(
         extra: Option<&dyn Any>,
         states: &mut [&mut Self::State],
@@ -42,6 +57,7 @@ pub trait AggregateStateLogic {
     ) -> Result<()>;
 }
 
+/// Default logic for unary aggregates.
 #[derive(Debug)]
 pub struct UnaryStateLogic<State, Input, Output> {
     _input: PhantomCovariant<Input>,
@@ -106,6 +122,7 @@ where
     }
 }
 
+/// Default logic for binary aggregates.
 #[derive(Debug)]
 pub struct BinaryStateLogic<State, Input1, Input2, Output> {
     _input1: PhantomCovariant<Input1>,
@@ -181,6 +198,13 @@ where
     }
 }
 
+/// Aggregagate function implemenation holding logic for updating and finalizing
+/// aggregate states.
+///
+/// This makes heavy of arbitrary pointers as aggregate states are stored inline
+/// with their group values following a row layout.
+// TODO: More comprehensive drop checking (specifically we need to drop
+// arbitrarily on query errors).
 #[derive(Debug, Clone)]
 pub struct AggregateFunctionImpl {
     /// Alignment requirement of the state.
@@ -191,7 +215,7 @@ pub struct AggregateFunctionImpl {
     /// Extra state to use when initializing an updating states.
     ///
     /// For example, this would contain the string separate for STRING_AGG.
-    pub extra: Option<Arc<dyn Any>>,
+    pub extra: Option<Arc<dyn Any + Sync + Send>>,
 
     /// Initialize a new aggregate state at the given pointer.
     pub init_fn: unsafe fn(extra: Option<&dyn Any>, state: *mut u8),
@@ -225,7 +249,7 @@ pub struct AggregateFunctionImpl {
 }
 
 impl AggregateFunctionImpl {
-    pub fn new<Agg>(extra: Option<Arc<dyn Any>>) -> Self
+    pub fn new<Agg>(extra: Option<Arc<dyn Any + Sync + Send>>) -> Self
     where
         Agg: AggregateStateLogic,
     {

@@ -118,9 +118,9 @@ pub enum PartitionState {
     NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState),
     NestedLoopJoinProbe(NestedLoopJoinProbePartitionState),
     Sort(SortPartitionState),
+    UngroupedAggregate(UngroupedAggregatePartitionState),
 
     HashAggregate(HashAggregatePartitionState),
-    UngroupedAggregate(UngroupedAggregatePartitionState),
     HashJoinBuild(HashJoinBuildPartitionState),
     HashJoinProbe(HashJoinProbePartitionState),
     Values(ValuesPartitionState),
@@ -148,9 +148,9 @@ pub enum OperatorState {
     Union(UnionOperatorState),
     NestedLoopJoin(NestedLoopJoinOperatorState),
     Sort(SortOperatorState),
+    UngroupedAggregate(UngroupedAggregateOperatorState),
 
     HashAggregate(HashAggregateOperatorState),
-    UngroupedAggregate(UngroupedAggregateOperatorState),
     HashJoin(HashJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
     // GatherSort(GatherSortOperatorState),

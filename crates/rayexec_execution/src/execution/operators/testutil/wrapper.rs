@@ -144,11 +144,7 @@ where
     }
 
     #[track_caller]
-    pub fn unary_finalize_sink(
-        &self,
-        states: &mut UnaryInputStates,
-        partition: usize,
-    ) -> PollFinalize {
+    pub fn unary_finalize(&self, states: &mut UnaryInputStates, partition: usize) -> PollFinalize {
         self.poll_finalize(
             &mut states.partition_states[partition],
             &states.operator_state,

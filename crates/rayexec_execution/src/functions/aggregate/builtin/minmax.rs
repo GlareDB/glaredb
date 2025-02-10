@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use rayexec_error::{not_implemented, Result};
 
@@ -31,17 +30,8 @@ use crate::arrays::datatype::DataTypeId;
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    drain,
-    unary_update2,
-    AggregateGroupStates,
-    TypedAggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl2,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -79,25 +69,29 @@ impl AggregateFunction for Min {
 
         let datatype = inputs[0].datatype(table_list)?;
 
-        let function_impl: Box<dyn AggregateFunctionImpl2> = match datatype.physical_type() {
-            PhysicalType::UntypedNull => Box::new(MinPrimitiveImpl::<PhysicalUntypedNull>::new()),
-            PhysicalType::Boolean => Box::new(MinPrimitiveImpl::<PhysicalBool>::new()),
-            PhysicalType::Int8 => Box::new(MinPrimitiveImpl::<PhysicalI8>::new()),
-            PhysicalType::Int16 => Box::new(MinPrimitiveImpl::<PhysicalI16>::new()),
-            PhysicalType::Int32 => Box::new(MinPrimitiveImpl::<PhysicalI32>::new()),
-            PhysicalType::Int64 => Box::new(MinPrimitiveImpl::<PhysicalI64>::new()),
-            PhysicalType::Int128 => Box::new(MinPrimitiveImpl::<PhysicalI128>::new()),
-            PhysicalType::UInt8 => Box::new(MinPrimitiveImpl::<PhysicalU8>::new()),
-            PhysicalType::UInt16 => Box::new(MinPrimitiveImpl::<PhysicalU16>::new()),
-            PhysicalType::UInt32 => Box::new(MinPrimitiveImpl::<PhysicalU32>::new()),
-            PhysicalType::UInt64 => Box::new(MinPrimitiveImpl::<PhysicalU64>::new()),
-            PhysicalType::UInt128 => Box::new(MinPrimitiveImpl::<PhysicalU128>::new()),
-            PhysicalType::Float16 => Box::new(MinPrimitiveImpl::<PhysicalF16>::new()),
-            PhysicalType::Float32 => Box::new(MinPrimitiveImpl::<PhysicalF32>::new()),
-            PhysicalType::Float64 => Box::new(MinPrimitiveImpl::<PhysicalF64>::new()),
-            PhysicalType::Interval => Box::new(MinPrimitiveImpl::<PhysicalInterval>::new()),
-            PhysicalType::Utf8 => Box::new(MinStringImpl),
-            PhysicalType::Binary => Box::new(MinBinaryImpl),
+        let function_impl = match datatype.physical_type() {
+            PhysicalType::UntypedNull => create_primitive_min_impl::<PhysicalUntypedNull>(),
+            PhysicalType::Boolean => create_primitive_min_impl::<PhysicalBool>(),
+            PhysicalType::Int8 => create_primitive_min_impl::<PhysicalI8>(),
+            PhysicalType::Int16 => create_primitive_min_impl::<PhysicalI16>(),
+            PhysicalType::Int32 => create_primitive_min_impl::<PhysicalI32>(),
+            PhysicalType::Int64 => create_primitive_min_impl::<PhysicalI64>(),
+            PhysicalType::Int128 => create_primitive_min_impl::<PhysicalI128>(),
+            PhysicalType::UInt8 => create_primitive_min_impl::<PhysicalU8>(),
+            PhysicalType::UInt16 => create_primitive_min_impl::<PhysicalU16>(),
+            PhysicalType::UInt32 => create_primitive_min_impl::<PhysicalU32>(),
+            PhysicalType::UInt64 => create_primitive_min_impl::<PhysicalU64>(),
+            PhysicalType::UInt128 => create_primitive_min_impl::<PhysicalU128>(),
+            PhysicalType::Float16 => create_primitive_min_impl::<PhysicalF16>(),
+            PhysicalType::Float32 => create_primitive_min_impl::<PhysicalF32>(),
+            PhysicalType::Float64 => create_primitive_min_impl::<PhysicalF64>(),
+            PhysicalType::Interval => create_primitive_min_impl::<PhysicalInterval>(),
+            PhysicalType::Utf8 => AggregateFunctionImpl::new::<
+                UnaryStateLogic<MinStateString, PhysicalUtf8, PhysicalUtf8>,
+            >(None),
+            PhysicalType::Binary => AggregateFunctionImpl::new::<
+                UnaryStateLogic<MinStateBinary, PhysicalBinary, PhysicalBinary>,
+            >(None),
             other => not_implemented!("max for type {other:?}"),
         };
 
@@ -108,6 +102,14 @@ impl AggregateFunction for Min {
             function_impl,
         })
     }
+}
+
+fn create_primitive_min_impl<S>() -> AggregateFunctionImpl
+where
+    S: MutableScalarStorage,
+    S::StorageType: Copy + Sized + Default + Debug + PartialOrd,
+{
+    AggregateFunctionImpl::new::<UnaryStateLogic<MinStatePrimitive<S::StorageType>, S, S>>(None)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -143,25 +145,29 @@ impl AggregateFunction for Max {
 
         let datatype = inputs[0].datatype(table_list)?;
 
-        let function_impl: Box<dyn AggregateFunctionImpl2> = match datatype.physical_type() {
-            PhysicalType::UntypedNull => Box::new(MaxPrimitiveImpl::<PhysicalUntypedNull>::new()),
-            PhysicalType::Boolean => Box::new(MaxPrimitiveImpl::<PhysicalBool>::new()),
-            PhysicalType::Int8 => Box::new(MaxPrimitiveImpl::<PhysicalI8>::new()),
-            PhysicalType::Int16 => Box::new(MaxPrimitiveImpl::<PhysicalI16>::new()),
-            PhysicalType::Int32 => Box::new(MaxPrimitiveImpl::<PhysicalI32>::new()),
-            PhysicalType::Int64 => Box::new(MaxPrimitiveImpl::<PhysicalI64>::new()),
-            PhysicalType::Int128 => Box::new(MaxPrimitiveImpl::<PhysicalI128>::new()),
-            PhysicalType::UInt8 => Box::new(MaxPrimitiveImpl::<PhysicalU8>::new()),
-            PhysicalType::UInt16 => Box::new(MaxPrimitiveImpl::<PhysicalU16>::new()),
-            PhysicalType::UInt32 => Box::new(MaxPrimitiveImpl::<PhysicalU32>::new()),
-            PhysicalType::UInt64 => Box::new(MaxPrimitiveImpl::<PhysicalU64>::new()),
-            PhysicalType::UInt128 => Box::new(MaxPrimitiveImpl::<PhysicalU128>::new()),
-            PhysicalType::Float16 => Box::new(MaxPrimitiveImpl::<PhysicalF16>::new()),
-            PhysicalType::Float32 => Box::new(MaxPrimitiveImpl::<PhysicalF32>::new()),
-            PhysicalType::Float64 => Box::new(MaxPrimitiveImpl::<PhysicalF64>::new()),
-            PhysicalType::Interval => Box::new(MaxPrimitiveImpl::<PhysicalInterval>::new()),
-            PhysicalType::Utf8 => Box::new(MaxStringImpl),
-            PhysicalType::Binary => Box::new(MaxBinaryImpl),
+        let function_impl = match datatype.physical_type() {
+            PhysicalType::UntypedNull => create_primitive_max_impl::<PhysicalUntypedNull>(),
+            PhysicalType::Boolean => create_primitive_max_impl::<PhysicalBool>(),
+            PhysicalType::Int8 => create_primitive_max_impl::<PhysicalI8>(),
+            PhysicalType::Int16 => create_primitive_max_impl::<PhysicalI16>(),
+            PhysicalType::Int32 => create_primitive_max_impl::<PhysicalI32>(),
+            PhysicalType::Int64 => create_primitive_max_impl::<PhysicalI64>(),
+            PhysicalType::Int128 => create_primitive_max_impl::<PhysicalI128>(),
+            PhysicalType::UInt8 => create_primitive_max_impl::<PhysicalU8>(),
+            PhysicalType::UInt16 => create_primitive_max_impl::<PhysicalU16>(),
+            PhysicalType::UInt32 => create_primitive_max_impl::<PhysicalU32>(),
+            PhysicalType::UInt64 => create_primitive_max_impl::<PhysicalU64>(),
+            PhysicalType::UInt128 => create_primitive_max_impl::<PhysicalU128>(),
+            PhysicalType::Float16 => create_primitive_max_impl::<PhysicalF16>(),
+            PhysicalType::Float32 => create_primitive_max_impl::<PhysicalF32>(),
+            PhysicalType::Float64 => create_primitive_max_impl::<PhysicalF64>(),
+            PhysicalType::Interval => create_primitive_max_impl::<PhysicalInterval>(),
+            PhysicalType::Utf8 => AggregateFunctionImpl::new::<
+                UnaryStateLogic<MaxStateString, PhysicalUtf8, PhysicalUtf8>,
+            >(None),
+            PhysicalType::Binary => AggregateFunctionImpl::new::<
+                UnaryStateLogic<MaxStateBinary, PhysicalBinary, PhysicalBinary>,
+            >(None),
             other => not_implemented!("max for type {other:?}"),
         };
 
@@ -174,55 +180,12 @@ impl AggregateFunction for Max {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct MaxPrimitiveImpl<S> {
-    _s: PhantomData<S>,
-}
-
-impl<S> MaxPrimitiveImpl<S> {
-    const fn new() -> Self {
-        MaxPrimitiveImpl { _s: PhantomData }
-    }
-}
-
-impl<S> AggregateFunctionImpl2 for MaxPrimitiveImpl<S>
+fn create_primitive_max_impl<S>() -> AggregateFunctionImpl
 where
     S: MutableScalarStorage,
-    S::StorageType: Default + Debug + Sync + Send + PartialOrd + Copy,
+    S::StorageType: Copy + Sized + Default + Debug + PartialOrd,
 {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            MaxStatePrimitive::<S::StorageType>::default,
-            unary_update2::<S, S, _>,
-            drain::<S, _, _>,
-        ))
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct MaxBinaryImpl;
-
-impl AggregateFunctionImpl2 for MaxBinaryImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            MaxStateBinary::default,
-            unary_update2::<PhysicalBinary, PhysicalBinary, _>,
-            drain::<PhysicalBinary, _, _>,
-        ))
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct MaxStringImpl;
-
-impl AggregateFunctionImpl2 for MaxStringImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            MaxStateString::default,
-            unary_update2::<PhysicalUtf8, PhysicalUtf8, _>,
-            drain::<PhysicalUtf8, _, _>,
-        ))
-    }
+    AggregateFunctionImpl::new::<UnaryStateLogic<MaxStatePrimitive<S::StorageType>, S, S>>(None)
 }
 
 #[derive(Debug, Default)]
@@ -372,57 +335,6 @@ impl AggregateState<&str, str> for MaxStateString {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct MinPrimitiveImpl<S> {
-    _s: PhantomData<S>,
-}
-
-impl<S> MinPrimitiveImpl<S> {
-    const fn new() -> Self {
-        MinPrimitiveImpl { _s: PhantomData }
-    }
-}
-
-impl<S> AggregateFunctionImpl2 for MinPrimitiveImpl<S>
-where
-    S: MutableScalarStorage,
-    S::StorageType: Default + Debug + Sync + Send + PartialOrd + Copy,
-{
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            MinStatePrimitive::<S::StorageType>::default,
-            unary_update2::<S, S, _>,
-            drain::<S, _, _>,
-        ))
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct MinBinaryImpl;
-
-impl AggregateFunctionImpl2 for MinBinaryImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            MinStateBinary::default,
-            unary_update2::<PhysicalBinary, PhysicalBinary, _>,
-            drain::<PhysicalBinary, _, _>,
-        ))
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct MinStringImpl;
-
-impl AggregateFunctionImpl2 for MinStringImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            MinStateString::default,
-            unary_update2::<PhysicalUtf8, PhysicalUtf8, _>,
-            drain::<PhysicalUtf8, _, _>,
-        ))
     }
 }
 

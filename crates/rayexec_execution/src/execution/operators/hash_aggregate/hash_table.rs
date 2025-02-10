@@ -464,16 +464,16 @@ mod tests {
     use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
     use crate::logical::binder::table_list::TableList;
 
-    fn make_hash_table(function: PlannedAggregateFunction) -> HashTable {
-        let aggregate = Aggregate {
-            function: function.function_impl,
-            datatype: function.return_type,
-            col_selection: Bitmap::from_iter([true]),
-            is_distinct: false,
-        };
+    // fn make_hash_table(function: PlannedAggregateFunction) -> HashTable {
+    //     let aggregate = Aggregate {
+    //         function: function.function_impl,
+    //         datatype: function.return_type,
+    //         col_selection: Bitmap::from_iter([true]),
+    //         is_distinct: false,
+    //     };
 
-        HashTable::new(16, vec![aggregate])
-    }
+    //     HashTable::new(16, vec![aggregate])
+    // }
 
     // /// Create a planned aggregate.
     // ///
