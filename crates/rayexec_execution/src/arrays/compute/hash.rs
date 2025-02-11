@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use ahash::RandomState;
 use half::f16;
 use rayexec_error::{not_implemented, RayexecError, Result};
@@ -110,12 +112,16 @@ pub fn hash_array(
 /// applied to every input array.
 ///
 /// This will overwrite any existing hash in `hashes`.
-pub fn hash_many_arrays<'a>(
-    arrs: impl IntoIterator<Item = &'a Array>,
+pub fn hash_many_arrays<'a, A>(
+    arrs: impl IntoIterator<Item = &'a A>,
     sel: impl IntoExactSizeIterator<Item = usize> + Clone,
     hashes: &mut [u64],
-) -> Result<()> {
+) -> Result<()>
+where
+    A: Borrow<Array> + 'a,
+{
     for (idx, arr) in arrs.into_iter().enumerate() {
+        let arr = arr.borrow();
         let sel = sel.clone();
         let datatype = arr.datatype();
         let arr = arr.flatten()?;

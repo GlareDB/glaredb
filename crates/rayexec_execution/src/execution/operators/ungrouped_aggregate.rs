@@ -87,7 +87,7 @@ impl PhysicalUngroupedAggregate {
         )?;
 
         for (agg_idx, agg) in self.aggregates.iter().enumerate() {
-            let extra = agg.function.function_impl.extra.as_deref().map(|v| v as _);
+            let extra = agg.function.function_impl.extra_deref();
             // SAFETY: Buffer allocated according to the layout width and
             // alignement. The state pointer should be correctly aligned.
             unsafe {
@@ -173,7 +173,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                     ptr_buf.clear();
                     ptr_buf.extend(std::iter::repeat(state_ptr).take(input.num_rows));
 
-                    let extra = agg.function.function_impl.extra.as_deref().map(|v| v as _);
+                    let extra = agg.function.function_impl.extra_deref();
                     // SAFETY: Values buffer should have been aligned to a base
                     // alignement which should be a multiple of this aggregate's
                     // alignment. The computed offset should then result in an
@@ -202,7 +202,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 for (agg_idx, agg) in self.aggregates.iter().enumerate() {
                     let arr = &mut output.arrays[agg_idx];
 
-                    let extra = agg.function.function_impl.extra.as_deref().map(|v| v as _);
+                    let extra = agg.function.function_impl.extra_deref();
                     unsafe {
                         let state_ptr = op_state
                             .values
@@ -258,7 +258,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                             .as_mut_ptr()
                             .byte_add(self.layout.aggregate_offsets[agg_idx]);
 
-                        let extra = agg.function.function_impl.extra.as_deref().map(|v| v as _);
+                        let extra = agg.function.function_impl.extra_deref();
                         // No groups, so we're just combining single states
                         // (slices of len 1).
                         //

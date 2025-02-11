@@ -1,11 +1,14 @@
+use std::borrow::Borrow;
+
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::raw::TypedRawBuffer;
 use crate::arrays::array::Array;
 use crate::arrays::compute::hash::hash_many_arrays;
-use crate::arrays::row::aggregate_collection::AggregateCollection;
+use crate::arrays::row::aggregate_collection::{AggregateAppendState, AggregateCollection};
 use crate::arrays::row::aggregate_layout::AggregateLayout;
+use crate::arrays::row::row_matcher::{MatchState, PredicateRowMatcher};
 use crate::execution::operators::util::power_of_two::{
     compute_offset_from_hash,
     inc_and_wrap_offset,
@@ -14,8 +17,15 @@ use crate::execution::operators::util::power_of_two::{
 
 #[derive(Debug)]
 pub struct InsertState {
-    // Reusable hashes buffer.
+    /// Reusable hashes buffer.
     hashes: Vec<u64>,
+    /// Reusable buffer containing pointers to the beginning of rows that we
+    /// should update.
+    row_ptrs: Vec<*mut u8>,
+    /// State for appending to the aggregate collection.
+    append_state: AggregateAppendState,
+    /// State for matching on group values.
+    match_state: MatchState,
 }
 
 /// Linear probing hash table for aggregates.
@@ -27,8 +37,7 @@ pub struct InsertState {
 /// - `agg_states`: Aggregate states (aligned).
 #[derive(Debug)]
 pub struct AggregateHashTable {
-    /// Layout to use for storing the aggregate states and group values
-    /// (including a column for hash values).
+    /// Layout to use for storing the aggregate states and group values.
     layout: AggregateLayout,
     /// Hash table directory.
     directory: Directory,
@@ -36,40 +45,66 @@ pub struct AggregateHashTable {
     hash_offset: usize,
     /// Hash table data storing the group and aggregate states.
     data: AggregateCollection,
+    /// Group value matcher.
+    matcher: GroupMatcher,
 }
 
 impl AggregateHashTable {
     pub fn insert(
         &mut self,
         state: &mut InsertState,
-        groups: &[Array],
-        inputs: &[Array],
+        groups: &[&Array],
+        inputs: &[&Array],
         num_rows: usize,
     ) -> Result<()> {
         // Hash the groups.
         state.hashes.resize(num_rows, 0);
         hash_many_arrays(groups, 0..num_rows, &mut state.hashes)?;
 
-        unimplemented!()
+        state.row_ptrs.clear();
+        state
+            .row_ptrs
+            .extend(std::iter::repeat(std::ptr::null_mut()).take(num_rows));
+
+        self.find_or_create_groups(
+            &mut state.append_state,
+            &mut state.match_state,
+            groups,
+            num_rows,
+            &state.hashes,
+            &mut state.row_ptrs,
+        )?;
+
+        debug_assert!(!state.row_ptrs.iter().any(|ptr| ptr.is_null()));
+
+        // Update states.
+        unsafe {
+            self.data
+                .update_aggregates(&state.row_ptrs, inputs, 0..num_rows)?;
+        }
+
+        Ok(())
     }
 
     /// Find or create groups in the hash table.
     ///
-    /// This will fill `row_ptrs` with the pointers to use for each row to
+    /// This will fill `out_ptrs` with the pointers to use for each row to
     /// update the aggregate state.
     fn find_or_create_groups(
         &mut self,
-        groups: &[Array],
+        append_state: &mut AggregateAppendState,
+        match_state: &mut MatchState,
+        groups: &[&Array],
         num_rows: usize,
         hashes: &[u64],
-        row_ptrs: &mut [*mut u8],
+        out_ptrs: &mut [*mut u8],
     ) -> Result<()> {
         if num_rows == 0 {
             return Ok(());
         }
 
         debug_assert_eq!(num_rows, hashes.len());
-        debug_assert_eq!(num_rows, row_ptrs.len());
+        debug_assert_eq!(num_rows, out_ptrs.len());
 
         if self.directory.needs_resize(num_rows) {
             self.directory.resize(self.directory.capacity() * 2)?;
@@ -88,22 +123,25 @@ impl AggregateHashTable {
         // Track rows that require allocating new rows for.
         let mut new_groups = Vec::new();
 
+        // Total number of new groups we created.
+        let mut total_new_groups = 0;
+
         // Track rows that need to be compared to rows already in the table.
         let mut needs_compare = Vec::new();
 
-        let hash_offset = self.hash_offset;
         let cap = self.directory.capacity();
         let entries = self.directory.entries.as_slice_mut();
 
-        let mut remaining = num_rows;
-
-        while remaining > 0 {
-            for idx in 0..remaining {
-                let row_idx = needs_insert[idx];
+        while needs_insert.len() > 0 {
+            for &row_idx in needs_insert.iter() {
                 let offset = &mut offsets[row_idx];
                 let hash = hashes[row_idx];
 
-                // Probe
+                // Probe.
+                //
+                // This will update `offsets` as needed. `offsets` then can be
+                // used to index directly into entries to point to the correct
+                // entry for a row.
                 for iter_count in 0..cap {
                     let ent = &mut entries[*offset];
 
@@ -143,10 +181,72 @@ impl AggregateHashTable {
 
             // If we've inserted new group hashes, go ahead and create the
             // actual groups.
-            if !new_groups.is_empty() {}
+            if !new_groups.is_empty() {
+                self.data
+                    .append_groups(append_state, groups, new_groups.iter().copied())?;
+
+                let row_ptrs = append_state.row_pointers();
+                debug_assert_eq!(new_groups.len(), row_ptrs.len());
+
+                // Update the entries with the new row pointers.
+                for (&row_idx, &row_ptr) in new_groups.iter().zip(row_ptrs) {
+                    // Offsets updated during probing...
+                    let offset = offsets[row_idx];
+                    let ent = &mut entries[offset];
+                    ent.row_ptr = row_ptr;
+
+                    // Update output pointers.
+                    out_ptrs[row_idx] = row_ptr;
+                }
+
+                total_new_groups += new_groups.len();
+            }
+
+            // If we had hashes match, check the actual values.
+            if !needs_compare.is_empty() {
+                let mut compare_ptrs: Vec<*const u8> = Vec::with_capacity(needs_compare.len());
+                for &row_idx in &needs_compare {
+                    // Offset updated during probing...
+                    let offset = offsets[row_idx];
+                    let row_ptr = entries[offset].row_ptr;
+                    compare_ptrs.push(row_ptr as _);
+
+                    // Set output pointer assuming it will match. If it doesn't,
+                    // the following loop iteration(s) will overwrite it,
+                    // eventually setting it the correct pointer.
+                    out_ptrs[row_idx] = row_ptr;
+                }
+
+                let _ = self.matcher.find_matches(
+                    match_state,
+                    &self.layout,
+                    &compare_ptrs,
+                    groups,
+                    needs_compare.iter().copied(),
+                )?;
+
+                // For everything that didn't match, increment its offset so the
+                // next iteration tries a new slot.
+                for &not_match_row_idx in match_state.get_row_not_matches() {
+                    let offset = &mut offsets[not_match_row_idx];
+                    *offset = inc_and_wrap_offset(*offset, cap);
+                }
+
+                // Update selection to now only consider rows that didn't match.
+                needs_insert.clear();
+                needs_insert.extend(match_state.get_row_not_matches());
+            } else {
+                // Otherwise everything either matched with existing groups, or
+                // we created new groups.
+                //
+                // Clear the needs_insert vec to stop the loop.
+                needs_insert.clear();
+            }
         }
 
-        unimplemented!()
+        self.directory.num_occupied += total_new_groups;
+
+        Ok(())
     }
 
     /// Get the hash for a row.
@@ -157,6 +257,39 @@ impl AggregateHashTable {
     /// layout.
     unsafe fn row_hash(hash_offset: usize, row_ptr: *const u8) -> u64 {
         row_ptr.byte_add(hash_offset).cast::<u64>().read_unaligned()
+    }
+}
+
+/// Wrapper around a predicate row matcher for matching on group values.
+#[derive(Debug)]
+struct GroupMatcher {
+    /// Column indices we're matching on the left (should contain all indices).
+    lhs_columns: Vec<usize>,
+    /// The row matcher.
+    matcher: PredicateRowMatcher,
+}
+
+impl GroupMatcher {
+    fn find_matches<A>(
+        &self,
+        state: &mut MatchState,
+        layout: &AggregateLayout,
+        lhs_rows: &[*const u8],
+        rhs_columns: &[A],
+        selection: impl IntoIterator<Item = usize>,
+    ) -> Result<usize>
+    where
+        A: Borrow<Array>,
+    {
+        debug_assert_eq!(self.lhs_columns.len(), rhs_columns.len());
+        self.matcher.find_matches(
+            state,
+            &layout.groups,
+            lhs_rows,
+            &self.lhs_columns,
+            rhs_columns,
+            selection,
+        )
     }
 }
 

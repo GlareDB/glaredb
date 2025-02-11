@@ -336,4 +336,9 @@ impl AggregateFunctionImpl {
             finalize_fn,
         }
     }
+
+    /// Deref the extra state for passing into the state functions.
+    pub fn extra_deref(&self) -> Option<&dyn Any> {
+        self.extra.as_deref().map(|v| v as _)
+    }
 }

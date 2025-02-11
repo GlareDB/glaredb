@@ -49,6 +49,8 @@ use crate::functions::scalar::builtin::comparison::{
 pub struct MatchState {
     /// Current set of row indices that have matched.
     row_matches: Vec<usize>,
+    /// Current set of row indices that didn't match.
+    row_not_matches: Vec<usize>,
     /// Selection for rows to try to match.
     row_selection: Vec<usize>,
 }
@@ -57,6 +59,10 @@ impl MatchState {
     /// Get matched row indices for the most recent call to `find_matches`.
     pub fn get_row_matches(&self) -> &[usize] {
         &self.row_matches
+    }
+
+    pub fn get_row_not_matches(&self) -> &[usize] {
+        &self.row_not_matches
     }
 }
 
@@ -85,6 +91,7 @@ impl PredicateRowMatcher {
         MatchState {
             row_matches: Vec::new(),
             row_selection: Vec::new(),
+            row_not_matches: Vec::new(),
         }
     }
 
@@ -98,6 +105,9 @@ impl PredicateRowMatcher {
     /// Each selected row will be compared. If the comparison returns true, then
     /// the index of the row as given by `selection` will be pushed to
     /// `row_matches` in the state.
+    ///
+    /// If a row doesn't match, its index will be pushed to `row_not_matches` in
+    /// the state. Note that there's no guaranteed order for the pushed indices.
     ///
     /// Returns the number of rows matched.
     pub fn find_matches<A>(
@@ -113,6 +123,7 @@ impl PredicateRowMatcher {
         A: Borrow<Array>,
     {
         state.row_matches.clear();
+        state.row_not_matches.clear();
         state.row_selection.clear();
 
         // Initialize matches to all rows from the rhs.
@@ -132,6 +143,11 @@ impl PredicateRowMatcher {
             // Clear matches, each matcher pushes a fresh set of rows matched.
             state.row_matches.clear();
 
+            // `row_not_matches` is not cleared. The previous `match` array is
+            // used for the selection and if a row didn't match, then we won't
+            // try ot match that row again. This guarantees that we only push to
+            // `row_not_matches` once per row that doesn't match.
+
             let rhs_column = rhs_column.borrow().flatten()?;
 
             unsafe {
@@ -142,6 +158,7 @@ impl PredicateRowMatcher {
                     rhs_column,
                     &state.row_selection,
                     &mut state.row_matches,
+                    &mut state.row_not_matches,
                 )?;
             }
         }
@@ -214,6 +231,7 @@ trait Matcher<B: BufferManager>: Debug + Sync + Send + 'static {
         rhs_column: FlattenedArray,
         selection: &[usize],
         matches: &mut Vec<usize>,
+        not_matches: &mut Vec<usize>,
     ) -> Result<()>;
 }
 
@@ -250,6 +268,7 @@ where
         rhs_column: FlattenedArray,
         selection: &[usize],
         matches: &mut Vec<usize>,
+        not_matches: &mut Vec<usize>,
     ) -> Result<()> {
         let rhs_data = S::get_addressable(rhs_column.array_buffer)?;
 
@@ -268,6 +287,8 @@ where
 
             if C::compare_with_valid(lhs_val, *rhs_val, lhs_valid, rhs_valid) {
                 matches.push(row_idx);
+            } else {
+                not_matches.push(row_idx);
             }
         }
 
@@ -301,6 +322,7 @@ where
         rhs_column: FlattenedArray,
         selection: &[usize],
         matches: &mut Vec<usize>,
+        not_matches: &mut Vec<usize>,
     ) -> Result<()> {
         let rhs_data = PhysicalBinary::get_addressable(rhs_column.array_buffer)?;
 
@@ -321,6 +343,8 @@ where
 
             if C::compare_with_valid(lhs_val, rhs_val, lhs_valid, rhs_valid) {
                 matches.push(row_idx);
+            } else {
+                not_matches.push(row_idx);
             }
         }
 
@@ -392,6 +416,7 @@ mod tests {
 
         assert_eq!(1, match_count);
         assert_eq!(&[3], match_state.get_row_matches());
+        assert_eq!(&[0, 1, 2], match_state.get_row_not_matches());
     }
 
     #[test]
@@ -427,6 +452,7 @@ mod tests {
 
         assert_eq!(2, match_count);
         assert_eq!(&[0, 2], match_state.get_row_matches());
+        assert_eq!(&[1, 3], match_state.get_row_not_matches());
     }
 
     #[test]
@@ -458,5 +484,6 @@ mod tests {
 
         assert_eq!(2, match_count);
         assert_eq!(&[0, 2], match_state.get_row_matches());
+        assert_eq!(&[1, 3], match_state.get_row_not_matches());
     }
 }

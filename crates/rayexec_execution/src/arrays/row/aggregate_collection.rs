@@ -18,6 +18,13 @@ pub struct AggregateAppendState {
     heap_sizes: Vec<usize>,
 }
 
+impl AggregateAppendState {
+    /// Returns the row pointers from the most recent append to this collection.
+    pub fn row_pointers(&self) -> &[*mut u8] {
+        &self.block_append.row_pointers
+    }
+}
+
 /// Collects grouped aggregate data using a row layout.
 #[derive(Debug)]
 pub struct AggregateCollection {
@@ -27,7 +34,7 @@ pub struct AggregateCollection {
     ///
     /// The number of implemenations must match the number of aggregates as
     /// specified in the layout.
-    function_impls: Vec<AggregateFunctionImpl>,
+    func_impls: Vec<AggregateFunctionImpl>,
     /// Aggregate layout that all rows conform to.
     layout: AggregateLayout,
     /// Underlying row blocks storing both groups and states.
@@ -44,18 +51,18 @@ impl AggregateCollection {
     /// `rows` selects the rows from the arrays that we should append to this
     /// collection.
     ///
-    /// This will initialize aggregate states for the newly appended rows.
+    /// This will initialize aggregate states for the newly appended groups.
     // TODO: Much of the function body is duplicated with `RowCollection`.
-    pub fn append_groups<A>(
+    pub(crate) fn append_groups<A>(
         &mut self,
         state: &mut AggregateAppendState,
-        arrays: &[A],
+        groups: &[A],
         rows: impl IntoExactSizeIterator<Item = usize> + Clone,
     ) -> Result<()>
     where
         A: Borrow<Array>,
     {
-        debug_assert_eq!(arrays.len(), self.layout.groups.num_columns());
+        debug_assert_eq!(groups.len(), self.layout.groups.num_columns());
 
         let num_rows = rows.clone().into_exact_size_iter().len();
 
@@ -65,7 +72,7 @@ impl AggregateCollection {
             state.heap_sizes.resize(num_rows, 0);
             self.layout
                 .groups
-                .compute_heap_sizes(arrays, rows.clone(), &mut state.heap_sizes)?;
+                .compute_heap_sizes(groups, rows.clone(), &mut state.heap_sizes)?;
         }
 
         if self.layout.groups.requires_heap {
@@ -81,13 +88,41 @@ impl AggregateCollection {
 
         // SAFETY: We assume that the pointers we computed are inbounds with
         // respect the blocks, and that we correctly computed the heap sizes.
-        unimplemented!()
-        // unsafe {
-        //     self.layout
-        //         .groups
-        //         .write_arrays(&mut state.block_append, arrays, num_rows)?
-        // };
+        unsafe {
+            self.layout
+                .groups
+                .write_arrays(&mut state.block_append, groups, rows)?
+        };
 
-        // Ok(())
+        // Initialize aggregate states.
+        for (&offset, func) in self.layout.aggregate_offsets.iter().zip(&self.func_impls) {
+            let extra = func.extra_deref();
+
+            for row_ptr in &state.block_append.row_pointers {
+                // SAFETY: Construction of this collection should have asserted
+                // that the function impls correspond to the aggregate layout.
+                //
+                // If that holds, these offsets should all be in bounds and be
+                // well-aligned for each aggregate's state.
+                unsafe {
+                    let state_ptr = row_ptr.byte_add(offset);
+                    (func.init_fn)(extra, state_ptr);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) unsafe fn update_aggregates<A>(
+        &mut self,
+        row_ptrs: &[*mut u8],
+        inputs: &[A],
+        rows: impl IntoExactSizeIterator<Item = usize> + Clone,
+    ) -> Result<()>
+    where
+        A: Borrow<Array>,
+    {
+        unimplemented!()
     }
 }
