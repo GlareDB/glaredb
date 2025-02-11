@@ -2,6 +2,7 @@ use std::borrow::{Borrow, BorrowMut};
 
 use half::f16;
 use rayexec_error::Result;
+use stdutil::iter::IntoExactSizeIterator;
 
 use super::block_scanner::BlockScanState;
 use super::row_blocks::{BlockAppendState, HeapMutPtr};
@@ -131,29 +132,32 @@ impl RowLayout {
     pub fn compute_heap_sizes<A, B>(
         &self,
         arrays: &[A],
-        num_rows: usize,
+        rows: impl IntoExactSizeIterator<Item = usize> + Clone,
         sizes: &mut [usize],
     ) -> Result<()>
     where
         A: Borrow<Array<B>>,
         B: BufferManager,
     {
+        let num_rows = rows.clone().into_exact_size_iter().len();
         debug_assert_eq!(sizes.len(), num_rows);
         sizes.fill(0); // Reset all sizes initially to zero.
 
         for array in arrays {
+            let rows = rows.clone();
+
             let array = array.borrow().flatten()?;
             match array.physical_type() {
                 PhysicalType::Binary | PhysicalType::Utf8 => {
                     let data = PhysicalBinary::get_addressable(array.array_buffer)?;
-                    for row in 0..num_rows {
+                    for (output, row) in rows.into_iter().enumerate() {
                         if array.validity.is_valid(row) {
                             let sel = array.selection.get(row).unwrap();
                             let view = data.metadata[sel];
                             if !view.is_inline() {
                                 // Only increase size if we actually need to
                                 // write to a heap block.
-                                sizes[row] += view.data_len() as usize;
+                                sizes[output] += view.data_len() as usize;
                             }
                         }
                     }
@@ -171,13 +175,14 @@ impl RowLayout {
         &self,
         state: &mut BlockAppendState,
         arrays: &[A],
-        num_rows: usize,
+        rows: impl IntoExactSizeIterator<Item = usize> + Clone,
     ) -> Result<()>
     where
         A: Borrow<Array<B>>,
         B: BufferManager,
     {
         for (array_idx, array) in arrays.iter().enumerate() {
+            let rows = rows.clone();
             let array = array.borrow().flatten()?;
             write_array(
                 self,
@@ -186,7 +191,7 @@ impl RowLayout {
                 array,
                 &state.row_pointers,
                 &mut state.heap_pointers,
-                num_rows,
+                rows,
             )?;
         }
 
@@ -252,6 +257,10 @@ pub(crate) const fn row_width_for_physical_type(phys_type: PhysicalType) -> usiz
 }
 
 /// Writes an array to each row.
+///
+/// `rows` selects which rows from the array to write. This must match the
+/// length of `row_pointers`. If the type we're writing requires writing to heap
+/// blocks, then it should also match the length of `heap_pointers`.
 unsafe fn write_array<B>(
     layout: &RowLayout,
     phys_type: PhysicalType,
@@ -259,68 +268,63 @@ unsafe fn write_array<B>(
     array: FlattenedArray<B>,
     row_pointers: &[*mut u8],
     heap_pointers: &mut [HeapMutPtr],
-    num_rows: usize,
+    rows: impl IntoExactSizeIterator<Item = usize>,
 ) -> Result<()>
 where
     B: BufferManager,
 {
     match phys_type {
         PhysicalType::UntypedNull => {
-            write_scalar::<PhysicalUntypedNull, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalUntypedNull, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Boolean => {
-            write_scalar::<PhysicalBool, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalBool, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Int8 => {
-            write_scalar::<PhysicalI8, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalI8, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Int16 => {
-            write_scalar::<PhysicalI16, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalI16, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Int32 => {
-            write_scalar::<PhysicalI32, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalI32, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Int64 => {
-            write_scalar::<PhysicalI64, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalI64, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Int128 => {
-            write_scalar::<PhysicalI128, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalI128, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::UInt8 => {
-            write_scalar::<PhysicalU8, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalU8, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::UInt16 => {
-            write_scalar::<PhysicalU16, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalU16, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::UInt32 => {
-            write_scalar::<PhysicalU32, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalU32, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::UInt64 => {
-            write_scalar::<PhysicalU64, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalU64, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::UInt128 => {
-            write_scalar::<PhysicalU128, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalU128, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Float16 => {
-            write_scalar::<PhysicalF16, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalF16, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Float32 => {
-            write_scalar::<PhysicalF32, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalF32, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Float64 => {
-            write_scalar::<PhysicalF64, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalF64, B>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Interval => {
-            write_scalar::<PhysicalInterval, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalInterval, B>(layout, array_idx, array, row_pointers, rows)
         }
-        PhysicalType::Utf8 | PhysicalType::Binary => write_binary(
-            layout,
-            array_idx,
-            array,
-            row_pointers,
-            heap_pointers,
-            num_rows,
-        ),
+        PhysicalType::Utf8 | PhysicalType::Binary => {
+            write_binary(layout, array_idx, array, row_pointers, heap_pointers, rows)
+        }
         _ => unimplemented!(),
     }
 }
@@ -339,19 +343,21 @@ unsafe fn write_binary<B>(
     array: FlattenedArray<B>,
     row_pointers: &[*mut u8],
     heap_pointers: &mut [HeapMutPtr],
-    num_rows: usize,
+    rows: impl IntoExactSizeIterator<Item = usize>,
 ) -> Result<()>
 where
     B: BufferManager,
 {
-    debug_assert_eq!(num_rows, row_pointers.len());
-    debug_assert_eq!(num_rows, heap_pointers.len());
+    let rows = rows.into_exact_size_iter();
+
+    debug_assert_eq!(rows.len(), row_pointers.len());
+    debug_assert_eq!(rows.len(), heap_pointers.len());
 
     let data = PhysicalBinary::get_addressable(array.array_buffer)?;
     let validity = array.validity;
 
     if validity.all_valid() {
-        for row_idx in 0..num_rows {
+        for (output, row_idx) in rows.into_iter().enumerate() {
             let sel_idx = array.selection.get(row_idx).unwrap();
             let view = data.metadata.get(sel_idx).unwrap();
 
@@ -365,26 +371,26 @@ where
 
                 // Create new view that we write to the row.
                 let string_ptr = StringPtr::new_reference(bs);
-                let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
                 ptr.cast::<StringPtr>().write_unaligned(string_ptr);
 
                 // Update heap offset for next column.
                 heap_ptr.byte_add(value.len());
             } else {
                 // Otherwise we can just write the inline string directly.
-                let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
                 ptr.cast::<StringPtr>()
                     .write_unaligned(StringPtr::from(*view.as_inline()));
             }
         }
     } else {
-        for row_idx in 0..num_rows {
+        for (output, row_idx) in rows.into_iter().enumerate() {
             if validity.is_valid(row_idx) {
                 let sel_idx = array.selection.get(row_idx).unwrap();
                 let view = data.metadata.get(sel_idx).unwrap();
 
                 if !view.is_inline() {
-                    let heap_ptr = &mut heap_pointers[row_idx];
+                    let heap_ptr = &mut heap_pointers[output];
 
                     // Write data to heap, inline an updated string view reference.
                     let value = data.get(sel_idx).unwrap();
@@ -393,14 +399,14 @@ where
 
                     // Create new view that we write to the row.
                     let string_ptr = StringPtr::new_reference(bs);
-                    let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                    let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
                     ptr.cast::<StringPtr>().write_unaligned(string_ptr);
 
                     // Update heap offset for next column.
                     heap_ptr.byte_add(value.len());
                 } else {
                     // Otherwise we can just write the inline string directly.
-                    let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                    let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
                     ptr.cast::<StringPtr>()
                         .write_unaligned(StringPtr::from(*view.as_inline()));
                 }
@@ -414,10 +420,10 @@ where
                 // If we didn't write an empty value, we might read in garbage
                 // data which could lead to out of bounds access if we try to
                 // interpret it.
-                let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
                 ptr.cast::<StringPtr>().write_unaligned(StringPtr::EMPTY);
 
-                let validity_buf = layout.validity_buffer_mut(row_pointers[row_idx]);
+                let validity_buf = layout.validity_buffer_mut(row_pointers[output]);
                 BitmapViewMut::new(validity_buf, layout.num_columns()).unset(array_idx);
             }
         }
@@ -432,14 +438,15 @@ unsafe fn write_scalar<S, B>(
     array_idx: usize,
     array: FlattenedArray<B>,
     row_pointers: &[*mut u8],
-    num_rows: usize,
+    rows: impl IntoExactSizeIterator<Item = usize>,
 ) -> Result<()>
 where
     S: ScalarStorage,
     S::StorageType: Default + Copy + Sized,
     B: BufferManager,
 {
-    debug_assert_eq!(num_rows, row_pointers.len());
+    let rows = rows.into_exact_size_iter();
+    debug_assert_eq!(rows.len(), row_pointers.len());
 
     let null_val = <S::StorageType>::default();
 
@@ -447,28 +454,28 @@ where
     let validity = array.validity;
 
     if validity.all_valid() {
-        for row_idx in 0..num_rows {
+        for (output, row_idx) in rows.into_iter().enumerate() {
             let sel_idx = array.selection.get(row_idx).unwrap();
             let v = data.get(sel_idx).unwrap();
 
-            let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+            let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
             ptr.cast::<S::StorageType>().write_unaligned(*v);
         }
     } else {
-        for row_idx in 0..num_rows {
+        for (output, row_idx) in rows.into_iter().enumerate() {
             if validity.is_valid(row_idx) {
                 let sel_idx = array.selection.get(row_idx).unwrap();
                 let v = data.get(sel_idx).unwrap();
 
-                let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
                 ptr.cast::<S::StorageType>().write_unaligned(*v);
             } else {
                 // Ensure memory is initialized since we always read it in the
                 // row matcher.
-                let ptr = row_pointers[row_idx].byte_add(layout.offsets[array_idx]);
+                let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
                 ptr.cast::<S::StorageType>().write_unaligned(null_val);
 
-                let validity_buf = layout.validity_buffer_mut(row_pointers[row_idx]);
+                let validity_buf = layout.validity_buffer_mut(row_pointers[output]);
                 BitmapViewMut::new(validity_buf, layout.num_columns()).unset(array_idx);
             }
         }
@@ -666,7 +673,7 @@ mod tests {
         let mut heap_sizes = vec![1, 2, 3]; // Start with dummy data to ensure it gets zeroed out.
 
         layout
-            .compute_heap_sizes(&[arr], 3, &mut heap_sizes)
+            .compute_heap_sizes(&[arr], 0..3, &mut heap_sizes)
             .unwrap();
 
         assert_eq!(&[0, 0, 0], heap_sizes.as_slice());
@@ -679,7 +686,7 @@ mod tests {
         let mut heap_sizes = vec![1, 2, 3]; // Start with dummy data to ensure it gets zeroed out.
 
         layout
-            .compute_heap_sizes(&[arr], 3, &mut heap_sizes)
+            .compute_heap_sizes(&[arr], 0..3, &mut heap_sizes)
             .unwrap();
 
         assert_eq!(&[0, 0, 0], heap_sizes.as_slice());
@@ -693,10 +700,24 @@ mod tests {
         let mut heap_sizes = vec![1, 2, 3]; // Start with dummy data to ensure it gets zeroed out.
 
         layout
-            .compute_heap_sizes(&[arr], 3, &mut heap_sizes)
+            .compute_heap_sizes(&[arr], 0..3, &mut heap_sizes)
             .unwrap();
 
         assert_eq!(&[13, 14, 15], heap_sizes.as_slice());
+    }
+
+    #[test]
+    fn compute_heap_size_all_heap_strings_with_selection() {
+        let layout = RowLayout::new([DataType::Int32]);
+        let arr =
+            Array::try_from_iter(["aaaaaaaaaaaaa", "bbbbbbbbbbbbbb", "ccccccccccccccc"]).unwrap();
+        let mut heap_sizes = vec![1, 3]; // Start with dummy data to ensure it gets zeroed out.
+
+        layout
+            .compute_heap_sizes(&[arr], [0, 2], &mut heap_sizes)
+            .unwrap();
+
+        assert_eq!(&[13, 15], heap_sizes.as_slice());
     }
 
     /// Assert that we can write a single array and read it back.
@@ -707,7 +728,7 @@ mod tests {
         let heap_sizes = if layout.requires_heap {
             let mut heap_sizes = vec![0; array_cap];
             layout
-                .compute_heap_sizes(&[&array], array_cap, &mut heap_sizes)
+                .compute_heap_sizes(&[&array], 0..array_cap, &mut heap_sizes)
                 .unwrap();
             Some(heap_sizes)
         } else {
@@ -726,7 +747,7 @@ mod tests {
 
         unsafe {
             layout
-                .write_arrays(&mut state, &[&array], array_cap)
+                .write_arrays(&mut state, &[&array], 0..array_cap)
                 .unwrap();
         }
 

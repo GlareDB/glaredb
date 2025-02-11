@@ -4,6 +4,7 @@ use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::raw::TypedRawBuffer;
 use crate::arrays::array::Array;
 use crate::arrays::compute::hash::hash_many_arrays;
+use crate::arrays::row::aggregate_collection::AggregateCollection;
 use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::execution::operators::util::power_of_two::{
     compute_offset_from_hash,
@@ -33,6 +34,8 @@ pub struct AggregateHashTable {
     directory: Directory,
     /// Byte offset to where a hash is stored in a row.
     hash_offset: usize,
+    /// Hash table data storing the group and aggregate states.
+    data: AggregateCollection,
 }
 
 impl AggregateHashTable {

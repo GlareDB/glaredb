@@ -129,7 +129,7 @@ impl RowCollection {
             // Compute heap sizes per row.
             state.heap_sizes.resize(num_rows, 0);
             self.layout()
-                .compute_heap_sizes(arrays, num_rows, &mut state.heap_sizes)?;
+                .compute_heap_sizes(arrays, 0..num_rows, &mut state.heap_sizes)?;
         }
 
         if self.layout().requires_heap {
@@ -147,7 +147,7 @@ impl RowCollection {
         // respect the blocks, and that we correctly computed the heap sizes.
         unsafe {
             self.layout()
-                .write_arrays(&mut state.block_append, arrays, num_rows)?
+                .write_arrays(&mut state.block_append, arrays, 0..num_rows)?
         };
 
         Ok(())

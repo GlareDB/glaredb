@@ -152,7 +152,7 @@ impl PartialSortedRowCollection {
             state.heap_sizes.resize(count, 0);
             self.key_layout.heap_layout.compute_heap_sizes(
                 &heap_keys,
-                count,
+                0..count,
                 &mut state.heap_sizes,
             )?;
 
@@ -167,7 +167,7 @@ impl PartialSortedRowCollection {
                 self.key_layout.heap_layout.write_arrays(
                     &mut state.key_heap_block_append,
                     &heap_keys,
-                    count,
+                    0..count,
                 )?;
             }
         }
@@ -177,7 +177,7 @@ impl PartialSortedRowCollection {
             // TODO: Only compute heap sizes if heap is actually needed.
             state.heap_sizes.resize(count, 0);
             self.data_layout
-                .compute_heap_sizes(&data, count, &mut state.heap_sizes)?;
+                .compute_heap_sizes(&data, 0..count, &mut state.heap_sizes)?;
             state.data_block_append.clear();
             self.data_blocks.prepare_append(
                 &mut state.data_block_append,
@@ -186,7 +186,7 @@ impl PartialSortedRowCollection {
             )?;
             unsafe {
                 self.data_layout
-                    .write_arrays(&mut state.data_block_append, data, count)?;
+                    .write_arrays(&mut state.data_block_append, data, 0..count)?;
             }
         }
 
