@@ -362,7 +362,7 @@ where
             let view = data.metadata.get(sel_idx).unwrap();
 
             if !view.is_inline() {
-                let heap_ptr = &mut heap_pointers[row_idx];
+                let heap_ptr = &mut heap_pointers[output];
 
                 // Write data to heap, inline an updated string view reference.
                 let value = data.get(sel_idx).unwrap();
@@ -624,6 +624,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::compute::util::IntoExtactSizeIterator;
     use crate::arrays::row::row_blocks::RowBlocks;
     use crate::arrays::testutil::assert_arrays_eq;
 
@@ -720,15 +721,21 @@ mod tests {
         assert_eq!(&[13, 15], heap_sizes.as_slice());
     }
 
-    /// Assert that we can write a single array and read it back.
-    fn assert_write_read_array(array: Array) {
-        let array_cap = array.capacity();
+    /// Writes an array to a row layout, and reads it back.
+    ///
+    /// The provided selection determines which rows to write. The resulting
+    /// array with have the same length as the selection.
+    fn write_read_array(
+        array: &Array,
+        rows: impl IntoExactSizeIterator<Item = usize> + Clone,
+    ) -> Array {
+        let sel_len = rows.clone().into_exact_size_iter().len();
         let layout = RowLayout::new([array.datatype().clone()]);
 
         let heap_sizes = if layout.requires_heap {
-            let mut heap_sizes = vec![0; array_cap];
+            let mut heap_sizes = vec![0; sel_len];
             layout
-                .compute_heap_sizes(&[&array], 0..array_cap, &mut heap_sizes)
+                .compute_heap_sizes(&[array], rows.clone(), &mut heap_sizes)
                 .unwrap();
             Some(heap_sizes)
         } else {
@@ -742,17 +749,14 @@ mod tests {
         };
 
         blocks
-            .prepare_append(&mut state, array_cap, heap_sizes.as_deref())
+            .prepare_append(&mut state, sel_len, heap_sizes.as_deref())
             .unwrap();
 
         unsafe {
-            layout
-                .write_arrays(&mut state, &[&array], 0..array_cap)
-                .unwrap();
+            layout.write_arrays(&mut state, &[array], rows).unwrap();
         }
 
-        let mut out =
-            Array::try_new(&NopBufferManager, array.datatype().clone(), array_cap).unwrap();
+        let mut out = Array::try_new(&NopBufferManager, array.datatype().clone(), sel_len).unwrap();
 
         let state = BlockScanState {
             row_pointers: state
@@ -766,37 +770,58 @@ mod tests {
             layout.read_arrays(&state, [(0, &mut out)], 0).unwrap();
         }
 
-        assert_arrays_eq(&array, &out);
+        out
     }
 
     #[test]
     fn write_read_i32() {
         let array = Array::try_from_iter([1, 2, 3]).unwrap();
-        assert_write_read_array(array);
+        let got = write_read_array(&array, 0..3);
+        assert_arrays_eq(&array, &got);
+    }
+
+    #[test]
+    fn write_read_i32_with_selection() {
+        let array = Array::try_from_iter([1, 2, 3]).unwrap();
+        let got = write_read_array(&array, [0, 2]);
+        let expected = Array::try_from_iter([1, 3]).unwrap();
+        assert_arrays_eq(&expected, &got);
     }
 
     #[test]
     fn write_read_i32_with_invalid() {
         let array = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
-        assert_write_read_array(array);
+        let got = write_read_array(&array, 0..3);
+        assert_arrays_eq(&array, &got);
     }
 
     #[test]
     fn write_read_utf8() {
         let array = Array::try_from_iter(["cat", "dog", "goose"]).unwrap();
-        assert_write_read_array(array);
+        let got = write_read_array(&array, 0..3);
+        assert_arrays_eq(&array, &got);
     }
 
     #[test]
     fn write_read_utf8_with_no_inlineable() {
         let array = Array::try_from_iter(["cat", "dog", "goosegoosegoosemoosecatdog"]).unwrap();
-        assert_write_read_array(array);
+        let got = write_read_array(&array, 0..3);
+        assert_arrays_eq(&array, &got);
+    }
+
+    #[test]
+    fn write_read_utf8_with_no_inlineable_with_selection() {
+        let array = Array::try_from_iter(["cat", "dog", "goosegoosegoosemoosecatdog"]).unwrap();
+        let got = write_read_array(&array, [0, 2]);
+        let expected = Array::try_from_iter(["cat", "goosegoosegoosemoosecatdog"]).unwrap();
+        assert_arrays_eq(&expected, &got);
     }
 
     #[test]
     fn write_read_utf8_with_invalid() {
         let array = Array::try_from_iter([Some("cat"), None, Some("goose")]).unwrap();
-        assert_write_read_array(array);
+        let got = write_read_array(&array, 0..3);
+        assert_arrays_eq(&array, &got);
     }
 
     // #[test]
