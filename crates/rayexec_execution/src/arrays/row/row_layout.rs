@@ -714,7 +714,7 @@ mod tests {
             None
         };
 
-        let mut blocks = RowBlocks::new_using_row_layout(NopBufferManager, layout.clone(), 16);
+        let mut blocks = RowBlocks::new_using_row_layout(NopBufferManager, &layout, 16);
         let mut state = BlockAppendState {
             row_pointers: Vec::new(),
             heap_pointers: Vec::new(),

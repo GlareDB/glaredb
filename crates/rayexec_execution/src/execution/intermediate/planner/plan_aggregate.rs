@@ -1,4 +1,3 @@
-
 use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
@@ -82,26 +81,27 @@ impl IntermediatePipelineBuildState<'_> {
             id_gen,
         )?;
 
-        match agg.node.grouping_sets {
-            Some(grouping_sets) => {
-                // If we're working with groups, push a hash aggregate operator.
-                let operator = PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
-                    phys_aggs,
-                    grouping_sets,
-                    agg.node.grouping_functions,
-                ));
-                self.push_intermediate_operator(operator, location, id_gen)?;
-            }
-            None => {
-                // Otherwise push an ungrouped aggregate operator.
+        unimplemented!()
+        // match agg.node.grouping_sets {
+        //     Some(grouping_sets) => {
+        //         // If we're working with groups, push a hash aggregate operator.
+        //         let operator = PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
+        //             phys_aggs,
+        //             grouping_sets,
+        //             agg.node.grouping_functions,
+        //         ));
+        //         self.push_intermediate_operator(operator, location, id_gen)?;
+        //     }
+        //     None => {
+        //         // Otherwise push an ungrouped aggregate operator.
 
-                let operator = PhysicalOperator::UngroupedAggregate(
-                    PhysicalUngroupedAggregate::new(phys_aggs),
-                );
-                self.push_intermediate_operator(operator, location, id_gen)?;
-            }
-        };
+        //         let operator = PhysicalOperator::UngroupedAggregate(
+        //             PhysicalUngroupedAggregate::new(phys_aggs),
+        //         );
+        //         self.push_intermediate_operator(operator, location, id_gen)?;
+        //     }
+        // };
 
-        Ok(())
+        // Ok(())
     }
 }

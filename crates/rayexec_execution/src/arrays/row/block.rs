@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use rayexec_error::Result;
 
+use super::aggregate_layout::AggregateLayout;
 use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::raw::TypedRawBuffer;
@@ -14,36 +15,54 @@ pub trait FixedSizedBlockInitializer: Debug {
         B: BufferManager;
 }
 
-/// Initialize blocks based on a row layout.
+/// Initialize a validity bytes in a block conforming to some row layout.
 ///
 /// This will initialize all validity metadata bytes to `u8::MAX` after creating
 /// the new block. This serves two purposes:
 ///
 /// - Ensures that the memory is initialized
 /// - Prevent needing to explicitly set columns as valid
+///
+/// This is suitable to use with `RowLayout` and `AggregateLayout` (which is
+/// really just `RowLayout` suffixed with aggregate states).
 #[derive(Debug, Clone)]
-pub struct RowLayoutBlockInitializer {
-    pub layout: RowLayout,
+pub struct ValidityInitializer {
+    /// Size in bytes of a single row.
+    ///
+    /// Note for aggregate layouts, this should include the aggregate state
+    /// width as well.
+    pub row_width: usize,
+    /// Size in bytes for the validity width.
+    pub validity_width: usize,
 }
 
-impl RowLayoutBlockInitializer {
-    pub const fn new(layout: RowLayout) -> Self {
-        RowLayoutBlockInitializer { layout }
+impl ValidityInitializer {
+    pub fn from_row_layout(layout: &RowLayout) -> Self {
+        ValidityInitializer {
+            row_width: layout.row_width,
+            validity_width: layout.validity_width,
+        }
+    }
+
+    pub fn from_aggregate_layout(layout: &AggregateLayout) -> Self {
+        ValidityInitializer {
+            row_width: layout.row_width,
+            validity_width: layout.groups.validity_width,
+        }
     }
 }
 
-impl FixedSizedBlockInitializer for RowLayoutBlockInitializer {
+impl FixedSizedBlockInitializer for ValidityInitializer {
     fn initialize<B>(&self, mut block: Block<B>) -> Result<Block<B>>
     where
         B: BufferManager,
     {
-        let row_capacity = block.remaing_row_capacity(self.layout.row_width);
+        let row_capacity = block.remaing_row_capacity(self.row_width);
         let buffer = block.data.as_slice_mut();
 
         for row in 0..row_capacity {
-            let validity_offset = self.layout.row_width * row;
-            let out_buf =
-                &mut buffer[validity_offset..(validity_offset + self.layout.validity_width)];
+            let validity_offset = self.row_width * row;
+            let out_buf = &mut buffer[validity_offset..(validity_offset + self.validity_width)];
             out_buf.fill(u8::MAX);
         }
 

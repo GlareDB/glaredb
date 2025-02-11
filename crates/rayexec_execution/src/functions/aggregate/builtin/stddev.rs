@@ -9,19 +9,8 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    drain,
-    unary_update2,
-    AggregateFunctionImpl,
-    AggregateGroupStates,
-    TypedAggregateGroupStates,
-    UnaryStateLogic,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl2,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -68,19 +57,6 @@ impl AggregateFunction for StddevPop {
             }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StddevPopImpl;
-
-impl AggregateFunctionImpl2 for StddevPopImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            VarianceState::<StddevPopFinalize>::default,
-            unary_update2::<PhysicalF64, PhysicalF64, _>,
-            drain::<PhysicalF64, _, _>,
-        ))
     }
 }
 
@@ -134,19 +110,6 @@ impl AggregateFunction for StddevSamp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StddevSampImpl;
-
-impl AggregateFunctionImpl2 for StddevSampImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            VarianceState::<StddevSampFinalize>::default,
-            unary_update2::<PhysicalF64, PhysicalF64, _>,
-            drain::<PhysicalF64, _, _>,
-        ))
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VarPop;
 
 impl FunctionInfo for VarPop {
@@ -192,19 +155,6 @@ impl AggregateFunction for VarPop {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct VarPopImpl;
-
-impl AggregateFunctionImpl2 for VarPopImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            VarianceState::<VariancePopFinalize>::default,
-            unary_update2::<PhysicalF64, PhysicalF64, _>,
-            drain::<PhysicalF64, _, _>,
-        ))
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VarSamp;
 
 impl FunctionInfo for VarSamp {
@@ -246,19 +196,6 @@ impl AggregateFunction for VarSamp {
             }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct VarSampImpl;
-
-impl AggregateFunctionImpl2 for VarSampImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        Box::new(TypedAggregateGroupStates::new(
-            VarianceState::<VarianceSampFinalize>::default,
-            unary_update2::<PhysicalF64, PhysicalF64, _>,
-            drain::<PhysicalF64, _, _>,
-        ))
     }
 }
 

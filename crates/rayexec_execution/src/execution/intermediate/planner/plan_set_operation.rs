@@ -1,4 +1,3 @@
-
 use rayexec_error::{not_implemented, Result};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
@@ -60,15 +59,16 @@ impl IntermediatePipelineBuildState<'_> {
                 .column_types
                 .clone();
 
-            let grouping_sets = vec![(0..output_types.len()).collect()];
+            // let grouping_sets = vec![(0..output_types.len()).collect()];
 
-            let operator = PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
-                Vec::new(),
-                grouping_sets,
-                Vec::new(),
-            ));
+            unimplemented!()
+            // let operator = PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
+            //     Vec::new(),
+            //     grouping_sets,
+            //     Vec::new(),
+            // ));
 
-            self.push_intermediate_operator(operator, location, id_gen)?;
+            // self.push_intermediate_operator(operator, location, id_gen)?;
         }
 
         Ok(())

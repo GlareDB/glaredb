@@ -78,7 +78,7 @@ impl PhysicalUngroupedAggregate {
         PhysicalUngroupedAggregate { aggregates, layout }
     }
 
-    /// Intializes a new buffer for the aggregates in this operator.
+    /// Initalizes a new buffer for the aggregates in this operator.
     fn try_init_buffer(&self) -> Result<AlignedBuffer<u8, NopBufferManager>> {
         let values = AlignedBuffer::<u8, _>::try_with_capacity_and_alignment(
             &NopBufferManager,
@@ -282,6 +282,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 } else {
                     // Other partitions still need to complete. This partition
                     // will never produce output.
+                    *state = UngroupedAggregatePartitionState::Finished;
                     Ok(PollFinalize::Finalized)
                 }
             }
@@ -305,11 +306,18 @@ mod tests {
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
     use crate::arrays::testutil::{assert_batches_eq, generate_batch};
-    use crate::execution::operators::testutil::{plan_aggregate, OperatorWrapper};
-    use crate::functions::aggregate::builtin::sum;
+    use crate::execution::operators::testutil::{
+        plan_aggregate,
+        plan_aggregates,
+        OperatorWrapper,
+        TestAggregate,
+    };
+    use crate::functions::aggregate::builtin::{minmax, sum};
 
     #[test]
     fn single_aggregate_single_partition() {
+        // SUM(col0)
+
         let agg = plan_aggregate(&sum::Sum, [DataType::Int64]);
         let mut operator = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
 
@@ -328,6 +336,80 @@ mod tests {
         assert_eq!(PollExecute::Exhausted, poll);
 
         let expected = generate_batch!([10_i64]);
+        assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn single_aggregate_two_partitions() {
+        // SUM(col0) with two partitions
+
+        let agg = plan_aggregate(&sum::Sum, [DataType::Int64]);
+        let mut operator = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
+
+        let mut states = operator.create_unary_states(1024, 2);
+
+        let mut output = Batch::try_new([DataType::Int64], 1024).unwrap();
+
+        // Execute and exhaust first partition.
+        let mut input = generate_batch!([1_i64, 2, 3, 4]);
+
+        let poll = operator.unary_execute_inout(&mut states, 0, &mut input, &mut output);
+        assert_eq!(PollExecute::NeedsMore, poll);
+        let poll = operator.unary_finalize(&mut states, 0);
+        assert_eq!(PollFinalize::Finalized, poll);
+        let poll = operator.unary_execute_out(&mut states, 0, &mut output);
+        assert_eq!(PollExecute::Exhausted, poll);
+        assert_eq!(0, output.num_rows());
+
+        // Execute second partition, this will drain the final results.
+        let mut input = generate_batch!([5_i64, 6, 7, 8]);
+
+        let poll = operator.unary_execute_inout(&mut states, 1, &mut input, &mut output);
+        assert_eq!(PollExecute::NeedsMore, poll);
+        let poll = operator.unary_finalize(&mut states, 1);
+        assert_eq!(PollFinalize::NeedsDrain, poll);
+        let poll = operator.unary_execute_out(&mut states, 1, &mut output);
+        assert_eq!(PollExecute::Exhausted, poll);
+
+        let expected = generate_batch!([36_i64]);
+        assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn two_aggregates_single_partition() {
+        // SUM(col1), MIN(col0)
+
+        let aggs = plan_aggregates(
+            [
+                TestAggregate {
+                    function: &sum::Sum,
+                    columns: &[1],
+                },
+                TestAggregate {
+                    function: &minmax::Min,
+                    columns: &[0],
+                },
+            ],
+            [DataType::Int64, DataType::Int64],
+        );
+
+        let mut operator = OperatorWrapper::new(PhysicalUngroupedAggregate::new(aggs));
+
+        let mut states = operator.create_unary_states(1024, 1);
+
+        let mut input = generate_batch!([22_i64, 33, 11, 44], [1_i64, 2, 3, 4]);
+        let mut output = Batch::try_new([DataType::Int64, DataType::Int64], 1024).unwrap();
+
+        let poll = operator.unary_execute_inout(&mut states, 0, &mut input, &mut output);
+        assert_eq!(PollExecute::NeedsMore, poll);
+
+        let poll = operator.unary_finalize(&mut states, 0);
+        assert_eq!(PollFinalize::NeedsDrain, poll);
+
+        let poll = operator.unary_execute_out(&mut states, 0, &mut output);
+        assert_eq!(PollExecute::Exhausted, poll);
+
+        let expected = generate_batch!([10_i64], [11_i64]);
         assert_batches_eq(&expected, &output);
     }
 }

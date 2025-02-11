@@ -39,16 +39,17 @@ impl IntermediatePipelineBuildState<'_> {
 
         let grouping_sets: Vec<BTreeSet<usize>> = vec![(0..group_types.len()).collect()];
 
-        self.push_intermediate_operator(
-            PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
-                Vec::new(),
-                grouping_sets,
-                Vec::new(),
-            )),
-            distinct.location,
-            id_gen,
-        )?;
+        unimplemented!()
+        // self.push_intermediate_operator(
+        //     PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
+        //         Vec::new(),
+        //         grouping_sets,
+        //         Vec::new(),
+        //     )),
+        //     distinct.location,
+        //     id_gen,
+        // )?;
 
-        Ok(())
+        // Ok(())
     }
 }

@@ -214,6 +214,7 @@ where
 
     fn update(&mut self, input: &T) -> Result<()> {
         if !self.valid {
+            self.valid = true;
             self.max = *input;
             return Ok(());
         }
@@ -263,6 +264,7 @@ impl AggregateState<&[u8], [u8]> for MaxStateBinary {
 
     fn update(&mut self, input: &[u8]) -> Result<()> {
         if !self.valid {
+            self.valid = true;
             self.max = input.to_vec();
             return Ok(());
         }
@@ -312,6 +314,7 @@ impl AggregateState<&str, str> for MaxStateString {
 
     fn update(&mut self, input: &str) -> Result<()> {
         if !self.valid {
+            self.valid = true;
             self.max = input.to_string();
             return Ok(());
         }
@@ -364,6 +367,7 @@ where
 
     fn update(&mut self, input: &T) -> Result<()> {
         if !self.valid {
+            self.valid = true;
             self.min = *input;
             return Ok(());
         }
@@ -413,6 +417,7 @@ impl AggregateState<&[u8], [u8]> for MinStateBinary {
 
     fn update(&mut self, input: &[u8]) -> Result<()> {
         if !self.valid {
+            self.valid = true;
             self.min = input.to_vec();
             return Ok(());
         }
@@ -462,6 +467,7 @@ impl AggregateState<&str, str> for MinStateString {
 
     fn update(&mut self, input: &str) -> Result<()> {
         if !self.valid {
+            self.valid = true;
             self.min = input.to_string();
             return Ok(());
         }

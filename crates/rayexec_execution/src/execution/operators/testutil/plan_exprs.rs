@@ -35,6 +35,8 @@ pub fn plan_scalars<'a>(
 ///
 /// This assumes the input to the aggregate is a column whose types are provided
 /// by `inputs.
+///
+/// This cannot be used to plan multiple aggregates for a single operator.
 pub fn plan_aggregate(
     agg: &dyn AggregateFunction,
     inputs: impl IntoIterator<Item = DataType>,
@@ -63,6 +65,52 @@ pub fn plan_aggregate(
         columns,
         is_distinct: false,
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TestAggregate {
+    pub function: &'static dyn AggregateFunction,
+    pub columns: &'static [usize],
+}
+
+/// Plans multiple aggregates.
+///
+/// Aggregates a provides in (function, column) pairs. The column indices are
+/// used to index into the input datatypes.
+pub fn plan_aggregates<'a>(
+    aggs: impl IntoIterator<Item = TestAggregate>,
+    inputs: impl IntoIterator<Item = DataType>,
+) -> Vec<PhysicalAggregateExpression> {
+    let inputs: Vec<_> = inputs.into_iter().collect();
+    let (table_list, refs) = create_table_list(&[&inputs]);
+    assert_eq!(1, refs.len());
+
+    let mut phys_aggs = Vec::new();
+
+    for agg in aggs {
+        let exprs: Vec<_> = agg
+            .columns
+            .iter()
+            .map(|&idx| expr::col_ref(refs[0], idx))
+            .collect();
+
+        let planned = agg.function.plan(&table_list, exprs).unwrap();
+        let columns: Vec<_> = plan_scalars(&planned.inputs, &[&inputs])
+            .into_iter()
+            .map(|expr| match expr {
+                PhysicalScalarExpression::Column(col) => col,
+                other => panic!("Not a column expr: {other:?}"),
+            })
+            .collect();
+
+        phys_aggs.push(PhysicalAggregateExpression {
+            function: planned,
+            columns,
+            is_distinct: false,
+        })
+    }
+
+    phys_aggs
 }
 
 #[track_caller]

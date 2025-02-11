@@ -1,0 +1,229 @@
+use rayexec_error::{RayexecError, Result};
+
+use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::arrays::array::raw::TypedRawBuffer;
+use crate::arrays::array::Array;
+use crate::arrays::compute::hash::hash_many_arrays;
+use crate::arrays::row::aggregate_layout::AggregateLayout;
+use crate::execution::operators::util::power_of_two::{
+    compute_offset_from_hash,
+    inc_and_wrap_offset,
+    is_power_of_2,
+};
+
+#[derive(Debug)]
+pub struct InsertState {
+    // Reusable hashes buffer.
+    hashes: Vec<u64>,
+}
+
+/// Linear probing hash table for aggregates.
+///
+/// Hash table layout: [groups, groups_hash, agg_states]
+///
+/// - `groups`: The grouping columns.
+/// - `groups_hash`: Hash of the grouping columns.
+/// - `agg_states`: Aggregate states (aligned).
+#[derive(Debug)]
+pub struct AggregateHashTable {
+    /// Layout to use for storing the aggregate states and group values
+    /// (including a column for hash values).
+    layout: AggregateLayout,
+    /// Hash table directory.
+    directory: Directory,
+    /// Byte offset to where a hash is stored in a row.
+    hash_offset: usize,
+}
+
+impl AggregateHashTable {
+    pub fn insert(
+        &mut self,
+        state: &mut InsertState,
+        groups: &[Array],
+        inputs: &[Array],
+        num_rows: usize,
+    ) -> Result<()> {
+        // Hash the groups.
+        state.hashes.resize(num_rows, 0);
+        hash_many_arrays(groups, 0..num_rows, &mut state.hashes)?;
+
+        unimplemented!()
+    }
+
+    /// Find or create groups in the hash table.
+    ///
+    /// This will fill `row_ptrs` with the pointers to use for each row to
+    /// update the aggregate state.
+    fn find_or_create_groups(
+        &mut self,
+        groups: &[Array],
+        num_rows: usize,
+        hashes: &[u64],
+        row_ptrs: &mut [*mut u8],
+    ) -> Result<()> {
+        if num_rows == 0 {
+            return Ok(());
+        }
+
+        debug_assert_eq!(num_rows, hashes.len());
+        debug_assert_eq!(num_rows, row_ptrs.len());
+
+        if self.directory.needs_resize(num_rows) {
+            self.directory.resize(self.directory.capacity() * 2)?;
+        }
+
+        // Precompute offsets into the table.
+        let mut offsets = vec![num_rows; 0];
+        let cap = self.directory.capacity() as u64;
+        for (idx, &hash) in hashes.iter().enumerate() {
+            offsets[idx] = compute_offset_from_hash(hash, cap) as usize;
+        }
+
+        // Init selection to all rows in input.
+        let mut needs_insert: Vec<_> = (0..num_rows).collect();
+
+        // Track rows that require allocating new rows for.
+        let mut new_groups = Vec::new();
+
+        // Track rows that need to be compared to rows already in the table.
+        let mut needs_compare = Vec::new();
+
+        let hash_offset = self.hash_offset;
+        let cap = self.directory.capacity();
+        let entries = self.directory.entries.as_slice_mut();
+
+        let mut remaining = num_rows;
+
+        while remaining > 0 {
+            for idx in 0..remaining {
+                let row_idx = needs_insert[idx];
+                let offset = &mut offsets[row_idx];
+                let hash = hashes[row_idx];
+
+                // Probe
+                for iter_count in 0..cap {
+                    let ent = &mut entries[*offset];
+
+                    if !ent.is_occupied() {
+                        // Empty entry, claim it.
+                        //
+                        // Note that a real row pointer will be added to the
+                        // entry later in the function. This just uses a
+                        // dangling pointer to indicated occupied.
+                        //
+                        // This does store the hash so that we can compare rows
+                        // if needed.
+                        *ent = Entry::new_claimed(hash);
+                        new_groups.push(row_idx);
+
+                        break;
+                    }
+
+                    if ent.hash == hash {
+                        needs_compare.push(row_idx);
+                        break;
+                    }
+
+                    // Otherwise need to increment.
+                    *offset = inc_and_wrap_offset(*offset, cap);
+
+                    if iter_count == cap {
+                        // We wrapped. This shouldn't happen during normal
+                        // execution as the hash table should've been resized to
+                        // fit everything.
+                        //
+                        // But Sean writes bugs, so just in case...
+                        return Err(RayexecError::new("Hash table completely full"));
+                    }
+                }
+            }
+
+            // If we've inserted new group hashes, go ahead and create the
+            // actual groups.
+            if !new_groups.is_empty() {}
+        }
+
+        unimplemented!()
+    }
+
+    /// Get the hash for a row.
+    ///
+    /// Safety:
+    ///
+    /// Row pointer must be a pointer a row that follows this table's aggregate
+    /// layout.
+    unsafe fn row_hash(hash_offset: usize, row_ptr: *const u8) -> u64 {
+        row_ptr.byte_add(hash_offset).cast::<u64>().read_unaligned()
+    }
+}
+
+/// An entry in the hash table.
+#[derive(Debug, Clone, Copy)]
+struct Entry {
+    /// The hash associated with the entry.
+    hash: u64,
+    /// Pointer to the start of the row.
+    row_ptr: *mut u8,
+}
+
+impl Entry {
+    const EMPTY: Entry = Entry {
+        hash: 0,
+        row_ptr: std::ptr::null_mut(),
+    };
+
+    const fn is_occupied(&self) -> bool {
+        !self.row_ptr.is_null()
+    }
+
+    /// Create a new entry that "claims" a slot.
+    ///
+    /// This will be initialized with a dangling pointer (non-null) such that
+    /// further linear probes will see this as occupied.
+    ///
+    /// The row pointer is expected to be set to the appropriate row after all
+    /// probing is done for a new set of rows.
+    const fn new_claimed(hash: u64) -> Self {
+        Entry {
+            hash,
+            row_ptr: std::ptr::dangling_mut(),
+        }
+    }
+}
+
+/// Hash table directory containing pointers to rows.
+#[derive(Debug)]
+struct Directory {
+    /// Number of non-null pointers in entries.
+    num_occupied: usize,
+    /// Row pointers.
+    entries: TypedRawBuffer<Entry, NopBufferManager>,
+}
+
+impl Directory {
+    const LOAD_FACTOR: f64 = 0.7;
+
+    fn capacity(&self) -> usize {
+        self.entries.capacity()
+    }
+
+    fn resize(&mut self, new_capacity: usize) -> Result<()> {
+        if !is_power_of_2(new_capacity) {
+            return Err(RayexecError::new(
+                "Hash table capacity needs to be a power of two",
+            ));
+        }
+        if new_capacity < self.entries.capacity() {
+            return Err(RayexecError::new("Cannot reduce capacity of hash table")
+                .with_field("current", self.entries.capacity())
+                .with_field("new", new_capacity));
+        }
+
+        unimplemented!()
+    }
+
+    /// Returns if the directory needs to be resized to accomadate new inputs.
+    fn needs_resize(&self, num_inputs: usize) -> bool {
+        (num_inputs + self.num_occupied) as f64 / (self.capacity() * 2) as f64 >= Self::LOAD_FACTOR
+    }
+}

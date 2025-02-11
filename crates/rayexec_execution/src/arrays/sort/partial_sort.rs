@@ -6,7 +6,7 @@ use super::sort_layout::SortLayout;
 use super::sorted_block::SortedBlock;
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
-use crate::arrays::row::block::{Block, NopInitializer, RowLayoutBlockInitializer};
+use crate::arrays::row::block::{Block, NopInitializer, ValidityInitializer};
 use crate::arrays::row::row_blocks::{BlockAppendState, RowBlocks};
 use crate::arrays::row::row_layout::RowLayout;
 
@@ -50,9 +50,9 @@ pub struct PartialSortedRowCollection {
     ///
     /// By splitting the full encoding out, we can working fixed sized blocks
     /// when comparing keys.
-    key_heap_blocks: RowBlocks<NopBufferManager, RowLayoutBlockInitializer>,
+    key_heap_blocks: RowBlocks<NopBufferManager, ValidityInitializer>,
     /// Storage for data not part of the keys.
-    data_blocks: RowBlocks<NopBufferManager, RowLayoutBlockInitializer>,
+    data_blocks: RowBlocks<NopBufferManager, ValidityInitializer>,
     /// All blocks sorted so far.
     sorted: Vec<SortedBlock<NopBufferManager>>,
 }
@@ -68,12 +68,12 @@ impl PartialSortedRowCollection {
 
         let key_heap_blocks = RowBlocks::new_using_row_layout(
             NopBufferManager,
-            key_layout.heap_layout.clone(),
+            &key_layout.heap_layout,
             block_capacity,
         );
 
         let data_blocks =
-            RowBlocks::new_using_row_layout(NopBufferManager, data_layout.clone(), block_capacity);
+            RowBlocks::new_using_row_layout(NopBufferManager, &data_layout, block_capacity);
 
         PartialSortedRowCollection {
             key_layout,

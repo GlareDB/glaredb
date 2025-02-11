@@ -1,6 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
-use super::block::{Block, FixedSizedBlockInitializer, RowLayoutBlockInitializer};
+use super::block::{Block, FixedSizedBlockInitializer, ValidityInitializer};
 use super::block_scanner::BlockScanState;
 use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::BufferManager;
@@ -61,13 +61,13 @@ pub struct RowBlocks<B: BufferManager, I: FixedSizedBlockInitializer> {
     pub heap_blocks: Vec<Block<B>>,
 }
 
-impl<B> RowBlocks<B, RowLayoutBlockInitializer>
+impl<B> RowBlocks<B, ValidityInitializer>
 where
     B: BufferManager,
 {
-    pub fn new_using_row_layout(manager: B, row_layout: RowLayout, row_capacity: usize) -> Self {
+    pub fn new_using_row_layout(manager: B, row_layout: &RowLayout, row_capacity: usize) -> Self {
         let row_width = row_layout.row_width;
-        let initializer = RowLayoutBlockInitializer::new(row_layout);
+        let initializer = ValidityInitializer::from_row_layout(&row_layout);
         Self::new(manager, initializer, row_width, row_capacity)
     }
 }
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn prepare_append_allocate_single_row_block() {
         let layout = RowLayout::new([DataType::Int32]);
-        let mut blocks = RowBlocks::new_using_row_layout(NopBufferManager, layout, 16);
+        let mut blocks = RowBlocks::new_using_row_layout(NopBufferManager, &layout, 16);
 
         let mut append_state = BlockAppendState {
             row_pointers: Vec::new(),
@@ -315,7 +315,7 @@ mod tests {
     #[test]
     fn prepare_append_allocate_multiple_row_blocks() {
         let layout = RowLayout::new([DataType::Int32]);
-        let mut blocks = RowBlocks::new_using_row_layout(NopBufferManager, layout, 16);
+        let mut blocks = RowBlocks::new_using_row_layout(NopBufferManager, &layout, 16);
 
         let mut append_state = BlockAppendState {
             row_pointers: Vec::new(),

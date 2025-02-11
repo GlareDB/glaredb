@@ -12,20 +12,8 @@ use crate::arrays::executor::aggregate::{AggregateState, UnaryNonNullUpdater};
 use crate::arrays::executor::PutBuffer;
 use crate::arrays::scalar::ScalarValue;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    drain,
-    unary_update2,
-    AggregateFunctionImpl,
-    AggregateGroupStates,
-    AggregateStateLogic,
-    TypedAggregateGroupStates,
-    UnaryStateLogic,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl2,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, AggregateStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;

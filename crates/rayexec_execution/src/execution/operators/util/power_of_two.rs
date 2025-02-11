@@ -14,6 +14,7 @@ pub const fn compute_offset_from_hash(hash: u64, cap: u64) -> u64 {
     hash & (cap - 1)
 }
 
+/// Returns if `v` is a power of two.
 pub const fn is_power_of_2(v: usize) -> bool {
     (v & (v - 1)) == 0
 }

@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 
 use rayexec_error::{RayexecError, Result};
 
-use super::block::RowLayoutBlockInitializer;
+use super::block::ValidityInitializer;
 use super::block_scanner::BlockScanState;
 use super::row_blocks::{BlockAppendState, RowBlocks};
 use super::row_layout::RowLayout;
@@ -59,27 +59,29 @@ impl RowScanState {
 /// buffers.
 #[derive(Debug)]
 pub struct RowCollection {
-    blocks: RowBlocks<NopBufferManager, RowLayoutBlockInitializer>,
+    layout: RowLayout,
+    blocks: RowBlocks<NopBufferManager, ValidityInitializer>,
 }
 
 impl RowCollection {
     pub fn new(layout: RowLayout, block_capacity: usize) -> Self {
         RowCollection {
-            blocks: RowBlocks::new_using_row_layout(NopBufferManager, layout, block_capacity),
+            blocks: RowBlocks::new_using_row_layout(NopBufferManager, &layout, block_capacity),
+            layout,
         }
     }
 
     /// Gets a reference to the row layout for this collection.
     pub const fn layout(&self) -> &RowLayout {
-        &self.blocks.initializer.layout
+        &self.layout
     }
 
     /// Gets a reference to the underlying blocks backing this row collection.
-    pub fn blocks(&self) -> &RowBlocks<NopBufferManager, RowLayoutBlockInitializer> {
+    pub fn blocks(&self) -> &RowBlocks<NopBufferManager, ValidityInitializer> {
         &self.blocks
     }
 
-    pub fn blocks_mut(&mut self) -> &mut RowBlocks<NopBufferManager, RowLayoutBlockInitializer> {
+    pub fn blocks_mut(&mut self) -> &mut RowBlocks<NopBufferManager, ValidityInitializer> {
         &mut self.blocks
     }
 
