@@ -4,7 +4,7 @@ use half::f16;
 use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
-use super::block_scanner::BlockScanState;
+use super::block_scan::BlockScanState;
 use super::row_blocks::{BlockAppendState, HeapMutPtr};
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;

@@ -6,7 +6,7 @@ use stdutil::iter::IntoExactSizeIterator;
 
 use super::aggregate_layout::AggregateLayout;
 use super::block::ValidityInitializer;
-use super::block_scanner::BlockScanState;
+use super::block_scan::BlockScanState;
 use super::row_blocks::{BlockAppendState, RowBlocks};
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
@@ -134,6 +134,72 @@ impl AggregateCollection {
         }
 
         Ok(())
+    }
+
+    pub fn scan_groups<A>(
+        &self,
+        state: &mut AggregateScanState,
+        groups: &mut [A],
+        count: usize,
+    ) -> Result<usize>
+    where
+        A: BorrowMut<Array>,
+    {
+        // TODO: Logic duplicated with `RowCollection`.
+
+        debug_assert_eq!(groups.len(), self.layout.groups.num_columns());
+
+        let mut scanned_count = 0;
+        let mut remaining_cap = count;
+
+        while remaining_cap > 0 {
+            // Get the current block to scan.
+            //
+            // If None, we try to get the next block from the queue and reset
+            // the row idx to 0 so that we start scanning that block from the
+            // state.
+            let current_block = match state.current_block {
+                Some(curr) => curr,
+                None => {
+                    state.row_idx = 0;
+                    let new_block = match state.blocks_to_scan.pop_front() {
+                        Some(block) => block,
+                        None => break,
+                    };
+                    state.current_block = Some(new_block);
+                    state.current_block.unwrap()
+                }
+            };
+
+            let num_rows = self.blocks.rows_in_row_block(current_block);
+            if state.row_idx >= num_rows {
+                // No more rows to scan in this chunk, move to next chunk.
+                state.current_block = None;
+                continue;
+            }
+
+            let scan_count = usize::min(remaining_cap, num_rows - state.row_idx);
+            self.blocks.prepare_read(
+                &mut state.block_read,
+                current_block,
+                state.row_idx..(state.row_idx + scan_count),
+            )?;
+
+            unsafe {
+                self.layout.groups.read_arrays(
+                    state.block_read.row_pointers_iter(),
+                    groups.iter_mut().enumerate(),
+                    scanned_count,
+                )
+            }?;
+
+            // Update state.
+            state.row_idx += scan_count;
+            remaining_cap -= scan_count;
+            scanned_count += scan_count;
+        }
+
+        Ok(scanned_count)
     }
 
     pub(crate) unsafe fn finalize_groups<A>(

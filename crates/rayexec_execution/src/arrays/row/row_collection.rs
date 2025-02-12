@@ -4,9 +4,10 @@ use std::collections::VecDeque;
 use rayexec_error::{RayexecError, Result};
 
 use super::block::ValidityInitializer;
-use super::block_scanner::BlockScanState;
+use super::block_scan::BlockScanState;
 use super::row_blocks::{BlockAppendState, RowBlocks};
 use super::row_layout::RowLayout;
+use super::row_scan::RowScanState;
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -30,28 +31,6 @@ impl RowAppendState {
         // SAFETY: Same in-memory representation. Mut/const pointers don't
         // actually mean anything in regards to value mutability.
         unsafe { std::mem::transmute::<&[*mut u8], &[*const u8]>(&self.block_append.row_pointers) }
-    }
-}
-
-/// State for resumable scanning of the row collection.
-#[derive(Debug)]
-pub struct RowScanState {
-    /// Remaining block indices to scan.
-    blocks_to_scan: VecDeque<usize>,
-    /// Current block we're scanning.
-    ///
-    /// If None, we should get the next block to scan.
-    current_block: Option<usize>,
-    /// Row index of the most recent row scanned within the block.
-    row_idx: usize,
-    /// State containing the pointers for the most recent scan.
-    block_read: BlockScanState,
-}
-
-impl RowScanState {
-    /// Returns the row pointers for the most recent scan.
-    pub fn scanned_row_pointers(&self) -> &[*const u8] {
-        &self.block_read.row_pointers
     }
 }
 
@@ -155,7 +134,9 @@ impl RowCollection {
 
     /// Initialize a scan state for scanning all row blocks in the collection.
     pub fn init_full_scan(&self) -> RowScanState {
-        self.init_partial_scan(0..self.blocks.num_row_blocks())
+        let mut state = RowScanState::new();
+        state.reset_for_full_scan(&self.blocks);
+        state
     }
 
     /// Initialize a scan of only some of the row_blocks.
@@ -163,16 +144,9 @@ impl RowCollection {
         &self,
         block_indices: impl IntoIterator<Item = usize>,
     ) -> RowScanState {
-        let blocks_to_scan: VecDeque<_> = block_indices.into_iter().collect();
-
-        RowScanState {
-            blocks_to_scan,
-            current_block: None,
-            row_idx: 0,
-            block_read: BlockScanState {
-                row_pointers: Vec::new(),
-            },
-        }
+        let mut state = RowScanState::new();
+        state.reset_for_partial_scan(block_indices);
+        state
     }
 
     /// Scan the collection, writing rows to `output`.
@@ -183,8 +157,12 @@ impl RowCollection {
     ///
     /// This updates the scan state to allow for resuming scans.
     pub fn scan(&self, state: &mut RowScanState, output: &mut Batch) -> Result<usize> {
-        let columns: Vec<_> = (0..output.arrays.len()).collect(); // TODO: Try not to do this.
-        let count = self.scan_columns(state, &columns, &mut output.arrays, output.capacity)?;
+        let count = state.scan(
+            &self.layout,
+            &self.blocks,
+            &mut output.arrays,
+            output.capacity,
+        )?;
         output.set_num_rows(count)?;
 
         Ok(count)
@@ -206,59 +184,13 @@ impl RowCollection {
     where
         A: BorrowMut<Array>,
     {
-        debug_assert_eq!(columns.len(), outputs.len());
-
-        let mut scanned_count = 0;
-        let mut remaining_cap = count;
-
-        while remaining_cap > 0 {
-            // Get the current block to scan.
-            //
-            // If None, we try to get the next block from the queue and reset
-            // the row idx to 0 so that we start scanning that block from the
-            // state.
-            let current_block = match state.current_block {
-                Some(curr) => curr,
-                None => {
-                    state.row_idx = 0;
-                    let new_block = match state.blocks_to_scan.pop_front() {
-                        Some(block) => block,
-                        None => break,
-                    };
-                    state.current_block = Some(new_block);
-                    state.current_block.unwrap()
-                }
-            };
-
-            let num_rows = self.blocks.rows_in_row_block(current_block);
-            if state.row_idx >= num_rows {
-                // No more rows to scan in this chunk, move to next chunk.
-                state.current_block = None;
-                continue;
-            }
-
-            let scan_count = usize::min(remaining_cap, num_rows - state.row_idx);
-            self.blocks.prepare_read(
-                &mut state.block_read,
-                current_block,
-                state.row_idx..(state.row_idx + scan_count),
-            )?;
-
-            unsafe {
-                self.scan_raw(
-                    &state.block_read,
-                    columns.iter().copied().zip(outputs.iter_mut()),
-                    scanned_count,
-                )
-            }?;
-
-            // Update state.
-            state.row_idx += scan_count;
-            remaining_cap -= scan_count;
-            scanned_count += scan_count;
-        }
-
-        Ok(scanned_count)
+        state.scan_columns(
+            &self.layout,
+            &self.blocks,
+            columns.iter().copied(),
+            outputs,
+            count,
+        )
     }
 
     pub(crate) unsafe fn scan_raw<'a, A>(

@@ -242,7 +242,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::row::block_scanner::BlockScanState;
+    use crate::arrays::row::block_scan::BlockScanState;
     use crate::arrays::sort::sort_layout::SortColumn;
     use crate::testutil::arrays::assert_arrays_eq;
 

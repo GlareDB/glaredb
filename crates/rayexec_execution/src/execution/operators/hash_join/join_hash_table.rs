@@ -11,7 +11,7 @@ use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
-use crate::arrays::row::block_scanner::BlockScanState;
+use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::row::row_collection::{RowAppendState, RowCollection};
 use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::row::row_matcher::PredicateRowMatcher;

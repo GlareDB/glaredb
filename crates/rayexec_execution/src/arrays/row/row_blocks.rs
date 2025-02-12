@@ -1,7 +1,7 @@
 use rayexec_error::{RayexecError, Result};
 
 use super::block::{Block, FixedSizedBlockInitializer, ValidityInitializer};
-use super::block_scanner::BlockScanState;
+use super::block_scan::BlockScanState;
 use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::BufferManager;
 

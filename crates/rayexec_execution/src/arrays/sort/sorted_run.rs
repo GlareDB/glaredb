@@ -4,7 +4,7 @@ use super::sorted_block::SortedBlock;
 use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::batch::Batch;
 use crate::arrays::row::block::Block;
-use crate::arrays::row::block_scanner::BlockScanState;
+use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::row::row_layout::RowLayout;
 
 /// Scan state for scanning a sorted run.

@@ -28,6 +28,9 @@ pub struct InsertState {
     match_state: MatchState,
 }
 
+#[derive(Debug)]
+pub struct MergeState {}
+
 /// Linear probing hash table for aggregates.
 ///
 /// Hash table layout: [groups, groups_hash, agg_states]

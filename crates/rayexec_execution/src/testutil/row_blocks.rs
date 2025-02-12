@@ -4,7 +4,7 @@ use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::row::block::Block;
-use crate::arrays::row::block_scanner::BlockScanState;
+use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::row::row_collection::RowCollection;
 use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::sort::partial_sort::PartialSortedRowCollection;
