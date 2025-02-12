@@ -84,7 +84,7 @@ mod tests {
     use super::*;
     use crate::arrays::array::Array;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::assert_batches_eq;
+    use crate::testutil::arrays::assert_batches_eq;
 
     #[test]
     fn cross_product_single_collected_batch() {

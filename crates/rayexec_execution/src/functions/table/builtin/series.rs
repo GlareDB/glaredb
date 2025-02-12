@@ -274,8 +274,8 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
-    use crate::arrays::testutil::assert_batches_eq;
     use crate::functions::table::inout::testutil::StateWrapper;
+    use crate::testutil::arrays::assert_batches_eq;
 
     #[test]
     fn generate_series_single_row() {

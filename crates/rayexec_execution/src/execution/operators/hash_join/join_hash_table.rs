@@ -545,7 +545,7 @@ pub struct BuildState {
 mod tests {
 
     use super::*;
-    use crate::arrays::testutil::{assert_batches_eq, generate_batch};
+    use crate::testutil::arrays::{assert_batches_eq, generate_batch};
 
     #[test]
     fn inner_join_single_eq_predicate() {

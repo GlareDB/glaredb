@@ -101,8 +101,8 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::testutil::assert_arrays_eq_sel;
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
+    use crate::testutil::arrays::assert_arrays_eq_sel;
 
     #[test]
     fn cast_expr_literal_string_to_i32() {

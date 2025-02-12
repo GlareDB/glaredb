@@ -196,14 +196,15 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::Array;
-    use crate::arrays::testutil::assert_batches_eq;
-    use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};
     use crate::expr::column_expr::ColumnExpr;
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
     use crate::expr::Expression;
     use crate::functions::table::builtin::series::GenerateSeriesInOutPlanner;
     use crate::functions::table::InOutPlanner;
     use crate::logical::binder::table_list::TableList;
+    use crate::testutil::arrays::assert_batches_eq;
+    use crate::testutil::database_context::test_database_context;
+    use crate::testutil::operator::OperatorWrapper;
 
     fn plan_generate_series() -> PlannedTableFunction {
         let mut table_list = TableList::empty();

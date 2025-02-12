@@ -33,6 +33,7 @@ impl Clone for Box<dyn TableInOutFunction> {
     }
 }
 
+// TODO: Possibly mod to top-level testutil module.
 #[cfg(test)]
 pub(crate) mod testutil {
     //! Utilities for testing table in/out function states.
@@ -43,8 +44,8 @@ pub(crate) mod testutil {
     use rayexec_error::Result;
 
     use super::TableInOutPartitionState;
-    use crate::execution::operators::testutil::CountingWaker;
     use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize};
+    use crate::testutil::operator::CountingWaker;
 
     #[derive(Debug)]
     pub struct StateWrapper {

@@ -155,7 +155,7 @@ mod tests {
     use crate::arrays::array::buffer_manager::NopBufferManager;
     use crate::arrays::array::physical_type::{PhysicalBool, PhysicalUtf8};
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn uniform_and_simple() {

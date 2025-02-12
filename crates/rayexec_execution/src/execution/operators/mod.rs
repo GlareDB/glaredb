@@ -31,9 +31,6 @@ pub mod window;
 
 pub(crate) mod util;
 
-#[cfg(test)]
-pub(crate) mod testutil;
-
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::task::Context;

@@ -76,7 +76,7 @@ mod tests {
     use super::*;
     use crate::arrays::array::Array;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::assert_batches_eq;
+    use crate::testutil::arrays::assert_batches_eq;
 
     #[test]
     fn right_join_none_match() {

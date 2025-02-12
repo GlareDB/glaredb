@@ -306,7 +306,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::{assert_arrays_eq, assert_batches_eq, generate_batch};
+    use crate::testutil::arrays::{assert_arrays_eq, assert_batches_eq, generate_batch};
 
     #[test]
     fn append_single_batch_i32() {

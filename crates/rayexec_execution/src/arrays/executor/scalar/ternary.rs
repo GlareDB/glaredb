@@ -205,7 +205,7 @@ mod tests {
     use crate::arrays::array::buffer_manager::NopBufferManager;
     use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn ternary_left_prepend_simple() {

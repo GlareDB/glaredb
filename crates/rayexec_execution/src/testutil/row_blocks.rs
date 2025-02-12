@@ -159,7 +159,7 @@ impl TestSortedRowBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::testutil::{assert_batches_eq, generate_batch};
+    use crate::testutil::arrays::{assert_batches_eq, generate_batch};
 
     #[test]
     fn test_block_scan() {

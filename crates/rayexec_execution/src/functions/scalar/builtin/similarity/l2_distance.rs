@@ -148,7 +148,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    
 
     use stdutil::iter::TryFromExactSizeIterator;
 
@@ -156,8 +155,8 @@ mod tests {
     use crate::arrays::array::buffer_manager::NopBufferManager;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::ListTypeMeta;
-    use crate::arrays::testutil::assert_arrays_eq;
     use crate::expr;
+    use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn l2_distance_ok() {

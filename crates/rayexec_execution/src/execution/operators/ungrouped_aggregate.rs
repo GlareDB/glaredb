@@ -265,14 +265,10 @@ mod tests {
     use super::*;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::{assert_batches_eq, generate_batch};
-    use crate::execution::operators::testutil::{
-        plan_aggregate,
-        plan_aggregates,
-        OperatorWrapper,
-        TestAggregate,
-    };
     use crate::functions::aggregate::builtin::{minmax, sum};
+    use crate::testutil::arrays::{assert_batches_eq, generate_batch};
+    use crate::testutil::exprs::{plan_aggregate, plan_aggregates, TestAggregate};
+    use crate::testutil::operator::OperatorWrapper;
 
     #[test]
     fn single_aggregate_single_partition() {

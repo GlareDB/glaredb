@@ -625,7 +625,7 @@ mod tests {
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
     use crate::arrays::row::row_blocks::RowBlocks;
-    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn new_empty() {

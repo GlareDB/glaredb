@@ -117,7 +117,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::Array;
-    use crate::arrays::testutil::assert_batches_eq;
+    use crate::testutil::arrays::assert_batches_eq;
 
     #[test]
     fn append_fits_in_single_buffer() {

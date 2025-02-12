@@ -447,10 +447,10 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::execution::operators::project::PhysicalProject;
-    use crate::execution::operators::testutil::test_database_context;
     use crate::execution::operators::union::PhysicalUnion;
     use crate::execution::operators::values::PhysicalValues;
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
+    use crate::testutil::database_context::test_database_context;
 
     #[test]
     fn plan_single_pipeline() {

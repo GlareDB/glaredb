@@ -831,7 +831,7 @@ mod tests {
     use super::*;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::ListTypeMeta;
-    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn try_new_constant_utf8() {

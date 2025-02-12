@@ -1,3 +1,5 @@
+//! Utilities for asserting array and batch equality.
+
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 

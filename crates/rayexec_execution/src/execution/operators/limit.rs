@@ -169,8 +169,8 @@ mod tests {
     use super::*;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::{assert_batches_eq, generate_batch};
-    use crate::execution::operators::testutil::OperatorWrapper;
+    use crate::testutil::arrays::{assert_batches_eq, generate_batch};
+    use crate::testutil::operator::OperatorWrapper;
 
     #[test]
     fn limit_no_offset_simple() {

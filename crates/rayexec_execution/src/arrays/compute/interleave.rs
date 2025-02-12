@@ -2,6 +2,8 @@ use rayexec_error::Result;
 
 use crate::arrays::array::Array;
 
+// TODO: Remove?
+
 /// Interleave multiple arrays into one.
 ///
 /// Indices contains (array_idx, row_idx) pairs where 'row_idx' is the row
@@ -35,14 +37,13 @@ pub(crate) fn interleave(
 
 #[cfg(test)]
 mod tests {
-    
 
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn interleave_two_i32() {

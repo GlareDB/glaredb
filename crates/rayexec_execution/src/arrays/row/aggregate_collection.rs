@@ -1,14 +1,24 @@
 use std::borrow::Borrow;
+use std::collections::VecDeque;
 
 use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::aggregate_layout::AggregateLayout;
 use super::block::ValidityInitializer;
+use super::block_scanner::BlockScanState;
 use super::row_blocks::{BlockAppendState, RowBlocks};
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::functions::aggregate::states::AggregateFunctionImpl;
+
+#[derive(Debug)]
+pub struct AggregateScanState {
+    blocks_to_scan: VecDeque<usize>,
+    current_block: Option<usize>,
+    row_idx: usize,
+    block_read: BlockScanState,
+}
 
 #[derive(Debug)]
 pub struct AggregateAppendState {

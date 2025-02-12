@@ -190,7 +190,6 @@ mod tests {
     use crate::arrays::array::raw::AlignedBuffer;
     use crate::arrays::array::selection::Selection;
     use crate::arrays::array::Array;
-    use crate::arrays::testutil::{assert_arrays_eq, assert_arrays_eq_sel};
     use crate::expr;
 
     // #[test]

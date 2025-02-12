@@ -102,9 +102,10 @@ mod tests {
     use crate::arrays::array::Array;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::assert_batches_eq;
-    use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
+    use crate::testutil::arrays::assert_batches_eq;
+    use crate::testutil::database_context::test_database_context;
+    use crate::testutil::operator::OperatorWrapper;
 
     #[test]
     fn filter_simple() {

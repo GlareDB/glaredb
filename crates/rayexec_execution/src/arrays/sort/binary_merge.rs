@@ -511,7 +511,7 @@ mod tests {
     use crate::arrays::array::buffer_manager::NopBufferManager;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::{assert_batches_eq, generate_batch, TestSortedRowBlock};
+    use crate::testutil::arrays::{assert_batches_eq, generate_batch, TestSortedRowBlock};
 
     /// Helper that will binary merge left and right, returning the result.
     ///

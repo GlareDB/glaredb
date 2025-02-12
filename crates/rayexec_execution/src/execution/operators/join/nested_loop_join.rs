@@ -337,9 +337,10 @@ impl Explainable for PhysicalNestedLoopJoin {
 mod tests {
     use super::*;
     use crate::arrays::batch::Batch;
-    use crate::arrays::testutil::{assert_batches_eq, generate_batch};
-    use crate::execution::operators::testutil::{plan_scalar, OperatorWrapper};
     use crate::expr;
+    use crate::testutil::arrays::{assert_batches_eq, generate_batch};
+    use crate::testutil::exprs::plan_scalar;
+    use crate::testutil::operator::OperatorWrapper;
 
     #[test]
     fn cross_join_single_build_batch_single_partition() {

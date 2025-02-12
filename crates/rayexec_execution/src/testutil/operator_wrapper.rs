@@ -4,6 +4,7 @@ use std::task::{Context, Wake, Waker};
 
 use rayexec_error::Result;
 
+use super::database_context::test_database_context;
 use crate::arrays::batch::Batch;
 use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
@@ -19,13 +20,7 @@ use crate::execution::operators::{
     UnaryInputStates,
 };
 
-pub fn test_database_context() -> DatabaseContext {
-    DatabaseContext::new(Arc::new(
-        new_system_catalog(&DataSourceRegistry::default()).unwrap(),
-    ))
-    .unwrap()
-}
-
+/// Waker containing a count that gets incremented by one on every wake.
 #[derive(Debug, Default)]
 pub struct CountingWaker {
     count: AtomicUsize,
@@ -43,8 +38,10 @@ impl Wake for CountingWaker {
     }
 }
 
-/// Wrapper around an operator that uses a stub waker that tracks how many times
-/// it's woken.
+/// Wrapper around an operator that provides extra utilities to reduce boiler
+/// plate.
+///
+/// All `poll_` helper method currently shared the same counting waker.
 #[derive(Debug)]
 pub struct OperatorWrapper<O: ExecutableOperator> {
     pub waker: Arc<CountingWaker>,

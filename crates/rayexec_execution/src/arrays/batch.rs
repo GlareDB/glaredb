@@ -363,7 +363,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::testutil::assert_batches_eq;
+    use crate::testutil::arrays::assert_batches_eq;
 
     #[test]
     fn new_from_other() {

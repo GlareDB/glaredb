@@ -77,7 +77,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn literal_eval() {

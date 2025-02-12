@@ -13,5 +13,3 @@ pub mod scalar;
 pub mod selection;
 pub mod sort;
 pub mod string;
-
-pub mod testutil;

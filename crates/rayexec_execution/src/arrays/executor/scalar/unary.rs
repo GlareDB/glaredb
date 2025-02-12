@@ -230,7 +230,7 @@ mod tests {
     };
     use crate::arrays::array::Array;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn int32_inc_by_2() {

@@ -243,7 +243,7 @@ mod tests {
     use crate::arrays::datatype::DataType;
     use crate::arrays::row::block_scanner::BlockScanState;
     use crate::arrays::sort::sort_layout::SortColumn;
-    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::testutil::arrays::assert_arrays_eq;
 
     /// Helper for asserting that key/data inputs sort correctly with the
     /// resulting data matching `expected`.

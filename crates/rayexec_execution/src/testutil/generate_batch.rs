@@ -19,7 +19,7 @@ mod tests {
 
     use crate::arrays::array::Array;
     use crate::arrays::batch::Batch;
-    use crate::arrays::testutil::assert_batches_eq;
+    use crate::testutil::arrays::assert_batches_eq;
 
     #[test]
     fn generate_batch_single_column() {

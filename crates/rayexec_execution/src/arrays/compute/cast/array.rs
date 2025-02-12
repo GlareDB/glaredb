@@ -840,7 +840,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::datatype::DecimalTypeMeta;
-    use crate::arrays::testutil::assert_arrays_eq;
+    use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn array_cast_i32_to_i32() {

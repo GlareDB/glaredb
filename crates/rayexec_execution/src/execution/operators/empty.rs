@@ -79,14 +79,14 @@ impl DatabaseProtoConv for PhysicalEmpty {
 
 #[cfg(test)]
 mod tests {
-    
 
     use super::*;
     use crate::arrays::array::buffer_manager::NopBufferManager;
     use crate::arrays::array::Array;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
-    use crate::execution::operators::testutil::{test_database_context, OperatorWrapper};
+    use crate::testutil::database_context::test_database_context;
+    use crate::testutil::operator::OperatorWrapper;
 
     #[test]
     fn empty_simple() {

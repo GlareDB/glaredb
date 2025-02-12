@@ -87,13 +87,19 @@ impl AggregateHashTable {
         debug_assert!(!state.row_ptrs.iter().any(|ptr| ptr.is_null()));
 
         // Update states.
-        unimplemented!()
-        // unsafe {
-        //     self.data
-        //         .update_aggregates(&state.row_ptrs, inputs, 0..num_rows)?;
-        // }
+        let agg_inputs: Vec<_> = self
+            .layout
+            .aggregates
+            .iter()
+            .flat_map(|agg| agg.columns.iter().map(|col| inputs[col.idx]))
+            .collect();
 
-        // Ok(())
+        unsafe {
+            self.layout
+                .update_states(state.row_ptrs.as_mut_slice(), &agg_inputs, num_rows)?;
+        }
+
+        Ok(())
     }
 
     /// Find or create groups in the hash table.
@@ -257,6 +263,18 @@ impl AggregateHashTable {
         self.directory.num_occupied += total_new_groups;
 
         Ok(())
+    }
+
+    pub fn merge_from(&mut self, state: &mut InsertState, other: &mut Self) -> Result<()> {
+        if self.directory.num_occupied == 0 {
+            std::mem::swap(self, other);
+            return Ok(());
+        }
+        if other.directory.num_occupied == 0 {
+            return Ok(());
+        }
+
+        unimplemented!()
     }
 
     /// Get the hash for a row.

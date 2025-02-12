@@ -357,7 +357,7 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::arrays::row::row_collection::RowCollection;
-    use crate::arrays::testutil::generate_batch;
+    use crate::testutil::arrays::generate_batch;
 
     #[test]
     fn match_single_i32_eq() {

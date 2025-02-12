@@ -189,9 +189,9 @@ mod tests {
 
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::testutil::assert_arrays_eq;
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
+    use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn case_simple() {
