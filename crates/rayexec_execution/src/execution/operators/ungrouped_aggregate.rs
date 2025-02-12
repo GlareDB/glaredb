@@ -274,7 +274,13 @@ mod tests {
     fn single_aggregate_single_partition() {
         // SUM(col0)
 
-        let agg = plan_aggregate(&sum::Sum, [DataType::Int64]);
+        let agg = plan_aggregate(
+            TestAggregate {
+                function: &sum::Sum,
+                columns: &[0],
+            },
+            [DataType::Int64],
+        );
         let mut operator = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
 
         let mut states = operator.create_unary_states(1024, 1);
@@ -299,7 +305,13 @@ mod tests {
     fn single_aggregate_two_partitions() {
         // SUM(col0) with two partitions
 
-        let agg = plan_aggregate(&sum::Sum, [DataType::Int64]);
+        let agg = plan_aggregate(
+            TestAggregate {
+                function: &sum::Sum,
+                columns: &[0],
+            },
+            [DataType::Int64],
+        );
         let mut operator = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
 
         let mut states = operator.create_unary_states(1024, 2);

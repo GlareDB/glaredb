@@ -93,7 +93,11 @@ where
         }
 
         unsafe {
-            data_layout.read_arrays(&state.block_scan, output.arrays.iter_mut().enumerate(), 0)?
+            data_layout.read_arrays(
+                state.block_scan.row_pointers_iter(),
+                output.arrays.iter_mut().enumerate(),
+                0,
+            )?
         }
         output.set_num_rows(count)?;
 

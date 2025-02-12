@@ -63,7 +63,11 @@ impl TestRowBlock {
         unsafe {
             state.prepare_block_scan(&self.rows, self.layout.row_width, 0..cap, true);
             self.layout
-                .read_arrays(&state, batch.arrays.iter_mut().enumerate(), 0)
+                .read_arrays(
+                    state.row_pointers_iter(),
+                    batch.arrays.iter_mut().enumerate(),
+                    0,
+                )
                 .unwrap();
         }
         batch.set_num_rows(cap).unwrap();
@@ -147,7 +151,11 @@ impl TestSortedRowBlock {
                 true,
             );
             self.data_layout
-                .read_arrays(&state, batch.arrays.iter_mut().enumerate(), 0)
+                .read_arrays(
+                    state.row_pointers_iter(),
+                    batch.arrays.iter_mut().enumerate(),
+                    0,
+                )
                 .unwrap();
         }
         batch.set_num_rows(cap).unwrap();

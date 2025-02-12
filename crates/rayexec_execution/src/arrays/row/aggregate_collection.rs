@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+use std::borrow::{Borrow, BorrowMut};
 use std::collections::VecDeque;
 
 use rayexec_error::{RayexecError, Result};
@@ -133,5 +133,144 @@ impl AggregateCollection {
         }
 
         Ok(())
+    }
+
+    pub(crate) unsafe fn finalize_groups<A>(
+        &self,
+        group_ptrs: &mut [*mut u8],
+        groups: &mut [A],
+        results: &mut [A],
+    ) -> Result<()>
+    where
+        A: BorrowMut<Array>,
+    {
+        debug_assert_eq!(groups.len(), self.layout.groups.num_columns());
+        debug_assert_eq!(results.len(), self.layout.aggregates.len());
+
+        // Read out groups first. Pointer should aready point to the right
+        // spot.
+        {
+            let group_ptrs = group_ptrs.iter().copied().map(|ptr| ptr as _);
+            self.layout
+                .groups
+                .read_arrays(group_ptrs, groups.iter_mut().enumerate(), 0)?;
+        }
+
+        // Now read out the results from the aggreate. This modifies pointers.
+        self.layout.finalize_states(group_ptrs, results)?;
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::arrays::datatype::DataType;
+    use crate::functions::aggregate::builtin::sum;
+    use crate::testutil::arrays::assert_arrays_eq;
+    use crate::testutil::exprs::{plan_aggregate, TestAggregate};
+
+    #[test]
+    fn append_groups_finalize_no_update() {
+        // Create two groups, then finalize both groups. No updates, so the
+        // results should be the "empty" value for the agg.
+
+        // [group, sum input]
+        let inputs = [DataType::Utf8, DataType::Int64];
+        let aggs = [plan_aggregate(
+            TestAggregate {
+                function: &sum::Sum,
+                columns: &[1],
+            },
+            inputs,
+        )];
+        let layout = AggregateLayout::new([DataType::Utf8], aggs);
+
+        let mut collection = AggregateCollection::new(layout, 16);
+        let mut state = collection.init_append_state();
+        collection
+            .append_groups(
+                &mut state,
+                &[Array::try_from_iter(["group_a", "group_b"]).unwrap()],
+                0..2,
+            )
+            .unwrap();
+
+        // No updates, just finalize. Assert that state was initialized and
+        // produces a valid "empty" value.
+        let mut ptrs = state.row_pointers().to_vec();
+
+        let mut groups = Array::try_new(&NopBufferManager, DataType::Utf8, 2).unwrap();
+        let mut results = Array::try_new(&NopBufferManager, DataType::Int64, 2).unwrap();
+
+        unsafe {
+            collection
+                .finalize_groups(&mut ptrs, &mut [&mut groups], &mut [&mut results])
+                .unwrap();
+        }
+
+        let expected_groups = Array::try_from_iter(["group_a", "group_b"]).unwrap();
+        let expected_results = Array::try_from_iter([None as Option<i64>, None]).unwrap();
+
+        assert_arrays_eq(&expected_groups, &groups);
+        assert_arrays_eq(&expected_results, &results);
+    }
+
+    #[test]
+    fn append_groups_finalize_with_update() {
+        // Same as above, but we do an update to the aggregate.
+
+        // [group, sum input]
+        let inputs = [DataType::Utf8, DataType::Int64];
+        let aggs = [plan_aggregate(
+            TestAggregate {
+                function: &sum::Sum,
+                columns: &[1],
+            },
+            inputs,
+        )];
+        let layout = AggregateLayout::new([DataType::Utf8], aggs);
+
+        let mut collection = AggregateCollection::new(layout, 16);
+        let mut state = collection.init_append_state();
+        collection
+            .append_groups(
+                &mut state,
+                &[Array::try_from_iter(["group_a", "group_b"]).unwrap()],
+                0..2,
+            )
+            .unwrap();
+
+        // Update aggregates, groups alternating between rows.
+        let ptrs = state.row_pointers();
+        let mut update_row_ptrs = vec![ptrs[0], ptrs[1], ptrs[0], ptrs[1]];
+        let values = Array::try_from_iter([1_i64, 2, 3, 4]).unwrap();
+
+        unsafe {
+            collection
+                .layout
+                .update_states(&mut update_row_ptrs, &[&values], 4)
+                .unwrap();
+        }
+
+        let mut ptrs = state.row_pointers().to_vec();
+
+        let mut groups = Array::try_new(&NopBufferManager, DataType::Utf8, 2).unwrap();
+        let mut results = Array::try_new(&NopBufferManager, DataType::Int64, 2).unwrap();
+
+        unsafe {
+            collection
+                .finalize_groups(&mut ptrs, &mut [&mut groups], &mut [&mut results])
+                .unwrap();
+        }
+
+        let expected_groups = Array::try_from_iter(["group_a", "group_b"]).unwrap();
+        let expected_results = Array::try_from_iter([4_i64, 6]).unwrap();
+
+        assert_arrays_eq(&expected_groups, &groups);
+        assert_arrays_eq(&expected_results, &results);
     }
 }

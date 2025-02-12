@@ -20,6 +20,10 @@ impl BlockScanState {
         self.row_pointers.clear();
     }
 
+    pub fn row_pointers_iter(&self) -> impl Iterator<Item = *const u8> + Clone + '_ {
+        self.row_pointers.iter().copied()
+    }
+
     /// Prepares this state to begin scanning the provided block.
     ///
     /// `selection` provides a row selection for which rows to scan from the

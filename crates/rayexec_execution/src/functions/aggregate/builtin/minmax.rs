@@ -36,6 +36,12 @@ use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
+// Min/max is used in some aggregate layout tests, assuming the size and
+// alignment of min/max primitive states.
+//
+// If we change the state from just being a val+bool, those tests may need
+// updating.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Min;
 

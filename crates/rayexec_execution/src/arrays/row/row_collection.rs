@@ -270,7 +270,8 @@ impl RowCollection {
     where
         A: BorrowMut<Array> + 'a,
     {
-        self.layout().read_arrays(state, arrays, write_offset)
+        self.layout()
+            .read_arrays(state.row_pointers_iter(), arrays, write_offset)
     }
 
     /// Merges `other` into self.

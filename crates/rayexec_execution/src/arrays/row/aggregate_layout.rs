@@ -4,7 +4,6 @@ use rayexec_error::Result;
 
 use super::row_layout::RowLayout;
 use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::expr::physical::PhysicalAggregateExpression;
 
@@ -240,6 +239,8 @@ const fn align_len(curr_len: usize, alignment: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::functions::aggregate::builtin::minmax;
+    use crate::testutil::exprs::{plan_aggregates, TestAggregate};
 
     #[test]
     fn align_len_sanity() {
@@ -273,19 +274,31 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn new_no_groups() {
-    //     let layout = AggregateLayout::new(
-    //         [],
-    //         [
-    //             AggregateInfo { align: 2, size: 4 },
-    //             AggregateInfo { align: 1, size: 1 },
-    //         ],
-    //     );
+    #[test]
+    fn new_no_groups() {
+        let aggs = plan_aggregates(
+            [
+                TestAggregate {
+                    function: &minmax::Min,
+                    columns: &[0],
+                },
+                TestAggregate {
+                    function: &minmax::Max,
+                    columns: &[1],
+                },
+            ],
+            [DataType::Int32, DataType::Int32],
+        );
 
-    //     assert_eq!(2, layout.base_align);
-    //     assert_eq!(0, layout.aggregate_offsets[0]);
-    //     assert_eq!(4, layout.aggregate_offsets[1]);
-    //     assert_eq!(6, layout.row_width); // Read width is 5, +1 to ensure alignment to 2
-    // }
+        let layout = AggregateLayout::new([], aggs);
+
+        // Min/max (i32)
+        // Align: 4
+        // Size:  5 (val + bool)
+
+        assert_eq!(4, layout.base_align);
+        assert_eq!(0, layout.aggregate_offsets[0]);
+        assert_eq!(8, layout.aggregate_offsets[1]); // Offset aligned to 4
+        assert_eq!(16, layout.row_width);
+    }
 }

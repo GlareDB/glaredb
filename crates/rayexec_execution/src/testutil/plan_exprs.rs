@@ -31,27 +31,31 @@ pub fn plan_scalars<'a>(
     planner.plan_scalars(&table_refs, exprs).unwrap()
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct TestAggregate {
+    pub function: &'static dyn AggregateFunction,
+    pub columns: &'static [usize],
+}
+
 /// Plan an aggregate function.
 ///
-/// This assumes the input to the aggregate is a column whose types are provided
-/// by `inputs.
-///
-/// This cannot be used to plan multiple aggregates for a single operator.
+/// `inputs` is expected to be the complete input, while `agg` specifies which
+/// columns from the input to use for its inputs.
 pub fn plan_aggregate(
-    agg: &dyn AggregateFunction,
+    agg: TestAggregate,
     inputs: impl IntoIterator<Item = DataType>,
 ) -> PhysicalAggregateExpression {
     let inputs: Vec<_> = inputs.into_iter().collect();
     let (table_list, refs) = create_table_list(&[&inputs]);
     assert_eq!(1, refs.len());
 
-    let exprs: Vec<_> = inputs
+    let exprs: Vec<_> = agg
+        .columns
         .iter()
-        .enumerate()
-        .map(|(idx, _)| expr::col_ref(refs[0], idx))
+        .map(|&idx| expr::col_ref(refs[0], idx))
         .collect();
 
-    let planned = agg.plan(&table_list, exprs).unwrap();
+    let planned = agg.function.plan(&table_list, exprs).unwrap();
     let columns: Vec<_> = plan_scalars(&planned.inputs, &[&inputs])
         .into_iter()
         .map(|expr| match expr {
@@ -65,12 +69,6 @@ pub fn plan_aggregate(
         columns,
         is_distinct: false,
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct TestAggregate {
-    pub function: &'static dyn AggregateFunction,
-    pub columns: &'static [usize],
 }
 
 /// Plans multiple aggregates.
@@ -166,6 +164,12 @@ mod tests {
 
     #[test]
     fn plan_aggregate_sanity() {
-        let _agg = plan_aggregate(&sum::Sum, [DataType::Int64]);
+        let _agg = plan_aggregate(
+            TestAggregate {
+                function: &sum::Sum,
+                columns: &[0],
+            },
+            [DataType::Int64],
+        );
     }
 }

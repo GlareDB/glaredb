@@ -297,7 +297,11 @@ mod tests {
         unsafe {
             collection
                 .data_layout
-                .read_arrays(&read_state, arrays.iter_mut().enumerate(), 0)
+                .read_arrays(
+                    read_state.row_pointers_iter(),
+                    arrays.iter_mut().enumerate(),
+                    0,
+                )
                 .unwrap();
         }
 

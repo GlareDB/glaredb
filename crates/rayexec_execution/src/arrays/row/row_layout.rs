@@ -200,7 +200,7 @@ impl RowLayout {
 
     pub(crate) unsafe fn read_arrays<'a, A, B>(
         &self,
-        state: &BlockScanState,
+        row_ptrs: impl IntoIterator<Item = *const u8> + Clone,
         arrays: impl IntoIterator<Item = (usize, &'a mut A)>,
         write_offset: usize,
     ) -> Result<()>
@@ -214,7 +214,7 @@ impl RowLayout {
             read_array(
                 self,
                 phys_type,
-                &state.row_pointers,
+                row_ptrs.clone(),
                 array_idx,
                 array,
                 write_offset,
@@ -487,7 +487,7 @@ where
 unsafe fn read_array<B>(
     layout: &RowLayout,
     phys_type: PhysicalType,
-    row_pointers: &[*const u8],
+    row_pointers: impl IntoIterator<Item = *const u8>,
     array_idx: usize,
     out: &mut Array<B>,
     write_offset: usize,
@@ -557,7 +557,7 @@ where
 
 unsafe fn read_scalar<S, B>(
     layout: &RowLayout,
-    row_pointers: &[*const u8],
+    row_pointers: impl IntoIterator<Item = *const u8>,
     array_idx: usize,
     out: &mut Array<B>,
     write_offset: usize,
@@ -570,7 +570,7 @@ where
     let mut data = S::get_addressable_mut(&mut out.data)?;
     let validity = &mut out.validity;
 
-    for (&row_ptr, output_idx) in row_pointers.into_iter().zip(write_offset..) {
+    for (row_ptr, output_idx) in row_pointers.into_iter().zip(write_offset..) {
         let validity_buf = layout.validity_buffer(row_ptr);
         let is_valid = BitmapView::new(validity_buf, layout.num_columns()).value(array_idx);
 
@@ -589,7 +589,7 @@ where
 
 unsafe fn read_binary<B>(
     layout: &RowLayout,
-    row_pointers: &[*const u8],
+    row_pointers: impl IntoIterator<Item = *const u8>,
     array_idx: usize,
     out: &mut Array<B>,
     write_offset: usize,
@@ -600,7 +600,7 @@ where
     let mut data = PhysicalBinary::get_addressable_mut(&mut out.data)?;
     let validity = &mut out.validity;
 
-    for (&row_ptr, output_idx) in row_pointers.into_iter().zip(write_offset..) {
+    for (row_ptr, output_idx) in row_pointers.into_iter().zip(write_offset..) {
         let validity_buf = layout.validity_buffer(row_ptr);
         let is_valid = BitmapView::new(validity_buf, layout.num_columns()).value(array_idx);
 
@@ -766,7 +766,9 @@ mod tests {
         };
 
         unsafe {
-            layout.read_arrays(&state, [(0, &mut out)], 0).unwrap();
+            layout
+                .read_arrays(state.row_pointers_iter(), [(0, &mut out)], 0)
+                .unwrap();
         }
 
         out
