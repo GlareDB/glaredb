@@ -3,22 +3,25 @@ use std::borrow::Borrow;
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
 use crate::arrays::array::raw::TypedRawBuffer;
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::compute::hash::hash_many_arrays;
+use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_collection::{AggregateAppendState, AggregateCollection};
 use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::arrays::row::row_matcher::{MatchState, PredicateRowMatcher};
+use crate::arrays::row::row_scan::RowScanState;
 use crate::execution::operators::util::power_of_two::{
     compute_offset_from_hash,
     inc_and_wrap_offset,
     is_power_of_2,
 };
 
+// TODO: Rename?, used for inserting into the table but also for merging tables.
 #[derive(Debug)]
 pub struct InsertState {
-    /// Reusable hashes buffer.
-    hashes: Vec<u64>,
     /// Reusable buffer containing pointers to the beginning of rows that we
     /// should update.
     row_ptrs: Vec<*mut u8>,
@@ -27,9 +30,6 @@ pub struct InsertState {
     /// State for matching on group values.
     match_state: MatchState,
 }
-
-#[derive(Debug)]
-pub struct MergeState {}
 
 /// Linear probing hash table for aggregates.
 ///
@@ -50,6 +50,7 @@ pub struct AggregateHashTable {
     data: AggregateCollection,
     /// Group value matcher.
     matcher: GroupMatcher,
+    row_capacity: usize,
 }
 
 impl AggregateHashTable {
@@ -70,8 +71,10 @@ impl AggregateHashTable {
         num_rows: usize,
     ) -> Result<()> {
         // Hash the groups.
-        state.hashes.resize(num_rows, 0);
-        hash_many_arrays(groups, 0..num_rows, &mut state.hashes)?;
+        // TODO: Avoid allocating here.
+        let mut hashes_arr = Array::try_new(&NopBufferManager, DataType::UInt64, num_rows)?;
+        let hashes = PhysicalU64::get_addressable_mut(&mut hashes_arr.data)?.slice;
+        hash_many_arrays(groups, 0..num_rows, hashes)?;
 
         state.row_ptrs.clear();
         state
@@ -82,8 +85,8 @@ impl AggregateHashTable {
             &mut state.append_state,
             &mut state.match_state,
             groups,
+            &hashes_arr,
             num_rows,
-            &state.hashes,
             &mut state.row_ptrs,
         )?;
 
@@ -109,21 +112,24 @@ impl AggregateHashTable {
     ///
     /// This will fill `out_ptrs` with the pointers to use for each row to
     /// update the aggregate state.
-    fn find_or_create_groups(
+    fn find_or_create_groups<A>(
         &mut self,
         append_state: &mut AggregateAppendState,
         match_state: &mut MatchState,
-        groups: &[&Array],
+        groups: &[A],
+        hashes_arr: &Array,
         num_rows: usize,
-        hashes: &[u64],
         out_ptrs: &mut [*mut u8],
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        A: Borrow<Array>,
+    {
         if num_rows == 0 {
             return Ok(());
         }
 
-        debug_assert_eq!(num_rows, hashes.len());
         debug_assert_eq!(num_rows, out_ptrs.len());
+        let hashes = PhysicalU64::get_addressable(&hashes_arr.data)?.slice;
 
         if self.directory.needs_resize(num_rows) {
             self.directory.resize(self.directory.capacity() * 2)?;
@@ -147,6 +153,11 @@ impl AggregateHashTable {
 
         // Track rows that need to be compared to rows already in the table.
         let mut needs_compare = Vec::new();
+
+        // Groups + hashes used when appending new groups to the collection.
+        let mut groups_and_hashes = Vec::with_capacity(groups.len() + 1);
+        groups_and_hashes.extend(groups.iter().map(|arr| arr.borrow()));
+        groups_and_hashes.push(hashes_arr);
 
         let cap = self.directory.capacity();
         let entries = self.directory.entries.as_slice_mut();
@@ -201,8 +212,11 @@ impl AggregateHashTable {
             // If we've inserted new group hashes, go ahead and create the
             // actual groups.
             if !new_groups.is_empty() {
-                self.data
-                    .append_groups(append_state, groups, new_groups.iter().copied())?;
+                self.data.append_groups(
+                    append_state,
+                    &groups_and_hashes,
+                    new_groups.iter().copied(),
+                )?;
 
                 let row_ptrs = append_state.row_pointers();
                 debug_assert_eq!(new_groups.len(), row_ptrs.len());
@@ -240,7 +254,7 @@ impl AggregateHashTable {
                     match_state,
                     &self.layout,
                     &compare_ptrs,
-                    groups,
+                    &groups_and_hashes,
                     needs_compare.iter().copied(),
                 )?;
 
@@ -277,17 +291,86 @@ impl AggregateHashTable {
             return Ok(());
         }
 
-        unimplemented!()
+        let mut merge_state =
+            MergeScanState::try_new(&other.data, &self.layout, self.row_capacity)?;
+
+        loop {
+            merge_state.scan()?;
+            if merge_state.groups.num_rows() == 0 {
+                // No more groups scanned, we're done.
+                break;
+            }
+
+            // Append groups we haven't seen before and get dest group pointers.
+            let (groups, hashes) = merge_state.split_groups_and_hashes();
+            let num_rows = merge_state.groups.num_rows();
+            self.find_or_create_groups(
+                &mut state.append_state,
+                &mut state.match_state,
+                groups,
+                hashes,
+                num_rows,
+                &mut state.row_ptrs,
+            )?;
+
+            // Combine states.
+            unsafe {
+                self.layout.combine_states(
+                    merge_state.group_scan.scanned_row_pointers_mut(),
+                    &mut state.row_ptrs,
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// State for scanning and merging hash tables.
+#[derive(Debug)]
+struct MergeScanState<'a> {
+    /// Scan state for scanning groups from the source hash table.
+    group_scan: RowScanState,
+    /// Scanned groups, last array contains the hashes.
+    groups: Batch,
+    /// Data from the source hash table.
+    data: &'a AggregateCollection,
+}
+
+impl<'a> MergeScanState<'a> {
+    fn try_new(
+        data: &'a AggregateCollection,
+        layout: &AggregateLayout,
+        row_cap: usize,
+    ) -> Result<Self> {
+        let groups = Batch::try_new(layout.groups.types.clone(), row_cap)?;
+
+        Ok(MergeScanState {
+            group_scan: RowScanState::new(),
+            groups,
+            data,
+        })
     }
 
-    /// Get the hash for a row.
-    ///
-    /// Safety:
-    ///
-    /// Row pointer must be a pointer a row that follows this table's aggregate
-    /// layout.
-    unsafe fn row_hash(hash_offset: usize, row_ptr: *const u8) -> u64 {
-        row_ptr.byte_add(hash_offset).cast::<u64>().read_unaligned()
+    /// Scans the next set of groups.
+    fn scan(&mut self) -> Result<()> {
+        self.groups.reset_for_write()?;
+
+        let count = self.data.scan_groups(
+            &mut self.group_scan,
+            &mut self.groups.arrays,
+            self.groups.capacity,
+        )?;
+        self.groups.set_num_rows(count)?;
+
+        Ok(())
+    }
+
+    fn split_groups_and_hashes(&self) -> (&[Array], &Array) {
+        let len = self.groups.arrays.len();
+        let groups = &self.groups.arrays[0..len - 1];
+        let hashes = &self.groups.arrays[len - 1];
+        (groups, hashes)
     }
 }
 
@@ -295,6 +378,7 @@ impl AggregateHashTable {
 #[derive(Debug)]
 struct GroupMatcher {
     /// Column indices we're matching on the left (should contain all indices).
+    // TODO: Skip hash column?
     lhs_columns: Vec<usize>,
     /// The row matcher.
     matcher: PredicateRowMatcher,

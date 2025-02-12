@@ -51,6 +51,11 @@ impl RowScanState {
         &self.block_read.row_pointers
     }
 
+    pub fn scanned_row_pointers_mut(&mut self) -> &mut [*mut u8] {
+        let s = self.block_read.row_pointers.as_mut_slice();
+        unsafe { std::slice::from_raw_parts_mut(s.as_mut_ptr() as *mut *mut u8, s.len()) }
+    }
+
     /// Resets the state for a full scan of the given set of row blocks.
     pub(crate) fn reset_for_full_scan(
         &mut self,
