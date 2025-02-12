@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::aggregate_layout::AggregateLayout;
@@ -28,13 +28,6 @@ impl AggregateAppendState {
 /// Collects grouped aggregate data using a row layout.
 #[derive(Debug)]
 pub struct AggregateCollection {
-    /// Aggregate function implementations.
-    ///
-    /// Used for aggregate state manipulation.
-    ///
-    /// The number of implemenations must match the number of aggregates as
-    /// specified in the layout.
-    func_impls: Vec<AggregateFunctionImpl>,
     /// Aggregate layout that all rows conform to.
     layout: AggregateLayout,
     /// Underlying row blocks storing both groups and states.
@@ -43,7 +36,24 @@ pub struct AggregateCollection {
 
 impl AggregateCollection {
     pub fn new(layout: AggregateLayout, block_capacity: usize) -> Self {
-        unimplemented!()
+        let blocks = RowBlocks::new(
+            NopBufferManager,
+            ValidityInitializer::from_aggregate_layout(&layout),
+            layout.row_width,
+            block_capacity,
+        );
+
+        AggregateCollection { layout, blocks }
+    }
+
+    pub fn init_append_state(&self) -> AggregateAppendState {
+        AggregateAppendState {
+            block_append: BlockAppendState {
+                row_pointers: Vec::new(),
+                heap_pointers: Vec::new(),
+            },
+            heap_sizes: Vec::new(),
+        }
     }
 
     /// Append new groups to the collection.
@@ -95,7 +105,8 @@ impl AggregateCollection {
         };
 
         // Initialize aggregate states.
-        for (&offset, func) in self.layout.aggregate_offsets.iter().zip(&self.func_impls) {
+        for (offset, agg) in self.layout.iter_offsets_and_aggregates() {
+            let func = &agg.function.function_impl;
             let extra = func.extra_deref();
 
             for row_ptr in &state.block_append.row_pointers {
@@ -112,17 +123,5 @@ impl AggregateCollection {
         }
 
         Ok(())
-    }
-
-    pub(crate) unsafe fn update_aggregates<A>(
-        &mut self,
-        row_ptrs: &[*mut u8],
-        inputs: &[A],
-        rows: impl IntoExactSizeIterator<Item = usize> + Clone,
-    ) -> Result<()>
-    where
-        A: Borrow<Array>,
-    {
-        unimplemented!()
     }
 }

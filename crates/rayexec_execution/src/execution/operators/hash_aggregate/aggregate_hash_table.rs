@@ -50,6 +50,15 @@ pub struct AggregateHashTable {
 }
 
 impl AggregateHashTable {
+    pub fn init_insert_state(&self) -> InsertState {
+        unimplemented!()
+        // InsertState{
+        //     hashes: Vec::new(),
+        //     row_ptrs: Vec::new(),
+        //     append_state:
+        // }
+    }
+
     pub fn insert(
         &mut self,
         state: &mut InsertState,
@@ -78,12 +87,13 @@ impl AggregateHashTable {
         debug_assert!(!state.row_ptrs.iter().any(|ptr| ptr.is_null()));
 
         // Update states.
-        unsafe {
-            self.data
-                .update_aggregates(&state.row_ptrs, inputs, 0..num_rows)?;
-        }
+        unimplemented!()
+        // unsafe {
+        //     self.data
+        //         .update_aggregates(&state.row_ptrs, inputs, 0..num_rows)?;
+        // }
 
-        Ok(())
+        // Ok(())
     }
 
     /// Find or create groups in the hash table.

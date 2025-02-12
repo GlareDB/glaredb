@@ -202,6 +202,7 @@ where
 /// with their group values following a row layout.
 // TODO: More comprehensive drop checking (specifically we need to drop
 // arbitrarily on query errors).
+// TODO: Explicit drop function.
 #[derive(Debug, Clone)]
 pub struct AggregateFunctionImpl {
     /// Alignment requirement of the state.
