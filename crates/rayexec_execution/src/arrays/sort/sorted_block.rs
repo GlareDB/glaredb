@@ -67,7 +67,7 @@ where
         // Indicate if row at index 'i' is tied with row at index 'i+1'.
         let mut tied_with_next = vec![true; num_rows - 1];
 
-        let mut sorted_keys = Block::try_new_reserve_none(manager, keys.reserved_bytes)?;
+        let mut sorted_keys = Block::try_new_reserve_none(manager, keys.reserved_bytes, None)?;
         sorted_keys.reserved_bytes = keys.reserved_bytes;
 
         for col_idx in 0..key_layout.num_columns() {
@@ -120,7 +120,8 @@ where
         //
         // Note this doesn't reorder heap blocks as we have active pointers to
         // those from the row blocks.
-        let mut sorted_heap_keys = Block::try_new_reserve_none(manager, heap_keys.reserved_bytes)?;
+        let mut sorted_heap_keys =
+            Block::try_new_reserve_none(manager, heap_keys.reserved_bytes, None)?;
         if key_layout.any_requires_heap() {
             sorted_heap_keys.reserved_bytes = heap_keys.reserved_bytes;
             let row_idx_iter = BlockRowIndexIter::new(&key_layout, &sorted_keys, num_rows);
@@ -132,7 +133,7 @@ where
             );
         }
 
-        let mut sorted_data = Block::try_new_reserve_none(manager, data.reserved_bytes)?;
+        let mut sorted_data = Block::try_new_reserve_none(manager, data.reserved_bytes, None)?;
         if data_layout.num_columns() > 0 {
             sorted_data.reserved_bytes = data.reserved_bytes;
             let row_idx_iter = BlockRowIndexIter::new(&key_layout, &sorted_keys, num_rows);

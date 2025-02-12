@@ -89,6 +89,13 @@ where
             raw,
         }))
     }
+
+    /// Gets the underlying typed buffer.
+    ///
+    /// The returned buffer retains the custom alignment.
+    pub fn into_typed_raw_buffer(self) -> TypedRawBuffer<T, B> {
+        self.0
+    }
 }
 
 impl<T, B> AsRef<TypedRawBuffer<T, B>> for AlignedBuffer<T, B>

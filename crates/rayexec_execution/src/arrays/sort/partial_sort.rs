@@ -64,6 +64,7 @@ impl PartialSortedRowCollection {
             NopInitializer,
             key_layout.row_width,
             block_capacity,
+            None,
         );
 
         let key_heap_blocks = RowBlocks::new_using_row_layout(

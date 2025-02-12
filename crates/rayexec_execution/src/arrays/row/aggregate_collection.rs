@@ -51,6 +51,7 @@ impl AggregateCollection {
             ValidityInitializer::from_aggregate_layout(&layout),
             layout.row_width,
             block_capacity,
+            Some(layout.base_align),
         );
 
         AggregateCollection { layout, blocks }

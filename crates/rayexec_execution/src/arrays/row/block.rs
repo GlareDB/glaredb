@@ -5,7 +5,7 @@ use rayexec_error::Result;
 use super::aggregate_layout::AggregateLayout;
 use super::row_layout::RowLayout;
 use crate::arrays::array::buffer_manager::BufferManager;
-use crate::arrays::array::raw::TypedRawBuffer;
+use crate::arrays::array::raw::{AlignedBuffer, TypedRawBuffer};
 
 /// Describes how we initialize fixed sized blocks.
 pub trait FixedSizedBlockInitializer: Debug {
@@ -99,6 +99,9 @@ where
     ///
     /// This will allocate a block of the exact capacity needed, and each input
     /// block will be written to the output block in order.
+    // TODO: Does this need to care about alignment? Probably want to keep a
+    // bool on the block indicating if there's a custom alignment, and error if
+    // there is for now.
     pub fn concat(manager: &B, blocks: Vec<Self>) -> Result<Self> {
         let capacity: usize = blocks.iter().map(|block| block.reserved_bytes).sum();
         let mut out_buf = TypedRawBuffer::try_with_capacity(manager, capacity)?;
@@ -125,8 +128,22 @@ where
     ///
     /// This sets the initial reserved bytes to 0 indicating this block is
     /// "empty".
-    pub fn try_new_reserve_none(manager: &B, byte_capacity: usize) -> Result<Self> {
-        let data = TypedRawBuffer::try_with_capacity(manager, byte_capacity)?;
+    ///
+    /// If `alignment` is provided, the buffer will be allocated with that
+    /// alignment.
+    pub fn try_new_reserve_none(
+        manager: &B,
+        byte_capacity: usize,
+        alignment: Option<usize>,
+    ) -> Result<Self> {
+        let data = match alignment {
+            Some(align) => {
+                AlignedBuffer::try_with_capacity_and_alignment(manager, byte_capacity, align)?
+                    .into_typed_raw_buffer()
+            }
+            None => TypedRawBuffer::try_with_capacity(manager, byte_capacity)?,
+        };
+
         Ok(Block {
             data,
             reserved_bytes: 0,
@@ -180,7 +197,7 @@ mod tests {
     fn concat_many() {
         let mut blocks = Vec::new();
         for i in 0..4 {
-            let mut block = Block::try_new_reserve_none(&NopBufferManager, 128).unwrap();
+            let mut block = Block::try_new_reserve_none(&NopBufferManager, 128, None).unwrap();
             let s = &mut block.data.as_slice_mut()[0..i];
             for b in s {
                 *b = i as u8;

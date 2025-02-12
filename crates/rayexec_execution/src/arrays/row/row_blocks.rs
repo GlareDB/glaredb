@@ -59,6 +59,10 @@ pub struct RowBlocks<B: BufferManager, I: FixedSizedBlockInitializer> {
     pub row_blocks: Vec<Block<B>>,
     /// Blocks for varlen and nested data.
     pub heap_blocks: Vec<Block<B>>,
+    /// Optional alignment requirement for fixed size blocks.
+    ///
+    /// If set, blocks will be allocated aligned to some multiple of this.
+    pub fixed_block_alignment: Option<usize>,
 }
 
 impl<B> RowBlocks<B, ValidityInitializer>
@@ -68,7 +72,7 @@ where
     pub fn new_using_row_layout(manager: B, row_layout: &RowLayout, row_capacity: usize) -> Self {
         let row_width = row_layout.row_width;
         let initializer = ValidityInitializer::from_row_layout(&row_layout);
-        Self::new(manager, initializer, row_width, row_capacity)
+        Self::new(manager, initializer, row_width, row_capacity, None)
     }
 }
 
@@ -79,7 +83,13 @@ where
 {
     const MAX_HEAP_SIZE: usize = 1024 * 1024 * 1024 * 32; // 32GB
 
-    pub fn new(manager: B, initializer: I, row_width: usize, row_capacity: usize) -> Self {
+    pub fn new(
+        manager: B,
+        initializer: I,
+        row_width: usize,
+        row_capacity: usize,
+        fixed_block_alignment: Option<usize>,
+    ) -> Self {
         RowBlocks {
             manager,
             row_capacity,
@@ -87,6 +97,7 @@ where
             initializer,
             row_blocks: Vec::new(),
             heap_blocks: Vec::new(),
+            fixed_block_alignment,
         }
     }
 
@@ -123,7 +134,8 @@ where
     /// This will initialize the block before returning it.
     fn allocate_and_init_fixed_size_block(&self) -> Result<Block<B>> {
         let buf_size = self.row_width * self.row_capacity;
-        let block = Block::try_new_reserve_none(&self.manager, buf_size)?;
+        let block =
+            Block::try_new_reserve_none(&self.manager, buf_size, self.fixed_block_alignment)?;
         self.initializer.initialize(block)
     }
 
@@ -223,8 +235,9 @@ where
                     .with_field("max", Self::MAX_HEAP_SIZE));
             }
 
-            // Create new heap block, no initialization needs to happen.
-            let block = Block::try_new_reserve_none(&self.manager, total_heap_size)?;
+            // Create new heap block, no initialization nor alignment needs to
+            // happen.
+            let block = Block::try_new_reserve_none(&self.manager, total_heap_size, None)?;
             self.heap_blocks.push(block);
 
             let heap_idx = self.heap_blocks.len() - 1;
