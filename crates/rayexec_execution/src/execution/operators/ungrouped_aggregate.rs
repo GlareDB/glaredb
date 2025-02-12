@@ -144,40 +144,25 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
             UngroupedAggregatePartitionState::Aggregating { values, ptr_buf } => {
                 let input = inout.input.required("input batch required")?;
 
-                for (agg_idx, agg) in self.layout.aggregates.iter().enumerate() {
-                    // TODO: Avoid allocating every time.
-                    let cols: Vec<_> = agg
-                        .columns
-                        .iter()
-                        .map(|col| &input.arrays[col.idx])
-                        .collect();
+                let agg_inputs: Vec<_> = self
+                    .layout
+                    .aggregates
+                    .iter()
+                    .flat_map(|agg| agg.columns.iter().map(|col| &input.arrays[col.idx]))
+                    .collect();
 
-                    // SAFETY: The aggregate values buffer should have been
-                    // allocated according to this layout. The layout offsets
-                    // should then be in bounds.
-                    let state_ptr = unsafe {
-                        values
-                            .as_mut_ptr()
-                            .byte_add(self.layout.aggregate_offsets[agg_idx])
-                    };
+                // All inputs update the same "group".
+                ptr_buf.clear();
+                ptr_buf.extend(std::iter::repeat(values.as_mut_ptr()).take(input.num_rows));
 
-                    // All rows will be updating the same state.
-                    ptr_buf.clear();
-                    ptr_buf.extend(std::iter::repeat(state_ptr).take(input.num_rows));
-
-                    let extra = agg.function.function_impl.extra_deref();
-                    // SAFETY: Values buffer should have been aligned to a base
-                    // alignement which should be a multiple of this aggregate's
-                    // alignment. The computed offset should then result in an
-                    // aligned pointer.
-                    unsafe {
-                        (agg.function.function_impl.update_fn)(
-                            extra,
-                            &cols,
-                            input.num_rows,
-                            ptr_buf.as_mut_slice(),
-                        )?;
-                    }
+                // SAFETY: The aggregate values buffer should have been
+                // allocated according to this layout.
+                unsafe {
+                    self.layout.update_states(
+                        ptr_buf.as_mut_slice(),
+                        &agg_inputs,
+                        input.num_rows,
+                    )?;
                 }
 
                 Ok(PollExecute::NeedsMore)
@@ -191,19 +176,14 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 let output = inout.output.required("output batch required")?;
                 output.reset_for_write()?;
 
-                for (agg_idx, agg) in self.layout.aggregates.iter().enumerate() {
-                    let arr = &mut output.arrays[agg_idx];
-
-                    let extra = agg.function.function_impl.extra_deref();
-                    unsafe {
-                        let state_ptr = op_state
-                            .values
-                            .as_mut_ptr()
-                            .byte_add(self.layout.aggregate_offsets[agg_idx]);
-
-                        (agg.function.function_impl.finalize_fn)(extra, &mut [state_ptr], arr)?
-                    }
+                // SAFETY: The aggregate values buffer should have been
+                // allocated according to this layout.
+                unsafe {
+                    // Only finalizing a single state.
+                    self.layout
+                        .finalize_states(&mut [op_state.values.as_mut_ptr()], &mut output.arrays)?
                 }
+
                 output.set_num_rows(1)?;
 
                 *state = UngroupedAggregatePartitionState::Finished;
@@ -239,29 +219,17 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
             UngroupedAggregatePartitionState::Aggregating { values, .. } => {
                 let mut op_state = op_state.inner.lock();
 
-                for (agg_idx, agg) in self.layout.aggregates.iter().enumerate() {
-                    unsafe {
-                        let src_ptr = values
-                            .as_mut_ptr()
-                            .byte_add(self.layout.aggregate_offsets[agg_idx]);
+                let src_ptr = values.as_mut_ptr();
+                let dest_ptr = op_state.values.as_mut_ptr();
 
-                        let dest_ptr = op_state
-                            .values
-                            .as_mut_ptr()
-                            .byte_add(self.layout.aggregate_offsets[agg_idx]);
-
-                        let extra = agg.function.function_impl.extra_deref();
-                        // No groups, so we're just combining single states
-                        // (slices of len 1).
-                        //
-                        // SAFETY: Both src and dest pointers should point to
-                        // valid states according to the layout.
-                        (agg.function.function_impl.combine_fn)(
-                            extra,
-                            &mut [src_ptr],
-                            &mut [dest_ptr],
-                        )?;
-                    };
+                // No groups, so we're just combining single states (slices of
+                // len 1).
+                //
+                // SAFETY: Both src and dest pointers should point to valid
+                // states according to the layout.
+                unsafe {
+                    self.layout
+                        .combine_states(&mut [src_ptr], &mut [dest_ptr])?
                 }
 
                 op_state.remaining -= 1;

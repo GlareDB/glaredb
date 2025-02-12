@@ -4,6 +4,7 @@ use rayexec_error::Result;
 
 use super::row_layout::RowLayout;
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::expr::physical::PhysicalAggregateExpression;
 
@@ -96,6 +97,11 @@ impl AggregateLayout {
     /// at the same time. While row pointers will end up pointing to the last
     /// state in each row, this property should not be relied upon.
     ///
+    /// `inputs` should contains the input arrays to each aggregate in order.
+    /// For example, if the first aggregate accepts two inputs, the first two
+    /// arrays should be its inputs. The second aggregate's inputs will start at
+    /// index 2, and so on...
+    ///
     /// The length of `group_ptrs` must equal `num_rows`.
     ///
     /// Note that we can't genericize `inputs` be either `&Array` or `Array`
@@ -111,7 +117,7 @@ impl AggregateLayout {
     pub(crate) unsafe fn update_states(
         &self,
         group_ptrs: &mut [*mut u8],
-        inputs: &[&Array],
+        mut inputs: &[&Array],
         num_rows: usize,
     ) -> Result<()> {
         debug_assert_eq!(num_rows, group_ptrs.len());
@@ -119,6 +125,8 @@ impl AggregateLayout {
         let mut prev_offset = 0;
 
         for (offset, agg) in self.iter_offsets_and_aggregates() {
+            let (agg_inputs, remaining_inputs) = inputs.split_at(agg.columns.len());
+
             // Update pointers to point to the start of this aggregate's state.
             let rel_offset = offset - prev_offset;
             for row_ptr in group_ptrs.iter_mut() {
@@ -129,7 +137,10 @@ impl AggregateLayout {
 
             // Update states.
             let extra = agg.function.function_impl.extra_deref();
-            (agg.function.function_impl.update_fn)(extra, inputs, num_rows, group_ptrs)?;
+            (agg.function.function_impl.update_fn)(extra, agg_inputs, num_rows, group_ptrs)?;
+
+            // Next aggregate starts with the remaining inputs.
+            inputs = remaining_inputs;
         }
 
         Ok(())
