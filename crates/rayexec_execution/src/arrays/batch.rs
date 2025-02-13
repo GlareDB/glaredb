@@ -6,8 +6,9 @@ use stdutil::iter::IntoExactSizeIterator;
 
 use super::array::buffer_manager::{BufferManager, NopBufferManager};
 use super::array::selection::Selection;
-use super::cache::{BufferCache, NopCache};
+use super::cache::{BufferCache, MaybeCache, NopCache};
 use super::datatype::DataType;
+use super::scalar::ScalarValue;
 use crate::arrays::array::Array;
 
 /// A batch of owned same-length arrays.
@@ -184,6 +185,19 @@ impl Batch {
                 self.arrays[own_idx].clone_from_other(&mut other.arrays[other_idx], &mut NopCache)
             }
         }
+    }
+
+    /// Sets a constant value for an array.
+    pub fn set_constant_value(&mut self, arr_idx: usize, val: ScalarValue) -> Result<()> {
+        let arr = &mut self.arrays[arr_idx];
+        let new_arr = Array::new_constant(&NopBufferManager, &val, self.num_rows)?;
+        let old = std::mem::replace(arr, new_arr);
+
+        if let Some(cache) = &mut self.cache {
+            cache.cached[arr_idx].maybe_cache(old.data);
+        }
+
+        Ok(())
     }
 
     /// Try to clone an row from another batch into this batch.
@@ -388,7 +402,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::testutil::arrays::assert_batches_eq;
+    use crate::testutil::arrays::{assert_batches_eq, generate_batch};
 
     #[test]
     fn new_from_other() {
@@ -457,5 +471,16 @@ mod tests {
 
         assert_batches_eq(&expected, &batch1);
         assert_batches_eq(&expected, &batch2);
+    }
+
+    #[test]
+    fn set_constant_val_simple() {
+        let mut batch = generate_batch!([1, 2, 3, 4], ["a", "b", "c", "d"]);
+        batch
+            .set_constant_value(1, ScalarValue::Utf8("dog".into()))
+            .unwrap();
+
+        let expected = generate_batch!([1, 2, 3, 4], ["dog", "dog", "dog", "dog"]);
+        assert_batches_eq(&expected, &batch);
     }
 }
