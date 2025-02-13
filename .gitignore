@@ -16,3 +16,6 @@ __pycache__
 **/benchmarks/data/
 **/.tmp
 profile.json
+
+# Coverage reports
+lcov.info

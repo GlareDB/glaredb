@@ -6,12 +6,10 @@ use std::hash::Hash;
 
 use dyn_clone::DynClone;
 use rayexec_error::Result;
-use states::AggregateGroupStates;
+use states::AggregateFunctionImpl;
 
 use super::FunctionInfo;
 use crate::arrays::datatype::DataType;
-use crate::arrays::executor::aggregate::RowToStateMapping;
-use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
 
@@ -50,7 +48,7 @@ pub struct PlannedAggregateFunction {
     pub function: Box<dyn AggregateFunction>,
     pub return_type: DataType,
     pub inputs: Vec<Expression>,
-    pub function_impl: Box<dyn AggregateFunctionImpl>,
+    pub function_impl: AggregateFunctionImpl,
 }
 
 /// Assumes that a function with same inputs and return type is using the same
@@ -70,54 +68,5 @@ impl Hash for PlannedAggregateFunction {
         self.function.name().hash(state);
         self.return_type.hash(state);
         self.inputs.hash(state);
-    }
-}
-
-pub trait AggregateFunctionImpl: Debug + Sync + Send + DynClone {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates>;
-}
-
-impl Clone for Box<dyn AggregateFunctionImpl> {
-    fn clone(&self) -> Self {
-        dyn_clone::clone_box(&**self)
-    }
-}
-
-/// Iterator that internally filters an iterator of group addresses to to just
-/// row mappings that correspond to a single chunk.
-#[derive(Debug)]
-pub struct ChunkGroupAddressIter<'a> {
-    pub row_idx: usize,
-    pub chunk_idx: u16,
-    pub addresses: std::slice::Iter<'a, GroupAddress>,
-}
-
-impl<'a> ChunkGroupAddressIter<'a> {
-    pub fn new(chunk_idx: u16, addrs: &'a [GroupAddress]) -> Self {
-        ChunkGroupAddressIter {
-            row_idx: 0,
-            chunk_idx,
-            addresses: addrs.iter(),
-        }
-    }
-}
-
-impl Iterator for ChunkGroupAddressIter<'_> {
-    type Item = RowToStateMapping;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        for addr in self.addresses.by_ref() {
-            if addr.chunk_idx == self.chunk_idx {
-                let row = self.row_idx;
-                self.row_idx += 1;
-                return Some(RowToStateMapping {
-                    from_row: row,
-                    to_state: addr.row_idx as usize,
-                });
-            }
-            self.row_idx += 1;
-        }
-        None
     }
 }

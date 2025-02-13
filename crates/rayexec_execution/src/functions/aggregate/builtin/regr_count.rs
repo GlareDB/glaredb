@@ -1,21 +1,21 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::PhysicalAny;
+use crate::arrays::array::buffer_manager::BufferManager;
+use crate::arrays::array::physical_type::{
+    AddressableMut,
+    PhysicalF64,
+    PhysicalI64,
+    ScalarStorage,
+};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    new_binary_aggregate_states,
-    primitive_finalize,
-    AggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, BinaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -59,22 +59,17 @@ impl AggregateFunction for RegrCount {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(RegrCountImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    BinaryStateLogic<
+                        RegrCountState<PhysicalF64>,
+                        PhysicalF64,
+                        PhysicalF64,
+                        PhysicalI64,
+                    >,
+                >(None),
             }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RegrCountImpl;
-
-impl AggregateFunctionImpl for RegrCountImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalAny, PhysicalAny, _, _, _, _>(
-            RegrCountState::default,
-            move |states| primitive_finalize(DataType::Int64, states),
-        )
     }
 }
 
@@ -83,22 +78,31 @@ impl AggregateFunctionImpl for RegrCountImpl {
 /// Note that this can be used for any input type, but the sql function we
 /// expose only accepts f64 (to match Postgres).
 #[derive(Debug, Clone, Copy, Default)]
-pub struct RegrCountState {
+pub struct RegrCountState<S> {
     count: i64,
+    _s: PhantomData<S>,
 }
 
-impl AggregateState<((), ()), i64> for RegrCountState {
+impl<S> AggregateState<(&S::StorageType, &S::StorageType), i64> for RegrCountState<S>
+where
+    S: ScalarStorage,
+{
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.count += other.count;
         Ok(())
     }
 
-    fn update(&mut self, _input: ((), ())) -> Result<()> {
+    fn update(&mut self, _input: (&S::StorageType, &S::StorageType)) -> Result<()> {
         self.count += 1;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(i64, bool)> {
-        Ok((self.count, true))
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    where
+        M: AddressableMut<B, T = i64>,
+        B: BufferManager,
+    {
+        output.put(&self.count);
+        Ok(())
     }
 }

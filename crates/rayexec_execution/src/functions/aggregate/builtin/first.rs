@@ -1,10 +1,11 @@
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
-use half::f16;
 use rayexec_error::{not_implemented, Result};
 
+use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{
+    AddressableMut,
+    MutableScalarStorage,
     PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
@@ -16,7 +17,6 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalStorage,
     PhysicalType,
     PhysicalU128,
     PhysicalU16,
@@ -24,26 +24,14 @@ use crate::arrays::array::physical_type::{
     PhysicalU64,
     PhysicalU8,
     PhysicalUntypedNull,
+    PhysicalUtf8,
 };
-use crate::arrays::array::ArrayData2;
-use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::{AggregateState, StateFinalizer};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::scalar::interval::Interval;
-use crate::arrays::storage::{PrimitiveStorage, UntypedNull2};
+use crate::arrays::datatype::DataTypeId;
+use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    boolean_finalize,
-    new_unary_aggregate_states,
-    primitive_finalize,
-    untyped_null_finalize,
-    AggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -81,58 +69,31 @@ impl AggregateFunction for First {
 
         let datatype = inputs[0].datatype(table_list)?;
 
-        let function_impl: Box<dyn AggregateFunctionImpl> = match datatype.physical_type() {
-            PhysicalType::UntypedNull => Box::new(FirstUntypedNullImpl),
-            PhysicalType::Boolean => Box::new(FirstBoolImpl),
-            PhysicalType::Float16 => Box::new(FirstPrimitiveImpl::<PhysicalF16, f16>::new(
-                datatype.clone(),
-            )),
-            PhysicalType::Float32 => Box::new(FirstPrimitiveImpl::<PhysicalF32, f32>::new(
-                datatype.clone(),
-            )),
-            PhysicalType::Float64 => Box::new(FirstPrimitiveImpl::<PhysicalF64, f64>::new(
-                datatype.clone(),
-            )),
-            PhysicalType::Int8 => {
-                Box::new(FirstPrimitiveImpl::<PhysicalI8, i8>::new(datatype.clone()))
-            }
-            PhysicalType::Int16 => Box::new(FirstPrimitiveImpl::<PhysicalI16, i16>::new(
-                datatype.clone(),
-            )),
-            PhysicalType::Int32 => Box::new(FirstPrimitiveImpl::<PhysicalI32, i32>::new(
-                datatype.clone(),
-            )),
-            PhysicalType::Int64 => Box::new(FirstPrimitiveImpl::<PhysicalI64, i64>::new(
-                datatype.clone(),
-            )),
-            PhysicalType::Int128 => Box::new(FirstPrimitiveImpl::<PhysicalI128, i128>::new(
-                datatype.clone(),
-            )),
-            PhysicalType::UInt8 => {
-                Box::new(FirstPrimitiveImpl::<PhysicalU8, u8>::new(datatype.clone()))
-            }
-            PhysicalType::UInt16 => Box::new(FirstPrimitiveImpl::<PhysicalU16, u16>::new(
-                datatype.clone(),
-            )),
-            PhysicalType::UInt32 => Box::new(FirstPrimitiveImpl::<PhysicalU32, u32>::new(
-                datatype.clone(),
-            )),
-            PhysicalType::UInt64 => Box::new(FirstPrimitiveImpl::<PhysicalU64, u64>::new(
-                datatype.clone(),
-            )),
-            PhysicalType::UInt128 => Box::new(FirstPrimitiveImpl::<PhysicalU128, u128>::new(
-                datatype.clone(),
-            )),
-            PhysicalType::Interval => Box::new(
-                FirstPrimitiveImpl::<PhysicalInterval, Interval>::new(datatype.clone()),
-            ),
-            PhysicalType::Binary => Box::new(FirstBinaryImpl {
-                datatype: datatype.clone(),
-            }),
-            PhysicalType::Utf8 => Box::new(FirstBinaryImpl {
-                datatype: datatype.clone(),
-            }),
-            other => not_implemented!("FIRST: {other}"),
+        let function_impl = match datatype.physical_type() {
+            PhysicalType::UntypedNull => create_primitive_impl::<PhysicalUntypedNull>(),
+            PhysicalType::Boolean => create_primitive_impl::<PhysicalBool>(),
+            PhysicalType::Int8 => create_primitive_impl::<PhysicalI8>(),
+            PhysicalType::Int16 => create_primitive_impl::<PhysicalI16>(),
+            PhysicalType::Int32 => create_primitive_impl::<PhysicalI32>(),
+            PhysicalType::Int64 => create_primitive_impl::<PhysicalI64>(),
+            PhysicalType::Int128 => create_primitive_impl::<PhysicalI128>(),
+            PhysicalType::UInt8 => create_primitive_impl::<PhysicalU8>(),
+            PhysicalType::UInt16 => create_primitive_impl::<PhysicalU16>(),
+            PhysicalType::UInt32 => create_primitive_impl::<PhysicalU32>(),
+            PhysicalType::UInt64 => create_primitive_impl::<PhysicalU64>(),
+            PhysicalType::UInt128 => create_primitive_impl::<PhysicalU128>(),
+            PhysicalType::Float16 => create_primitive_impl::<PhysicalF16>(),
+            PhysicalType::Float32 => create_primitive_impl::<PhysicalF32>(),
+            PhysicalType::Float64 => create_primitive_impl::<PhysicalF64>(),
+            PhysicalType::Interval => create_primitive_impl::<PhysicalInterval>(),
+            PhysicalType::Utf8 => AggregateFunctionImpl::new::<
+                UnaryStateLogic<FirstStringState, PhysicalUtf8, PhysicalUtf8>,
+            >(None),
+            PhysicalType::Binary => AggregateFunctionImpl::new::<
+                UnaryStateLogic<FirstBinaryState, PhysicalBinary, PhysicalBinary>,
+            >(None),
+
+            other => not_implemented!("FIRST for physical type: {other}"),
         };
 
         Ok(PlannedAggregateFunction {
@@ -144,140 +105,112 @@ impl AggregateFunction for First {
     }
 }
 
-/// FIRST aggregate impl for utf8 and binary.
-#[derive(Debug, Clone)]
-pub struct FirstBinaryImpl {
-    datatype: DataType,
-}
-
-impl AggregateFunctionImpl for FirstBinaryImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        let datatype = self.datatype.clone();
-
-        new_unary_aggregate_states::<PhysicalBinary, _, _, _, _>(
-            FirstStateBinary::default,
-            move |states| {
-                let builder = ArrayBuilder {
-                    datatype: datatype.clone(),
-                    buffer: GermanVarlenBuffer::<[u8]>::with_len(states.len()),
-                };
-                StateFinalizer::finalize(states, builder)
-            },
-        )
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct FirstUntypedNullImpl;
-
-impl AggregateFunctionImpl for FirstUntypedNullImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalUntypedNull, _, _, _, _>(
-            FirstState::<UntypedNull2>::default,
-            untyped_null_finalize,
-        )
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct FirstBoolImpl;
-
-impl AggregateFunctionImpl for FirstBoolImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalBool, _, _, _, _>(
-            FirstState::<bool>::default,
-            move |states| boolean_finalize(DataType::Boolean, states),
-        )
-    }
-}
-
-// TODO: Remove T
-#[derive(Debug, Clone)]
-pub struct FirstPrimitiveImpl<S, T> {
-    datatype: DataType,
-    _s: PhantomData<S>,
-    _t: PhantomData<T>,
-}
-
-impl<S, T> FirstPrimitiveImpl<S, T> {
-    fn new(datatype: DataType) -> Self {
-        FirstPrimitiveImpl {
-            datatype,
-            _s: PhantomData,
-            _t: PhantomData,
-        }
-    }
-}
-
-impl<S, T> AggregateFunctionImpl for FirstPrimitiveImpl<S, T>
+fn create_primitive_impl<S>() -> AggregateFunctionImpl
 where
-    for<'a> S: PhysicalStorage<Type<'a> = T>,
-    T: Copy + Debug + Default + Sync + Send + 'static,
-    ArrayData2: From<PrimitiveStorage<T>>,
+    S: MutableScalarStorage,
+    S::StorageType: Copy + Sized + Default + Debug,
 {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        let datatype = self.datatype.clone();
-
-        new_unary_aggregate_states::<S, _, _, _, _>(FirstState::<T>::default, move |states| {
-            primitive_finalize(datatype.clone(), states)
-        })
-    }
+    AggregateFunctionImpl::new::<UnaryStateLogic<FirstPrimitiveState<S::StorageType>, S, S>>(None)
 }
 
 #[derive(Debug, Default)]
-pub struct FirstState<T> {
+pub struct FirstPrimitiveState<T> {
     value: Option<T>,
 }
 
-impl<T: Default + Debug + Copy> AggregateState<T, T> for FirstState<T> {
+impl<T> AggregateState<&T, T> for FirstPrimitiveState<T>
+where
+    T: Debug + Default + Copy,
+{
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.value.is_none() {
-            self.value = other.value;
-            return Ok(());
+            std::mem::swap(&mut self.value, &mut other.value);
         }
         Ok(())
     }
 
-    fn update(&mut self, input: T) -> Result<()> {
+    fn update(&mut self, &input: &T) -> Result<()> {
         if self.value.is_none() {
             self.value = Some(input);
         }
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(T, bool)> {
-        match self.value {
-            Some(v) => Ok((v, true)),
-            None => Ok((T::default(), false)),
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    where
+        M: AddressableMut<B, T = T>,
+        B: BufferManager,
+    {
+        match &self.value {
+            Some(val) => output.put(val),
+            None => output.put_null(),
         }
+        Ok(())
     }
 }
 
 #[derive(Debug, Default)]
-pub struct FirstStateBinary {
+pub struct FirstBinaryState {
     value: Option<Vec<u8>>,
 }
 
-impl AggregateState<&[u8], Vec<u8>> for FirstStateBinary {
+impl AggregateState<&[u8], [u8]> for FirstBinaryState {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.value.is_none() {
             std::mem::swap(&mut self.value, &mut other.value);
-            return Ok(());
         }
         Ok(())
     }
 
     fn update(&mut self, input: &[u8]) -> Result<()> {
         if self.value.is_none() {
-            self.value = Some(input.to_owned());
+            self.value = Some(input.to_vec());
         }
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(Vec<u8>, bool)> {
-        match self.value.as_mut() {
-            Some(v) => Ok((std::mem::take(v), true)),
-            None => Ok((Vec::new(), false)),
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    where
+        M: AddressableMut<B, T = [u8]>,
+        B: BufferManager,
+    {
+        match &self.value {
+            Some(val) => output.put(val),
+            None => output.put_null(),
         }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct FirstStringState {
+    value: Option<String>,
+}
+
+impl AggregateState<&str, str> for FirstStringState {
+    fn merge(&mut self, other: &mut Self) -> Result<()> {
+        if self.value.is_none() {
+            std::mem::swap(&mut self.value, &mut other.value);
+        }
+        Ok(())
+    }
+
+    fn update(&mut self, input: &str) -> Result<()> {
+        if self.value.is_none() {
+            self.value = Some(input.to_string());
+        }
+        Ok(())
+    }
+
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    where
+        M: AddressableMut<B, T = str>,
+        B: BufferManager,
+    {
+        match &self.value {
+            Some(val) => output.put(val),
+            None => output.put_null(),
+        }
+        Ok(())
     }
 }

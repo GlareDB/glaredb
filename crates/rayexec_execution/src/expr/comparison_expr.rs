@@ -13,6 +13,8 @@ pub enum ComparisonOperator {
     LtEq,
     Gt,
     GtEq,
+    IsDistinctFrom,
+    IsNotDistinctFrom,
 }
 
 impl ComparisonOperator {
@@ -24,6 +26,8 @@ impl ComparisonOperator {
             ComparisonOperator::LtEq => ComparisonOperator::GtEq,
             ComparisonOperator::Gt => ComparisonOperator::Lt,
             ComparisonOperator::GtEq => ComparisonOperator::LtEq,
+            ComparisonOperator::IsDistinctFrom => ComparisonOperator::IsDistinctFrom,
+            ComparisonOperator::IsNotDistinctFrom => ComparisonOperator::IsDistinctFrom,
         }
     }
 
@@ -35,6 +39,8 @@ impl ComparisonOperator {
             ComparisonOperator::LtEq => ComparisonOperator::Gt,
             ComparisonOperator::Gt => ComparisonOperator::LtEq,
             ComparisonOperator::GtEq => ComparisonOperator::Lt,
+            ComparisonOperator::IsDistinctFrom => ComparisonOperator::IsNotDistinctFrom,
+            ComparisonOperator::IsNotDistinctFrom => ComparisonOperator::IsDistinctFrom,
         }
     }
 }
@@ -48,6 +54,8 @@ impl AsScalarFunction for ComparisonOperator {
             Self::LtEq => &comparison::LtEq,
             Self::Gt => &comparison::Gt,
             Self::GtEq => &comparison::GtEq,
+            Self::IsDistinctFrom => &comparison::IsDistinctFrom,
+            Self::IsNotDistinctFrom => &comparison::IsNotDistinctFrom,
         }
     }
 }
@@ -61,6 +69,8 @@ impl fmt::Display for ComparisonOperator {
             Self::LtEq => write!(f, "<="),
             Self::Gt => write!(f, ">"),
             Self::GtEq => write!(f, ">="),
+            Self::IsDistinctFrom => write!(f, "IS DISTINCT FROM"),
+            Self::IsNotDistinctFrom => write!(f, "IS NOT DISTINCT FROM"),
         }
     }
 }

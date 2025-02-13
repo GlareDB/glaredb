@@ -1,7 +1,6 @@
 //! Implementations of physical operators in an execution pipeline.
 
 pub mod analyze;
-pub mod batch_resizer;
 pub mod copy_to;
 pub mod create_schema;
 pub mod create_table;
@@ -11,14 +10,14 @@ pub mod empty;
 pub mod filter;
 pub mod hash_aggregate;
 pub mod hash_join;
+pub mod hash_join2;
 pub mod insert;
+pub mod join;
 pub mod limit;
 pub mod materialize;
-pub mod nl_join;
 pub mod project;
 pub mod round_robin;
 pub mod scan;
-pub mod simple;
 pub mod sink;
 pub mod sort;
 pub mod source;
@@ -32,41 +31,42 @@ pub mod window;
 
 pub(crate) mod util;
 
-#[cfg(test)]
-mod test_util;
-
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::task::Context;
 
-use batch_resizer::{BatchResizerPartitionState, PhysicalBatchResizer};
 use copy_to::PhysicalCopyTo;
 use create_schema::{CreateSchemaPartitionState, PhysicalCreateSchema};
 use create_table::PhysicalCreateTable;
 use create_view::{CreateViewPartitionState, PhysicalCreateView};
 use drop::{DropPartitionState, PhysicalDrop};
 use empty::PhysicalEmpty;
-use filter::{FilterOperation, PhysicalFilter};
+use filter::{FilterPartitionState, PhysicalFilter};
 use hash_aggregate::PhysicalHashAggregate;
-use hash_join::{
+use hash_join2::{
     HashJoinBuildPartitionState,
     HashJoinOperatorState,
     HashJoinProbePartitionState,
     PhysicalHashJoin,
 };
 use insert::PhysicalInsert;
+use join::nested_loop_join::{
+    NestedLoopJoinBuildPartitionState,
+    NestedLoopJoinOperatorState,
+    NestedLoopJoinProbePartitionState,
+    PhysicalNestedLoopJoin,
+};
 use limit::PhysicalLimit;
 use materialize::{MaterializeSourceOperation, MaterializedSinkOperation};
-use nl_join::PhysicalNestedLoopJoin;
-use project::{PhysicalProject, ProjectOperation};
+use project::{PhysicalProject, ProjectPartitionState};
 use rayexec_error::{not_implemented, OptionExt, Result};
 use round_robin::PhysicalRoundRobinRepartition;
 use scan::{PhysicalScan, ScanPartitionState};
-use simple::SimpleOperator;
-use sink::{SinkOperation, SinkOperator, SinkOperatorState, SinkPartitionState};
-use sort::gather_sort::PhysicalGatherSort;
-use sort::scatter_sort::PhysicalScatterSort;
-use source::{SourceOperation, SourceOperator, SourcePartitionState};
+use sink::operation::SinkOperation;
+use sink::{PhysicalSink, SinkOperatorState, SinkPartitionState};
+use sort::{SortOperatorState, SortPartitionState};
+use source::operation::SourceOperation;
+use source::{PhysicalSource, SourcePartitionState};
 use table_function::{PhysicalTableFunction, TableFunctionPartitionState};
 use table_inout::{PhysicalTableInOut, TableInOutPartitionState};
 use ungrouped_aggregate::{
@@ -74,47 +74,50 @@ use ungrouped_aggregate::{
     UngroupedAggregateOperatorState,
     UngroupedAggregatePartitionState,
 };
-use union::{PhysicalUnion, UnionBottomPartitionState, UnionOperatorState, UnionTopPartitionState};
+use union::{
+    PhysicalUnion,
+    UnionBufferingPartitionState,
+    UnionOperatorState,
+    UnionPullingPartitionState,
+};
 use unnest::{PhysicalUnnest, UnnestPartitionState};
 use values::PhysicalValues;
 use window::PhysicalWindow;
 
-use self::empty::EmptyPartitionState;
 use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::limit::LimitPartitionState;
-use self::nl_join::{
-    NestedLoopJoinBuildPartitionState,
-    NestedLoopJoinOperatorState,
-    NestedLoopJoinProbePartitionState,
-};
 use self::round_robin::{
     RoundRobinOperatorState,
     RoundRobinPullPartitionState,
     RoundRobinPushPartitionState,
 };
-use self::simple::SimplePartitionState;
-use self::sort::gather_sort::{
-    GatherSortOperatorState,
-    GatherSortPullPartitionState,
-    GatherSortPushPartitionState,
-};
-use self::sort::scatter_sort::ScatterSortPartitionState;
 use self::values::ValuesPartitionState;
 use super::computed_batch::ComputedBatches;
 use crate::arrays::batch::Batch;
+use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::engine::result::ResultSink;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 
+// TODO: Remove in favor of passing in batch size when creating states.
+pub const DEFAULT_TARGET_BATCH_SIZE: usize = 4096;
+
 /// States local to a partition within a single operator.
 // Current size: 264 bytes
 #[derive(Debug)]
 pub enum PartitionState {
-    HashAggregate(HashAggregatePartitionState),
-    UngroupedAggregate(UngroupedAggregatePartitionState),
+    Limit(LimitPartitionState),
+    Project(ProjectPartitionState),
+    Filter(FilterPartitionState),
+    UnionPulling(UnionPullingPartitionState),
+    UnionBuffering(UnionBufferingPartitionState),
     NestedLoopJoinBuild(NestedLoopJoinBuildPartitionState),
     NestedLoopJoinProbe(NestedLoopJoinProbePartitionState),
+    Sort(SortPartitionState),
+    UngroupedAggregate(UngroupedAggregatePartitionState),
+
+    HashAggregate(HashAggregatePartitionState),
     HashJoinBuild(HashJoinBuildPartitionState),
     HashJoinProbe(HashJoinProbePartitionState),
     Values(ValuesPartitionState),
@@ -122,22 +125,16 @@ pub enum PartitionState {
     Source(SourcePartitionState),
     RoundRobinPush(RoundRobinPushPartitionState),
     RoundRobinPull(RoundRobinPullPartitionState),
-    GatherSortPush(GatherSortPushPartitionState),
-    GatherSortPull(GatherSortPullPartitionState),
-    ScatterSort(ScatterSortPartitionState),
-    Limit(LimitPartitionState),
+    // GatherSortPush(GatherSortPushPartitionState),
+    // GatherSortPull(GatherSortPullPartitionState),
+    // ScatterSort(ScatterSortPartitionState),
     Unnest(UnnestPartitionState),
-    UnionTop(UnionTopPartitionState),
-    UnionBottom(UnionBottomPartitionState),
-    Simple(SimplePartitionState),
     Scan(ScanPartitionState),
     TableFunction(TableFunctionPartitionState),
     TableInOut(TableInOutPartitionState),
     CreateSchema(CreateSchemaPartitionState),
     CreateView(CreateViewPartitionState),
     Drop(DropPartitionState),
-    Empty(EmptyPartitionState),
-    BatchResizer(BatchResizerPartitionState),
     None,
 }
 
@@ -145,13 +142,15 @@ pub enum PartitionState {
 // Current size: 144 bytes
 #[derive(Debug)]
 pub enum OperatorState {
-    HashAggregate(HashAggregateOperatorState),
-    UngroupedAggregate(UngroupedAggregateOperatorState),
+    Union(UnionOperatorState),
     NestedLoopJoin(NestedLoopJoinOperatorState),
+    Sort(SortOperatorState),
+    UngroupedAggregate(UngroupedAggregateOperatorState),
+
+    HashAggregate(HashAggregateOperatorState),
     HashJoin(HashJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
-    GatherSort(GatherSortOperatorState),
-    Union(UnionOperatorState),
+    // GatherSort(GatherSortOperatorState),
     Sink(SinkOperatorState),
     None,
 }
@@ -161,7 +160,7 @@ pub enum OperatorState {
 /// An operator may not be ready to accept input either because it's waiting on
 /// something else to complete (e.g. the right side of a join needs to the left
 /// side to complete first) or some internal buffer is full.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum PollPush {
     /// Batch was successfully pushed.
     Pushed,
@@ -183,7 +182,7 @@ pub enum PollPush {
 }
 
 /// Result of a pull from a Source.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum PollPull {
     /// Successfully received computed results.
     Computed(ComputedBatches),
@@ -198,10 +197,138 @@ pub enum PollPull {
     Exhausted,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum PollFinalize {
-    Finalized,
+/// Poll result for operator execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollExecute {
+    /// Operator accepted input and wrote its output to the output batch.
+    ///
+    /// The next poll should be with a new input batch.
+    Ready,
+    /// Execution pending. Waker stored, re-execute with the exact same state.
     Pending,
+    /// Operator needs more input before it'll produce any meaningful output.
+    NeedsMore,
+    /// Operator has more output. Call again with the same input batch.
+    ///
+    /// Meaningful output was written to the output batch and should be pushed
+    /// to next operator(s).
+    HasMore,
+    /// Operator is exhausted and shouldn't be polled again.
+    ///
+    /// The output batch will have any remaining data. If there's no more data,
+    /// then the output batch will have zero rows.
+    ///
+    /// When we're executing the pipeline, an operator returning this will
+    /// prevent this operator and any child operators within that pipeline from
+    /// being executed again.
+    ///
+    /// E.g. the LIMIT operator will return Exhausted once the limit has been
+    /// reached.
+    Exhausted,
+}
+
+/// Poll result for flushing an operator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollFlush {
+    /// Operator has more output, keep flushing to get all data.
+    HasMore,
+    /// Flush pending. Waker stored, re-execute with the exact same state.
+    Pending,
+    /// Operator is exhausted and shouldn't be polled again.
+    ///
+    /// The output batch will have any remaining data. If there's no more data,
+    /// then the output batch will have zero rows.
+    Exhausted,
+}
+
+/// Poll result for operator finalization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollFinalize {
+    /// Operator finalized, execution of this operator finished.
+    ///
+    /// `poll_execute` will not be called after this is returned.
+    Finalized,
+    /// This operator needs to be drained.
+    ///
+    /// `poll_execute` will be called with empty input batches until the
+    /// opperator indicates it's been exhausted.
+    NeedsDrain,
+    /// Finalize pending, re-execute with the same state.
+    Pending,
+}
+
+#[derive(Debug)]
+pub struct ExecuteInOutState<'a> {
+    /// Input batch being pushed to the operator.
+    ///
+    /// May be None for operators that are only producing output.
+    pub input: Option<&'a mut Batch>,
+    /// Output batch the operator should write to.
+    ///
+    /// May be None for operators that only consume batches.
+    pub output: Option<&'a mut Batch>,
+}
+
+#[derive(Debug)]
+pub enum PartitionAndOperatorStates {
+    /// Operator that accepts a single input and produces a single output.
+    UnaryInput(UnaryInputStates),
+    /// Operator that accepts two inputs and produces a single output.
+    BinaryInput(BinaryInputStates),
+    /// Operator that materializes its input and produces multiple outputs.
+    Materialization(MaterializationStates),
+}
+
+impl From<UnaryInputStates> for PartitionAndOperatorStates {
+    fn from(states: UnaryInputStates) -> Self {
+        PartitionAndOperatorStates::UnaryInput(states)
+    }
+}
+
+impl From<BinaryInputStates> for PartitionAndOperatorStates {
+    fn from(states: BinaryInputStates) -> Self {
+        PartitionAndOperatorStates::BinaryInput(states)
+    }
+}
+
+impl From<MaterializationStates> for PartitionAndOperatorStates {
+    fn from(states: MaterializationStates) -> Self {
+        PartitionAndOperatorStates::Materialization(states)
+    }
+}
+
+#[derive(Debug)]
+pub struct UnaryInputStates {
+    /// Global operator state.
+    pub operator_state: OperatorState,
+    /// State per-partition.
+    pub partition_states: Vec<PartitionState>,
+}
+
+#[derive(Debug)]
+pub struct BinaryInputStates {
+    /// Global operator state.
+    pub operator_state: OperatorState,
+    /// States that belong to the "sink" input for the operator.
+    ///
+    /// E.g. states for the build side of join.
+    pub sink_states: Vec<PartitionState>,
+    /// States for the input that "passes through" the operator in the sense
+    /// that this input is treats the operator as a normal intermediate operator
+    /// in the chain.
+    ///
+    /// E.g. states for the probe side of a join.
+    pub inout_states: Vec<PartitionState>,
+}
+
+#[derive(Debug)]
+pub struct MaterializationStates {
+    /// Global operator state.
+    pub operator_state: OperatorState,
+    /// States for the single input into the materialization operator.
+    pub input_states: Vec<PartitionState>,
+    /// States for the outputs from the materialization operator.
+    pub output_states: Vec<Vec<PartitionState>>,
 }
 
 /// Describes the relationships of partition states for operators.
@@ -271,17 +398,44 @@ pub struct ExecutionStates {
 }
 
 pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
+    type States: Into<PartitionAndOperatorStates>;
+
     /// Create execution states for this operator.
     ///
     /// `input_partitions` is the partitioning for each input that will be
     /// pushing batches through this operator.
     ///
     /// Joins are assumed to have two inputs.
-    fn create_states(
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         _partitions: Vec<usize>,
-    ) -> Result<ExecutionStates>;
+    ) -> Result<ExecutionStates> {
+        unimplemented!()
+    }
+
+    fn output_types(&self) -> &[DataType] {
+        unimplemented!()
+    }
+
+    fn create_states(
+        &mut self,
+        context: &DatabaseContext,
+        batch_size: usize,
+        partitions: usize,
+    ) -> Result<Self::States> {
+        unimplemented!()
+    }
+
+    fn poll_execute(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut PartitionState,
+        operator_state: &OperatorState,
+        inout: ExecuteInOutState,
+    ) -> Result<PollExecute> {
+        unimplemented!()
+    }
 
     /// Try to push a batch for this partition.
     fn poll_push(
@@ -290,18 +444,22 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
         batch: Batch,
-    ) -> Result<PollPush>;
+    ) -> Result<PollPush> {
+        unimplemented!()
+    }
 
     /// Finalize pushing to partition.
     ///
     /// This indicates the operator will receive no more input for a given
     /// partition, allowing the operator to execution some finalization logic.
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollFinalize>;
+    ) -> Result<PollFinalize> {
+        unimplemented!()
+    }
 
     /// Try to pull a batch for this partition.
     fn poll_pull(
@@ -309,30 +467,33 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-    ) -> Result<PollPull>;
+    ) -> Result<PollPull> {
+        unimplemented!()
+    }
 }
 
 // 144 bytes
 #[derive(Debug)]
 pub enum PhysicalOperator {
+    Project(PhysicalProject),
+    Filter(PhysicalFilter),
+    Limit(PhysicalLimit),
+    NestedLoopJoin(PhysicalNestedLoopJoin),
+
     HashAggregate(PhysicalHashAggregate),
     UngroupedAggregate(PhysicalUngroupedAggregate),
     Window(PhysicalWindow),
-    NestedLoopJoin(PhysicalNestedLoopJoin),
     HashJoin(PhysicalHashJoin),
     Values(PhysicalValues),
-    ResultSink(SinkOperator<ResultSink>),
-    DynSink(SinkOperator<Box<dyn SinkOperation>>),
-    DynSource(SourceOperator<Box<dyn SourceOperation>>),
-    MaterializedSink(SinkOperator<MaterializedSinkOperation>),
-    MaterializedSource(SourceOperator<MaterializeSourceOperation>),
+    ResultSink(PhysicalSink<ResultSink>),
+    DynSink(PhysicalSink<Box<dyn SinkOperation>>),
+    DynSource(PhysicalSource<Box<dyn SourceOperation>>),
+    MaterializedSink(PhysicalSink<MaterializedSinkOperation>),
+    MaterializedSource(PhysicalSource<MaterializeSourceOperation>),
     RoundRobin(PhysicalRoundRobinRepartition),
-    MergeSorted(PhysicalGatherSort),
-    LocalSort(PhysicalScatterSort),
-    Limit(PhysicalLimit),
+    // MergeSorted(PhysicalGatherSort),
+    // LocalSort(PhysicalScatterSort),
     Union(PhysicalUnion),
-    Filter(SimpleOperator<FilterOperation>),
-    Project(SimpleOperator<ProjectOperation>),
     Unnest(PhysicalUnnest),
     Scan(PhysicalScan),
     TableFunction(PhysicalTableFunction),
@@ -344,46 +505,125 @@ pub enum PhysicalOperator {
     CreateView(PhysicalCreateView),
     Drop(PhysicalDrop),
     Empty(PhysicalEmpty),
-    BatchResizer(PhysicalBatchResizer),
 }
 
 impl ExecutableOperator for PhysicalOperator {
+    type States = PartitionAndOperatorStates;
+
+    fn output_types(&self) -> &[DataType] {
+        match self {
+            Self::HashAggregate(op) => op.output_types(),
+            Self::UngroupedAggregate(op) => op.output_types(),
+            Self::Window(op) => op.output_types(),
+            Self::NestedLoopJoin(op) => op.output_types(),
+            Self::HashJoin(op) => op.output_types(),
+            Self::Values(op) => op.output_types(),
+            Self::ResultSink(op) => op.output_types(),
+            Self::DynSink(op) => op.output_types(),
+            Self::DynSource(op) => op.output_types(),
+            Self::MaterializedSink(op) => op.output_types(),
+            Self::MaterializedSource(op) => op.output_types(),
+            Self::RoundRobin(op) => op.output_types(),
+            // Self::MergeSorted(op) => op.output_types(),
+            // Self::LocalSort(op) => op.output_types(),
+            Self::Limit(op) => op.output_types(),
+            Self::Union(op) => op.output_types(),
+            Self::Filter(op) => op.output_types(),
+            Self::Project(op) => op.output_types(),
+            Self::Unnest(op) => op.output_types(),
+            Self::Scan(op) => op.output_types(),
+            Self::TableFunction(op) => op.output_types(),
+            Self::TableInOut(op) => op.output_types(),
+            Self::Insert(op) => op.output_types(),
+            Self::CopyTo(op) => op.output_types(),
+            Self::CreateTable(op) => op.output_types(),
+            Self::CreateSchema(op) => op.output_types(),
+            Self::CreateView(op) => op.output_types(),
+            Self::Drop(op) => op.output_types(),
+            Self::Empty(op) => op.output_types(),
+        }
+    }
+
     fn create_states(
+        &mut self,
+        context: &DatabaseContext,
+        batch_size: usize,
+        partitions: usize,
+    ) -> Result<PartitionAndOperatorStates> {
+        let states = match self {
+            Self::HashAggregate(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::UngroupedAggregate(op) => {
+                op.create_states(context, batch_size, partitions)?.into()
+            }
+            Self::Window(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::NestedLoopJoin(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::HashJoin(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Values(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::ResultSink(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::DynSink(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::DynSource(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::MaterializedSink(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::MaterializedSource(op) => {
+                op.create_states(context, batch_size, partitions)?.into()
+            }
+            Self::RoundRobin(op) => op.create_states(context, batch_size, partitions)?.into(),
+            // Self::MergeSorted(op) => op.create_states(context, batch_size, partitions)?.into(),
+            // Self::LocalSort(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Limit(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Union(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Filter(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Project(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Unnest(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Scan(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::TableFunction(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::TableInOut(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Insert(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::CopyTo(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::CreateTable(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::CreateSchema(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::CreateView(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Drop(op) => op.create_states(context, batch_size, partitions)?.into(),
+            Self::Empty(op) => op.create_states(context, batch_size, partitions)?.into(),
+        };
+
+        Ok(states)
+    }
+
+    fn create_states2(
         &self,
         context: &DatabaseContext,
         partitions: Vec<usize>,
     ) -> Result<ExecutionStates> {
         match self {
-            Self::HashAggregate(op) => op.create_states(context, partitions),
-            Self::UngroupedAggregate(op) => op.create_states(context, partitions),
-            Self::Window(op) => op.create_states(context, partitions),
-            Self::NestedLoopJoin(op) => op.create_states(context, partitions),
-            Self::HashJoin(op) => op.create_states(context, partitions),
-            Self::Values(op) => op.create_states(context, partitions),
-            Self::ResultSink(op) => op.create_states(context, partitions),
-            Self::DynSink(op) => op.create_states(context, partitions),
-            Self::DynSource(op) => op.create_states(context, partitions),
-            Self::MaterializedSink(op) => op.create_states(context, partitions),
-            Self::MaterializedSource(op) => op.create_states(context, partitions),
-            Self::RoundRobin(op) => op.create_states(context, partitions),
-            Self::MergeSorted(op) => op.create_states(context, partitions),
-            Self::LocalSort(op) => op.create_states(context, partitions),
-            Self::Limit(op) => op.create_states(context, partitions),
-            Self::Union(op) => op.create_states(context, partitions),
-            Self::Filter(op) => op.create_states(context, partitions),
-            Self::Project(op) => op.create_states(context, partitions),
-            Self::Unnest(op) => op.create_states(context, partitions),
-            Self::Scan(op) => op.create_states(context, partitions),
-            Self::TableFunction(op) => op.create_states(context, partitions),
-            Self::TableInOut(op) => op.create_states(context, partitions),
-            Self::Insert(op) => op.create_states(context, partitions),
-            Self::CopyTo(op) => op.create_states(context, partitions),
-            Self::CreateTable(op) => op.create_states(context, partitions),
-            Self::CreateSchema(op) => op.create_states(context, partitions),
-            Self::CreateView(op) => op.create_states(context, partitions),
-            Self::Drop(op) => op.create_states(context, partitions),
-            Self::Empty(op) => op.create_states(context, partitions),
-            Self::BatchResizer(op) => op.create_states(context, partitions),
+            Self::HashAggregate(op) => op.create_states2(context, partitions),
+            Self::UngroupedAggregate(op) => op.create_states2(context, partitions),
+            Self::Window(op) => op.create_states2(context, partitions),
+            Self::NestedLoopJoin(op) => op.create_states2(context, partitions),
+            Self::HashJoin(op) => op.create_states2(context, partitions),
+            Self::Values(op) => op.create_states2(context, partitions),
+            Self::ResultSink(op) => op.create_states2(context, partitions),
+            Self::DynSink(op) => op.create_states2(context, partitions),
+            Self::DynSource(op) => op.create_states2(context, partitions),
+            Self::MaterializedSink(op) => op.create_states2(context, partitions),
+            Self::MaterializedSource(op) => op.create_states2(context, partitions),
+            Self::RoundRobin(op) => op.create_states2(context, partitions),
+            // Self::MergeSorted(op) => op.create_states2(context, partitions),
+            // Self::LocalSort(op) => op.create_states2(context, partitions),
+            Self::Limit(op) => op.create_states2(context, partitions),
+            Self::Union(op) => op.create_states2(context, partitions),
+            Self::Filter(op) => op.create_states2(context, partitions),
+            Self::Project(op) => op.create_states2(context, partitions),
+            Self::Unnest(op) => op.create_states2(context, partitions),
+            Self::Scan(op) => op.create_states2(context, partitions),
+            Self::TableFunction(op) => op.create_states2(context, partitions),
+            Self::TableInOut(op) => op.create_states2(context, partitions),
+            Self::Insert(op) => op.create_states2(context, partitions),
+            Self::CopyTo(op) => op.create_states2(context, partitions),
+            Self::CreateTable(op) => op.create_states2(context, partitions),
+            Self::CreateSchema(op) => op.create_states2(context, partitions),
+            Self::CreateView(op) => op.create_states2(context, partitions),
+            Self::Drop(op) => op.create_states2(context, partitions),
+            Self::Empty(op) => op.create_states2(context, partitions),
         }
     }
 
@@ -411,8 +651,8 @@ impl ExecutableOperator for PhysicalOperator {
                 op.poll_push(cx, partition_state, operator_state, batch)
             }
             Self::RoundRobin(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::MergeSorted(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::LocalSort(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            // Self::MergeSorted(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            // Self::LocalSort(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Limit(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Union(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Filter(op) => op.poll_push(cx, partition_state, operator_state, batch),
@@ -428,53 +668,45 @@ impl ExecutableOperator for PhysicalOperator {
             Self::CreateView(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Drop(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Empty(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::BatchResizer(op) => op.poll_push(cx, partition_state, operator_state, batch),
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         match self {
-            Self::HashAggregate(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::UngroupedAggregate(op) => {
-                op.poll_finalize_push(cx, partition_state, operator_state)
-            }
-            Self::Window(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::NestedLoopJoin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::HashJoin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Values(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::ResultSink(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::DynSink(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::DynSource(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::MaterializedSink(op) => {
-                op.poll_finalize_push(cx, partition_state, operator_state)
-            }
-            Self::MaterializedSource(op) => {
-                op.poll_finalize_push(cx, partition_state, operator_state)
-            }
-            Self::RoundRobin(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::MergeSorted(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::LocalSort(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Limit(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Union(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Filter(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Project(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Unnest(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Scan(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::TableFunction(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::TableInOut(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Insert(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::CopyTo(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::CreateTable(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::CreateSchema(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::CreateView(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Drop(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::Empty(op) => op.poll_finalize_push(cx, partition_state, operator_state),
-            Self::BatchResizer(op) => op.poll_finalize_push(cx, partition_state, operator_state),
+            Self::HashAggregate(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::UngroupedAggregate(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::Window(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::NestedLoopJoin(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::HashJoin(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::Values(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::ResultSink(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::DynSink(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::DynSource(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::MaterializedSink(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::MaterializedSource(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::RoundRobin(op) => op.poll_finalize(cx, partition_state, operator_state),
+            // Self::MergeSorted(op) => op.poll_finalize(cx, partition_state, operator_state),
+            // Self::LocalSort(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::Limit(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::Union(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::Filter(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::Project(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::Unnest(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::Scan(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::TableFunction(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::TableInOut(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::Insert(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::CopyTo(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::CreateTable(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::CreateSchema(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::CreateView(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::Drop(op) => op.poll_finalize(cx, partition_state, operator_state),
+            Self::Empty(op) => op.poll_finalize(cx, partition_state, operator_state),
         }
     }
 
@@ -497,8 +729,8 @@ impl ExecutableOperator for PhysicalOperator {
             Self::MaterializedSink(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::MaterializedSource(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::RoundRobin(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::MergeSorted(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::LocalSort(op) => op.poll_pull(cx, partition_state, operator_state),
+            // Self::MergeSorted(op) => op.poll_pull(cx, partition_state, operator_state),
+            // Self::LocalSort(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Limit(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Union(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Filter(op) => op.poll_pull(cx, partition_state, operator_state),
@@ -514,7 +746,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::CreateView(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Drop(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Empty(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::BatchResizer(op) => op.poll_pull(cx, partition_state, operator_state),
         }
     }
 }
@@ -534,8 +765,8 @@ impl Explainable for PhysicalOperator {
             Self::MaterializedSink(op) => op.explain_entry(conf),
             Self::MaterializedSource(op) => op.explain_entry(conf),
             Self::RoundRobin(op) => op.explain_entry(conf),
-            Self::MergeSorted(op) => op.explain_entry(conf),
-            Self::LocalSort(op) => op.explain_entry(conf),
+            // Self::MergeSorted(op) => op.explain_entry(conf),
+            // Self::LocalSort(op) => op.explain_entry(conf),
             Self::Limit(op) => op.explain_entry(conf),
             Self::Union(op) => op.explain_entry(conf),
             Self::Filter(op) => op.explain_entry(conf),
@@ -551,7 +782,6 @@ impl Explainable for PhysicalOperator {
             Self::CreateView(op) => op.explain_entry(conf),
             Self::Drop(op) => op.explain_entry(conf),
             Self::Empty(op) => op.explain_entry(conf),
-            Self::BatchResizer(op) => op.explain_entry(conf),
         }
     }
 }
@@ -567,19 +797,19 @@ impl DatabaseProtoConv for PhysicalOperator {
             Self::CreateTable(op) => Value::CreateTable(op.to_proto_ctx(context)?),
             Self::Drop(op) => Value::Drop(op.to_proto_ctx(context)?),
             Self::Empty(op) => Value::Empty(op.to_proto_ctx(context)?),
-            Self::Filter(op) => Value::Filter(op.to_proto_ctx(context)?),
-            Self::Project(op) => Value::Project(op.to_proto_ctx(context)?),
+            // Self::Filter(op) => Value::Filter(op.to_proto_ctx(context)?),
+            // Self::Project(op) => Value::Project(op.to_proto_ctx(context)?),
             Self::Insert(op) => Value::Insert(op.to_proto_ctx(context)?),
             Self::Limit(op) => Value::Limit(op.to_proto_ctx(context)?),
             Self::Scan(op) => Value::Scan(op.to_proto_ctx(context)?),
-            Self::UngroupedAggregate(op) => Value::UngroupedAggregate(op.to_proto_ctx(context)?),
+            // Self::UngroupedAggregate(op) => Value::UngroupedAggregate(op.to_proto_ctx(context)?),
             Self::Union(op) => Value::Union(op.to_proto_ctx(context)?),
             Self::Values(op) => Value::Values(op.to_proto_ctx(context)?),
             Self::TableFunction(op) => Value::TableFunction(op.to_proto_ctx(context)?),
-            Self::NestedLoopJoin(op) => Value::NlJoin(op.to_proto_ctx(context)?),
+            // Self::NestedLoopJoin(op) => Value::NlJoin(op.to_proto_ctx(context)?),
             Self::CopyTo(op) => Value::CopyTo(op.to_proto_ctx(context)?),
-            Self::LocalSort(op) => Value::LocalSort(op.to_proto_ctx(context)?),
-            Self::MergeSorted(op) => Value::MergeSorted(op.to_proto_ctx(context)?),
+            // Self::LocalSort(op) => Value::LocalSort(op.to_proto_ctx(context)?),
+            // Self::MergeSorted(op) => Value::MergeSorted(op.to_proto_ctx(context)?),
             other => not_implemented!("to proto: {other:?}"),
         };
 
@@ -600,12 +830,12 @@ impl DatabaseProtoConv for PhysicalOperator {
             Value::Empty(op) => {
                 PhysicalOperator::Empty(PhysicalEmpty::from_proto_ctx(op, context)?)
             }
-            Value::Filter(op) => {
-                PhysicalOperator::Filter(PhysicalFilter::from_proto_ctx(op, context)?)
-            }
-            Value::Project(op) => {
-                PhysicalOperator::Project(PhysicalProject::from_proto_ctx(op, context)?)
-            }
+            // Value::Filter(op) => {
+            //     PhysicalOperator::Filter(PhysicalFilter::from_proto_ctx(op, context)?)
+            // }
+            // Value::Project(op) => {
+            //     PhysicalOperator::Project(PhysicalProject::from_proto_ctx(op, context)?)
+            // }
             Value::Insert(op) => {
                 PhysicalOperator::Insert(PhysicalInsert::from_proto_ctx(op, context)?)
             }
@@ -613,9 +843,9 @@ impl DatabaseProtoConv for PhysicalOperator {
                 PhysicalOperator::Limit(PhysicalLimit::from_proto_ctx(op, context)?)
             }
             Value::Scan(op) => PhysicalOperator::Scan(PhysicalScan::from_proto_ctx(op, context)?),
-            Value::UngroupedAggregate(op) => PhysicalOperator::UngroupedAggregate(
-                PhysicalUngroupedAggregate::from_proto_ctx(op, context)?,
-            ),
+            // Value::UngroupedAggregate(op) => PhysicalOperator::UngroupedAggregate(
+            //     PhysicalUngroupedAggregate::from_proto_ctx(op, context)?,
+            // ),
             Value::Union(op) => {
                 PhysicalOperator::Union(PhysicalUnion::from_proto_ctx(op, context)?)
             }
@@ -625,18 +855,19 @@ impl DatabaseProtoConv for PhysicalOperator {
             Value::TableFunction(op) => {
                 PhysicalOperator::TableFunction(PhysicalTableFunction::from_proto_ctx(op, context)?)
             }
-            Value::NlJoin(op) => PhysicalOperator::NestedLoopJoin(
-                PhysicalNestedLoopJoin::from_proto_ctx(op, context)?,
-            ),
+            // Value::NlJoin(op) => PhysicalOperator::NestedLoopJoin(
+            //     PhysicalNestedLoopJoin::from_proto_ctx(op, context)?,
+            // ),
             Value::CopyTo(op) => {
                 PhysicalOperator::CopyTo(PhysicalCopyTo::from_proto_ctx(op, context)?)
             }
-            Value::LocalSort(op) => {
-                PhysicalOperator::LocalSort(PhysicalScatterSort::from_proto_ctx(op, context)?)
-            }
-            Value::MergeSorted(op) => {
-                PhysicalOperator::MergeSorted(PhysicalGatherSort::from_proto_ctx(op, context)?)
-            }
+            // Value::LocalSort(op) => {
+            //     PhysicalOperator::LocalSort(PhysicalScatterSort::from_proto_ctx(op, context)?)
+            // }
+            // Value::MergeSorted(op) => {
+            //     PhysicalOperator::MergeSorted(PhysicalGatherSort::from_proto_ctx(op, context)?)
+            // }
+            _ => unimplemented!(),
         })
     }
 }

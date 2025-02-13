@@ -6,7 +6,7 @@ use rayexec_proto::ProtoConv;
 
 use crate::arrays::batch::Batch;
 use crate::database::catalog_entry::CatalogEntry;
-use crate::execution::operators::sink::PartitionSink;
+use crate::execution::operators::sink::operation::PartitionSink;
 
 /// Scan projections.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,13 +125,14 @@ impl<S: DataTableScan> ProjectedScan<S> {
             None => return Ok(None),
         };
 
-        match self.projections.column_indices.as_ref() {
-            Some(indices) => {
-                let batch = batch.project(indices);
-                Ok(Some(batch))
-            }
-            None => Ok(Some(batch)),
-        }
+        unimplemented!()
+        // match self.projections.column_indices.as_ref() {
+        //     Some(indices) => {
+        //         let batch = batch.project(indices);
+        //         Ok(Some(batch))
+        //     }
+        //     None => Ok(Some(batch)),
+        // }
     }
 }
 

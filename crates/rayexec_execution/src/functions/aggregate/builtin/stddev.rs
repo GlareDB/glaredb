@@ -3,20 +3,14 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::PhysicalF64;
+use crate::arrays::array::buffer_manager::BufferManager;
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    new_unary_aggregate_states,
-    primitive_finalize,
-    AggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -57,22 +51,12 @@ impl AggregateFunction for StddevPop {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(StddevPopImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    UnaryStateLogic<VarianceState<StddevPopFinalize>, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StddevPopImpl;
-
-impl AggregateFunctionImpl for StddevPopImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
-            VarianceState::<StddevPopFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
     }
 }
 
@@ -116,22 +100,12 @@ impl AggregateFunction for StddevSamp {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(StddevSampImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    UnaryStateLogic<VarianceState<StddevSampFinalize>, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StddevSampImpl;
-
-impl AggregateFunctionImpl for StddevSampImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
-            VarianceState::<StddevSampFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
     }
 }
 
@@ -171,22 +145,12 @@ impl AggregateFunction for VarPop {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(VarPopImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    UnaryStateLogic<VarianceState<VariancePopFinalize>, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct VarPopImpl;
-
-impl AggregateFunctionImpl for VarPopImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
-            VarianceState::<VariancePopFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
     }
 }
 
@@ -226,40 +190,30 @@ impl AggregateFunction for VarSamp {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(VarSampImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    UnaryStateLogic<VarianceState<VarianceSampFinalize>, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             other => Err(invalid_input_types_error(self, &[other])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct VarSampImpl;
-
-impl AggregateFunctionImpl for VarSampImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
-            VarianceState::<VarianceSampFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
-    }
-}
-
 pub trait VarianceFinalize: Sync + Send + Debug + Default + 'static {
-    fn finalize(count: i64, mean: f64, m2: f64) -> (f64, bool);
+    fn finalize(count: i64, mean: f64, m2: f64) -> Option<f64>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct StddevPopFinalize;
 
 impl VarianceFinalize for StddevPopFinalize {
-    fn finalize(count: i64, _mean: f64, m2: f64) -> (f64, bool) {
+    fn finalize(count: i64, _mean: f64, m2: f64) -> Option<f64> {
         match count {
-            0 => (0.0, false),
-            1 => (0.0, true),
+            0 => None,
+            1 => Some(0.0),
             _ => {
                 let v = f64::sqrt(m2 / count as f64);
-                (v, true)
+                Some(v)
             }
         }
     }
@@ -269,12 +223,12 @@ impl VarianceFinalize for StddevPopFinalize {
 pub struct StddevSampFinalize;
 
 impl VarianceFinalize for StddevSampFinalize {
-    fn finalize(count: i64, _mean: f64, m2: f64) -> (f64, bool) {
+    fn finalize(count: i64, _mean: f64, m2: f64) -> Option<f64> {
         match count {
-            0 | 1 => (0.0, false),
+            0 | 1 => None,
             _ => {
                 let v = f64::sqrt(m2 / (count - 1) as f64);
-                (v, true)
+                Some(v)
             }
         }
     }
@@ -284,12 +238,12 @@ impl VarianceFinalize for StddevSampFinalize {
 pub struct VarianceSampFinalize;
 
 impl VarianceFinalize for VarianceSampFinalize {
-    fn finalize(count: i64, _mean: f64, m2: f64) -> (f64, bool) {
+    fn finalize(count: i64, _mean: f64, m2: f64) -> Option<f64> {
         match count {
-            0 | 1 => (0.0, false),
+            0 | 1 => None,
             _ => {
                 let v = m2 / (count - 1) as f64;
-                (v, true)
+                Some(v)
             }
         }
     }
@@ -299,13 +253,13 @@ impl VarianceFinalize for VarianceSampFinalize {
 pub struct VariancePopFinalize;
 
 impl VarianceFinalize for VariancePopFinalize {
-    fn finalize(count: i64, _mean: f64, m2: f64) -> (f64, bool) {
+    fn finalize(count: i64, _mean: f64, m2: f64) -> Option<f64> {
         match count {
-            0 => (0.0, false),
-            1 => (0.0, true),
+            0 => None,
+            1 => Some(0.0),
             _ => {
                 let v = m2 / count as f64;
-                (v, true)
+                Some(v)
             }
         }
     }
@@ -319,7 +273,16 @@ pub struct VarianceState<F: VarianceFinalize> {
     _finalize: PhantomData<F>,
 }
 
-impl<F> AggregateState<f64, f64> for VarianceState<F>
+impl<F> VarianceState<F>
+where
+    F: VarianceFinalize,
+{
+    pub fn finalize_value(&self) -> Option<f64> {
+        F::finalize(self.count, self.mean, self.m2)
+    }
+}
+
+impl<F> AggregateState<&f64, f64> for VarianceState<F>
 where
     F: VarianceFinalize,
 {
@@ -343,7 +306,7 @@ where
         Ok(())
     }
 
-    fn update(&mut self, input: f64) -> Result<()> {
+    fn update(&mut self, &input: &f64) -> Result<()> {
         self.count += 1;
         let delta = input - self.mean;
         self.mean += delta / self.count as f64;
@@ -353,7 +316,15 @@ where
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(f64, bool)> {
-        Ok(F::finalize(self.count, self.mean, self.m2))
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    where
+        M: AddressableMut<B, T = f64>,
+        B: BufferManager,
+    {
+        match F::finalize(self.count, self.mean, self.m2) {
+            Some(val) => output.put(&val),
+            None => output.put_null(),
+        }
+        Ok(())
     }
 }

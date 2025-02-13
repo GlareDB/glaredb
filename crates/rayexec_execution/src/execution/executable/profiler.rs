@@ -2,43 +2,43 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::time::Duration;
 
-use super::pipeline::{ExecutablePartitionPipeline, PipelineId};
-use crate::explain::context_display::ContextDisplayMode;
-use crate::explain::explainable::ExplainConfig;
+use super::partition_pipeline::ExecutablePartitionPipeline;
+use crate::execution::intermediate::pipeline::IntermediatePipelineId;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ExecutionProfileData {
     /// Profile data for all pipelines in this query.
-    pub pipelines: BTreeMap<PipelineId, PipelineProfileData>,
+    pub pipelines: BTreeMap<IntermediatePipelineId, PipelineProfileData>,
 }
 
 impl ExecutionProfileData {
     pub fn add_partition_data(&mut self, partition: &ExecutablePartitionPipeline) {
         let pipeline_data = self.pipelines.entry(partition.pipeline_id()).or_default();
 
-        let partition_data = PartitionPipelineProfileData {
-            operators: partition
-                .operators()
-                .iter()
-                .map(|op| op.profile_data().clone())
-                .collect(),
-            explain_strings: partition
-                .operators()
-                .iter()
-                .map(|op| {
-                    op.physical_operator()
-                        .explain_entry(ExplainConfig {
-                            context_mode: ContextDisplayMode::Raw,
-                            verbose: false,
-                        })
-                        .to_string()
-                })
-                .collect(),
-        };
+        unimplemented!()
+        // let partition_data = PartitionPipelineProfileData {
+        //     operators: partition
+        //         .operators()
+        //         .iter()
+        //         .map(|op| op.profile_data().clone())
+        //         .collect(),
+        //     explain_strings: partition
+        //         .operators()
+        //         .iter()
+        //         .map(|op| {
+        //             op.physical_operator()
+        //                 .explain_entry(ExplainConfig {
+        //                     context_mode: ContextDisplayMode::Raw,
+        //                     verbose: false,
+        //                 })
+        //                 .to_string()
+        //         })
+        //         .collect(),
+        // };
 
-        pipeline_data
-            .partitions
-            .insert(partition.partition(), partition_data);
+        // pipeline_data
+        //     .partitions
+        //     .insert(partition.partition(), partition_data);
     }
 }
 

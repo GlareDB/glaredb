@@ -3,20 +3,14 @@ use std::fmt::Debug;
 use rayexec_error::Result;
 
 use super::corr::CorrelationState;
-use crate::arrays::array::physical_type::PhysicalF64;
+use crate::arrays::array::buffer_manager::BufferManager;
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    new_binary_aggregate_states,
-    primitive_finalize,
-    AggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, BinaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -60,22 +54,12 @@ impl AggregateFunction for RegrR2 {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(RegrR2Impl),
+                function_impl: AggregateFunctionImpl::new::<
+                    BinaryStateLogic<RegrR2State, PhysicalF64, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct RegrR2Impl;
-
-impl AggregateFunctionImpl for RegrR2Impl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
-            RegrR2State::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
     }
 }
 
@@ -84,23 +68,29 @@ pub struct RegrR2State {
     corr: CorrelationState,
 }
 
-impl AggregateState<(f64, f64), f64> for RegrR2State {
+impl AggregateState<(&f64, &f64), f64> for RegrR2State {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.corr.merge(&mut other.corr)?;
         Ok(())
     }
 
-    fn update(&mut self, input: (f64, f64)) -> Result<()> {
+    fn update(&mut self, input: (&f64, &f64)) -> Result<()> {
         self.corr.update(input)?;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(f64, bool)> {
-        let (v, valid) = self.corr.finalize()?;
-        if valid {
-            Ok((v.powi(2), true))
-        } else {
-            Ok((0.0, false))
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    where
+        M: AddressableMut<B, T = f64>,
+        B: BufferManager,
+    {
+        match self.corr.finalize_value() {
+            Some(val) => {
+                let val = val.powi(2);
+                output.put(&val);
+            }
+            None => output.put_null(),
         }
+        Ok(())
     }
 }
