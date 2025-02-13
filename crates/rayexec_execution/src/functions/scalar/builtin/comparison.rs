@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_error::Result;
+use rayexec_error::{not_implemented, Result};
 
 use crate::arrays::array::physical_type::{
     PhysicalBinary,
@@ -391,6 +391,78 @@ impl ScalarFunction for GtEq {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IsDistinctFrom;
+
+impl FunctionInfo for IsDistinctFrom {
+    fn name(&self) -> &'static str {
+        "is_distinct_from"
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        const DOC: Documentation = Documentation {
+            category: Category::General,
+            description:
+                "Check if left and right are not equal. Treats NULL as a value instead of unknown.",
+            arguments: &["a", "b"],
+            example: Some(Example {
+                example: "a IS DISTINCT FROM b",
+                output: "true",
+            }),
+        };
+
+        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
+
+        SIGS
+    }
+}
+
+impl ScalarFunction for IsDistinctFrom {
+    fn plan(
+        &self,
+        _table_list: &TableList,
+        _inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFunction> {
+        not_implemented!("IS DISTINCT FROM scalar function")
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IsNotDistinctFrom;
+
+impl FunctionInfo for IsNotDistinctFrom {
+    fn name(&self) -> &'static str {
+        "is_not_distinct_from"
+    }
+
+    fn signatures(&self) -> &[Signature] {
+        const DOC: Documentation = Documentation {
+            category: Category::General,
+            description:
+                "Check if left and right are equal. Treats NULL as a value instead of unknown.",
+            arguments: &["a", "b"],
+            example: Some(Example {
+                example: "a IS NOT DISTINCT FROM b",
+                output: "true",
+            }),
+        };
+
+        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
+
+        SIGS
+    }
+}
+
+impl ScalarFunction for IsNotDistinctFrom {
+    fn plan(
+        &self,
+        _table_list: &TableList,
+        _inputs: Vec<Expression>,
+    ) -> Result<PlannedScalarFunction> {
+        not_implemented!("IS NOT DISTINCT FROM scalar function")
+    }
+}
+
 /// Describes a comparison operation between a left and right element and takes
 /// into account if either value is valid.
 pub trait NullableComparisonOperation: Debug + Sync + Send + Copy + 'static {
@@ -400,9 +472,9 @@ pub trait NullableComparisonOperation: Debug + Sync + Send + Copy + 'static {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsDistinctFrom;
+pub struct IsDistinctFromOperator;
 
-impl NullableComparisonOperation for IsDistinctFrom {
+impl NullableComparisonOperation for IsDistinctFromOperator {
     fn compare_with_valid<T>(left: T, right: T, left_valid: bool, right_valid: bool) -> bool
     where
         T: PartialEq + PartialOrd,
@@ -415,9 +487,9 @@ impl NullableComparisonOperation for IsDistinctFrom {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsNotDistinctFrom;
+pub struct IsNotDistinctFromOperation;
 
-impl NullableComparisonOperation for IsNotDistinctFrom {
+impl NullableComparisonOperation for IsNotDistinctFromOperation {
     fn compare_with_valid<T>(left: T, right: T, left_valid: bool, right_valid: bool) -> bool
     where
         T: PartialEq + PartialOrd,

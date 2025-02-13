@@ -37,6 +37,8 @@ use crate::functions::scalar::builtin::comparison::{
     EqOperation,
     GtEqOperation,
     GtOperation,
+    IsDistinctFromOperator,
+    IsNotDistinctFromOperation,
     LtEqOperation,
     LtOperation,
     NotEqOperation,
@@ -171,7 +173,6 @@ fn create_predicate_matcher_from_operator(
     op: ComparisonOperator,
     phys_type: PhysicalType,
 ) -> Box<dyn Matcher<NopBufferManager>> {
-    // TODO: IS (NOT) DISTINCT FROM
     match op {
         ComparisonOperator::Eq => {
             create_predicate_matcher::<NullCoercedComparison<EqOperation>>(phys_type)
@@ -190,6 +191,12 @@ fn create_predicate_matcher_from_operator(
         }
         ComparisonOperator::GtEq => {
             create_predicate_matcher::<NullCoercedComparison<GtEqOperation>>(phys_type)
+        }
+        ComparisonOperator::IsDistinctFrom => {
+            create_predicate_matcher::<IsDistinctFromOperator>(phys_type)
+        }
+        ComparisonOperator::IsNotDistinctFrom => {
+            create_predicate_matcher::<IsNotDistinctFromOperation>(phys_type)
         }
     }
 }
@@ -355,135 +362,135 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::datatype::DataType;
+    use crate::arrays::batch::Batch;
     use crate::arrays::row::row_collection::RowCollection;
     use crate::testutil::arrays::generate_batch;
 
-    #[test]
-    fn match_single_i32_eq() {
-        let mut collection = RowCollection::new(RowLayout::new([DataType::Int32]), 16);
+    /// Helper for finding matches between left and right. The returned match
+    /// state can be used to assert which rows matched.
+    ///
+    /// This selects all columns and all rows to compare.
+    fn find_matches_full(matcher: PredicateRowMatcher, left: &Batch, right: &Batch) -> MatchState {
+        assert_eq!(left.num_rows, right.num_rows);
+
+        let left_columns: Vec<_> = (0..left.arrays.len()).collect();
+        let mut collection = RowCollection::new(
+            RowLayout::new(left.arrays.iter().map(|arr| arr.datatype().clone())),
+            16,
+        );
         let mut append_state = collection.init_append();
-        collection
-            .append_batch(&mut append_state, &generate_batch!([1, 2, 3, 4]))
-            .unwrap();
-
-        let matcher = PredicateRowMatcher::new([(PhysicalType::Int32, ComparisonOperator::Eq)]);
-
-        let rhs = generate_batch!([0, 2, 5, 4]); // Batch we'll be matching on.
+        collection.append_batch(&mut append_state, left).unwrap();
 
         let mut match_state = matcher.init_match_state();
-        let match_count = matcher
+        let _ = matcher
             .find_matches(
                 &mut match_state,
                 collection.layout(),
                 append_state.row_pointers(),
-                &[0],
-                &rhs.arrays,
-                0..4,
+                &left_columns,
+                &right.arrays,
+                0..right.num_rows,
             )
             .unwrap();
 
-        assert_eq!(2, match_count);
-        assert_eq!(&[1, 3], match_state.get_row_matches());
+        match_state
+    }
+
+    #[test]
+    fn match_single_i32_eq() {
+        let left = generate_batch!([1, 2, 3, 4]);
+        let right = generate_batch!([0, 2, 5, 4]);
+
+        let matcher = PredicateRowMatcher::new([(PhysicalType::Int32, ComparisonOperator::Eq)]);
+        let state = find_matches_full(matcher, &left, &right);
+
+        assert_eq!(&[1, 3], state.get_row_matches());
     }
 
     #[test]
     fn match_single_nullable_i32_eq() {
-        let mut collection = RowCollection::new(RowLayout::new([DataType::Int32]), 16);
-        let mut append_state = collection.init_append();
-        collection
-            .append_batch(
-                &mut append_state,
-                &generate_batch!([Some(1), None, None, Some(4)]),
-            )
-            .unwrap();
+        let left = generate_batch!([Some(1), None, None, Some(4)]);
+        let right = generate_batch!([Some(0), None, Some(5), Some(4)]);
 
         let matcher = PredicateRowMatcher::new([(PhysicalType::Int32, ComparisonOperator::Eq)]);
+        let state = find_matches_full(matcher, &left, &right);
 
-        let rhs = generate_batch!([Some(0), None, Some(5), Some(4)]);
+        assert_eq!(&[3], state.get_row_matches());
+        assert_eq!(&[0, 1, 2], state.get_row_not_matches());
+    }
 
-        let mut match_state = matcher.init_match_state();
-        let match_count = matcher
-            .find_matches(
-                &mut match_state,
-                collection.layout(),
-                append_state.row_pointers(),
-                &[0],
-                &rhs.arrays,
-                0..4,
-            )
-            .unwrap();
+    #[test]
+    fn match_single_nullable_i32_is_not_distinct_from() {
+        let left = generate_batch!([Some(1), None, None, Some(4)]);
+        let right = generate_batch!([Some(0), None, Some(5), Some(4)]);
 
-        assert_eq!(1, match_count);
-        assert_eq!(&[3], match_state.get_row_matches());
-        assert_eq!(&[0, 1, 2], match_state.get_row_not_matches());
+        let matcher = PredicateRowMatcher::new([(
+            PhysicalType::Int32,
+            ComparisonOperator::IsNotDistinctFrom,
+        )]);
+        let state = find_matches_full(matcher, &left, &right);
+
+        assert_eq!(&[1, 3], state.get_row_matches());
+        assert_eq!(&[0, 2], state.get_row_not_matches());
     }
 
     #[test]
     fn match_i32_lteq_and_utf8_eq() {
-        let mut collection =
-            RowCollection::new(RowLayout::new([DataType::Int32, DataType::Utf8]), 16);
-        let mut append_state = collection.init_append();
-        collection
-            .append_batch(
-                &mut append_state,
-                &generate_batch!([1, 2, 3, 4], ["cat", "dog", "goose", "moose"]),
-            )
-            .unwrap();
+        let left = generate_batch!([1, 2, 3, 4], ["cat", "dog", "goose", "moose"]);
+        let right = generate_batch!([1, 2, 5, 7], ["cat", "catdogmouse", "goose", "rooster"]);
 
         let matcher = PredicateRowMatcher::new([
             (PhysicalType::Int32, ComparisonOperator::LtEq),
             (PhysicalType::Utf8, ComparisonOperator::Eq),
         ]);
+        let state = find_matches_full(matcher, &left, &right);
 
-        let rhs = generate_batch!([1, 2, 5, 7], ["cat", "catdogmouse", "goose", "rooster"]);
-
-        let mut match_state = matcher.init_match_state();
-        let match_count = matcher
-            .find_matches(
-                &mut match_state,
-                collection.layout(),
-                append_state.row_pointers(),
-                &[0, 1],
-                &rhs.arrays,
-                0..4,
-            )
-            .unwrap();
-
-        assert_eq!(2, match_count);
-        assert_eq!(&[0, 2], match_state.get_row_matches());
-        assert_eq!(&[1, 3], match_state.get_row_not_matches());
+        assert_eq!(&[0, 2], state.get_row_matches());
+        assert_eq!(&[1, 3], state.get_row_not_matches());
     }
 
     #[test]
     fn match_ut8_eq_not_inline() {
-        let mut collection = RowCollection::new(RowLayout::new([DataType::Utf8]), 16);
-        let mut append_state = collection.init_append();
-        collection
-            .append_batch(
-                &mut append_state,
-                &generate_batch!(["cat", "dog", "goosegoosegoosegoosegoose", "moose"]),
-            )
-            .unwrap();
+        let left = generate_batch!(["cat", "dog", "goosegoosegoosegoosegoose", "moose"]);
+        let right = generate_batch!(["cat", "catdogmouse", "goosegoosegoosegoosegoose", "rooster"]);
 
         let matcher = PredicateRowMatcher::new([(PhysicalType::Utf8, ComparisonOperator::Eq)]);
+        let state = find_matches_full(matcher, &left, &right);
 
-        let rhs = generate_batch!(["cat", "catdogmouse", "goosegoosegoosegoosegoose", "rooster"]);
+        assert_eq!(&[0, 2], state.get_row_matches());
+        assert_eq!(&[1, 3], state.get_row_not_matches());
+    }
 
-        let mut match_state = matcher.init_match_state();
-        let match_count = matcher
-            .find_matches(
-                &mut match_state,
-                collection.layout(),
-                append_state.row_pointers(),
-                &[0, 1],
-                &rhs.arrays,
-                0..4,
-            )
-            .unwrap();
+    #[test]
+    fn match_many_columns() {
+        let left = generate_batch!(
+            [1, 2, 3, 4, 5, 6],
+            ["a", "b", "c", "d", "e", "f"],
+            [1, 2, 3, 4, 5, 6],
+            ["a", "b", "c", "d", "e", "f"],
+            [1, 2, 3, 4, 5, 6],
+            ["a", "b", "c", "d", "e", "f"],
+        );
+        let right = generate_batch!(
+            [1, 2, 3, 4, 5, 6],
+            ["b", "b", "c", "d", "e", "f"],
+            [1, 3, 3, 4, 5, 6],
+            ["a", "b", "d", "d", "e", "f"],
+            [1, 2, 3, 5, 5, 6],
+            ["a", "b", "c", "d", "f", "f"],
+        );
 
-        assert_eq!(2, match_count);
-        assert_eq!(&[0, 2], match_state.get_row_matches());
-        assert_eq!(&[1, 3], match_state.get_row_not_matches());
+        let matcher = PredicateRowMatcher::new([
+            (PhysicalType::Int32, ComparisonOperator::Eq),
+            (PhysicalType::Utf8, ComparisonOperator::Eq),
+            (PhysicalType::Int32, ComparisonOperator::Eq),
+            (PhysicalType::Utf8, ComparisonOperator::Eq),
+            (PhysicalType::Int32, ComparisonOperator::Eq),
+            (PhysicalType::Utf8, ComparisonOperator::Eq),
+        ]);
+        let state = find_matches_full(matcher, &left, &right);
+
+        assert_eq!(&[5], state.get_row_matches());
+        assert_eq!(&[0, 1, 2, 3, 4], state.get_row_not_matches());
     }
 }

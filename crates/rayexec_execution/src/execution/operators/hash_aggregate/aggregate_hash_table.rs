@@ -54,6 +54,22 @@ pub struct AggregateHashTable {
 }
 
 impl AggregateHashTable {
+    pub fn try_new(layout: AggregateLayout) -> Result<Self> {
+        if layout.groups.num_columns() == 0 {
+            return Err(RayexecError::new(
+                "Cannot create aggregate hash table with zero groups",
+            ));
+        }
+
+        if layout.groups.types.last().unwrap() != &DataType::UInt64 {
+            return Err(RayexecError::new(
+                "Last group type not u64, expected u64 for the hash value",
+            ));
+        }
+
+        unimplemented!()
+    }
+
     pub fn init_insert_state(&self) -> InsertState {
         unimplemented!()
         // InsertState{
@@ -453,6 +469,20 @@ struct Directory {
 
 impl Directory {
     const LOAD_FACTOR: f64 = 0.7;
+    const DEFAULT_CAPACITY: usize = 128;
+
+    fn try_new(capacity: usize) -> Result<Self> {
+        let capacity = capacity.next_power_of_two();
+
+        let mut entries = TypedRawBuffer::try_with_capacity(&NopBufferManager, capacity)?;
+        // Initialize...
+        entries.as_slice_mut().fill(Entry::EMPTY);
+
+        Ok(Directory {
+            num_occupied: 0,
+            entries,
+        })
+    }
 
     fn capacity(&self) -> usize {
         self.entries.capacity()
@@ -470,7 +500,35 @@ impl Directory {
                 .with_field("new", new_capacity));
         }
 
-        unimplemented!()
+        let old_entries = std::mem::replace(
+            &mut self.entries,
+            TypedRawBuffer::try_with_capacity(&NopBufferManager, new_capacity)?,
+        );
+
+        let entries = self.entries.as_slice_mut();
+        entries.fill(Entry::EMPTY);
+
+        for old_ent in old_entries.as_slice() {
+            if !old_ent.is_occupied() {
+                continue;
+            }
+
+            let mut offset = compute_offset_from_hash(old_ent.hash, new_capacity as u64) as usize;
+
+            // Continue to try to insert until we find an empty slot.
+            loop {
+                if !entries[offset].is_occupied() {
+                    // Empty slot, insert entry.
+                    entries[offset] = *old_ent;
+                    break;
+                }
+
+                // Keep probing.
+                offset = inc_and_wrap_offset(offset, new_capacity);
+            }
+        }
+
+        Ok(())
     }
 
     /// Returns if the directory needs to be resized to accomadate new inputs.
