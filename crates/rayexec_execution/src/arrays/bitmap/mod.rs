@@ -1,13 +1,12 @@
-pub mod zip;
+pub mod view;
 
 use std::borrow::BorrowMut;
 use std::fmt;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::compute::util::IntoExtactSizeIterator;
-
 /// An LSB ordered bitmap.
+#[deprecated]
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct Bitmap {
     len: usize,
@@ -58,9 +57,18 @@ impl Bitmap {
         self.len
     }
 
-    // Check if this bitmap is empty.
+    /// Check if this bitmap is empty.
     pub const fn is_empty(&self) -> bool {
         self.len == 0
+    }
+
+    /// Resets all bits in the bitmap to some initial value.
+    pub fn reset(&mut self, value: bool) {
+        if value {
+            self.data.iter_mut().for_each(|v| *v = u8::MAX);
+        } else {
+            self.data.iter_mut().for_each(|v| *v = 0);
+        }
     }
 
     /// Get the total number of bytes of the underlying data.
@@ -116,12 +124,14 @@ impl Bitmap {
     /// Panics if index is out of bounds.
     #[inline]
     pub fn set_unchecked(&mut self, idx: usize, val: bool) {
+        let byte = idx / 8;
+        let bit = idx & 7; // Same as idx % 8
         if val {
             // Set bit.
-            self.data[idx / 8] |= 1 << (idx % 8)
+            self.data[byte] |= 1 << bit;
         } else {
-            // Unset bit
-            self.data[idx / 8] &= !(1 << (idx % 8))
+            // Unset bit.
+            self.data[byte] &= !(1 << bit);
         }
     }
 
@@ -228,7 +238,13 @@ impl FromIterator<bool> for Bitmap {
     fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
         let mut iter = iter.into_iter();
 
-        let mut data = Vec::new();
+        let (lower, _) = iter.size_hint();
+        let mut lower_cap = lower / 8;
+        if lower % 8 == 0 {
+            lower_cap += 1;
+        }
+
+        let mut data = Vec::with_capacity(lower_cap);
         let mut len = 0;
 
         loop {
@@ -294,15 +310,6 @@ impl Extend<bool> for Bitmap {
         for v in iter {
             self.push(v)
         }
-    }
-}
-
-impl<'a> IntoExtactSizeIterator for &'a Bitmap {
-    type Item = bool;
-    type IntoIter = BitmapIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
     }
 }
 
@@ -624,5 +631,33 @@ mod tests {
             let got = case.bitmap.try_as_u64().unwrap();
             assert_eq!(case.expected, got);
         }
+    }
+
+    #[test]
+    fn reset_all_false() {
+        let mut bm = Bitmap::new_with_all_false(10);
+        bm.set_unchecked(7, true);
+        bm.set_unchecked(9, true);
+
+        bm.reset(false);
+
+        let expected = vec![false; 10];
+        let got: Vec<_> = bm.iter().collect();
+
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn reset_all_true() {
+        let mut bm = Bitmap::new_with_all_false(10);
+        bm.set_unchecked(7, true);
+        bm.set_unchecked(9, true);
+
+        bm.reset(true);
+
+        let expected = vec![true; 10];
+        let got: Vec<_> = bm.iter().collect();
+
+        assert_eq!(expected, got);
     }
 }

@@ -139,7 +139,7 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
                     let comments =
                         Array::from_iter(resp.schemas.iter().map(|s| s.comment.as_deref()));
 
-                    let batch = Batch::try_from_arrays([names, catalog_names, comments])?;
+                    let batch = Batch::from_arrays([names, catalog_names, comments])?;
                     Ok(Some(batch))
                 }
                 None => Ok(None),
@@ -235,7 +235,7 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
                     let comments =
                         Array::from_iter(resp.tables.iter().map(|s| s.comment.as_deref()));
 
-                    let batch = Batch::try_from_arrays([
+                    let batch = Batch::from_arrays([
                         names,
                         catalog_names,
                         schema_names,

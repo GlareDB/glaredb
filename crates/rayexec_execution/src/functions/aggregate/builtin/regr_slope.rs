@@ -4,20 +4,14 @@ use rayexec_error::Result;
 
 use super::covar::{CovarPopFinalize, CovarState};
 use super::stddev::{VariancePopFinalize, VarianceState};
-use crate::arrays::array::physical_type::PhysicalF64;
+use crate::arrays::array::buffer_manager::BufferManager;
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    new_binary_aggregate_states,
-    primitive_finalize,
-    AggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, BinaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -61,22 +55,12 @@ impl AggregateFunction for RegrSlope {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(RegrSlopeImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    BinaryStateLogic<RegrSlopeState, PhysicalF64, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RegrSlopeImpl;
-
-impl AggregateFunctionImpl for RegrSlopeImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
-            RegrSlopeState::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
     }
 }
 
@@ -86,31 +70,35 @@ pub struct RegrSlopeState {
     var: VarianceState<VariancePopFinalize>,
 }
 
-impl AggregateState<(f64, f64), f64> for RegrSlopeState {
+impl AggregateState<(&f64, &f64), f64> for RegrSlopeState {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.cov.merge(&mut other.cov)?;
         self.var.merge(&mut other.var)?;
         Ok(())
     }
 
-    fn update(&mut self, input: (f64, f64)) -> Result<()> {
+    fn update(&mut self, input: (&f64, &f64)) -> Result<()> {
         self.cov.update(input)?;
         self.var.update(input.1)?; // Update with 'x'
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(f64, bool)> {
-        let (cov, cov_valid) = self.cov.finalize()?;
-        let (var, var_valid) = self.var.finalize()?;
-
-        if cov_valid && var_valid {
-            if var == 0.0 {
-                return Ok((0.0, false));
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    where
+        M: AddressableMut<B, T = f64>,
+        B: BufferManager,
+    {
+        match (self.cov.finalize_value(), self.var.finalize_value()) {
+            (Some(cov), Some(var)) => {
+                if var == 0.0 {
+                    output.put_null();
+                    return Ok(());
+                }
+                let v = cov / var;
+                output.put(&v);
             }
-            let v = cov / var;
-            Ok((v, true))
-        } else {
-            Ok((0.0, false))
+            _ => output.put_null(),
         }
+        Ok(())
     }
 }

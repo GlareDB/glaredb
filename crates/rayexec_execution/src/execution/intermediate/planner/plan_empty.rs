@@ -1,9 +1,7 @@
-use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
-use super::{InProgressPipeline, IntermediatePipelineBuildState, PipelineIdGen};
-use crate::execution::intermediate::pipeline::{IntermediateOperator, PipelineSource};
+use super::{IntermediatePipelineBuildState, PipelineIdGen};
 use crate::execution::operators::empty::PhysicalEmpty;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_empty::LogicalEmpty;
@@ -33,18 +31,16 @@ impl IntermediatePipelineBuildState<'_> {
         // This has a partitioning requirement of 1 since it's only used to
         // drive output of a query that contains no FROM (typically just a
         // simple projection).
-        let operator = IntermediateOperator {
-            operator: Arc::new(PhysicalOperator::Empty(PhysicalEmpty)),
-            partitioning_requirement: Some(1),
-        };
+        let operator = PhysicalOperator::Empty(PhysicalEmpty);
 
-        self.in_progress = Some(InProgressPipeline {
-            id: id_gen.next_pipeline_id(),
-            operators: vec![operator],
-            location: empty.location,
-            source: PipelineSource::InPipeline,
-        });
+        unimplemented!()
+        // self.in_progress = Some(InProgressPipeline {
+        //     id: id_gen.next_pipeline_id(),
+        //     operators: vec![operator],
+        //     location: empty.location,
+        //     source: PipelineSource::InPipeline,
+        // });
 
-        Ok(())
+        // Ok(())
     }
 }

@@ -2,6 +2,7 @@ use rayexec_error::Result;
 use rayexec_parser::ast;
 
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::compute::date::{self, extract_date_part};
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::scalar::decimal::{Decimal64Type, DecimalType};
@@ -101,9 +102,11 @@ pub struct DatePartImpl {
 }
 
 impl ScalarFunctionImpl for DatePartImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
         // First input ignored (the constant "part" to extract)
-        extract_date_part(self.part, inputs[1])
+        let input = &input.arrays()[1];
+        extract_date_part(self.part, input, sel, output)
     }
 }
 
