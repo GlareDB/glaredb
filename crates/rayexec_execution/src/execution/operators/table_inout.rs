@@ -13,6 +13,7 @@ use super::{
 };
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
+use crate::arrays::cache::NopCache;
 use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -79,7 +80,7 @@ impl ExecutableOperator for PhysicalTableInOut {
             .map(|state| {
                 Ok(PartitionState::TableInOut(TableInOutPartitionState {
                     function_state: state,
-                    row_batch: Batch::try_new(self.input_types.clone(), 1)?,
+                    row_batch: Batch::new(self.input_types.clone(), 1)?,
                     curr_row_idx: 0,
                     needs_next_row: true,
                 }))
@@ -123,7 +124,7 @@ impl ExecutableOperator for PhysicalTableInOut {
                 }
 
                 // "Copy" row we're working into intermediate batch.
-                state.row_batch.try_clone_from_other(input)?;
+                state.row_batch.clone_from_other(input)?;
 
                 state
                     .row_batch
@@ -160,7 +161,7 @@ impl ExecutableOperator for PhysicalTableInOut {
                 let input_arr = &mut state.row_batch.arrays[col_expr.idx];
                 let output_arr = &mut output.arrays[out_idx];
 
-                output_arr.try_clone_constant_from_other(input_arr, 0, num_rows)?;
+                output_arr.clone_constant_from(input_arr, 0, num_rows, &mut NopCache)?;
             }
 
             return Ok(poll);
@@ -251,10 +252,10 @@ mod tests {
             .create_states(&test_database_context(), 1024, 1)
             .unwrap();
 
-        let mut output = Batch::try_new([DataType::Int64], 1024).unwrap();
+        let mut output = Batch::new([DataType::Int64], 1024).unwrap();
         // generate_series(4, 8, 2)
         // generate_series(5, 6, 1)
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter([4_i64, 5]).unwrap(),
             Array::try_from_iter([8_i64, 6]).unwrap(),
             Array::try_from_iter([2_i64, 1]).unwrap(),
@@ -273,8 +274,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::HasMore, poll);
 
-        let expected =
-            Batch::try_from_arrays([Array::try_from_iter([4_i64, 6, 8]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([4_i64, 6, 8]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &output);
 
         // Keep polling for the rest...
@@ -303,10 +303,10 @@ mod tests {
             .unwrap();
 
         let mut output =
-            Batch::try_new([DataType::Int64, DataType::Int64, DataType::Int64], 1024).unwrap();
+            Batch::new([DataType::Int64, DataType::Int64, DataType::Int64], 1024).unwrap();
         // generate_series(4, 8, 2)
         // generate_series(5, 6, 1)
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter([4_i64, 5]).unwrap(),
             Array::try_from_iter([8_i64, 6]).unwrap(),
             Array::try_from_iter([2_i64, 1]).unwrap(),
@@ -325,7 +325,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::HasMore, poll);
 
-        let expected = Batch::try_from_arrays([
+        let expected = Batch::from_arrays([
             Array::try_from_iter([4_i64, 6, 8]).unwrap(),
             Array::try_from_iter([8_i64, 8, 8]).unwrap(), // 'stop'
             Array::try_from_iter([4_i64, 4, 4]).unwrap(), // 'start'
@@ -345,7 +345,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::HasMore, poll);
 
-        let expected = Batch::try_from_arrays([
+        let expected = Batch::from_arrays([
             Array::try_from_iter([5_i64, 6]).unwrap(),
             Array::try_from_iter([6_i64, 6]).unwrap(), // 'stop'
             Array::try_from_iter([5_i64, 5]).unwrap(), // 'start'

@@ -268,7 +268,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
 
-        let mut output = Batch::try_new([DataType::Int64], 1024).unwrap();
+        let mut output = Batch::new([DataType::Int64], 1024).unwrap();
 
         let poll = wrapper
             .poll_execute(
@@ -282,7 +282,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::Exhausted, poll);
 
-        let expected = Batch::try_from_arrays([Array::try_from_iter([15_i64]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([15_i64]).unwrap()]).unwrap();
 
         assert_batches_eq(&expected, &output);
     }
@@ -327,7 +327,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
 
-        let mut output = Batch::try_new([DataType::Int64], 1024).unwrap();
+        let mut output = Batch::new([DataType::Int64], 1024).unwrap();
 
         // Poll with partition that finalized with NeedsDrain (3).
         let poll = wrapper
@@ -342,7 +342,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::Exhausted, poll);
 
-        let expected = Batch::try_from_arrays([Array::try_from_iter([146_i64]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([146_i64]).unwrap()]).unwrap();
 
         assert_batches_eq(&expected, &output);
     }

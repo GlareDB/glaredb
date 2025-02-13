@@ -288,7 +288,7 @@ mod tests {
         );
 
         // generate_series(1, 5, 1)
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter([1]).unwrap(),
             Array::try_from_iter([5]).unwrap(),
             Array::try_from_iter([1]).unwrap(),
@@ -296,10 +296,8 @@ mod tests {
         .unwrap();
 
         let mut output =
-            Batch::try_from_arrays(
-                [Array::try_new(&NopBufferManager, DataType::Int64, 5).unwrap()],
-            )
-            .unwrap();
+            Batch::from_arrays([Array::new(&NopBufferManager, DataType::Int64, 5).unwrap()])
+                .unwrap();
 
         let poll = state
             .poll_execute(ExecuteInOutState {
@@ -310,7 +308,7 @@ mod tests {
         assert_eq!(PollExecute::HasMore, poll);
 
         let expected =
-            Batch::try_from_arrays([Array::try_from_iter([1_i64, 2, 3, 4, 5]).unwrap()]).unwrap();
+            Batch::from_arrays([Array::try_from_iter([1_i64, 2, 3, 4, 5]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &output);
 
         let poll = state
@@ -335,7 +333,7 @@ mod tests {
         );
 
         // generate_series(1, 5, 1)
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter([1]).unwrap(),
             Array::try_from_iter([5]).unwrap(),
             Array::try_from_iter([1]).unwrap(),
@@ -343,10 +341,8 @@ mod tests {
         .unwrap();
 
         let mut output =
-            Batch::try_from_arrays(
-                [Array::try_new(&NopBufferManager, DataType::Int64, 3).unwrap()],
-            )
-            .unwrap();
+            Batch::from_arrays([Array::new(&NopBufferManager, DataType::Int64, 3).unwrap()])
+                .unwrap();
 
         let poll = state
             .poll_execute(ExecuteInOutState {
@@ -356,8 +352,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::HasMore, poll);
 
-        let expected =
-            Batch::try_from_arrays([Array::try_from_iter([1_i64, 2, 3]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([1_i64, 2, 3]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &output);
 
         let poll = state
@@ -368,7 +363,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::HasMore, poll);
 
-        let expected = Batch::try_from_arrays([Array::try_from_iter([4_i64, 5]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([4_i64, 5]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &output);
 
         let poll = state
@@ -392,7 +387,7 @@ mod tests {
 
         // generate_series(1, 5, 1)
         // generate_series(4, 8, 2)
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter([1, 4]).unwrap(),
             Array::try_from_iter([5, 8]).unwrap(),
             Array::try_from_iter([1, 2]).unwrap(),
@@ -400,10 +395,8 @@ mod tests {
         .unwrap();
 
         let mut output =
-            Batch::try_from_arrays(
-                [Array::try_new(&NopBufferManager, DataType::Int64, 5).unwrap()],
-            )
-            .unwrap();
+            Batch::from_arrays([Array::new(&NopBufferManager, DataType::Int64, 5).unwrap()])
+                .unwrap();
 
         let poll = state
             .poll_execute(ExecuteInOutState {
@@ -414,7 +407,7 @@ mod tests {
         assert_eq!(PollExecute::HasMore, poll);
 
         let expected =
-            Batch::try_from_arrays([Array::try_from_iter([1_i64, 2, 3, 4, 5]).unwrap()]).unwrap();
+            Batch::from_arrays([Array::try_from_iter([1_i64, 2, 3, 4, 5]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &output);
 
         let poll = state
@@ -425,8 +418,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::HasMore, poll);
 
-        let expected =
-            Batch::try_from_arrays([Array::try_from_iter([4_i64, 6, 8]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([4_i64, 6, 8]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &output);
 
         let poll = state
@@ -449,14 +441,14 @@ mod tests {
         );
 
         // generate_series(5, 1, 1)
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter([5]).unwrap(),
             Array::try_from_iter([1]).unwrap(),
             Array::try_from_iter([1]).unwrap(),
         ])
         .unwrap();
 
-        let mut out = Batch::try_new([DataType::Int32], 1024).unwrap();
+        let mut out = Batch::new([DataType::Int32], 1024).unwrap();
 
         let _ = state
             .poll_execute(ExecuteInOutState {
@@ -477,14 +469,14 @@ mod tests {
         );
 
         // generate_series(1, 5, -1)
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter([1]).unwrap(),
             Array::try_from_iter([5]).unwrap(),
             Array::try_from_iter([-1]).unwrap(),
         ])
         .unwrap();
 
-        let mut out = Batch::try_new([DataType::Int32], 1024).unwrap();
+        let mut out = Batch::new([DataType::Int32], 1024).unwrap();
 
         let _ = state
             .poll_execute(ExecuteInOutState {

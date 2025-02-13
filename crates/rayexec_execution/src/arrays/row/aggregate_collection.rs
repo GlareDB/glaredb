@@ -209,8 +209,8 @@ mod tests {
         // produces a valid "empty" value.
         let mut ptrs = state.row_pointers().to_vec();
 
-        let mut groups = Array::try_new(&NopBufferManager, DataType::Utf8, 2).unwrap();
-        let mut results = Array::try_new(&NopBufferManager, DataType::Int64, 2).unwrap();
+        let mut groups = Array::new(&NopBufferManager, DataType::Utf8, 2).unwrap();
+        let mut results = Array::new(&NopBufferManager, DataType::Int64, 2).unwrap();
 
         unsafe {
             collection
@@ -258,14 +258,14 @@ mod tests {
         unsafe {
             collection
                 .layout
-                .update_states(&mut update_row_ptrs, &[&values], 4)
+                .update_states(&mut update_row_ptrs, &[values], 4)
                 .unwrap();
         }
 
         let mut ptrs = state.row_pointers().to_vec();
 
-        let mut groups = Array::try_new(&NopBufferManager, DataType::Utf8, 2).unwrap();
-        let mut results = Array::try_new(&NopBufferManager, DataType::Int64, 2).unwrap();
+        let mut groups = Array::new(&NopBufferManager, DataType::Utf8, 2).unwrap();
+        let mut results = Array::new(&NopBufferManager, DataType::Int64, 2).unwrap();
 
         unsafe {
             collection

@@ -196,7 +196,7 @@ impl ScalarValue<'_> {
 
     /// Create an array of size `n` using the scalar value.
     pub fn as_array(&self, n: usize) -> Result<Array> {
-        Array::try_new_constant(&NopBufferManager, self, n)
+        Array::new_constant(&NopBufferManager, self, n)
     }
 
     pub fn try_as_bool(&self) -> Result<bool> {

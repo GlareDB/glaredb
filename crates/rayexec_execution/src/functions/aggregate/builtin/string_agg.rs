@@ -106,11 +106,11 @@ impl AggregateStateLogic for StringAggImpl {
 
     fn update(
         _extra: Option<&dyn Any>,
-        inputs: &[&Array],
+        inputs: &[Array],
         num_rows: usize,
         states: &mut [*mut Self::State],
     ) -> Result<()> {
-        UnaryNonNullUpdater::update::<PhysicalUtf8, _, _>(inputs[0], 0..num_rows, states)
+        UnaryNonNullUpdater::update::<PhysicalUtf8, _, _>(&inputs[0], 0..num_rows, states)
     }
 
     fn combine(

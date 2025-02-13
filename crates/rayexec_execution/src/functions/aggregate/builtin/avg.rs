@@ -164,11 +164,11 @@ where
 
     fn update(
         _extra: Option<&dyn Any>,
-        inputs: &[&Array],
+        inputs: &[Array],
         num_rows: usize,
         states: &mut [*mut Self::State],
     ) -> Result<()> {
-        UnaryNonNullUpdater::update::<D::Storage, _, _>(inputs[0], 0..num_rows, states)
+        UnaryNonNullUpdater::update::<D::Storage, _, _>(&inputs[0], 0..num_rows, states)
     }
 
     fn combine(

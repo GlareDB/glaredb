@@ -214,7 +214,7 @@ mod tests {
     fn rem_i32() {
         let a = Array::try_from_iter([4, 5, 6]).unwrap();
         let b = Array::try_from_iter([1, 2, 3]).unwrap();
-        let batch = Batch::try_from_arrays([a, b]).unwrap();
+        let batch = Batch::from_arrays([a, b]).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -232,7 +232,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
         let expected = Array::try_from_iter([0, 1, 0]).unwrap();
 

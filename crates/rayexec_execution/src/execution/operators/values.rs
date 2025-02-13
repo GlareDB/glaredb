@@ -67,7 +67,7 @@ impl ExecutableOperator for PhysicalValues {
     ) -> Result<UnaryInputStates> {
         let states = (0..partitions)
             .map(|_| {
-                let out_buf = Batch::try_new(self.output_types.clone(), batch_size)?;
+                let out_buf = Batch::new(self.output_types.clone(), batch_size)?;
                 Ok(PartitionState::Values(ValuesPartitionState {
                     row_idx: 0,
                     out_buf,
@@ -98,8 +98,9 @@ impl ExecutableOperator for PhysicalValues {
 
         output.set_num_rows(0)?;
 
+        let capacity = output.write_capacity()?;
         loop {
-            let out_rem = output.capacity - output.num_rows();
+            let out_rem = capacity - output.num_rows();
             if out_rem < input.num_rows() {
                 // Not enough room in the output batch, come back later for the
                 // remaining expressions.
@@ -218,12 +219,7 @@ mod tests {
         let mut wrapper = OperatorWrapper::new(PhysicalValues::new(expr_rows));
         let mut states = wrapper.create_unary_states(1024, 1);
 
-        let mut output = Batch::try_from_arrays([
-            Array::try_new(&NopBufferManager, DataType::Utf8, 1024).unwrap(),
-            Array::try_new(&NopBufferManager, DataType::Int32, 1024).unwrap(),
-        ])
-        .unwrap();
-
+        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
         let mut input = Batch::empty_with_num_rows(1);
 
         let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
@@ -252,12 +248,7 @@ mod tests {
         let mut wrapper = OperatorWrapper::new(PhysicalValues::new(expr_rows));
         let mut states = wrapper.create_unary_states(1024, 1);
 
-        let mut output = Batch::try_from_arrays([
-            Array::try_new(&NopBufferManager, DataType::Utf8, 1024).unwrap(),
-            Array::try_new(&NopBufferManager, DataType::Int32, 1024).unwrap(),
-        ])
-        .unwrap();
-
+        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
         let mut input = Batch::empty_with_num_rows(513);
 
         let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);

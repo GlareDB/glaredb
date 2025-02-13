@@ -263,7 +263,7 @@ mod tests {
         A: Borrow<Array>,
     {
         let mut collection = PartialSortedRowCollection::new(key_layout, data_layout, 16);
-        let row_count = keys.first().unwrap().borrow().capacity();
+        let row_count = keys.first().unwrap().borrow().logical_len();
         assert!(row_count <= 16); // For testing purposes.
 
         let mut state = collection.init_append_state();
@@ -291,7 +291,7 @@ mod tests {
             .data_layout
             .types
             .iter()
-            .map(|datatype| Array::try_new(&NopBufferManager, datatype.clone(), row_count))
+            .map(|datatype| Array::new(&NopBufferManager, datatype.clone(), row_count))
             .collect::<Result<Vec<_>>>()
             .unwrap();
 

@@ -4,6 +4,7 @@ use rayexec_error::Result;
 
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::batch::Batch;
+use crate::arrays::cache::NopCache;
 use crate::execution::operators::materialize::column_collection::ColumnCollection;
 
 #[derive(Debug)]
@@ -60,7 +61,7 @@ impl CrossProductState {
         // Reference columns from right as-is
         let col_offset = self.collection.num_columns();
         for (idx, input_array) in input.arrays.iter_mut().enumerate() {
-            output.arrays[idx + col_offset].try_clone_from_other(input_array)?;
+            output.arrays[idx + col_offset].clone_from_other(input_array, &mut NopCache)?;
         }
 
         output.set_num_rows(input.num_rows())?;
@@ -89,16 +90,15 @@ mod tests {
     #[test]
     fn cross_product_single_collected_batch() {
         let mut collection = ColumnCollection::new([DataType::Utf8], 2);
-        let batches =
-            [Batch::try_from_arrays([Array::try_from_iter(["a", "b"]).unwrap()]).unwrap()];
+        let batches = [Batch::from_arrays([Array::try_from_iter(["a", "b"]).unwrap()]).unwrap()];
 
         collection.append_many(&batches).unwrap();
 
         let mut cross_product = CrossProductState::new(Arc::new(collection));
-        let mut input = Batch::try_from_arrays([Array::try_from_iter([1, 2]).unwrap()]).unwrap();
-        let mut out = Batch::try_new([DataType::Utf8, DataType::Int32], 2).unwrap();
+        let mut input = Batch::from_arrays([Array::try_from_iter([1, 2]).unwrap()]).unwrap();
+        let mut out = Batch::new([DataType::Utf8, DataType::Int32], 2).unwrap();
 
-        let expected1 = Batch::try_from_arrays([
+        let expected1 = Batch::from_arrays([
             Array::try_from_iter(["a", "a"]).unwrap(),
             Array::try_from_iter([1, 2]).unwrap(),
         ])
@@ -110,7 +110,7 @@ mod tests {
         assert!(did_write);
         assert_batches_eq(&expected1, &out);
 
-        let expected2 = Batch::try_from_arrays([
+        let expected2 = Batch::from_arrays([
             Array::try_from_iter(["b", "b"]).unwrap(),
             Array::try_from_iter([1, 2]).unwrap(),
         ])

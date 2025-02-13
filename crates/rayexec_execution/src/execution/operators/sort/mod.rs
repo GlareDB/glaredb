@@ -113,7 +113,7 @@ impl ExecutableOperator for PhysicalSort {
                     SortCollectingState {
                         partition_idx: idx,
                         evaluator,
-                        keys: Batch::try_new(key_layout.datatypes(), batch_size)?,
+                        keys: Batch::new(key_layout.datatypes(), batch_size)?,
                         collection,
                         append,
                     },

@@ -34,7 +34,7 @@ pub trait AggregateStateLogic {
     /// state at a time.
     fn update(
         extra: Option<&dyn Any>,
-        inputs: &[&Array],
+        inputs: &[Array],
         num_rows: usize,
         states: &mut [*mut Self::State],
     ) -> Result<()>;
@@ -76,11 +76,11 @@ where
 
     fn update(
         _extra: Option<&dyn Any>,
-        inputs: &[&Array],
+        inputs: &[Array],
         num_rows: usize,
         states: &mut [*mut Self::State],
     ) -> Result<()> {
-        UnaryNonNullUpdater::update::<Input, _, _>(inputs[0], 0..num_rows, states)
+        UnaryNonNullUpdater::update::<Input, _, _>(&inputs[0], 0..num_rows, states)
     }
 
     fn combine(
@@ -147,13 +147,13 @@ where
 
     fn update(
         _extra: Option<&dyn Any>,
-        inputs: &[&Array],
+        inputs: &[Array],
         num_rows: usize,
         states: &mut [*mut Self::State],
     ) -> Result<()> {
         BinaryNonNullUpdater::update::<Input1, Input2, _, _>(
-            inputs[0],
-            inputs[1],
+            &inputs[0],
+            &inputs[1],
             0..num_rows,
             states,
         )
@@ -222,7 +222,7 @@ pub struct AggregateFunctionImpl {
     /// The 'i'th row should update the 'i'th state.
     pub update_fn: unsafe fn(
         extra: Option<&dyn Any>,
-        inputs: &[&Array],
+        inputs: &[Array],
         num_rows: usize,
         states: &mut [*mut u8],
     ) -> Result<()>,
@@ -256,18 +256,16 @@ impl AggregateFunctionImpl {
             unsafe { state_ptr.cast::<Agg::State>().write(state) };
         };
 
-        let update_fn = |extra: Option<&dyn Any>,
-                         inputs: &[&Array],
-                         num_rows: usize,
-                         states: &mut [*mut u8]| {
-            let states: &mut [*mut Agg::State] = unsafe {
-                std::slice::from_raw_parts_mut(
-                    states.as_mut_ptr() as *mut *mut Agg::State,
-                    states.len(),
-                )
+        let update_fn =
+            |extra: Option<&dyn Any>, inputs: &[Array], num_rows: usize, states: &mut [*mut u8]| {
+                let states: &mut [*mut Agg::State] = unsafe {
+                    std::slice::from_raw_parts_mut(
+                        states.as_mut_ptr() as *mut *mut Agg::State,
+                        states.len(),
+                    )
+                };
+                Agg::update(extra, inputs, num_rows, states)
             };
-            Agg::update(extra, inputs, num_rows, states)
-        };
 
         let combine_fn = |extra: Option<&dyn Any>,
                           src_ptrs: &mut [*mut u8],

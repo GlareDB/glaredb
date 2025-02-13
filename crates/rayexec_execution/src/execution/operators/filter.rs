@@ -67,7 +67,7 @@ impl ExecutableOperator for PhysicalFilter {
 
         // TODO: "select_from"
         let selection = state.evaluator.select(input)?;
-        output.try_clone_from_other(input)?;
+        output.clone_from_other(input)?;
 
         if selection.len() != output.num_rows() {
             // Only add selection if we're actually omitting rows.
@@ -121,13 +121,13 @@ mod tests {
             .unwrap();
         let wrapper = OperatorWrapper::new(operator);
 
-        let mut out = Batch::try_from_arrays([
-            Array::try_new(&NopBufferManager, DataType::Boolean, 4).unwrap(),
-            Array::try_new(&NopBufferManager, DataType::Int32, 4).unwrap(),
+        let mut out = Batch::from_arrays([
+            Array::new(&NopBufferManager, DataType::Boolean, 4).unwrap(),
+            Array::new(&NopBufferManager, DataType::Int32, 4).unwrap(),
         ])
         .unwrap();
 
-        let mut in1 = Batch::try_from_arrays([
+        let mut in1 = Batch::from_arrays([
             Array::try_from_iter([true, false, true, true]).unwrap(),
             Array::try_from_iter([8, 9, 7, 6]).unwrap(),
         ])
@@ -144,14 +144,14 @@ mod tests {
             )
             .unwrap();
 
-        let expected1 = Batch::try_from_arrays([
+        let expected1 = Batch::from_arrays([
             Array::try_from_iter([true, true, true]).unwrap(),
             Array::try_from_iter([8, 7, 6]).unwrap(),
         ])
         .unwrap();
         assert_batches_eq(&expected1, &out);
 
-        let mut in2 = Batch::try_from_arrays([
+        let mut in2 = Batch::from_arrays([
             Array::try_from_iter([true, false, false, false]).unwrap(),
             Array::try_from_iter([4, 3, 2, 1]).unwrap(),
         ])
@@ -168,7 +168,7 @@ mod tests {
             )
             .unwrap();
 
-        let expected2 = Batch::try_from_arrays([
+        let expected2 = Batch::from_arrays([
             Array::try_from_iter([true]).unwrap(),
             Array::try_from_iter([4]).unwrap(),
         ])

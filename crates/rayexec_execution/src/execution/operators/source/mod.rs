@@ -112,8 +112,8 @@ mod tests {
     #[test]
     fn source_single_partition() {
         let batches = vec![
-            Batch::try_from_arrays([Array::try_from_iter([1]).unwrap()]).unwrap(),
-            Batch::try_from_arrays([Array::try_from_iter([2]).unwrap()]).unwrap(),
+            Batch::from_arrays([Array::try_from_iter([1]).unwrap()]).unwrap(),
+            Batch::from_arrays([Array::try_from_iter([2]).unwrap()]).unwrap(),
         ];
 
         let mut wrapper = OperatorWrapper::new(PhysicalSource {
@@ -124,7 +124,7 @@ mod tests {
             .create_states(&test_database_context(), 1024, 1)
             .unwrap();
 
-        let mut output = Batch::try_new([DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::Int32], 1024).unwrap();
 
         let poll = wrapper
             .poll_execute(
@@ -138,7 +138,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::HasMore, poll);
 
-        let expected = Batch::try_from_arrays([Array::try_from_iter([1]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([1]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &output);
 
         let poll = wrapper
@@ -153,15 +153,15 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::Exhausted, poll);
 
-        let expected = Batch::try_from_arrays([Array::try_from_iter([2]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([2]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &output);
     }
 
     #[test]
     fn source_multiple_partitions() {
         let batches = vec![
-            Batch::try_from_arrays([Array::try_from_iter([1]).unwrap()]).unwrap(),
-            Batch::try_from_arrays([Array::try_from_iter([2]).unwrap()]).unwrap(),
+            Batch::from_arrays([Array::try_from_iter([1]).unwrap()]).unwrap(),
+            Batch::from_arrays([Array::try_from_iter([2]).unwrap()]).unwrap(),
         ];
 
         let mut wrapper = OperatorWrapper::new(PhysicalSource {
@@ -172,7 +172,7 @@ mod tests {
             .create_states(&test_database_context(), 1024, 2)
             .unwrap();
 
-        let mut output = Batch::try_new([DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::Int32], 1024).unwrap();
 
         let poll = wrapper
             .poll_execute(
@@ -186,7 +186,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::Exhausted, poll);
 
-        let expected = Batch::try_from_arrays([Array::try_from_iter([1]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([1]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &output);
 
         let poll = wrapper
@@ -201,7 +201,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::Exhausted, poll);
 
-        let expected = Batch::try_from_arrays([Array::try_from_iter([2]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([2]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &output);
     }
 }

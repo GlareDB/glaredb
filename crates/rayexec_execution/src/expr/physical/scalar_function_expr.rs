@@ -31,10 +31,10 @@ impl PhysicalScalarFunctionExpr {
         let arrays = self
             .inputs
             .iter()
-            .map(|input| Array::try_new(&NopBufferManager, input.datatype(), batch_size))
+            .map(|input| Array::new(&NopBufferManager, input.datatype(), batch_size))
             .collect::<Result<Vec<_>>>()?;
 
-        let buffer = Batch::try_from_arrays(arrays)?;
+        let buffer = Batch::from_arrays(arrays)?;
 
         Ok(ExpressionState { buffer, inputs })
     }

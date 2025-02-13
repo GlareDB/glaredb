@@ -388,7 +388,7 @@ mod tests {
     fn hash_i32_lists() {
         let mut hashes = vec![0; 4];
 
-        let mut lists = Array::try_new(
+        let mut lists = Array::new(
             &NopBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             4,

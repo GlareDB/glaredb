@@ -4,7 +4,7 @@
 macro_rules! generate_batch {
     ( $( $array_values:expr ),+ $(,)? ) => {{
         use stdutil::iter::TryFromExactSizeIterator;
-        crate::arrays::batch::Batch::try_from_arrays([
+        crate::arrays::batch::Batch::from_arrays([
             $(
                 crate::arrays::array::Array::try_from_iter($array_values).unwrap()
             ),+
@@ -25,7 +25,7 @@ mod tests {
     fn generate_batch_single_column() {
         let batch = generate_batch!(["a", "b", "c"]);
         let expected =
-            Batch::try_from_arrays([Array::try_from_iter(["a", "b", "c"]).unwrap()]).unwrap();
+            Batch::from_arrays([Array::try_from_iter(["a", "b", "c"]).unwrap()]).unwrap();
 
         assert_batches_eq(&expected, &batch);
     }
@@ -33,7 +33,7 @@ mod tests {
     #[test]
     fn generate_batch_multiple_columns() {
         let batch = generate_batch!(["a", "b", "c"], [1, 2, 3], [16.0, 17.0, 18.0]);
-        let expected = Batch::try_from_arrays([
+        let expected = Batch::from_arrays([
             Array::try_from_iter(["a", "b", "c"]).unwrap(),
             Array::try_from_iter([1, 2, 3]).unwrap(),
             Array::try_from_iter([16.0, 17.0, 18.0]).unwrap(),

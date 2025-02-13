@@ -543,7 +543,7 @@ mod tests {
         assert_eq!(1, out.keys.len());
 
         let mut scan = out.init_scan_state();
-        let mut out_batch = Batch::try_new([DataType::Int32, DataType::Utf8], cap).unwrap();
+        let mut out_batch = Batch::new([DataType::Int32, DataType::Utf8], cap).unwrap();
         out.scan_data(&mut scan, &left_block.data_layout, &mut out_batch)
             .unwrap();
 

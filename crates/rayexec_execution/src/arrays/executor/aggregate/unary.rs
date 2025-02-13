@@ -195,7 +195,7 @@ mod tests {
         let state_ptr: *mut TestSumState = &mut state;
         let mut states = vec![state_ptr; 4];
 
-        let array = Array::try_new_constant(&NopBufferManager, &3.into(), 5).unwrap();
+        let array = Array::new_constant(&NopBufferManager, &3.into(), 5).unwrap();
 
         UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
             &array,

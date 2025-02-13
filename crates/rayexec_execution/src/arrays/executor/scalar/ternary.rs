@@ -213,7 +213,7 @@ mod tests {
         let count = Array::try_from_iter([1, 2, 3]).unwrap();
         let pad = Array::try_from_iter(["<", ".", "!"]).unwrap();
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -248,7 +248,7 @@ mod tests {
         let count = Array::try_from_iter([None, Some(2), Some(3)]).unwrap();
         let pad = Array::try_from_iter(["<", ".", "!"]).unwrap();
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -285,7 +285,7 @@ mod tests {
         // '[".", ".", "<"]'
         pad.select(&NopBufferManager, [1, 1, 0]).unwrap();
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -322,7 +322,7 @@ mod tests {
         // '[NULL, "!", "<"]'
         pad.select(&NopBufferManager, [1, 2, 0]).unwrap();
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -354,9 +354,9 @@ mod tests {
     fn ternary_left_prepend_constant() {
         let strings = Array::try_from_iter(["a", "b", "c"]).unwrap();
         let count = Array::try_from_iter([1, 2, 3]).unwrap();
-        let pad = Array::try_new_constant(&NopBufferManager, &"<".into(), 3).unwrap();
+        let pad = Array::new_constant(&NopBufferManager, &"<".into(), 3).unwrap();
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
         TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _, _>(

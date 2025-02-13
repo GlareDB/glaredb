@@ -141,9 +141,9 @@ mod tests {
 
         let wrapper = OperatorWrapper::new(operator);
 
-        let mut out = Batch::try_new([DataType::Int32, DataType::Utf8], 4).unwrap();
+        let mut out = Batch::new([DataType::Int32, DataType::Utf8], 4).unwrap();
 
-        let mut in1 = Batch::try_from_arrays([
+        let mut in1 = Batch::from_arrays([
             Array::try_from_iter([true, false, true, true]).unwrap(),
             Array::try_from_iter([8, 9, 7, 6]).unwrap(),
         ])
@@ -160,14 +160,14 @@ mod tests {
             )
             .unwrap();
 
-        let expected1 = Batch::try_from_arrays([
+        let expected1 = Batch::from_arrays([
             Array::try_from_iter([8, 9, 7, 6]).unwrap(),
             Array::try_from_iter(["lit", "lit", "lit", "lit"]).unwrap(),
         ])
         .unwrap();
         assert_batches_eq(&expected1, &out);
 
-        let mut in2 = Batch::try_from_arrays([
+        let mut in2 = Batch::from_arrays([
             Array::try_from_iter([true, false, true, true]).unwrap(),
             Array::try_from_iter([Some(4), Some(5), None, Some(7)]).unwrap(),
         ])
@@ -184,7 +184,7 @@ mod tests {
             )
             .unwrap();
 
-        let expected2 = Batch::try_from_arrays([
+        let expected2 = Batch::from_arrays([
             Array::try_from_iter([Some(4), Some(5), None, Some(7)]).unwrap(),
             Array::try_from_iter(["lit", "lit", "lit", "lit"]).unwrap(),
         ])

@@ -43,7 +43,7 @@ pub struct PartitionCollectingSink {
 
 impl PartitionSink for PartitionCollectingSink {
     fn poll_push(&mut self, _cx: &mut Context, input: &mut Batch) -> Result<PollPush> {
-        let batch = Batch::try_new_from_other(input)?;
+        let batch = Batch::new_from_other(input)?;
         self.batches.push(batch);
 
         Ok(PollPush::Pushed)

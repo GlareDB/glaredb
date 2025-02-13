@@ -97,7 +97,7 @@ impl ExecutableOperator for PhysicalLimit {
                 state.remaining_count,
             );
 
-            output.try_clone_from_other(input)?;
+            output.clone_from_other(input)?;
             output.select(Selection::linear(state.remaining_offset, count))?;
 
             state.remaining_offset = 0;
@@ -111,7 +111,7 @@ impl ExecutableOperator for PhysicalLimit {
         } else if state.remaining_count < input.num_rows() {
             // Remaining offset is 0, and input batch is has more rows than we
             // need, just slice to the right size.
-            output.try_clone_from_other(input)?;
+            output.clone_from_other(input)?;
             output.set_num_rows(state.remaining_count)?;
             state.remaining_count = 0;
 
@@ -119,7 +119,7 @@ impl ExecutableOperator for PhysicalLimit {
         } else {
             // Remaing offset is 0, and input batch has more rows than our
             // limit, so just use the batch as-is.
-            output.try_clone_from_other(input)?;
+            output.clone_from_other(input)?;
             state.remaining_count -= output.num_rows();
 
             Ok(PollExecute::Ready)
@@ -178,7 +178,7 @@ mod tests {
         let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e", "f"], [1, 2, 3, 4, 5, 6]);
-        let mut output = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
 
         let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(PollExecute::Exhausted, poll);
@@ -193,7 +193,7 @@ mod tests {
         let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e"], [1, 2, 3, 4, 5],);
-        let mut output = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
 
         let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(PollExecute::Ready, poll);
@@ -215,7 +215,7 @@ mod tests {
         let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e", "f"], [1, 2, 3, 4, 5, 6],);
-        let mut output = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
 
         let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(PollExecute::Exhausted, poll);
@@ -230,7 +230,7 @@ mod tests {
         let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e"], [1, 2, 3, 4, 5],);
-        let mut output = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
 
         let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(PollExecute::NeedsMore, poll);

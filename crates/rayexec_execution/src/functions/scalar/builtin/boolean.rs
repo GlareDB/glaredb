@@ -227,7 +227,7 @@ mod tests {
     fn and_bool_2() {
         let a = Array::try_from_iter([true, false, false]).unwrap();
         let b = Array::try_from_iter([true, true, false]).unwrap();
-        let batch = Batch::try_from_arrays([a, b]).unwrap();
+        let batch = Batch::from_arrays([a, b]).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -245,7 +245,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
         let expected = Array::try_from_iter([true, false, false]).unwrap();
@@ -258,7 +258,7 @@ mod tests {
         let a = Array::try_from_iter([true, true, true]).unwrap();
         let b = Array::try_from_iter([false, true, true]).unwrap();
         let c = Array::try_from_iter([true, true, false]).unwrap();
-        let batch = Batch::try_from_arrays([a, b, c]).unwrap();
+        let batch = Batch::from_arrays([a, b, c]).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -280,7 +280,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
         let expected = Array::try_from_iter([false, true, false]).unwrap();
@@ -292,7 +292,7 @@ mod tests {
     fn or_bool_2() {
         let a = Array::try_from_iter([true, false, false]).unwrap();
         let b = Array::try_from_iter([true, true, false]).unwrap();
-        let batch = Batch::try_from_arrays([a, b]).unwrap();
+        let batch = Batch::from_arrays([a, b]).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -310,7 +310,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
         let expected = Array::try_from_iter([true, true, false]).unwrap();

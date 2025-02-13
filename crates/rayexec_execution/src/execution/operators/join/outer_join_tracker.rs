@@ -4,6 +4,7 @@ use crate::arrays::array::selection::Selection;
 use crate::arrays::array::validity::Validity;
 use crate::arrays::batch::Batch;
 use crate::arrays::bitmap::Bitmap;
+use crate::arrays::cache::NopCache;
 
 /// Tracker visited rows for outer joins.
 #[derive(Debug)]
@@ -39,7 +40,7 @@ impl OuterJoinTracker {
 
         // Move all rows from right into the output.
         for (idx, array) in right.arrays.iter_mut().enumerate() {
-            output.arrays[idx + col_offset].try_clone_from_other(array)?;
+            output.arrays[idx + col_offset].clone_from_other(array, &mut NopCache)?;
         }
 
         // TODO: Avoid this.
@@ -82,13 +83,12 @@ mod tests {
     fn right_join_none_match() {
         let tracker = OuterJoinTracker::new(4);
 
-        let mut right =
-            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
-        let mut out = Batch::try_new([DataType::Utf8, DataType::Int32], 4).unwrap();
+        let mut right = Batch::from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
+        let mut out = Batch::new([DataType::Utf8, DataType::Int32], 4).unwrap();
 
         tracker.set_right_join_output(&mut right, &mut out).unwrap();
 
-        let expected = Batch::try_from_arrays([
+        let expected = Batch::from_arrays([
             Array::try_from_iter::<[Option<&str>; 4]>([None, None, None, None]).unwrap(),
             Array::try_from_iter([1, 2, 3, 4]).unwrap(),
         ])
@@ -102,9 +102,8 @@ mod tests {
         let mut tracker = OuterJoinTracker::new(4);
         tracker.set_matches([0, 1, 2, 3]);
 
-        let mut right =
-            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
-        let mut out = Batch::try_new([DataType::Utf8, DataType::Int32], 4).unwrap();
+        let mut right = Batch::from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
+        let mut out = Batch::new([DataType::Utf8, DataType::Int32], 4).unwrap();
 
         tracker.set_right_join_output(&mut right, &mut out).unwrap();
         assert_eq!(0, out.num_rows());
@@ -115,13 +114,12 @@ mod tests {
         let mut tracker = OuterJoinTracker::new(4);
         tracker.set_matches([0, 3]);
 
-        let mut right =
-            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
-        let mut out = Batch::try_new([DataType::Utf8, DataType::Int32], 4).unwrap();
+        let mut right = Batch::from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
+        let mut out = Batch::new([DataType::Utf8, DataType::Int32], 4).unwrap();
 
         tracker.set_right_join_output(&mut right, &mut out).unwrap();
 
-        let expected = Batch::try_from_arrays([
+        let expected = Batch::from_arrays([
             Array::try_from_iter::<[Option<&str>; 2]>([None, None]).unwrap(),
             Array::try_from_iter([2, 3]).unwrap(),
         ])

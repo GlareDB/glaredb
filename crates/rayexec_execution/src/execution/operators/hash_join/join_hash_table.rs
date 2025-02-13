@@ -143,7 +143,7 @@ impl JoinHashTable {
     /// Initializes a build state for this hash table.
     pub fn init_build_state(&self) -> BuildState {
         BuildState {
-            match_init: Array::try_new_constant(&NopBufferManager, &false.into(), self.batch_size)
+            match_init: Array::new_constant(&NopBufferManager, &false.into(), self.batch_size)
                 .expect("constant array to build"),
             row_append: self.data.init_append(),
         }
@@ -183,7 +183,7 @@ impl JoinHashTable {
         // Get build keys from the left for hashing.
         build_arrays.extend(self.build_key_columns.iter().map(|&idx| &input.arrays[idx]));
 
-        let mut hashes = Array::try_new(&NopBufferManager, DataType::UInt64, input.num_rows())?;
+        let mut hashes = Array::new(&NopBufferManager, DataType::UInt64, input.num_rows())?;
         let hash_vals = PhysicalU64::get_addressable_mut(&mut hashes.data)?;
         hash_many_arrays(
             build_arrays.iter().copied(),
@@ -241,7 +241,7 @@ impl JoinHashTable {
         &self,
         block_indices: impl IntoIterator<Item = usize>,
     ) -> Result<()> {
-        let mut hashes = Array::try_new(&NopBufferManager, DataType::UInt64, self.batch_size)?;
+        let mut hashes = Array::new(&NopBufferManager, DataType::UInt64, self.batch_size)?;
         let mut scan_state = self.data.init_partial_scan(block_indices);
 
         let scan_cols = &[self.hash_column_idx()];
@@ -572,8 +572,7 @@ mod tests {
         let mut rhs = generate_batch!([2, 3, 5]);
         table.probe(&mut state, &rhs).unwrap();
 
-        let mut out =
-            Batch::try_new([DataType::Utf8, DataType::Int32, DataType::Int32], 16).unwrap();
+        let mut out = Batch::new([DataType::Utf8, DataType::Int32, DataType::Int32], 16).unwrap();
         state.scan_next(&table, &mut rhs, &mut out).unwrap();
 
         let expected = generate_batch!(["b", "c"], [2, 3], [2, 3]);
@@ -605,8 +604,7 @@ mod tests {
         let mut rhs = generate_batch!([2, 4, 3, 5]);
         table.probe(&mut state, &rhs).unwrap();
 
-        let mut out =
-            Batch::try_new([DataType::Utf8, DataType::Int32, DataType::Int32], 16).unwrap();
+        let mut out = Batch::new([DataType::Utf8, DataType::Int32, DataType::Int32], 16).unwrap();
         state.scan_next(&table, &mut rhs, &mut out).unwrap();
 
         let expected = generate_batch!(["b", "d"], [2, 3], [2, 3]);

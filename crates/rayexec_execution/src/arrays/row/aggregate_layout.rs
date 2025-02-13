@@ -116,7 +116,7 @@ impl AggregateLayout {
     pub(crate) unsafe fn update_states(
         &self,
         group_ptrs: &mut [*mut u8],
-        mut inputs: &[&Array],
+        mut inputs: &[Array],
         num_rows: usize,
     ) -> Result<()> {
         debug_assert_eq!(num_rows, group_ptrs.len());

@@ -27,7 +27,7 @@ impl SourceOperation for BatchesSource {
 
         for (batch_idx, batch) in self.batches.iter_mut().enumerate() {
             let part_idx = batch_idx % partitions;
-            let new_batch = Batch::try_new_from_other(batch)?;
+            let new_batch = Batch::new_from_other(batch)?;
 
             if new_batch.num_rows() > batch_size {
                 return Err(RayexecError::new("Test batch num rows exceeds batch size"));
@@ -71,7 +71,7 @@ impl PartitionSource for PartitionBatchSource {
 
         assert!(self.curr_idx < self.batches.len());
 
-        output.try_clone_from_other(&mut self.batches[self.curr_idx])?;
+        output.clone_from_other(&mut self.batches[self.curr_idx])?;
         self.curr_idx += 1;
 
         if self.curr_idx >= self.batches.len() {

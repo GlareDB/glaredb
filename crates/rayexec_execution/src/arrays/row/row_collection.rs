@@ -157,12 +157,8 @@ impl RowCollection {
     ///
     /// This updates the scan state to allow for resuming scans.
     pub fn scan(&self, state: &mut RowScanState, output: &mut Batch) -> Result<usize> {
-        let count = state.scan(
-            &self.layout,
-            &self.blocks,
-            &mut output.arrays,
-            output.capacity,
-        )?;
+        let capacity = output.write_capacity()?;
+        let count = state.scan(&self.layout, &self.blocks, &mut output.arrays, capacity)?;
         output.set_num_rows(count)?;
 
         Ok(count)
@@ -225,7 +221,7 @@ impl RowCollection {
     #[cfg(debug_assertions)]
     #[allow(unused)]
     pub fn debug_dump(&self) -> Batch {
-        let mut batch = Batch::try_new(self.layout().types.clone(), self.row_count()).unwrap();
+        let mut batch = Batch::new(self.layout().types.clone(), self.row_count()).unwrap();
         let mut state = self.init_full_scan();
         self.scan(&mut state, &mut batch).unwrap();
 
@@ -248,7 +244,7 @@ mod tests {
         let mut state = collection.init_append();
         collection.append_batch(&mut state, &input).unwrap();
 
-        let mut output = Batch::try_new([DataType::Int32], 16).unwrap();
+        let mut output = Batch::new([DataType::Int32], 16).unwrap();
 
         let mut state = collection.init_full_scan();
         collection.scan(&mut state, &mut output).unwrap();
@@ -266,7 +262,7 @@ mod tests {
         collection.append_batch(&mut state, &input).unwrap();
         assert_eq!(6, collection.row_count());
 
-        let mut output = Batch::try_new([DataType::Int32], 16).unwrap();
+        let mut output = Batch::new([DataType::Int32], 16).unwrap();
 
         let mut state = collection.init_full_scan();
         let scan_count = collection.scan(&mut state, &mut output).unwrap();
@@ -287,7 +283,7 @@ mod tests {
         collection.append_batch(&mut state, &input2).unwrap();
         assert_eq!(32, collection.row_count());
 
-        let mut output = Batch::try_new([DataType::Int32], 16).unwrap();
+        let mut output = Batch::new([DataType::Int32], 16).unwrap();
         let mut state = collection.init_full_scan();
 
         let scan_count = collection.scan(&mut state, &mut output).unwrap();
@@ -314,7 +310,7 @@ mod tests {
         collection.append_batch(&mut state, &input).unwrap();
 
         // Scan just the string column.
-        let mut output = Array::try_new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+        let mut output = Array::new(&NopBufferManager, DataType::Utf8, 4).unwrap();
 
         let mut state = collection.init_full_scan();
         collection
@@ -334,7 +330,7 @@ mod tests {
         collection.append_batch(&mut state, &input).unwrap();
 
         // Dummy output, nothing should be written.
-        let mut output = Array::try_new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+        let mut output = Array::new(&NopBufferManager, DataType::Utf8, 4).unwrap();
 
         let mut state = collection.init_partial_scan([]);
         let count = collection
@@ -356,7 +352,7 @@ mod tests {
         let input3 = generate_batch!([9, 10, 11, 12], ["i", "j", "k", "l"]);
         collection.append_batch(&mut state, &input3).unwrap();
 
-        let mut output = Array::try_new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+        let mut output = Array::new(&NopBufferManager, DataType::Utf8, 4).unwrap();
 
         let mut state = collection.init_partial_scan([1]);
         let count = collection
@@ -397,7 +393,7 @@ mod tests {
 
         collection1.merge(collection2).unwrap();
 
-        let mut output = Batch::try_new([DataType::Utf8], 16).unwrap();
+        let mut output = Batch::new([DataType::Utf8], 16).unwrap();
         let mut state = collection1.init_full_scan();
         let count = collection1.scan(&mut state, &mut output).unwrap();
         assert_eq!(7, count);

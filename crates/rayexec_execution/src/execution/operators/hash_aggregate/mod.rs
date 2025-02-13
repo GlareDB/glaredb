@@ -1,5 +1,5 @@
 mod aggregate_hash_table;
-mod partitioned_hash_table;
+mod grouping_set_hash_table;
 
 use std::collections::BTreeSet;
 use std::task::{Context, Waker};

@@ -363,7 +363,7 @@ mod tests {
 
         // Now probe
         let mut probe_input = generate_batch!([1, 2, 3]);
-        let mut out = Batch::try_new([DataType::Utf8, DataType::Int32], 1024).unwrap();
+        let mut out = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
         // First probe.
         let poll = operator.binary_execute_inout(&mut states, 0, &mut probe_input, &mut out);
         assert_eq!(PollExecute::HasMore, poll);
@@ -408,8 +408,7 @@ mod tests {
         let poll = operator.binary_finalize_sink(&mut states, 0);
         assert_eq!(PollFinalize::Finalized, poll);
 
-        let mut out =
-            Batch::try_new([DataType::Int32, DataType::Utf8, DataType::Utf8], 1024).unwrap();
+        let mut out = Batch::new([DataType::Int32, DataType::Utf8, DataType::Utf8], 1024).unwrap();
 
         // Probe with "key2" & "key3"
         let mut probe_input = generate_batch!(["key2", "key3"]);

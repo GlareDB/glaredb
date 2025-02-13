@@ -57,7 +57,7 @@ impl TestRowBlock {
     #[track_caller]
     pub fn scan_batch(&self) -> Batch {
         let cap = self.rows.num_rows(self.layout.row_width);
-        let mut batch = Batch::try_new(self.layout.types.clone(), cap).unwrap();
+        let mut batch = Batch::new(self.layout.types.clone(), cap).unwrap();
 
         let mut state = BlockScanState::empty();
         unsafe {
@@ -140,7 +140,7 @@ impl TestSortedRowBlock {
     #[track_caller]
     pub fn scan_data_batch(&self) -> Batch {
         let cap = self.sorted_block.keys.num_rows(self.key_layout.row_width);
-        let mut batch = Batch::try_new(self.data_layout.types.clone(), cap).unwrap();
+        let mut batch = Batch::new(self.data_layout.types.clone(), cap).unwrap();
 
         let mut state = BlockScanState::empty();
         unsafe {

@@ -71,6 +71,7 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::array::validity::Validity;
 use crate::arrays::array::Array;
+use crate::arrays::cache::NopCache;
 use crate::arrays::datatype::{DataType, TimeUnit};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
@@ -90,7 +91,7 @@ pub fn cast_array(
     behavior: CastFailBehavior,
 ) -> Result<()> {
     if arr.datatype() == out.datatype() {
-        out.select_from_other(&NopBufferManager, arr, sel)?;
+        out.select_from_other(&NopBufferManager, arr, sel, &mut NopCache)?;
         return Ok(());
     }
 
@@ -100,7 +101,7 @@ pub fn cast_array(
         DataType::Null => {
             // Can cast NULL to anything else. Just set the valid mask to all
             // invalid.
-            out.put_validity(Validity::new_all_invalid(out.capacity()))?;
+            out.put_validity(Validity::new_all_invalid(out.logical_len()))?;
             Ok(())
         }
 
@@ -846,7 +847,7 @@ mod tests {
     fn array_cast_i32_to_i32() {
         // Should clone the underlying buffer and not actually do any casting.
         let mut arr = Array::try_from_iter([4, 5, 6]).unwrap();
-        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 16).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 16).unwrap();
 
         cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap();
 
@@ -857,7 +858,7 @@ mod tests {
     #[test]
     fn array_cast_utf8_to_i32() {
         let mut arr = Array::try_from_iter(["13", "18", "123456789"]).unwrap();
-        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
         cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap();
 
@@ -868,14 +869,14 @@ mod tests {
     #[test]
     fn array_cast_utf8_to_i32_overflow_error() {
         let mut arr = Array::try_from_iter(["13", "18", "123456789000000"]).unwrap();
-        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
         cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap_err();
     }
 
     #[test]
     fn array_cast_utf8_to_i32_overflow_null() {
         let mut arr = Array::try_from_iter(["13", "18", "123456789000000"]).unwrap();
-        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
         cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Null).unwrap();
 
@@ -885,8 +886,8 @@ mod tests {
 
     #[test]
     fn array_cast_null_to_f32() {
-        let mut arr = Array::try_new(&NopBufferManager, DataType::Null, 3).unwrap();
-        let mut out = Array::try_new(&NopBufferManager, DataType::Float32, 3).unwrap();
+        let mut arr = Array::new(&NopBufferManager, DataType::Null, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Float32, 3).unwrap();
 
         cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap();
 
@@ -901,7 +902,7 @@ mod tests {
         // '[1.500, 2.000, 2.500]'
         arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(10, 3));
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Float64, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Float64, 3).unwrap();
         cast_array(&mut arr, 0..3, &mut out, CastFailBehavior::Error).unwrap();
 
         let expected = Array::try_from_iter([1.5_f64, 2.0, 2.5]).unwrap();

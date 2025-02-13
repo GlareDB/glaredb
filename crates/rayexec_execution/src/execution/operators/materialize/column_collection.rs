@@ -53,7 +53,7 @@ impl ColumnCollection {
     pub fn append(&mut self, batch: &Batch) -> Result<()> {
         // Ensure we have at least one batch to use.
         if self.batches.is_empty() {
-            let batch = Batch::try_new(self.types.clone(), self.batch_capacity)?;
+            let batch = Batch::new(self.types.clone(), self.batch_capacity)?;
             self.batches.push(batch);
         }
 
@@ -62,7 +62,8 @@ impl ColumnCollection {
 
         while rows_remaining != 0 {
             let buffer = self.batches.last_mut().expect("at least one batch");
-            let copy_count = usize::min(buffer.capacity - buffer.num_rows, rows_remaining);
+            let capacity = buffer.write_capacity()?;
+            let copy_count = usize::min(capacity - buffer.num_rows, rows_remaining);
 
             // Generate mapping for this "slice" of the input batch.
             let mapping = (copy_offset..(copy_offset + copy_count))
@@ -76,7 +77,7 @@ impl ColumnCollection {
 
             if rows_remaining > 0 {
                 // Didn't fit everything into this batch, create a new batch to use.
-                let batch = Batch::try_new(self.types.clone(), self.batch_capacity)?;
+                let batch = Batch::new(self.types.clone(), self.batch_capacity)?;
                 self.batches.push(batch);
             }
         }
@@ -123,12 +124,12 @@ mod tests {
     fn append_fits_in_single_buffer() {
         let mut collection = ColumnCollection::new([DataType::Int32], 16);
 
-        let input = Batch::try_from_arrays([Array::try_from_iter([1, 2, 3]).unwrap()]).unwrap();
+        let input = Batch::from_arrays([Array::try_from_iter([1, 2, 3]).unwrap()]).unwrap();
         collection.append(&input).unwrap();
         assert_eq!(1, collection.num_batches());
         assert_eq!(3, collection.row_count());
 
-        let expected = Batch::try_from_arrays([Array::try_from_iter([1, 2, 3]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([1, 2, 3]).unwrap()]).unwrap();
         assert_batches_eq(&expected, collection.get_batch(0).unwrap());
     }
 
@@ -136,15 +137,15 @@ mod tests {
     fn append_exceeds_single_buffer() {
         let mut collection = ColumnCollection::new([DataType::Int32], 16);
 
-        let input = Batch::try_from_arrays([Array::try_from_iter(0..17_i32).unwrap()]).unwrap();
+        let input = Batch::from_arrays([Array::try_from_iter(0..17_i32).unwrap()]).unwrap();
         collection.append(&input).unwrap();
         assert_eq!(2, collection.num_batches());
         assert_eq!(17, collection.row_count());
 
-        let expected1 = Batch::try_from_arrays([Array::try_from_iter(0..16_i32).unwrap()]).unwrap();
+        let expected1 = Batch::from_arrays([Array::try_from_iter(0..16_i32).unwrap()]).unwrap();
         assert_batches_eq(&expected1, collection.get_batch(0).unwrap());
 
-        let expected2 = Batch::try_from_arrays([Array::try_from_iter([16]).unwrap()]).unwrap();
+        let expected2 = Batch::from_arrays([Array::try_from_iter([16]).unwrap()]).unwrap();
         assert_batches_eq(&expected2, collection.get_batch(1).unwrap());
     }
 
@@ -152,19 +153,18 @@ mod tests {
     fn append_requireds_many_buffers() {
         let mut collection = ColumnCollection::new([DataType::Int32], 16);
 
-        let input = Batch::try_from_arrays([Array::try_from_iter(0..33_i32).unwrap()]).unwrap();
+        let input = Batch::from_arrays([Array::try_from_iter(0..33_i32).unwrap()]).unwrap();
         collection.append(&input).unwrap();
         assert_eq!(3, collection.num_batches());
         assert_eq!(33, collection.row_count());
 
-        let expected1 = Batch::try_from_arrays([Array::try_from_iter(0..16_i32).unwrap()]).unwrap();
+        let expected1 = Batch::from_arrays([Array::try_from_iter(0..16_i32).unwrap()]).unwrap();
         assert_batches_eq(&expected1, collection.get_batch(0).unwrap());
 
-        let expected2 =
-            Batch::try_from_arrays([Array::try_from_iter(16..32_i32).unwrap()]).unwrap();
+        let expected2 = Batch::from_arrays([Array::try_from_iter(16..32_i32).unwrap()]).unwrap();
         assert_batches_eq(&expected2, collection.get_batch(1).unwrap());
 
-        let expected3 = Batch::try_from_arrays([Array::try_from_iter([32]).unwrap()]).unwrap();
+        let expected3 = Batch::from_arrays([Array::try_from_iter([32]).unwrap()]).unwrap();
         assert_batches_eq(&expected3, collection.get_batch(2).unwrap());
     }
 }

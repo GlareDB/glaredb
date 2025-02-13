@@ -359,7 +359,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     for (partition_pipeline, state) in
                         partition_pipelines.iter_mut().zip(op.partition_states)
                     {
-                        let output_buffer = Batch::try_new(
+                        let output_buffer = Batch::new(
                             op.operator.output_types().to_vec(),
                             self.config.batch_size,
                         )?;
@@ -387,7 +387,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     for (partition_pipeline, state) in
                         partition_pipelines.iter_mut().zip(op.passthrough_states)
                     {
-                        let output_buffer = Batch::try_new(
+                        let output_buffer = Batch::new(
                             op.operator.output_types().to_vec(),
                             self.config.batch_size,
                         )?;
@@ -417,7 +417,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                     for (partition_pipeline, state) in
                         partition_pipelines.iter_mut().zip(op.input_states)
                     {
-                        let output_buffer = Batch::try_new(
+                        let output_buffer = Batch::new(
                             op.operator.output_types().to_vec(),
                             self.config.batch_size,
                         )?;

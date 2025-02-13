@@ -4,13 +4,25 @@ use stdutil::convert::TryAsMut;
 use super::array::array_buffer::{ArrayBuffer, ArrayBufferType, ScalarBuffer, StringBuffer};
 use super::array::buffer_manager::BufferManager;
 use super::array::Array;
-use super::batch::Batch;
 use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::array::validity::Validity;
 
 /// Maybe cache a buffer.
 pub trait MaybeCache<B: BufferManager> {
     fn maybe_cache(&mut self, buffer: ArrayBuffer<B>);
+}
+
+impl<M, B> MaybeCache<B> for Option<M>
+where
+    M: MaybeCache<B>,
+    B: BufferManager,
+{
+    fn maybe_cache(&mut self, buffer: ArrayBuffer<B>) {
+        match self {
+            Some(cache) => cache.maybe_cache(buffer),
+            None => NopCache.maybe_cache(buffer),
+        }
+    }
 }
 
 /// Implementation of `MaybeCache` that always drops the buffer.
@@ -80,6 +92,7 @@ where
         cap: usize,
     ) -> Result<()> {
         // TODO: Possibly check ref count.
+        // TODO: Check if shared, if not and its the correct capacity, then we can return early.
 
         let cached = std::mem::replace(cached, Cached::None);
         let buffer = match cached {

@@ -14,6 +14,7 @@ use super::{
 };
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::raw::AlignedBuffer;
+use crate::arrays::batch::Batch;
 use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -29,6 +30,8 @@ pub enum UngroupedAggregatePartitionState {
         values: AlignedBuffer<u8, NopBufferManager>,
         /// Reusable buffer for storing pointers to an aggregate state.
         ptr_buf: Vec<*mut u8>,
+        /// Aggregate inputs buffer.
+        agg_inputs: Batch,
     },
     /// Partition is draining.
     ///
@@ -104,12 +107,20 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         batch_size: usize,
         partitions: usize,
     ) -> Result<Self::States> {
+        let agg_input_types: Vec<_> = self
+            .layout
+            .aggregates
+            .iter()
+            .flat_map(|agg| agg.columns.iter().map(|col| col.datatype.clone()))
+            .collect();
+
         let partition_states = (0..partitions)
             .map(|_| {
                 Ok(PartitionState::UngroupedAggregate(
                     UngroupedAggregatePartitionState::Aggregating {
                         values: self.try_init_buffer()?,
                         ptr_buf: Vec::with_capacity(batch_size),
+                        agg_inputs: Batch::new(agg_input_types.clone(), 0)?,
                     },
                 ))
             })
@@ -141,15 +152,23 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         };
 
         match state {
-            UngroupedAggregatePartitionState::Aggregating { values, ptr_buf } => {
+            UngroupedAggregatePartitionState::Aggregating {
+                values,
+                ptr_buf,
+                agg_inputs,
+            } => {
                 let input = inout.input.required("input batch required")?;
 
-                let agg_inputs: Vec<_> = self
+                // Get aggregate inputs.
+                for (dest_idx, src_idx) in self
                     .layout
                     .aggregates
                     .iter()
-                    .flat_map(|agg| agg.columns.iter().map(|col| &input.arrays[col.idx]))
-                    .collect();
+                    .flat_map(|agg| agg.columns.iter().map(|col| col.idx))
+                    .enumerate()
+                {
+                    agg_inputs.clone_array_from(dest_idx, (input, src_idx))?;
+                }
 
                 // All inputs update the same "group".
                 ptr_buf.clear();
@@ -160,7 +179,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 unsafe {
                     self.layout.update_states(
                         ptr_buf.as_mut_slice(),
-                        &agg_inputs,
+                        &agg_inputs.arrays,
                         input.num_rows,
                     )?;
                 }
@@ -286,7 +305,7 @@ mod tests {
         let mut states = operator.create_unary_states(1024, 1);
 
         let mut input = generate_batch!([1_i64, 2, 3, 4]);
-        let mut output = Batch::try_new([DataType::Int64], 1024).unwrap();
+        let mut output = Batch::new([DataType::Int64], 1024).unwrap();
 
         let poll = operator.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(PollExecute::NeedsMore, poll);
@@ -316,7 +335,7 @@ mod tests {
 
         let mut states = operator.create_unary_states(1024, 2);
 
-        let mut output = Batch::try_new([DataType::Int64], 1024).unwrap();
+        let mut output = Batch::new([DataType::Int64], 1024).unwrap();
 
         // Execute and exhaust first partition.
         let mut input = generate_batch!([1_i64, 2, 3, 4]);
@@ -366,7 +385,7 @@ mod tests {
         let mut states = operator.create_unary_states(1024, 1);
 
         let mut input = generate_batch!([22_i64, 33, 11, 44], [1_i64, 2, 3, 4]);
-        let mut output = Batch::try_new([DataType::Int64, DataType::Int64], 1024).unwrap();
+        let mut output = Batch::new([DataType::Int64, DataType::Int64], 1024).unwrap();
 
         let poll = operator.unary_execute_inout(&mut states, 0, &mut input, &mut output);
         assert_eq!(PollExecute::NeedsMore, poll);

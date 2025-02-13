@@ -51,7 +51,6 @@ use validity::Validity;
 
 use super::cache::MaybeCache;
 use super::compute::copy::copy_rows_array;
-use crate::arrays::cache::NopCache;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
 use crate::arrays::scalar::interval::Interval;
@@ -78,7 +77,7 @@ where
     ///
     /// This will take care of initalizing the data buffer depending on the
     /// datatype. All buffers will be "owned".
-    pub fn try_new(manager: &B, datatype: DataType, capacity: usize) -> Result<Self> {
+    pub fn new(manager: &B, datatype: DataType, capacity: usize) -> Result<Self> {
         let data = ArrayBuffer::try_new_for_datatype(manager, &datatype, capacity)?;
         let validity = Validity::new_all_valid(capacity);
 
@@ -94,7 +93,7 @@ where
     /// This will make the underlying array from other "managed", which will
     /// then be cloned into this array. No array data will be allocated for this
     /// array.
-    pub fn try_new_from_other(_manager: &B, other: &mut Self) -> Result<Self> {
+    pub fn new_from_other(_manager: &B, other: &mut Self) -> Result<Self> {
         Ok(Array {
             datatype: other.datatype.clone(),
             validity: other.validity.clone(),
@@ -106,8 +105,8 @@ where
     ///
     /// This internally creates an array of size 1 with all values pointing to
     /// that same element.
-    pub fn try_new_constant(manager: &B, value: &ScalarValue, len: usize) -> Result<Self> {
-        let mut arr = Self::try_new(manager, value.datatype(), 1)?;
+    pub fn new_constant(manager: &B, value: &ScalarValue, len: usize) -> Result<Self> {
+        let mut arr = Self::new(manager, value.datatype(), 1)?;
         arr.set_value(0, value)?;
 
         let buffer = ConstantBuffer {
@@ -130,7 +129,7 @@ where
     }
 
     /// Creates a new array backed by a constant value from another array.
-    pub fn try_new_constant_from_other(
+    pub fn new_constant_from_other(
         manager: &B,
         other: &mut Self,
         row_reference: usize,
@@ -139,7 +138,7 @@ where
         // TODO: For nested types, we should get a shared reference to the
         // buffer instead of getting the value.
         let value = other.get_value(row_reference)?;
-        Self::try_new_constant(manager, &value, len)
+        Self::new_constant(manager, &value, len)
     }
 
     /// Create a new typed null array.
@@ -149,7 +148,7 @@ where
     ///
     /// A buffer of size 1 will be created with all values pointing to the same
     /// element.
-    pub fn try_new_typed_null(manager: &B, datatype: DataType, len: usize) -> Result<Self> {
+    pub fn new_typed_null(manager: &B, datatype: DataType, len: usize) -> Result<Self> {
         let data = ArrayBuffer::try_new_for_datatype(manager, &datatype, 1)?;
         let buffer = ConstantBuffer {
             row_reference: 0,
@@ -164,11 +163,18 @@ where
         })
     }
 
-    /// Try to clone data from the other array into this one.
-    ///
-    /// This will not attempt to cache any buffers.
-    pub fn try_clone_from_other(&mut self, other: &mut Self) -> Result<()> {
-        self.try_clone_from_other_with_cache(other, &mut NopCache)
+    pub fn swap(&mut self, other: &mut Self) -> Result<()> {
+        if self.datatype != other.datatype {
+            return Err(
+                RayexecError::new("Cannot swap arrays with different data types")
+                    .with_field("self", self.datatype.clone())
+                    .with_field("other", other.datatype.clone()),
+            );
+        }
+
+        std::mem::swap(self, other);
+
+        Ok(())
     }
 
     /// Try to clone the data from the other array into this one, possibly
@@ -177,11 +183,19 @@ where
     /// This will attempt to make the data from the other array buffer shared,
     /// and set it on this array. The existing array data will potentially be
     /// cached for later reuse.
-    pub fn try_clone_from_other_with_cache(
+    pub fn clone_from_other(
         &mut self,
         other: &mut Self,
         cache: &mut impl MaybeCache<B>,
     ) -> Result<()> {
+        if self.datatype != other.datatype {
+            return Err(
+                RayexecError::new("Cannot clone arrays with different data types")
+                    .with_field("self", self.datatype.clone())
+                    .with_field("other", other.datatype.clone()),
+            );
+        }
+
         let other_data = other.data.make_shared_and_clone();
         let existing = std::mem::replace(&mut self.data, other_data);
         cache.maybe_cache(existing);
@@ -190,27 +204,25 @@ where
         Ok(())
     }
 
-    /// Try to clone a constant rwo from the other array.
-    pub fn try_clone_constant_from_other(
-        &mut self,
-        other: &mut Self,
-        row: usize,
-        len: usize,
-    ) -> Result<()> {
-        self.try_clone_constant_from_other_with_cache(other, row, len, &mut NopCache)
-    }
-
     /// Try to clone a constant from the other array, attempting to cache the
     /// current buffer.
     ///
     /// Attempts to cache the existing the buffer.
-    pub fn try_clone_constant_from_other_with_cache(
+    pub fn clone_constant_from(
         &mut self,
         other: &mut Self,
         row: usize,
         len: usize,
         cache: &mut impl MaybeCache<B>,
     ) -> Result<()> {
+        if self.datatype != other.datatype {
+            return Err(
+                RayexecError::new("Cannot clone arrays with different data types")
+                    .with_field("self", self.datatype.clone())
+                    .with_field("other", other.datatype.clone()),
+            );
+        }
+
         let new_validity = if other.validity.is_valid(row) {
             Validity::new_all_valid(len)
         } else {
@@ -263,7 +275,7 @@ where
         }
     }
 
-    pub fn capacity(&self) -> usize {
+    pub fn logical_len(&self) -> usize {
         self.data.logical_len()
     }
 
@@ -384,31 +396,20 @@ where
         }
     }
 
-    /// Selects from some other array and puts the selection in this array
-    /// without caching buffers.
-    pub fn select_from_other(
-        &mut self,
-        manager: &B,
-        other: &mut Self,
-        selection: impl IntoExactSizeIterator<Item = usize> + Clone,
-    ) -> Result<()> {
-        self.select_from_other_with_cache(manager, other, selection, &mut NopCache)
-    }
-
     /// Selects from some other array and puts the selection in this array.
     ///
     /// This first "clones" the other array data into self, then applies a
     /// selection on top of the shared array data.
     ///
     /// This will attempt to put the current array buffer in provided cache.
-    pub fn select_from_other_with_cache(
+    pub fn select_from_other(
         &mut self,
         manager: &B,
         other: &mut Self,
         selection: impl IntoExactSizeIterator<Item = usize> + Clone,
         cache: &mut impl MaybeCache<B>,
     ) -> Result<()> {
-        self.try_clone_from_other_with_cache(other, cache)?;
+        self.clone_from_other(other, cache)?;
         self.select(manager, selection)
     }
 
@@ -425,10 +426,10 @@ where
     }
 
     pub fn get_value(&self, idx: usize) -> Result<ScalarValue> {
-        if idx >= self.capacity() {
+        if idx >= self.logical_len() {
             return Err(RayexecError::new("Index out of bounds")
                 .with_field("idx", idx)
-                .with_field("capacity", self.capacity()));
+                .with_field("capacity", self.logical_len()));
         }
 
         let flat = self.flatten()?;
@@ -448,10 +449,10 @@ where
             not_implemented!("set value for dictionary/constant arrays")
         }
 
-        if idx >= self.capacity() {
+        if idx >= self.logical_len() {
             return Err(RayexecError::new("Index out of bounds")
                 .with_field("idx", idx)
-                .with_field("capacity", self.capacity()));
+                .with_field("capacity", self.logical_len()));
         }
 
         self.validity.set_valid(idx);
@@ -563,13 +564,6 @@ where
         }
 
         Ok(())
-    }
-}
-
-impl Array {
-    #[deprecated]
-    pub fn logical_len(&self) -> usize {
-        unimplemented!()
     }
 }
 
@@ -725,7 +719,7 @@ macro_rules! impl_primitive_from_iter {
                 let iter = iter.into_exact_size_iter();
                 let manager = NopBufferManager;
 
-                let mut array = Array::try_new(&manager, DataType::$typ_variant, iter.len())?;
+                let mut array = Array::new(&manager, DataType::$typ_variant, iter.len())?;
                 let slice = <$phys>::get_addressable_mut(&mut array.data)?;
 
                 for (src, dest) in iter.zip(slice.slice) {
@@ -782,7 +776,7 @@ where
         let iter = iter.into_exact_size_iter();
         let manager = NopBufferManager;
 
-        let mut array = Array::try_new(&manager, DataType::Utf8, iter.len())?;
+        let mut array = Array::new(&manager, DataType::Utf8, iter.len())?;
         let mut buf = PhysicalUtf8::get_addressable_mut(&mut array.data)?;
 
         for (idx, v) in iter.enumerate() {
@@ -829,13 +823,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::arrays::cache::NopCache;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::ListTypeMeta;
     use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn try_new_constant_utf8() {
-        let arr = Array::try_new_constant(&NopBufferManager, &"a".into(), 4).unwrap();
+        let arr = Array::new_constant(&NopBufferManager, &"a".into(), 4).unwrap();
         let expected = Array::try_from_iter(["a", "a", "a", "a"]).unwrap();
         assert_arrays_eq(&expected, &arr);
     }
@@ -843,7 +838,7 @@ mod tests {
     #[test]
     fn try_new_from_other_simple() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
-        let new_arr = Array::try_new_from_other(&NopBufferManager, &mut arr).unwrap();
+        let new_arr = Array::new_from_other(&NopBufferManager, &mut arr).unwrap();
 
         let expected = Array::try_from_iter(["a", "b", "c"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -856,7 +851,7 @@ mod tests {
         // => '["b", "a", "a", "b"]'
         arr.select(&NopBufferManager, [1, 0, 0, 1]).unwrap();
 
-        let new_arr = Array::try_new_from_other(&NopBufferManager, &mut arr).unwrap();
+        let new_arr = Array::new_from_other(&NopBufferManager, &mut arr).unwrap();
 
         let expected = Array::try_from_iter(["b", "a", "a", "b"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -865,8 +860,8 @@ mod tests {
 
     #[test]
     fn try_new_from_other_constant() {
-        let mut arr = Array::try_new_constant(&NopBufferManager, &"cat".into(), 4).unwrap();
-        let new_arr = Array::try_new_from_other(&NopBufferManager, &mut arr).unwrap();
+        let mut arr = Array::new_constant(&NopBufferManager, &"cat".into(), 4).unwrap();
+        let new_arr = Array::new_from_other(&NopBufferManager, &mut arr).unwrap();
 
         let expected = Array::try_from_iter(["cat", "cat", "cat", "cat"]).unwrap();
 
@@ -875,7 +870,7 @@ mod tests {
 
     #[test]
     fn try_new_typed_null_array() {
-        let arr = Array::try_new_typed_null(&NopBufferManager, DataType::Int32, 4).unwrap();
+        let arr = Array::new_typed_null(&NopBufferManager, DataType::Int32, 4).unwrap();
         let expected = Array::try_from_iter::<[Option<i32>; 4]>([None, None, None, None]).unwrap();
         assert_arrays_eq(&expected, &arr);
 
@@ -924,7 +919,7 @@ mod tests {
 
     #[test]
     fn select_constant() {
-        let mut arr = Array::try_new_constant(&NopBufferManager, &"dog".into(), 3).unwrap();
+        let mut arr = Array::new_constant(&NopBufferManager, &"dog".into(), 3).unwrap();
         arr.select(&NopBufferManager, [0, 1, 2, 0, 1, 2]).unwrap();
 
         let expected = Array::try_from_iter(["dog", "dog", "dog", "dog", "dog", "dog"]).unwrap();
@@ -937,7 +932,7 @@ mod tests {
         // it be created from an existing array.
 
         let mut arr1 = Array::try_from_iter([1, 2, 3]).unwrap();
-        let mut arr2 = Array::try_new_from_other(&NopBufferManager, &mut arr1).unwrap();
+        let mut arr2 = Array::new_from_other(&NopBufferManager, &mut arr1).unwrap();
         // => [2, 1, 3]
         arr2.select(&NopBufferManager, [1, 0, 2]).unwrap();
 
@@ -949,8 +944,8 @@ mod tests {
     fn select_after_making_constant_array_data_shared() {
         // Same as above, just with a constant array.
 
-        let mut arr1 = Array::try_new_constant(&NopBufferManager, &14.into(), 3).unwrap();
-        let mut arr2 = Array::try_new_from_other(&NopBufferManager, &mut arr1).unwrap();
+        let mut arr1 = Array::new_constant(&NopBufferManager, &14.into(), 3).unwrap();
+        let mut arr2 = Array::new_from_other(&NopBufferManager, &mut arr1).unwrap();
         // => [14, 14, 14]
         arr2.select(&NopBufferManager, [1, 0, 2]).unwrap();
 
@@ -988,14 +983,14 @@ mod tests {
 
     #[test]
     fn get_value_constant() {
-        let arr = Array::try_new_constant(&NopBufferManager, &"cat".into(), 4).unwrap();
+        let arr = Array::new_constant(&NopBufferManager, &"cat".into(), 4).unwrap();
         let val = arr.get_value(2).unwrap();
         assert_eq!(ScalarValue::Utf8("cat".into()), val);
     }
 
     #[test]
     fn get_value_list_i32() {
-        let mut lists = Array::try_new(
+        let mut lists = Array::new(
             &NopBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             4,
@@ -1022,35 +1017,38 @@ mod tests {
     }
 
     #[test]
-    fn try_clone_constant_from_other_i32_valid() {
+    fn clone_constant_from_other_i32_valid() {
         let mut arr = Array::try_from_iter([1, 2, 3]).unwrap();
-        let mut arr2 = Array::try_new(&NopBufferManager, DataType::Int32, 16).unwrap();
+        let mut arr2 = Array::new(&NopBufferManager, DataType::Int32, 16).unwrap();
 
-        arr2.try_clone_constant_from_other(&mut arr, 1, 8).unwrap();
+        arr2.clone_constant_from(&mut arr, 1, 8, &mut NopCache)
+            .unwrap();
 
         let expected = Array::try_from_iter([2, 2, 2, 2, 2, 2, 2, 2]).unwrap();
         assert_arrays_eq(&expected, &arr2);
     }
 
     #[test]
-    fn try_clone_constant_from_other_i32_null() {
+    fn clone_constant_from_other_i32_null() {
         let mut arr = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
-        let mut arr2 = Array::try_new(&NopBufferManager, DataType::Int32, 16).unwrap();
+        let mut arr2 = Array::new(&NopBufferManager, DataType::Int32, 16).unwrap();
 
-        arr2.try_clone_constant_from_other(&mut arr, 1, 8).unwrap();
+        arr2.clone_constant_from(&mut arr, 1, 8, &mut NopCache)
+            .unwrap();
 
         let expected = Array::try_from_iter(vec![None as Option<i32>; 8]).unwrap();
         assert_arrays_eq(&expected, &arr2);
     }
 
     #[test]
-    fn try_clone_constant_from_other_i32_dictionary() {
+    fn clone_constant_from_other_i32_dictionary() {
         let mut arr = Array::try_from_iter([1, 2, 3]).unwrap();
         // => [2, 3, 1]
         arr.select(&NopBufferManager, [1, 2, 0]).unwrap();
-        let mut arr2 = Array::try_new(&NopBufferManager, DataType::Int32, 16).unwrap();
+        let mut arr2 = Array::new(&NopBufferManager, DataType::Int32, 16).unwrap();
 
-        arr2.try_clone_constant_from_other(&mut arr, 1, 8).unwrap();
+        arr2.clone_constant_from(&mut arr, 1, 8, &mut NopCache)
+            .unwrap();
 
         let expected = Array::try_from_iter([3, 3, 3, 3, 3, 3, 3, 3]).unwrap();
         assert_arrays_eq(&expected, &arr2);

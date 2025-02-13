@@ -4,6 +4,7 @@ use super::join_hash_table::JoinHashTable;
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
+use crate::arrays::cache::NopCache;
 use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::row::row_matcher::MatchState;
 use crate::logical::logical_join::JoinType;
@@ -113,6 +114,7 @@ impl HashTableScanState {
                 &NopBufferManager,
                 rhs,
                 self.match_state.get_row_matches().iter().copied(),
+                &mut NopCache,
             )?;
         }
 

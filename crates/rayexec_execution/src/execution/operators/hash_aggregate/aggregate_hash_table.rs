@@ -21,7 +21,7 @@ use crate::execution::operators::util::power_of_two::{
 
 // TODO: Rename?, used for inserting into the table but also for merging tables.
 #[derive(Debug)]
-pub struct InsertState {
+pub struct AggregateHashTableInsertState {
     /// Reusable buffer containing pointers to the beginning of rows that we
     /// should update.
     row_ptrs: Vec<*mut u8>,
@@ -41,16 +41,16 @@ pub struct InsertState {
 #[derive(Debug)]
 pub struct AggregateHashTable {
     /// Layout to use for storing the aggregate states and group values.
-    layout: AggregateLayout,
+    pub(crate) layout: AggregateLayout,
     /// Hash table directory.
-    directory: Directory,
+    pub(crate) directory: Directory,
     /// Byte offset to where a hash is stored in a row.
-    hash_offset: usize,
+    pub(crate) hash_offset: usize,
     /// Hash table data storing the group and aggregate states.
-    data: AggregateCollection,
+    pub(crate) data: AggregateCollection,
     /// Group value matcher.
-    matcher: GroupMatcher,
-    row_capacity: usize,
+    pub(crate) matcher: GroupMatcher,
+    pub(crate) row_capacity: usize,
 }
 
 impl AggregateHashTable {
@@ -70,7 +70,7 @@ impl AggregateHashTable {
         unimplemented!()
     }
 
-    pub fn init_insert_state(&self) -> InsertState {
+    pub fn init_insert_state(&self) -> AggregateHashTableInsertState {
         unimplemented!()
         // InsertState{
         //     hashes: Vec::new(),
@@ -79,46 +79,47 @@ impl AggregateHashTable {
         // }
     }
 
+    /// Insert groups and aggregate inputs into the hash table.
+    ///
+    /// `inputs` should be ordered inputs to the aggregates in this table.
+    ///
+    /// See `AggregateLayout::update_states` for specifics.
     pub fn insert(
         &mut self,
-        state: &mut InsertState,
-        groups: &[&Array],
-        inputs: &[&Array],
-        num_rows: usize,
+        state: &mut AggregateHashTableInsertState,
+        groups: &Batch,
+        inputs: &Batch,
     ) -> Result<()> {
+        debug_assert_eq!(groups.num_rows, inputs.num_rows);
+
         // Hash the groups.
         // TODO: Avoid allocating here.
-        let mut hashes_arr = Array::try_new(&NopBufferManager, DataType::UInt64, num_rows)?;
+        let mut hashes_arr = Array::new(&NopBufferManager, DataType::UInt64, groups.num_rows)?;
         let hashes = PhysicalU64::get_addressable_mut(&mut hashes_arr.data)?.slice;
-        hash_many_arrays(groups, 0..num_rows, hashes)?;
+        hash_many_arrays(&groups.arrays, 0..groups.num_rows, hashes)?;
 
         state.row_ptrs.clear();
         state
             .row_ptrs
-            .extend(std::iter::repeat(std::ptr::null_mut()).take(num_rows));
+            .extend(std::iter::repeat(std::ptr::null_mut()).take(groups.num_rows));
 
         self.find_or_create_groups(
             &mut state.append_state,
             &mut state.match_state,
-            groups,
+            &groups.arrays,
             &hashes_arr,
-            num_rows,
+            groups.num_rows,
             &mut state.row_ptrs,
         )?;
 
         debug_assert!(!state.row_ptrs.iter().any(|ptr| ptr.is_null()));
 
-        // Update states.
-        let agg_inputs: Vec<_> = self
-            .layout
-            .aggregates
-            .iter()
-            .flat_map(|agg| agg.columns.iter().map(|col| inputs[col.idx]))
-            .collect();
-
         unsafe {
-            self.layout
-                .update_states(state.row_ptrs.as_mut_slice(), &agg_inputs, num_rows)?;
+            self.layout.update_states(
+                state.row_ptrs.as_mut_slice(),
+                &inputs.arrays,
+                inputs.num_rows,
+            )?;
         }
 
         Ok(())
@@ -298,7 +299,11 @@ impl AggregateHashTable {
         Ok(())
     }
 
-    pub fn merge_from(&mut self, state: &mut InsertState, other: &mut Self) -> Result<()> {
+    pub fn merge_from(
+        &mut self,
+        state: &mut AggregateHashTableInsertState,
+        other: &mut Self,
+    ) -> Result<()> {
         if self.directory.num_occupied == 0 {
             std::mem::swap(self, other);
             return Ok(());
@@ -359,7 +364,7 @@ impl<'a> MergeScanState<'a> {
         layout: &AggregateLayout,
         row_cap: usize,
     ) -> Result<Self> {
-        let groups = Batch::try_new(layout.groups.types.clone(), row_cap)?;
+        let groups = Batch::new(layout.groups.types.clone(), row_cap)?;
 
         Ok(MergeScanState {
             group_scan: RowScanState::new(),
@@ -372,11 +377,10 @@ impl<'a> MergeScanState<'a> {
     fn scan(&mut self) -> Result<()> {
         self.groups.reset_for_write()?;
 
-        let count = self.data.scan_groups(
-            &mut self.group_scan,
-            &mut self.groups.arrays,
-            self.groups.capacity,
-        )?;
+        let capacity = self.groups.write_capacity()?;
+        let count =
+            self.data
+                .scan_groups(&mut self.group_scan, &mut self.groups.arrays, capacity)?;
         self.groups.set_num_rows(count)?;
 
         Ok(())
@@ -392,7 +396,7 @@ impl<'a> MergeScanState<'a> {
 
 /// Wrapper around a predicate row matcher for matching on group values.
 #[derive(Debug)]
-struct GroupMatcher {
+pub(crate) struct GroupMatcher {
     /// Column indices we're matching on the left (should contain all indices).
     // TODO: Skip hash column?
     lhs_columns: Vec<usize>,
@@ -460,7 +464,7 @@ impl Entry {
 
 /// Hash table directory containing pointers to rows.
 #[derive(Debug)]
-struct Directory {
+pub(crate) struct Directory {
     /// Number of non-null pointers in entries.
     num_occupied: usize,
     /// Row pointers.

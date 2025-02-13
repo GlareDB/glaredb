@@ -36,12 +36,12 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 #[track_caller]
 pub fn assert_arrays_eq(array1: &Array, array2: &Array) {
     assert_eq!(
-        array1.capacity(),
-        array2.capacity(),
+        array1.logical_len(),
+        array2.logical_len(),
         "array capacities differ"
     );
 
-    let sel = 0..array1.capacity();
+    let sel = 0..array1.logical_len();
 
     assert_arrays_eq_sel(array1, sel.clone(), array2, sel)
 }
@@ -237,12 +237,12 @@ mod tests {
 
     #[test]
     fn assert_batches_eq_simple() {
-        let batch1 = Batch::try_from_arrays([
+        let batch1 = Batch::from_arrays([
             Array::try_from_iter([4, 5, 6]).unwrap(),
             Array::try_from_iter(["a", "b", "c"]).unwrap(),
         ])
         .unwrap();
-        let batch2 = Batch::try_from_arrays([
+        let batch2 = Batch::from_arrays([
             Array::try_from_iter([4, 5, 6]).unwrap(),
             Array::try_from_iter(["a", "b", "c"]).unwrap(),
         ])
@@ -253,14 +253,14 @@ mod tests {
 
     #[test]
     fn assert_batches_eq_logical_row_count() {
-        let mut batch1 = Batch::try_from_arrays([
+        let mut batch1 = Batch::from_arrays([
             Array::try_from_iter([4, 5, 6, 7, 8]).unwrap(),
             Array::try_from_iter(["a", "b", "c", "d", "e"]).unwrap(),
         ])
         .unwrap();
         batch1.set_num_rows(3).unwrap();
 
-        let batch2 = Batch::try_from_arrays([
+        let batch2 = Batch::from_arrays([
             Array::try_from_iter([4, 5, 6]).unwrap(),
             Array::try_from_iter(["a", "b", "c"]).unwrap(),
         ])

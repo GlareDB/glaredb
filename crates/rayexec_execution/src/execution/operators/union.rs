@@ -103,7 +103,7 @@ impl ExecutableOperator for PhysicalUnion {
             buffers: (0..partitions)
                 .map(|_| {
                     Ok(Mutex::new(BufferedPartitionBatch {
-                        batch: Batch::try_new(self.output_types.clone(), batch_size)?,
+                        batch: Batch::new(self.output_types.clone(), batch_size)?,
                         is_ready_for_pull: false,
                         is_finished: false,
                         buffering_waker: None,
@@ -134,7 +134,7 @@ impl ExecutableOperator for PhysicalUnion {
                     let input = inout.input.required("input batch required")?;
                     let output = inout.output.required("output batch required")?;
 
-                    output.try_clone_from_other(input)?;
+                    output.clone_from_other(input)?;
 
                     return Ok(PollExecute::Ready);
                 }
@@ -150,7 +150,7 @@ impl ExecutableOperator for PhysicalUnion {
                 if buf_state.is_ready_for_pull {
                     // We have batch ready, copy it out and wake up buffering
                     // side for more batches.
-                    output.try_clone_from_other(&mut buf_state.batch)?;
+                    output.clone_from_other(&mut buf_state.batch)?;
                     buf_state.is_ready_for_pull = false;
 
                     if let Some(waker) = buf_state.buffering_waker.take() {
@@ -194,7 +194,7 @@ impl ExecutableOperator for PhysicalUnion {
 
                 // Otherwise copy our input batch in and let pulling side know.
                 let input = inout.input.required("input batch required")?;
-                buf_state.batch.try_clone_from_other(input)?;
+                buf_state.batch.clone_from_other(input)?;
                 buf_state.is_ready_for_pull = true;
 
                 if let Some(waker) = buf_state.pulling_waker.take() {
@@ -275,9 +275,9 @@ mod tests {
             .unwrap();
 
         let mut top_input =
-            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
+            Batch::from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
 
-        let mut out = Batch::try_new([DataType::Int32], 1024).unwrap();
+        let mut out = Batch::new([DataType::Int32], 1024).unwrap();
 
         let poll = operator
             .poll_execute(
@@ -291,8 +291,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::Ready, poll);
 
-        let expected =
-            Batch::try_from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([1, 2, 3, 4]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &out);
 
         let poll = operator
@@ -301,7 +300,7 @@ mod tests {
         assert_eq!(PollFinalize::NeedsDrain, poll);
 
         let mut bottom_input =
-            Batch::try_from_arrays([Array::try_from_iter([5, 6, 7, 8]).unwrap()]).unwrap();
+            Batch::from_arrays([Array::try_from_iter([5, 6, 7, 8]).unwrap()]).unwrap();
 
         let poll = operator
             .poll_execute(
@@ -328,8 +327,7 @@ mod tests {
             .unwrap();
         assert_eq!(PollExecute::HasMore, poll);
 
-        let expected =
-            Batch::try_from_arrays([Array::try_from_iter([5, 6, 7, 8]).unwrap()]).unwrap();
+        let expected = Batch::from_arrays([Array::try_from_iter([5, 6, 7, 8]).unwrap()]).unwrap();
         assert_batches_eq(&expected, &out);
 
         // Finalize buffering side.

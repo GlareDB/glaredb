@@ -96,9 +96,9 @@ mod tests {
             .create_states(&test_database_context(), 1024, 1)
             .unwrap();
 
-        let mut output = Batch::try_from_arrays([
-            Array::try_new(&NopBufferManager, DataType::Utf8, 1024).unwrap(),
-            Array::try_new(&NopBufferManager, DataType::Int32, 1024).unwrap(),
+        let mut output = Batch::from_arrays([
+            Array::new(&NopBufferManager, DataType::Utf8, 1024).unwrap(),
+            Array::new(&NopBufferManager, DataType::Int32, 1024).unwrap(),
         ])
         .unwrap();
 

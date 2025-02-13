@@ -755,7 +755,7 @@ mod tests {
             layout.write_arrays(&mut state, &[array], rows).unwrap();
         }
 
-        let mut out = Array::try_new(&NopBufferManager, array.datatype().clone(), sel_len).unwrap();
+        let mut out = Array::new(&NopBufferManager, array.datatype().clone(), sel_len).unwrap();
 
         let state = BlockScanState {
             row_pointers: state

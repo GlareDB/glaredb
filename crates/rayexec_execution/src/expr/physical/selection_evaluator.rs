@@ -19,7 +19,7 @@ pub struct SelectionEvaluator {
 impl SelectionEvaluator {
     pub fn try_new(expression: PhysicalScalarExpression, batch_size: usize) -> Result<Self> {
         let evaluator = ExpressionEvaluator::try_new([expression], batch_size)?;
-        let output = Batch::try_new([DataType::Boolean], batch_size)?;
+        let output = Batch::new([DataType::Boolean], batch_size)?;
         let selection = Vec::with_capacity(batch_size);
 
         Ok(SelectionEvaluator {
@@ -72,7 +72,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter([true, false, true, true]).unwrap(),
             Array::try_from_iter([8, 9, 7, 6]).unwrap(),
         ])
@@ -82,7 +82,7 @@ mod tests {
         assert_eq!(&[0, 2, 3], selection);
 
         // Make sure we reset internal state.
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter([true, false, false, false]).unwrap(),
             Array::try_from_iter([2, 2, 2, 2]).unwrap(),
         ])

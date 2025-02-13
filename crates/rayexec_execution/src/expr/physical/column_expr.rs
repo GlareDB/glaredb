@@ -7,6 +7,7 @@ use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
+use crate::arrays::cache::NopCache;
 use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;
@@ -34,7 +35,9 @@ impl PhysicalColumnExpr {
         output: &mut Array,
     ) -> Result<()> {
         let col = &mut input.arrays_mut()[self.idx];
-        output.try_clone_from_other(col)?;
+        // Caching will never be useful here, since evaling this expression is
+        // always going to try to clone the input array.
+        output.clone_from_other(col, &mut NopCache)?;
 
         if !sel.is_linear() || sel.len() != input.num_rows() {
             output.select(&NopBufferManager, sel.iter())?;
@@ -78,7 +81,7 @@ mod tests {
 
     #[test]
     fn column_expr_eval() {
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
             Array::try_from_iter([1, 2, 3, 4]).unwrap(),
         ])
@@ -88,7 +91,7 @@ mod tests {
             idx: 1,
             datatype: DataType::Int32,
         };
-        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 4).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 4).unwrap();
         let sel = Selection::linear(0, 4);
 
         expr.eval(&mut input, &mut ExpressionState::empty(), sel, &mut out)
@@ -100,7 +103,7 @@ mod tests {
 
     #[test]
     fn column_expr_eval_with_selection() {
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
             Array::try_from_iter([1, 2, 3, 4]).unwrap(),
         ])
@@ -111,7 +114,7 @@ mod tests {
             datatype: DataType::Int32,
         };
         let mut state = expr.create_state(4).unwrap();
-        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 4).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 4).unwrap();
         let sel = Selection::slice(&[1, 3]);
 
         expr.eval(&mut input, &mut state, sel, &mut out).unwrap();

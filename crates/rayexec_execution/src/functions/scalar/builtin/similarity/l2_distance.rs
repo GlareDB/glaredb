@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn l2_distance_ok() {
-        let mut a = Array::try_new(
+        let mut a = Array::new(
             &NopBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Float64)),
             1,
@@ -177,7 +177,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut b = Array::try_new(
+        let mut b = Array::new(
             &NopBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Float64)),
             1,
@@ -194,7 +194,7 @@ mod tests {
         )
         .unwrap();
 
-        let batch = Batch::try_from_arrays([a, b]).unwrap();
+        let batch = Batch::from_arrays([a, b]).unwrap();
 
         let mut table_list = TableList::empty();
         let table_ref = table_list
@@ -215,7 +215,7 @@ mod tests {
             )
             .unwrap();
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Float64, 1).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Float64, 1).unwrap();
         planned.function_impl.execute(&batch, &mut out).unwrap();
 
         let expected = Array::try_from_iter([1.0]).unwrap();

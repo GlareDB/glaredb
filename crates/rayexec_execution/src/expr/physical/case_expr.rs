@@ -49,10 +49,10 @@ impl PhysicalCaseExpr {
         // 3 arrays in the buffer, one 'boolean' for conditional evaluation, one
         // for the result if condition is true, and one for the 'else'. 'then'
         // and 'else' expressions should evaluate to the same type.
-        let buffer = Batch::try_from_arrays([
-            Array::try_new(&NopBufferManager, DataType::Boolean, batch_size)?,
-            Array::try_new(&NopBufferManager, self.else_expr.datatype(), batch_size)?,
-            Array::try_new(&NopBufferManager, self.else_expr.datatype(), batch_size)?,
+        let buffer = Batch::from_arrays([
+            Array::new(&NopBufferManager, DataType::Boolean, batch_size)?,
+            Array::new(&NopBufferManager, self.else_expr.datatype(), batch_size)?,
+            Array::new(&NopBufferManager, self.else_expr.datatype(), batch_size)?,
         ])?;
 
         Ok(ExpressionState { buffer, inputs })
@@ -214,7 +214,7 @@ mod tests {
             datatype: DataType::Int32,
         };
 
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter([true, true, false]).unwrap(),
             Array::try_from_iter([1, 2, 3]).unwrap(),
         ])
@@ -222,7 +222,7 @@ mod tests {
 
         let mut state = expr.create_state(3).unwrap();
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 3), &mut out)
             .unwrap();
 
@@ -253,7 +253,7 @@ mod tests {
             datatype: DataType::Int32,
         };
 
-        let mut input = Batch::try_from_arrays([
+        let mut input = Batch::from_arrays([
             Array::try_from_iter([Some(true), None, Some(false)]).unwrap(),
             Array::try_from_iter([1, 2, 3]).unwrap(),
         ])
@@ -261,7 +261,7 @@ mod tests {
 
         let mut state = expr.create_state(3).unwrap();
 
-        let mut out = Array::try_new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 3), &mut out)
             .unwrap();
 
