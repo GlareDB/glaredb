@@ -101,6 +101,14 @@ where
         }
     }
 
+    pub fn row_mut_ptr_iter(&self) -> RowMutPtrIter<B, I> {
+        RowMutPtrIter {
+            blocks: self,
+            block_idx: 0,
+            row_idx: 0,
+        }
+    }
+
     pub fn reserved_row_count(&self) -> usize {
         self.row_blocks
             .iter()
@@ -292,6 +300,46 @@ where
         let ptr = heap_block.as_ptr().byte_add(offset);
         debug_assert!(heap_block.data.raw.contains_addr(ptr.addr()));
         ptr
+    }
+}
+
+/// Iterator over row pointers in a row block.
+///
+/// Should only be used in tests. `RowBlocks::prepare_read` should be used
+/// outside of tests.
+#[derive(Debug)]
+pub struct RowMutPtrIter<'a, B: BufferManager, I: FixedSizedBlockInitializer> {
+    blocks: &'a RowBlocks<B, I>,
+    block_idx: usize,
+    row_idx: usize,
+}
+
+impl<'a, B, I> Iterator for RowMutPtrIter<'a, B, I>
+where
+    B: BufferManager,
+    I: FixedSizedBlockInitializer,
+{
+    type Item = *mut u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let block = match self.blocks.row_blocks.get(self.block_idx) {
+                Some(block) => block,
+                None => return None,
+            };
+
+            if self.row_idx >= block.num_rows(self.blocks.row_width) {
+                self.block_idx += 1;
+                self.row_idx = 0;
+                continue;
+            }
+
+            let ptr = block.as_ptr();
+            let ptr = unsafe { ptr.byte_add(self.blocks.row_width * self.row_idx) };
+            self.row_idx += 1;
+
+            return Some(ptr as _);
+        }
     }
 }
 

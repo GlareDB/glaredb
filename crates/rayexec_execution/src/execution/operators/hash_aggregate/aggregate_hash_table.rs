@@ -266,13 +266,10 @@ impl AggregateHashTable {
 
             // If we had hashes match, check the actual values.
             if !needs_compare.is_empty() {
-                let mut compare_ptrs: Vec<*const u8> = Vec::with_capacity(needs_compare.len());
                 for &row_idx in &needs_compare {
                     // Offset updated during probing...
                     let offset = offsets[row_idx];
                     let row_ptr = entries[offset].row_ptr;
-                    compare_ptrs.push(row_ptr as _);
-
                     // Set output pointer assuming it will match. If it doesn't,
                     // the following loop iteration(s) will overwrite it,
                     // eventually setting it the correct pointer.
@@ -573,9 +570,11 @@ impl Directory {
 
 #[cfg(test)]
 mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
     use super::*;
     use crate::functions::aggregate::builtin::sum;
-    use crate::testutil::arrays::generate_batch;
+    use crate::testutil::arrays::{assert_arrays_eq, assert_batches_eq, generate_batch};
     use crate::testutil::exprs::{plan_aggregates, TestAggregate};
 
     #[test]
@@ -598,5 +597,24 @@ mod tests {
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
 
         table.insert(&mut state, &groups, &inputs).unwrap();
+
+        let mut ptrs: Vec<_> = table.data.row_mut_ptr_iter().collect();
+        let mut out_groups = Batch::new([DataType::Utf8, DataType::UInt64], 3).unwrap();
+        let mut out_results = Batch::new([DataType::Int64], 3).unwrap();
+        unsafe {
+            table
+                .data
+                .finalize_groups(&mut ptrs, &mut out_groups.arrays, &mut out_results.arrays)
+                .unwrap();
+        }
+        out_groups.set_num_rows(3).unwrap();
+        out_results.set_num_rows(3).unwrap();
+
+        let expected_groups = Array::try_from_iter(["group_a", "group_b", "group_c"]).unwrap();
+        assert_arrays_eq(&expected_groups, &out_groups.arrays[0]);
+        // Skip second groups array, contains hashes.
+
+        let expected_results = generate_batch!([4_i64, 2, 4]);
+        assert_batches_eq(&expected_results, &out_results);
     }
 }

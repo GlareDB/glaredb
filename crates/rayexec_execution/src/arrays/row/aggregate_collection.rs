@@ -7,7 +7,7 @@ use stdutil::iter::IntoExactSizeIterator;
 use super::aggregate_layout::AggregateLayout;
 use super::block::ValidityInitializer;
 use super::block_scan::BlockScanState;
-use super::row_blocks::{BlockAppendState, RowBlocks};
+use super::row_blocks::{BlockAppendState, RowBlocks, RowMutPtrIter};
 use super::row_scan::RowScanState;
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
@@ -58,6 +58,10 @@ impl AggregateCollection {
             },
             heap_sizes: Vec::new(),
         }
+    }
+
+    pub fn row_mut_ptr_iter(&self) -> impl Iterator<Item = *mut u8> + '_ {
+        self.blocks.row_mut_ptr_iter()
     }
 
     /// Append new groups to the collection.
