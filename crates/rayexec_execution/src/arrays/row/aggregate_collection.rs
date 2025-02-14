@@ -64,6 +64,11 @@ impl AggregateCollection {
         self.blocks.row_mut_ptr_iter()
     }
 
+    /// Get the total number of groups stored in this collection.
+    pub fn num_groups(&self) -> usize {
+        self.blocks.total_rows()
+    }
+
     /// Append new groups to the collection.
     ///
     /// `rows` selects the rows from the arrays that we should append to this

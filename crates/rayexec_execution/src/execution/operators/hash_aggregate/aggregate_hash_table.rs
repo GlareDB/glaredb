@@ -104,13 +104,25 @@ impl AggregateHashTable {
         groups: &Batch,
         inputs: &Batch,
     ) -> Result<()> {
-        debug_assert_eq!(groups.num_rows, inputs.num_rows);
-
         // Hash the groups.
         // TODO: Avoid allocating here.
         let mut hashes_arr = Array::new(&NopBufferManager, DataType::UInt64, groups.num_rows)?;
         let hashes = PhysicalU64::get_addressable_mut(&mut hashes_arr.data)?.slice;
         hash_many_arrays(&groups.arrays, 0..groups.num_rows, hashes)?;
+
+        self.insert_with_hashes(state, groups, inputs, &hashes_arr)
+    }
+
+    /// Insert groups into the table with precomputed hash values.
+    pub fn insert_with_hashes(
+        &mut self,
+        state: &mut AggregateHashTableInsertState,
+        groups: &Batch,
+        inputs: &Batch,
+        hashes: &Array,
+    ) -> Result<()> {
+        debug_assert!(hashes.logical_len() >= groups.num_rows);
+        debug_assert_eq!(groups.num_rows, inputs.num_rows);
 
         state.row_ptrs.clear();
         state
@@ -120,7 +132,7 @@ impl AggregateHashTable {
         self.find_or_create_groups(
             &mut state.append_state,
             &groups.arrays,
-            &hashes_arr,
+            hashes,
             groups.num_rows,
             &mut state.row_ptrs,
         )?;
@@ -192,6 +204,8 @@ impl AggregateHashTable {
         let entries = self.directory.entries.as_slice_mut();
 
         while needs_insert.len() > 0 {
+            new_groups.clear();
+
             for &row_idx in needs_insert.iter() {
                 let offset = &mut offsets[row_idx];
                 let hash = hashes[row_idx];
@@ -277,7 +291,6 @@ impl AggregateHashTable {
                 }
 
                 needs_insert.clear();
-
                 let _ = self.matcher.find_matches(
                     &self.layout,
                     out_ptrs,
@@ -577,8 +590,42 @@ mod tests {
     use crate::testutil::arrays::{assert_arrays_eq, assert_batches_eq, generate_batch};
     use crate::testutil::exprs::{plan_aggregates, TestAggregate};
 
+    /// Helper to get the groups and results from a hash table.
+    fn get_groups_and_results(table: &AggregateHashTable) -> (Batch, Batch) {
+        let cap = table.data.num_groups();
+        let mut out_groups = Batch::new(table.layout.groups.types.clone(), cap).unwrap();
+        let mut out_results = Batch::new(
+            table
+                .layout
+                .aggregates
+                .iter()
+                .map(|agg| agg.function.return_type.clone()),
+            cap,
+        )
+        .unwrap();
+
+        let mut row_ptrs: Vec<_> = table.data.row_mut_ptr_iter().collect();
+        assert_eq!(row_ptrs.len(), cap);
+
+        unsafe {
+            table
+                .data
+                .finalize_groups(
+                    &mut row_ptrs,
+                    &mut out_groups.arrays,
+                    &mut out_results.arrays,
+                )
+                .unwrap();
+        }
+
+        out_groups.set_num_rows(cap).unwrap();
+        out_results.set_num_rows(cap).unwrap();
+
+        (out_groups, out_results)
+    }
+
     #[test]
-    fn simple_insert() {
+    fn single_insert_single_agg_multiple_groups() {
         let layout = AggregateLayout::new(
             [DataType::Utf8, DataType::UInt64],
             plan_aggregates(
@@ -598,17 +645,75 @@ mod tests {
 
         table.insert(&mut state, &groups, &inputs).unwrap();
 
-        let mut ptrs: Vec<_> = table.data.row_mut_ptr_iter().collect();
-        let mut out_groups = Batch::new([DataType::Utf8, DataType::UInt64], 3).unwrap();
-        let mut out_results = Batch::new([DataType::Int64], 3).unwrap();
-        unsafe {
-            table
-                .data
-                .finalize_groups(&mut ptrs, &mut out_groups.arrays, &mut out_results.arrays)
-                .unwrap();
-        }
-        out_groups.set_num_rows(3).unwrap();
-        out_results.set_num_rows(3).unwrap();
+        let (out_groups, out_results) = get_groups_and_results(&table);
+
+        let expected_groups = Array::try_from_iter(["group_a", "group_b", "group_c"]).unwrap();
+        assert_arrays_eq(&expected_groups, &out_groups.arrays[0]);
+        // Skip second groups array, contains hashes.
+
+        let expected_results = generate_batch!([4_i64, 2, 4]);
+        assert_batches_eq(&expected_results, &out_results);
+    }
+
+    #[test]
+    fn multiple_inserts_single_agg_multiple_groups() {
+        let layout = AggregateLayout::new(
+            [DataType::Utf8, DataType::UInt64],
+            plan_aggregates(
+                [TestAggregate {
+                    function: &sum::Sum,
+                    columns: &[1],
+                }],
+                [DataType::Utf8, DataType::Int64],
+            ),
+        );
+
+        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut state = table.init_insert_state();
+
+        let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
+        let inputs = generate_batch!([1_i64, 2, 3, 4]);
+        table.insert(&mut state, &groups, &inputs).unwrap();
+
+        let groups = generate_batch!(["group_c", "group_d", "group_a", "group_a"]);
+        let inputs = generate_batch!([5_i64, 6, 7, 8]);
+        table.insert(&mut state, &groups, &inputs).unwrap();
+
+        let (out_groups, out_results) = get_groups_and_results(&table);
+
+        let expected_groups =
+            Array::try_from_iter(["group_a", "group_b", "group_c", "group_d"]).unwrap();
+        assert_arrays_eq(&expected_groups, &out_groups.arrays[0]);
+        // Skip second groups array, contains hashes.
+
+        let expected_results = generate_batch!([19_i64, 2, 9, 6]);
+        assert_batches_eq(&expected_results, &out_results);
+    }
+
+    #[test]
+    fn insert_with_hash_collision() {
+        let layout = AggregateLayout::new(
+            [DataType::Utf8, DataType::UInt64],
+            plan_aggregates(
+                [TestAggregate {
+                    function: &sum::Sum,
+                    columns: &[1],
+                }],
+                [DataType::Utf8, DataType::Int64],
+            ),
+        );
+
+        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut state = table.init_insert_state();
+
+        let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
+        let inputs = generate_batch!([1_i64, 2, 3, 4]);
+        let hashes = Array::try_from_iter([1_u64, 1, 1, 1]).unwrap(); // All groups hashing to the same value
+        table
+            .insert_with_hashes(&mut state, &groups, &inputs, &hashes)
+            .unwrap();
+
+        let (out_groups, out_results) = get_groups_and_results(&table);
 
         let expected_groups = Array::try_from_iter(["group_a", "group_b", "group_c"]).unwrap();
         assert_arrays_eq(&expected_groups, &out_groups.arrays[0]);

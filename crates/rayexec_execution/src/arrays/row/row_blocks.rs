@@ -120,6 +120,13 @@ where
         self.row_blocks[row_block_idx].num_rows(self.row_width)
     }
 
+    pub fn total_rows(&self) -> usize {
+        self.row_blocks
+            .iter()
+            .map(|b| b.num_rows(self.row_width))
+            .sum()
+    }
+
     pub fn num_row_blocks(&self) -> usize {
         self.row_blocks.len()
     }
