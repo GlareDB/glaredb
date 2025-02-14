@@ -146,7 +146,7 @@ impl DatabaseProtoConv for PhysicalScalarExpression {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PhysicalAggregateExpression {
     /// The function we'll be calling to produce the aggregate states.
     pub function: PlannedAggregateFunction,

@@ -1,5 +1,6 @@
 mod aggregate_hash_table;
 mod grouping_set_hash_table;
+mod grouping_value;
 
 use std::collections::BTreeSet;
 use std::task::{Context, Waker};

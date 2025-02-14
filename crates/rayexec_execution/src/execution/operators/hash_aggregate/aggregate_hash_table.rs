@@ -11,15 +11,15 @@ use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_collection::{AggregateAppendState, AggregateCollection};
 use crate::arrays::row::aggregate_layout::AggregateLayout;
-use crate::arrays::row::row_matcher::{MatchState, PredicateRowMatcher};
+use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::arrays::row::row_scan::RowScanState;
 use crate::execution::operators::util::power_of_two::{
     compute_offset_from_hash,
     inc_and_wrap_offset,
     is_power_of_2,
 };
+use crate::expr::comparison_expr::ComparisonOperator;
 
-// TODO: Rename?, used for inserting into the table but also for merging tables.
 #[derive(Debug)]
 pub struct AggregateHashTableInsertState {
     /// Reusable buffer containing pointers to the beginning of rows that we
@@ -27,8 +27,6 @@ pub struct AggregateHashTableInsertState {
     row_ptrs: Vec<*mut u8>,
     /// State for appending to the aggregate collection.
     append_state: AggregateAppendState,
-    /// State for matching on group values.
-    match_state: MatchState,
 }
 
 /// Linear probing hash table for aggregates.
@@ -54,7 +52,11 @@ pub struct AggregateHashTable {
 }
 
 impl AggregateHashTable {
-    pub fn try_new(layout: AggregateLayout) -> Result<Self> {
+    /// Create a new hash table with the given layout.
+    ///
+    /// It's expected that the last group column is u64 for storing the hash
+    /// value for the groups.
+    pub fn try_new(layout: AggregateLayout, row_capacity: usize) -> Result<Self> {
         if layout.groups.num_columns() == 0 {
             return Err(RayexecError::new(
                 "Cannot create aggregate hash table with zero groups",
@@ -67,16 +69,28 @@ impl AggregateHashTable {
             ));
         }
 
-        unimplemented!()
+        // Hash is the last column in the groups layout.
+        let hash_offset = *layout.groups.offsets.last().unwrap();
+
+        let data = AggregateCollection::new(layout.clone(), row_capacity);
+        let directory = Directory::try_new(Directory::DEFAULT_CAPACITY)?;
+        let matcher = GroupMatcher::new(&layout);
+
+        Ok(AggregateHashTable {
+            layout,
+            directory,
+            hash_offset,
+            data,
+            matcher,
+            row_capacity,
+        })
     }
 
     pub fn init_insert_state(&self) -> AggregateHashTableInsertState {
-        unimplemented!()
-        // InsertState{
-        //     hashes: Vec::new(),
-        //     row_ptrs: Vec::new(),
-        //     append_state:
-        // }
+        AggregateHashTableInsertState {
+            row_ptrs: Vec::new(),
+            append_state: self.data.init_append_state(),
+        }
     }
 
     /// Insert groups and aggregate inputs into the hash table.
@@ -105,7 +119,6 @@ impl AggregateHashTable {
 
         self.find_or_create_groups(
             &mut state.append_state,
-            &mut state.match_state,
             &groups.arrays,
             &hashes_arr,
             groups.num_rows,
@@ -132,7 +145,6 @@ impl AggregateHashTable {
     fn find_or_create_groups<A>(
         &mut self,
         append_state: &mut AggregateAppendState,
-        match_state: &mut MatchState,
         groups: &[A],
         hashes_arr: &Array,
         num_rows: usize,
@@ -153,7 +165,7 @@ impl AggregateHashTable {
         }
 
         // Precompute offsets into the table.
-        let mut offsets = vec![num_rows; 0];
+        let mut offsets = vec![0; num_rows];
         let cap = self.directory.capacity() as u64;
         for (idx, &hash) in hashes.iter().enumerate() {
             offsets[idx] = compute_offset_from_hash(hash, cap) as usize;
@@ -267,24 +279,22 @@ impl AggregateHashTable {
                     out_ptrs[row_idx] = row_ptr;
                 }
 
+                needs_insert.clear();
+
                 let _ = self.matcher.find_matches(
-                    match_state,
                     &self.layout,
-                    &compare_ptrs,
+                    out_ptrs,
                     &groups_and_hashes,
-                    needs_compare.iter().copied(),
+                    &mut needs_compare,
+                    &mut needs_insert,
                 )?;
 
                 // For everything that didn't match, increment its offset so the
                 // next iteration tries a new slot.
-                for &not_match_row_idx in match_state.get_row_not_matches() {
+                for &not_match_row_idx in &needs_insert {
                     let offset = &mut offsets[not_match_row_idx];
                     *offset = inc_and_wrap_offset(*offset, cap);
                 }
-
-                // Update selection to now only consider rows that didn't match.
-                needs_insert.clear();
-                needs_insert.extend(match_state.get_row_not_matches());
             } else {
                 // Otherwise everything either matched with existing groups, or
                 // we created new groups.
@@ -327,7 +337,6 @@ impl AggregateHashTable {
             let num_rows = merge_state.groups.num_rows();
             self.find_or_create_groups(
                 &mut state.append_state,
-                &mut state.match_state,
                 groups,
                 hashes,
                 num_rows,
@@ -405,25 +414,46 @@ pub(crate) struct GroupMatcher {
 }
 
 impl GroupMatcher {
+    fn new(layout: &AggregateLayout) -> Self {
+        let lhs_columns: Vec<_> = (0..layout.groups.num_columns()).collect();
+        let matchers = layout.groups.types.iter().map(|datatype| {
+            (
+                datatype.physical_type(),
+                ComparisonOperator::IsNotDistinctFrom,
+            )
+        });
+        let matcher = PredicateRowMatcher::new(matchers);
+
+        GroupMatcher {
+            lhs_columns,
+            matcher,
+        }
+    }
+
     fn find_matches<A>(
         &self,
-        state: &mut MatchState,
         layout: &AggregateLayout,
-        lhs_rows: &[*const u8],
+        lhs_rows: &[*mut u8],
         rhs_columns: &[A],
-        selection: impl IntoIterator<Item = usize>,
+        selection: &mut Vec<usize>,
+        not_matched: &mut Vec<usize>,
     ) -> Result<usize>
     where
         A: Borrow<Array>,
     {
         debug_assert_eq!(self.lhs_columns.len(), rhs_columns.len());
+
+        // SAFETY: Just converting const ptrs to mut ptrs.
+        let lhs_rows =
+            unsafe { std::slice::from_raw_parts(lhs_rows.as_ptr() as _, lhs_rows.len()) };
+
         self.matcher.find_matches(
-            state,
             &layout.groups,
             lhs_rows,
             &self.lhs_columns,
             rhs_columns,
             selection,
+            not_matched,
         )
     }
 }
@@ -538,5 +568,35 @@ impl Directory {
     /// Returns if the directory needs to be resized to accomadate new inputs.
     fn needs_resize(&self, num_inputs: usize) -> bool {
         (num_inputs + self.num_occupied) as f64 / (self.capacity() * 2) as f64 >= Self::LOAD_FACTOR
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::functions::aggregate::builtin::sum;
+    use crate::testutil::arrays::generate_batch;
+    use crate::testutil::exprs::{plan_aggregates, TestAggregate};
+
+    #[test]
+    fn simple_insert() {
+        let layout = AggregateLayout::new(
+            [DataType::Utf8, DataType::UInt64],
+            plan_aggregates(
+                [TestAggregate {
+                    function: &sum::Sum,
+                    columns: &[1],
+                }],
+                [DataType::Utf8, DataType::Int64],
+            ),
+        );
+
+        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut state = table.init_insert_state();
+
+        let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
+        let inputs = generate_batch!([1_i64, 2, 3, 4]);
+
+        table.insert(&mut state, &groups, &inputs).unwrap();
     }
 }

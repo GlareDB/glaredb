@@ -310,9 +310,9 @@ impl JoinHashTable {
     pub fn init_scan_state(&self) -> HashTableScanState {
         HashTableScanState {
             selection: Vec::new(),
+            not_matched: Vec::new(),
             row_pointers: Vec::new(),
             hashes: Vec::new(),
-            match_state: self.row_matcher.init_match_state(),
             block_read: BlockScanState::empty(),
         }
     }

@@ -46,28 +46,6 @@ use crate::functions::scalar::builtin::comparison::{
     NullableComparisonOperation,
 };
 
-/// Match state to hold selection/match buffers.
-#[derive(Debug)]
-pub struct MatchState {
-    /// Current set of row indices that have matched.
-    row_matches: Vec<usize>,
-    /// Current set of row indices that didn't match.
-    row_not_matches: Vec<usize>,
-    /// Selection for rows to try to match.
-    row_selection: Vec<usize>,
-}
-
-impl MatchState {
-    /// Get matched row indices for the most recent call to `find_matches`.
-    pub fn get_row_matches(&self) -> &[usize] {
-        &self.row_matches
-    }
-
-    pub fn get_row_not_matches(&self) -> &[usize] {
-        &self.row_not_matches
-    }
-}
-
 /// Matches rows by comparing encoded values with non-encoded values.
 #[derive(Debug)]
 pub struct PredicateRowMatcher {
@@ -88,68 +66,35 @@ impl PredicateRowMatcher {
         PredicateRowMatcher { matchers }
     }
 
-    /// Initializes a match state.
-    pub fn init_match_state(&self) -> MatchState {
-        MatchState {
-            row_matches: Vec::new(),
-            row_selection: Vec::new(),
-            row_not_matches: Vec::new(),
-        }
-    }
-
-    /// Finds matches between the lhs and rhs rows.
+    /// Finds matches between the lhs and rhs rows, updating `selection` with
+    /// the rows that matched.
     ///
     /// Rows for the lhs are provided via row pointers. Rows for the rhs are
     /// provided via (column) arrays.
     ///
-    /// The selection indicates which rows from the left _and_ right to compare.
+    /// `selection` applies to both the lhs and rhs.
     ///
-    /// Each selected row will be compared. If the comparison returns true, then
-    /// the index of the row as given by `selection` will be pushed to
-    /// `row_matches` in the state.
-    ///
-    /// If a row doesn't match, its index will be pushed to `row_not_matches` in
-    /// the state. Note that there's no guaranteed order for the pushed indices.
+    /// If a row doesn't match, its index will be pushed to `not_matched` Note
+    /// that there's no guaranteed order for the pushed indices.
     ///
     /// Returns the number of rows matched.
     pub fn find_matches<A>(
         &self,
-        state: &mut MatchState,
         layout: &RowLayout,
         lhs_rows: &[*const u8],
         lhs_columns: &[usize],
         rhs_columns: &[A],
-        selection: impl IntoIterator<Item = usize>,
+        selection: &mut Vec<usize>,
+        not_matched: &mut Vec<usize>,
     ) -> Result<usize>
     where
         A: Borrow<Array>,
     {
-        state.row_matches.clear();
-        state.row_not_matches.clear();
-        state.row_selection.clear();
-
-        // Initialize matches to all rows from the rhs.
-        //
-        // This gets swapped to the 'selection' buffer in the below loop.
-        state.row_matches.extend(selection);
-
         for ((&lhs_column, rhs_column), matcher) in lhs_columns
             .iter()
             .zip(rhs_columns.iter())
             .zip(&self.matchers)
         {
-            // Swap matches/selection so that this next iteration only computes
-            // matches on rows that we've previously matched on.
-            std::mem::swap(&mut state.row_matches, &mut state.row_selection);
-
-            // Clear matches, each matcher pushes a fresh set of rows matched.
-            state.row_matches.clear();
-
-            // `row_not_matches` is not cleared. The previous `match` array is
-            // used for the selection and if a row didn't match, then we won't
-            // try ot match that row again. This guarantees that we only push to
-            // `row_not_matches` once per row that doesn't match.
-
             let rhs_column = rhs_column.borrow().flatten()?;
 
             unsafe {
@@ -158,14 +103,13 @@ impl PredicateRowMatcher {
                     lhs_rows,
                     lhs_column,
                     rhs_column,
-                    &state.row_selection,
-                    &mut state.row_matches,
-                    &mut state.row_not_matches,
+                    selection,
+                    not_matched,
                 )?;
             }
         }
 
-        Ok(state.row_matches.len())
+        Ok(selection.len())
     }
 }
 
@@ -236,8 +180,7 @@ trait Matcher<B: BufferManager>: Debug + Sync + Send + 'static {
         lhs_rows: &[*const u8],
         lhs_column: usize,
         rhs_column: FlattenedArray,
-        selection: &[usize],
-        matches: &mut Vec<usize>,
+        selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
     ) -> Result<()>;
 }
@@ -273,14 +216,16 @@ where
         lhs_rows: &[*const u8],
         lhs_column: usize,
         rhs_column: FlattenedArray,
-        selection: &[usize],
-        matches: &mut Vec<usize>,
+        selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
     ) -> Result<()> {
         let rhs_data = S::get_addressable(rhs_column.array_buffer)?;
 
-        for &row_idx in selection {
-            let lhs_row_ptr = lhs_rows[row_idx];
+        let mut matches = 0;
+        for idx in 0..selection.len() {
+            let sel_idx = selection[idx];
+
+            let lhs_row_ptr = lhs_rows[sel_idx];
 
             let validity_buf = layout.validity_buffer(lhs_row_ptr);
             let lhs_valid = BitmapView::new(validity_buf, layout.num_columns()).value(lhs_column);
@@ -288,16 +233,19 @@ where
             let lhs_ptr = lhs_ptr.cast::<S::StorageType>();
             let lhs_val = lhs_ptr.read_unaligned();
 
-            let rhs_valid = rhs_column.validity.is_valid(row_idx);
-            let rhs_sel = rhs_column.selection.get(row_idx).unwrap();
+            let rhs_valid = rhs_column.validity.is_valid(sel_idx);
+            let rhs_sel = rhs_column.selection.get(sel_idx).unwrap();
             let rhs_val = rhs_data.get(rhs_sel).unwrap();
 
             if C::compare_with_valid(lhs_val, *rhs_val, lhs_valid, rhs_valid) {
-                matches.push(row_idx);
+                selection[matches] = sel_idx;
+                matches += 1;
             } else {
-                not_matches.push(row_idx);
+                not_matches.push(sel_idx);
             }
         }
+
+        selection.truncate(matches);
 
         Ok(())
     }
@@ -327,14 +275,16 @@ where
         lhs_rows: &[*const u8],
         lhs_column: usize,
         rhs_column: FlattenedArray,
-        selection: &[usize],
-        matches: &mut Vec<usize>,
+        selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
     ) -> Result<()> {
         let rhs_data = PhysicalBinary::get_addressable(rhs_column.array_buffer)?;
 
-        for &row_idx in selection {
-            let lhs_row_ptr = lhs_rows[row_idx];
+        let mut matches = 0;
+        for idx in 0..selection.len() {
+            let sel_idx = selection[idx];
+
+            let lhs_row_ptr = lhs_rows[sel_idx];
 
             let validity_buf = layout.validity_buffer(lhs_row_ptr);
             let lhs_valid = BitmapView::new(validity_buf, layout.num_columns()).value(lhs_column);
@@ -344,16 +294,19 @@ where
 
             let lhs_val = string_ptr.as_bytes();
 
-            let rhs_valid = rhs_column.validity.is_valid(row_idx);
-            let rhs_sel = rhs_column.selection.get(row_idx).unwrap();
+            let rhs_valid = rhs_column.validity.is_valid(sel_idx);
+            let rhs_sel = rhs_column.selection.get(sel_idx).unwrap();
             let rhs_val = rhs_data.get(rhs_sel).unwrap();
 
             if C::compare_with_valid(lhs_val, rhs_val, lhs_valid, rhs_valid) {
-                matches.push(row_idx);
+                selection[matches] = sel_idx;
+                matches += 1;
             } else {
-                not_matches.push(row_idx);
+                not_matches.push(sel_idx);
             }
         }
+
+        selection.truncate(matches);
 
         Ok(())
     }
@@ -366,11 +319,15 @@ mod tests {
     use crate::arrays::row::row_collection::RowCollection;
     use crate::testutil::arrays::generate_batch;
 
-    /// Helper for finding matches between left and right. The returned match
-    /// state can be used to assert which rows matched.
+    /// Helper for finding matches between left and right. Returns (matched,
+    /// not_matched).
     ///
     /// This selects all columns and all rows to compare.
-    fn find_matches_full(matcher: PredicateRowMatcher, left: &Batch, right: &Batch) -> MatchState {
+    fn find_matches_full(
+        matcher: PredicateRowMatcher,
+        left: &Batch,
+        right: &Batch,
+    ) -> (Vec<usize>, Vec<usize>) {
         assert_eq!(left.num_rows, right.num_rows);
 
         let left_columns: Vec<_> = (0..left.arrays.len()).collect();
@@ -381,19 +338,21 @@ mod tests {
         let mut append_state = collection.init_append();
         collection.append_batch(&mut append_state, left).unwrap();
 
-        let mut match_state = matcher.init_match_state();
+        let mut selection: Vec<_> = (0..left.num_rows).collect();
+        let mut not_matched = Vec::new();
+
         let _ = matcher
             .find_matches(
-                &mut match_state,
                 collection.layout(),
                 append_state.row_pointers(),
                 &left_columns,
                 &right.arrays,
-                0..right.num_rows,
+                &mut selection,
+                &mut not_matched,
             )
             .unwrap();
 
-        match_state
+        (selection, not_matched)
     }
 
     #[test]
@@ -402,9 +361,9 @@ mod tests {
         let right = generate_batch!([0, 2, 5, 4]);
 
         let matcher = PredicateRowMatcher::new([(PhysicalType::Int32, ComparisonOperator::Eq)]);
-        let state = find_matches_full(matcher, &left, &right);
+        let (matched, _not_matched) = find_matches_full(matcher, &left, &right);
 
-        assert_eq!(&[1, 3], state.get_row_matches());
+        assert_eq!(&[1, 3], matched.as_slice());
     }
 
     #[test]
@@ -413,10 +372,10 @@ mod tests {
         let right = generate_batch!([Some(0), None, Some(5), Some(4)]);
 
         let matcher = PredicateRowMatcher::new([(PhysicalType::Int32, ComparisonOperator::Eq)]);
-        let state = find_matches_full(matcher, &left, &right);
+        let (matched, not_matched) = find_matches_full(matcher, &left, &right);
 
-        assert_eq!(&[3], state.get_row_matches());
-        assert_eq!(&[0, 1, 2], state.get_row_not_matches());
+        assert_eq!(&[3], matched.as_slice());
+        assert_eq!(&[0, 1, 2], not_matched.as_slice());
     }
 
     #[test]
@@ -428,10 +387,10 @@ mod tests {
             PhysicalType::Int32,
             ComparisonOperator::IsNotDistinctFrom,
         )]);
-        let state = find_matches_full(matcher, &left, &right);
+        let (matched, not_matched) = find_matches_full(matcher, &left, &right);
 
-        assert_eq!(&[1, 3], state.get_row_matches());
-        assert_eq!(&[0, 2], state.get_row_not_matches());
+        assert_eq!(&[1, 3], matched.as_slice());
+        assert_eq!(&[0, 2], not_matched.as_slice());
     }
 
     #[test]
@@ -443,10 +402,10 @@ mod tests {
             (PhysicalType::Int32, ComparisonOperator::LtEq),
             (PhysicalType::Utf8, ComparisonOperator::Eq),
         ]);
-        let state = find_matches_full(matcher, &left, &right);
+        let (matched, not_matched) = find_matches_full(matcher, &left, &right);
 
-        assert_eq!(&[0, 2], state.get_row_matches());
-        assert_eq!(&[1, 3], state.get_row_not_matches());
+        assert_eq!(&[0, 2], matched.as_slice());
+        assert_eq!(&[1, 3], not_matched.as_slice());
     }
 
     #[test]
@@ -455,10 +414,10 @@ mod tests {
         let right = generate_batch!(["cat", "catdogmouse", "goosegoosegoosegoosegoose", "rooster"]);
 
         let matcher = PredicateRowMatcher::new([(PhysicalType::Utf8, ComparisonOperator::Eq)]);
-        let state = find_matches_full(matcher, &left, &right);
+        let (matched, not_matched) = find_matches_full(matcher, &left, &right);
 
-        assert_eq!(&[0, 2], state.get_row_matches());
-        assert_eq!(&[1, 3], state.get_row_not_matches());
+        assert_eq!(&[0, 2], matched.as_slice());
+        assert_eq!(&[1, 3], not_matched.as_slice());
     }
 
     #[test]
@@ -488,9 +447,9 @@ mod tests {
             (PhysicalType::Int32, ComparisonOperator::Eq),
             (PhysicalType::Utf8, ComparisonOperator::Eq),
         ]);
-        let state = find_matches_full(matcher, &left, &right);
+        let (matched, not_matched) = find_matches_full(matcher, &left, &right);
 
-        assert_eq!(&[5], state.get_row_matches());
-        assert_eq!(&[0, 1, 2, 3, 4], state.get_row_not_matches());
+        assert_eq!(&[5], matched.as_slice());
+        assert_eq!(&[0, 1, 2, 3, 4], not_matched.as_slice());
     }
 }

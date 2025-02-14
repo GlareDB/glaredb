@@ -11,7 +11,7 @@ use crate::expr::physical::PhysicalAggregateExpression;
 ///
 /// Holds the function implementations for how aggregates should create, update,
 /// and finalize their states.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AggregateLayout {
     /// Required base alignment for a buffer holding this aggregate layout.
     ///

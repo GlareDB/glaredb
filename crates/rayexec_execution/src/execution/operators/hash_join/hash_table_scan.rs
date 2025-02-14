@@ -6,7 +6,6 @@ use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
 use crate::arrays::row::block_scan::BlockScanState;
-use crate::arrays::row::row_matcher::MatchState;
 use crate::logical::logical_join::JoinType;
 
 // TODO:
@@ -25,7 +24,14 @@ pub struct HashTableScanState {
     /// pointers and keys.
     ///
     /// Once this is empty, we know we're done scanning this set of keys.
+    ///
+    /// Updating by the predicate row matcher.
     pub selection: Vec<usize>,
+    /// Indices stored for comparisons that failed to match.
+    ///
+    /// Updated by the predicate row matcher.
+    // TODO: Not currently used.
+    pub not_matched: Vec<usize>,
     /// Current set of pointers we're working with.
     ///
     /// The 'i'th row pointer corresponds the 'i'th row in the keys we're
@@ -36,8 +42,6 @@ pub struct HashTableScanState {
     /// Reusable hashes buffer. Filled when we probe the hash table with
     /// rhs_keys.
     pub hashes: Vec<u64>,
-    /// State for the predicate matchers.
-    pub match_state: MatchState,
     /// State used to read rows for the build side.
     pub block_read: BlockScanState,
 }
@@ -83,8 +87,7 @@ impl HashTableScanState {
         // Store pointers to the matched rows.
         self.block_read.clear();
         self.block_read.row_pointers.extend(
-            self.match_state
-                .get_row_matches()
+            self.selection
                 .iter()
                 .map(|&pred_idx| self.row_pointers[pred_idx]),
         );
@@ -113,7 +116,7 @@ impl HashTableScanState {
             rhs_out.select_from_other(
                 &NopBufferManager,
                 rhs,
-                self.match_state.get_row_matches().iter().copied(),
+                self.selection.iter().copied(),
                 &mut NopCache,
             )?;
         }
@@ -141,18 +144,17 @@ impl HashTableScanState {
         comparison_cols: &[&Array],
     ) -> Result<usize> {
         loop {
-            // Rows to read from the left.
             let lhs_rows = &self.row_pointers;
-            // Row indices to compare between left and right.
-            let selection = self.selection.iter().copied();
+
+            self.not_matched.clear(); // Not yet used.
 
             let match_count = table.row_matcher.find_matches(
-                &mut self.match_state,
                 table.data.layout(),
                 &lhs_rows,
                 &table.build_comparison_columns,
                 comparison_cols,
-                selection,
+                &mut self.selection,
+                &mut self.not_matched,
             )?;
 
             if match_count > 0 {
@@ -171,26 +173,28 @@ impl HashTableScanState {
 
     /// For each entry in the current scan state, follow the chain to load the
     /// next entry to read from.
+    ///
+    /// The selection will be updated to only point to non-null pointers.
     fn follow_next_in_chain(&mut self, table: &JoinHashTable) {
-        for &ent_idx in &self.selection {
-            let ent = &mut self.row_pointers[ent_idx];
+        let mut new_count = 0;
+
+        // SAFETY: Assumes row_pointers contains valid addresses and that
+        // read_next_entry_ptr safely reads the next pointer in the chain.
+        for i in 0..self.selection.len() {
+            let idx = self.selection[i];
+            let ent = &mut self.row_pointers[idx];
+
+            // Advance to the next pointer in the chain
+            *ent = unsafe { table.read_next_entry_ptr(*ent) };
+
+            // Keep only non-null entries
             if !ent.is_null() {
-                // Move to next in the chain.
-                // SAFETY: ...
-                //
-                // Assumes that we're generating row addresses correctly and that
-                // they are in bounds.
-                *ent = unsafe { table.read_next_entry_ptr(*ent) }
+                self.selection[new_count] = idx;
+                new_count += 1;
             }
         }
 
-        // Update the selection to only include entries that are not null.
-        self.selection.clear();
-        self.selection.extend(
-            self.row_pointers
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, ent)| if ent.is_null() { None } else { Some(idx) }),
-        );
+        // Truncate selection to remove unused entries
+        self.selection.truncate(new_count);
     }
 }
