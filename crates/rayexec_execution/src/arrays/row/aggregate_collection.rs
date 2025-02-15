@@ -1,17 +1,14 @@
 use std::borrow::{Borrow, BorrowMut};
-use std::collections::VecDeque;
 
 use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::aggregate_layout::AggregateLayout;
 use super::block::ValidityInitializer;
-use super::block_scan::BlockScanState;
-use super::row_blocks::{BlockAppendState, RowBlocks, RowMutPtrIter};
+use super::row_blocks::{BlockAppendState, RowBlocks};
 use super::row_scan::RowScanState;
 use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
-use crate::functions::aggregate::states::AggregateFunctionImpl;
 
 #[derive(Debug)]
 pub struct AggregateAppendState {
@@ -67,6 +64,10 @@ impl AggregateCollection {
     /// Get the total number of groups stored in this collection.
     pub fn num_groups(&self) -> usize {
         self.blocks.total_rows()
+    }
+
+    pub fn num_row_blocks(&self) -> usize {
+        self.blocks.num_row_blocks()
     }
 
     /// Append new groups to the collection.
@@ -138,16 +139,31 @@ impl AggregateCollection {
         Ok(())
     }
 
+    /// Scans all groups from the collection.
     pub fn scan_groups<A>(
         &self,
         state: &mut RowScanState,
-        groups: &mut [A],
+        outputs: &mut [A],
         count: usize,
     ) -> Result<usize>
     where
         A: BorrowMut<Array>,
     {
-        state.scan(&self.layout.groups, &self.blocks, groups, count)
+        state.scan(&self.layout.groups, &self.blocks, outputs, count)
+    }
+
+    /// Scan a subset of the groups.
+    pub fn scan_groups_subset<A>(
+        &self,
+        state: &mut RowScanState,
+        columns: impl IntoExactSizeIterator<Item = usize> + Clone,
+        outputs: &mut [A],
+        count: usize,
+    ) -> Result<usize>
+    where
+        A: BorrowMut<Array>,
+    {
+        state.scan_subset(&self.layout.groups, &self.blocks, columns, outputs, count)
     }
 
     pub(crate) unsafe fn finalize_groups<A>(

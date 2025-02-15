@@ -180,7 +180,7 @@ impl RowCollection {
     where
         A: BorrowMut<Array>,
     {
-        state.scan_columns(
+        state.scan_subset(
             &self.layout,
             &self.blocks,
             columns.iter().copied(),

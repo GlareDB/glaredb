@@ -99,7 +99,7 @@ impl RowScanState {
     {
         debug_assert_eq!(layout.num_columns(), outputs.len());
         let cols = outputs.len();
-        self.scan_columns(layout, row_blocks, 0..cols, outputs, count)
+        self.scan_subset(layout, row_blocks, 0..cols, outputs, count)
     }
 
     /// Like `scan`, but for only scanning a subset of columns.
@@ -107,7 +107,7 @@ impl RowScanState {
     /// `columns` indicates which columns to scan.
     ///
     /// Length of `outputs` must match length of `columns`.
-    pub fn scan_columns<'a, A>(
+    pub fn scan_subset<'a, A>(
         &mut self,
         layout: &RowLayout,
         row_blocks: &RowBlocks<NopBufferManager, ValidityInitializer>,
