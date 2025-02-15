@@ -134,7 +134,7 @@ impl RowCollection {
 
     /// Initialize a scan state for scanning all row blocks in the collection.
     pub fn init_full_scan(&self) -> RowScanState {
-        let mut state = RowScanState::new();
+        let mut state = RowScanState::empty();
         state.reset_for_full_scan(&self.blocks);
         state
     }
@@ -144,7 +144,7 @@ impl RowCollection {
         &self,
         block_indices: impl IntoIterator<Item = usize>,
     ) -> RowScanState {
-        let mut state = RowScanState::new();
+        let mut state = RowScanState::empty();
         state.reset_for_partial_scan(block_indices);
         state
     }

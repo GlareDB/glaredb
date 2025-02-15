@@ -171,6 +171,7 @@ impl AggregateHashTable {
 
         debug_assert_eq!(num_rows, out_ptrs.len());
         let hashes = PhysicalU64::get_addressable(&hashes_arr.data)?.slice;
+        let hashes = &hashes[0..num_rows];
 
         if self.directory.needs_resize(num_rows) {
             self.directory.resize(self.directory.capacity() * 2)?;
@@ -345,20 +346,20 @@ impl AggregateHashTable {
             // Append groups we haven't seen before and get dest group pointers.
             let (groups, hashes) = merge_state.split_groups_and_hashes();
             let num_rows = merge_state.groups.num_rows();
+            let row_ptrs = &mut state.row_ptrs[0..num_rows];
+
             self.find_or_create_groups(
                 &mut state.append_state,
                 groups,
                 hashes,
                 num_rows,
-                &mut state.row_ptrs,
+                row_ptrs,
             )?;
 
             // Combine states.
             unsafe {
-                self.layout.combine_states(
-                    merge_state.group_scan.scanned_row_pointers_mut(),
-                    &mut state.row_ptrs,
-                )?;
+                self.layout
+                    .combine_states(merge_state.group_scan.scanned_row_pointers_mut(), row_ptrs)?;
             }
         }
 
@@ -384,9 +385,10 @@ impl<'a> MergeScanState<'a> {
         row_cap: usize,
     ) -> Result<Self> {
         let groups = Batch::new(layout.groups.types.clone(), row_cap)?;
+        let group_scan = RowScanState::new_full_scan(data.row_blocks());
 
         Ok(MergeScanState {
-            group_scan: RowScanState::new(),
+            group_scan,
             groups,
             data,
         })
@@ -720,6 +722,47 @@ mod tests {
         // Skip second groups array, contains hashes.
 
         let expected_results = generate_batch!([4_i64, 2, 4]);
+        assert_batches_eq(&expected_results, &out_results);
+    }
+
+    #[test]
+    fn merge_tables() {
+        let layout = AggregateLayout::new(
+            [DataType::Utf8, DataType::UInt64],
+            plan_aggregates(
+                [TestAggregate {
+                    function: &sum::Sum,
+                    columns: &[1],
+                }],
+                [DataType::Utf8, DataType::Int64],
+            ),
+        );
+
+        let mut t1 = AggregateHashTable::try_new(layout.clone(), 16).unwrap();
+        let mut s1 = t1.init_insert_state();
+
+        let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
+        let inputs = generate_batch!([1_i64, 2, 3, 4]);
+        t1.insert(&mut s1, &groups, &inputs).unwrap();
+
+        let mut t2 = AggregateHashTable::try_new(layout.clone(), 16).unwrap();
+        let mut s2 = t2.init_insert_state();
+
+        let groups = generate_batch!(["group_c", "group_d", "group_a", "group_a"]);
+        let inputs = generate_batch!([5_i64, 6, 7, 8]);
+        t2.insert(&mut s2, &groups, &inputs).unwrap();
+
+        t1.merge_from(&mut s2, &mut t2).unwrap();
+        assert_eq!(1, t1.data.num_row_blocks());
+
+        let (out_groups, out_results) = get_groups_and_results(&t1);
+
+        let expected_groups =
+            Array::try_from_iter(["group_a", "group_b", "group_c", "group_d"]).unwrap();
+        assert_arrays_eq(&expected_groups, &out_groups.arrays[0]);
+        // Skip second groups array, contains hashes.
+
+        let expected_results = generate_batch!([19_i64, 2, 9, 6]);
         assert_batches_eq(&expected_results, &out_results);
     }
 }

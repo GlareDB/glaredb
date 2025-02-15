@@ -70,6 +70,10 @@ impl AggregateCollection {
         self.blocks.num_row_blocks()
     }
 
+    pub(crate) fn row_blocks(&self) -> &RowBlocks<NopBufferManager, ValidityInitializer> {
+        &self.blocks
+    }
+
     /// Append new groups to the collection.
     ///
     /// `rows` selects the rows from the arrays that we should append to this

@@ -35,7 +35,11 @@ pub struct RowScanState {
 }
 
 impl RowScanState {
-    pub const fn new() -> Self {
+    /// Creates a new rows scan state with an empty block queue.
+    ///
+    /// Attempting to scan with this without resetting for a partial or full
+    /// scan will result in scanning no rows.
+    pub const fn empty() -> Self {
         RowScanState {
             blocks_to_scan: VecDeque::new(),
             current_block: None,
@@ -44,6 +48,18 @@ impl RowScanState {
                 row_pointers: Vec::new(),
             },
         }
+    }
+
+    pub fn new_partial_scan(block_indices: impl IntoIterator<Item = usize>) -> Self {
+        let mut scan = Self::empty();
+        scan.reset_for_partial_scan(block_indices);
+        scan
+    }
+
+    pub fn new_full_scan(row_blocks: &RowBlocks<NopBufferManager, ValidityInitializer>) -> Self {
+        let mut scan = Self::empty();
+        scan.reset_for_full_scan(row_blocks);
+        scan
     }
 
     /// Returns the row pointers for the most recent scan.
