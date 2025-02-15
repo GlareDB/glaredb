@@ -14,9 +14,10 @@ use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::arrays::row::row_scan::RowScanState;
 use crate::arrays::scalar::ScalarValue;
 use crate::execution::operators::hash_aggregate::grouping_value::compute_grouping_value;
+use crate::expr::physical::column_expr::PhysicalColumnExpr;
 
 #[derive(Debug)]
-pub struct HashTableBuildPartitionState {
+pub struct GroupingSetBuildPartitionState {
     /// If this table has been merged into the global table.
     finished: bool,
     /// Insert state into the local hash table.
@@ -31,7 +32,7 @@ pub struct HashTableBuildPartitionState {
 }
 
 #[derive(Debug)]
-pub struct HashTableScanPartitionState {
+pub struct GroupingSetScanPartitionState {
     /// The final hash table.
     hash_table: Arc<AggregateHashTable>,
     /// Scan state for scanning the hash table. Initialized to scan only the
@@ -44,19 +45,14 @@ pub struct HashTableScanPartitionState {
 }
 
 #[derive(Debug)]
-pub struct HashTableOperatorState {
-    inner: Mutex<SharedOperatorState>,
-}
-
-#[derive(Debug)]
-enum SharedOperatorState {
+pub enum GroupingSetOperatorState {
     Building(HashTableBuildingOperatorState),
     Scanning(HashTableScanningOperatorState),
     Uninit,
 }
 
 #[derive(Debug)]
-struct HashTableBuildingOperatorState {
+pub struct HashTableBuildingOperatorState {
     /// Remaining inputs we're waiting on to finish.
     remaining: usize,
     /// The global hash table.
@@ -64,13 +60,13 @@ struct HashTableBuildingOperatorState {
 }
 
 #[derive(Debug)]
-struct HashTableScanningOperatorState {
+pub struct HashTableScanningOperatorState {
     /// Scan states for each partition.
     ///
     /// This will be initialized to the number of partitions, with each
     /// containing a row scan state for indicating which rows that partition
     /// will be scanning.
-    scan_states: Vec<HashTableScanPartitionState>,
+    scan_states: Vec<GroupingSetScanPartitionState>,
 }
 
 /// Wrapper around a hash table for dealing with a single grouping set.
@@ -81,8 +77,7 @@ pub struct GroupingSetHashTable {
     layout: AggregateLayout,
     /// The grouping set for this table.
     grouping_set: BTreeSet<usize>,
-    /// Total number of group expressions.
-    num_groups: usize,
+    groups: Vec<PhysicalColumnExpr>,
     /// Computed group values representing the null bitmask for eaching GROUPING
     /// function.
     grouping_values: Vec<u64>,
@@ -111,16 +106,12 @@ impl GroupingSetHashTable {
             .map(|&idx| aggs.groups[idx].datatype())
             .chain([DataType::UInt64]);
 
-        // Total number of groups, not just groups in this grouping set. Used to
-        // fill out the null columns.
-        let num_groups = aggs.groups.len();
-
         let layout = AggregateLayout::new(group_types, aggs.aggregates.clone());
 
         GroupingSetHashTable {
             layout,
             grouping_set,
-            num_groups,
+            groups: aggs.groups.clone(),
             grouping_values,
             partitions,
             batch_size,
@@ -129,16 +120,15 @@ impl GroupingSetHashTable {
 
     pub fn init_states(
         &self,
-    ) -> Result<(HashTableOperatorState, Vec<HashTableBuildPartitionState>)> {
+    ) -> Result<(
+        GroupingSetOperatorState,
+        Vec<GroupingSetBuildPartitionState>,
+    )> {
         let agg_hash_table = AggregateHashTable::try_new(self.layout.clone(), self.batch_size)?;
-        let op_state = HashTableOperatorState {
-            inner: Mutex::new(SharedOperatorState::Building(
-                HashTableBuildingOperatorState {
-                    remaining: self.partitions,
-                    hash_table: agg_hash_table,
-                },
-            )),
-        };
+        let op_state = GroupingSetOperatorState::Building(HashTableBuildingOperatorState {
+            remaining: self.partitions,
+            hash_table: agg_hash_table,
+        });
 
         let build_states = (0..self.partitions)
             .map(|_| {
@@ -155,7 +145,7 @@ impl GroupingSetHashTable {
                 let table = AggregateHashTable::try_new(self.layout.clone(), self.batch_size)?;
                 let insert_state = table.init_insert_state();
 
-                Ok(HashTableBuildPartitionState {
+                Ok(GroupingSetBuildPartitionState {
                     finished: false,
                     insert_state,
                     hash_table: table,
@@ -182,7 +172,7 @@ impl GroupingSetHashTable {
     /// grouping set, and insert into the hash table using those values.
     pub fn insert(
         &self,
-        state: &mut HashTableBuildPartitionState,
+        state: &mut GroupingSetBuildPartitionState,
         input: &mut Batch,
     ) -> Result<()> {
         if state.finished {
@@ -191,7 +181,10 @@ impl GroupingSetHashTable {
 
         // Get both the group arrays, and the inputs to the aggregates.
         for (dest_idx, &src_idx) in self.grouping_set.iter().enumerate() {
-            // Can't swap as other hash table table with different grouping sets
+            // Grouping set is relative to the groups, get the actual column
+            // index from the group expression.
+            let src_idx = self.groups[src_idx].idx;
+            // Can't swap as other hash tables with different grouping sets
             // might have overlap with our grouping set.
             //
             // TODO: Since we insert into each table sequentially, we might be
@@ -229,17 +222,15 @@ impl GroupingSetHashTable {
     /// indicating we can start scanning.
     pub fn merge(
         &self,
-        op_state: &HashTableOperatorState,
-        state: &mut HashTableBuildPartitionState,
+        op_state: &mut GroupingSetOperatorState,
+        state: &mut GroupingSetBuildPartitionState,
     ) -> Result<bool> {
         if state.finished {
             return Err(RayexecError::new("State already finished"));
         }
 
-        let mut op_state = op_state.inner.lock();
-
         match &mut *op_state {
-            SharedOperatorState::Building(building) => {
+            GroupingSetOperatorState::Building(building) => {
                 building
                     .hash_table
                     .merge_from(&mut state.insert_state, &mut state.hash_table)?;
@@ -249,9 +240,9 @@ impl GroupingSetHashTable {
                 if building.remaining == 0 {
                     // We were the last partition to merge, generate all
                     // necessary scan states.
-                    let state = std::mem::replace(&mut *op_state, SharedOperatorState::Uninit);
+                    let state = std::mem::replace(&mut *op_state, GroupingSetOperatorState::Uninit);
                     let state = match state {
-                        SharedOperatorState::Building(state) => state,
+                        GroupingSetOperatorState::Building(state) => state,
                         _ => unreachable!(),
                     };
 
@@ -276,7 +267,7 @@ impl GroupingSetHashTable {
                                     .filter(|block_idx| block_idx % self.partitions == idx),
                             );
 
-                            Ok(HashTableScanPartitionState {
+                            Ok(GroupingSetScanPartitionState {
                                 hash_table: table.clone(),
                                 scan_state: row_scan_state,
                                 groups,
@@ -285,9 +276,10 @@ impl GroupingSetHashTable {
                         })
                         .collect::<Result<Vec<_>>>()?;
 
-                    *op_state = SharedOperatorState::Scanning(HashTableScanningOperatorState {
-                        scan_states,
-                    });
+                    *op_state =
+                        GroupingSetOperatorState::Scanning(HashTableScanningOperatorState {
+                            scan_states,
+                        });
 
                     Ok(true)
                 } else {
@@ -305,11 +297,10 @@ impl GroupingSetHashTable {
     /// This should be called once per partition.
     pub fn take_partition_scan_state(
         &self,
-        op_state: &HashTableOperatorState,
-    ) -> Result<HashTableScanPartitionState> {
-        let mut op_state = op_state.inner.lock();
+        op_state: &mut GroupingSetOperatorState,
+    ) -> Result<GroupingSetScanPartitionState> {
         match &mut *op_state {
-            SharedOperatorState::Scanning(scanning) => {
+            GroupingSetOperatorState::Scanning(scanning) => {
                 // Erroring indicates this function was called more than once
                 // per partition, or we didn't generate enough scan states to
                 // start with.
@@ -335,7 +326,11 @@ impl GroupingSetHashTable {
     /// finally any GROUPING values.
     ///
     /// The output batch must be writeable.
-    pub fn scan(&self, state: &mut HashTableScanPartitionState, output: &mut Batch) -> Result<()> {
+    pub fn scan(
+        &self,
+        state: &mut GroupingSetScanPartitionState,
+        output: &mut Batch,
+    ) -> Result<()> {
         // Scan just the groups from this hash table. This fills the pointers to
         // use for scanning and finalizing the aggregate states.
         //
@@ -374,8 +369,9 @@ impl GroupingSetHashTable {
         //
         // Groups not in the grouping set will have the output array modified to
         // be all nulls.
+        let num_groups = self.groups.len();
         let mut group_idx = 0;
-        for output_idx in 0..self.num_groups {
+        for output_idx in 0..num_groups {
             if self.grouping_set.contains(&output_idx) {
                 // Swapping arrays is fine since each group is only written once to
                 // the output.
@@ -389,14 +385,14 @@ impl GroupingSetHashTable {
 
         // Write out the aggregate results.
         let num_aggs = self.layout.aggregates.len();
-        for (src_idx, dest_idx) in (self.num_groups..(self.num_groups + num_aggs)).enumerate() {
+        for (src_idx, dest_idx) in (num_groups..(num_groups + num_aggs)).enumerate() {
             // Swapping should be fine here as well.
             state.results.swap_arrays(src_idx, (output, dest_idx))?;
         }
 
         // Append grouping values.
         for (idx, &grouping_val) in self.grouping_values.iter().enumerate() {
-            let output_idx = self.num_groups + num_aggs + idx;
+            let output_idx = num_groups + num_aggs + idx;
             output.set_constant_value(output_idx, ScalarValue::UInt64(grouping_val))?;
         }
 
@@ -409,16 +405,19 @@ impl GroupingSetHashTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expr;
+    use crate::expr::physical::column_expr::PhysicalColumnExpr;
     use crate::functions::aggregate::builtin::sum;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
-    use crate::testutil::exprs::{plan_aggregates, plan_scalars, TestAggregate};
+    use crate::testutil::exprs::{plan_aggregates, TestAggregate};
 
     #[test]
     fn single_insert_merge_scan() {
         let inputs = [DataType::Utf8, DataType::Int64];
         let aggs = Aggregates {
-            groups: plan_scalars([&expr::col_ref(0, 0)], &[&inputs]),
+            groups: vec![PhysicalColumnExpr {
+                idx: 0,
+                datatype: inputs[0].clone(),
+            }],
             grouping_functions: Vec::new(),
             aggregates: plan_aggregates(
                 [TestAggregate {
@@ -431,21 +430,72 @@ mod tests {
 
         let grouping_set: BTreeSet<usize> = [0].into();
         let table = GroupingSetHashTable::new(&aggs, grouping_set, 16, 1);
-        let (op_state, mut build_states) = table.init_states().unwrap();
+        let (mut op_state, mut build_states) = table.init_states().unwrap();
         assert_eq!(1, build_states.len());
 
         let mut input = generate_batch!(["a", "b", "c", "a"], [1_i64, 2, 3, 4]);
         table.insert(&mut build_states[0], &mut input).unwrap();
 
-        let scan_ready = table.merge(&op_state, &mut build_states[0]).unwrap();
+        let scan_ready = table.merge(&mut op_state, &mut build_states[0]).unwrap();
         assert!(scan_ready);
 
-        let mut scan_state = table.take_partition_scan_state(&op_state).unwrap();
+        let mut scan_state = table.take_partition_scan_state(&mut op_state).unwrap();
 
         let mut out = Batch::new([DataType::Utf8, DataType::Int64], 16).unwrap();
         table.scan(&mut scan_state, &mut out).unwrap();
 
         let expected = generate_batch!(["a", "b", "c"], [5_i64, 2, 3]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn single_insert_merge_scan_grouping_set() {
+        // Two grouping columns, but hash table has grouping set only
+        // referencing the last grouping column.
+
+        let inputs = [DataType::Utf8, DataType::Int64, DataType::Utf8];
+        let aggs = Aggregates {
+            groups: vec![
+                PhysicalColumnExpr {
+                    idx: 0,
+                    datatype: inputs[0].clone(),
+                },
+                PhysicalColumnExpr {
+                    idx: 2,
+                    datatype: inputs[2].clone(),
+                },
+            ],
+            grouping_functions: Vec::new(),
+            aggregates: plan_aggregates(
+                [TestAggregate {
+                    function: &sum::Sum,
+                    columns: &[1],
+                }],
+                inputs,
+            ),
+        };
+
+        let grouping_set: BTreeSet<usize> = [1].into(); // '1' relative to groups (real column index of 2)
+        let table = GroupingSetHashTable::new(&aggs, grouping_set, 16, 1);
+        let (mut op_state, mut build_states) = table.init_states().unwrap();
+        assert_eq!(1, build_states.len());
+
+        let mut input = generate_batch!(
+            ["a", "b", "c", "a"],
+            [1_i64, 2, 3, 4],
+            ["gg", "ff", "gg", "ff"]
+        );
+        table.insert(&mut build_states[0], &mut input).unwrap();
+
+        let scan_ready = table.merge(&mut op_state, &mut build_states[0]).unwrap();
+        assert!(scan_ready);
+
+        let mut scan_state = table.take_partition_scan_state(&mut op_state).unwrap();
+
+        let mut out = Batch::new([DataType::Utf8, DataType::Utf8, DataType::Int64], 16).unwrap();
+        table.scan(&mut scan_state, &mut out).unwrap();
+
+        let expected = generate_batch!([None as Option<&str>, None], ["gg", "ff"], [4_i64, 6]);
         assert_batches_eq(&expected, &out);
     }
 }
