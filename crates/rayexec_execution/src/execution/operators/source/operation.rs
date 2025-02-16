@@ -21,7 +21,7 @@ pub enum PollPull {
     Exhausted,
 }
 
-pub trait SourceOperation: Debug + Send + Sync + Explainable {
+pub trait SourceOperation: Debug + Send + Sync + Explainable + 'static {
     /// Create partition sources for this operation.
     ///
     /// This must return the exact number of sources for partitions.
@@ -30,6 +30,7 @@ pub trait SourceOperation: Debug + Send + Sync + Explainable {
     fn create_partition_sources(
         &mut self,
         context: &DatabaseContext,
+        projections: &Projections,
         batch_size: usize,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSource>>>;
@@ -47,11 +48,12 @@ impl SourceOperation for Box<dyn SourceOperation> {
     fn create_partition_sources(
         &mut self,
         context: &DatabaseContext,
+        projections: &Projections,
         batch_size: usize,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSource>>> {
         self.as_mut()
-            .create_partition_sources(context, batch_size, partitions)
+            .create_partition_sources(context, projections, batch_size, partitions)
     }
 }
 
@@ -59,4 +61,13 @@ impl Explainable for Box<dyn SourceOperation> {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         self.as_ref().explain_entry(conf)
     }
+}
+
+/// Scan projections.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Projections {
+    /// Column indices to project out of the scan.
+    ///
+    /// If None, project all columns.
+    pub column_indices: Option<Vec<usize>>,
 }

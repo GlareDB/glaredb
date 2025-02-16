@@ -4,7 +4,12 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
-use crate::execution::operators::source::operation::{PartitionSource, PollPull, SourceOperation};
+use crate::execution::operators::source::operation::{
+    PartitionSource,
+    PollPull,
+    Projections,
+    SourceOperation,
+};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 /// Source implementation that returns static batches.
@@ -20,6 +25,7 @@ impl SourceOperation for BatchesSource {
     fn create_partition_sources(
         &mut self,
         _context: &DatabaseContext,
+        projections: &Projections,
         batch_size: usize,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSource>>> {

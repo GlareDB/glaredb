@@ -1,29 +1,29 @@
 use std::fmt::Debug;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::stream::{self, BoxStream};
-use futures::{Future, Stream, StreamExt, TryStreamExt};
+use futures::{Future, FutureExt, Stream, StreamExt};
 use rayexec_error::{RayexecError, Result, ResultExt};
 pub use reqwest;
-use reqwest::header::{HeaderMap, CONTENT_LENGTH, RANGE};
+use reqwest::header::{HeaderMap, RANGE};
 use reqwest::{Method, Request, StatusCode};
 use serde::de::DeserializeOwned;
 use tracing::debug;
 use url::Url;
 
-use crate::FileSource;
+use crate::exp::{AsyncReadStream, File};
 
 pub trait HttpClient: Sync + Send + Debug + Clone {
     type Response: HttpResponse + Send;
-    type RequestFuture: Future<Output = Result<Self::Response>> + Send;
+    type RequestFuture: Future<Output = Result<Self::Response>> + Send + Unpin;
 
     fn do_request(&self, request: Request) -> Self::RequestFuture;
 }
 
 pub trait HttpResponse {
-    type BytesFuture: Future<Output = Result<Bytes>> + Send;
-    type BytesStream: Stream<Item = Result<Bytes>> + Send;
+    type BytesFuture: Future<Output = Result<Bytes>> + Send + Unpin;
+    type BytesStream: Stream<Item = Result<Bytes>> + Send + Unpin;
 
     fn status(&self) -> StatusCode;
     fn headers(&self) -> &HeaderMap;
@@ -38,90 +38,137 @@ pub async fn read_text(resp: impl HttpResponse) -> Result<String> {
 
 pub async fn read_json<T: DeserializeOwned>(resp: impl HttpResponse) -> Result<T> {
     let full = resp.bytes().await?;
-
-    // let s = str::from_utf8(&full).unwrap();
-    // print!("RESP: {s}");
-
     serde_json::from_slice(&full).context("failed to parse response as json")
 }
 
 #[derive(Debug)]
-pub struct HttpClientReader<C: HttpClient> {
+pub struct HttpFile<C: HttpClient> {
     client: C,
     url: Url,
 }
 
-impl<C: HttpClient> HttpClientReader<C> {
+impl<C> HttpFile<C>
+where
+    C: HttpClient,
+{
     pub fn new(client: C, url: Url) -> Self {
-        HttpClientReader { client, url }
+        HttpFile { client, url }
     }
 }
 
-impl<C: HttpClient + 'static> FileSource for HttpClientReader<C> {
-    fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
+impl<C> File for HttpFile<C>
+where
+    C: HttpClient + Unpin + 'static,
+{
+    fn read(&mut self) -> Pin<Box<dyn AsyncReadStream>> {
+        debug!(url = %self.url, "http read");
+        let request = Request::new(Method::GET, self.url.clone());
+        let fut = self.client.do_request(request);
+
+        Box::pin(HttpRead::<C>::Requesting {
+            fut,
+            expected_status: StatusCode::OK,
+        })
+    }
+
+    fn read_range(&mut self, start: usize, len: usize) -> Pin<Box<dyn AsyncReadStream>> {
         debug!(url = %self.url, %start, %len, "http reading range");
-
         let range = format_range_header(start, start + len - 1);
-
         let mut request = Request::new(Method::GET, self.url.clone());
         request
             .headers_mut()
             .insert(RANGE, range.try_into().unwrap());
-
         let fut = self.client.do_request(request);
 
-        Box::pin(async move {
-            let resp = fut.await?;
-
-            if resp.status() != StatusCode::PARTIAL_CONTENT {
-                return Err(RayexecError::new("Server does not support range requests"));
-            }
-
-            resp.bytes().await.context("failed to get response body")
+        Box::pin(HttpRead::<C>::Requesting {
+            fut,
+            expected_status: StatusCode::PARTIAL_CONTENT,
         })
     }
+}
 
-    fn read_stream(&mut self) -> BoxStream<'static, Result<Bytes>> {
-        debug!(url = %self.url, "http reading stream");
+struct BufferedBytes {
+    offset: usize,
+    bytes: Bytes,
+}
 
-        let client = self.client.clone();
-        let req = Request::new(Method::GET, self.url.clone());
+enum HttpRead<C: HttpClient> {
+    Requesting {
+        fut: C::RequestFuture,
+        expected_status: StatusCode,
+    },
+    Streaming {
+        stream: <C::Response as HttpResponse>::BytesStream,
+        buffered: Option<BufferedBytes>,
+    },
+}
 
-        let stream = stream::once(async move {
-            let resp = client.do_request(req).await?;
+impl<C> Unpin for HttpRead<C> where C: HttpClient + Unpin {}
 
-            Ok::<_, RayexecError>(resp.bytes_stream())
-        })
-        .try_flatten();
+impl<C> AsyncReadStream for HttpRead<C>
+where
+    C: HttpClient + Unpin,
+{
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &mut [u8],
+    ) -> Result<Poll<Option<usize>>> {
+        let this = &mut *self;
 
-        stream.boxed()
-    }
+        loop {
+            match this {
+                Self::Requesting {
+                    fut,
+                    expected_status,
+                } => match fut.poll_unpin(cx) {
+                    Poll::Ready(Ok(resp)) => {
+                        if resp.status() != *expected_status {
+                            return Err(RayexecError::new("Response status not what we expected")
+                                .with_field("status", resp.status().to_string())
+                                .with_field("expected", expected_status.to_string()));
+                        }
 
-    fn size(&mut self) -> BoxFuture<Result<usize>> {
-        debug!(url = %self.url, "http getting content length");
+                        let stream = resp.bytes_stream();
+                        *this = HttpRead::Streaming {
+                            stream,
+                            buffered: None,
+                        };
+                        continue;
+                    }
+                    Poll::Ready(Err(err)) => return Err(err),
+                    Poll::Pending => return Ok(Poll::Pending),
+                },
+                Self::Streaming { stream, buffered } => {
+                    if buffered.is_none() {
+                        // Get bytes from underlying stream.
+                        let bytes = match stream.poll_next_unpin(cx) {
+                            Poll::Ready(Some(result)) => result?,
+                            Poll::Ready(None) => return Ok(Poll::Ready(None)), // Stream complete.
+                            Poll::Pending => return Ok(Poll::Pending),
+                        };
 
-        let fut = self
-            .client
-            .do_request(Request::new(Method::GET, self.url.clone()));
+                        *buffered = Some(BufferedBytes { offset: 0, bytes })
+                    }
 
-        Box::pin(async move {
-            let resp = fut.await?;
+                    let curr = buffered.as_mut().expect("buffered bytes to be set");
 
-            if !resp.status().is_success() {
-                return Err(RayexecError::new("Failed to get content-length"));
+                    let buffered_remaining = curr.bytes.len() - curr.offset;
+                    let read_len = usize::min(buffered_remaining, buf.len());
+
+                    let s = &curr.bytes[curr.offset..(curr.offset + read_len)];
+                    buf.copy_from_slice(s);
+
+                    if read_len == buffered_remaining {
+                        // We've exhausted the current buffered bytes. Next poll
+                        // should read from the stream.
+                        *buffered = None;
+                    }
+
+                    return Ok(Poll::Ready(Some(read_len)));
+                }
             }
-
-            let len = match resp.headers().get(CONTENT_LENGTH) {
-                Some(header) => header
-                    .to_str()
-                    .context("failed to convert to string")?
-                    .parse::<usize>()
-                    .context("failed to parse content length")?,
-                None => return Err(RayexecError::new("Response missing content-length header")),
-            };
-
-            Ok(len)
-        })
+        }
     }
 }
 

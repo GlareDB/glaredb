@@ -19,7 +19,7 @@ use rayexec_execution::functions::table::{
 use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::logical::statistics::StatisticsValue;
 use rayexec_execution::runtime::Runtime;
-use rayexec_io::{FileProvider, FileSource};
+use rayexec_io::{FileProvider2, FileSource};
 
 use crate::datatable::SingleFileCsvDataTable;
 use crate::decoder::{CsvDecoder, DecoderState};

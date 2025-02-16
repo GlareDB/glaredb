@@ -4,10 +4,8 @@ use std::sync::Arc;
 use futures::stream::{self, BoxStream};
 use futures::StreamExt;
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
-use rayexec_execution::execution::executable::pipeline::{
-    ExecutablePartitionPipeline,
-    ExecutablePipeline,
-};
+use rayexec_execution::execution::executable::partition_pipeline::ExecutablePartitionPipeline;
+use rayexec_execution::execution::executable::pipeline::ExecutablePipeline;
 use rayexec_execution::runtime::handle::QueryHandle;
 use rayexec_execution::runtime::{
     ErrorSink,
@@ -16,10 +14,11 @@ use rayexec_execution::runtime::{
     Runtime,
     TokioHandlerProvider,
 };
-use rayexec_io::http::HttpClientReader;
+use rayexec_io::exp::{File, FileProvider};
+use rayexec_io::http::HttpFile;
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::s3::{S3Client, S3Location};
-use rayexec_io::{FileProvider, FileSink, FileSource};
+use rayexec_io::{FileProvider2, FileSink, FileSource};
 
 use crate::filesystem::LocalFileSystemProvider;
 use crate::http::TokioWrappedHttpClient;
@@ -134,79 +133,92 @@ pub struct NativeFileProvider {
 }
 
 impl FileProvider for NativeFileProvider {
-    fn file_source(
-        &self,
-        location: FileLocation,
-        config: &AccessConfig,
-    ) -> Result<Box<dyn FileSource>> {
+    fn open(&self, location: FileLocation, config: &AccessConfig) -> Result<Box<dyn File>> {
         match (location, config, self.handle.as_ref()) {
             (FileLocation::Url(url), AccessConfig::None, Some(handle)) => {
                 let client =
                     TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone());
-                Ok(Box::new(HttpClientReader::new(client, url)))
+                Ok(Box::new(HttpFile::new(client, url)))
             }
-            (
-                FileLocation::Url(url),
-                AccessConfig::S3 {
-                    credentials,
-                    region,
-                },
-                Some(handle),
-            ) => {
-                let client = S3Client::new(
-                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone()),
-                    credentials.clone(),
-                );
-                let location = S3Location::from_url(url, region)?;
-                let reader = client.file_source(location, region)?;
-                Ok(reader)
-            }
-            (FileLocation::Url(_), _, None) => Err(RayexecError::new(
-                "Cannot create http client, missing tokio runtime",
-            )),
-            (FileLocation::Path(path), _, _) => LocalFileSystemProvider.file_source(&path),
-        }
-    }
-
-    fn file_sink(
-        &self,
-        location: FileLocation,
-        _config: &AccessConfig,
-    ) -> Result<Box<dyn FileSink>> {
-        match (location, self.handle.as_ref()) {
-            (FileLocation::Url(_url), _) => not_implemented!("http sink native"),
-            (FileLocation::Path(path), _) => LocalFileSystemProvider.file_sink(&path),
-        }
-    }
-
-    fn list_prefix(
-        &self,
-        prefix: FileLocation,
-        config: &AccessConfig,
-    ) -> BoxStream<'static, Result<Vec<String>>> {
-        match (prefix, config, self.handle.as_ref()) {
-            (
-                FileLocation::Url(url),
-                AccessConfig::S3 {
-                    credentials,
-                    region,
-                },
-                Some(handle),
-            ) => {
-                let client = S3Client::new(
-                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone()),
-                    credentials.clone(),
-                );
-                let location = S3Location::from_url(url, region).unwrap(); // TODO
-                let stream = client.list_prefix(location, region);
-                stream.boxed()
-            }
-            (FileLocation::Url(_), _, _) => Box::pin(stream::once(async move {
-                Err(RayexecError::new("Cannot list for http file sources"))
-            })),
-            (FileLocation::Path(path), _, _) => Box::pin(stream::once(async move {
-                LocalFileSystemProvider.list_prefix(&path)
-            })),
+            _ => unimplemented!(),
         }
     }
 }
+
+// impl FileProvider2 for NativeFileProvider {
+//     fn file_source(
+//         &self,
+//         location: FileLocation,
+//         config: &AccessConfig,
+//     ) -> Result<Box<dyn FileSource>> {
+//         match (location, config, self.handle.as_ref()) {
+//             (FileLocation::Url(url), AccessConfig::None, Some(handle)) => {
+//                 let client =
+//                     TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone());
+//                 Ok(Box::new(HttpFile::new(client, url)))
+//             }
+//             (
+//                 FileLocation::Url(url),
+//                 AccessConfig::S3 {
+//                     credentials,
+//                     region,
+//                 },
+//                 Some(handle),
+//             ) => {
+//                 let client = S3Client::new(
+//                     TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone()),
+//                     credentials.clone(),
+//                 );
+//                 let location = S3Location::from_url(url, region)?;
+//                 let reader = client.file_source(location, region)?;
+//                 Ok(reader)
+//             }
+//             (FileLocation::Url(_), _, None) => Err(RayexecError::new(
+//                 "Cannot create http client, missing tokio runtime",
+//             )),
+//             (FileLocation::Path(path), _, _) => LocalFileSystemProvider.file_source(&path),
+//         }
+//     }
+
+//     fn file_sink(
+//         &self,
+//         location: FileLocation,
+//         _config: &AccessConfig,
+//     ) -> Result<Box<dyn FileSink>> {
+//         match (location, self.handle.as_ref()) {
+//             (FileLocation::Url(_url), _) => not_implemented!("http sink native"),
+//             (FileLocation::Path(path), _) => LocalFileSystemProvider.file_sink(&path),
+//         }
+//     }
+
+//     fn list_prefix(
+//         &self,
+//         prefix: FileLocation,
+//         config: &AccessConfig,
+//     ) -> BoxStream<'static, Result<Vec<String>>> {
+//         match (prefix, config, self.handle.as_ref()) {
+//             (
+//                 FileLocation::Url(url),
+//                 AccessConfig::S3 {
+//                     credentials,
+//                     region,
+//                 },
+//                 Some(handle),
+//             ) => {
+//                 let client = S3Client::new(
+//                     TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone()),
+//                     credentials.clone(),
+//                 );
+//                 let location = S3Location::from_url(url, region).unwrap(); // TODO
+//                 let stream = client.list_prefix(location, region);
+//                 stream.boxed()
+//             }
+//             (FileLocation::Url(_), _, _) => Box::pin(stream::once(async move {
+//                 Err(RayexecError::new("Cannot list for http file sources"))
+//             })),
+//             (FileLocation::Path(path), _, _) => Box::pin(stream::once(async move {
+//                 LocalFileSystemProvider.list_prefix(&path)
+//             })),
+//         }
+//     }
+// }

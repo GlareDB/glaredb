@@ -1,9 +1,7 @@
-
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use super::{IntermediatePipelineBuildState, PipelineIdGen};
 use crate::execution::operators::scan::PhysicalScan;
-use crate::execution::operators::table_function::PhysicalTableFunction;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_scan::{LogicalScan, ScanSource};
 use crate::logical::operator::Node;
@@ -27,29 +25,29 @@ impl IntermediatePipelineBuildState<'_> {
             Projections::all()
         };
 
-        let operator = match scan.node.source {
-            ScanSource::Table {
-                catalog,
-                schema,
-                source,
-            } => PhysicalOperator::Scan(PhysicalScan::new(catalog, schema, source, projections)),
-            ScanSource::TableFunction { function } => {
-                PhysicalOperator::TableFunction(PhysicalTableFunction::new(function, projections))
-            }
-            ScanSource::ExpressionList { rows } => {
-                // let batches = self.create_batches_for_row_values(projections, rows)?;
-                // TODO: Table refs
-                unimplemented!()
-                // let expressions = rows.into_iter().map(|row| {
-                //     self.expr_planner.plan_scalars(table_refs, exprs)
-                // })
-                // IntermediateOperator {
-                //     operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(batches))),
-                //     partitioning_requirement: None,
-                // }
-            }
-            ScanSource::View { .. } => not_implemented!("view physical planning"),
-        };
+        // let operator = match scan.node.source {
+        //     ScanSource::Table {
+        //         catalog,
+        //         schema,
+        //         source,
+        //     } => PhysicalOperator::Scan(PhysicalScan::new(catalog, schema, source, projections)),
+        //     ScanSource::TableFunction { function } => {
+        //         PhysicalOperator::TableFunction(PhysicalTableFunction::new(function, projections))
+        //     }
+        //     ScanSource::ExpressionList { rows } => {
+        //         // let batches = self.create_batches_for_row_values(projections, rows)?;
+        //         // TODO: Table refs
+        //         unimplemented!()
+        //         // let expressions = rows.into_iter().map(|row| {
+        //         //     self.expr_planner.plan_scalars(table_refs, exprs)
+        //         // })
+        //         // IntermediateOperator {
+        //         //     operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(batches))),
+        //         //     partitioning_requirement: None,
+        //         // }
+        //     }
+        //     ScanSource::View { .. } => not_implemented!("view physical planning"),
+        // };
 
         unimplemented!()
         // self.in_progress = Some(InProgressPipeline {

@@ -1,6 +1,7 @@
 pub mod copy_to;
 pub mod datatable;
 pub mod reader;
+pub mod scan;
 pub mod writer;
 
 mod decoder;

@@ -8,7 +8,12 @@ use super::client::HybridClient;
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::operators::sink::operation::{PartitionSink, PollPush, SinkOperation};
-use crate::execution::operators::source::operation::{PartitionSource, PollPull, SourceOperation};
+use crate::execution::operators::source::operation::{
+    PartitionSource,
+    PollPull,
+    Projections,
+    SourceOperation,
+};
 use crate::execution::operators::PollFinalize;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -101,6 +106,7 @@ impl<C: HttpClient + 'static> SourceOperation for ServerToClientStream<C> {
     fn create_partition_sources(
         &mut self,
         context: &DatabaseContext,
+        projections: &Projections,
         batch_size: usize,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSource>>> {

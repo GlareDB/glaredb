@@ -41,6 +41,9 @@ pub enum UngroupedAggregatePartitionState {
     Finished,
 }
 
+// SAFETY: The `Vec<*mut u8>` is just a buffer for storing row pointers.
+unsafe impl Send for UngroupedAggregatePartitionState {}
+
 #[derive(Debug)]
 pub struct UngroupedAggregateOperatorState {
     inner: Mutex<OperatorStateInner>,

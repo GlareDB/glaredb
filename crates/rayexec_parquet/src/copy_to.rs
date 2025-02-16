@@ -9,7 +9,7 @@ use rayexec_execution::execution::operators::sink::PartitionSink;
 use rayexec_execution::functions::copy::CopyToFunction;
 use rayexec_execution::runtime::Runtime;
 use rayexec_io::location::{AccessConfig, FileLocation};
-use rayexec_io::FileProvider;
+use rayexec_io::FileProvider2;
 
 use crate::writer::AsyncBatchWriter;
 

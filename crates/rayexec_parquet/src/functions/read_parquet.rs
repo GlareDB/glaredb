@@ -19,7 +19,7 @@ use rayexec_execution::functions::table::{
 use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::logical::statistics::StatisticsValue;
 use rayexec_execution::runtime::Runtime;
-use rayexec_io::FileProvider;
+use rayexec_io::FileProvider2;
 
 use super::datatable::RowGroupPartitionedDataTable;
 use crate::metadata::Metadata;

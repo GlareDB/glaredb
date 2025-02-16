@@ -13,11 +13,11 @@ use rayexec_execution::execution::executable::pipeline::{
 use rayexec_execution::execution::executable::profiler::ExecutionProfileData;
 use rayexec_execution::runtime::handle::QueryHandle;
 use rayexec_execution::runtime::{ErrorSink, PipelineExecutor, Runtime, TokioHandlerProvider};
-use rayexec_io::http::HttpClientReader;
+use rayexec_io::http::HttpFile;
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::memory::MemoryFileSystem;
 use rayexec_io::s3::{S3Client, S3Location};
-use rayexec_io::{FileProvider, FileSink, FileSource};
+use rayexec_io::{FileProvider2, FileSink, FileSource};
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
@@ -113,7 +113,7 @@ pub struct WasmFileProvider {
     fs: Arc<MemoryFileSystem>,
 }
 
-impl FileProvider for WasmFileProvider {
+impl FileProvider2 for WasmFileProvider {
     fn file_source(
         &self,
         location: FileLocation,
@@ -122,7 +122,7 @@ impl FileProvider for WasmFileProvider {
         match (location, config) {
             (FileLocation::Url(url), AccessConfig::None) => {
                 let client = WasmHttpClient::new(reqwest::Client::default());
-                Ok(Box::new(HttpClientReader::new(client, url)))
+                Ok(Box::new(HttpFile::new(client, url)))
             }
             (
                 FileLocation::Url(url),

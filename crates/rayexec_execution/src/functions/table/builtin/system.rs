@@ -400,30 +400,31 @@ where
         positional_inputs: Vec<OwnedScalarValue>,
         named_inputs: HashMap<String, OwnedScalarValue>,
     ) -> BoxFuture<'a, Result<PlannedTableFunction>> {
-        let databases = context
-            .iter_databases()
-            .map(|(name, database)| {
-                (
-                    name.clone(),
-                    database.catalog.clone(),
-                    database.attach_info.clone(),
-                )
-            })
-            .collect();
+        // let databases = context
+        //     .iter_databases()
+        //     .map(|(name, database)| {
+        //         (
+        //             name.clone(),
+        //             database.catalog.clone(),
+        //             database.attach_info.clone(),
+        //         )
+        //     })
+        //     .collect();
 
-        let planned = PlannedTableFunction {
-            function: Box::new(SystemFunction::<F>::new()),
-            positional_inputs: positional_inputs.into_iter().map(expr::lit).collect(),
-            named_inputs,
-            function_impl: TableFunctionImpl::Scan(Arc::new(SystemDataTable::<F> {
-                databases: Arc::new(Mutex::new(Some(databases))),
-                _f: PhantomData,
-            })),
-            cardinality: StatisticsValue::Unknown,
-            schema: F::schema(),
-        };
+        unimplemented!()
+        // let planned = PlannedTableFunction {
+        //     function: Box::new(SystemFunction::<F>::new()),
+        //     positional_inputs: positional_inputs.into_iter().map(expr::lit).collect(),
+        //     named_inputs,
+        //     function_impl: TableFunctionImpl::Scan(Arc::new(SystemDataTable::<F> {
+        //         databases: Arc::new(Mutex::new(Some(databases))),
+        //         _f: PhantomData,
+        //     })),
+        //     cardinality: StatisticsValue::Unknown,
+        //     schema: F::schema(),
+        // };
 
-        Box::pin(async move { Ok(planned) })
+        // Box::pin(async move { Ok(planned) })
     }
 }
 

@@ -50,7 +50,7 @@ mod tests {
         let expr = lit("a");
 
         // No changes.
-        let expected = expr.clone();
+        let expected = lit("a");
 
         let table_list = TableList::empty();
         let got = ConstFold::rewrite(&table_list, expr).unwrap();
@@ -106,7 +106,7 @@ mod tests {
         let expr = add(col_ref(1, 1), lit(5));
 
         // No change
-        let expected = expr.clone();
+        let expected = add(col_ref(1, 1), lit(5));
 
         let table_list = TableList::empty();
         let got = ConstFold::rewrite(&table_list, expr).unwrap();

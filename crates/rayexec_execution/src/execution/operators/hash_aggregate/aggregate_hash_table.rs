@@ -29,6 +29,9 @@ pub struct AggregateHashTableInsertState {
     append_state: AggregateAppendState,
 }
 
+// SAFETY: The `Vec<*mut u8>` is just a buffer for storing row pointers.
+unsafe impl Send for AggregateHashTableInsertState {}
+
 /// Linear probing hash table for aggregates.
 ///
 /// Hash table layout: [groups, groups_hash, agg_states]

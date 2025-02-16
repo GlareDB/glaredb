@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn distribute_none() {
-        // '(0 AND 1) OR (2 AND 3)' => '(0 AND 1)'
+        // '(0 AND 1) OR (2 AND 3)'
         let expr = or([
             and([lit(0), lit(1)]).unwrap(),
             and([lit(2), lit(3)]).unwrap(),
@@ -180,7 +180,11 @@ mod tests {
         .unwrap();
 
         // No changes.
-        let expected = expr.clone();
+        let expected = or([
+            and([lit(0), lit(1)]).unwrap(),
+            and([lit(2), lit(3)]).unwrap(),
+        ])
+        .unwrap();
 
         let table_list = TableList::empty();
         let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();

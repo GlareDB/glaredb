@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
 use super::sink::operation::{PartitionSink, PollPush, SinkOperation};
-use super::source::operation::{PartitionSource, PollPull, SourceOperation};
+use super::source::operation::{PartitionSource, PollPull, Projections, SourceOperation};
 use super::PollFinalize;
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
@@ -103,6 +103,7 @@ impl SourceOperation for MaterializeSourceOperation {
     fn create_partition_sources(
         &mut self,
         context: &DatabaseContext,
+        projections: &Projections,
         batch_size: usize,
         partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSource>>> {

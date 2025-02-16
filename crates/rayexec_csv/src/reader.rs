@@ -23,9 +23,7 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::arrays::array::{Array, ArrayData2};
 use rayexec_execution::arrays::batch::Batch;
-use rayexec_execution::arrays::bitmap::Bitmap;
 use rayexec_execution::arrays::compute::cast::parse::{
     BoolParser,
     Float64Parser,
@@ -33,9 +31,7 @@ use rayexec_execution::arrays::compute::cast::parse::{
     Parser,
 };
 use rayexec_execution::arrays::datatype::{DataType, TimeUnit, TimestampTypeMeta};
-use rayexec_execution::arrays::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
 use rayexec_execution::arrays::field::{Field, Schema};
-use rayexec_execution::arrays::storage::{BooleanStorage, PrimitiveStorage};
 use rayexec_io::FileSource;
 use serde::{Deserialize, Serialize};
 
@@ -458,121 +454,32 @@ impl AsyncCsvStream {
     ) -> Result<Batch> {
         let skip_records = if skip_header { 1 } else { 0 };
 
-        let mut arrs = Vec::with_capacity(schema.fields.len());
-        for (idx, field) in schema.fields.iter().enumerate() {
-            let arr = match &field.datatype {
-                DataType::Boolean => Self::build_boolean(&completed, idx, skip_records)?,
-                DataType::Int64 => Self::build_primitive(
-                    &field.datatype,
-                    &completed,
-                    idx,
-                    skip_records,
-                    Int64Parser::new(),
-                )?,
-                DataType::Float64 => Self::build_primitive(
-                    &field.datatype,
-                    &completed,
-                    idx,
-                    skip_records,
-                    Float64Parser::new(),
-                )?,
-                DataType::Utf8 => Self::build_utf8(&completed, idx, skip_records)?,
-                other => return Err(RayexecError::new(format!("Unhandled data type: {other}"))),
-            };
+        unimplemented!()
+        // let mut arrs = Vec::with_capacity(schema.fields.len());
+        // for (idx, field) in schema.fields.iter().enumerate() {
+        //     let arr = match &field.datatype {
+        //         DataType::Boolean => Self::build_boolean(&completed, idx, skip_records)?,
+        //         DataType::Int64 => Self::build_primitive(
+        //             &field.datatype,
+        //             &completed,
+        //             idx,
+        //             skip_records,
+        //             Int64Parser::new(),
+        //         )?,
+        //         DataType::Float64 => Self::build_primitive(
+        //             &field.datatype,
+        //             &completed,
+        //             idx,
+        //             skip_records,
+        //             Float64Parser::new(),
+        //         )?,
+        //         DataType::Utf8 => Self::build_utf8(&completed, idx, skip_records)?,
+        //         other => return Err(RayexecError::new(format!("Unhandled data type: {other}"))),
+        //     };
 
-            arrs.push(arr);
-        }
+        //     arrs.push(arr);
+        // }
 
-        Batch::from_arrays(arrs)
-    }
-
-    fn build_boolean(
-        completed: &CompletedRecords,
-        field_idx: usize,
-        skip_records: usize,
-    ) -> Result<Array> {
-        let mut values = Bitmap::with_capacity(completed.num_completed());
-        let mut validity = Bitmap::with_capacity(completed.num_completed());
-
-        for record in completed.iter().skip(skip_records) {
-            let field = record.get_field(field_idx)?;
-            if field.is_empty() {
-                values.push(false);
-                validity.push(false);
-            } else {
-                values.push(BoolParser.parse(field).ok_or_else(|| {
-                    RayexecError::new(format!("Failed to parse '{field}' into a boolean"))
-                })?);
-                validity.push(true);
-            }
-        }
-
-        Ok(Array::new_with_validity_and_array_data(
-            DataType::Boolean,
-            validity,
-            BooleanStorage::from(values),
-        ))
-    }
-
-    fn build_primitive<T, P>(
-        datatype: &DataType,
-        completed: &CompletedRecords,
-        field_idx: usize,
-        skip_records: usize,
-        mut parser: P,
-    ) -> Result<Array>
-    where
-        T: Default,
-        P: Parser<Type = T>,
-        PrimitiveStorage<T>: Into<ArrayData2>,
-    {
-        let mut values = Vec::with_capacity(completed.num_completed());
-        let mut validity = Bitmap::with_capacity(completed.num_completed());
-
-        for record in completed.iter().skip(skip_records) {
-            let field = record.get_field(field_idx)?;
-            if field.is_empty() {
-                values.push(T::default());
-                validity.push(false);
-            } else {
-                values.push(
-                    parser
-                        .parse(field)
-                        .ok_or_else(|| RayexecError::new(format!("Failed to parse '{field}'")))?,
-                );
-                validity.push(true);
-            }
-        }
-
-        Ok(Array::new_with_validity_and_array_data(
-            datatype.clone(),
-            validity,
-            PrimitiveStorage::from(values),
-        ))
-    }
-
-    fn build_utf8(
-        completed: &CompletedRecords,
-        field_idx: usize,
-        skip_records: usize,
-    ) -> Result<Array> {
-        let mut values = GermanVarlenBuffer::with_len(completed.num_completed() - skip_records);
-        let mut validity = Bitmap::with_capacity(completed.num_completed());
-
-        for (idx, record) in completed.iter().skip(skip_records).enumerate() {
-            let field = record.get_field(field_idx)?;
-            if field.is_empty() {
-                validity.push(false);
-            } else {
-                values.put(idx, field);
-                validity.push(true);
-            }
-        }
-
-        Ok(Array::new_with_validity_and_array_data(
-            DataType::Utf8,
-            validity,
-            values.into_data(),
-        ))
+        // Batch::from_arrays(arrs)
     }
 }

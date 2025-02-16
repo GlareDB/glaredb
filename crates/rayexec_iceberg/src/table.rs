@@ -9,7 +9,7 @@ use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::field::Schema;
 use rayexec_execution::storage::table_storage::Projections;
 use rayexec_io::location::{AccessConfig, FileLocation};
-use rayexec_io::{FileProvider, FileSource, FileSourceExt};
+use rayexec_io::{FileProvider2, FileSource, FileSourceExt};
 use rayexec_parquet::metadata::Metadata;
 use rayexec_parquet::reader::AsyncBatchReader;
 
@@ -28,7 +28,7 @@ pub struct Table {
     /// Root of the table.
     root: FileLocation,
     /// Provider for accessing files that make up the table.
-    provider: Arc<dyn FileProvider>,
+    provider: Arc<dyn FileProvider2>,
     /// Access configuration used with the provider.
     conf: AccessConfig,
     /// Deserialized table metadata.
@@ -42,7 +42,7 @@ pub struct Table {
 impl Table {
     pub async fn load(
         root: FileLocation,
-        provider: Arc<dyn FileProvider>,
+        provider: Arc<dyn FileProvider2>,
         conf: AccessConfig,
     ) -> Result<Self> {
         let hint_path = root.join(["metadata", "version-hint.text"])?;
@@ -267,7 +267,7 @@ pub struct TableScan {
     /// Files this scan is responsible for.
     files: VecDeque<DataFile>,
     /// File provider for getting the actual file sources.
-    provider: Arc<dyn FileProvider>,
+    provider: Arc<dyn FileProvider2>,
     conf: AccessConfig,
     /// Current reader, initially empty and populated on first stream.
     ///
@@ -318,7 +318,7 @@ impl TableScan {
     async fn load_reader(
         location: FileLocation,
         conf: &AccessConfig,
-        provider: &dyn FileProvider,
+        provider: &dyn FileProvider2,
         schema: &Schema,
         projections: Projections,
     ) -> Result<AsyncBatchReader<Box<dyn FileSource>>> {

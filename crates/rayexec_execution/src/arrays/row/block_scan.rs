@@ -8,6 +8,9 @@ pub struct BlockScanState {
     pub row_pointers: Vec<*const u8>,
 }
 
+// SAFETY: The `Vec<*const u8>` is just a buffer for storing row pointers.
+unsafe impl Send for BlockScanState {}
+
 impl BlockScanState {
     pub const fn empty() -> Self {
         BlockScanState {

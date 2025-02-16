@@ -1,13 +1,14 @@
-use futures::future::BoxFuture;
-use futures::FutureExt;
+use std::task::Context;
+
 use rayexec_error::Result;
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::field::Schema;
-use rayexec_execution::execution::operators::sink::PartitionSink;
+use rayexec_execution::execution::operators::sink::operation::{PartitionSink, PollPush};
+use rayexec_execution::execution::operators::PollFinalize;
 use rayexec_execution::functions::copy::CopyToFunction;
 use rayexec_execution::runtime::Runtime;
 use rayexec_io::location::{AccessConfig, FileLocation};
-use rayexec_io::{FileProvider, FileSink};
+use rayexec_io::{FileProvider2, FileSink};
 
 use crate::reader::DialectOptions;
 use crate::writer::CsvEncoder;
@@ -68,11 +69,11 @@ impl CsvCopyToSink {
 }
 
 impl PartitionSink for CsvCopyToSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
-        self.push_inner(batch).boxed()
+    fn poll_push(&mut self, cx: &mut Context, input: &mut Batch) -> Result<PollPush> {
+        unimplemented!()
     }
 
-    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
-        self.finalize_inner().boxed()
+    fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize> {
+        unimplemented!()
     }
 }

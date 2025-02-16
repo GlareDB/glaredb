@@ -8,6 +8,7 @@ use std::sync::Arc;
 use dyn_clone::DynClone;
 use futures::future::BoxFuture;
 use inout::TableInOutFunction;
+use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::s3::credentials::AwsCredentials;
@@ -17,6 +18,7 @@ use super::FunctionInfo;
 use crate::arrays::field::Schema;
 use crate::arrays::scalar::OwnedScalarValue;
 use crate::database::DatabaseContext;
+use crate::execution::operators::source::operation::SourceOperation;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
 use crate::logical::statistics::StatisticsValue;
@@ -121,10 +123,29 @@ impl Eq for PlannedTableFunction {}
 #[derive(Debug, Clone)]
 pub enum TableFunctionImpl {
     /// Table function that produces a table as its output.
-    Scan(Arc<dyn DataTable>),
+    // TODO: Try to remove the Arc+Mutex.
+    //
+    // Currently expressions can be cloned mostly for ease of implementation of
+    // optimizer rules. The Arc+Mutex here is to allow that without needing to
+    // do a larger refactor right now.
+    //
+    // There will only be a single instance of this object after all the
+    // planning/optimization. The mutex also shouldn't be that expensive since
+    // only a single thread locks it when creating the states, and it's only
+    // locked once.
+    Scan(Arc<Mutex<dyn SourceOperation>>),
     /// A table function that accepts dynamic arguments and produces a table
     /// output.
     InOut(Box<dyn TableInOutFunction>),
+}
+
+impl TableFunctionImpl {
+    pub fn new_scan<S>(source: S) -> Self
+    where
+        S: SourceOperation,
+    {
+        TableFunctionImpl::Scan(Arc::new(Mutex::new(source)))
+    }
 }
 
 /// Try to get a file location and access config from the table args.

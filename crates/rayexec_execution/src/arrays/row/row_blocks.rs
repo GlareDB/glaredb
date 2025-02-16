@@ -39,6 +39,9 @@ pub struct BlockAppendState {
     pub heap_pointers: Vec<HeapMutPtr>,
 }
 
+// SAFETY: The `Vec<*mut u8>` is just a buffer for storing row pointers.
+unsafe impl Send for BlockAppendState {}
+
 impl BlockAppendState {
     pub fn clear(&mut self) {
         self.row_pointers.clear();

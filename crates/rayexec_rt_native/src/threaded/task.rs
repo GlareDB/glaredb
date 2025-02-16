@@ -3,7 +3,7 @@ use std::task::{Context, Poll, Wake, Waker};
 
 use parking_lot::Mutex;
 use rayexec_error::RayexecError;
-use rayexec_execution::execution::executable::pipeline::ExecutablePartitionPipeline;
+use rayexec_execution::execution::executable::partition_pipeline::ExecutablePartitionPipeline;
 use rayexec_execution::runtime::ErrorSink;
 use rayon::ThreadPool;
 
