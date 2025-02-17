@@ -1,8 +1,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use futures::stream::{self, BoxStream};
-use futures::StreamExt;
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::execution::executable::partition_pipeline::ExecutablePartitionPipeline;
 use rayexec_execution::execution::executable::pipeline::ExecutablePipeline;
@@ -14,13 +12,12 @@ use rayexec_execution::runtime::{
     Runtime,
     TokioHandlerProvider,
 };
-use rayexec_io::exp::{File, FileProvider};
+use rayexec_io::exp::{FileProvider, FileSource};
 use rayexec_io::http::HttpFile;
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::s3::{S3Client, S3Location};
-use rayexec_io::{FileProvider2, FileSink, FileSource};
+use rayexec_io::{FileProvider2, FileSink};
 
-use crate::filesystem::LocalFileSystemProvider;
 use crate::http::TokioWrappedHttpClient;
 use crate::threaded::ThreadedScheduler;
 use crate::time::NativeInstant;
@@ -133,7 +130,11 @@ pub struct NativeFileProvider {
 }
 
 impl FileProvider for NativeFileProvider {
-    fn open(&self, location: FileLocation, config: &AccessConfig) -> Result<Box<dyn File>> {
+    fn file_source(
+        &self,
+        location: FileLocation,
+        config: &AccessConfig,
+    ) -> Result<Box<dyn FileSource>> {
         match (location, config, self.handle.as_ref()) {
             (FileLocation::Url(url), AccessConfig::None, Some(handle)) => {
                 let client =

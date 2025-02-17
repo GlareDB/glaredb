@@ -12,7 +12,7 @@ use serde::de::DeserializeOwned;
 use tracing::debug;
 use url::Url;
 
-use crate::exp::{AsyncReadStream, File};
+use crate::exp::{AsyncReadStream, FileSource};
 
 pub trait HttpClient: Sync + Send + Debug + Clone {
     type Response: HttpResponse + Send;
@@ -56,7 +56,7 @@ where
     }
 }
 
-impl<C> File for HttpFile<C>
+impl<C> FileSource for HttpFile<C>
 where
     C: HttpClient + Unpin + 'static,
 {
@@ -102,8 +102,6 @@ enum HttpRead<C: HttpClient> {
         buffered: Option<BufferedBytes>,
     },
 }
-
-impl<C> Unpin for HttpRead<C> where C: HttpClient + Unpin {}
 
 impl<C> AsyncReadStream for HttpRead<C>
 where

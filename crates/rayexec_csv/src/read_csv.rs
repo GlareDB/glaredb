@@ -19,6 +19,8 @@ use rayexec_execution::functions::table::{
 use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::logical::statistics::StatisticsValue;
 use rayexec_execution::runtime::Runtime;
+use rayexec_io::exp::FileProvider;
+use rayexec_io::future::read_into::ReadInto;
 use rayexec_io::{FileProvider2, FileSource};
 
 use crate::datatable::SingleFileCsvDataTable;
@@ -81,26 +83,23 @@ impl<R: Runtime> ReadCsv<R> {
             .file_provider()
             .file_source(location.clone(), &conf)?;
 
-        let mut stream = source.read_stream();
-        // TODO: Actually make sure this is a sufficient size to infer from.
-        // TODO: This throws away the buffer after inferring.
-        let infer_buf = match stream.next().await {
-            Some(result) => {
-                const INFER_SIZE: usize = 1024;
-                let buf = result?;
-                if buf.len() > INFER_SIZE {
-                    buf.slice(0..INFER_SIZE)
-                } else {
-                    buf
-                }
-            }
-            None => return Err(RayexecError::new("Stream returned no data")),
-        };
+        let mut stream = source.read();
 
-        let dialect = DialectOptions::infer_from_sample(&infer_buf)?;
+        // TODO: Actually make sure this is a sufficient size to infer from.
+        //
+        // TODO: This throws away the buffer after inferring. We could instead
+        // keep both the buffer and stream on the returned table function impl,
+        // which would let us continue to read where we left off.
+        const INFER_SIZE: usize = 1024;
+        let mut buf = vec![0; INFER_SIZE];
+        let count = ReadInto::new(&mut stream, &mut buf).await?;
+
+        let buf = &buf[0..count];
+
+        let dialect = DialectOptions::infer_from_sample(buf)?;
         let mut decoder = CsvDecoder::new(dialect);
         let mut state = DecoderState::default();
-        let _ = decoder.decode(&infer_buf, &mut state)?;
+        let _ = decoder.decode(buf, &mut state)?;
         let completed = state.completed_records();
         let csv_schema = CsvSchema::infer_from_records(completed)?;
 
