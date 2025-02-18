@@ -1,5 +1,5 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{RayexecError, Result};
 
 use super::case_expr::PhysicalCaseExpr;
 use super::cast_expr::PhysicalCastExpr;
@@ -13,7 +13,6 @@ use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{AsScalarFunction, Expression};
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::binder::table_list::{TableList, TableRef};
-use crate::logical::logical_join::ComparisonCondition;
 
 /// Plans logical expressions into their physical equivalents.
 #[derive(Debug)]

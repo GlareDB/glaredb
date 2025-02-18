@@ -10,6 +10,5 @@ pub mod field;
 pub mod format;
 pub mod row;
 pub mod scalar;
-pub mod selection;
 pub mod sort;
 pub mod string;
