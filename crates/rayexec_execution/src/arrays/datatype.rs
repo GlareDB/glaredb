@@ -13,6 +13,7 @@ use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType}
 /// This is mostly used for determining the input and return types functions
 /// without needing to worry about extra type info (e.g. precision/scale for
 /// decimals).
+// TODO: "Table"
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DataTypeId {
     /// Any datatype.

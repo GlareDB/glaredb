@@ -1,16 +1,9 @@
-use std::task::Context;
-
 use rayexec_error::Result;
-use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::field::Schema;
-use rayexec_execution::execution::operators::sink::operation::{PartitionSink, PollPush};
-use rayexec_execution::execution::operators::PollFinalize;
+use rayexec_execution::execution::operators::sink::operation::PartitionSink;
 use rayexec_execution::functions::copy::CopyToFunction;
 use rayexec_execution::runtime::Runtime;
-use rayexec_io::location::{AccessConfig, FileLocation};
-use rayexec_io::{FileProvider2, FileSink};
-
-use crate::writer::CsvEncoder;
+use rayexec_io::location::FileLocation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CsvCopyToFunction<R: Runtime> {
@@ -25,55 +18,10 @@ impl<R: Runtime> CopyToFunction for CsvCopyToFunction<R> {
     // TODO: Access config
     fn create_sinks(
         &self,
-        schema: Schema,
-        location: FileLocation,
-        num_partitions: usize,
+        _schema: Schema,
+        _location: FileLocation,
+        _num_partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {
-        let provider = self.runtime.file_provider();
-
-        let mut sinks = Vec::with_capacity(num_partitions);
-        for _ in 0..num_partitions {
-            unimplemented!()
-            // let sink = provider.file_sink(location.clone(), &AccessConfig::None)?;
-            // let dialect = DialectOptions::default();
-
-            // sinks.push(Box::new(CsvCopyToSink {
-            //     encoder: CsvEncoder::new(schema.clone(), dialect),
-            //     sink,
-            // }) as _)
-        }
-
-        Ok(sinks)
-    }
-}
-
-#[derive(Debug)]
-pub struct CsvCopyToSink {
-    encoder: CsvEncoder,
-    sink: Box<dyn FileSink>,
-}
-
-impl CsvCopyToSink {
-    async fn push_inner(&mut self, batch: Batch) -> Result<()> {
-        let mut buf = Vec::with_capacity(1024);
-        self.encoder.encode(&batch, &mut buf)?;
-        self.sink.write_all(buf.into()).await?;
-
-        Ok(())
-    }
-
-    async fn finalize_inner(&mut self) -> Result<()> {
-        self.sink.finish().await?;
-        Ok(())
-    }
-}
-
-impl PartitionSink for CsvCopyToSink {
-    fn poll_push(&mut self, cx: &mut Context, input: &mut Batch) -> Result<PollPush> {
-        unimplemented!()
-    }
-
-    fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize> {
         unimplemented!()
     }
 }

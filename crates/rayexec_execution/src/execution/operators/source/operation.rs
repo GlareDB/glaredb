@@ -24,7 +24,10 @@ pub enum PollPull {
 pub trait SourceOperation: Debug + Send + Sync + Explainable + 'static {
     /// Create partition sources for this operation.
     ///
-    /// This must return the exact number of sources for partitions.
+    /// This should try to return scans for efficiently reading the source. The
+    /// number of scans should be at most `partitions`, but may be less. If
+    /// less, then the source operator may try to internally distribute the
+    /// batch results.
     ///
     /// Called exactly once during physical planning.
     fn create_partition_sources(

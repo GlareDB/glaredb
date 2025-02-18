@@ -1,7 +1,6 @@
 use std::{cmp, fmt};
 
 use csv_core::Reader;
-use rayexec_error::{RayexecError, Result, ResultExt};
 
 use crate::dialect::DialectOptions;
 
