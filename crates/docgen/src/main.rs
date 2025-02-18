@@ -10,7 +10,6 @@ use rayexec_error::Result;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_iceberg::IcebergDataSource;
 use rayexec_parquet::ParquetDataSource;
-use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_shell::session::SingleUserEngine;
 use rayexec_unity_catalog::UnityCatalogDataSource;

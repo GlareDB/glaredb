@@ -10,7 +10,6 @@ use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, Memor
 use rayexec_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
 use rayexec_iceberg::IcebergDataSource;
 use rayexec_parquet::ParquetDataSource;
-use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_shell::lineedit::KeyEvent;
 use rayexec_shell::session::SingleUserEngine;

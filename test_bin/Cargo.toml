@@ -12,7 +12,6 @@ rayexec_server = { path = '../crates/rayexec_server' }
 rayexec_shell = { path = '../crates/rayexec_shell' }
 rayexec_rt_native = { path = '../crates/rayexec_rt_native' }
 rayexec_slt = { path = '../crates/rayexec_slt' }
-rayexec_postgres = { path = '../crates/rayexec_postgres' }
 rayexec_parquet = { path = '../crates/rayexec_parquet' }
 rayexec_csv = { path = '../crates/rayexec_csv' }
 rayexec_delta = { path = '../crates/rayexec_delta' }
@@ -50,11 +49,6 @@ path = "integration_slt_clickbench.rs"
 harness = false
 name = "integration_slt_standard"
 path = "integration_slt_standard.rs"
-
-[[test]]
-harness = false
-name = "integration_slt_postgres"
-path = "integration_slt_postgres.rs"
 
 [[test]]
 harness = false
