@@ -28,7 +28,6 @@ pub mod window;
 pub(crate) mod util;
 
 use std::fmt::Debug;
-use std::sync::Arc;
 use std::task::Context;
 
 use copy_to::PhysicalCopyTo;
@@ -72,7 +71,6 @@ use window::PhysicalWindow;
 use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::limit::LimitPartitionState;
 use self::values::ValuesPartitionState;
-use super::computed_batch::ComputedBatches;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
@@ -157,20 +155,6 @@ pub enum PollExecute {
     ///
     /// E.g. the LIMIT operator will return Exhausted once the limit has been
     /// reached.
-    Exhausted,
-}
-
-/// Poll result for flushing an operator.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PollFlush {
-    /// Operator has more output, keep flushing to get all data.
-    HasMore,
-    /// Flush pending. Waker stored, re-execute with the exact same state.
-    Pending,
-    /// Operator is exhausted and shouldn't be polled again.
-    ///
-    /// The output batch will have any remaining data. If there's no more data,
-    /// then the output batch will have zero rows.
     Exhausted,
 }
 
@@ -262,72 +246,6 @@ pub struct MaterializationStates {
     pub input_states: Vec<PartitionState>,
     /// States for the outputs from the materialization operator.
     pub output_states: Vec<Vec<PartitionState>>,
-}
-
-/// Describes the relationships of partition states for operators.
-#[derive(Debug)]
-pub enum InputOutputStates {
-    /// Input and output partition states have a one-to-one mapping.
-    ///
-    /// The states used for pushing to an operator are the same states used to
-    /// pull from the operator.
-    ///
-    /// This variant should also be used for pure source and pure sink operators
-    /// where states are only ever used for pushing or pulling.
-    OneToOne {
-        /// Per-partition operators states.
-        ///
-        /// Length of vec determines the partitioning (parallelism) of the
-        /// operator.
-        partition_states: Vec<PartitionState>,
-    },
-
-    /// Operators accepts multiple inputs, and a single output.
-    ///
-    /// A single set of input states are used during pull.
-    NaryInputSingleOutput {
-        /// Per-input, per-partition operators states.
-        ///
-        /// The outer vec matches the number of inputs to an operator (e.g. a
-        /// join should have two).
-        partition_states: Vec<Vec<PartitionState>>,
-
-        /// Index into the above vec to determine which set of states are used
-        /// for pulling.
-        ///
-        /// For joins, the partition states for probes are the ones used for
-        /// pulling.
-        ///
-        /// The chosen set of states indicates the output partitioning for the
-        /// operator.
-        pull_states: usize,
-    },
-
-    /// Partition states between the push side and pull side are separate.
-    ///
-    /// This provides a way for operators to output a different number of
-    /// partitions than it receives.
-    ///
-    /// Operators that need this will introduce a pipeline split where the push
-    /// states are used for pipeline's sink, while the pull states are used for
-    /// the source of a separate pipeline.
-    SeparateInputOutput {
-        /// States used during push.
-        push_states: Vec<PartitionState>,
-
-        /// States used during pull.
-        pull_states: Vec<PartitionState>,
-    },
-}
-
-/// States generates from an operator to use during execution.
-#[derive(Debug)]
-pub struct ExecutionStates {
-    /// Global operator state.
-    pub operator_state: Arc<OperatorState>,
-
-    /// Partition states for the operator.
-    pub partition_states: InputOutputStates,
 }
 
 pub trait ExecutableOperator: Sync + Send + Debug + Explainable {

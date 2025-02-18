@@ -3,6 +3,7 @@ use std::task::Context;
 use rayexec_error::Result;
 
 use super::{ExecutableOperator, OperatorState, PartitionState, PollFinalize, UnaryInputStates};
+use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 /// Physical operator for EXPLAIN ANALYZE.
@@ -11,6 +12,10 @@ pub struct PhysicalAnalyze {}
 
 impl ExecutableOperator for PhysicalAnalyze {
     type States = UnaryInputStates;
+
+    fn output_types(&self) -> &[DataType] {
+        unimplemented!()
+    }
 
     fn poll_finalize(
         &self,

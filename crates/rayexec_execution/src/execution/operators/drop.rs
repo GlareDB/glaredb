@@ -6,6 +6,7 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
 use super::{ExecutableOperator, OperatorState, PartitionState, PollFinalize, UnaryInputStates};
+use crate::arrays::datatype::DataType;
 use crate::database::drop::DropInfo;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -35,6 +36,10 @@ impl PhysicalDrop {
 
 impl ExecutableOperator for PhysicalDrop {
     type States = UnaryInputStates;
+
+    fn output_types(&self) -> &[DataType] {
+        unimplemented!()
+    }
 
     // fn create_states2(
     //     &self,

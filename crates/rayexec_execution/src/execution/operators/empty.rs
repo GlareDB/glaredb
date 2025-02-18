@@ -11,6 +11,7 @@ use super::{
     PollFinalize,
     UnaryInputStates,
 };
+use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
@@ -22,6 +23,10 @@ pub struct PhysicalEmpty;
 
 impl ExecutableOperator for PhysicalEmpty {
     type States = UnaryInputStates;
+
+    fn output_types(&self) -> &[DataType] {
+        &[]
+    }
 
     fn create_states(
         &mut self,
@@ -40,7 +45,7 @@ impl ExecutableOperator for PhysicalEmpty {
     fn poll_execute(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
+        _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
         inout: ExecuteInOutState,
     ) -> Result<PollExecute> {

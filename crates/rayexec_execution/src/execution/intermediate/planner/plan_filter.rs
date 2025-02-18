@@ -1,4 +1,3 @@
-
 use rayexec_error::{Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
@@ -20,14 +19,15 @@ impl IntermediatePipelineBuildState<'_> {
         let input_refs = input.get_output_table_refs(self.bind_context);
         self.walk(materializations, id_gen, input)?;
 
-        let predicate = self
-            .expr_planner
-            .plan_scalar(&input_refs, &filter.node.filter)
-            .context("Failed to plan expressions for filter")?;
+        // let predicate = self
+        //     .expr_planner
+        //     .plan_scalar(&input_refs, &filter.node.filter)
+        //     .context("Failed to plan expressions for filter")?;
 
-        let operator = PhysicalOperator::Filter(PhysicalFilter { predicate });
-        self.push_intermediate_operator(operator, location, id_gen)?;
+        // let operator = PhysicalOperator::Filter(PhysicalFilter { predicate });
+        // self.push_intermediate_operator(operator, location, id_gen)?;
 
-        Ok(())
+        // Ok(())
+        unimplemented!()
     }
 }

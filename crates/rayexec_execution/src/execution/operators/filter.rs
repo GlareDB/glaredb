@@ -12,6 +12,7 @@ use super::{
     UnaryInputStates,
 };
 use crate::arrays::array::selection::Selection;
+use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::selection_evaluator::SelectionEvaluator;
@@ -19,6 +20,7 @@ use crate::expr::physical::PhysicalScalarExpression;
 
 #[derive(Debug)]
 pub struct PhysicalFilter {
+    pub(crate) datatypes: Vec<DataType>,
     pub(crate) predicate: PhysicalScalarExpression,
 }
 
@@ -29,6 +31,10 @@ pub struct FilterPartitionState {
 
 impl ExecutableOperator for PhysicalFilter {
     type States = UnaryInputStates;
+
+    fn output_types(&self) -> &[DataType] {
+        &self.datatypes
+    }
 
     fn create_states(
         &mut self,
@@ -110,6 +116,7 @@ mod tests {
     #[test]
     fn filter_simple() {
         let mut operator = PhysicalFilter {
+            datatypes: vec![DataType::Boolean, DataType::Int32],
             predicate: PhysicalScalarExpression::Column(PhysicalColumnExpr {
                 datatype: DataType::Boolean,
                 idx: 0,

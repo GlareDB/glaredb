@@ -8,7 +8,6 @@ use rayexec_error::{RayexecError, Result};
 use super::table_storage::{DataTable, DataTableScan, Projections, TableStorage};
 use crate::arrays::batch::Batch;
 use crate::database::catalog_entry::CatalogEntry;
-use crate::execution::computed_batch::ComputedBatches;
 use crate::execution::operators::sink::operation::{PartitionSink, PollPush};
 use crate::execution::operators::PollFinalize;
 
@@ -115,16 +114,17 @@ impl DataTable for MemoryDataTable {
     }
 
     fn insert(&self, input_partitions: usize) -> Result<Vec<Box<dyn PartitionSink>>> {
-        let inserts: Vec<_> = (0..input_partitions)
-            .map(|_| {
-                Box::new(MemoryDataTableInsert {
-                    collected: Vec::new(),
-                    data: self.data.clone(),
-                }) as _
-            })
-            .collect();
+        unimplemented!()
+        // let inserts: Vec<_> = (0..input_partitions)
+        //     .map(|_| {
+        //         Box::new(MemoryDataTableInsert {
+        //             collected: Vec::new(),
+        //             data: self.data.clone(),
+        //         }) as _
+        //     })
+        //     .collect();
 
-        Ok(inserts)
+        // Ok(inserts)
     }
 }
 
@@ -140,10 +140,7 @@ impl DataTableScan for MemoryDataTableScan {
 }
 
 #[derive(Debug)]
-pub struct MemoryDataTableInsert {
-    collected: Vec<ComputedBatches>,
-    data: Arc<Mutex<Vec<Batch>>>,
-}
+pub struct MemoryDataTableInsert {}
 
 impl PartitionSink for MemoryDataTableInsert {
     fn poll_push(&mut self, cx: &mut Context, input: &mut Batch) -> Result<PollPush> {

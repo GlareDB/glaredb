@@ -5,6 +5,7 @@ use futures::future::BoxFuture;
 use rayexec_error::{RayexecError, Result};
 
 use super::{ExecutableOperator, OperatorState, PartitionState, PollFinalize, UnaryInputStates};
+use crate::arrays::datatype::DataType;
 use crate::database::create::CreateViewInfo;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -29,6 +30,10 @@ pub struct PhysicalCreateView {
 
 impl ExecutableOperator for PhysicalCreateView {
     type States = UnaryInputStates;
+
+    fn output_types(&self) -> &[DataType] {
+        unimplemented!()
+    }
 
     // fn create_states2(
     //     &self,
