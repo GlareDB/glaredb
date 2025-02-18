@@ -1,0 +1,172 @@
+use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_execution::arrays::compute::cast::parse::{
+    BoolParser,
+    Float64Parser,
+    Int64Parser,
+    Parser,
+};
+use rayexec_execution::arrays::datatype::{DataType, TimeUnit, TimestampTypeMeta};
+use rayexec_execution::arrays::field::{Field, Schema};
+
+use crate::decoder::ByteRecords;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvSchema {
+    /// All fields in the the csv input.
+    pub schema: Schema,
+    /// Whether or not the input has a header line.
+    pub has_header: bool,
+}
+
+impl CsvSchema {
+    /// Create a new schema using gnerated names.
+    pub fn new_with_generated_names(types: impl IntoIterator<Item = DataType>) -> Self {
+        let schema = Schema::new(types.into_iter().enumerate().map(|(idx, typ)| Field {
+            name: format!("column{idx}"),
+            datatype: typ,
+            nullable: true,
+        }));
+
+        CsvSchema {
+            schema,
+            has_header: false,
+        }
+    }
+
+    /// Try to infer the schema for a csv input based on some number of input
+    /// records.
+    pub fn infer_from_records(records: &ByteRecords) -> Result<Self> {
+        if records.num_records() == 0 {
+            return Err(RayexecError::new(
+                "Unable to infer CSV schema with no records",
+            ));
+        }
+
+        let num_fields = records.get_record(0).num_fields();
+
+        // Start with most restrictive.
+        let mut candidates = vec![CandidateType::Boolean; num_fields];
+
+        // Skip first record since it may be a header.
+        for record in records.iter_records().skip(1) {
+            for (candidate, field) in candidates.iter_mut().zip(record.iter_fields()) {
+                let field = std::str::from_utf8(field).context("failed to read field as utf8")?;
+                candidate.update_from_input(field);
+            }
+        }
+
+        // Now test the candidates against the possible header. If any of the
+        // candidates fails, we assume the record is a header.
+        let has_header = records
+            .get_record(0)
+            .iter_fields()
+            .zip(candidates.iter())
+            .any(|(field, candidate)| {
+                !candidate.is_valid(std::str::from_utf8(field).unwrap_or_default())
+            });
+
+        let fields: Vec<_> = if has_header {
+            // Use the names from the header.
+            records
+                .get_record(0)
+                .iter_fields()
+                .zip(candidates.into_iter())
+                .map(|(name, candidate)| {
+                    let name =
+                        std::str::from_utf8(name).context("failed to read header field as utf8")?;
+                    Ok(Field {
+                        name: name.to_string(),
+                        datatype: candidate.as_datatype(),
+                        nullable: true,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?
+        } else {
+            // Generate field names.
+            candidates
+                .into_iter()
+                .enumerate()
+                .map(|(idx, candidate)| Field {
+                    name: format!("column{idx}"),
+                    datatype: candidate.as_datatype(),
+                    nullable: true,
+                })
+                .collect()
+        };
+
+        Ok(CsvSchema {
+            schema: Schema::new(fields),
+            has_header,
+        })
+    }
+}
+
+/// Candidate types used when trying to infer the types for a file.
+///
+/// Variants are ordered from the narrowest to the widest type allowing for
+/// comparisons.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum CandidateType {
+    /// Boolean type, strictest.
+    Boolean,
+    /// Int64 candidate type.
+    Int64,
+    /// Float64 candidate type.
+    Float64,
+    /// Timestamp candidate type.
+    Timestamp,
+    /// Utf8 type, this should be able to encompass any field.
+    Utf8,
+}
+
+impl CandidateType {
+    const fn as_datatype(&self) -> DataType {
+        match self {
+            Self::Boolean => DataType::Boolean,
+            Self::Int64 => DataType::Int64,
+            Self::Float64 => DataType::Float64,
+            Self::Timestamp => DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond)),
+            Self::Utf8 => DataType::Utf8,
+        }
+    }
+
+    /// Check if this candidate type is valid for some input.
+    fn is_valid(&self, input: &str) -> bool {
+        match self {
+            Self::Boolean => BoolParser.parse(input).is_some(),
+            Self::Int64 => Int64Parser::new().parse(input).is_some(),
+            Self::Float64 => Float64Parser::new().parse(input).is_some(),
+            Self::Timestamp => false, // TODO
+            Self::Utf8 => true,
+        }
+    }
+
+    /// Update this candidate type based on some string input.
+    fn update_from_input(&mut self, input: &str) {
+        match self {
+            Self::Boolean => {
+                if BoolParser.parse(input).is_none() {
+                    *self = Self::Int64;
+                    self.update_from_input(input)
+                }
+            }
+            Self::Int64 => {
+                if Int64Parser::new().parse(input).is_none() {
+                    *self = Self::Float64;
+                    self.update_from_input(input)
+                }
+            }
+            Self::Float64 => {
+                if Float64Parser::new().parse(input).is_none() {
+                    *self = Self::Timestamp;
+                    self.update_from_input(input)
+                }
+            }
+            Self::Timestamp => {
+                // TODO: Check
+                *self = Self::Utf8;
+            }
+            Self::Utf8 => (), // Nothing to do, already the widest.
+        }
+    }
+}
