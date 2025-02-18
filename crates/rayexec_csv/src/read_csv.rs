@@ -23,9 +23,9 @@ use rayexec_io::exp::FileProvider;
 use rayexec_io::future::read_into::ReadInto;
 use rayexec_io::{FileProvider2, FileSource};
 
-use crate::datatable::SingleFileCsvDataTable;
-use crate::decoder::{CsvDecoder, DecoderState};
-use crate::reader::{CsvSchema, DialectOptions};
+use crate::decoder::{ByteRecords, CsvDecoder};
+use crate::dialect::DialectOptions;
+use crate::scan::SingleFileCsvScan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadCsv<R: Runtime> {
@@ -90,36 +90,38 @@ impl<R: Runtime> ReadCsv<R> {
         // TODO: This throws away the buffer after inferring. We could instead
         // keep both the buffer and stream on the returned table function impl,
         // which would let us continue to read where we left off.
-        const INFER_SIZE: usize = 1024;
-        let mut buf = vec![0; INFER_SIZE];
+        const READ_BUFFER_SIZE: usize = 1024;
+        let mut buf = vec![0; READ_BUFFER_SIZE];
         let count = ReadInto::new(&mut stream, &mut buf).await?;
 
         let buf = &buf[0..count];
+        let mut output = ByteRecords::with_buffer_capacity(READ_BUFFER_SIZE);
 
-        let dialect = DialectOptions::infer_from_sample(buf)?;
+        let dialect = DialectOptions::infer_from_sample(buf, &mut output).unwrap_or_default();
         let mut decoder = CsvDecoder::new(dialect);
-        let mut state = DecoderState::default();
-        let _ = decoder.decode(buf, &mut state)?;
-        let completed = state.completed_records();
-        let csv_schema = CsvSchema::infer_from_records(completed)?;
+        // let mut state = DecoderState::default();
+        // let _ = decoder.decode(buf, &mut state)?;
+        // let completed = state.completed_records();
+        unimplemented!()
+        // let csv_schema = CsvSchema::infer_from_records(completed)?;
 
-        let schema = csv_schema.schema.clone();
+        // let schema = csv_schema.schema.clone();
 
-        let datatable = SingleFileCsvDataTable {
-            options: dialect,
-            csv_schema,
-            location,
-            conf,
-            runtime: self.runtime.clone(),
-        };
+        // let scan = SingleFileCsvScan {
+        //     options: dialect,
+        //     csv_schema,
+        //     location,
+        //     conf,
+        //     runtime: self.runtime.clone(),
+        // };
 
-        Ok(PlannedTableFunction {
-            function: Box::new(self),
-            positional_inputs: positional_inputs.into_iter().map(expr::lit).collect(),
-            named_inputs,
-            function_impl: TableFunctionImpl::Scan(Arc::new(datatable)),
-            cardinality: StatisticsValue::Unknown,
-            schema,
-        })
+        // Ok(PlannedTableFunction {
+        //     function: Box::new(self),
+        //     positional_inputs: positional_inputs.into_iter().map(expr::lit).collect(),
+        //     named_inputs,
+        //     function_impl: TableFunctionImpl::new_scan(scan),
+        //     cardinality: StatisticsValue::Unknown,
+        //     schema,
+        // })
     }
 }

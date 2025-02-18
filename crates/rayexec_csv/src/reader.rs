@@ -18,11 +18,23 @@
 //! Determine if there's a header by trying to parse the first record into the
 //! inferred types from the previous step. If it differs, assume a header.
 use std::fmt;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_execution::arrays::array::physical_type::{
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalBool,
+    PhysicalF64,
+    PhysicalI64,
+    PhysicalUtf8,
+    ScalarStorage,
+};
+use rayexec_execution::arrays::array::Array;
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::compute::cast::parse::{
     BoolParser,
@@ -32,454 +44,248 @@ use rayexec_execution::arrays::compute::cast::parse::{
 };
 use rayexec_execution::arrays::datatype::{DataType, TimeUnit, TimestampTypeMeta};
 use rayexec_execution::arrays::field::{Field, Schema};
+use rayexec_execution::execution::operators::source::operation::{PollPull, Projections};
+use rayexec_io::exp::AsyncReadStream;
 use rayexec_io::FileSource;
 use serde::{Deserialize, Serialize};
 
-use crate::decoder::{CompletedRecords, CsvDecoder, DecoderResult, DecoderState};
+use crate::decoder::{ByteRecords, CsvDecoder, DecoderResult};
+use crate::dialect::DialectOptions;
+use crate::schema::CsvSchema;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DialectOptions {
-    /// Delimiter character.
-    pub delimiter: u8,
-
-    /// Quote character.
-    pub quote: u8,
+#[derive(Debug)]
+pub struct CsvReader {
+    /// Schema we've inferred or otherwise been provided.
+    schema: Schema,
+    /// If we should skip the header record.
+    ///
+    /// Gets set to false after reading the first record.
+    skip_header: bool,
+    /// Reusable read buffer.
+    read_buf: Vec<u8>,
+    /// Buffered decoded records.
+    output: ByteRecords,
+    decoder: CsvDecoder,
+    /// Source stream.
+    stream: Pin<Box<dyn AsyncReadStream>>,
+    projections: Projections,
+    /// Current write state.
+    write_state: WriteState,
 }
 
-impl Default for DialectOptions {
-    fn default() -> Self {
-        DialectOptions {
-            delimiter: b',',
-            quote: b'"',
-        }
-    }
+#[derive(Debug, Clone, Copy)]
+struct WriteState {
+    /// If we need to pull from the stream for the next set of records to
+    /// decode.
+    needs_pull: bool,
+    /// If the stream is exhausted.
+    stream_exhausted: bool,
+    /// Offset into the decoded records we should write to the batch.
+    record_offset: usize,
+    /// Current offset to the batch we're writing to.
+    ///
+    /// This lets us fill the batch completely before allowing it to be sent to
+    /// the next operator.
+    batch_write_offset: usize,
 }
 
-impl DialectOptions {
-    /// Try to infer which csv options to use based on some number of records
-    /// from a csv source.
-    pub fn infer_from_sample(sample_bytes: &[u8]) -> Result<Self> {
-        // Best dialect chosen so far alongside number of fields decoded.
-        let mut best: (Option<Self>, usize) = (None, 0);
-
-        let mut state = DecoderState::default();
-
-        for dialect in Self::dialects() {
-            let mut decoder = CsvDecoder::new(*dialect);
-
-            match decoder.decode(sample_bytes, &mut state) {
-                Ok(DecoderResult::InputExhuasted) | Ok(DecoderResult::Finished) => {
-                    let decoded_fields = state.num_fields().unwrap_or(0);
-                    let completed_records = state.num_records();
-
-                    // To be considered the best dialect:
-                    //
-                    // - Should decode at least 2 records.
-                    // - Should read the entirety of the input (checked by match).
-                    // - Should have decoded more number of fields than previous best.
-                    if completed_records >= 2 && decoded_fields > best.1 {
-                        best = (Some(*dialect), decoded_fields)
-                    }
-
-                    // Don't have enough info, try next dialect.
-                }
-                Ok(DecoderResult::BufferFull { .. }) => {
-                    // Means we migh have attempted to read the entirety of the
-                    // input as once field.
-                }
-                Err(_e) => {
-                    // Assume all errors indicate inconsistent number of fields
-                    // in record.
-                    //
-                    // Continue to next dialect.
-                }
-            }
-
-            state.reset();
-        }
-
-        match best.0 {
-            Some(best) => Ok(best),
-            None => Err(RayexecError::new(
-                "Unable to infer csv dialect from provided sample",
-            )),
-        }
-    }
-
-    pub fn csv_core_reader(&self) -> csv_core::Reader {
-        csv_core::ReaderBuilder::new()
-            .delimiter(self.delimiter)
-            .quote(self.quote)
-            .build()
-    }
-
-    /// Dialects used when attempting to infer options for a csv file.
-    const fn dialects() -> &'static [Self] {
-        &[
-            DialectOptions {
-                delimiter: b',',
-                quote: b'"',
-            },
-            DialectOptions {
-                delimiter: b'|',
-                quote: b'"',
-            },
-            DialectOptions {
-                delimiter: b';',
-                quote: b'"',
-            },
-            DialectOptions {
-                delimiter: b'\t',
-                quote: b'"',
-            },
-            DialectOptions {
-                delimiter: b',',
-                quote: b'\'',
-            },
-            DialectOptions {
-                delimiter: b'|',
-                quote: b'\'',
-            },
-            DialectOptions {
-                delimiter: b';',
-                quote: b'\'',
-            },
-            DialectOptions {
-                delimiter: b'\t',
-                quote: b'\'',
-            },
-        ]
-    }
-}
-
-/// Candidate types used when trying to infer the types for a file.
-///
-/// Variants are ordered from the narrowest to the widest type allowing for
-/// comparisons.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum CandidateType {
-    /// Boolean type, strictest.
-    Boolean,
-    /// Int64 candidate type.
-    Int64,
-    /// Float64 candidate type.
-    Float64,
-    /// Timestamp candidate type.
-    Timestamp,
-    /// Utf8 type, this should be able to encompass any field.
-    Utf8,
-}
-
-impl CandidateType {
-    const fn as_datatype(&self) -> DataType {
-        match self {
-            Self::Boolean => DataType::Boolean,
-            Self::Int64 => DataType::Int64,
-            Self::Float64 => DataType::Float64,
-            Self::Timestamp => DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond)),
-            Self::Utf8 => DataType::Utf8,
-        }
-    }
-
-    /// Check if this candidate type is valid for some input.
-    fn is_valid(&self, input: &str) -> bool {
-        match self {
-            Self::Boolean => BoolParser.parse(input).is_some(),
-            Self::Int64 => Int64Parser::new().parse(input).is_some(),
-            Self::Float64 => Float64Parser::new().parse(input).is_some(),
-            Self::Timestamp => false, // TODO
-            Self::Utf8 => true,
-        }
-    }
-
-    /// Update this candidate type based on some string input.
-    fn update_from_input(&mut self, input: &str) {
-        match self {
-            Self::Boolean => {
-                if BoolParser.parse(input).is_none() {
-                    *self = Self::Int64;
-                    self.update_from_input(input)
-                }
-            }
-            Self::Int64 => {
-                if Int64Parser::new().parse(input).is_none() {
-                    *self = Self::Float64;
-                    self.update_from_input(input)
-                }
-            }
-            Self::Float64 => {
-                if Float64Parser::new().parse(input).is_none() {
-                    *self = Self::Timestamp;
-                    self.update_from_input(input)
-                }
-            }
-            Self::Timestamp => {
-                // TODO: Check
-                *self = Self::Utf8;
-            }
-            Self::Utf8 => (), // Nothing to do, already the widest.
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CsvSchema {
-    /// All fields in the the csv input.
-    pub schema: Schema,
-
-    /// Whether or not the input has a header line.
-    pub has_header: bool,
-}
-
-impl CsvSchema {
-    /// Create a new schema using gnerated names.
-    pub fn new_with_generated_names(types: Vec<DataType>) -> Self {
-        let schema = Schema::new(types.into_iter().enumerate().map(|(idx, typ)| Field {
-            name: format!("column{idx}"),
-            datatype: typ,
-            nullable: true,
-        }));
-
-        CsvSchema {
-            schema,
-            has_header: false,
-        }
-    }
-
-    /// Try to infer the schema for a csv input based on some number of input
-    /// records.
-    pub fn infer_from_records(records: CompletedRecords) -> Result<Self> {
-        if records.num_completed() == 0 {
-            return Err(RayexecError::new(
-                "Unable to infer CSV schema with no records",
-            ));
-        }
-
-        let num_fields = match records.num_fields() {
-            Some(n) => n,
-            None => return Err(RayexecError::new("Unknown number of fields")),
-        };
-
-        // Start with most restrictive.
-        let mut candidates = vec![CandidateType::Boolean; num_fields];
-
-        // Skip first record since it may be a header.
-        for record in records.iter().skip(1) {
-            for (candidate, field) in candidates.iter_mut().zip(record.iter()) {
-                candidate.update_from_input(field?);
-            }
-        }
-
-        // Now test the candidates against the possible header. If any of the
-        // candidates fails, we assume the record is a header.
-        let has_header = records
-            .get_record(0)
-            .ok_or_else(|| RayexecError::new("missing record 0"))?
-            .iter()
-            .zip(candidates.iter())
-            .any(|(field, candidate)| !candidate.is_valid(field.unwrap_or_default()));
-
-        let fields: Vec<_> = if has_header {
-            // Use the names from the header.
-            records
-                .get_record(0)
-                .expect("record 0 to exist")
-                .iter()
-                .zip(candidates.into_iter())
-                .map(|(name, candidate)| {
-                    Ok(Field {
-                        name: name?.to_string(),
-                        datatype: candidate.as_datatype(),
-                        nullable: true,
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?
-        } else {
-            // Generate field names.
-            candidates
-                .into_iter()
-                .enumerate()
-                .map(|(idx, candidate)| Field {
-                    name: format!("column{idx}"),
-                    datatype: candidate.as_datatype(),
-                    nullable: true,
-                })
-                .collect()
-        };
-
-        Ok(CsvSchema {
-            schema: Schema::new(fields),
-            has_header,
-        })
-    }
-}
-
-pub struct AsyncCsvReader {
-    stream: AsyncCsvStream,
-}
-
-impl AsyncCsvReader {
+impl CsvReader {
     pub fn new(
         mut reader: impl FileSource,
         csv_schema: CsvSchema,
         dialect: DialectOptions,
     ) -> Self {
-        let stream = AsyncCsvStream {
-            schema: csv_schema.schema,
-            skip_header: csv_schema.has_header,
-            stream: reader.read_stream(),
-            decoder_state: DecoderState::default(),
-            decoder: CsvDecoder::new(dialect),
-            buf: None,
-            buf_offset: 0,
-            decoding_finished: false,
-        };
+        unimplemented!()
+        // let stream = AsyncCsvStream {
+        //     schema: csv_schema.schema,
+        //     skip_header: csv_schema.has_header,
+        //     stream: reader.read_stream(),
+        //     decoder_state: DecoderState::default(),
+        //     decoder: CsvDecoder::new(dialect),
+        //     buf: None,
+        //     buf_offset: 0,
+        //     decoding_finished: false,
+        // };
 
-        AsyncCsvReader { stream }
+        // AsyncCsvReader { stream }
     }
 
     pub async fn read_next(&mut self) -> Result<Option<Batch>> {
-        self.stream.next_batch().await
+        unimplemented!()
     }
-}
 
-impl fmt::Debug for AsyncCsvReader {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AsyncCsvReader").finish_non_exhaustive()
-    }
-}
+    /// Pulls the next batch by decoding the stream.
+    pub fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
+        let output_capacity = output.write_capacity()?;
 
-struct AsyncCsvStream {
-    /// Schema we've inferred or otherwise been provided.
-    schema: Schema,
-
-    /// If we should skip the header record.
-    skip_header: bool,
-
-    /// Inner stream for getting bytes.
-    stream: BoxStream<'static, Result<Bytes>>,
-
-    /// Decoder that we push bytes to.
-    decoder: CsvDecoder,
-
-    /// Decoder state updated on every push to the decoder.
-    decoder_state: DecoderState,
-
-    /// If we read from the stream and push to the decoder, but the decoder's
-    /// buffer is full, we store the stream's buffer here so the next iteration
-    /// can continue where it left off.
-    buf: Option<Bytes>,
-
-    /// Offset into the above buffer where we should resume reading.
-    buf_offset: usize,
-
-    /// If the decoder said we're finished.
-    ///
-    /// This is used to allow us to determine if we should push an empty buffer
-    /// to the decoder as csv_core expects an empty buffer when reading is
-    /// complete. One we've pushed that buffer, this gets set to true and we
-    /// build the remaining batch.
-    decoding_finished: bool,
-}
-
-impl AsyncCsvStream {
-    async fn next_batch(&mut self) -> Result<Option<Batch>> {
         loop {
-            let (buf, offset) = match self.buf.take() {
-                Some(buf) => (buf, self.buf_offset),
-                None => match self.stream.next().await {
-                    Some(buf) => (buf?, 0),
-                    None => {
-                        if self.decoding_finished {
-                            // We're done, we've already passed an empty buffer
-                            // to the decoder.
-                            return Ok(None);
-                        }
-                        // Provide an empty buffer. csv_core expects and empty
-                        // buffer to signal end of reading.
-                        (Bytes::new(), 0)
+            if self.write_state.needs_pull {
+                match self.stream.as_mut().poll_read(cx, &mut self.read_buf)? {
+                    Poll::Ready(Some(count)) => {
+                        // We got bytes, send to decoder.
+                        let _ = self
+                            .decoder
+                            .decode(&self.read_buf[0..count], &mut self.output);
+                        // Continue on. We'll be writing to the output batch.
+                        self.write_state.needs_pull = false;
                     }
-                },
-            };
-
-            match self
-                .decoder
-                .decode(&buf[offset..], &mut self.decoder_state)?
-            {
-                DecoderResult::Finished => {
-                    self.decoding_finished = true;
-                    // Continue on with using the decoded results.
-                }
-                DecoderResult::InputExhuasted => continue, // To next iteration of outer loop.
-                DecoderResult::BufferFull { input_offset } => {
-                    // Need to flush out buffer. Store for later use.
-                    self.buf = Some(buf);
-                    self.buf_offset = input_offset;
+                    Poll::Ready(None) => {
+                        // Stream is exhausted, writing any remaining records to
+                        // the batch.
+                        self.write_state.needs_pull = false;
+                        self.write_state.stream_exhausted = true;
+                        // Continue on...
+                    }
+                    Poll::Pending => return Ok(PollPull::Pending),
                 }
             }
 
-            let num_fields = match self.decoder_state.num_fields() {
-                Some(num) => num,
-                None => return Err(RayexecError::new("First record exceeded buffer size")),
-            };
+            let rem_cap = output_capacity - self.write_state.batch_write_offset;
+            let rem_records = self.output.num_records() - self.write_state.record_offset;
+            let count = usize::min(rem_cap, rem_records);
 
-            if num_fields != self.schema.fields.len() {
-                return Err(RayexecError::new(format!(
-                    "Number of fields read does not match schema, got {}, expected {}",
-                    num_fields,
-                    self.schema.fields.len()
-                )));
+            self.write_batch(
+                self.write_state.record_offset,
+                output,
+                self.write_state.batch_write_offset,
+                count,
+            )?;
+
+            self.write_state.record_offset += count;
+            self.write_state.batch_write_offset += count;
+
+            if rem_records == count {
+                // Need more records.
+                self.write_state.needs_pull = true;
+                self.write_state.record_offset = 0;
+
+                // Unless the stream is exhausted, then we're done.
+                if self.write_state.stream_exhausted {
+                    let final_count = self.write_state.batch_write_offset + count;
+                    output.set_num_rows(final_count)?;
+
+                    // TODO: Verify that we don't have any partial records.
+
+                    return Ok(PollPull::Exhausted);
+                }
             }
 
-            let completed = self.decoder_state.completed_records();
-            if completed.num_completed() == 0 {
-                return Err(RayexecError::new(
-                    "CSV record too large, exceeds buffer size",
-                ));
+            if rem_cap == count {
+                // Emit batch, need a new one.
+                self.write_state.batch_write_offset = 0;
+                return Ok(PollPull::HasMore);
             }
-
-            let batch = Self::build_batch(completed, &self.schema, self.skip_header)?;
-            self.skip_header = false;
-
-            self.decoder_state.clear_completed();
-
-            return Ok(Some(batch));
         }
     }
 
-    fn build_batch(
-        completed: CompletedRecords,
-        schema: &Schema,
-        skip_header: bool,
-    ) -> Result<Batch> {
-        let skip_records = if skip_header { 1 } else { 0 };
+    fn write_batch(
+        &self,
+        records_offset: usize,
+        batch: &mut Batch,
+        write_offset: usize,
+        count: usize,
+    ) -> Result<()> {
+        for (out_idx, &col_idx) in self.projections.column_indices.iter().enumerate() {
+            let array = &mut batch.arrays_mut()[out_idx];
+            match array.datatype() {
+                DataType::Boolean => self.write_primitive::<PhysicalBool, _>(
+                    records_offset,
+                    col_idx,
+                    array,
+                    write_offset,
+                    count,
+                    BoolParser,
+                )?,
+                DataType::Int64 => self.write_primitive::<PhysicalI64, _>(
+                    records_offset,
+                    col_idx,
+                    array,
+                    write_offset,
+                    count,
+                    Int64Parser::new(),
+                )?,
+                DataType::Float64 => self.write_primitive::<PhysicalF64, _>(
+                    records_offset,
+                    col_idx,
+                    array,
+                    write_offset,
+                    count,
+                    Float64Parser::new(),
+                )?,
+                DataType::Utf8 => {
+                    self.write_string(records_offset, col_idx, array, write_offset, count)?
+                }
+                other => {
+                    return Err(RayexecError::new("Unhandled datatype for csv scanning")
+                        .with_field("datatype", other.clone()))
+                }
+            }
+        }
 
-        unimplemented!()
-        // let mut arrs = Vec::with_capacity(schema.fields.len());
-        // for (idx, field) in schema.fields.iter().enumerate() {
-        //     let arr = match &field.datatype {
-        //         DataType::Boolean => Self::build_boolean(&completed, idx, skip_records)?,
-        //         DataType::Int64 => Self::build_primitive(
-        //             &field.datatype,
-        //             &completed,
-        //             idx,
-        //             skip_records,
-        //             Int64Parser::new(),
-        //         )?,
-        //         DataType::Float64 => Self::build_primitive(
-        //             &field.datatype,
-        //             &completed,
-        //             idx,
-        //             skip_records,
-        //             Float64Parser::new(),
-        //         )?,
-        //         DataType::Utf8 => Self::build_utf8(&completed, idx, skip_records)?,
-        //         other => return Err(RayexecError::new(format!("Unhandled data type: {other}"))),
-        //     };
+        Ok(())
+    }
 
-        //     arrs.push(arr);
-        // }
+    fn write_primitive<S, P>(
+        &self,
+        records_offset: usize,
+        field_idx: usize,
+        array: &mut Array,
+        write_offset: usize,
+        count: usize,
+        mut parser: P,
+    ) -> Result<()>
+    where
+        S: MutableScalarStorage,
+        S::StorageType: Sized,
+        P: Parser<Type = S::StorageType>,
+    {
+        let mut output = S::get_addressable_mut(array.data_mut())?;
 
-        // Batch::from_arrays(arrs)
+        for idx in 0..count {
+            let record_idx = idx + records_offset;
+            let write_idx = idx + write_offset;
+
+            // TODO: Allow indexing directly to field instead of having to go
+            // through record.
+
+            let record = self.output.get_record(record_idx);
+            let field = record.field(field_idx);
+            let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
+
+            let v = parser
+                .parse(field)
+                .ok_or_else(|| RayexecError::new("Failed to parse '{field}'"))?;
+
+            output.put(write_idx, &v);
+        }
+
+        Ok(())
+    }
+
+    fn write_string(
+        &self,
+        records_offset: usize,
+        field_idx: usize,
+        array: &mut Array,
+        write_offset: usize,
+        count: usize,
+    ) -> Result<()> {
+        let mut output = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
+
+        for idx in 0..count {
+            let record_idx = idx + records_offset;
+            let write_idx = idx + write_offset;
+
+            // TODO: Allow indexing directly to field instead of having to go
+            // through record.
+
+            let record = self.output.get_record(record_idx);
+            let field = record.field(field_idx);
+            let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
+
+            output.put(write_idx, field);
+        }
+
+        Ok(())
     }
 }

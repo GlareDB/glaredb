@@ -54,3 +54,54 @@ impl<'a> Future for ReadInto<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::task::Waker;
+
+    use futures::FutureExt;
+
+    use super::*;
+    use crate::exp::testutil::{NoopWaker, TestReadStream};
+
+    #[test]
+    fn read_small_buffer() {
+        let mut buf = vec![0; 4];
+
+        let mut stream = TestReadStream::new_pinned(8, 100);
+        let waker: Waker = Arc::new(NoopWaker).into();
+        let mut cx = Context::from_waker(&waker);
+        let poll = ReadInto::new(&mut stream, &mut buf).poll_unpin(&mut cx);
+
+        match poll {
+            Poll::Ready(result) => {
+                let count = result.unwrap();
+                assert_eq!(4, count);
+            }
+            _ => panic!("unexpected poll"),
+        }
+
+        assert_eq!(&[8, 8, 8, 8], buf.as_slice());
+    }
+
+    #[test]
+    fn read_stream_terminates() {
+        let mut buf = vec![0; 4];
+
+        let mut stream = TestReadStream::new_pinned(8, 2);
+        let waker: Waker = Arc::new(NoopWaker).into();
+        let mut cx = Context::from_waker(&waker);
+        let poll = ReadInto::new(&mut stream, &mut buf).poll_unpin(&mut cx);
+
+        match poll {
+            Poll::Ready(result) => {
+                let count = result.unwrap();
+                assert_eq!(2, count);
+            }
+            _ => panic!("unexpected poll"),
+        }
+
+        assert_eq!(&[8, 8, 0, 0], buf.as_slice());
+    }
+}

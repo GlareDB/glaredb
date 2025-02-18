@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -16,14 +16,14 @@ use crate::exp::{AsyncReadStream, FileSource};
 
 pub trait HttpClient: Sync + Send + Debug + Clone {
     type Response: HttpResponse + Send;
-    type RequestFuture: Future<Output = Result<Self::Response>> + Send + Unpin;
+    type RequestFuture: Future<Output = Result<Self::Response>> + Sync + Send + Unpin;
 
     fn do_request(&self, request: Request) -> Self::RequestFuture;
 }
 
 pub trait HttpResponse {
-    type BytesFuture: Future<Output = Result<Bytes>> + Send + Unpin;
-    type BytesStream: Stream<Item = Result<Bytes>> + Send + Unpin;
+    type BytesFuture: Future<Output = Result<Bytes>> + Sync + Send + Unpin;
+    type BytesStream: Stream<Item = Result<Bytes>> + Sync + Send + Unpin;
 
     fn status(&self) -> StatusCode;
     fn headers(&self) -> &HeaderMap;
@@ -167,6 +167,15 @@ where
                 }
             }
         }
+    }
+}
+
+impl<C> fmt::Debug for HttpRead<C>
+where
+    C: HttpClient,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HttpRead").finish()
     }
 }
 

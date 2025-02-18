@@ -283,6 +283,14 @@ where
         &self.datatype
     }
 
+    pub fn data(&self) -> &ArrayBuffer<B> {
+        &self.data
+    }
+
+    pub fn data_mut(&mut self) -> &mut ArrayBuffer<B> {
+        &mut self.data
+    }
+
     /// Gets the physical type for this array's data type.
     pub fn physical_type(&self) -> PhysicalType {
         self.datatype.physical_type()

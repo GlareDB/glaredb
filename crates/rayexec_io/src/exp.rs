@@ -28,7 +28,7 @@ pub trait FileSource: Sync + Send + Debug {
     fn read_range(&mut self, start: usize, len: usize) -> Pin<Box<dyn AsyncReadStream>>;
 }
 
-pub trait AsyncReadStream: Send {
+pub trait AsyncReadStream: Debug + Sync + Send {
     /// Polls the stream to read data into `buf`.
     ///
     /// `Poll::Ready(Some(n))` indicates `n` bytes were written to the buffer.
@@ -53,4 +53,55 @@ pub trait AsyncWriteSink: Send {
 
     /// Flushes data to the sink, ensuring it's been written.
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Result<Poll<()>>;
+}
+
+#[cfg(test)]
+pub(crate) mod testutil {
+    use std::sync::Arc;
+    use std::task::Wake;
+
+    use super::*;
+
+    #[derive(Debug)]
+    pub struct TestReadStream {
+        /// Value to write to the buffer repeatedly.
+        pub value: u8,
+        /// Remaining number of bytes to write before "terminating".
+        pub remaining: usize,
+    }
+
+    impl TestReadStream {
+        pub fn new_pinned(value: u8, count: usize) -> Pin<Box<dyn AsyncReadStream>> {
+            Box::pin(TestReadStream {
+                value,
+                remaining: count,
+            })
+        }
+    }
+
+    impl AsyncReadStream for TestReadStream {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            _cx: &mut Context,
+            buf: &mut [u8],
+        ) -> Result<Poll<Option<usize>>> {
+            if self.remaining == 0 {
+                return Ok(Poll::Ready(None));
+            }
+
+            let count = usize::min(self.remaining, buf.len());
+            buf[0..count].fill(self.value);
+            self.remaining -= count;
+
+            Ok(Poll::Ready(Some(count)))
+        }
+    }
+
+    // TODO: Remove when `Waker::noop` lands (1.85)
+    #[derive(Debug)]
+    pub struct NoopWaker;
+
+    impl Wake for NoopWaker {
+        fn wake(self: Arc<Self>) {}
+    }
 }

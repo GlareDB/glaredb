@@ -10,7 +10,6 @@ use rayexec_execution::runtime::Runtime;
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::{FileProvider2, FileSink};
 
-use crate::reader::DialectOptions;
 use crate::writer::CsvEncoder;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,13 +33,14 @@ impl<R: Runtime> CopyToFunction for CsvCopyToFunction<R> {
 
         let mut sinks = Vec::with_capacity(num_partitions);
         for _ in 0..num_partitions {
-            let sink = provider.file_sink(location.clone(), &AccessConfig::None)?;
-            let dialect = DialectOptions::default();
+            unimplemented!()
+            // let sink = provider.file_sink(location.clone(), &AccessConfig::None)?;
+            // let dialect = DialectOptions::default();
 
-            sinks.push(Box::new(CsvCopyToSink {
-                encoder: CsvEncoder::new(schema.clone(), dialect),
-                sink,
-            }) as _)
+            // sinks.push(Box::new(CsvCopyToSink {
+            //     encoder: CsvEncoder::new(schema.clone(), dialect),
+            //     sink,
+            // }) as _)
         }
 
         Ok(sinks)

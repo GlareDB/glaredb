@@ -1,7 +1,8 @@
 pub mod copy_to;
-pub mod datatable;
+pub mod dialect;
 pub mod reader;
 pub mod scan;
+pub mod schema;
 pub mod writer;
 
 mod decoder;
