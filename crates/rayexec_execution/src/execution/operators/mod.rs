@@ -15,8 +15,6 @@ pub mod join;
 pub mod limit;
 pub mod materialize;
 pub mod project;
-pub mod round_robin;
-pub mod scan;
 pub mod sink;
 pub mod sort;
 pub mod source;
@@ -51,8 +49,6 @@ use join::nested_loop_join::{
 use limit::PhysicalLimit;
 use project::{PhysicalProject, ProjectPartitionState};
 use rayexec_error::{not_implemented, OptionExt, Result};
-use round_robin::PhysicalRoundRobinRepartition;
-use scan::{PhysicalScan, ScanPartitionState};
 use sink::operation::SinkOperation;
 use sink::{PhysicalSink, SinkOperatorState, SinkPartitionState};
 use sort::{SortOperatorState, SortPartitionState};
@@ -75,11 +71,6 @@ use window::PhysicalWindow;
 
 use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::limit::LimitPartitionState;
-use self::round_robin::{
-    RoundRobinOperatorState,
-    RoundRobinPullPartitionState,
-    RoundRobinPushPartitionState,
-};
 use self::values::ValuesPartitionState;
 use super::computed_batch::ComputedBatches;
 use crate::arrays::batch::Batch;
@@ -112,13 +103,10 @@ pub enum PartitionState {
     // HashJoinProbe(HashJoinProbePartitionState),
     Values(ValuesPartitionState),
     Sink(SinkPartitionState),
-    RoundRobinPush(RoundRobinPushPartitionState),
-    RoundRobinPull(RoundRobinPullPartitionState),
     // GatherSortPush(GatherSortPushPartitionState),
     // GatherSortPull(GatherSortPullPartitionState),
     // ScatterSort(ScatterSortPartitionState),
     Unnest(UnnestPartitionState),
-    Scan(ScanPartitionState),
     TableInOut(TableInOutPartitionState),
     CreateSchema(CreateSchemaPartitionState),
     CreateView(CreateViewPartitionState),
@@ -137,7 +125,6 @@ pub enum OperatorState {
     HashAggregate(HashAggregateOperatorState),
 
     // HashJoin(HashJoinOperatorState),
-    RoundRobin(RoundRobinOperatorState),
     // GatherSort(GatherSortOperatorState),
     Sink(SinkOperatorState),
     None,
@@ -464,12 +451,10 @@ pub enum PhysicalOperator {
     DynSink(PhysicalSink<Box<dyn SinkOperation>>),
     // MaterializedSink(PhysicalSink<MaterializedSinkOperation>),
     // MaterializedSource(PhysicalSource<MaterializeSourceOperation>),
-    RoundRobin(PhysicalRoundRobinRepartition),
     // MergeSorted(PhysicalGatherSort),
     // LocalSort(PhysicalScatterSort),
     Union(PhysicalUnion),
     Unnest(PhysicalUnnest),
-    Scan(PhysicalScan),
     TableInOut(PhysicalTableInOut),
     Insert(PhysicalInsert),
     CopyTo(PhysicalCopyTo),
@@ -495,7 +480,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::DynSink(op) => op.output_types(),
             // Self::MaterializedSink(op) => op.output_types(),
             // Self::MaterializedSource(op) => op.output_types(),
-            Self::RoundRobin(op) => op.output_types(),
             // Self::MergeSorted(op) => op.output_types(),
             // Self::LocalSort(op) => op.output_types(),
             Self::Limit(op) => op.output_types(),
@@ -503,7 +487,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Filter(op) => op.output_types(),
             Self::Project(op) => op.output_types(),
             Self::Unnest(op) => op.output_types(),
-            Self::Scan(op) => op.output_types(),
             Self::TableFunction(op) => op.output_types(),
             Self::TableInOut(op) => op.output_types(),
             Self::Insert(op) => op.output_types(),
@@ -537,7 +520,6 @@ impl ExecutableOperator for PhysicalOperator {
             // Self::MaterializedSource(op) => {
             //     op.create_states(context, batch_size, partitions)?.into()
             // }
-            Self::RoundRobin(op) => op.create_states(context, batch_size, partitions)?.into(),
             // Self::MergeSorted(op) => op.create_states(context, batch_size, partitions)?.into(),
             // Self::LocalSort(op) => op.create_states(context, batch_size, partitions)?.into(),
             Self::Limit(op) => op.create_states(context, batch_size, partitions)?.into(),
@@ -545,7 +527,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Filter(op) => op.create_states(context, batch_size, partitions)?.into(),
             Self::Project(op) => op.create_states(context, batch_size, partitions)?.into(),
             Self::Unnest(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::Scan(op) => op.create_states(context, batch_size, partitions)?.into(),
             Self::TableFunction(op) => op.create_states(context, batch_size, partitions)?.into(),
             Self::TableInOut(op) => op.create_states(context, batch_size, partitions)?.into(),
             Self::Insert(op) => op.create_states(context, batch_size, partitions)?.into(),
@@ -582,7 +563,6 @@ impl ExecutableOperator for PhysicalOperator {
             // Self::MaterializedSource(op) => {
             //     op.poll_push(cx, partition_state, operator_state, batch)
             // }
-            Self::RoundRobin(op) => op.poll_push(cx, partition_state, operator_state, batch),
             // Self::MergeSorted(op) => op.poll_push(cx, partition_state, operator_state, batch),
             // Self::LocalSort(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Limit(op) => op.poll_push(cx, partition_state, operator_state, batch),
@@ -590,7 +570,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Filter(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Project(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Unnest(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Scan(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::TableFunction(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::TableInOut(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Insert(op) => op.poll_push(cx, partition_state, operator_state, batch),
@@ -620,7 +599,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::DynSink(op) => op.poll_finalize(cx, partition_state, operator_state),
             // Self::MaterializedSink(op) => op.poll_finalize(cx, partition_state, operator_state),
             // Self::MaterializedSource(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::RoundRobin(op) => op.poll_finalize(cx, partition_state, operator_state),
             // Self::MergeSorted(op) => op.poll_finalize(cx, partition_state, operator_state),
             // Self::LocalSort(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::Limit(op) => op.poll_finalize(cx, partition_state, operator_state),
@@ -628,7 +606,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Filter(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::Project(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::Unnest(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::Scan(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::TableFunction(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::TableInOut(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::Insert(op) => op.poll_finalize(cx, partition_state, operator_state),
@@ -658,7 +635,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::DynSink(op) => op.poll_pull(cx, partition_state, operator_state),
             // Self::MaterializedSink(op) => op.poll_pull(cx, partition_state, operator_state),
             // Self::MaterializedSource(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::RoundRobin(op) => op.poll_pull(cx, partition_state, operator_state),
             // Self::MergeSorted(op) => op.poll_pull(cx, partition_state, operator_state),
             // Self::LocalSort(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Limit(op) => op.poll_pull(cx, partition_state, operator_state),
@@ -666,7 +642,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::Filter(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Project(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Unnest(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Scan(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::TableFunction(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::TableInOut(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Insert(op) => op.poll_pull(cx, partition_state, operator_state),
@@ -693,7 +668,6 @@ impl Explainable for PhysicalOperator {
             Self::DynSink(op) => op.explain_entry(conf),
             // Self::MaterializedSink(op) => op.explain_entry(conf),
             // Self::MaterializedSource(op) => op.explain_entry(conf),
-            Self::RoundRobin(op) => op.explain_entry(conf),
             // Self::MergeSorted(op) => op.explain_entry(conf),
             // Self::LocalSort(op) => op.explain_entry(conf),
             Self::Limit(op) => op.explain_entry(conf),
@@ -701,7 +675,6 @@ impl Explainable for PhysicalOperator {
             Self::Filter(op) => op.explain_entry(conf),
             Self::Project(op) => op.explain_entry(conf),
             Self::Unnest(op) => op.explain_entry(conf),
-            Self::Scan(op) => op.explain_entry(conf),
             Self::TableFunction(op) => op.explain_entry(conf),
             Self::TableInOut(op) => op.explain_entry(conf),
             Self::Insert(op) => op.explain_entry(conf),
@@ -730,7 +703,6 @@ impl DatabaseProtoConv for PhysicalOperator {
             // Self::Project(op) => Value::Project(op.to_proto_ctx(context)?),
             Self::Insert(op) => Value::Insert(op.to_proto_ctx(context)?),
             Self::Limit(op) => Value::Limit(op.to_proto_ctx(context)?),
-            Self::Scan(op) => Value::Scan(op.to_proto_ctx(context)?),
             // Self::UngroupedAggregate(op) => Value::UngroupedAggregate(op.to_proto_ctx(context)?),
             Self::Union(op) => Value::Union(op.to_proto_ctx(context)?),
             Self::Values(op) => Value::Values(op.to_proto_ctx(context)?),
@@ -771,7 +743,6 @@ impl DatabaseProtoConv for PhysicalOperator {
             Value::Limit(op) => {
                 PhysicalOperator::Limit(PhysicalLimit::from_proto_ctx(op, context)?)
             }
-            Value::Scan(op) => PhysicalOperator::Scan(PhysicalScan::from_proto_ctx(op, context)?),
             // Value::UngroupedAggregate(op) => PhysicalOperator::UngroupedAggregate(
             //     PhysicalUngroupedAggregate::from_proto_ctx(op, context)?,
             // ),
