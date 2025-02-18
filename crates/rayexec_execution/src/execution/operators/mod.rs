@@ -130,48 +130,6 @@ pub enum OperatorState {
     None,
 }
 
-/// Result of a push to an operator.
-///
-/// An operator may not be ready to accept input either because it's waiting on
-/// something else to complete (e.g. the right side of a join needs to the left
-/// side to complete first) or some internal buffer is full.
-#[derive(Debug)]
-pub enum PollPush {
-    /// Batch was successfully pushed.
-    Pushed,
-
-    /// Batch could not be processed right now.
-    ///
-    /// A waker will be registered for a later wakeup. This same batch should be
-    /// pushed at that time.
-    Pending(Batch),
-
-    /// This operator requires no more input.
-    ///
-    /// `finalize_push` for the operator should _not_ be called.
-    Break,
-
-    /// Batch was successfully pushed, but the operator needs more input before
-    /// it can start producing output
-    NeedsMore,
-}
-
-/// Result of a pull from a Source.
-#[derive(Debug)]
-pub enum PollPull {
-    /// Successfully received computed results.
-    Computed(ComputedBatches),
-
-    /// A batch could not be be retrieved right now.
-    ///
-    /// A waker will be registered for a later wakeup to try to pull the next
-    /// batch.
-    Pending,
-
-    /// The operator has been exhausted for this partition.
-    Exhausted,
-}
-
 /// Poll result for operator execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PollExecute {
@@ -398,17 +356,6 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         unimplemented!()
     }
 
-    /// Try to push a batch for this partition.
-    fn poll_push(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
-        unimplemented!()
-    }
-
     /// Finalize pushing to partition.
     ///
     /// This indicates the operator will receive no more input for a given
@@ -419,16 +366,6 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
-        unimplemented!()
-    }
-
-    /// Try to pull a batch for this partition.
-    fn poll_pull(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-    ) -> Result<PollPull> {
         unimplemented!()
     }
 }
@@ -541,47 +478,6 @@ impl ExecutableOperator for PhysicalOperator {
         Ok(states)
     }
 
-    fn poll_push(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-        batch: Batch,
-    ) -> Result<PollPush> {
-        match self {
-            Self::HashAggregate(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::UngroupedAggregate(op) => {
-                op.poll_push(cx, partition_state, operator_state, batch)
-            }
-            Self::Window(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::NestedLoopJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            // Self::HashJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Values(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::ResultSink(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::DynSink(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            // Self::MaterializedSink(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            // Self::MaterializedSource(op) => {
-            //     op.poll_push(cx, partition_state, operator_state, batch)
-            // }
-            // Self::MergeSorted(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            // Self::LocalSort(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Limit(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Union(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Filter(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Project(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Unnest(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::TableFunction(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::TableInOut(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Insert(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::CopyTo(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::CreateTable(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::CreateSchema(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::CreateView(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Drop(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::Empty(op) => op.poll_push(cx, partition_state, operator_state, batch),
-        }
-    }
-
     fn poll_finalize(
         &self,
         cx: &mut Context,
@@ -615,42 +511,6 @@ impl ExecutableOperator for PhysicalOperator {
             Self::CreateView(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::Drop(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::Empty(op) => op.poll_finalize(cx, partition_state, operator_state),
-        }
-    }
-
-    fn poll_pull(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-    ) -> Result<PollPull> {
-        match self {
-            Self::HashAggregate(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::UngroupedAggregate(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Window(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::NestedLoopJoin(op) => op.poll_pull(cx, partition_state, operator_state),
-            // Self::HashJoin(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Values(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::ResultSink(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::DynSink(op) => op.poll_pull(cx, partition_state, operator_state),
-            // Self::MaterializedSink(op) => op.poll_pull(cx, partition_state, operator_state),
-            // Self::MaterializedSource(op) => op.poll_pull(cx, partition_state, operator_state),
-            // Self::MergeSorted(op) => op.poll_pull(cx, partition_state, operator_state),
-            // Self::LocalSort(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Limit(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Union(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Filter(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Project(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Unnest(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::TableFunction(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::TableInOut(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Insert(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::CopyTo(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::CreateTable(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::CreateSchema(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::CreateView(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Drop(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::Empty(op) => op.poll_pull(cx, partition_state, operator_state),
         }
     }
 }

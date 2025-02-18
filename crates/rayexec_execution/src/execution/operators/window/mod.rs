@@ -2,18 +2,7 @@ use std::task::Context;
 
 use rayexec_error::Result;
 
-use super::{
-    ExecutableOperator,
-    ExecutionStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
-    UnaryInputStates,
-};
-use crate::arrays::batch::Batch;
-use crate::database::DatabaseContext;
+use super::{ExecutableOperator, OperatorState, PartitionState, PollFinalize, UnaryInputStates};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug)]
@@ -22,31 +11,12 @@ pub struct PhysicalWindow {}
 impl ExecutableOperator for PhysicalWindow {
     type States = UnaryInputStates;
 
-    fn poll_push(
-        &self,
-        _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
-        unimplemented!()
-    }
-
     fn poll_finalize(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
-        unimplemented!()
-    }
-
-    fn poll_pull(
-        &self,
-        _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
         unimplemented!()
     }
 }

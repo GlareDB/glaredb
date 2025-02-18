@@ -1,25 +1,11 @@
 use std::fmt;
-use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
 
 use futures::future::BoxFuture;
-use futures::FutureExt;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
-use super::{
-    ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
-    UnaryInputStates,
-};
-use crate::arrays::batch::Batch;
-use crate::database::catalog::CatalogTx;
+use super::{ExecutableOperator, OperatorState, PartitionState, PollFinalize, UnaryInputStates};
 use crate::database::create::CreateSchemaInfo;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -86,16 +72,6 @@ impl ExecutableOperator for PhysicalCreateSchema {
     //     })
     // }
 
-    fn poll_push(
-        &self,
-        _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
-        Err(RayexecError::new("Cannot push to physical create table"))
-    }
-
     fn poll_finalize(
         &self,
         _cx: &mut Context,
@@ -103,22 +79,6 @@ impl ExecutableOperator for PhysicalCreateSchema {
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         Err(RayexecError::new("Cannot push to physical create table"))
-    }
-
-    fn poll_pull(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
-        match partition_state {
-            PartitionState::CreateSchema(state) => match state.create.poll_unpin(cx) {
-                Poll::Ready(Ok(_)) => Ok(PollPull::Exhausted),
-                Poll::Ready(Err(e)) => Err(e),
-                Poll::Pending => Ok(PollPull::Pending),
-            },
-            other => panic!("invalid partition state: {other:?}"),
-        }
     }
 }
 
