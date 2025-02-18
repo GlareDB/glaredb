@@ -65,37 +65,37 @@ impl PhysicalScan {
 impl ExecutableOperator for PhysicalScan {
     type States = UnaryInputStates;
 
-    fn create_states2(
-        &self,
-        context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        // TODO: Placeholder for now. Transaction info should probably go on the
-        // operator.
-        let _tx = CatalogTx::new();
+    // fn create_states2(
+    //     &self,
+    //     context: &DatabaseContext,
+    //     partitions: Vec<usize>,
+    // ) -> Result<ExecutionStates> {
+    //     // TODO: Placeholder for now. Transaction info should probably go on the
+    //     // operator.
+    //     let _tx = CatalogTx::new();
 
-        let database = context.get_database(&self.catalog)?;
-        let data_table = database
-            .table_storage
-            .as_ref()
-            .ok_or_else(|| RayexecError::new("Missing table storage for scan"))?
-            .data_table(&self.schema, &self.table)?;
+    //     let database = context.get_database(&self.catalog)?;
+    //     let data_table = database
+    //         .table_storage
+    //         .as_ref()
+    //         .ok_or_else(|| RayexecError::new("Missing table storage for scan"))?
+    //         .data_table(&self.schema, &self.table)?;
 
-        // TODO: Pushdown projections, filters
-        let scans = data_table.scan(self.projections.clone(), partitions[0])?;
+    //     // TODO: Pushdown projections, filters
+    //     let scans = data_table.scan(self.projections.clone(), partitions[0])?;
 
-        let states = scans
-            .into_iter()
-            .map(|scan| PartitionState::Scan(ScanPartitionState { scan, future: None }))
-            .collect();
+    //     let states = scans
+    //         .into_iter()
+    //         .map(|scan| PartitionState::Scan(ScanPartitionState { scan, future: None }))
+    //         .collect();
 
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: states,
-            },
-        })
-    }
+    //     Ok(ExecutionStates {
+    //         operator_state: Arc::new(OperatorState::None),
+    //         partition_states: InputOutputStates::OneToOne {
+    //             partition_states: states,
+    //         },
+    //     })
+    // }
 
     fn poll_push(
         &self,

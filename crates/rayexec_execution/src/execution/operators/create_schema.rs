@@ -53,38 +53,38 @@ impl PhysicalCreateSchema {
 impl ExecutableOperator for PhysicalCreateSchema {
     type States = UnaryInputStates;
 
-    fn create_states2(
-        &self,
-        context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        if partitions[0] != 1 {
-            return Err(RayexecError::new(
-                "Create schema operator can only handle 1 partition",
-            ));
-        }
+    // fn create_states2(
+    //     &self,
+    //     context: &DatabaseContext,
+    //     partitions: Vec<usize>,
+    // ) -> Result<ExecutionStates> {
+    //     if partitions[0] != 1 {
+    //         return Err(RayexecError::new(
+    //             "Create schema operator can only handle 1 partition",
+    //         ));
+    //     }
 
-        // TODO: Placeholder.
-        let tx = CatalogTx::new();
+    //     // TODO: Placeholder.
+    //     let tx = CatalogTx::new();
 
-        let catalog = context.get_database(&self.catalog)?.catalog.clone();
-        let info = self.info.clone();
-        let create = Box::pin(async move {
-            catalog.create_schema(&tx, &info)?;
-            // TODO: And persist some how (write to log, flush on commit)
-            // TODO: Probably doesn't even need to be async...
-            Ok(())
-        });
+    //     let catalog = context.get_database(&self.catalog)?.catalog.clone();
+    //     let info = self.info.clone();
+    //     let create = Box::pin(async move {
+    //         catalog.create_schema(&tx, &info)?;
+    //         // TODO: And persist some how (write to log, flush on commit)
+    //         // TODO: Probably doesn't even need to be async...
+    //         Ok(())
+    //     });
 
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: vec![PartitionState::CreateSchema(CreateSchemaPartitionState {
-                    create,
-                })],
-            },
-        })
-    }
+    //     Ok(ExecutionStates {
+    //         operator_state: Arc::new(OperatorState::None),
+    //         partition_states: InputOutputStates::OneToOne {
+    //             partition_states: vec![PartitionState::CreateSchema(CreateSchemaPartitionState {
+    //                 create,
+    //             })],
+    //         },
+    //     })
+    // }
 
     fn poll_push(
         &self,

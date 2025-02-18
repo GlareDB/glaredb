@@ -388,20 +388,6 @@ pub struct ExecutionStates {
 pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
     type States: Into<PartitionAndOperatorStates>;
 
-    /// Create execution states for this operator.
-    ///
-    /// `input_partitions` is the partitioning for each input that will be
-    /// pushing batches through this operator.
-    ///
-    /// Joins are assumed to have two inputs.
-    fn create_states2(
-        &self,
-        _context: &DatabaseContext,
-        _partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        unimplemented!()
-    }
-
     fn output_types(&self) -> &[DataType] {
         unimplemented!()
     }
@@ -572,43 +558,6 @@ impl ExecutableOperator for PhysicalOperator {
         };
 
         Ok(states)
-    }
-
-    fn create_states2(
-        &self,
-        context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        match self {
-            Self::HashAggregate(op) => op.create_states2(context, partitions),
-            Self::UngroupedAggregate(op) => op.create_states2(context, partitions),
-            Self::Window(op) => op.create_states2(context, partitions),
-            Self::NestedLoopJoin(op) => op.create_states2(context, partitions),
-            // Self::HashJoin(op) => op.create_states2(context, partitions),
-            Self::Values(op) => op.create_states2(context, partitions),
-            Self::ResultSink(op) => op.create_states2(context, partitions),
-            Self::DynSink(op) => op.create_states2(context, partitions),
-            // Self::MaterializedSink(op) => op.create_states2(context, partitions),
-            // Self::MaterializedSource(op) => op.create_states2(context, partitions),
-            Self::RoundRobin(op) => op.create_states2(context, partitions),
-            // Self::MergeSorted(op) => op.create_states2(context, partitions),
-            // Self::LocalSort(op) => op.create_states2(context, partitions),
-            Self::Limit(op) => op.create_states2(context, partitions),
-            Self::Union(op) => op.create_states2(context, partitions),
-            Self::Filter(op) => op.create_states2(context, partitions),
-            Self::Project(op) => op.create_states2(context, partitions),
-            Self::Unnest(op) => op.create_states2(context, partitions),
-            Self::Scan(op) => op.create_states2(context, partitions),
-            Self::TableFunction(op) => op.create_states2(context, partitions),
-            Self::TableInOut(op) => op.create_states2(context, partitions),
-            Self::Insert(op) => op.create_states2(context, partitions),
-            Self::CopyTo(op) => op.create_states2(context, partitions),
-            Self::CreateTable(op) => op.create_states2(context, partitions),
-            Self::CreateSchema(op) => op.create_states2(context, partitions),
-            Self::CreateView(op) => op.create_states2(context, partitions),
-            Self::Drop(op) => op.create_states2(context, partitions),
-            Self::Empty(op) => op.create_states2(context, partitions),
-        }
     }
 
     fn poll_push(

@@ -22,14 +22,6 @@ pub struct PhysicalWindow {}
 impl ExecutableOperator for PhysicalWindow {
     type States = UnaryInputStates;
 
-    fn create_states2(
-        &self,
-        _context: &DatabaseContext,
-        _partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        unimplemented!()
-    }
-
     fn poll_push(
         &self,
         _cx: &mut Context,

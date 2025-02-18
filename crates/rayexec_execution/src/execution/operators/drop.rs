@@ -50,34 +50,34 @@ impl PhysicalDrop {
 impl ExecutableOperator for PhysicalDrop {
     type States = UnaryInputStates;
 
-    fn create_states2(
-        &self,
-        context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        if partitions[0] != 1 {
-            return Err(RayexecError::new("Drop can only handle one partition"));
-        }
+    // fn create_states2(
+    //     &self,
+    //     context: &DatabaseContext,
+    //     partitions: Vec<usize>,
+    // ) -> Result<ExecutionStates> {
+    //     if partitions[0] != 1 {
+    //         return Err(RayexecError::new("Drop can only handle one partition"));
+    //     }
 
-        // TODO: Placeholder.
-        let tx = CatalogTx::new();
+    //     // TODO: Placeholder.
+    //     let tx = CatalogTx::new();
 
-        let catalog = context.get_database(&self.catalog)?.catalog.clone();
-        let info = self.info.clone();
-        let drop = Box::pin(async move {
-            catalog.drop_entry(&tx, &info)?;
-            // TODO: Log drop, enqueue physical table drop.
-            // TODO: Probably doesn't even need to be async...
-            Ok(())
-        });
+    //     let catalog = context.get_database(&self.catalog)?.catalog.clone();
+    //     let info = self.info.clone();
+    //     let drop = Box::pin(async move {
+    //         catalog.drop_entry(&tx, &info)?;
+    //         // TODO: Log drop, enqueue physical table drop.
+    //         // TODO: Probably doesn't even need to be async...
+    //         Ok(())
+    //     });
 
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: vec![PartitionState::Drop(DropPartitionState { drop })],
-            },
-        })
-    }
+    //     Ok(ExecutionStates {
+    //         operator_state: Arc::new(OperatorState::None),
+    //         partition_states: InputOutputStates::OneToOne {
+    //             partition_states: vec![PartitionState::Drop(DropPartitionState { drop })],
+    //         },
+    //     })
+    // }
 
     fn poll_push(
         &self,

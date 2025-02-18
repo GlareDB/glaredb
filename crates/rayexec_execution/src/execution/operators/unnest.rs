@@ -49,41 +49,41 @@ pub struct PhysicalUnnest {
 impl ExecutableOperator for PhysicalUnnest {
     type States = UnaryInputStates;
 
-    fn create_states2(
-        &self,
-        _context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        let partitions = partitions[0];
+    // fn create_states2(
+    //     &self,
+    //     _context: &DatabaseContext,
+    //     partitions: Vec<usize>,
+    // ) -> Result<ExecutionStates> {
+    //     let partitions = partitions[0];
 
-        unimplemented!()
-        // let states: Vec<_> = (0..partitions)
-        //     .map(|_| {
-        //         PartitionState::Unnest(UnnestPartitionState {
-        //             project_inputs: vec![
-        //                 Array::new_untyped_null_array(0);
-        //                 self.project_expressions.len()
-        //             ],
-        //             unnest_inputs: vec![
-        //                 Array::new_untyped_null_array(0);
-        //                 self.unnest_expressions.len()
-        //             ],
-        //             input_num_rows: 0,
-        //             current_row: 0,
-        //             finished: false,
-        //             push_waker: None,
-        //             pull_waker: None,
-        //         })
-        //     })
-        //     .collect();
+    //     unimplemented!()
+    //     // let states: Vec<_> = (0..partitions)
+    //     //     .map(|_| {
+    //     //         PartitionState::Unnest(UnnestPartitionState {
+    //     //             project_inputs: vec![
+    //     //                 Array::new_untyped_null_array(0);
+    //     //                 self.project_expressions.len()
+    //     //             ],
+    //     //             unnest_inputs: vec![
+    //     //                 Array::new_untyped_null_array(0);
+    //     //                 self.unnest_expressions.len()
+    //     //             ],
+    //     //             input_num_rows: 0,
+    //     //             current_row: 0,
+    //     //             finished: false,
+    //     //             push_waker: None,
+    //     //             pull_waker: None,
+    //     //         })
+    //     //     })
+    //     //     .collect();
 
-        // Ok(ExecutionStates {
-        //     operator_state: Arc::new(OperatorState::None),
-        //     partition_states: InputOutputStates::OneToOne {
-        //         partition_states: states,
-        //     },
-        // })
-    }
+    //     // Ok(ExecutionStates {
+    //     //     operator_state: Arc::new(OperatorState::None),
+    //     //     partition_states: InputOutputStates::OneToOne {
+    //     //         partition_states: states,
+    //     //     },
+    //     // })
+    // }
 
     fn poll_push(
         &self,

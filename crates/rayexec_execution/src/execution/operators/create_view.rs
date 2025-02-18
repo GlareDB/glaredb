@@ -44,45 +44,45 @@ pub struct PhysicalCreateView {
 impl ExecutableOperator for PhysicalCreateView {
     type States = UnaryInputStates;
 
-    fn create_states2(
-        &self,
-        context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        if partitions[0] != 1 {
-            return Err(RayexecError::new(
-                "Create schema operator can only handle 1 partition",
-            ));
-        }
+    // fn create_states2(
+    //     &self,
+    //     context: &DatabaseContext,
+    //     partitions: Vec<usize>,
+    // ) -> Result<ExecutionStates> {
+    //     if partitions[0] != 1 {
+    //         return Err(RayexecError::new(
+    //             "Create schema operator can only handle 1 partition",
+    //         ));
+    //     }
 
-        // TODO: Placeholder.
-        let tx = CatalogTx::new();
+    //     // TODO: Placeholder.
+    //     let tx = CatalogTx::new();
 
-        let database = context.get_database(&self.catalog)?;
-        let schema_ent = database
-            .catalog
-            .get_schema(&tx, &self.schema)?
-            .ok_or_else(|| {
-                RayexecError::new(format!("Missing schema for view create: {}", self.schema))
-            })?;
+    //     let database = context.get_database(&self.catalog)?;
+    //     let schema_ent = database
+    //         .catalog
+    //         .get_schema(&tx, &self.schema)?
+    //         .ok_or_else(|| {
+    //             RayexecError::new(format!("Missing schema for view create: {}", self.schema))
+    //         })?;
 
-        let info = self.info.clone();
-        let create = Box::pin(async move {
-            let _ = schema_ent.create_view(&tx, &info)?;
-            // TODO: And persist some how (write to log, flush on commit)
-            // TODO: Probably doesn't even need to be async...
-            Ok(())
-        });
+    //     let info = self.info.clone();
+    //     let create = Box::pin(async move {
+    //         let _ = schema_ent.create_view(&tx, &info)?;
+    //         // TODO: And persist some how (write to log, flush on commit)
+    //         // TODO: Probably doesn't even need to be async...
+    //         Ok(())
+    //     });
 
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: vec![PartitionState::CreateView(CreateViewPartitionState {
-                    create,
-                })],
-            },
-        })
-    }
+    //     Ok(ExecutionStates {
+    //         operator_state: Arc::new(OperatorState::None),
+    //         partition_states: InputOutputStates::OneToOne {
+    //             partition_states: vec![PartitionState::CreateView(CreateViewPartitionState {
+    //                 create,
+    //             })],
+    //         },
+    //     })
+    // }
 
     fn poll_push(
         &self,
