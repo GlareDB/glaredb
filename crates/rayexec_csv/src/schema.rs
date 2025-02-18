@@ -170,3 +170,102 @@ impl CandidateType {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::decoder::CsvDecoder;
+    use crate::dialect::DialectOptions;
+
+    /// Helper for making byte records from some bytes.
+    ///
+    /// This uses the default csv dialect.
+    fn make_records(bs: impl AsRef<[u8]>) -> ByteRecords {
+        let mut decoder = CsvDecoder::new(DialectOptions::default());
+        let mut records = ByteRecords::with_buffer_capacity(16);
+        decoder.decode(bs.as_ref(), &mut records);
+        records
+    }
+
+    #[test]
+    fn infer_all_utf8() {
+        let records = make_records(
+            r#"a,b,c
+d,e,f
+x,y,z
+"#,
+        );
+
+        let schema = CsvSchema::infer_from_records(&records).unwrap();
+        assert!(!schema.has_header);
+
+        let expected = Schema::new([
+            Field::new("column0", DataType::Utf8, true),
+            Field::new("column1", DataType::Utf8, true),
+            Field::new("column2", DataType::Utf8, true),
+        ]);
+        assert_eq!(expected, schema.schema);
+    }
+
+    #[test]
+    fn infer_utf8_float_int() {
+        let records = make_records(
+            r#"a,4.0,80
+d,5,90
+x,5.5,100
+"#,
+        );
+
+        let schema = CsvSchema::infer_from_records(&records).unwrap();
+        assert!(!schema.has_header);
+
+        let expected = Schema::new([
+            Field::new("column0", DataType::Utf8, true),
+            Field::new("column1", DataType::Float64, true),
+            Field::new("column2", DataType::Int64, true),
+        ]);
+        assert_eq!(expected, schema.schema);
+    }
+
+    #[test]
+    fn infer_utf8_float_int_with_header() {
+        let records = make_records(
+            r#"c1,c2,c3
+a,4.0,80
+d,5,90
+x,5.5,100
+"#,
+        );
+
+        let schema = CsvSchema::infer_from_records(&records).unwrap();
+        assert!(schema.has_header);
+
+        let expected = Schema::new([
+            Field::new("c1", DataType::Utf8, true),
+            Field::new("c2", DataType::Float64, true),
+            Field::new("c3", DataType::Int64, true),
+        ]);
+        assert_eq!(expected, schema.schema);
+    }
+
+    #[test]
+    fn infer_float_special_cases() {
+        let records = make_records(
+            r#"c1,c2,c3
+a,Inf,80
+d,-Inf,90
+x,NaN,100
+"#,
+        );
+
+        let schema = CsvSchema::infer_from_records(&records).unwrap();
+        assert!(schema.has_header);
+
+        let expected = Schema::new([
+            Field::new("c1", DataType::Utf8, true),
+            Field::new("c2", DataType::Float64, true),
+            Field::new("c3", DataType::Int64, true),
+        ]);
+        assert_eq!(expected, schema.schema);
+    }
+}
