@@ -10,7 +10,6 @@ pub mod empty;
 pub mod filter;
 pub mod hash_aggregate;
 pub mod hash_join;
-pub mod hash_join2;
 pub mod insert;
 pub mod join;
 pub mod limit;
@@ -42,12 +41,6 @@ use drop::{DropPartitionState, PhysicalDrop};
 use empty::PhysicalEmpty;
 use filter::{FilterPartitionState, PhysicalFilter};
 use hash_aggregate::PhysicalHashAggregate;
-use hash_join2::{
-    HashJoinBuildPartitionState,
-    HashJoinOperatorState,
-    HashJoinProbePartitionState,
-    PhysicalHashJoin,
-};
 use insert::PhysicalInsert;
 use join::nested_loop_join::{
     NestedLoopJoinBuildPartitionState,
@@ -115,8 +108,8 @@ pub enum PartitionState {
     HashAggregate(HashAggregatePartitionState),
     TableFunction(TableFunctionPartitionState),
 
-    HashJoinBuild(HashJoinBuildPartitionState),
-    HashJoinProbe(HashJoinProbePartitionState),
+    // HashJoinBuild(HashJoinBuildPartitionState),
+    // HashJoinProbe(HashJoinProbePartitionState),
     Values(ValuesPartitionState),
     Sink(SinkPartitionState),
     RoundRobinPush(RoundRobinPushPartitionState),
@@ -143,7 +136,7 @@ pub enum OperatorState {
     UngroupedAggregate(UngroupedAggregateOperatorState),
     HashAggregate(HashAggregateOperatorState),
 
-    HashJoin(HashJoinOperatorState),
+    // HashJoin(HashJoinOperatorState),
     RoundRobin(RoundRobinOperatorState),
     // GatherSort(GatherSortOperatorState),
     Sink(SinkOperatorState),
@@ -479,7 +472,7 @@ pub enum PhysicalOperator {
     HashAggregate(PhysicalHashAggregate),
     UngroupedAggregate(PhysicalUngroupedAggregate),
     Window(PhysicalWindow),
-    HashJoin(PhysicalHashJoin),
+    // HashJoin(PhysicalHashJoin),
     Values(PhysicalValues),
     ResultSink(PhysicalSink<ResultSink>),
     DynSink(PhysicalSink<Box<dyn SinkOperation>>),
@@ -510,7 +503,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::UngroupedAggregate(op) => op.output_types(),
             Self::Window(op) => op.output_types(),
             Self::NestedLoopJoin(op) => op.output_types(),
-            Self::HashJoin(op) => op.output_types(),
+            // Self::HashJoin(op) => op.output_types(),
             Self::Values(op) => op.output_types(),
             Self::ResultSink(op) => op.output_types(),
             Self::DynSink(op) => op.output_types(),
@@ -550,7 +543,7 @@ impl ExecutableOperator for PhysicalOperator {
             }
             Self::Window(op) => op.create_states(context, batch_size, partitions)?.into(),
             Self::NestedLoopJoin(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::HashJoin(op) => op.create_states(context, batch_size, partitions)?.into(),
+            // Self::HashJoin(op) => op.create_states(context, batch_size, partitions)?.into(),
             Self::Values(op) => op.create_states(context, batch_size, partitions)?.into(),
             Self::ResultSink(op) => op.create_states(context, batch_size, partitions)?.into(),
             Self::DynSink(op) => op.create_states(context, batch_size, partitions)?.into(),
@@ -591,7 +584,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::UngroupedAggregate(op) => op.create_states2(context, partitions),
             Self::Window(op) => op.create_states2(context, partitions),
             Self::NestedLoopJoin(op) => op.create_states2(context, partitions),
-            Self::HashJoin(op) => op.create_states2(context, partitions),
+            // Self::HashJoin(op) => op.create_states2(context, partitions),
             Self::Values(op) => op.create_states2(context, partitions),
             Self::ResultSink(op) => op.create_states2(context, partitions),
             Self::DynSink(op) => op.create_states2(context, partitions),
@@ -632,7 +625,7 @@ impl ExecutableOperator for PhysicalOperator {
             }
             Self::Window(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::NestedLoopJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
-            Self::HashJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
+            // Self::HashJoin(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::Values(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::ResultSink(op) => op.poll_push(cx, partition_state, operator_state, batch),
             Self::DynSink(op) => op.poll_push(cx, partition_state, operator_state, batch),
@@ -672,7 +665,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::UngroupedAggregate(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::Window(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::NestedLoopJoin(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::HashJoin(op) => op.poll_finalize(cx, partition_state, operator_state),
+            // Self::HashJoin(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::Values(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::ResultSink(op) => op.poll_finalize(cx, partition_state, operator_state),
             Self::DynSink(op) => op.poll_finalize(cx, partition_state, operator_state),
@@ -710,7 +703,7 @@ impl ExecutableOperator for PhysicalOperator {
             Self::UngroupedAggregate(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Window(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::NestedLoopJoin(op) => op.poll_pull(cx, partition_state, operator_state),
-            Self::HashJoin(op) => op.poll_pull(cx, partition_state, operator_state),
+            // Self::HashJoin(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::Values(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::ResultSink(op) => op.poll_pull(cx, partition_state, operator_state),
             Self::DynSink(op) => op.poll_pull(cx, partition_state, operator_state),
@@ -745,7 +738,7 @@ impl Explainable for PhysicalOperator {
             Self::UngroupedAggregate(op) => op.explain_entry(conf),
             Self::Window(op) => op.explain_entry(conf),
             Self::NestedLoopJoin(op) => op.explain_entry(conf),
-            Self::HashJoin(op) => op.explain_entry(conf),
+            // Self::HashJoin(op) => op.explain_entry(conf),
             Self::Values(op) => op.explain_entry(conf),
             Self::ResultSink(op) => op.explain_entry(conf),
             Self::DynSink(op) => op.explain_entry(conf),

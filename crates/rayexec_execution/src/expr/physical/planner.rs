@@ -8,7 +8,6 @@ use super::literal_expr::PhysicalLiteralExpr;
 use super::scalar_function_expr::PhysicalScalarFunctionExpr;
 use super::PhysicalSortExpression;
 use crate::arrays::scalar::ScalarValue;
-use crate::execution::operators::hash_join2::condition::HashJoinCondition;
 use crate::expr::physical::case_expr::PhysicalWhenThen;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{AsScalarFunction, Expression};
@@ -207,28 +206,28 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         }
     }
 
-    pub fn plan_join_condition_as_hash_join_condition(
-        &self,
-        left_refs: &[TableRef],
-        right_refs: &[TableRef],
-        condition: &ComparisonCondition,
-    ) -> Result<HashJoinCondition> {
-        let scalar = condition.op.as_scalar_function();
-        let function = scalar.plan(
-            self.table_list,
-            vec![condition.left.clone(), condition.right.clone()],
-        )?;
+    // pub fn plan_join_condition_as_hash_join_condition(
+    //     &self,
+    //     left_refs: &[TableRef],
+    //     right_refs: &[TableRef],
+    //     condition: &ComparisonCondition,
+    // ) -> Result<HashJoinCondition> {
+    //     let scalar = condition.op.as_scalar_function();
+    //     let function = scalar.plan(
+    //         self.table_list,
+    //         vec![condition.left.clone(), condition.right.clone()],
+    //     )?;
 
-        Ok(HashJoinCondition {
-            left: self
-                .plan_scalar(left_refs, &condition.left)
-                .context("Failed to plan for left side of condition")?,
-            right: self
-                .plan_scalar(right_refs, &condition.right)
-                .context("Failed to plan for right side of condition")?,
-            function,
-        })
-    }
+    //     Ok(HashJoinCondition {
+    //         left: self
+    //             .plan_scalar(left_refs, &condition.left)
+    //             .context("Failed to plan for left side of condition")?,
+    //         right: self
+    //             .plan_scalar(right_refs, &condition.right)
+    //             .context("Failed to plan for right side of condition")?,
+    //         function,
+    //     })
+    // }
 
     pub fn plan_sorts(
         &self,

@@ -1,8 +1,6 @@
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::operators::hash_join2::PhysicalHashJoin;
-use crate::execution::operators::PhysicalOperator;
 use crate::expr;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
@@ -98,40 +96,40 @@ impl IntermediatePipelineBuildState<'_> {
             // self.remote_group
             //     .merge_from_other(&mut left_state.remote_group);
 
-            // Get the left pipeline.
-            let left_pipeline = left_state.in_progress.take().ok_or_else(|| {
-                RayexecError::new("expected in-progress pipeline from left side of join")
-            })?;
+            // // Get the left pipeline.
+            // let left_pipeline = left_state.in_progress.take().ok_or_else(|| {
+            //     RayexecError::new("expected in-progress pipeline from left side of join")
+            // })?;
 
-            let conditions = join
-                .node
-                .conditions
-                .iter()
-                .map(|condition| {
-                    self.expr_planner
-                        .plan_join_condition_as_hash_join_condition(
-                            &left_refs,
-                            &right_refs,
-                            condition,
-                        )
-                        .context_fn(|| format!("Failed to plan condition: {condition}"))
-                })
-                .collect::<Result<Vec<_>>>()?;
+            // let conditions = join
+            //     .node
+            //     .conditions
+            //     .iter()
+            //     .map(|condition| {
+            //         self.expr_planner
+            //             .plan_join_condition_as_hash_join_condition(
+            //                 &left_refs,
+            //                 &right_refs,
+            //                 condition,
+            //             )
+            //             .context_fn(|| format!("Failed to plan condition: {condition}"))
+            //     })
+            //     .collect::<Result<Vec<_>>>()?;
 
-            let operator = PhysicalOperator::HashJoin(PhysicalHashJoin::new(
-                join.node.join_type,
-                &equality_indices,
-                conditions,
-                left_types,
-                right_types,
-            ));
-            self.push_intermediate_operator(operator, location, id_gen)?;
+            // let operator = PhysicalOperator::HashJoin(PhysicalHashJoin::new(
+            //     join.node.join_type,
+            //     &equality_indices,
+            //     conditions,
+            //     left_types,
+            //     right_types,
+            // ));
+            // self.push_intermediate_operator(operator, location, id_gen)?;
 
-            // Left pipeline will be child this this pipeline at the current
-            // operator.
-            self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
+            // // Left pipeline will be child this this pipeline at the current
+            // // operator.
+            // self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
 
-            Ok(())
+            // Ok(())
         } else {
             // Need to fall back to nested loop join.
 

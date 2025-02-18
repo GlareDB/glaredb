@@ -3,24 +3,52 @@ use rayexec_error::Result;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::validity::Validity;
 use crate::arrays::batch::Batch;
-use crate::arrays::bitmap::Bitmap;
+use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMut};
 use crate::arrays::cache::NopCache;
+
+#[derive(Debug)]
+pub struct MatchBitmap {
+    data: Vec<u8>,
+    len: usize,
+}
+
+impl MatchBitmap {
+    fn with_all_false(num_rows: usize) -> Self {
+        let data = vec![0; num_bytes_for_bitmap(num_rows)];
+        MatchBitmap {
+            data,
+            len: num_rows,
+        }
+    }
+
+    fn set_match(&mut self, idx: usize) {
+        BitmapViewMut::new(&mut self.data, self.len).set(idx);
+    }
+
+    fn reset(&mut self) {
+        self.data.fill(0);
+    }
+
+    fn is_match(&self, idx: usize) -> bool {
+        BitmapView::new(&self.data, self.len).value(idx)
+    }
+}
 
 /// Tracker visited rows for outer joins.
 #[derive(Debug)]
 pub struct OuterJoinTracker {
     /// Bitmap for tracking matched rows.
-    matches: Bitmap,
+    matches: MatchBitmap,
 }
 
 impl OuterJoinTracker {
     pub fn new(num_rows: usize) -> Self {
-        let matches = Bitmap::new_with_all_false(num_rows);
+        let matches = MatchBitmap::with_all_false(num_rows);
         OuterJoinTracker { matches }
     }
 
     pub fn set_match(&mut self, idx: usize) {
-        self.matches.set_unchecked(idx, true);
+        self.matches.set_match(idx);
     }
 
     pub fn set_matches(&mut self, rows: impl IntoIterator<Item = usize>) {
@@ -28,7 +56,7 @@ impl OuterJoinTracker {
     }
 
     pub fn reset(&mut self) {
-        self.matches.reset(false);
+        self.matches.reset();
     }
 
     /// Set the output for a right join.
@@ -46,7 +74,7 @@ impl OuterJoinTracker {
         // TODO: Avoid this.
         let mut selection = Vec::with_capacity(right.num_rows());
         for idx in 0..right.num_rows() {
-            if !self.matches.value(idx) {
+            if !self.matches.is_match(idx) {
                 selection.push(idx);
             }
         }

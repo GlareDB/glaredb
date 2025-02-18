@@ -199,8 +199,6 @@ impl DatabaseProtoConv for PhysicalValues {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
-    use crate::arrays::array::Array;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
     use crate::expr;
