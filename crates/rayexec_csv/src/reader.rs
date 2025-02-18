@@ -17,13 +17,9 @@
 //!
 //! Determine if there's a header by trying to parse the first record into the
 //! inferred types from the previous step. If it differs, assume a header.
-use std::fmt;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use bytes::Bytes;
-use futures::stream::BoxStream;
-use futures::StreamExt;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::arrays::array::physical_type::{
     AddressableMut,
@@ -32,7 +28,6 @@ use rayexec_execution::arrays::array::physical_type::{
     PhysicalF64,
     PhysicalI64,
     PhysicalUtf8,
-    ScalarStorage,
 };
 use rayexec_execution::arrays::array::Array;
 use rayexec_execution::arrays::batch::Batch;
@@ -42,25 +37,14 @@ use rayexec_execution::arrays::compute::cast::parse::{
     Int64Parser,
     Parser,
 };
-use rayexec_execution::arrays::datatype::{DataType, TimeUnit, TimestampTypeMeta};
-use rayexec_execution::arrays::field::{Field, Schema};
+use rayexec_execution::arrays::datatype::DataType;
 use rayexec_execution::execution::operators::source::operation::{PollPull, Projections};
 use rayexec_io::exp::AsyncReadStream;
-use rayexec_io::FileSource;
-use serde::{Deserialize, Serialize};
 
-use crate::decoder::{ByteRecords, CsvDecoder, DecoderResult};
-use crate::dialect::DialectOptions;
-use crate::schema::CsvSchema;
+use crate::decoder::{ByteRecords, CsvDecoder};
 
 #[derive(Debug)]
 pub struct CsvReader {
-    /// Schema we've inferred or otherwise been provided.
-    schema: Schema,
-    /// If we should skip the header record.
-    ///
-    /// Gets set to false after reading the first record.
-    skip_header: bool,
     /// Reusable read buffer.
     read_buf: Vec<u8>,
     /// Buffered decoded records.
@@ -75,105 +59,90 @@ pub struct CsvReader {
 
 #[derive(Debug, Clone, Copy)]
 struct WriteState {
-    /// If we need to pull from the stream for the next set of records to
-    /// decode.
-    needs_pull: bool,
-    /// If the stream is exhausted.
-    stream_exhausted: bool,
-    /// Offset into the decoded records we should write to the batch.
-    record_offset: usize,
+    /// Offset into to the records buffer to continue reading from.
+    read_record_offset: usize,
     /// Current offset to the batch we're writing to.
-    ///
-    /// This lets us fill the batch completely before allowing it to be sent to
-    /// the next operator.
     batch_write_offset: usize,
 }
 
 impl CsvReader {
     pub fn new(
-        mut reader: impl FileSource,
-        csv_schema: CsvSchema,
-        dialect: DialectOptions,
+        stream: Pin<Box<dyn AsyncReadStream>>,
+        skip_header: bool,
+        projections: Projections,
+        read_buf: Vec<u8>,
+        decoder: CsvDecoder,
+        output: ByteRecords,
     ) -> Self {
-        unimplemented!()
-        // let stream = AsyncCsvStream {
-        //     schema: csv_schema.schema,
-        //     skip_header: csv_schema.has_header,
-        //     stream: reader.read_stream(),
-        //     decoder_state: DecoderState::default(),
-        //     decoder: CsvDecoder::new(dialect),
-        //     buf: None,
-        //     buf_offset: 0,
-        //     decoding_finished: false,
-        // };
-
-        // AsyncCsvReader { stream }
-    }
-
-    pub async fn read_next(&mut self) -> Result<Option<Batch>> {
-        unimplemented!()
+        CsvReader {
+            read_buf,
+            output,
+            decoder,
+            stream,
+            projections,
+            write_state: WriteState {
+                read_record_offset: if skip_header { 1 } else { 0 },
+                batch_write_offset: 0,
+            },
+        }
     }
 
     /// Pulls the next batch by decoding the stream.
     pub fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
-        let output_capacity = output.write_capacity()?;
+        let out_cap = output.write_capacity()?;
 
         loop {
-            if self.write_state.needs_pull {
-                match self.stream.as_mut().poll_read(cx, &mut self.read_buf)? {
-                    Poll::Ready(Some(count)) => {
-                        // We got bytes, send to decoder.
-                        let _ = self
-                            .decoder
-                            .decode(&self.read_buf[0..count], &mut self.output);
-                        // Continue on. We'll be writing to the output batch.
-                        self.write_state.needs_pull = false;
+            match self.stream.as_mut().poll_read(cx, &mut self.read_buf)? {
+                Poll::Ready(Some(count)) => {
+                    // We got bytes, send to decoder.
+                    let _ = self
+                        .decoder
+                        .decode(&self.read_buf[0..count], &mut self.output);
+
+                    // Remaining capacity of the output batch.
+                    let rem_cap = out_cap - self.write_state.batch_write_offset;
+                    // Records yet to be read from the decode buffer.
+                    let rem_records =
+                        self.output.num_records() - self.write_state.read_record_offset;
+
+                    let count = usize::min(rem_cap, rem_records);
+
+                    // Write the records to the output batch.
+                    self.write_batch(
+                        self.write_state.read_record_offset,
+                        output,
+                        self.write_state.batch_write_offset,
+                        count,
+                    )?;
+
+                    self.write_state.read_record_offset += count;
+                    self.write_state.batch_write_offset += count;
+
+                    // Update batch num rows to reflect the records we just
+                    // wrote to it.
+                    output.set_num_rows(self.write_state.batch_write_offset)?;
+
+                    if count == rem_records {
+                        // We've exhausted the completed records in the decode
+                        // state, clear them out.
+                        self.output.clear_completed();
+                        self.write_state.read_record_offset = 0;
                     }
-                    Poll::Ready(None) => {
-                        // Stream is exhausted, writing any remaining records to
-                        // the batch.
-                        self.write_state.needs_pull = false;
-                        self.write_state.stream_exhausted = true;
-                        // Continue on...
+
+                    if count == rem_cap {
+                        // We filled up the batch. Signal we need a new one.
+                        self.write_state.batch_write_offset = 0;
+                        return Ok(PollPull::HasMore);
                     }
-                    Poll::Pending => return Ok(PollPull::Pending),
+
+                    // Continue...
                 }
-            }
-
-            let rem_cap = output_capacity - self.write_state.batch_write_offset;
-            let rem_records = self.output.num_records() - self.write_state.record_offset;
-            let count = usize::min(rem_cap, rem_records);
-
-            self.write_batch(
-                self.write_state.record_offset,
-                output,
-                self.write_state.batch_write_offset,
-                count,
-            )?;
-
-            self.write_state.record_offset += count;
-            self.write_state.batch_write_offset += count;
-
-            if rem_records == count {
-                // Need more records.
-                self.write_state.needs_pull = true;
-                self.write_state.record_offset = 0;
-
-                // Unless the stream is exhausted, then we're done.
-                if self.write_state.stream_exhausted {
-                    let final_count = self.write_state.batch_write_offset + count;
-                    output.set_num_rows(final_count)?;
-
-                    // TODO: Verify that we don't have any partial records.
-
+                Poll::Ready(None) => {
+                    // Stream is exhausted, we would've written all records to
+                    // the batch already.
                     return Ok(PollPull::Exhausted);
                 }
-            }
-
-            if rem_cap == count {
-                // Emit batch, need a new one.
-                self.write_state.batch_write_offset = 0;
-                return Ok(PollPull::HasMore);
+                Poll::Pending => return Ok(PollPull::Pending),
             }
         }
     }
@@ -287,5 +256,147 @@ impl CsvReader {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rayexec_execution::generate_batch;
+    use rayexec_execution::testutil::arrays::assert_batches_eq;
+    use rayexec_io::memory::MemoryRead;
+    use stdutil::task::noop_context;
+
+    use super::*;
+    use crate::dialect::DialectOptions;
+
+    #[test]
+    fn default_dialect_no_skip_header_complete_read() {
+        let input = r#"mario,9.5,8000
+wario,10.0,950
+yoshi,4.5,10000
+"#;
+        let stream = Box::pin(MemoryRead::new(input));
+        let decoder = CsvDecoder::new(DialectOptions::default());
+        let output = ByteRecords::with_buffer_capacity(16);
+        let mut reader = CsvReader::new(
+            stream,
+            false,
+            Projections::new([0, 1, 2]),
+            vec![0; 256],
+            decoder,
+            output,
+        );
+
+        let mut batch =
+            Batch::new([DataType::Utf8, DataType::Float64, DataType::Int64], 16).unwrap();
+        let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
+        assert_eq!(PollPull::Exhausted, poll);
+
+        let expected = generate_batch!(
+            ["mario", "wario", "yoshi"],
+            [9.5, 10.0, 4.5],
+            [8000_i64, 950, 10000]
+        );
+        assert_batches_eq(&expected, &batch);
+    }
+
+    #[test]
+    fn default_dialect_no_skip_header_complete_read_small_read_buffer() {
+        // Same as above, but with a small read buffer requiring multiple polls
+        // to the stream.
+        let input = r#"mario,9.5,8000
+wario,10.0,950
+yoshi,4.5,10000
+"#;
+        let stream = Box::pin(MemoryRead::new(input));
+        let decoder = CsvDecoder::new(DialectOptions::default());
+        let output = ByteRecords::with_buffer_capacity(16);
+        let mut reader = CsvReader::new(
+            stream,
+            false,
+            Projections::new([0, 1, 2]),
+            vec![0; 16],
+            decoder,
+            output,
+        );
+
+        let mut batch =
+            Batch::new([DataType::Utf8, DataType::Float64, DataType::Int64], 16).unwrap();
+        let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
+        assert_eq!(PollPull::Exhausted, poll);
+
+        let expected = generate_batch!(
+            ["mario", "wario", "yoshi"],
+            [9.5, 10.0, 4.5],
+            [8000_i64, 950, 10000]
+        );
+        assert_batches_eq(&expected, &batch);
+    }
+
+    #[test]
+    fn default_dialect_no_skip_header_small_output_batch() {
+        // Batch can't hold all records, requiring multiple pulls.
+        let input = r#"mario,9.5,8000
+wario,10.0,950
+yoshi,4.5,10000
+"#;
+        let stream = Box::pin(MemoryRead::new(input));
+        let decoder = CsvDecoder::new(DialectOptions::default());
+        let output = ByteRecords::with_buffer_capacity(16);
+        let mut reader = CsvReader::new(
+            stream,
+            false,
+            Projections::new([0, 1, 2]),
+            vec![0; 16],
+            decoder,
+            output,
+        );
+
+        let mut batch =
+            Batch::new([DataType::Utf8, DataType::Float64, DataType::Int64], 2).unwrap();
+        let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
+        assert_eq!(PollPull::HasMore, poll);
+
+        let expected = generate_batch!(["mario", "wario"], [9.5, 10.0], [8000_i64, 950]);
+        assert_batches_eq(&expected, &batch);
+
+        // Pull again.
+        let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
+        assert_eq!(PollPull::Exhausted, poll);
+
+        let expected = generate_batch!(["yoshi"], [4.5], [10000_i64]);
+        assert_batches_eq(&expected, &batch);
+    }
+
+    #[test]
+    fn default_dialect_skip_header_complete_read() {
+        let input = r#"string,float,int
+mario,9.5,8000
+wario,10.0,950
+yoshi,4.5,10000
+"#;
+        let stream = Box::pin(MemoryRead::new(input));
+        let decoder = CsvDecoder::new(DialectOptions::default());
+        let output = ByteRecords::with_buffer_capacity(16);
+        let mut reader = CsvReader::new(
+            stream,
+            true,
+            Projections::new([0, 1, 2]),
+            vec![0; 256],
+            decoder,
+            output,
+        );
+
+        let mut batch =
+            Batch::new([DataType::Utf8, DataType::Float64, DataType::Int64], 16).unwrap();
+        let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
+        assert_eq!(PollPull::Exhausted, poll);
+
+        let expected = generate_batch!(
+            ["mario", "wario", "yoshi"],
+            [9.5, 10.0, 4.5],
+            [8000_i64, 950, 10000]
+        );
+        assert_batches_eq(&expected, &batch);
     }
 }

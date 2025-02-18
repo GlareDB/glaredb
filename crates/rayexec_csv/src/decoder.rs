@@ -1,4 +1,4 @@
-use std::cmp;
+use std::{cmp, fmt};
 
 use csv_core::Reader;
 use rayexec_error::{RayexecError, Result, ResultExt};
@@ -23,7 +23,6 @@ struct RecordBoundary {
     end_offset: usize,
 }
 
-#[derive(Debug)]
 pub struct ByteRecords {
     /// Decoded fields stored contiguously.
     buf: Vec<u8>,
@@ -32,6 +31,22 @@ pub struct ByteRecords {
     ends: Vec<usize>,
     ends_len: usize,
     record_boundaries: Vec<RecordBoundary>,
+}
+
+impl fmt::Debug for ByteRecords {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ByteRecords")
+            .field("buf", &self.buf)
+            .field(
+                "buf_str",
+                &std::str::from_utf8(&self.buf).unwrap_or_default(),
+            )
+            .field("buf_len", &self.buf_len)
+            .field("ends", &self.ends)
+            .field("ends_len", &self.ends_len)
+            .field("record_boundaries", &self.record_boundaries)
+            .finish()
+    }
 }
 
 impl ByteRecords {
@@ -68,7 +83,7 @@ impl ByteRecords {
             }
         };
 
-        if last.end_idx == self.ends_len - 1 {
+        if last.end_offset == self.buf_len {
             // We only have completed records. Just clear everything.
             self.buf_len = 0;
             self.ends_len = 0;
@@ -244,6 +259,42 @@ mod tests {
     use super::*;
 
     #[test]
+    fn byte_records_clear_no_partial_records() {
+        let mut records = ByteRecords {
+            buf: b"mario9.58000\0\0\0\0".to_vec(),
+            buf_len: 12,
+            ends: vec![5, 8, 12, 0],
+            ends_len: 3,
+            record_boundaries: vec![RecordBoundary {
+                end_idx: 2,
+                end_offset: 12,
+            }],
+        };
+
+        records.clear_completed();
+        assert_eq!(0, records.buf_len);
+    }
+
+    #[test]
+    fn byte_records_clear_with_partial_record() {
+        // Next record starts with "wario" but our input buffer only contained
+        // the first character. We need to ensure we retain that character.
+        let mut records = ByteRecords {
+            buf: b"mario9.58000w\0\0\0".to_vec(),
+            buf_len: 13,
+            ends: vec![5, 8, 12, 0],
+            ends_len: 3,
+            record_boundaries: vec![RecordBoundary {
+                end_idx: 2,
+                end_offset: 12,
+            }],
+        };
+
+        records.clear_completed();
+        assert_eq!(1, records.buf_len);
+    }
+
+    #[test]
     fn incomplete_record_no_newline() {
         let mut decoder = CsvDecoder::new(DialectOptions::default());
         let mut output = ByteRecords::with_buffer_capacity(16);
@@ -315,6 +366,33 @@ mod tests {
         assert_eq!(expected, fields);
 
         let rem_input = "ffffff\n";
+        let res = decoder.decode(rem_input.as_bytes(), &mut output);
+        assert_eq!(DecoderResult::RecordBoundary, res);
+
+        let record = output.get_record(1);
+        let fields: Vec<_> = record.iter_fields().collect();
+        let expected: Vec<&[u8]> = vec![b"dddd", b"eeeee", b"ffffff"];
+        assert_eq!(expected, fields);
+    }
+
+    #[test]
+    fn completed_line_with_partial_second_line_incomplete_first_record() {
+        let mut decoder = CsvDecoder::new(DialectOptions::default());
+        let mut output = ByteRecords::with_buffer_capacity(16);
+
+        let input = "a,bb,ccc\ndd";
+
+        let res = decoder.decode(input.as_bytes(), &mut output);
+        assert_eq!(DecoderResult::NeedsMore, res);
+
+        assert_eq!(1, output.num_records());
+
+        let record = output.get_record(0);
+        let fields: Vec<_> = record.iter_fields().collect();
+        let expected: Vec<&[u8]> = vec![b"a", b"bb", b"ccc"];
+        assert_eq!(expected, fields);
+
+        let rem_input = "dd,eeeee,ffffff\n";
         let res = decoder.decode(rem_input.as_bytes(), &mut output);
         assert_eq!(DecoderResult::RecordBoundary, res);
 

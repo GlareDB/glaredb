@@ -69,3 +69,11 @@ pub struct Projections {
     /// Column indices to project out of the scan.
     pub column_indices: Vec<usize>,
 }
+
+impl Projections {
+    pub fn new(columns: impl IntoIterator<Item = usize>) -> Self {
+        Projections {
+            column_indices: columns.into_iter().collect(),
+        }
+    }
+}

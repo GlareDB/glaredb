@@ -52,6 +52,6 @@ pub struct CsvPartitionScan {
 
 impl PartitionSource for CsvPartitionScan {
     fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
-        unimplemented!()
+        self.reader.poll_pull(cx, output)
     }
 }

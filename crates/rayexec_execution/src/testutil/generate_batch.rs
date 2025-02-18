@@ -1,12 +1,17 @@
 //! Helpers for creating batches.
 
 /// Helper macro for generating batches to use in tests.
+// TODO: Remove `macro_export`. Only done to make this visible outside of the
+// crate. We should probably just make a separate `testutil` crate with all
+// these helpers (and then I would really care if this macros gets exported at
+// the root).
+#[macro_export]
 macro_rules! generate_batch {
     ( $( $array_values:expr ),+ $(,)? ) => {{
         use stdutil::iter::TryFromExactSizeIterator;
-        crate::arrays::batch::Batch::from_arrays([
+        $crate::arrays::batch::Batch::from_arrays([
             $(
-                crate::arrays::array::Array::try_from_iter($array_values).unwrap()
+                $crate::arrays::array::Array::try_from_iter($array_values).unwrap()
             ),+
         ]).unwrap()
     }};

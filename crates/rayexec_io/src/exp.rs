@@ -96,12 +96,4 @@ pub(crate) mod testutil {
             Ok(Poll::Ready(Some(count)))
         }
     }
-
-    // TODO: Remove when `Waker::noop` lands (1.85)
-    #[derive(Debug)]
-    pub struct NoopWaker;
-
-    impl Wake for NoopWaker {
-        fn wake(self: Arc<Self>) {}
-    }
 }

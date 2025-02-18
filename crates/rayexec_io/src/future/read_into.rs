@@ -57,22 +57,18 @@ impl<'a> Future for ReadInto<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::task::Waker;
-
     use futures::FutureExt;
+    use stdutil::task::noop_context;
 
     use super::*;
-    use crate::exp::testutil::{NoopWaker, TestReadStream};
+    use crate::exp::testutil::TestReadStream;
 
     #[test]
     fn read_small_buffer() {
         let mut buf = vec![0; 4];
 
         let mut stream = TestReadStream::new_pinned(8, 100);
-        let waker: Waker = Arc::new(NoopWaker).into();
-        let mut cx = Context::from_waker(&waker);
-        let poll = ReadInto::new(&mut stream, &mut buf).poll_unpin(&mut cx);
+        let poll = ReadInto::new(&mut stream, &mut buf).poll_unpin(&mut noop_context());
 
         match poll {
             Poll::Ready(result) => {
@@ -90,9 +86,7 @@ mod tests {
         let mut buf = vec![0; 4];
 
         let mut stream = TestReadStream::new_pinned(8, 2);
-        let waker: Waker = Arc::new(NoopWaker).into();
-        let mut cx = Context::from_waker(&waker);
-        let poll = ReadInto::new(&mut stream, &mut buf).poll_unpin(&mut cx);
+        let poll = ReadInto::new(&mut stream, &mut buf).poll_unpin(&mut noop_context());
 
         match poll {
             Poll::Ready(result) => {

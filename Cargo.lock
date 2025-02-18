@@ -2239,6 +2239,7 @@ dependencies = [
  "rayexec_proto",
  "regex",
  "serde",
+ "stdutil",
  "tracing",
  "url",
 ]
@@ -2366,6 +2367,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "stdutil",
  "tracing",
  "url",
 ]
