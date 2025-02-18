@@ -1,4 +1,4 @@
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::AggregateState;

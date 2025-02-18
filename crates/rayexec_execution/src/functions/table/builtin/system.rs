@@ -13,16 +13,13 @@ use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::OwnedScalarValue;
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, DatabaseContext};
-use crate::expr;
 use crate::functions::table::{
     PlannedTableFunction,
     ScanPlanner,
     TableFunction,
-    TableFunctionImpl,
     TableFunctionPlanner,
 };
 use crate::functions::{FunctionInfo, Signature};
-use crate::logical::statistics::StatisticsValue;
 use crate::storage::table_storage::{
     DataTable,
     DataTableScan,

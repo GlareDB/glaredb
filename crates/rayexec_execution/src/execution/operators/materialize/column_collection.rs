@@ -1,7 +1,5 @@
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::buffer_manager::NopBufferManager;
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 

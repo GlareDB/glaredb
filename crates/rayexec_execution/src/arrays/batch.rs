@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;

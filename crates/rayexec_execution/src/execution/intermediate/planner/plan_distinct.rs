@@ -3,7 +3,6 @@ use std::collections::BTreeSet;
 use rayexec_error::Result;
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::operators::hash_aggregate::PhysicalHashAggregate;
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_distinct::LogicalDistinct;

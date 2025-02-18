@@ -2,8 +2,6 @@ use rayexec_error::Result;
 
 use super::evaluator::ExpressionEvaluator;
 use super::PhysicalScalarExpression;
-use crate::arrays::array::buffer_manager::NopBufferManager;
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::scalar::UnaryExecutor;
@@ -56,10 +54,9 @@ impl SelectionEvaluator {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
+    use crate::generate_batch;
 
     #[test]
     fn select_simple() {
@@ -72,21 +69,13 @@ mod tests {
         )
         .unwrap();
 
-        let mut input = Batch::from_arrays([
-            Array::try_from_iter([true, false, true, true]).unwrap(),
-            Array::try_from_iter([8, 9, 7, 6]).unwrap(),
-        ])
-        .unwrap();
+        let mut input = generate_batch!([true, false, true, true], [8, 9, 7, 6]);
 
         let selection = evaluator.select(&mut input).unwrap();
         assert_eq!(&[0, 2, 3], selection);
 
         // Make sure we reset internal state.
-        let mut input = Batch::from_arrays([
-            Array::try_from_iter([true, false, false, false]).unwrap(),
-            Array::try_from_iter([2, 2, 2, 2]).unwrap(),
-        ])
-        .unwrap();
+        let mut input = generate_batch!([true, false, false, false], [2, 2, 2, 2]);
 
         let selection = evaluator.select(&mut input).unwrap();
         assert_eq!(&[0], selection);

@@ -63,7 +63,6 @@ use scan::{PhysicalScan, ScanPartitionState};
 use sink::operation::SinkOperation;
 use sink::{PhysicalSink, SinkOperatorState, SinkPartitionState};
 use sort::{SortOperatorState, SortPartitionState};
-use source::operation::SourceOperation;
 use source::table_function::{PhysicalTableFunction, TableFunctionPartitionState};
 use table_inout::{PhysicalTableInOut, TableInOutPartitionState};
 use ungrouped_aggregate::{

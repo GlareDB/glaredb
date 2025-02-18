@@ -1,9 +1,7 @@
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 
 use super::{IntermediatePipelineBuildState, PipelineIdGen};
-use crate::execution::operators::scan::PhysicalScan;
-use crate::execution::operators::PhysicalOperator;
-use crate::logical::logical_scan::{LogicalScan, ScanSource};
+use crate::logical::logical_scan::LogicalScan;
 use crate::logical::operator::Node;
 use crate::storage::table_storage::Projections;
 

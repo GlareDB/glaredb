@@ -16,7 +16,6 @@ use super::{
     PollFinalize,
     UnaryInputStates,
 };
-use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::scalar::ScalarValue;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};

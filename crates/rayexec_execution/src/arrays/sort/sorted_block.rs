@@ -1,4 +1,4 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::sort_layout::SortLayout;
@@ -65,7 +65,7 @@ where
         let mut sort_width = 0;
         let mut first_sort = true;
         // Indicate if row at index 'i' is tied with row at index 'i+1'.
-        let mut tied_with_next = vec![true; num_rows - 1];
+        let tied_with_next = vec![true; num_rows - 1];
 
         let mut sorted_keys = Block::try_new_reserve_none(manager, keys.reserved_bytes, None)?;
         sorted_keys.reserved_bytes = keys.reserved_bytes;

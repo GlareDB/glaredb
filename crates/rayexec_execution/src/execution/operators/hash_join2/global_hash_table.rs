@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::Arc;
 
 use hashbrown::raw::RawTable;
 use rayexec_error::Result;

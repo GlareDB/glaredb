@@ -8,7 +8,6 @@ use handle::QueryHandle;
 use rayexec_error::{RayexecError, Result};
 use rayexec_io::exp::FileProvider;
 use rayexec_io::http::HttpClient;
-use rayexec_io::FileProvider2;
 use time::RuntimeInstant;
 
 use crate::execution::executable::pipeline::ExecutablePipeline;

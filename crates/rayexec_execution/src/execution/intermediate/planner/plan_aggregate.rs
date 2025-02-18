@@ -1,9 +1,7 @@
 use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::execution::operators::hash_aggregate::PhysicalHashAggregate;
 use crate::execution::operators::project::PhysicalProject;
-use crate::execution::operators::ungrouped_aggregate::PhysicalUngroupedAggregate;
 use crate::execution::operators::PhysicalOperator;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::expr::physical::PhysicalAggregateExpression;

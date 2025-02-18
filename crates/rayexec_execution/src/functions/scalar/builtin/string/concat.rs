@@ -5,7 +5,6 @@ use crate::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
     PhysicalUtf8,
-    ScalarStorage,
 };
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;

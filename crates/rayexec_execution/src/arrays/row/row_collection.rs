@@ -1,5 +1,4 @@
 use std::borrow::{Borrow, BorrowMut};
-use std::collections::VecDeque;
 
 use rayexec_error::{RayexecError, Result};
 

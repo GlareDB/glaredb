@@ -8,7 +8,6 @@ use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
-    PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
     PhysicalF32,

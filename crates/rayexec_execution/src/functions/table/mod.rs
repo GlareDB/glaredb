@@ -22,7 +22,6 @@ use crate::execution::operators::source::operation::SourceOperation;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
 use crate::logical::statistics::StatisticsValue;
-use crate::storage::table_storage::DataTable;
 
 /// A generic table function provides a way to dispatch to a more specialized
 /// table functions.

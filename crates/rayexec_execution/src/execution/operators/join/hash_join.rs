@@ -1,13 +1,8 @@
-use std::sync::Arc;
-use std::task::{Context, Waker};
+use std::task::Context;
 
-use parking_lot::Mutex;
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::Result;
 
-use super::cross_product::CrossProductState;
 // use super::join_hash_table::{HashTableScanState, JoinHashTable};
-use super::outer_join_tracker::OuterJoinTracker;
-use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
@@ -23,7 +18,6 @@ use crate::execution::operators::{
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::evaluator::ExpressionEvaluator;
-use crate::expr::physical::selection_evaluator::SelectionEvaluator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::logical::logical_join::JoinType;

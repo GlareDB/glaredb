@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 

@@ -9,7 +9,7 @@ use super::array_buffer::{ArrayBuffer, ListItemMetadata, StringViewBuffer};
 use super::buffer_manager::BufferManager;
 use crate::arrays::array::array_buffer::ArrayBufferType;
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::string::{StringView, MAX_INLINE_LEN};
+use crate::arrays::string::StringView;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {

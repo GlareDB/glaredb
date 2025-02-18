@@ -1,6 +1,6 @@
 use std::borrow::{Borrow, BorrowMut};
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::aggregate_layout::AggregateLayout;
