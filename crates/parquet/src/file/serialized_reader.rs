@@ -397,20 +397,22 @@ pub(crate) fn decode_page(
     let buffer = match decompressor {
         Some(decompressor) if can_decompress => {
             let uncompressed_size = page_header.uncompressed_page_size as usize;
-            let mut decompressed = Vec::with_capacity(uncompressed_size);
             let compressed = &buffer.as_ref()[offset..];
-            decompressed.extend_from_slice(&buffer.as_ref()[..offset]);
-            decompressor.decompress(
-                compressed,
-                &mut decompressed,
-                Some(uncompressed_size - offset),
-            )?;
 
-            if decompressed.len() != uncompressed_size {
+            let mut decompressed = vec![0; uncompressed_size];
+            // Move definitions and repetitions into uncompressed buffer. For
+            // whatever reason, those don't get compressed.
+            let prefix = &mut decompressed[0..offset];
+            prefix.copy_from_slice(&buffer.as_ref()[0..offset]);
+
+            let remaining = &mut decompressed[offset..];
+            let n = decompressor.decompress(compressed, remaining)?;
+
+            if remaining.len() != n as usize {
                 return Err(general_err!(
                     "Actual decompressed size doesn't match the expected one ({} vs {})",
-                    decompressed.len(),
-                    uncompressed_size
+                    remaining.len(),
+                    n
                 ));
             }
 
