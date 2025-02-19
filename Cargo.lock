@@ -1792,6 +1792,7 @@ dependencies = [
  "rand",
  "rayexec_error",
  "rayexec_execution",
+ "rayexec_io",
  "seq-macro",
  "serde",
  "serde_json",

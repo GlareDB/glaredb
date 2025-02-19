@@ -773,13 +773,10 @@ impl AsRef<[String]> for ColumnPath {
 pub struct ColumnDescriptor {
     /// The "leaf" primitive type of this column
     primitive_type: TypePtr,
-
     /// The maximum definition level for this column
     max_def_level: i16,
-
     /// The maximum repetition level for this column
     max_rep_level: i16,
-
     /// The path of this column. For instance, "a.b.c.d".
     path: ColumnPath,
 }
@@ -802,13 +799,13 @@ impl ColumnDescriptor {
 
     /// Returns maximum definition level for this column.
     #[inline]
-    pub fn max_def_level(&self) -> i16 {
+    pub const fn max_def_level(&self) -> i16 {
         self.max_def_level
     }
 
     /// Returns maximum repetition level for this column.
     #[inline]
-    pub fn max_rep_level(&self) -> i16 {
+    pub const fn max_rep_level(&self) -> i16 {
         self.max_rep_level
     }
 

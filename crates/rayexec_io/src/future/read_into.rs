@@ -19,12 +19,34 @@ pub struct ReadInto<'a> {
 }
 
 impl<'a> ReadInto<'a> {
+    /// Create a new future for reading into the provided buffer.
+    ///
+    /// This will write to the start of the buffer.
     pub fn new(stream: &'a mut Pin<Box<dyn AsyncReadStream>>, buf: &'a mut [u8]) -> Self {
         ReadInto {
             stream,
             buf,
             count: 0,
         }
+    }
+
+    /// Return the amount written to the buffer.
+    ///
+    /// This can be used to resume reading into a buffer.
+    pub fn amount_written(&self) -> usize {
+        self.count
+    }
+
+    /// Resume reading into a buffer.
+    ///
+    /// Assumes that the stream and buffer provided is the same stream and
+    /// buffer used to create the initial future.
+    pub fn resume(
+        stream: &'a mut Pin<Box<dyn AsyncReadStream>>,
+        buf: &'a mut [u8],
+        count: usize,
+    ) -> Self {
+        ReadInto { stream, buf, count }
     }
 }
 

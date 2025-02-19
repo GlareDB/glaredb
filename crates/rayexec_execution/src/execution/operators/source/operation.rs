@@ -79,4 +79,8 @@ impl Projections {
             column_indices: columns.into_iter().collect(),
         }
     }
+
+    pub fn num_columns(&self) -> usize {
+        self.column_indices.len()
+    }
 }

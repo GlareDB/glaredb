@@ -155,8 +155,9 @@ where
                         reader.read_rep_levels(out, remaining_records, remaining_levels)?;
 
                     if levels_read == remaining_levels && self.has_record_delimiter {
-                        // Reached end of page, which implies records_read < remaining_records
-                        // as otherwise would have stopped reading before reaching the end
+                        // Reached end of page, which implies records_read <
+                        // remaining_records as otherwise would have stopped
+                        // reading before reaching the end
                         assert!(records_read < remaining_records); // Sanity check
                         records_read += reader.flush_partial() as usize;
                     }
@@ -202,7 +203,8 @@ where
         Ok((total_records_read, total_values_read, total_levels_read))
     }
 
-    /// Skips over `num_records` records, where records are delimited by repetition levels of 0
+    /// Skips over `num_records` records, where records are delimited by
+    /// repetition levels of 0
     ///
     /// # Returns
     ///
@@ -304,8 +306,8 @@ where
         Ok(num_records - remaining_records)
     }
 
-    /// Read the next page as a dictionary page. If the next page is not a dictionary page,
-    /// this will return an error.
+    /// Read the next page as a dictionary page. If the next page is not a
+    /// dictionary page, this will return an error.
     fn read_dictionary_page(&mut self) -> ParquetResult<()> {
         match self.page_reader.get_next_page()? {
             Some(Page::DictionaryPage {
@@ -322,8 +324,8 @@ where
         }
     }
 
-    /// Reads a new page and set up the decoders for levels, values or dictionary.
-    /// Returns false if there's no page left.
+    /// Reads a new page and set up the decoders for levels, values or
+    /// dictionary. Returns false if there's no page left.
     fn read_new_page(&mut self) -> ParquetResult<bool> {
         loop {
             match self.page_reader.get_next_page()? {
@@ -460,9 +462,9 @@ where
         }
     }
 
-    /// Check whether there is more data to read from this column,
-    /// If the current page is fully decoded, this will load the next page
-    /// (if it exists) into the buffer
+    /// Check whether there is more data to read from this column, If the
+    /// current page is fully decoded, this will load the next page (if it
+    /// exists) into the buffer
     #[inline]
     pub fn has_next(&mut self) -> ParquetResult<bool> {
         if self.num_buffered_values == 0 || self.num_buffered_values == self.num_decoded_values {

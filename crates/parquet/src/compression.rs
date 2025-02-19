@@ -19,50 +19,24 @@
 //!
 //! See [`Compression`](crate::basic::Compression) enum for all available compression
 //! algorithms.
-#[cfg_attr(
-    feature = "experimental",
-    doc = r##"
-# Example
-
-```no_run
-use parquet::{basic::Compression, compression::{create_codec, CodecOptionsBuilder}};
-
-let codec_options = CodecOptionsBuilder::default()
-    .set_backward_compatible_lz4(false)
-    .build();
-let mut codec = match create_codec(Compression::SNAPPY, &codec_options) {
- Ok(Some(codec)) => codec,
- _ => panic!(),
-};
-
-let data = vec![b'p', b'a', b'r', b'q', b'u', b'e', b't'];
-let mut compressed = vec![];
-codec.compress(&data[..], &mut compressed).unwrap();
-
-let mut output = vec![];
-codec.decompress(&compressed[..], &mut output, None).unwrap();
-
-assert_eq!(output, data);
-```
-"##
-)]
 use crate::basic::Compression as CodecType;
 use crate::errors::{nyi_err, ParquetError, ParquetResult};
 
 /// Parquet compression codec interface.
 pub trait Codec: Sync + Send {
-    /// Compresses data stored in slice `input_buf` and appends the compressed result
-    /// to `output_buf`.
+    /// Compresses data stored in slice `input_buf` and appends the compressed
+    /// result to `output_buf`.
     ///
-    /// Note that you'll need to call `clear()` before reusing the same `output_buf`
-    /// across different `compress` calls.
+    /// Note that you'll need to call `clear()` before reusing the same
+    /// `output_buf` across different `compress` calls.
     fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> ParquetResult<()>;
 
-    /// Decompresses data stored in slice `input_buf` and appends output to `output_buf`.
+    /// Decompresses data stored in slice `input_buf` and appends output to
+    /// `output_buf`.
     ///
-    /// If the uncompress_size is provided it will allocate the exact amount of memory.
-    /// Otherwise, it will estimate the uncompressed size, allocating an amount of memory
-    /// greater or equal to the real uncompress_size.
+    /// If the uncompress_size is provided it will allocate the exact amount of
+    /// memory. Otherwise, it will estimate the uncompressed size, allocating an
+    /// amount of memory greater or equal to the real uncompress_size.
     ///
     /// Returns the total number of bytes written.
     fn decompress(

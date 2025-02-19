@@ -5,7 +5,7 @@ pub mod physical_type;
 pub mod selection;
 pub mod validity;
 
-pub(crate) mod raw;
+pub mod raw;
 
 use std::fmt::Debug;
 
@@ -289,6 +289,11 @@ where
 
     pub fn data_mut(&mut self) -> &mut ArrayBuffer<B> {
         &mut self.data
+    }
+
+    /// Gets a mutable reference to bothe the array buffer, and the validity.
+    pub fn data_and_validity_mut(&mut self) -> (&mut ArrayBuffer<B>, &mut Validity) {
+        (&mut self.data, &mut self.validity)
     }
 
     /// Gets the physical type for this array's data type.

@@ -51,21 +51,6 @@
 //! The [`schema`] module provides APIs to work with Parquet schemas. The
 //! [`file::metadata`] module provides APIs to work with Parquet metadata.
 //!
-//! ## Read/Write Arrow
-//!
-//! The [`arrow`] module allows reading and writing Parquet data to/from Arrow `RecordBatch`.
-//! This makes for a simple and performant interface to parquet data, whilst allowing workloads
-//! to leverage the wide range of data transforms provided by the [arrow] crate, and by the
-//! ecosystem of libraries and services using [Arrow] as an interop format.
-//!
-//! ## Read/Write Arrow Async
-//!
-//! When the `async` feature is enabled, [`arrow::async_reader`] and [`arrow::async_writer`]
-//! provide the ability to read and write [`arrow`] data asynchronously. Additionally, with the
-//! `object_store` feature is enabled, [`ParquetObjectReader`](arrow::async_reader::ParquetObjectReader)
-//! provides efficient integration with object storage services such as S3 via the [object_store]
-//! crate, automatically optimizing IO based on any predicates or projections provided.
-//!
 //! ## Read/Write Parquet
 //!
 //! Workloads needing finer-grained control, or avoid a dependence on arrow,
@@ -74,12 +59,9 @@
 //! including the details of [Dremel] record shredding and [Logical Types]. Most workloads
 //! should prefer the arrow interfaces.
 //!
-//! [arrow]: https://docs.rs/arrow/latest/arrow/index.html
-//! [Arrow]: https://arrow.apache.org/
 //! [CSV]: https://en.wikipedia.org/wiki/Comma-separated_values
 //! [Dremel]: https://research.google/pubs/pub36632/
 //! [Logical Types]: https://github.com/apache/parquet-format/blob/master/LogicalTypes.md
-//! [object_store]: https://docs.rs/object_store/latest/object_store/
 
 pub mod basic;
 pub mod errors;
@@ -101,9 +83,11 @@ mod util;
 
 pub mod bloom_filter;
 pub mod column;
+pub mod column_reader; // TODO: Rename
 mod compression;
 mod encodings;
 pub mod file;
+pub mod reader;
 pub mod schema;
 
 pub mod thrift;

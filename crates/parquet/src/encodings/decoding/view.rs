@@ -9,7 +9,6 @@ use rayexec_execution::arrays::array::buffer_manager::BufferManager;
 use rayexec_execution::arrays::array::physical_type::{AddressableMut, BinaryViewAddressableMut};
 
 use super::Encoding;
-use crate::column::reader::decoder::ColumnValueBuffer;
 use crate::encodings::rle::RleDecoder;
 use crate::errors::{general_err, ParquetError, ParquetResult};
 
@@ -55,15 +54,6 @@ where
         // }
 
         // self.buffer.get(idx)
-    }
-}
-
-impl<B> ColumnValueBuffer for ViewBuffer<'_, B>
-where
-    B: BufferManager,
-{
-    fn len(&self) -> usize {
-        self.buffer.len()
     }
 }
 

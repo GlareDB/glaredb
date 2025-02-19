@@ -26,6 +26,7 @@ rust-version = "1.70.0"
 
 [dependencies]
 rayexec_error = { path = "../rayexec_error" }
+rayexec_io = { path = "../rayexec_io" }
 rayexec_execution = { path = "../rayexec_execution" }
 
 ahash = { workspace = true }

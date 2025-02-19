@@ -30,23 +30,6 @@ pub trait ColumnLevelDecoder {
     fn set_data(&mut self, encoding: Encoding, data: Bytes);
 }
 
-/// Buffer for reading decoded values into.
-///
-/// The only thing we need to know about the buffer is how many values can be
-/// written to it. This determines the max number of values we read for a column
-/// before requiring a new buffer.
-///
-/// The decoder implementation will handle the actual decoding of the values.
-pub trait ColumnValueBuffer {
-    fn len(&self) -> usize;
-}
-
-impl<T> ColumnValueBuffer for [T] {
-    fn len(&self) -> usize {
-        (*self).len()
-    }
-}
-
 /// Decode column value data.
 pub trait ColumnValueDecoder {
     /// Buffer passed into `read` for filling up buffer values.
@@ -68,10 +51,10 @@ pub trait ColumnValueDecoder {
     /// - `num_levels` - the number of levels contained within the page, i.e. values including nulls
     /// - `num_values` - the number of non-null values contained within the page (V2 page only)
     ///
-    /// Note: data encoded with [`Encoding::RLE`] may not know its exact length, as the final
-    /// run may be zero-padded. As such if `num_values` is not provided (i.e. `None`),
-    /// subsequent calls to `ColumnValueDecoder::read` may yield more values than
-    /// non-null definition levels within the page
+    /// Note: data encoded with [`Encoding::RLE`] may not know its exact length,
+    /// as the final run may be zero-padded. As such if `num_values` is not
+    /// provided (i.e. `None`), subsequent calls to `ColumnValueDecoder::read`
+    /// may yield more values than non-null definition levels within the page
     fn set_data(
         &mut self,
         encoding: Encoding,
@@ -224,11 +207,12 @@ impl RepetitionLevelDecoder {
         }
     }
 
-    /// Read up to `max_records` of repetition level data into `out` returning the number
-    /// of complete records and levels read
+    /// Read up to `num_records` of repetition level data into `out` returning
+    /// the number of complete records and levels read
     ///
-    /// A record only ends when the data contains a subsequent repetition level of 0,
-    /// it is therefore left to the caller to delimit the final record in a column
+    /// A record only ends when the data contains a subsequent repetition level
+    /// of 0, it is therefore left to the caller to delimit the final record in
+    /// a column
     ///
     /// # Panics
     ///
@@ -315,10 +299,12 @@ impl RepetitionLevelDecoder {
         Ok(())
     }
 
-    /// Inspects the buffered repetition levels in the range `self.buffer_offset..self.buffer_len`
-    /// and returns the number of "complete" records along with the corresponding number of values
+    /// Inspects the buffered repetition levels in the range
+    /// `self.buffer_offset..self.buffer_len` and returns the number of
+    /// "complete" records along with the corresponding number of values
     ///
-    /// A "complete" record is one where the buffer contains a subsequent repetition level of 0
+    /// A "complete" record is one where the buffer contains a subsequent
+    /// repetition level of 0
     fn count_records(&mut self, records_to_read: usize, num_levels: usize) -> (bool, usize, usize) {
         let mut records_read = 0;
 

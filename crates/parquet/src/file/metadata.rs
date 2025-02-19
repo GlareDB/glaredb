@@ -285,16 +285,19 @@ pub type RowGroupMetaDataPtr = Arc<RowGroupMetaData>;
 
 /// Metadata for a row group
 ///
-/// Includes [`ColumnChunkMetaData`] for each column in the row group, the number of rows
-/// the total byte size of the row group, and the [`SchemaDescriptor`] for the row group.
+/// Includes [`ColumnChunkMetaData`] for each column in the row group, the
+/// number of rows the total byte size of the row group, and the
+/// [`SchemaDescriptor`] for the row group.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RowGroupMetaData {
     columns: Vec<ColumnChunkMetaData>,
     num_rows: i64,
     sorting_columns: Option<Vec<SortingColumn>>,
+    /// Total byte size of uncompressed data.
     total_byte_size: i64,
     schema_descr: SchemaDescPtr,
-    /// We can't infer from file offset of first column since there may empty columns in row group.
+    /// We can't infer from file offset of first column since there may empty
+    /// columns in row group.
     file_offset: Option<i64>,
     /// Ordinal position of this row group in file
     ordinal: Option<i16>,
@@ -491,6 +494,8 @@ pub struct ColumnChunkMetaData {
     file_offset: i64,
     num_values: i64,
     compression: Compression,
+    /// Total byte size of all compressed, and potentially encrypted, pages in
+    /// this column chunk (including the headers)
     total_compressed_size: i64,
     total_uncompressed_size: i64,
     data_page_offset: i64,

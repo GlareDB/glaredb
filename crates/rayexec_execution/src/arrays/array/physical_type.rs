@@ -212,6 +212,19 @@ where
     }
 }
 
+pub trait AsSliceMut<T> {
+    fn as_slice_mut(&mut self) -> &mut [T];
+}
+
+impl<T, B> AsSliceMut<T> for PrimitiveSliceMut<'_, T, B>
+where
+    B: BufferManager,
+{
+    fn as_slice_mut(&mut self) -> &mut [T] {
+        self.slice
+    }
+}
+
 /// Helper trait for getting the underlying data for an array.
 pub trait ScalarStorage: Debug + Default + Sync + Send + Clone + Copy + 'static {
     const PHYSICAL_TYPE: PhysicalType;
