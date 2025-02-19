@@ -1278,7 +1278,11 @@ mod tests {
     use crate::file::reader::SerializedPageReader;
     use crate::file::writer::{SerializedPageWriter, TrackedWrite};
     use crate::schema::types::{ColumnPath, Type as SchemaType};
-    use crate::testutil::column_reader::{get_column_reader, get_typed_column_reader};
+    use crate::testutil::column_reader::{
+        get_column_reader,
+        get_typed_column_reader,
+        DataTypeTestExt,
+    };
     use crate::testutil::rand_gen::random_numbers_range;
 
     #[test]
@@ -3151,7 +3155,7 @@ mod tests {
     /// Performs write-read roundtrip with randomly generated values and levels.
     /// `max_size` is maximum number of values or levels (if `max_def_level` > 0) to write
     /// for a column.
-    fn column_roundtrip_random<T: DataType>(
+    fn column_roundtrip_random<T: DataTypeTestExt>(
         props: WriterProperties,
         max_size: usize,
         min_value: T::T,
@@ -3193,7 +3197,7 @@ mod tests {
     }
 
     /// Performs write-read roundtrip and asserts written values and levels.
-    fn column_roundtrip<T: DataType>(
+    fn column_roundtrip<T: DataTypeTestExt>(
         props: WriterProperties,
         values: &[T::T],
         def_levels: Option<&[i16]>,
@@ -3332,7 +3336,7 @@ mod tests {
     }
 
     /// Returns column reader.
-    fn get_test_column_reader<T: DataType, P: PageReader>(
+    fn get_test_column_reader<T: DataTypeTestExt, P: PageReader>(
         page_reader: P,
         max_def_level: i16,
         max_rep_level: i16,

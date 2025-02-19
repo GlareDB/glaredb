@@ -37,21 +37,6 @@ use crate::errors::{general_err, ParquetError, ParquetResult};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
 
-/// Column reader for a Parquet type.
-// TODO: Move to testutil
-pub enum BasicColumnReader<P: PageReader> {
-    BoolColumnReader(GenericColumnReader<BasicColumnValueDecoder<bool>, P>),
-    Int32ColumnReader(GenericColumnReader<BasicColumnValueDecoder<i32>, P>),
-    Int64ColumnReader(GenericColumnReader<BasicColumnValueDecoder<i64>, P>),
-    Int96ColumnReader(GenericColumnReader<BasicColumnValueDecoder<Int96>, P>),
-    FloatColumnReader(GenericColumnReader<BasicColumnValueDecoder<f32>, P>),
-    DoubleColumnReader(GenericColumnReader<BasicColumnValueDecoder<f64>, P>),
-    ByteArrayColumnReader(GenericColumnReader<BasicColumnValueDecoder<ByteArray>, P>),
-    FixedLenByteArrayColumnReader(
-        GenericColumnReader<BasicColumnValueDecoder<FixedLenByteArray>, P>,
-    ),
-}
-
 /// Reads data for a given column chunk, using the provided decoders:
 #[derive(Debug)]
 pub struct GenericColumnReader<V: ColumnValueDecoder, P: PageReader> {
@@ -529,7 +514,12 @@ mod tests {
     use super::*;
     use crate::basic::Type as PhysicalType;
     use crate::schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType};
-    use crate::testutil::column_reader::{get_column_reader, get_typed_column_reader};
+    use crate::testutil::column_reader::{
+        get_column_reader,
+        get_typed_column_reader,
+        BasicColumnReader,
+        DataTypeTestExt,
+    };
     use crate::testutil::page_util::InMemoryPageReader;
     use crate::testutil::rand_gen::make_pages;
 
@@ -1074,7 +1064,7 @@ mod tests {
         values: Vec<T::T>,
     }
 
-    impl<T: DataType> ColumnReaderTester<T>
+    impl<T: DataTypeTestExt> ColumnReaderTester<T>
     where
         T::T: PartialOrd + SampleUniform + Copy,
     {

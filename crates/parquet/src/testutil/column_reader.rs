@@ -1,11 +1,25 @@
 use crate::basic::*;
 use crate::column::page::PageReader;
 use crate::column::reader::basic::BasicColumnValueDecoder;
-use crate::column::reader::{BasicColumnReader, GenericColumnReader};
+use crate::column::reader::GenericColumnReader;
 use crate::data_type::*;
 use crate::errors::ParquetResult;
 use crate::file::reader::RowGroupReader;
 use crate::schema::types::ColumnDescPtr;
+
+/// Basic column reader for a Parquet type.
+pub enum BasicColumnReader<P: PageReader> {
+    BoolColumnReader(GenericColumnReader<BasicColumnValueDecoder<bool>, P>),
+    Int32ColumnReader(GenericColumnReader<BasicColumnValueDecoder<i32>, P>),
+    Int64ColumnReader(GenericColumnReader<BasicColumnValueDecoder<i64>, P>),
+    Int96ColumnReader(GenericColumnReader<BasicColumnValueDecoder<Int96>, P>),
+    FloatColumnReader(GenericColumnReader<BasicColumnValueDecoder<f32>, P>),
+    DoubleColumnReader(GenericColumnReader<BasicColumnValueDecoder<f64>, P>),
+    ByteArrayColumnReader(GenericColumnReader<BasicColumnValueDecoder<ByteArray>, P>),
+    FixedLenByteArrayColumnReader(
+        GenericColumnReader<BasicColumnValueDecoder<FixedLenByteArray>, P>,
+    ),
+}
 
 /// Constructs a basic column reader for a column in the row group reader.
 pub fn column_reader_from_row_group_reader<P, R>(
@@ -69,13 +83,50 @@ pub fn get_column_reader<P: PageReader>(
 /// `ColumnReaderImpl`.
 ///
 /// Panics if actual enum value for `col_reader` does not match the type `T`.
-pub fn get_typed_column_reader<T: DataType, P: PageReader>(
+pub fn get_typed_column_reader<T: DataTypeTestExt, P: PageReader>(
     col_reader: BasicColumnReader<P>,
 ) -> GenericColumnReader<BasicColumnValueDecoder<T>, P> {
-    T::get_column_reader(col_reader).unwrap_or_else(|| {
-        panic!(
-            "Failed to convert column reader into a typed column reader for `{}` type",
-            T::get_physical_type()
-        )
-    })
+    T::unwrap_reader(col_reader)
 }
+
+/// Extension trait on datatypes.
+pub trait DataTypeTestExt: DataType + Sized {
+    /// Unwraps a basic column reader enum into the typed column value reader.
+    ///
+    /// Panics if the enum is not the correct variant.
+    fn unwrap_reader<P>(
+        reader: BasicColumnReader<P>,
+    ) -> GenericColumnReader<BasicColumnValueDecoder<Self>, P>
+    where
+        P: PageReader;
+}
+
+macro_rules! impl_reader_unwrapper {
+    ($native:ty, $variant:ident) => {
+        impl DataTypeTestExt for $native {
+            fn unwrap_reader<P>(
+                reader: BasicColumnReader<P>,
+            ) -> GenericColumnReader<BasicColumnValueDecoder<Self>, P>
+            where
+            P: PageReader,
+            {
+                match reader {
+                    BasicColumnReader::$variant(r) => r,
+                    _ => panic!(
+                        "Failed to convert column reader into a typed column reader for `{}` type",
+                        Self::get_physical_type()
+                    ),
+                }
+            }
+        }
+    };
+}
+
+impl_reader_unwrapper!(bool, BoolColumnReader);
+impl_reader_unwrapper!(i32, Int32ColumnReader);
+impl_reader_unwrapper!(i64, Int64ColumnReader);
+impl_reader_unwrapper!(Int96, Int96ColumnReader);
+impl_reader_unwrapper!(f32, FloatColumnReader);
+impl_reader_unwrapper!(f64, DoubleColumnReader);
+impl_reader_unwrapper!(ByteArray, ByteArrayColumnReader);
+impl_reader_unwrapper!(FixedLenByteArray, FixedLenByteArrayColumnReader);

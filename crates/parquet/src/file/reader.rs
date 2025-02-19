@@ -26,10 +26,8 @@ use std::sync::Arc;
 
 use bytes::{Buf, Bytes};
 
-use crate::basic::Type;
 use crate::bloom_filter::Sbbf;
 use crate::column::page::PageReader;
-use crate::column::reader::{BasicColumnReader, GenericColumnReader};
 use crate::errors::{eof_err, ParquetError, ParquetResult};
 use crate::file::metadata::*;
 pub use crate::file::serialized_reader::{SerializedFileReader, SerializedPageReader};

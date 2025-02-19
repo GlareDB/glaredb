@@ -26,9 +26,7 @@ use bytes::Bytes;
 use half::f16;
 
 use crate::basic::Type;
-use crate::column::page::{PageReader, PageWriter};
-use crate::column::reader::basic::BasicColumnValueDecoder;
-use crate::column::reader::{BasicColumnReader, GenericColumnReader};
+use crate::column::page::PageWriter;
 use crate::column::writer::{ColumnWriter, GenericColumnWriter};
 use crate::errors::{general_err, ParquetResult};
 use crate::util::bit_util::FromBytes;
@@ -1085,12 +1083,6 @@ pub trait DataType: 'static + Send + fmt::Debug {
     /// Returns size in bytes for Rust representation of the physical type.
     fn get_type_size() -> usize;
 
-    fn get_column_reader<P: PageReader>(
-        column_writer: BasicColumnReader<P>,
-    ) -> Option<GenericColumnReader<BasicColumnValueDecoder<Self>, P>>
-    where
-        Self: Sized;
-
     fn get_column_writer<P: PageWriter>(
         column_writer: ColumnWriter<P>,
     ) -> Option<GenericColumnWriter<Self, P>>
@@ -1111,21 +1103,12 @@ pub trait DataType: 'static + Send + fmt::Debug {
 }
 
 macro_rules! impl_data_type {
-    ($reader_ident: ident, $writer_ident: ident, $native_ty:ty, $size:expr) => {
+    ($writer_ident: ident, $native_ty:ty, $size:expr) => {
         impl DataType for $native_ty {
             type T = $native_ty;
 
             fn get_type_size() -> usize {
                 $size
-            }
-
-            fn get_column_reader<P: PageReader>(
-                column_reader: BasicColumnReader<P>,
-            ) -> Option<GenericColumnReader<BasicColumnValueDecoder<Self>, P>> {
-                match column_reader {
-                    BasicColumnReader::$reader_ident(w) => Some(w),
-                    _ => None,
-                }
             }
 
             fn get_column_writer<P: PageWriter>(
@@ -1160,25 +1143,18 @@ macro_rules! impl_data_type {
 
 // Generate struct definitions for all physical types
 
-impl_data_type!(BoolColumnReader, BoolColumnWriter, bool, 1);
-impl_data_type!(Int32ColumnReader, Int32ColumnWriter, i32, 4);
-impl_data_type!(Int64ColumnReader, Int64ColumnWriter, i64, 8);
+impl_data_type!(BoolColumnWriter, bool, 1);
+impl_data_type!(Int32ColumnWriter, i32, 4);
+impl_data_type!(Int64ColumnWriter, i64, 8);
+impl_data_type!(Int96ColumnWriter, Int96, mem::size_of::<Int96>());
+impl_data_type!(FloatColumnWriter, f32, 4);
+impl_data_type!(DoubleColumnWriter, f64, 8);
 impl_data_type!(
-    Int96ColumnReader,
-    Int96ColumnWriter,
-    Int96,
-    mem::size_of::<Int96>()
-);
-impl_data_type!(FloatColumnReader, FloatColumnWriter, f32, 4);
-impl_data_type!(DoubleColumnReader, DoubleColumnWriter, f64, 8);
-impl_data_type!(
-    ByteArrayColumnReader,
     ByteArrayColumnWriter,
     ByteArray,
     mem::size_of::<ByteArray>()
 );
 impl_data_type!(
-    FixedLenByteArrayColumnReader,
     FixedLenByteArrayColumnWriter,
     FixedLenByteArray,
     mem::size_of::<FixedLenByteArray>()

@@ -757,7 +757,6 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
 mod tests {
     use super::*;
     use crate::basic::{self, ColumnOrder};
-    use crate::column::reader::BasicColumnReader;
     use crate::data_type::private::ParquetValueType;
     use crate::data_type::{AsBytes, FixedLenByteArray};
     use crate::file::page_index::index::{Index, NativeIndex};
@@ -765,7 +764,7 @@ mod tests {
     use crate::file::writer::SerializedFileWriter;
     use crate::format::BoundaryOrder;
     use crate::schema::parser::parse_message_type;
-    use crate::testutil::column_reader::column_reader_from_row_group_reader;
+    use crate::testutil::column_reader::{column_reader_from_row_group_reader, BasicColumnReader};
     use crate::testutil::file_util::{get_test_file, get_test_path};
     use crate::util::bit_util::from_le_slice;
 
