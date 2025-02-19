@@ -824,7 +824,10 @@ mod tests {
     use crate::format::SortingColumn;
     use crate::schema::parser::parse_message_type;
     use crate::schema::types::{ColumnDescriptor, ColumnPath};
-    use crate::testutil::column_reader::get_typed_column_reader;
+    use crate::testutil::column_reader::{
+        column_reader_from_row_group_reader,
+        get_typed_column_reader,
+    };
 
     #[test]
     fn test_row_group_writer_error_not_all_columns_written() {
@@ -1754,14 +1757,14 @@ mod tests {
             let row_group = reader.get_row_group(0).unwrap();
 
             let mut out = Vec::with_capacity(4);
-            let c1 = row_group.get_column_reader(0).unwrap();
+            let c1 = column_reader_from_row_group_reader(&row_group, 0).unwrap();
             let mut c1 = get_typed_column_reader::<i32, _>(c1);
             c1.read_records(4, None, None, &mut out).unwrap();
             assert_eq!(out, column_data[0]);
 
             out.clear();
 
-            let c2 = row_group.get_column_reader(1).unwrap();
+            let c2 = column_reader_from_row_group_reader(&row_group, 1).unwrap();
             let mut c2 = get_typed_column_reader::<i32, _>(c2);
             c2.read_records(4, None, None, &mut out).unwrap();
             assert_eq!(out, column_data[1]);

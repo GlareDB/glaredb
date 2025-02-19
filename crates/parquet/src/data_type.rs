@@ -1110,20 +1110,6 @@ pub trait DataType: 'static + Send + fmt::Debug {
         Self: Sized;
 }
 
-// Workaround bug in specialization
-pub trait SliceAsBytesDataType: DataType
-where
-    Self::T: SliceAsBytes,
-{
-}
-
-impl<T> SliceAsBytesDataType for T
-where
-    T: DataType,
-    <T as DataType>::T: SliceAsBytes,
-{
-}
-
 macro_rules! impl_data_type {
     ($reader_ident: ident, $writer_ident: ident, $native_ty:ty, $size:expr) => {
         impl DataType for $native_ty {

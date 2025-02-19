@@ -765,6 +765,7 @@ mod tests {
     use crate::file::writer::SerializedFileWriter;
     use crate::format::BoundaryOrder;
     use crate::schema::parser::parse_message_type;
+    use crate::testutil::column_reader::column_reader_from_row_group_reader;
     use crate::testutil::file_util::{get_test_file, get_test_path};
     use crate::util::bit_util::from_le_slice;
 
@@ -1729,7 +1730,7 @@ mod tests {
         let file = get_test_file("concatenated_gzip_members.parquet");
         let reader = SerializedFileReader::new(file).unwrap();
         let row_group_reader = reader.get_row_group(0).unwrap();
-        match row_group_reader.get_column_reader(0).unwrap() {
+        match column_reader_from_row_group_reader(&row_group_reader, 0).unwrap() {
             BasicColumnReader::Int64ColumnReader(mut reader) => {
                 let mut buffer = Vec::with_capacity(1024);
                 let mut def_levels = Vec::with_capacity(1024);

@@ -144,47 +144,6 @@ pub trait RowGroupReader<P: PageReader>: Send + Sync {
     /// Get page reader for the `i`th column chunk.
     fn get_column_page_reader(&self, i: usize) -> ParquetResult<P>;
 
-    /// Get value reader for the `i`th column chunk.
-    fn get_column_reader(&self, i: usize) -> ParquetResult<BasicColumnReader<P>> {
-        let schema_descr = self.metadata().schema_descr();
-        let col_descr = schema_descr.column(i);
-        let col_page_reader = self.get_column_page_reader(i)?;
-        let col_reader = match col_descr.physical_type() {
-            Type::BOOLEAN => BasicColumnReader::BoolColumnReader(GenericColumnReader::new(
-                col_descr,
-                col_page_reader,
-            )),
-            Type::INT32 => BasicColumnReader::Int32ColumnReader(GenericColumnReader::new(
-                col_descr,
-                col_page_reader,
-            )),
-            Type::INT64 => BasicColumnReader::Int64ColumnReader(GenericColumnReader::new(
-                col_descr,
-                col_page_reader,
-            )),
-            Type::INT96 => BasicColumnReader::Int96ColumnReader(GenericColumnReader::new(
-                col_descr,
-                col_page_reader,
-            )),
-            Type::FLOAT => BasicColumnReader::FloatColumnReader(GenericColumnReader::new(
-                col_descr,
-                col_page_reader,
-            )),
-            Type::DOUBLE => BasicColumnReader::DoubleColumnReader(GenericColumnReader::new(
-                col_descr,
-                col_page_reader,
-            )),
-            Type::BYTE_ARRAY => BasicColumnReader::ByteArrayColumnReader(GenericColumnReader::new(
-                col_descr,
-                col_page_reader,
-            )),
-            Type::FIXED_LEN_BYTE_ARRAY => BasicColumnReader::FixedLenByteArrayColumnReader(
-                GenericColumnReader::new(col_descr, col_page_reader),
-            ),
-        };
-        Ok(col_reader)
-    }
-
     /// Get bloom filter for the `i`th column chunk, if present and the reader was configured
     /// to read bloom filters.
     fn get_column_bloom_filter(&self, i: usize) -> Option<&Sbbf>;
