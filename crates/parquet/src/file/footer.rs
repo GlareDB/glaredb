@@ -19,7 +19,7 @@ use std::io::Read;
 use std::sync::Arc;
 
 use crate::basic::ColumnOrder;
-use crate::errors::{ParquetError, Result};
+use crate::errors::{ParquetError, ParquetResult};
 use crate::file::metadata::*;
 use crate::file::reader::ChunkReader;
 use crate::file::{FOOTER_SIZE, PARQUET_MAGIC};
@@ -51,7 +51,7 @@ use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 /// # See Also
 /// [`decode_metadata`] for decoding the metadata from the bytes.
 /// [`decode_footer`] for decoding the metadata length from the footer.
-pub fn parse_metadata<R: ChunkReader>(chunk_reader: &R) -> Result<ParquetMetaData> {
+pub fn parse_metadata<R: ChunkReader>(chunk_reader: &R) -> ParquetResult<ParquetMetaData> {
     // check file is large enough to hold footer
     let file_size = chunk_reader.len();
     if file_size < (FOOTER_SIZE as u64) {
@@ -88,7 +88,7 @@ pub fn parse_metadata<R: ChunkReader>(chunk_reader: &R) -> Result<ParquetMetaDat
 /// by the [Parquet Spec].
 ///
 /// [Parquet Spec]: https://github.com/apache/parquet-format#metadata
-pub fn decode_metadata(buf: &[u8]) -> Result<ParquetMetaData> {
+pub fn decode_metadata(buf: &[u8]) -> ParquetResult<ParquetMetaData> {
     // TODO: row group filtering
     let mut prot = TCompactSliceInputProtocol::new(buf);
     let t_file_metadata: TFileMetaData = TFileMetaData::read_from_in_protocol(&mut prot)
@@ -123,7 +123,7 @@ pub fn decode_metadata(buf: &[u8]) -> Result<ParquetMetaData> {
 /// | len | 'PAR1' |
 /// +-----+--------+
 /// ```
-pub fn decode_footer(slice: &[u8; FOOTER_SIZE]) -> Result<usize> {
+pub fn decode_footer(slice: &[u8; FOOTER_SIZE]) -> ParquetResult<usize> {
     // check this is indeed a parquet file
     if slice[4..] != PARQUET_MAGIC {
         return Err(general_err!("Invalid Parquet file. Corrupt footer"));

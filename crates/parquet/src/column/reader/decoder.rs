@@ -19,7 +19,7 @@ use bytes::Bytes;
 
 use crate::basic::Encoding;
 use crate::encodings::rle::RleDecoder;
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 use crate::util::bit_util::{num_required_bits, BitReader};
 
 /// Decodes level data
@@ -28,6 +28,23 @@ pub trait ColumnLevelDecoder {
 
     /// Set data for this [`ColumnLevelDecoder`]
     fn set_data(&mut self, encoding: Encoding, data: Bytes);
+}
+
+/// Buffer for reading decoded values into.
+///
+/// The only thing we need to know about the buffer is how many values can be
+/// written to it. This determines the max number of values we read for a column
+/// before requiring a new buffer.
+///
+/// The decoder implementation will handle the actual decoding of the values.
+pub trait ColumnValueBuffer {
+    fn len(&self) -> usize;
+}
+
+impl<T> ColumnValueBuffer for [T] {
+    fn len(&self) -> usize {
+        (*self).len()
+    }
 }
 
 /// Decode column value data.
@@ -42,7 +59,7 @@ pub trait ColumnValueDecoder {
         num_values: u32,
         encoding: Encoding,
         _is_sorted: bool,
-    ) -> Result<()>;
+    ) -> ParquetResult<()>;
 
     /// Set the current data page
     ///
@@ -61,15 +78,17 @@ pub trait ColumnValueDecoder {
         data: Bytes,
         num_levels: usize,
         num_values: Option<usize>,
-    ) -> Result<()>;
+    ) -> ParquetResult<()>;
 
-    /// Read up to `num_values` values into `out`
-    fn read(&mut self, out: &mut Self::Buffer, num_values: usize) -> Result<usize>;
+    /// Read values into `out`.
+    ///
+    /// The length of `out` determines the max number of values to read.
+    fn read(&mut self, out: &mut Self::Buffer, num_values: usize) -> ParquetResult<usize>;
 
     /// Skips over `num_values` values
     ///
     /// Returns the number of values skipped
-    fn skip_values(&mut self, num_values: usize) -> Result<usize>;
+    fn skip_values(&mut self, num_values: usize) -> ParquetResult<usize>;
 }
 
 const SKIP_BUFFER_SIZE: usize = 1024;
@@ -94,7 +113,7 @@ impl LevelDecoder {
         }
     }
 
-    fn read(&mut self, out: &mut [i16]) -> Result<usize> {
+    fn read(&mut self, out: &mut [i16]) -> ParquetResult<usize> {
         match self {
             Self::Packed(reader, bit_width) => {
                 Ok(reader.get_batch::<i16>(out, *bit_width as usize))
@@ -133,7 +152,7 @@ impl DefinitionLevelDecoder {
         &mut self,
         out: &mut Vec<i16>,
         num_levels: usize,
-    ) -> Result<(usize, usize)> {
+    ) -> ParquetResult<(usize, usize)> {
         // TODO: Push vec into decoder (#5177)
         let start = out.len();
         out.resize(start + num_levels, 0);
@@ -148,7 +167,7 @@ impl DefinitionLevelDecoder {
     /// Skips over `num_levels` definition levels
     ///
     /// Returns the number of values skipped, and the number of levels skipped
-    pub fn skip_def_levels(&mut self, num_levels: usize) -> Result<(usize, usize)> {
+    pub fn skip_def_levels(&mut self, num_levels: usize) -> ParquetResult<(usize, usize)> {
         let mut level_skip = 0;
         let mut value_skip = 0;
         let mut buf: Vec<i16> = vec![];
@@ -219,7 +238,7 @@ impl RepetitionLevelDecoder {
         out: &mut Vec<i16>,
         num_records: usize,
         num_levels: usize,
-    ) -> Result<(usize, usize)> {
+    ) -> ParquetResult<(usize, usize)> {
         let mut total_records_read = 0;
         let mut total_levels_read = 0;
 
@@ -259,7 +278,7 @@ impl RepetitionLevelDecoder {
         &mut self,
         num_records: usize,
         num_levels: usize,
-    ) -> Result<(usize, usize)> {
+    ) -> ParquetResult<(usize, usize)> {
         let mut total_records_read = 0;
         let mut total_levels_read = 0;
 
@@ -289,7 +308,7 @@ impl RepetitionLevelDecoder {
         std::mem::take(&mut self.has_partial)
     }
 
-    fn fill_buf(&mut self) -> Result<()> {
+    fn fill_buf(&mut self) -> ParquetResult<()> {
         let read = self.decoder.as_mut().unwrap().read(self.buffer.as_mut())?;
         self.buffer_offset = 0;
         self.buffer_len = read;

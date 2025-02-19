@@ -97,7 +97,7 @@ impl From<str::Utf8Error> for ParquetError {
 }
 
 /// A specialized `Result` for Parquet errors.
-pub type Result<T, E = ParquetError> = result::Result<T, E>;
+pub type ParquetResult<T, E = ParquetError> = result::Result<T, E>;
 
 // ----------------------------------------------------------------------
 // Conversion from `ParquetError` to other types of `Error`s

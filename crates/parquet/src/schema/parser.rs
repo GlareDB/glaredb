@@ -45,13 +45,13 @@
 use std::sync::Arc;
 
 use crate::basic::{ConvertedType, LogicalType, Repetition, TimeUnit, Type as PhysicalType};
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 use crate::schema::types::{Type, TypePtr};
 
 /// Parses message type as string into a Parquet [`Type`]
 /// which, for example, could be used to extract individual columns. Returns Parquet
 /// general error when parsing or validation fails.
-pub fn parse_message_type(message_type: &str) -> Result<Type> {
+pub fn parse_message_type(message_type: &str) -> ParquetResult<Type> {
     let mut parser = Parser {
         tokenizer: &mut Tokenizer::from_str(message_type),
     };
@@ -134,7 +134,7 @@ struct Parser<'a> {
 }
 
 // Utility function to assert token on validity.
-fn assert_token(token: Option<&str>, expected: &str) -> Result<()> {
+fn assert_token(token: Option<&str>, expected: &str) -> ParquetResult<()> {
     match token {
         Some(value) if value == expected => Ok(()),
         Some(other) => Err(general_err!(
@@ -151,7 +151,7 @@ fn assert_token(token: Option<&str>, expected: &str) -> Result<()> {
 
 // Utility function to parse i32 or return general error.
 #[inline]
-fn parse_i32(value: Option<&str>, not_found_msg: &str, parse_fail_msg: &str) -> Result<i32> {
+fn parse_i32(value: Option<&str>, not_found_msg: &str, parse_fail_msg: &str) -> ParquetResult<i32> {
     value
         .ok_or_else(|| general_err!(not_found_msg))
         .and_then(|v| v.parse::<i32>().map_err(|_| general_err!(parse_fail_msg)))
@@ -159,7 +159,11 @@ fn parse_i32(value: Option<&str>, not_found_msg: &str, parse_fail_msg: &str) -> 
 
 // Utility function to parse boolean or return general error.
 #[inline]
-fn parse_bool(value: Option<&str>, not_found_msg: &str, parse_fail_msg: &str) -> Result<bool> {
+fn parse_bool(
+    value: Option<&str>,
+    not_found_msg: &str,
+    parse_fail_msg: &str,
+) -> ParquetResult<bool> {
     value
         .ok_or_else(|| general_err!(not_found_msg))
         .and_then(|v| {
@@ -174,7 +178,7 @@ fn parse_timeunit(
     value: Option<&str>,
     not_found_msg: &str,
     parse_fail_msg: &str,
-) -> Result<TimeUnit> {
+) -> ParquetResult<TimeUnit> {
     value
         .ok_or_else(|| general_err!(not_found_msg))
         .and_then(|v| match v.to_uppercase().as_str() {
@@ -187,7 +191,7 @@ fn parse_timeunit(
 
 impl Parser<'_> {
     // Entry function to parse message type, uses internal tokenizer.
-    fn parse_message_type(&mut self) -> Result<Type> {
+    fn parse_message_type(&mut self) -> ParquetResult<Type> {
         // Check that message type starts with "message".
         match self.tokenizer.next() {
             Some("message") => {
@@ -205,7 +209,7 @@ impl Parser<'_> {
 
     // Parses child types for a current group type.
     // This is only invoked on root and group types.
-    fn parse_child_types(&mut self) -> Result<Vec<TypePtr>> {
+    fn parse_child_types(&mut self) -> ParquetResult<Vec<TypePtr>> {
         assert_token(self.tokenizer.next(), "{")?;
         let mut vec = Vec::new();
         while let Some(value) = self.tokenizer.next() {
@@ -219,7 +223,7 @@ impl Parser<'_> {
         Ok(vec)
     }
 
-    fn add_type(&mut self) -> Result<Type> {
+    fn add_type(&mut self) -> ParquetResult<Type> {
         // Parse repetition
         let repetition = self
             .tokenizer
@@ -237,7 +241,7 @@ impl Parser<'_> {
         }
     }
 
-    fn add_group_type(&mut self, repetition: Option<Repetition>) -> Result<Type> {
+    fn add_group_type(&mut self, repetition: Option<Repetition>) -> ParquetResult<Type> {
         // Parse name of the group type
         let name = self
             .tokenizer
@@ -291,7 +295,7 @@ impl Parser<'_> {
         &mut self,
         repetition: Repetition,
         physical_type: PhysicalType,
-    ) -> Result<Type> {
+    ) -> ParquetResult<Type> {
         // Read type length if the type is FIXED_LEN_BYTE_ARRAY.
         let mut length: i32 = -1;
         if physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY {
@@ -612,7 +616,7 @@ mod tests {
         assert!(assert_token(None, "b").is_err());
     }
 
-    fn parse(schema: &str) -> Result<Type, ParquetError> {
+    fn parse(schema: &str) -> ParquetResult<Type, ParquetError> {
         let mut iter = Tokenizer::from_str(schema);
         Parser {
             tokenizer: &mut iter,

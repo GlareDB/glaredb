@@ -25,7 +25,7 @@ use crate::column::page::{Page, PageMetadata, PageReader};
 use crate::data_type::DataType;
 use crate::encodings::encoding::{get_encoder, Encoder};
 use crate::encodings::levels::LevelEncoder;
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 use crate::schema::types::ColumnDescPtr;
 
 pub trait DataPageBuilder {
@@ -163,11 +163,11 @@ impl<P: Iterator<Item = Page>> InMemoryPageReader<P> {
 }
 
 impl<P: Iterator<Item = Page> + Send> PageReader for InMemoryPageReader<P> {
-    fn get_next_page(&mut self) -> Result<Option<Page>> {
+    fn get_next_page(&mut self) -> ParquetResult<Option<Page>> {
         Ok(self.page_iter.next())
     }
 
-    fn peek_next_page(&mut self) -> Result<Option<PageMetadata>> {
+    fn peek_next_page(&mut self) -> ParquetResult<Option<PageMetadata>> {
         if let Some(x) = self.page_iter.peek() {
             match x {
                 Page::DataPage { num_values, .. } => Ok(Some(PageMetadata {
@@ -195,14 +195,14 @@ impl<P: Iterator<Item = Page> + Send> PageReader for InMemoryPageReader<P> {
         }
     }
 
-    fn skip_next_page(&mut self) -> Result<()> {
+    fn skip_next_page(&mut self) -> ParquetResult<()> {
         self.page_iter.next();
         Ok(())
     }
 }
 
 impl<P: Iterator<Item = Page> + Send> Iterator for InMemoryPageReader<P> {
-    type Item = Result<Page>;
+    type Item = ParquetResult<Page>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.get_next_page().transpose()
@@ -225,7 +225,7 @@ impl<I: Iterator<Item = Vec<Page>>> InMemoryPageIterator<I> {
 }
 
 impl<I: Iterator<Item = Vec<Page>>> Iterator for InMemoryPageIterator<I> {
-    type Item = Result<Box<dyn PageReader>>;
+    type Item = ParquetResult<Box<dyn PageReader>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.page_reader_iter

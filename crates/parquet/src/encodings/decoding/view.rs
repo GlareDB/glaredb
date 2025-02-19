@@ -5,32 +5,37 @@
 //! since that's hard to work with.
 
 use bytes::Bytes;
-use rayexec_execution::arrays::executor::builder::{ArrayDataBuffer, GermanVarlenBuffer};
+use rayexec_execution::arrays::array::buffer_manager::BufferManager;
+use rayexec_execution::arrays::array::physical_type::{AddressableMut, BinaryViewAddressableMut};
 
 use super::Encoding;
+use crate::column::reader::decoder::ColumnValueBuffer;
 use crate::encodings::rle::RleDecoder;
-use crate::errors::{ParquetError, Result};
+use crate::errors::{ParquetError, ParquetResult};
 
 #[derive(Debug)]
-pub struct ViewBuffer {
+pub struct ViewBuffer<'a, B: BufferManager> {
     /// Current index we're writing to.
-    ///
-    /// This is also the currently "length" of the buffer.
     current_idx: usize,
     /// The actual buffer, should be initialized to the max length we expect to
     /// read.
-    buffer: GermanVarlenBuffer<[u8]>,
+    buffer: BinaryViewAddressableMut<'a, B>,
 }
 
-impl ViewBuffer {
-    pub fn new(len: usize) -> Self {
-        ViewBuffer {
-            current_idx: 0,
-            buffer: GermanVarlenBuffer::with_len(len),
-        }
+impl<B> ViewBuffer<'_, B>
+where
+    B: BufferManager,
+{
+    /// Clears the current buffer.
+    ///
+    /// This will clear the underlying buffer as well as set the current index
+    /// to zero. Pushing to this buffer will then overwrite data.
+    pub fn clear(&mut self) {
+        self.buffer.clear();
+        self.current_idx = 0;
     }
 
-    pub fn try_push(&mut self, data: &[u8], validate_utf8: bool) -> Result<()> {
+    pub fn try_push(&mut self, data: &[u8], validate_utf8: bool) -> ParquetResult<()> {
         if validate_utf8 {
             // We don't care about the output, just that bytes we're storing is
             // valid utf8.
@@ -44,16 +49,21 @@ impl ViewBuffer {
     }
 
     pub fn get(&self, idx: usize) -> Option<&[u8]> {
-        if idx >= self.current_idx {
-            return None;
-        }
+        unimplemented!()
+        // if idx >= self.current_idx {
+        //     return None;
+        // }
 
-        self.buffer.get(idx)
+        // self.buffer.get(idx)
     }
+}
 
-    pub fn into_buffer(mut self) -> GermanVarlenBuffer<[u8]> {
-        self.buffer.truncate(self.current_idx);
-        self.buffer
+impl<B> ColumnValueBuffer for ViewBuffer<'_, B>
+where
+    B: BufferManager,
+{
+    fn len(&self) -> usize {
+        self.buffer.len()
     }
 }
 
@@ -70,7 +80,7 @@ impl ViewDecoder {
         num_levels: usize,
         num_values: Option<usize>,
         validate_utf8: bool,
-    ) -> Result<Self> {
+    ) -> ParquetResult<Self> {
         let decoder = match encoding {
             Encoding::PLAIN => Self::Plain(PlainViewDecoder::new(
                 data,
@@ -98,12 +108,15 @@ impl ViewDecoder {
         Ok(decoder)
     }
 
-    pub fn read(
+    pub fn read<B>(
         &mut self,
-        buffer: &mut ViewBuffer,
+        buffer: &mut ViewBuffer<B>,
         num_values: usize,
-        dict: Option<&ViewBuffer>,
-    ) -> Result<usize> {
+        dict: Option<&ViewBuffer<B>>,
+    ) -> ParquetResult<usize>
+    where
+        B: BufferManager,
+    {
         match self {
             Self::Plain(d) => d.read(buffer, num_values),
             Self::Dictionary(d) => {
@@ -115,7 +128,14 @@ impl ViewDecoder {
         }
     }
 
-    pub fn skip(&mut self, num_values: usize, dict: Option<&ViewBuffer>) -> Result<usize> {
+    pub fn skip<B>(
+        &mut self,
+        num_values: usize,
+        dict: Option<&ViewBuffer<B>>,
+    ) -> ParquetResult<usize>
+    where
+        B: BufferManager,
+    {
         match self {
             Self::Plain(d) => d.skip(num_values),
             Self::Dictionary(d) => {
@@ -157,7 +177,10 @@ impl PlainViewDecoder {
         }
     }
 
-    pub fn read(&mut self, buffer: &mut ViewBuffer, num_vals: usize) -> Result<usize> {
+    pub fn read<B>(&mut self, buffer: &mut ViewBuffer<B>, num_vals: usize) -> ParquetResult<usize>
+    where
+        B: BufferManager,
+    {
         let to_read = usize::min(num_vals, self.max_remaining_values);
 
         let remaining_bytes = self.buf.len() - self.offset;
@@ -170,7 +193,8 @@ impl PlainViewDecoder {
             .map(|x| x / self.max_remaining_values)
             .unwrap_or_default();
 
-        buffer.buffer.reserve_data(estimated_bytes);
+        // TODO: ?
+        // buffer.buffer.reserve_data(estimated_bytes);
 
         let mut num_read = 0;
         let buf = &self.buf;
@@ -195,7 +219,7 @@ impl PlainViewDecoder {
         Ok(num_read)
     }
 
-    pub fn skip(&mut self, num_vals: usize) -> Result<usize> {
+    pub fn skip(&mut self, num_vals: usize) -> ParquetResult<usize> {
         let to_skip = usize::min(num_vals, self.max_remaining_values);
 
         let mut skip = 0;
@@ -230,12 +254,15 @@ impl DictionaryViewDecoder {
         }
     }
 
-    pub fn read(
+    pub fn read<B>(
         &mut self,
-        buffer: &mut ViewBuffer,
-        dict: &ViewBuffer,
+        buffer: &mut ViewBuffer<B>,
+        dict: &ViewBuffer<B>,
         num_vals: usize,
-    ) -> Result<usize> {
+    ) -> ParquetResult<usize>
+    where
+        B: BufferManager,
+    {
         // TODO: What would be _real_ cool is if `dict` was an array and we just
         // created selection vectors on top of the dictionary (data is behind an
         // arc).
@@ -254,7 +281,10 @@ impl DictionaryViewDecoder {
         })
     }
 
-    pub fn skip(&mut self, _dict: &ViewBuffer, num_vals: usize) -> Result<usize> {
+    pub fn skip<B>(&mut self, _dict: &ViewBuffer<B>, num_vals: usize) -> ParquetResult<usize>
+    where
+        B: BufferManager,
+    {
         self.decoder.skip(num_vals)
     }
 }
@@ -299,7 +329,11 @@ impl DictIndexDecoder {
     /// and calling `f` with each decoded dictionary index
     ///
     /// Will short-circuit and return on error
-    pub fn read<F: FnMut(&[i32]) -> Result<()>>(&mut self, len: usize, mut f: F) -> Result<usize> {
+    pub fn read<F: FnMut(&[i32]) -> ParquetResult<()>>(
+        &mut self,
+        len: usize,
+        mut f: F,
+    ) -> ParquetResult<usize> {
         let mut values_read = 0;
 
         while values_read != len && self.max_remaining_values != 0 {
@@ -327,7 +361,7 @@ impl DictIndexDecoder {
     }
 
     /// Skip up to `to_skip` values, returning the number of values skipped
-    pub fn skip(&mut self, to_skip: usize) -> Result<usize> {
+    pub fn skip(&mut self, to_skip: usize) -> ParquetResult<usize> {
         let to_skip = to_skip.min(self.max_remaining_values);
 
         let mut values_skip = 0;

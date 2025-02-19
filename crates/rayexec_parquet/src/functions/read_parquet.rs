@@ -76,38 +76,39 @@ impl<R: Runtime> ReadParquet<R> {
         let (location, conf) =
             try_location_and_access_config_from_args(&self, &positional_inputs, &named_inputs)?;
 
-        let mut source = self
-            .runtime
-            .file_provider()
-            .file_source(location.clone(), &conf)?;
+        unimplemented!()
+        // let mut source = self
+        //     .runtime
+        //     .file_provider()
+        //     .file_source(location.clone(), &conf)?;
 
-        let size = source.size().await?;
+        // let size = source.size().await?;
 
-        let metadata = Metadata::new_from_source(source.as_mut(), size).await?;
-        let schema = from_parquet_schema(metadata.decoded_metadata.file_metadata().schema_descr())?;
+        // let metadata = Metadata::new_from_source(source.as_mut(), size).await?;
+        // let schema = from_parquet_schema(metadata.decoded_metadata.file_metadata().schema_descr())?;
 
-        let num_rows = metadata
-            .decoded_metadata
-            .row_groups()
-            .iter()
-            .map(|g| g.num_rows())
-            .sum::<i64>() as usize;
+        // let num_rows = metadata
+        //     .decoded_metadata
+        //     .row_groups()
+        //     .iter()
+        //     .map(|g| g.num_rows())
+        //     .sum::<i64>() as usize;
 
-        let datatable = RowGroupPartitionedDataTable {
-            metadata: Arc::new(metadata),
-            schema: schema.clone(),
-            location,
-            conf,
-            runtime: self.runtime.clone(),
-        };
+        // let datatable = RowGroupPartitionedDataTable {
+        //     metadata: Arc::new(metadata),
+        //     schema: schema.clone(),
+        //     location,
+        //     conf,
+        //     runtime: self.runtime.clone(),
+        // };
 
-        Ok(PlannedTableFunction {
-            function: Box::new(self),
-            positional_inputs: positional_inputs.into_iter().map(expr::lit).collect(),
-            named_inputs,
-            function_impl: TableFunctionImpl::Scan(Arc::new(datatable)),
-            cardinality: StatisticsValue::Exact(num_rows),
-            schema,
-        })
+        // Ok(PlannedTableFunction {
+        //     function: Box::new(self),
+        //     positional_inputs: positional_inputs.into_iter().map(expr::lit).collect(),
+        //     named_inputs,
+        //     function_impl: TableFunctionImpl::Scan(Arc::new(datatable)),
+        //     cardinality: StatisticsValue::Exact(num_rows),
+        //     schema,
+        // })
     }
 }

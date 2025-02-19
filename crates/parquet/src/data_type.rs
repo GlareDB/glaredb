@@ -30,7 +30,7 @@ use crate::column::page::{PageReader, PageWriter};
 use crate::column::reader::basic::BasicColumnValueDecoder;
 use crate::column::reader::{ColumnReader, GenericColumnReader};
 use crate::column::writer::{ColumnWriter, GenericColumnWriter};
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 use crate::util::bit_util::FromBytes;
 
 /// Rust representation for logical type INT96, value is backed by an array of `u32`.
@@ -199,7 +199,7 @@ impl ByteArray {
         )
     }
 
-    pub fn as_utf8(&self) -> Result<&str> {
+    pub fn as_utf8(&self) -> ParquetResult<&str> {
         self.data
             .as_ref()
             .map(|ptr| ptr.as_ref())
@@ -599,7 +599,7 @@ impl AsBytes for str {
 pub(crate) mod private {
     use bytes::Bytes;
 
-    use super::{Result, SliceAsBytes};
+    use super::{ParquetResult, SliceAsBytes};
     use crate::basic::Type;
     use crate::encodings::decoding::PlainDecoderDetails;
     use crate::util::bit_util::{read_num_bytes, BitReader, BitWriter};
@@ -630,15 +630,15 @@ pub(crate) mod private {
             values: &[Self],
             writer: &mut W,
             bit_writer: &mut BitWriter,
-        ) -> Result<()>;
+        ) -> ParquetResult<()>;
 
         /// Establish the data that will be decoded in a buffer
         fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize);
 
         /// Decode the value from a given buffer for a higher level decoder
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize>;
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize>;
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize>;
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize>;
 
         /// Return the encoded size for a type
         fn dict_encoding_size(&self) -> (usize, usize) {
@@ -649,7 +649,7 @@ pub(crate) mod private {
         ///
         /// This is essentially the same as `std::convert::TryInto<i64>` but can't be
         /// implemented for `f32` and `f64`, types that would fail orphan rules
-        fn as_i64(&self) -> Result<i64> {
+        fn as_i64(&self) -> ParquetResult<i64> {
             Err(general_err!("Type cannot be converted to i64"))
         }
 
@@ -657,7 +657,7 @@ pub(crate) mod private {
         ///
         /// This is essentially the same as `std::convert::TryInto<u64>` but can't be
         /// implemented for `f32` and `f64`, types that would fail orphan rules
-        fn as_u64(&self) -> Result<u64> {
+        fn as_u64(&self) -> ParquetResult<u64> {
             self.as_i64()
                 .map_err(|_| general_err!("Type cannot be converted to u64"))
                 .map(|x| x as u64)
@@ -678,7 +678,7 @@ pub(crate) mod private {
             values: &[Self],
             _: &mut W,
             bit_writer: &mut BitWriter,
-        ) -> Result<()> {
+        ) -> ParquetResult<()> {
             for value in values {
                 bit_writer.put_value(*value as u64, 1)
             }
@@ -692,7 +692,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
             let bit_reader = decoder.bit_reader.as_mut().unwrap();
             let num_values = std::cmp::min(buffer.len(), decoder.num_values);
             let values_read = bit_reader.get_batch(&mut buffer[..num_values], 1);
@@ -700,7 +700,7 @@ pub(crate) mod private {
             Ok(values_read)
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
             let bit_reader = decoder.bit_reader.as_mut().unwrap();
             let num_values = std::cmp::min(num_values, decoder.num_values);
             let values_read = bit_reader.skip(num_values, 1);
@@ -709,7 +709,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn as_i64(&self) -> Result<i64> {
+        fn as_i64(&self) -> ParquetResult<i64> {
             Ok(*self as i64)
         }
 
@@ -821,7 +821,7 @@ pub(crate) mod private {
             values: &[Self],
             writer: &mut W,
             _: &mut BitWriter,
-        ) -> Result<()> {
+        ) -> ParquetResult<()> {
             for value in values {
                 let raw = unsafe {
                     std::slice::from_raw_parts(value.data() as *const [u32] as *const u8, 12)
@@ -839,7 +839,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
             // TODO - Remove the duplication between this and the general slice method
             let data = decoder
                 .data
@@ -871,7 +871,7 @@ pub(crate) mod private {
             Ok(num_values)
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
             let data = decoder
                 .data
                 .as_ref()
@@ -908,7 +908,7 @@ pub(crate) mod private {
             values: &[Self],
             writer: &mut W,
             _: &mut BitWriter,
-        ) -> Result<()> {
+        ) -> ParquetResult<()> {
             for value in values {
                 let len: u32 = value.len().try_into().unwrap();
                 writer.write_all(&len.to_ne_bytes())?;
@@ -926,7 +926,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
             let data = decoder
                 .data
                 .as_mut()
@@ -951,7 +951,7 @@ pub(crate) mod private {
             Ok(num_values)
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
             let data = decoder
                 .data
                 .as_mut()
@@ -992,7 +992,7 @@ pub(crate) mod private {
             values: &[Self],
             writer: &mut W,
             _: &mut BitWriter,
-        ) -> Result<()> {
+        ) -> ParquetResult<()> {
             for value in values {
                 let raw = value.data();
                 writer.write_all(raw)?;
@@ -1008,7 +1008,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
             assert!(decoder.type_length > 0);
 
             let data = decoder
@@ -1032,7 +1032,7 @@ pub(crate) mod private {
             Ok(num_values)
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
             assert!(decoder.type_length > 0);
 
             let data = decoder

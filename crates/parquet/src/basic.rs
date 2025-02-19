@@ -22,7 +22,7 @@ use std::str::FromStr;
 use std::{fmt, str};
 
 pub use crate::compression::{BrotliLevel, GzipLevel, ZstdLevel};
-use crate::errors::{ParquetError, Result};
+use crate::errors::{ParquetError, ParquetResult};
 use crate::format as parquet;
 // Re-export crate::format types used in this module
 pub use crate::format::{
@@ -317,7 +317,7 @@ pub enum Encoding {
 impl FromStr for Encoding {
     type Err = ParquetError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> ParquetResult<Self, Self::Err> {
         match s {
             "PLAIN" | "plain" => Ok(Encoding::PLAIN),
             "PLAIN_DICTIONARY" | "plain_dictionary" => Ok(Encoding::PLAIN_DICTIONARY),
@@ -367,7 +367,7 @@ pub enum Compression {
     LZ4_RAW,
 }
 
-fn split_compression_string(str_setting: &str) -> Result<(&str, Option<u32>), ParquetError> {
+fn split_compression_string(str_setting: &str) -> ParquetResult<(&str, Option<u32>), ParquetError> {
     let split_setting = str_setting.split_once('(');
 
     match split_setting {
@@ -383,7 +383,7 @@ fn split_compression_string(str_setting: &str) -> Result<(&str, Option<u32>), Pa
     }
 }
 
-fn check_level_is_none(level: &Option<u32>) -> Result<(), ParquetError> {
+fn check_level_is_none(level: &Option<u32>) -> ParquetResult<(), ParquetError> {
     if level.is_some() {
         return Err(ParquetError::General("level is not support".to_string()));
     }
@@ -391,7 +391,7 @@ fn check_level_is_none(level: &Option<u32>) -> Result<(), ParquetError> {
     Ok(())
 }
 
-fn require_level(codec: &str, level: Option<u32>) -> Result<u32, ParquetError> {
+fn require_level(codec: &str, level: Option<u32>) -> ParquetResult<u32, ParquetError> {
     level.ok_or(ParquetError::General(format!("{} require level", codec)))
 }
 
@@ -656,7 +656,7 @@ impl fmt::Display for ColumnOrder {
 impl TryFrom<parquet::Type> for Type {
     type Error = ParquetError;
 
-    fn try_from(value: parquet::Type) -> Result<Self> {
+    fn try_from(value: parquet::Type) -> ParquetResult<Self> {
         Ok(match value {
             parquet::Type::BOOLEAN => Type::BOOLEAN,
             parquet::Type::INT32 => Type::INT32,
@@ -692,7 +692,7 @@ impl From<Type> for parquet::Type {
 impl TryFrom<Option<parquet::ConvertedType>> for ConvertedType {
     type Error = ParquetError;
 
-    fn try_from(option: Option<parquet::ConvertedType>) -> Result<Self> {
+    fn try_from(option: Option<parquet::ConvertedType>) -> ParquetResult<Self> {
         Ok(match option {
             None => ConvertedType::NONE,
             Some(value) => match value {
@@ -896,7 +896,7 @@ impl From<Option<LogicalType>> for ConvertedType {
 impl TryFrom<parquet::FieldRepetitionType> for Repetition {
     type Error = ParquetError;
 
-    fn try_from(value: parquet::FieldRepetitionType) -> Result<Self> {
+    fn try_from(value: parquet::FieldRepetitionType) -> ParquetResult<Self> {
         Ok(match value {
             parquet::FieldRepetitionType::REQUIRED => Repetition::REQUIRED,
             parquet::FieldRepetitionType::OPTIONAL => Repetition::OPTIONAL,
@@ -927,7 +927,7 @@ impl From<Repetition> for parquet::FieldRepetitionType {
 impl TryFrom<parquet::Encoding> for Encoding {
     type Error = ParquetError;
 
-    fn try_from(value: parquet::Encoding) -> Result<Self> {
+    fn try_from(value: parquet::Encoding) -> ParquetResult<Self> {
         Ok(match value {
             parquet::Encoding::PLAIN => Encoding::PLAIN,
             parquet::Encoding::PLAIN_DICTIONARY => Encoding::PLAIN_DICTIONARY,
@@ -967,7 +967,7 @@ impl From<Encoding> for parquet::Encoding {
 impl TryFrom<parquet::CompressionCodec> for Compression {
     type Error = ParquetError;
 
-    fn try_from(value: parquet::CompressionCodec) -> Result<Self> {
+    fn try_from(value: parquet::CompressionCodec) -> ParquetResult<Self> {
         Ok(match value {
             parquet::CompressionCodec::UNCOMPRESSED => Compression::UNCOMPRESSED,
             parquet::CompressionCodec::SNAPPY => Compression::SNAPPY,
@@ -1008,7 +1008,7 @@ impl From<Compression> for parquet::CompressionCodec {
 impl TryFrom<parquet::PageType> for PageType {
     type Error = ParquetError;
 
-    fn try_from(value: parquet::PageType) -> Result<Self> {
+    fn try_from(value: parquet::PageType) -> ParquetResult<Self> {
         Ok(match value {
             parquet::PageType::DATA_PAGE => PageType::DATA_PAGE,
             parquet::PageType::INDEX_PAGE => PageType::INDEX_PAGE,
@@ -1036,7 +1036,7 @@ impl From<PageType> for parquet::PageType {
 impl str::FromStr for Repetition {
     type Err = ParquetError;
 
-    fn from_str(s: &str) -> Result<Self> {
+    fn from_str(s: &str) -> ParquetResult<Self> {
         match s {
             "REQUIRED" => Ok(Repetition::REQUIRED),
             "OPTIONAL" => Ok(Repetition::OPTIONAL),
@@ -1049,7 +1049,7 @@ impl str::FromStr for Repetition {
 impl str::FromStr for Type {
     type Err = ParquetError;
 
-    fn from_str(s: &str) -> Result<Self> {
+    fn from_str(s: &str) -> ParquetResult<Self> {
         match s {
             "BOOLEAN" => Ok(Type::BOOLEAN),
             "INT32" => Ok(Type::INT32),
@@ -1067,7 +1067,7 @@ impl str::FromStr for Type {
 impl str::FromStr for ConvertedType {
     type Err = ParquetError;
 
-    fn from_str(s: &str) -> Result<Self> {
+    fn from_str(s: &str) -> ParquetResult<Self> {
         match s {
             "NONE" => Ok(ConvertedType::NONE),
             "UTF8" => Ok(ConvertedType::UTF8),
@@ -1100,7 +1100,7 @@ impl str::FromStr for ConvertedType {
 impl str::FromStr for LogicalType {
     type Err = ParquetError;
 
-    fn from_str(s: &str) -> Result<Self> {
+    fn from_str(s: &str) -> ParquetResult<Self> {
         match s {
             // The type is a placeholder that gets updated elsewhere
             "INTEGER" => Ok(LogicalType::Integer {

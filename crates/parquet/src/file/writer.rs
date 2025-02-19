@@ -34,7 +34,7 @@ use crate::column::writer::{
     GenericColumnWriter,
 };
 use crate::data_type::DataType;
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 use crate::file::metadata::*;
 use crate::file::properties::WriterPropertiesPtr;
 use crate::file::reader::ChunkReader;
@@ -111,7 +111,7 @@ impl<W: Write> Write for TrackedWrite<W> {
 }
 
 /// Callback invoked on closing a column chunk
-pub type OnCloseColumnChunk<'a> = Box<dyn FnOnce(ColumnCloseResult) -> Result<()> + 'a>;
+pub type OnCloseColumnChunk<'a> = Box<dyn FnOnce(ColumnCloseResult) -> ParquetResult<()> + 'a>;
 
 /// Callback invoked on closing a row group, arguments are:
 ///
@@ -124,7 +124,7 @@ pub type OnCloseRowGroup<'a> = Box<
             Vec<Option<Sbbf>>,
             Vec<Option<ColumnIndex>>,
             Vec<Option<OffsetIndex>>,
-        ) -> Result<()>
+        ) -> ParquetResult<()>
         + 'a
         + Send,
 >;
@@ -170,7 +170,7 @@ impl<W: Write> Debug for SerializedFileWriter<W> {
 
 impl<W: Write + Send> SerializedFileWriter<W> {
     /// Creates new file writer.
-    pub fn new(buf: W, schema: TypePtr, properties: WriterPropertiesPtr) -> Result<Self> {
+    pub fn new(buf: W, schema: TypePtr, properties: WriterPropertiesPtr) -> ParquetResult<Self> {
         let mut buf = TrackedWrite::new(buf);
         Self::start_file(&mut buf)?;
         Ok(Self {
@@ -194,7 +194,7 @@ impl<W: Write + Send> SerializedFileWriter<W> {
     /// There is no limit on a number of row groups in a file; however, row groups have
     /// to be written sequentially. Every time the next row group is requested, the
     /// previous row group must be finalised and closed using `RowGroupWriter::close` method.
-    pub fn next_row_group(&mut self) -> Result<SerializedRowGroupWriter<'_, W>> {
+    pub fn next_row_group(&mut self) -> ParquetResult<SerializedRowGroupWriter<'_, W>> {
         self.assert_previous_writer_closed()?;
         let ordinal = self.row_group_index;
 
@@ -233,7 +233,7 @@ impl<W: Write + Send> SerializedFileWriter<W> {
     /// Unlike [`Self::close`] this does not consume self
     ///
     /// Attempting to write after calling finish will result in an error
-    pub fn finish(&mut self) -> Result<parquet::FileMetaData> {
+    pub fn finish(&mut self) -> ParquetResult<parquet::FileMetaData> {
         self.assert_previous_writer_closed()?;
         let metadata = self.write_metadata()?;
         self.buf.flush()?;
@@ -241,18 +241,18 @@ impl<W: Write + Send> SerializedFileWriter<W> {
     }
 
     /// Closes and finalises file writer, returning the file metadata.
-    pub fn close(mut self) -> Result<parquet::FileMetaData> {
+    pub fn close(mut self) -> ParquetResult<parquet::FileMetaData> {
         self.finish()
     }
 
     /// Writes magic bytes at the beginning of the file.
-    fn start_file(buf: &mut TrackedWrite<W>) -> Result<()> {
+    fn start_file(buf: &mut TrackedWrite<W>) -> ParquetResult<()> {
         buf.write_all(&PARQUET_MAGIC)?;
         Ok(())
     }
 
     /// Serialize all the offset index to the file
-    fn write_offset_indexes(&mut self, row_groups: &mut [RowGroup]) -> Result<()> {
+    fn write_offset_indexes(&mut self, row_groups: &mut [RowGroup]) -> ParquetResult<()> {
         // iter row group
         // iter each column
         // write offset index to the file
@@ -273,7 +273,7 @@ impl<W: Write + Send> SerializedFileWriter<W> {
     }
 
     /// Serialize all the bloom filter to the file
-    fn write_bloom_filters(&mut self, row_groups: &mut [RowGroup]) -> Result<()> {
+    fn write_bloom_filters(&mut self, row_groups: &mut [RowGroup]) -> ParquetResult<()> {
         // iter row group
         // iter each column
         // write bloom filter to the file
@@ -298,7 +298,7 @@ impl<W: Write + Send> SerializedFileWriter<W> {
     }
 
     /// Serialize all the column index to the file
-    fn write_column_indexes(&mut self, row_groups: &mut [RowGroup]) -> Result<()> {
+    fn write_column_indexes(&mut self, row_groups: &mut [RowGroup]) -> ParquetResult<()> {
         // iter row group
         // iter each column
         // write column index to the file
@@ -319,7 +319,7 @@ impl<W: Write + Send> SerializedFileWriter<W> {
     }
 
     /// Assembles and writes metadata at the end of the file.
-    fn write_metadata(&mut self) -> Result<parquet::FileMetaData> {
+    fn write_metadata(&mut self) -> ParquetResult<parquet::FileMetaData> {
         self.finished = true;
         let num_rows = self.row_groups.iter().map(|x| x.num_rows()).sum();
 
@@ -383,7 +383,7 @@ impl<W: Write + Send> SerializedFileWriter<W> {
     }
 
     #[inline]
-    fn assert_previous_writer_closed(&self) -> Result<()> {
+    fn assert_previous_writer_closed(&self) -> ParquetResult<()> {
         if self.finished {
             return Err(general_err!("SerializedFileWriter already finished"));
         }
@@ -422,7 +422,7 @@ impl<W: Write + Send> SerializedFileWriter<W> {
     }
 
     /// Writes the file footer and returns the underlying writer.
-    pub fn into_inner(mut self) -> Result<W> {
+    pub fn into_inner(mut self) -> ParquetResult<W> {
         self.assert_previous_writer_closed()?;
         let _ = self.write_metadata()?;
         Ok(self.buf.into_inner())
@@ -547,7 +547,7 @@ impl<'a, W: Write + Send> SerializedRowGroupWriter<'a, W> {
     /// closed returns `Err`.
     pub fn next_column(
         &mut self,
-    ) -> Result<Option<SerializedColumnWriter<'_, SerializedPageWriter<W>>>> {
+    ) -> ParquetResult<Option<SerializedColumnWriter<'_, SerializedPageWriter<W>>>> {
         self.assert_previous_writer_closed()?;
         Ok(match self.next_column_desc() {
             Some(column) => {
@@ -572,7 +572,7 @@ impl<'a, W: Write + Send> SerializedRowGroupWriter<'a, W> {
         &mut self,
         reader: &R,
         mut close: ColumnCloseResult,
-    ) -> Result<()> {
+    ) -> ParquetResult<()> {
         self.assert_previous_writer_closed()?;
         let desc = self
             .next_column_desc()
@@ -633,7 +633,7 @@ impl<'a, W: Write + Send> SerializedRowGroupWriter<'a, W> {
     }
 
     /// Closes this row group writer and returns row group metadata.
-    pub fn close(mut self) -> Result<RowGroupMetaDataPtr> {
+    pub fn close(mut self) -> ParquetResult<RowGroupMetaDataPtr> {
         if self.row_group_metadata.is_none() {
             self.assert_previous_writer_closed()?;
 
@@ -665,7 +665,7 @@ impl<'a, W: Write + Send> SerializedRowGroupWriter<'a, W> {
     }
 
     #[inline]
-    fn assert_previous_writer_closed(&self) -> Result<()> {
+    fn assert_previous_writer_closed(&self) -> ParquetResult<()> {
         if self.column_index != self.column_chunks.len() {
             Err(general_err!("Previous column writer was not closed"))
         } else {
@@ -698,7 +698,7 @@ impl<'a, P: PageWriter> SerializedColumnWriter<'a, P> {
     }
 
     /// Close this [`SerializedColumnWriter`]
-    pub fn close(mut self) -> Result<()> {
+    pub fn close(mut self) -> ParquetResult<()> {
         let (r, _) = self.inner.close()?;
         if let Some(on_close) = self.on_close.take() {
             on_close(r)?
@@ -724,14 +724,14 @@ impl<'a, W: Write> SerializedPageWriter<'a, W> {
 }
 
 impl<W: Write + Send> PageWriter for SerializedPageWriter<'_, W> {
-    fn write_page(&mut self, page: CompressedPage) -> Result<PageWriteSpec> {
+    fn write_page(&mut self, page: CompressedPage) -> ParquetResult<PageWriteSpec> {
         let start_pos = self.sink.bytes_written() as u64;
         let mut spec = write_page(page, &mut self.sink)?;
         spec.offset = start_pos;
         Ok(spec)
     }
 
-    fn write_metadata(&mut self, metadata: &ColumnChunkMetaData) -> Result<()> {
+    fn write_metadata(&mut self, metadata: &ColumnChunkMetaData) -> ParquetResult<()> {
         let mut protocol = TCompactOutputProtocol::new(&mut self.sink);
         metadata
             .to_column_metadata_thrift()
@@ -739,7 +739,7 @@ impl<W: Write + Send> PageWriter for SerializedPageWriter<'_, W> {
         Ok(())
     }
 
-    fn close(&mut self) -> Result<()> {
+    fn close(&mut self) -> ParquetResult<()> {
         self.sink.flush()?;
         Ok(())
     }
@@ -749,7 +749,10 @@ impl<W: Write + Send> PageWriter for SerializedPageWriter<'_, W> {
 ///
 /// The offset in the returned page spec will be set to 0, allowing for it to be
 /// updated to a true offset later if we're writing into a larger buffer.
-pub fn write_page(page: CompressedPage, writer: &mut impl io::Write) -> Result<PageWriteSpec> {
+pub fn write_page(
+    page: CompressedPage,
+    writer: &mut impl io::Write,
+) -> ParquetResult<PageWriteSpec> {
     let page_type = page.page_type();
 
     let page_header = page.to_thrift_header();
@@ -775,7 +778,7 @@ pub fn write_page(page: CompressedPage, writer: &mut impl io::Write) -> Result<P
 fn serialize_page_header(
     header: parquet::PageHeader,
     writer: &mut impl io::Write,
-) -> Result<usize> {
+) -> ParquetResult<usize> {
     let mut writer = TrackedWrite::new(writer);
 
     let mut protocol = TCompactOutputProtocol::new(&mut writer);

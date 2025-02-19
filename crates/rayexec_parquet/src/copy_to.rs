@@ -5,7 +5,7 @@ use futures::FutureExt;
 use rayexec_error::Result;
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::field::Schema;
-use rayexec_execution::execution::operators::sink::PartitionSink;
+use rayexec_execution::execution::operators::sink::operation::PartitionSink;
 use rayexec_execution::functions::copy::CopyToFunction;
 use rayexec_execution::runtime::Runtime;
 use rayexec_io::location::{AccessConfig, FileLocation};
@@ -31,14 +31,15 @@ impl<R: Runtime> CopyToFunction for ParquetCopyToFunction<R> {
     ) -> Result<Vec<Box<dyn PartitionSink>>> {
         let provider = self.runtime.file_provider();
 
-        let mut sinks = Vec::with_capacity(num_partitions);
-        for _ in 0..num_partitions {
-            let sink = provider.file_sink(location.clone(), &AccessConfig::None)?;
-            let writer = AsyncBatchWriter::try_new(sink, schema.clone())?;
-            sinks.push(Box::new(ParquetCopyToSink { writer }) as _)
-        }
+        // let mut sinks = Vec::with_capacity(num_partitions);
+        // for _ in 0..num_partitions {
+        //     let sink = provider.file_sink(location.clone(), &AccessConfig::None)?;
+        //     let writer = AsyncBatchWriter::try_new(sink, schema.clone())?;
+        //     sinks.push(Box::new(ParquetCopyToSink { writer }) as _)
+        // }
 
-        Ok(sinks)
+        // Ok(sinks)
+        unimplemented!()
     }
 }
 
@@ -55,21 +56,5 @@ impl ParquetCopyToSink {
     async fn finalize_inner(&mut self) -> Result<()> {
         self.writer.finish().await?;
         Ok(())
-    }
-}
-
-impl PartitionSink for ParquetCopyToSink {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
-        self.push_inner(batch).boxed()
-    }
-
-    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
-        self.finalize_inner().boxed()
-    }
-}
-
-impl fmt::Debug for ParquetCopyToSink {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ParquetCopyToSink").finish_non_exhaustive()
     }
 }

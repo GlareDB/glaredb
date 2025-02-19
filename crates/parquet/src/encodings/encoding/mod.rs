@@ -27,7 +27,7 @@ use crate::basic::*;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
 use crate::encodings::rle::RleEncoder;
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 use crate::util::bit_util::{num_required_bits, BitWriter};
 
 mod byte_stream_split_encoder;
@@ -42,14 +42,14 @@ mod dict_encoder;
 /// values, caller should call `flush_buffer()` to get an immutable buffer pointer.
 pub trait Encoder<T: DataType>: Send {
     /// Encodes data from `values`.
-    fn put(&mut self, values: &[T::T]) -> Result<()>;
+    fn put(&mut self, values: &[T::T]) -> ParquetResult<()>;
 
     /// Encodes data from `values`, which contains spaces for null values, that is
     /// identified by `valid_bits`.
     ///
     /// Returns the number of non-null values encoded.
     #[cfg(test)]
-    fn put_spaced(&mut self, values: &[T::T], valid_bits: &[u8]) -> Result<usize> {
+    fn put_spaced(&mut self, values: &[T::T], valid_bits: &[u8]) -> ParquetResult<usize> {
         let num_values = values.len();
         let mut buffer = Vec::with_capacity(num_values);
         // TODO: this is pretty inefficient. Revisit in future.
@@ -71,12 +71,12 @@ pub trait Encoder<T: DataType>: Send {
 
     /// Flushes the underlying byte buffer that's being processed by this encoder, and
     /// return the immutable copy of it. This will also reset the internal state.
-    fn flush_buffer(&mut self) -> Result<Bytes>;
+    fn flush_buffer(&mut self) -> ParquetResult<Bytes>;
 }
 
 /// Gets a encoder for the particular data type `T` and encoding `encoding`. Memory usage
 /// for the encoder instance is tracked by `mem_tracker`.
-pub fn get_encoder<T: DataType>(encoding: Encoding) -> Result<Box<dyn Encoder<T>>> {
+pub fn get_encoder<T: DataType>(encoding: Encoding) -> ParquetResult<Box<dyn Encoder<T>>> {
     let encoder: Box<dyn Encoder<T>> = match encoding {
         Encoding::PLAIN => Box::new(PlainEncoder::new()),
         Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
@@ -147,7 +147,7 @@ impl<T: DataType> Encoder<T> for PlainEncoder<T> {
     }
 
     #[inline]
-    fn flush_buffer(&mut self) -> Result<Bytes> {
+    fn flush_buffer(&mut self) -> ParquetResult<Bytes> {
         self.buffer
             .extend_from_slice(self.bit_writer.flush_buffer());
         self.bit_writer.clear();
@@ -155,7 +155,7 @@ impl<T: DataType> Encoder<T> for PlainEncoder<T> {
     }
 
     #[inline]
-    fn put(&mut self, values: &[T::T]) -> Result<()> {
+    fn put(&mut self, values: &[T::T]) -> ParquetResult<()> {
         T::T::encode(values, &mut self.buffer, &mut self.bit_writer)?;
         Ok(())
     }
@@ -193,7 +193,7 @@ impl<T: DataType> RleValueEncoder<T> {
 
 impl<T: DataType> Encoder<T> for RleValueEncoder<T> {
     #[inline]
-    fn put(&mut self, values: &[T::T]) -> Result<()> {
+    fn put(&mut self, values: &[T::T]) -> ParquetResult<()> {
         ensure_phys_ty!(Type::BOOLEAN, "RleValueEncoder only supports bool");
 
         let rle_encoder = self.encoder.get_or_insert_with(|| {
@@ -227,7 +227,7 @@ impl<T: DataType> Encoder<T> for RleValueEncoder<T> {
     }
 
     #[inline]
-    fn flush_buffer(&mut self) -> Result<Bytes> {
+    fn flush_buffer(&mut self) -> ParquetResult<Bytes> {
         ensure_phys_ty!(Type::BOOLEAN, "RleValueEncoder only supports bool");
         let rle_encoder = self
             .encoder
@@ -348,7 +348,7 @@ impl<T: DataType> DeltaBitPackEncoder<T> {
 
     // Write current delta buffer (<= 'block size' values) into bit writer
     #[inline(never)]
-    fn flush_block_values(&mut self) -> Result<()> {
+    fn flush_block_values(&mut self) -> ParquetResult<()> {
         if self.values_in_block == 0 {
             return Ok(());
         }
@@ -416,7 +416,7 @@ impl<T: DataType> DeltaBitPackEncoder<T> {
 // Implementation is shared between i32 and i64,
 // see `DeltaBitPackEncoderConversion` below for specifics.
 impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
-    fn put(&mut self, values: &[T::T]) -> Result<()> {
+    fn put(&mut self, values: &[T::T]) -> ParquetResult<()> {
         if values.is_empty() {
             return Ok(());
         }
@@ -458,7 +458,7 @@ impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
         self.bit_writer.bytes_written()
     }
 
-    fn flush_buffer(&mut self) -> Result<Bytes> {
+    fn flush_buffer(&mut self) -> ParquetResult<Bytes> {
         // Write remaining values
         self.flush_block_values()?;
         // Write page header with total values
@@ -564,7 +564,7 @@ impl<T: DataType> DeltaLengthByteArrayEncoder<T> {
 }
 
 impl<T: DataType> Encoder<T> for DeltaLengthByteArrayEncoder<T> {
-    fn put(&mut self, values: &[T::T]) -> Result<()> {
+    fn put(&mut self, values: &[T::T]) -> ParquetResult<()> {
         ensure_phys_ty!(
             Type::BYTE_ARRAY | Type::FIXED_LEN_BYTE_ARRAY,
             "DeltaLengthByteArrayEncoder only supports ByteArray"
@@ -598,7 +598,7 @@ impl<T: DataType> Encoder<T> for DeltaLengthByteArrayEncoder<T> {
         self.len_encoder.estimated_data_encoded_size() + self.encoded_size
     }
 
-    fn flush_buffer(&mut self) -> Result<Bytes> {
+    fn flush_buffer(&mut self) -> ParquetResult<Bytes> {
         ensure_phys_ty!(
             Type::BYTE_ARRAY | Type::FIXED_LEN_BYTE_ARRAY,
             "DeltaLengthByteArrayEncoder only supports ByteArray"
@@ -648,7 +648,7 @@ impl<T: DataType> DeltaByteArrayEncoder<T> {
 }
 
 impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
-    fn put(&mut self, values: &[T::T]) -> Result<()> {
+    fn put(&mut self, values: &[T::T]) -> ParquetResult<()> {
         let mut prefix_lengths: Vec<i32> = vec![];
         let mut suffixes: Vec<ByteArray> = vec![];
 
@@ -695,7 +695,7 @@ impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
             + self.suffix_writer.estimated_data_encoded_size()
     }
 
-    fn flush_buffer(&mut self) -> Result<Bytes> {
+    fn flush_buffer(&mut self) -> ParquetResult<Bytes> {
         match T::get_physical_type() {
             Type::BYTE_ARRAY | Type::FIXED_LEN_BYTE_ARRAY => {
                 // TODO: investigate if we can merge lengths and suffixes
@@ -989,13 +989,13 @@ mod tests {
             );
         }
 
-        fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()>;
+        fn test_internal(enc: Encoding, total: usize, type_length: i32) -> ParquetResult<()>;
 
-        fn test_dict_internal(total: usize, type_length: i32) -> Result<()>;
+        fn test_dict_internal(total: usize, type_length: i32) -> ParquetResult<()>;
     }
 
     impl<T: DataType + RandGen<T>> EncodingTester<T> for T {
-        fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()> {
+        fn test_internal(enc: Encoding, total: usize, type_length: i32) -> ParquetResult<()> {
             let mut encoder = create_test_encoder::<T>(enc);
             let mut decoder = create_test_decoder::<T>(type_length, enc);
             let mut values = <T as RandGen<T>>::gen_vec(type_length, total);
@@ -1046,7 +1046,7 @@ mod tests {
             Ok(())
         }
 
-        fn test_dict_internal(total: usize, type_length: i32) -> Result<()> {
+        fn test_dict_internal(total: usize, type_length: i32) -> ParquetResult<()> {
             let mut encoder = create_test_dict_encoder::<T>(type_length);
             let mut values = <T as RandGen<T>>::gen_vec(type_length, total);
             encoder.put(&values[..])?;
@@ -1087,7 +1087,7 @@ mod tests {
         decoder: &mut Box<dyn Decoder<T>>,
         input: &[T::T],
         output: &mut [T::T],
-    ) -> Result<usize> {
+    ) -> ParquetResult<usize> {
         encoder.put(input)?;
         let data = encoder.flush_buffer()?;
         decoder.set_data(data, input.len())?;

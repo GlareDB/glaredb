@@ -22,7 +22,7 @@ use bytes::Bytes;
 use super::Encoder;
 use crate::basic::{Encoding, Type};
 use crate::data_type::{DataType, SliceAsBytes};
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 
 pub struct ByteStreamSplitEncoder<T> {
     buffer: Vec<u8>,
@@ -52,7 +52,7 @@ fn split_streams_const<const TYPE_SIZE: usize>(src: &[u8], dst: &mut [u8]) {
 }
 
 impl<T: DataType> Encoder<T> for ByteStreamSplitEncoder<T> {
-    fn put(&mut self, values: &[T::T]) -> Result<()> {
+    fn put(&mut self, values: &[T::T]) -> ParquetResult<()> {
         self.buffer
             .extend(<T as DataType>::T::slice_as_bytes(values));
         ensure_phys_ty!(
@@ -71,7 +71,7 @@ impl<T: DataType> Encoder<T> for ByteStreamSplitEncoder<T> {
         self.buffer.len()
     }
 
-    fn flush_buffer(&mut self) -> Result<Bytes> {
+    fn flush_buffer(&mut self) -> ParquetResult<Bytes> {
         let mut encoded = vec![0; self.buffer.len()];
         let type_size = T::get_type_size();
         match type_size {

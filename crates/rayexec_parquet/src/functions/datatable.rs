@@ -12,7 +12,6 @@ use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::{FileProvider2, FileSource};
 
 use crate::metadata::Metadata;
-use crate::reader::AsyncBatchReader;
 
 /// Data table implementation which parallelizes on row groups. During scanning,
 /// each returned scan object is responsible for distinct row groups to read.
@@ -41,43 +40,28 @@ impl<R: Runtime> DataTable for RowGroupPartitionedDataTable<R> {
             partitioned_row_groups[partition].push_back(row_group);
         }
 
-        let readers = partitioned_row_groups
-            .into_iter()
-            .map(|row_groups| {
-                let reader = file_provider.file_source(self.location.clone(), &self.conf)?;
-                const BATCH_SIZE: usize = 4096; // TODO
-                AsyncBatchReader::try_new(
-                    reader,
-                    row_groups,
-                    self.metadata.clone(),
-                    &self.schema,
-                    BATCH_SIZE,
-                    projections.clone(),
-                )
-            })
-            .collect::<Result<Vec<_>>>()?;
+        // let readers = partitioned_row_groups
+        //     .into_iter()
+        //     .map(|row_groups| {
+        //         let reader = file_provider.file_source(self.location.clone(), &self.conf)?;
+        //         const BATCH_SIZE: usize = 4096; // TODO
+        //         AsyncBatchReader::try_new(
+        //             reader,
+        //             row_groups,
+        //             self.metadata.clone(),
+        //             &self.schema,
+        //             BATCH_SIZE,
+        //             projections.clone(),
+        //         )
+        //     })
+        //     .collect::<Result<Vec<_>>>()?;
 
-        let scans: Vec<Box<dyn DataTableScan>> = readers
-            .into_iter()
-            .map(|reader| Box::new(RowGroupsScan { reader }) as _)
-            .collect();
+        unimplemented!()
+        // let scans: Vec<Box<dyn DataTableScan>> = readers
+        //     .into_iter()
+        //     .map(|reader| Box::new(RowGroupsScan { reader }) as _)
+        //     .collect();
 
-        Ok(scans)
-    }
-}
-
-struct RowGroupsScan {
-    reader: AsyncBatchReader<Box<dyn FileSource>>,
-}
-
-impl DataTableScan for RowGroupsScan {
-    fn pull(&mut self) -> BoxFuture<'_, Result<Option<Batch>>> {
-        Box::pin(async { self.reader.read_next().await })
-    }
-}
-
-impl fmt::Debug for RowGroupsScan {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RowGroupsScan").finish_non_exhaustive()
+        // Ok(scans)
     }
 }

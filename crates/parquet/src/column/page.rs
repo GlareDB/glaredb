@@ -20,7 +20,7 @@
 use bytes::Bytes;
 
 use crate::basic::{Encoding, PageType};
-use crate::errors::{ParquetError, Result};
+use crate::errors::{ParquetError, ParquetResult};
 use crate::file::metadata::ColumnChunkMetaData;
 use crate::file::statistics::Statistics;
 use crate::format::PageHeader;
@@ -290,18 +290,18 @@ impl TryFrom<&PageHeader> for PageMetadata {
 
 /// API for reading pages from a column chunk.
 /// This offers a iterator like API to get the next page.
-pub trait PageReader: Iterator<Item = Result<Page>> + Send {
+pub trait PageReader: Iterator<Item = ParquetResult<Page>> + Send {
     /// Gets the next page in the column chunk associated with this reader.
     /// Returns `None` if there are no pages left.
-    fn get_next_page(&mut self) -> Result<Option<Page>>;
+    fn get_next_page(&mut self) -> ParquetResult<Option<Page>>;
 
     /// Gets metadata about the next page, returns an error if no
     /// column index information
-    fn peek_next_page(&mut self) -> Result<Option<PageMetadata>>;
+    fn peek_next_page(&mut self) -> ParquetResult<Option<PageMetadata>>;
 
     /// Skips reading the next page, returns an error if no
     /// column index information
-    fn skip_next_page(&mut self) -> Result<()>;
+    fn skip_next_page(&mut self) -> ParquetResult<()>;
 
     /// Returns `true` if the next page can be assumed to contain the start of a new record
     ///
@@ -313,7 +313,7 @@ pub trait PageReader: Iterator<Item = Result<Page>> + Send {
     ///
     /// [(#4327)]: https://github.com/apache/arrow-rs/pull/4327
     /// [(#4943)]: https://github.com/apache/arrow-rs/pull/4943
-    fn at_record_boundary(&mut self) -> Result<bool> {
+    fn at_record_boundary(&mut self) -> ParquetResult<bool> {
         Ok(self.peek_next_page()?.is_none())
     }
 }
@@ -329,17 +329,17 @@ pub trait PageWriter: Send {
     ///
     /// This method is called for every compressed page we write into underlying buffer,
     /// either data page or dictionary page.
-    fn write_page(&mut self, page: CompressedPage) -> Result<PageWriteSpec>;
+    fn write_page(&mut self, page: CompressedPage) -> ParquetResult<PageWriteSpec>;
 
     /// Writes column chunk metadata into the output stream/sink.
     ///
     /// This method is called once before page writer is closed, normally when writes are
     /// finalised in column writer.
-    fn write_metadata(&mut self, metadata: &ColumnChunkMetaData) -> Result<()>;
+    fn write_metadata(&mut self, metadata: &ColumnChunkMetaData) -> ParquetResult<()>;
 
     /// Closes resources and flushes underlying sink.
     /// Page writer should not be used after this method is called.
-    fn close(&mut self) -> Result<()>;
+    fn close(&mut self) -> ParquetResult<()>;
 }
 
 #[cfg(test)]

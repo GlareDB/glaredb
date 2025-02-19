@@ -22,7 +22,7 @@ use bytes::Bytes;
 use super::Decoder;
 use crate::basic::Encoding;
 use crate::data_type::{DataType, SliceAsBytes};
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 
 #[derive(Debug)]
 pub struct ByteStreamSplitDecoder<T: DataType> {
@@ -63,7 +63,7 @@ fn join_streams_const<const TYPE_SIZE: usize>(
 }
 
 impl<T: DataType> Decoder<T> for ByteStreamSplitDecoder<T> {
-    fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
+    fn set_data(&mut self, data: Bytes, num_values: usize) -> ParquetResult<()> {
         self.encoded_bytes = data;
         self.total_num_values = num_values;
         self.values_decoded = 0;
@@ -71,7 +71,7 @@ impl<T: DataType> Decoder<T> for ByteStreamSplitDecoder<T> {
         Ok(())
     }
 
-    fn read(&mut self, buffer: &mut [<T as DataType>::T]) -> Result<usize> {
+    fn read(&mut self, buffer: &mut [<T as DataType>::T]) -> ParquetResult<usize> {
         let total_remaining_values = self.values_left();
         let num_values = buffer.len().min(total_remaining_values);
         let buffer = &mut buffer[..num_values];
@@ -113,7 +113,7 @@ impl<T: DataType> Decoder<T> for ByteStreamSplitDecoder<T> {
         Encoding::BYTE_STREAM_SPLIT
     }
 
-    fn skip(&mut self, num_values: usize) -> Result<usize> {
+    fn skip(&mut self, num_values: usize) -> ParquetResult<usize> {
         let to_skip = usize::min(self.values_left(), num_values);
         self.values_decoded += to_skip;
         Ok(to_skip)

@@ -2,6 +2,7 @@ pub mod copy_to;
 pub mod functions;
 pub mod metadata;
 pub mod reader;
+pub mod scan;
 pub mod writer;
 
 mod schema;

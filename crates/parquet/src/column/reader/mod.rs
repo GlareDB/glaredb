@@ -33,7 +33,7 @@ use crate::column::reader::decoder::{
     RepetitionLevelDecoder,
 };
 use crate::data_type::*;
-use crate::errors::{ParquetError, Result};
+use crate::errors::{ParquetError, ParquetResult};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
 
@@ -102,8 +102,6 @@ pub fn get_typed_column_reader<T: DataType, P: PageReader>(
 }
 
 /// Reads data for a given column chunk, using the provided decoders:
-///
-/// - T: Parquet data type
 #[derive(Debug)]
 pub struct GenericColumnReader<V: ColumnValueDecoder, P: PageReader> {
     descr: ColumnDescPtr,
@@ -199,7 +197,7 @@ where
         mut def_levels: Option<&mut Vec<i16>>,
         mut rep_levels: Option<&mut Vec<i16>>,
         values: &mut V::Buffer,
-    ) -> Result<(usize, usize, usize)> {
+    ) -> ParquetResult<(usize, usize, usize)> {
         let mut total_records_read = 0;
         let mut total_levels_read = 0;
         let mut total_values_read = 0;
@@ -270,7 +268,7 @@ where
     /// # Returns
     ///
     /// Returns the number of records skipped
-    pub fn skip_records(&mut self, num_records: usize) -> Result<usize> {
+    pub fn skip_records(&mut self, num_records: usize) -> ParquetResult<usize> {
         let mut remaining_records = num_records;
         while remaining_records != 0 {
             if self.num_buffered_values == self.num_decoded_values {
@@ -369,7 +367,7 @@ where
 
     /// Read the next page as a dictionary page. If the next page is not a dictionary page,
     /// this will return an error.
-    fn read_dictionary_page(&mut self) -> Result<()> {
+    fn read_dictionary_page(&mut self) -> ParquetResult<()> {
         match self.page_reader.get_next_page()? {
             Some(Page::DictionaryPage {
                 buf,
@@ -387,7 +385,7 @@ where
 
     /// Reads a new page and set up the decoders for levels, values or dictionary.
     /// Returns false if there's no page left.
-    fn read_new_page(&mut self) -> Result<bool> {
+    fn read_new_page(&mut self) -> ParquetResult<bool> {
         loop {
             match self.page_reader.get_next_page()? {
                 // No more page to read
@@ -527,7 +525,7 @@ where
     /// If the current page is fully decoded, this will load the next page
     /// (if it exists) into the buffer
     #[inline]
-    pub fn has_next(&mut self) -> Result<bool> {
+    pub fn has_next(&mut self) -> ParquetResult<bool> {
         if self.num_buffered_values == 0 || self.num_buffered_values == self.num_decoded_values {
             // TODO: should we return false if read_new_page() = true and
             // num_buffered_values = 0?
@@ -547,7 +545,7 @@ fn parse_v1_level(
     num_buffered_values: u32,
     encoding: Encoding,
     buf: Bytes,
-) -> Result<(usize, Bytes)> {
+) -> ParquetResult<(usize, Bytes)> {
     match encoding {
         Encoding::RLE => {
             let i32_size = std::mem::size_of::<i32>();

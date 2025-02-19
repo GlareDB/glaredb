@@ -6,7 +6,7 @@ use super::decoder::ColumnValueDecoder;
 use crate::basic::Encoding;
 use crate::data_type::DataType;
 use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 use crate::schema::types::ColumnDescPtr;
 
 /// Column value decoder that uses a Vec for the buffer to write to.
@@ -41,7 +41,7 @@ impl<T: DataType> BasicColumnValueDecoder<T> {
         num_values: u32,
         mut encoding: Encoding,
         _is_sorted: bool,
-    ) -> Result<()> {
+    ) -> ParquetResult<()> {
         if encoding == Encoding::PLAIN || encoding == Encoding::PLAIN_DICTIONARY {
             encoding = Encoding::RLE_DICTIONARY
         }
@@ -83,7 +83,7 @@ impl<T: DataType> BasicColumnValueDecoder<T> {
         data: Bytes,
         num_levels: usize,
         num_values: Option<usize>,
-    ) -> Result<()> {
+    ) -> ParquetResult<()> {
         use std::collections::hash_map::Entry;
 
         if encoding == Encoding::PLAIN_DICTIONARY {
@@ -115,7 +115,7 @@ impl<T: DataType> BasicColumnValueDecoder<T> {
     /// # Panics
     ///
     /// Implementations may panic if `range` overlaps with already written data
-    pub fn read(&mut self, out: &mut Vec<T::T>, num_values: usize) -> Result<usize> {
+    pub fn read(&mut self, out: &mut Vec<T::T>, num_values: usize) -> ParquetResult<usize> {
         let encoding = self
             .current_encoding
             .expect("current_encoding should be set");
@@ -136,7 +136,7 @@ impl<T: DataType> BasicColumnValueDecoder<T> {
     /// Skips over `num_values` values
     ///
     /// Returns the number of values skipped
-    pub fn skip_values(&mut self, num_values: usize) -> Result<usize> {
+    pub fn skip_values(&mut self, num_values: usize) -> ParquetResult<usize> {
         let encoding = self
             .current_encoding
             .expect("current_encoding should be set");
@@ -159,7 +159,7 @@ impl<T: DataType> ColumnValueDecoder for BasicColumnValueDecoder<T> {
         num_values: u32,
         mut encoding: Encoding,
         _is_sorted: bool,
-    ) -> Result<()> {
+    ) -> ParquetResult<()> {
         if encoding == Encoding::PLAIN || encoding == Encoding::PLAIN_DICTIONARY {
             encoding = Encoding::RLE_DICTIONARY
         }
@@ -190,7 +190,7 @@ impl<T: DataType> ColumnValueDecoder for BasicColumnValueDecoder<T> {
         data: Bytes,
         num_levels: usize,
         num_values: Option<usize>,
-    ) -> Result<()> {
+    ) -> ParquetResult<()> {
         use std::collections::hash_map::Entry;
 
         if encoding == Encoding::PLAIN_DICTIONARY {
@@ -217,7 +217,7 @@ impl<T: DataType> ColumnValueDecoder for BasicColumnValueDecoder<T> {
         Ok(())
     }
 
-    fn read(&mut self, out: &mut Vec<T::T>, num_values: usize) -> Result<usize> {
+    fn read(&mut self, out: &mut Vec<T::T>, num_values: usize) -> ParquetResult<usize> {
         let encoding = self
             .current_encoding
             .expect("current_encoding should be set");
@@ -235,7 +235,7 @@ impl<T: DataType> ColumnValueDecoder for BasicColumnValueDecoder<T> {
         Ok(read)
     }
 
-    fn skip_values(&mut self, num_values: usize) -> Result<usize> {
+    fn skip_values(&mut self, num_values: usize) -> ParquetResult<usize> {
         let encoding = self
             .current_encoding
             .expect("current_encoding should be set");

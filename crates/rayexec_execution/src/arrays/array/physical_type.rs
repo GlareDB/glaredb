@@ -404,6 +404,20 @@ pub struct BinaryViewAddressableMut<'a, B: BufferManager> {
     pub(crate) buffer: &'a mut StringViewBuffer<B>,
 }
 
+impl<B> BinaryViewAddressableMut<'_, B>
+where
+    B: BufferManager,
+{
+    /// Clears the underlying binary buffer.
+    ///
+    /// This does not modify or otherwise zero out the metadata objects.
+    /// Metadata must be overwritten with valid data to avoid out-of-bounds
+    /// access.
+    pub fn clear(&mut self) {
+        self.buffer.clear();
+    }
+}
+
 impl<B> AddressableMut<B> for BinaryViewAddressableMut<'_, B>
 where
     B: BufferManager,

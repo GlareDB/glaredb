@@ -32,7 +32,7 @@ use crate::basic::{Encoding, Type};
 use crate::bloom_filter::Sbbf;
 use crate::column::page::{Page, PageMetadata, PageReader};
 use crate::compression::{create_codec, Codec};
-use crate::errors::{ParquetError, Result};
+use crate::errors::{ParquetError, ParquetResult};
 use crate::file::metadata::*;
 use crate::file::page_index::index_reader;
 use crate::file::properties::{ReaderProperties, ReaderPropertiesPtr};
@@ -44,7 +44,7 @@ use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 impl TryFrom<File> for SerializedFileReader<File> {
     type Error = ParquetError;
 
-    fn try_from(file: File) -> Result<Self> {
+    fn try_from(file: File) -> ParquetResult<Self> {
         Self::new(file)
     }
 }
@@ -52,7 +52,7 @@ impl TryFrom<File> for SerializedFileReader<File> {
 impl TryFrom<&Path> for SerializedFileReader<File> {
     type Error = ParquetError;
 
-    fn try_from(path: &Path) -> Result<Self> {
+    fn try_from(path: &Path) -> ParquetResult<Self> {
         let file = File::open(path)?;
         Self::try_from(file)
     }
@@ -61,7 +61,7 @@ impl TryFrom<&Path> for SerializedFileReader<File> {
 impl TryFrom<String> for SerializedFileReader<File> {
     type Error = ParquetError;
 
-    fn try_from(path: String) -> Result<Self> {
+    fn try_from(path: String) -> ParquetResult<Self> {
         Self::try_from(Path::new(&path))
     }
 }
@@ -69,7 +69,7 @@ impl TryFrom<String> for SerializedFileReader<File> {
 impl TryFrom<&str> for SerializedFileReader<File> {
     type Error = ParquetError;
 
-    fn try_from(path: &str) -> Result<Self> {
+    fn try_from(path: &str) -> ParquetResult<Self> {
         Self::try_from(Path::new(&path))
     }
 }
@@ -165,7 +165,7 @@ pub struct ReadOptions {
 impl<R: 'static + ChunkReader> SerializedFileReader<R> {
     /// Creates file reader from a Parquet file.
     /// Returns error if Parquet file does not exist or is corrupt.
-    pub fn new(chunk_reader: R) -> Result<Self> {
+    pub fn new(chunk_reader: R) -> ParquetResult<Self> {
         let metadata = footer::parse_metadata(&chunk_reader)?;
         let props = Arc::new(ReaderProperties::builder().build());
         Ok(Self {
@@ -177,7 +177,7 @@ impl<R: 'static + ChunkReader> SerializedFileReader<R> {
 
     /// Creates file reader from a Parquet file with read options.
     /// Returns error if Parquet file does not exist or is corrupt.
-    pub fn new_with_options(chunk_reader: R, options: ReadOptions) -> Result<Self> {
+    pub fn new_with_options(chunk_reader: R, options: ReadOptions) -> ParquetResult<Self> {
         let metadata = footer::parse_metadata(&chunk_reader)?;
         let mut predicates = options.predicates;
         let row_groups = metadata.row_groups().to_vec();
@@ -252,7 +252,7 @@ impl<R: 'static + ChunkReader> FileReader<SerializedPageReader<R>, SerializedRow
         self.metadata.num_row_groups()
     }
 
-    fn get_row_group(&self, i: usize) -> Result<SerializedRowGroupReader<R>> {
+    fn get_row_group(&self, i: usize) -> ParquetResult<SerializedRowGroupReader<R>> {
         // Row groups should be processed sequentially.
         SerializedRowGroupReader::new(
             i,
@@ -279,14 +279,14 @@ impl<R: ChunkReader> SerializedRowGroupReader<R> {
         chunk_reader: Arc<R>,
         parquet_metadata: Arc<ParquetMetaData>,
         props: ReaderPropertiesPtr,
-    ) -> Result<Self> {
+    ) -> ParquetResult<Self> {
         let bloom_filters = if props.read_bloom_filter() {
             parquet_metadata
                 .row_group(row_group)
                 .columns()
                 .iter()
                 .map(|col| Sbbf::read_from_column_chunk(col, chunk_reader.clone()))
-                .collect::<Result<Vec<_>>>()?
+                .collect::<ParquetResult<Vec<_>>>()?
         } else {
             iter::repeat(None)
                 .take(parquet_metadata.row_group(row_group).columns().len())
@@ -320,7 +320,7 @@ impl<R: 'static + ChunkReader> RowGroupReader<SerializedPageReader<R>>
     }
 
     // TODO: fix PARQUET-816
-    fn get_column_page_reader(&self, i: usize) -> Result<SerializedPageReader<R>> {
+    fn get_column_page_reader(&self, i: usize) -> ParquetResult<SerializedPageReader<R>> {
         let col = self.metadata().column(i);
 
         SerializedPageReader::new_with_properties(
@@ -339,14 +339,14 @@ impl<R: 'static + ChunkReader> RowGroupReader<SerializedPageReader<R>>
 }
 
 /// Reads a [`PageHeader`] from the provided [`Read`]
-pub(crate) fn read_page_header<T: Read>(input: &mut T) -> Result<PageHeader> {
+pub(crate) fn read_page_header<T: Read>(input: &mut T) -> ParquetResult<PageHeader> {
     let mut prot = TCompactInputProtocol::new(input);
     let page_header = PageHeader::read_from_in_protocol(&mut prot)?;
     Ok(page_header)
 }
 
 /// Reads a [`PageHeader`] from the provided [`Read`] returning the number of bytes read
-fn read_page_header_len<T: Read>(input: &mut T) -> Result<(usize, PageHeader)> {
+fn read_page_header_len<T: Read>(input: &mut T) -> ParquetResult<(usize, PageHeader)> {
     /// A wrapper around a [`std::io::Read`] that keeps track of the bytes read
     struct TrackedRead<R> {
         inner: R,
@@ -375,7 +375,7 @@ pub(crate) fn decode_page(
     buffer: Bytes,
     physical_type: Type,
     decompressor: Option<&mut Box<dyn Codec>>,
-) -> Result<Page> {
+) -> ParquetResult<Page> {
     // When processing data page v2, depending on enabled compression for the
     // page, we should account for uncompressed data ('offset') of
     // repetition and definition levels.
@@ -513,7 +513,7 @@ impl<R: ChunkReader> SerializedPageReader<R> {
         meta: &ColumnChunkMetaData,
         total_rows: usize,
         page_locations: Option<Vec<PageLocation>>,
-    ) -> Result<Self> {
+    ) -> ParquetResult<Self> {
         let props = Arc::new(ReaderProperties::builder().build());
         SerializedPageReader::new_with_properties(reader, meta, total_rows, page_locations, props)
     }
@@ -525,7 +525,7 @@ impl<R: ChunkReader> SerializedPageReader<R> {
         total_rows: usize,
         page_locations: Option<Vec<PageLocation>>,
         props: ReaderPropertiesPtr,
-    ) -> Result<Self> {
+    ) -> ParquetResult<Self> {
         let decompressor = create_codec(meta.compression(), props.codec_options())?;
         let (start, len) = meta.byte_range();
 
@@ -563,7 +563,7 @@ impl<R: ChunkReader> SerializedPageReader<R> {
 }
 
 impl<R: ChunkReader> Iterator for SerializedPageReader<R> {
-    type Item = Result<Page>;
+    type Item = ParquetResult<Page>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.get_next_page().transpose()
@@ -571,7 +571,7 @@ impl<R: ChunkReader> Iterator for SerializedPageReader<R> {
 }
 
 impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
-    fn get_next_page(&mut self) -> Result<Option<Page>> {
+    fn get_next_page(&mut self) -> ParquetResult<Option<Page>> {
         loop {
             let page = match &mut self.state {
                 SerializedPageReaderState::Values {
@@ -653,7 +653,7 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
         }
     }
 
-    fn peek_next_page(&mut self) -> Result<Option<PageMetadata>> {
+    fn peek_next_page(&mut self) -> ParquetResult<Option<PageMetadata>> {
         match &mut self.state {
             SerializedPageReaderState::Values {
                 offset,
@@ -717,7 +717,7 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
         }
     }
 
-    fn skip_next_page(&mut self) -> Result<()> {
+    fn skip_next_page(&mut self) -> ParquetResult<()> {
         match &mut self.state {
             SerializedPageReaderState::Values {
                 offset,
@@ -745,7 +745,7 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
         }
     }
 
-    fn at_record_boundary(&mut self) -> Result<bool> {
+    fn at_record_boundary(&mut self) -> ParquetResult<bool> {
         match &mut self.state {
             SerializedPageReaderState::Values { .. } => Ok(self.peek_next_page()?.is_none()),
             SerializedPageReaderState::Pages { .. } => Ok(true),
@@ -1136,7 +1136,7 @@ mod tests {
     }
 
     #[test]
-    fn test_file_reader_with_no_filter() -> Result<()> {
+    fn test_file_reader_with_no_filter() -> ParquetResult<()> {
         let test_file = get_test_file("alltypes_plain.parquet");
         let origin_reader = SerializedFileReader::new(test_file)?;
         // test initial number of row groups
@@ -1146,7 +1146,7 @@ mod tests {
     }
 
     #[test]
-    fn test_file_reader_filter_row_groups_with_predicate() -> Result<()> {
+    fn test_file_reader_filter_row_groups_with_predicate() -> ParquetResult<()> {
         let test_file = get_test_file("alltypes_plain.parquet");
         let read_options = ReadOptionsBuilder::new()
             .with_predicate(Box::new(|_, _| false))
@@ -1158,7 +1158,7 @@ mod tests {
     }
 
     #[test]
-    fn test_file_reader_filter_row_groups_with_range() -> Result<()> {
+    fn test_file_reader_filter_row_groups_with_range() -> ParquetResult<()> {
         let test_file = get_test_file("alltypes_plain.parquet");
         let origin_reader = SerializedFileReader::new(test_file)?;
         // test initial number of row groups
@@ -1181,7 +1181,7 @@ mod tests {
     }
 
     #[test]
-    fn test_file_reader_filter_row_groups_and_range() -> Result<()> {
+    fn test_file_reader_filter_row_groups_and_range() -> ParquetResult<()> {
         let test_file = get_test_file("alltypes_plain.parquet");
         let origin_reader = SerializedFileReader::new(test_file)?;
         let metadata = origin_reader.metadata();

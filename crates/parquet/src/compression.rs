@@ -47,7 +47,7 @@ assert_eq!(output, data);
 "##
 )]
 use crate::basic::Compression as CodecType;
-use crate::errors::{ParquetError, Result};
+use crate::errors::{ParquetError, ParquetResult};
 
 /// Parquet compression codec interface.
 pub trait Codec: Sync + Send {
@@ -56,7 +56,7 @@ pub trait Codec: Sync + Send {
     ///
     /// Note that you'll need to call `clear()` before reusing the same `output_buf`
     /// across different `compress` calls.
-    fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()>;
+    fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> ParquetResult<()>;
 
     /// Decompresses data stored in slice `input_buf` and appends output to `output_buf`.
     ///
@@ -70,7 +70,7 @@ pub trait Codec: Sync + Send {
         input_buf: &[u8],
         output_buf: &mut Vec<u8>,
         uncompress_size: Option<usize>,
-    ) -> Result<usize>;
+    ) -> ParquetResult<usize>;
 }
 
 /// Struct to hold `Codec` creation options.
@@ -126,7 +126,7 @@ pub(crate) trait CompressionLevel<T: std::fmt::Display + std::cmp::PartialOrd> {
     const MAXIMUM_LEVEL: T;
 
     /// Tests if the provided compression level is valid.
-    fn is_valid_level(level: T) -> Result<()> {
+    fn is_valid_level(level: T) -> ParquetResult<()> {
         let compression_range = Self::MINIMUM_LEVEL..=Self::MAXIMUM_LEVEL;
         if compression_range.contains(&level) {
             Ok(())
@@ -143,7 +143,10 @@ pub(crate) trait CompressionLevel<T: std::fmt::Display + std::cmp::PartialOrd> {
 /// Given the compression type `codec`, returns a codec used to compress and decompress
 /// bytes for the compression type.
 /// This returns `None` if the codec type is `UNCOMPRESSED`.
-pub fn create_codec(codec: CodecType, _options: &CodecOptions) -> Result<Option<Box<dyn Codec>>> {
+pub fn create_codec(
+    codec: CodecType,
+    _options: &CodecOptions,
+) -> ParquetResult<Option<Box<dyn Codec>>> {
     #[allow(unreachable_code, unused_variables)]
     match codec {
         CodecType::BROTLI(level) => {
@@ -200,7 +203,7 @@ mod snappy_codec {
     use snap::raw::{decompress_len, max_compress_len, Decoder, Encoder};
 
     use crate::compression::Codec;
-    use crate::errors::Result;
+    use crate::errors::ParquetResult;
 
     /// Codec for Snappy compression format.
     pub struct SnappyCodec {
@@ -224,7 +227,7 @@ mod snappy_codec {
             input_buf: &[u8],
             output_buf: &mut Vec<u8>,
             uncompress_size: Option<usize>,
-        ) -> Result<usize> {
+        ) -> ParquetResult<usize> {
             let len = match uncompress_size {
                 Some(size) => size,
                 None => decompress_len(input_buf)?,
@@ -236,7 +239,7 @@ mod snappy_codec {
                 .map_err(|e| e.into())
         }
 
-        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
+        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> ParquetResult<()> {
             let output_buf_len = output_buf.len();
             let required_len = max_compress_len(input_buf.len());
             output_buf.resize(output_buf_len + required_len, 0);
@@ -260,7 +263,7 @@ mod gzip_codec {
 
     use super::GzipLevel;
     use crate::compression::Codec;
-    use crate::errors::Result;
+    use crate::errors::ParquetResult;
 
     /// Codec for GZIP compression algorithm.
     pub struct GZipCodec {
@@ -280,12 +283,12 @@ mod gzip_codec {
             input_buf: &[u8],
             output_buf: &mut Vec<u8>,
             _uncompress_size: Option<usize>,
-        ) -> Result<usize> {
+        ) -> ParquetResult<usize> {
             let mut decoder = read::MultiGzDecoder::new(input_buf);
             decoder.read_to_end(output_buf).map_err(|e| e.into())
         }
 
-        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
+        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> ParquetResult<()> {
             let mut encoder = write::GzEncoder::new(output_buf, Compression::new(self.level.0));
             encoder.write_all(input_buf)?;
             encoder.try_finish().map_err(|e| e.into())
@@ -316,7 +319,7 @@ impl GzipLevel {
     /// Attempts to create a gzip compression level.
     ///
     /// Compression levels must be valid (i.e. be acceptable for [`flate2::Compression`]).
-    pub fn try_new(level: u32) -> Result<Self> {
+    pub fn try_new(level: u32) -> ParquetResult<Self> {
         Self::is_valid_level(level).map(|_| Self(level))
     }
 
@@ -333,7 +336,7 @@ mod brotli_codec {
 
     use super::BrotliLevel;
     use crate::compression::Codec;
-    use crate::errors::Result;
+    use crate::errors::ParquetResult;
 
     const BROTLI_DEFAULT_BUFFER_SIZE: usize = 4096;
     const BROTLI_DEFAULT_LG_WINDOW_SIZE: u32 = 22; // recommended between 20-22
@@ -356,14 +359,14 @@ mod brotli_codec {
             input_buf: &[u8],
             output_buf: &mut Vec<u8>,
             uncompress_size: Option<usize>,
-        ) -> Result<usize> {
+        ) -> ParquetResult<usize> {
             let buffer_size = uncompress_size.unwrap_or(BROTLI_DEFAULT_BUFFER_SIZE);
             brotli::Decompressor::new(input_buf, buffer_size)
                 .read_to_end(output_buf)
                 .map_err(|e| e.into())
         }
 
-        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
+        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> ParquetResult<()> {
             let mut encoder = brotli::CompressorWriter::new(
                 output_buf,
                 BROTLI_DEFAULT_BUFFER_SIZE,
@@ -397,7 +400,7 @@ impl BrotliLevel {
     /// Attempts to create a brotli compression level.
     ///
     /// Compression levels must be valid.
-    pub fn try_new(level: u32) -> Result<Self> {
+    pub fn try_new(level: u32) -> ParquetResult<Self> {
         Self::is_valid_level(level).map(|_| Self(level))
     }
 
@@ -412,7 +415,7 @@ mod lz4_codec {
     use std::io::{Read, Write};
 
     use crate::compression::Codec;
-    use crate::errors::{ParquetError, Result};
+    use crate::errors::{ParquetError, ParquetResult};
 
     const LZ4_BUFFER_SIZE: usize = 4096;
 
@@ -432,7 +435,7 @@ mod lz4_codec {
             input_buf: &[u8],
             output_buf: &mut Vec<u8>,
             _uncompress_size: Option<usize>,
-        ) -> Result<usize> {
+        ) -> ParquetResult<usize> {
             let mut decoder = lz4_flex::frame::FrameDecoder::new(input_buf);
             let mut buffer: [u8; LZ4_BUFFER_SIZE] = [0; LZ4_BUFFER_SIZE];
             let mut total_len = 0;
@@ -447,7 +450,7 @@ mod lz4_codec {
             Ok(total_len)
         }
 
-        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
+        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> ParquetResult<()> {
             let mut encoder = lz4_flex::frame::FrameEncoder::new(output_buf);
             let mut from = 0;
             loop {
@@ -475,7 +478,7 @@ mod zstd_codec {
     use std::io::{self, Write};
 
     use crate::compression::{Codec, ZstdLevel};
-    use crate::errors::Result;
+    use crate::errors::ParquetResult;
 
     /// Codec for Zstandard compression algorithm.
     pub struct ZSTDCodec {
@@ -495,7 +498,7 @@ mod zstd_codec {
             input_buf: &[u8],
             output_buf: &mut Vec<u8>,
             _uncompress_size: Option<usize>,
-        ) -> Result<usize> {
+        ) -> ParquetResult<usize> {
             let mut decoder = zstd::Decoder::new(input_buf)?;
             match io::copy(&mut decoder, output_buf) {
                 Ok(n) => Ok(n as usize),
@@ -503,7 +506,7 @@ mod zstd_codec {
             }
         }
 
-        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
+        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> ParquetResult<()> {
             let mut encoder = zstd::Encoder::new(output_buf, self.level.0)?;
             encoder.write_all(input_buf)?;
             match encoder.finish() {
@@ -531,7 +534,7 @@ impl ZstdLevel {
     /// Attempts to create a zstd compression level from a given compression level.
     ///
     /// Compression levels must be valid (i.e. be acceptable for [`zstd::compression_level_range`]).
-    pub fn try_new(level: i32) -> Result<Self> {
+    pub fn try_new(level: i32) -> ParquetResult<Self> {
         Self::is_valid_level(level).map(|_| Self(level))
     }
 
@@ -550,7 +553,7 @@ impl Default for ZstdLevel {
 #[cfg(any(feature = "lz4", test))]
 mod lz4_raw_codec {
     use crate::compression::Codec;
-    use crate::errors::{ParquetError, Result};
+    use crate::errors::{ParquetError, ParquetResult};
 
     /// Codec for LZ4 Raw compression algorithm.
     pub struct LZ4RawCodec {}
@@ -568,7 +571,7 @@ mod lz4_raw_codec {
             input_buf: &[u8],
             output_buf: &mut Vec<u8>,
             uncompress_size: Option<usize>,
-        ) -> Result<usize> {
+        ) -> ParquetResult<usize> {
             let offset = output_buf.len();
             let required_len = match uncompress_size {
                 Some(uncompress_size) => uncompress_size,
@@ -592,7 +595,7 @@ mod lz4_raw_codec {
             }
         }
 
-        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
+        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> ParquetResult<()> {
             let offset = output_buf.len();
             let required_len = lz4_flex::block::get_maximum_output_size(input_buf.len());
             output_buf.resize(offset + required_len, 0);
@@ -616,7 +619,7 @@ mod lz4_hadoop_codec {
     use crate::compression::lz4_codec::LZ4Codec;
     use crate::compression::lz4_raw_codec::LZ4RawCodec;
     use crate::compression::Codec;
-    use crate::errors::{ParquetError, Result};
+    use crate::errors::{ParquetError, ParquetResult};
 
     /// Size of u32 type.
     const SIZE_U32: usize = std::mem::size_of::<u32>();
@@ -718,7 +721,7 @@ mod lz4_hadoop_codec {
             input_buf: &[u8],
             output_buf: &mut Vec<u8>,
             uncompress_size: Option<usize>,
-        ) -> Result<usize> {
+        ) -> ParquetResult<usize> {
             let output_len = output_buf.len();
             let required_len = match uncompress_size {
                 Some(n) => n,
@@ -756,7 +759,7 @@ mod lz4_hadoop_codec {
             }
         }
 
-        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
+        fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> ParquetResult<()> {
             // Allocate memory to store the LZ4_HADOOP prefix.
             let offset = output_buf.len();
             output_buf.resize(offset + PREFIX_LEN, 0);

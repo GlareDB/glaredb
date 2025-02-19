@@ -31,7 +31,7 @@ use crate::column::writer::{
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::DataType;
 use crate::encodings::encoding::{get_encoder, DictEncoder, Encoder};
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 use crate::file::properties::{EnabledStatistics, WriterProperties};
 use crate::schema::types::{ColumnDescPtr, ColumnDescriptor};
 
@@ -71,7 +71,7 @@ impl<T: DataType> ColumnValueEncoder<T> {
         }
     }
 
-    fn write_slice(&mut self, slice: &[T::T]) -> Result<()> {
+    fn write_slice(&mut self, slice: &[T::T]) -> ParquetResult<()> {
         if self.statistics_enabled != EnabledStatistics::None
             // INTERVAL has undefined sort order, so don't write min/max stats for it
             && self.descr.converted_type() != ConvertedType::INTERVAL
@@ -98,7 +98,7 @@ impl<T: DataType> ColumnValueEncoder<T> {
 
 impl<T: DataType> ColumnValueEncoder<T> {
     /// Create a new [`ColumnValueEncoder`]
-    pub fn try_new(descr: &ColumnDescPtr, props: &WriterProperties) -> Result<Self> {
+    pub fn try_new(descr: &ColumnDescPtr, props: &WriterProperties) -> ParquetResult<Self> {
         let dict_supported = props.dictionary_enabled(descr.path())
             && has_dictionary_support(T::get_physical_type(), props);
         let dict_encoder = dict_supported.then(|| DictEncoder::new(descr.clone()));
@@ -130,7 +130,7 @@ impl<T: DataType> ColumnValueEncoder<T> {
     }
 
     /// Write the corresponding values to this [`ColumnValueEncoder`]
-    pub fn write(&mut self, values: &[T::T], offset: usize, len: usize) -> Result<()> {
+    pub fn write(&mut self, values: &[T::T], offset: usize, len: usize) -> ParquetResult<()> {
         self.num_values += len;
 
         let slice = values.get(offset..offset + len).ok_or_else(|| {
@@ -145,7 +145,7 @@ impl<T: DataType> ColumnValueEncoder<T> {
     }
 
     /// Write the values at the indexes in `indices` to this [`ColumnValueEncoder`]
-    pub fn write_gather(&mut self, values: &[T::T], indices: &[usize]) -> Result<()> {
+    pub fn write_gather(&mut self, values: &[T::T], indices: &[usize]) -> ParquetResult<()> {
         self.num_values += indices.len();
         let slice: Vec<_> = indices.iter().map(|idx| values[*idx].clone()).collect();
         self.write_slice(&slice)
@@ -179,7 +179,7 @@ impl<T: DataType> ColumnValueEncoder<T> {
     ///
     /// Note: [`Self::flush_data_page`] must be called first, as this will error if there
     /// are any pending page values
-    pub fn flush_dict_page(&mut self) -> Result<Option<DictionaryPage>> {
+    pub fn flush_dict_page(&mut self) -> ParquetResult<Option<DictionaryPage>> {
         match self.dict_encoder.take() {
             Some(encoder) => {
                 if self.num_values != 0 {
@@ -201,7 +201,7 @@ impl<T: DataType> ColumnValueEncoder<T> {
     }
 
     /// Flush the next data page for this column chunk
-    pub fn flush_data_page(&mut self) -> Result<DataPageValues<T::T>> {
+    pub fn flush_data_page(&mut self) -> ParquetResult<DataPageValues<T::T>> {
         let (buf, encoding) = match &mut self.dict_encoder {
             Some(encoder) => (encoder.write_indices()?, Encoding::RLE_DICTIONARY),
             _ => (self.encoder.flush_buffer()?, self.encoder.encoding()),

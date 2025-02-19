@@ -30,7 +30,7 @@ use crate::basic::Type;
 use crate::bloom_filter::Sbbf;
 use crate::column::page::PageReader;
 use crate::column::reader::{ColumnReader, GenericColumnReader};
-use crate::errors::{ParquetError, Result};
+use crate::errors::{ParquetError, ParquetResult};
 use crate::file::metadata::*;
 pub use crate::file::serialized_reader::{SerializedFileReader, SerializedPageReader};
 
@@ -54,14 +54,14 @@ pub trait ChunkReader: Length + Send + Sync {
     /// side-effect on previously returned [`Self::T`]. Care should be taken to avoid this
     ///
     /// See [`File::try_clone`] for more information
-    fn get_read(&self, start: u64) -> Result<Self::T>;
+    fn get_read(&self, start: u64) -> ParquetResult<Self::T>;
 
     /// Get a range as bytes
     ///
     /// Concurrent calls to [`Self::get_bytes`] may result in interleaved output
     ///
     /// See [`File::try_clone`] for more information
-    fn get_bytes(&self, start: u64, length: usize) -> Result<Bytes>;
+    fn get_bytes(&self, start: u64, length: usize) -> ParquetResult<Bytes>;
 }
 
 impl Length for File {
@@ -73,13 +73,13 @@ impl Length for File {
 impl ChunkReader for File {
     type T = BufReader<File>;
 
-    fn get_read(&self, start: u64) -> Result<Self::T> {
+    fn get_read(&self, start: u64) -> ParquetResult<Self::T> {
         let mut reader = self.try_clone()?;
         reader.seek(SeekFrom::Start(start))?;
         Ok(BufReader::new(self.try_clone()?))
     }
 
-    fn get_bytes(&self, start: u64, length: usize) -> Result<Bytes> {
+    fn get_bytes(&self, start: u64, length: usize) -> ParquetResult<Bytes> {
         let mut buffer = Vec::with_capacity(length);
         let mut reader = self.try_clone()?;
         reader.seek(SeekFrom::Start(start))?;
@@ -105,12 +105,12 @@ impl Length for Bytes {
 impl ChunkReader for Bytes {
     type T = bytes::buf::Reader<Bytes>;
 
-    fn get_read(&self, start: u64) -> Result<Self::T> {
+    fn get_read(&self, start: u64) -> ParquetResult<Self::T> {
         let start = start as usize;
         Ok(self.slice(start..).reader())
     }
 
-    fn get_bytes(&self, start: u64, length: usize) -> Result<Bytes> {
+    fn get_bytes(&self, start: u64, length: usize) -> ParquetResult<Bytes> {
         let start = start as usize;
         Ok(self.slice(start..start + length))
     }
@@ -129,7 +129,7 @@ pub trait FileReader<P: PageReader, R: RowGroupReader<P>>: Send + Sync {
     fn num_row_groups(&self) -> usize;
 
     /// Get the `i`th row group reader. Note this doesn't do bound check.
-    fn get_row_group(&self, i: usize) -> Result<R>;
+    fn get_row_group(&self, i: usize) -> ParquetResult<R>;
 }
 
 /// Parquet row group reader API. With this, user can get metadata information about the
@@ -142,10 +142,10 @@ pub trait RowGroupReader<P: PageReader>: Send + Sync {
     fn num_columns(&self) -> usize;
 
     /// Get page reader for the `i`th column chunk.
-    fn get_column_page_reader(&self, i: usize) -> Result<P>;
+    fn get_column_page_reader(&self, i: usize) -> ParquetResult<P>;
 
     /// Get value reader for the `i`th column chunk.
-    fn get_column_reader(&self, i: usize) -> Result<ColumnReader<P>> {
+    fn get_column_reader(&self, i: usize) -> ParquetResult<ColumnReader<P>> {
         let schema_descr = self.metadata().schema_descr();
         let col_descr = schema_descr.column(i);
         let col_page_reader = self.get_column_page_reader(i)?;
@@ -204,7 +204,7 @@ pub struct FilePageIterator<P, F, R> {
 
 impl<P: PageReader, R: RowGroupReader<P>, F: FileReader<P, R>> FilePageIterator<P, F, R> {
     /// Creates a page iterator for all row groups in file.
-    pub fn new(column_index: usize, file_reader: Arc<F>) -> Result<Self> {
+    pub fn new(column_index: usize, file_reader: Arc<F>) -> ParquetResult<Self> {
         let num_row_groups = file_reader.metadata().num_row_groups();
 
         let row_group_indices = Box::new(0..num_row_groups);
@@ -217,7 +217,7 @@ impl<P: PageReader, R: RowGroupReader<P>, F: FileReader<P, R>> FilePageIterator<
         column_index: usize,
         row_group_indices: Box<dyn Iterator<Item = usize> + Send>,
         file_reader: Arc<F>,
-    ) -> Result<Self> {
+    ) -> ParquetResult<Self> {
         // Check that column_index is valid
         let num_columns = file_reader
             .metadata()
@@ -243,9 +243,9 @@ impl<P: PageReader, R: RowGroupReader<P>, F: FileReader<P, R>> FilePageIterator<
 impl<P: PageReader, R: RowGroupReader<P>, F: FileReader<P, R>> Iterator
     for FilePageIterator<P, F, R>
 {
-    type Item = Result<P>;
+    type Item = ParquetResult<P>;
 
-    fn next(&mut self) -> Option<Result<P>> {
+    fn next(&mut self) -> Option<ParquetResult<P>> {
         self.row_group_indices.next().map(|row_group_index| {
             self.file_reader
                 .get_row_group(row_group_index)
