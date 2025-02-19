@@ -54,7 +54,7 @@ macro_rules! from_le_bytes {
         $(
         impl FromBytes for $ty {
             type Buffer = [u8; size_of::<Self>()];
-            fn try_from_le_slice(b: &[u8]) -> Result<Self> {
+            fn try_from_le_slice(b: &[u8]) -> ParquetResult<Self> {
                 Ok(Self::from_le_bytes(array_from_slice(b)?))
             }
             fn from_le_bytes(bs: Self::Buffer) -> Self {
@@ -680,7 +680,7 @@ mod tests {
     use rand::distributions::{Distribution, Standard};
 
     use super::*;
-    use crate::util::test_common::rand_gen::random_numbers;
+    use crate::testutil::rand_gen::random_numbers;
 
     #[test]
     fn test_ceil() {

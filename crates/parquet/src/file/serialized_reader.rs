@@ -765,8 +765,8 @@ mod tests {
     use crate::file::writer::SerializedFileWriter;
     use crate::format::BoundaryOrder;
     use crate::schema::parser::parse_message_type;
+    use crate::testutil::file_util::{get_test_file, get_test_path};
     use crate::util::bit_util::from_le_slice;
-    use crate::util::test_common::file_util::{get_test_file, get_test_path};
 
     // #[test]
     // fn test_cursor_and_file_has_the_same_behaviour() {

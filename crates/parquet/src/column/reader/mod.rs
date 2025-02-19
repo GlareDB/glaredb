@@ -575,8 +575,8 @@ mod tests {
     use super::*;
     use crate::basic::Type as PhysicalType;
     use crate::schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType};
-    use crate::util::test_common::page_util::InMemoryPageReader;
-    use crate::util::test_common::rand_gen::make_pages;
+    use crate::testutil::page_util::InMemoryPageReader;
+    use crate::testutil::rand_gen::make_pages;
 
     const NUM_LEVELS: usize = 128;
     const NUM_PAGES: usize = 2;

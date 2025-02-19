@@ -1278,7 +1278,7 @@ mod tests {
     use crate::file::reader::SerializedPageReader;
     use crate::file::writer::{SerializedPageWriter, TrackedWrite};
     use crate::schema::types::{ColumnPath, Type as SchemaType};
-    use crate::util::test_common::rand_gen::random_numbers_range;
+    use crate::testutil::rand_gen::random_numbers_range;
 
     #[test]
     fn test_column_writer_inconsistent_def_rep_length() {

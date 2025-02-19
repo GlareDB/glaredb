@@ -724,8 +724,8 @@ mod tests {
     use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
     use crate::errors::ParquetError;
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
+    use crate::testutil::rand_gen::{random_bytes, RandGen};
     use crate::util::bit_util;
-    use crate::util::test_common::rand_gen::{random_bytes, RandGen};
 
     const TEST_SET_SIZE: usize = 1024;
 

@@ -1108,7 +1108,7 @@ mod tests {
     use super::*;
     use crate::errors::ParquetError;
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
-    use crate::util::test_common::rand_gen::RandGen;
+    use crate::testutil::rand_gen::RandGen;
 
     #[test]
     fn test_get_decoders() {

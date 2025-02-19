@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//!
 //! This crate contains the official Native Rust implementation of
 //! [Apache Parquet](https://parquet.apache.org/), part of
 //! the [Apache Arrow](https://arrow.apache.org/) project.
@@ -109,3 +108,6 @@ pub mod file;
 pub mod schema;
 
 pub mod thrift;
+
+#[cfg(test)]
+pub mod testutil;

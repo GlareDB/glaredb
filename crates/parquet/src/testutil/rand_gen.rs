@@ -22,12 +22,12 @@ use rand::distributions::uniform::SampleUniform;
 use rand::distributions::{Distribution, Standard};
 use rand::{thread_rng, Rng};
 
+use super::page_util::{DataPageBuilder, DataPageBuilderImpl};
 use crate::basic::Encoding;
 use crate::column::page::Page;
 use crate::data_type::*;
 use crate::encodings::encoding::{DictEncoder, Encoder};
 use crate::schema::types::ColumnDescPtr;
-use crate::util::{DataPageBuilder, DataPageBuilderImpl};
 
 /// Random generator of data type `T` values and sequences.
 pub trait RandGen<T: DataType> {

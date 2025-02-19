@@ -730,7 +730,7 @@ pub(crate) mod private {
                 const PHYSICAL_TYPE: Type = $physical_ty;
 
                 #[inline]
-                fn encode<W: std::io::Write>(values: &[Self], writer: &mut W, _: &mut BitWriter) -> Result<()> {
+                fn encode<W: std::io::Write>(values: &[Self], writer: &mut W, _: &mut BitWriter) -> ParquetResult<()> {
                     let raw = unsafe {
                         std::slice::from_raw_parts(
                             values.as_ptr() as *const u8,
@@ -750,7 +750,7 @@ pub(crate) mod private {
                 }
 
                 #[inline]
-                fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+                fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
                     let data = decoder.data.as_ref().expect("set_data should have been called");
                     let num_values = std::cmp::min(buffer.len(), decoder.num_values);
                     let bytes_left = data.len() - decoder.start;
@@ -774,7 +774,7 @@ pub(crate) mod private {
                 }
 
                 #[inline]
-                fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+                fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
                     let data = decoder.data.as_ref().expect("set_data should have been called");
                     let num_values = num_values.min(decoder.num_values);
                     let bytes_left = data.len() - decoder.start;
@@ -791,7 +791,7 @@ pub(crate) mod private {
                 }
 
                 #[inline]
-                fn as_i64(&$self) -> Result<i64> {
+                fn as_i64(&$self) -> ParquetResult<i64> {
                     $as_i64
                 }
 

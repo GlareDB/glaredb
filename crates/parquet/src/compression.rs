@@ -786,7 +786,7 @@ pub use lz4_hadoop_codec::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::util::test_common::rand_gen::random_bytes;
+    use crate::testutil::rand_gen::random_bytes;
 
     fn test_roundtrip(c: CodecType, data: &[u8], uncompress_size: Option<usize>) {
         let codec_options = CodecOptionsBuilder::default()
