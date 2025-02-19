@@ -29,7 +29,7 @@ use bytes::{Buf, Bytes};
 use crate::basic::Type;
 use crate::bloom_filter::Sbbf;
 use crate::column::page::PageReader;
-use crate::column::reader::{ColumnReader, GenericColumnReader};
+use crate::column::reader::{BasicColumnReader, GenericColumnReader};
 use crate::errors::{eof_err, ParquetError, ParquetResult};
 use crate::file::metadata::*;
 pub use crate::file::serialized_reader::{SerializedFileReader, SerializedPageReader};
@@ -145,39 +145,40 @@ pub trait RowGroupReader<P: PageReader>: Send + Sync {
     fn get_column_page_reader(&self, i: usize) -> ParquetResult<P>;
 
     /// Get value reader for the `i`th column chunk.
-    fn get_column_reader(&self, i: usize) -> ParquetResult<ColumnReader<P>> {
+    fn get_column_reader(&self, i: usize) -> ParquetResult<BasicColumnReader<P>> {
         let schema_descr = self.metadata().schema_descr();
         let col_descr = schema_descr.column(i);
         let col_page_reader = self.get_column_page_reader(i)?;
         let col_reader = match col_descr.physical_type() {
-            Type::BOOLEAN => {
-                ColumnReader::BoolColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-            }
-            Type::INT32 => ColumnReader::Int32ColumnReader(GenericColumnReader::new(
+            Type::BOOLEAN => BasicColumnReader::BoolColumnReader(GenericColumnReader::new(
                 col_descr,
                 col_page_reader,
             )),
-            Type::INT64 => ColumnReader::Int64ColumnReader(GenericColumnReader::new(
+            Type::INT32 => BasicColumnReader::Int32ColumnReader(GenericColumnReader::new(
                 col_descr,
                 col_page_reader,
             )),
-            Type::INT96 => ColumnReader::Int96ColumnReader(GenericColumnReader::new(
+            Type::INT64 => BasicColumnReader::Int64ColumnReader(GenericColumnReader::new(
                 col_descr,
                 col_page_reader,
             )),
-            Type::FLOAT => ColumnReader::FloatColumnReader(GenericColumnReader::new(
+            Type::INT96 => BasicColumnReader::Int96ColumnReader(GenericColumnReader::new(
                 col_descr,
                 col_page_reader,
             )),
-            Type::DOUBLE => ColumnReader::DoubleColumnReader(GenericColumnReader::new(
+            Type::FLOAT => BasicColumnReader::FloatColumnReader(GenericColumnReader::new(
                 col_descr,
                 col_page_reader,
             )),
-            Type::BYTE_ARRAY => ColumnReader::ByteArrayColumnReader(GenericColumnReader::new(
+            Type::DOUBLE => BasicColumnReader::DoubleColumnReader(GenericColumnReader::new(
                 col_descr,
                 col_page_reader,
             )),
-            Type::FIXED_LEN_BYTE_ARRAY => ColumnReader::FixedLenByteArrayColumnReader(
+            Type::BYTE_ARRAY => BasicColumnReader::ByteArrayColumnReader(GenericColumnReader::new(
+                col_descr,
+                col_page_reader,
+            )),
+            Type::FIXED_LEN_BYTE_ARRAY => BasicColumnReader::FixedLenByteArrayColumnReader(
                 GenericColumnReader::new(col_descr, col_page_reader),
             ),
         };

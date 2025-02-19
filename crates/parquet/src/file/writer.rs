@@ -805,7 +805,6 @@ mod tests {
         Type,
     };
     use crate::column::page::{Page, PageReader};
-    use crate::column::reader::get_typed_column_reader;
     use crate::compression::{create_codec, Codec, CodecOptionsBuilder};
     use crate::file::page_index::index::Index;
     use crate::file::properties::{
@@ -825,6 +824,7 @@ mod tests {
     use crate::format::SortingColumn;
     use crate::schema::parser::parse_message_type;
     use crate::schema::types::{ColumnDescriptor, ColumnPath};
+    use crate::testutil::column_reader::get_typed_column_reader;
 
     #[test]
     fn test_row_group_writer_error_not_all_columns_written() {

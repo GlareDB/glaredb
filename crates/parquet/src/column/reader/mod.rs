@@ -38,7 +38,8 @@ use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
 
 /// Column reader for a Parquet type.
-pub enum ColumnReader<P: PageReader> {
+// TODO: Move to testutil
+pub enum BasicColumnReader<P: PageReader> {
     BoolColumnReader(GenericColumnReader<BasicColumnValueDecoder<bool>, P>),
     Int32ColumnReader(GenericColumnReader<BasicColumnValueDecoder<i32>, P>),
     Int64ColumnReader(GenericColumnReader<BasicColumnValueDecoder<i64>, P>),
@@ -49,56 +50,6 @@ pub enum ColumnReader<P: PageReader> {
     FixedLenByteArrayColumnReader(
         GenericColumnReader<BasicColumnValueDecoder<FixedLenByteArray>, P>,
     ),
-}
-
-/// Gets a specific column reader corresponding to column descriptor `col_descr`. The
-/// column reader will read from pages in `col_page_reader`.
-pub fn get_column_reader<P: PageReader>(
-    col_descr: ColumnDescPtr,
-    col_page_reader: P,
-) -> ColumnReader<P> {
-    match col_descr.physical_type() {
-        Type::BOOLEAN => {
-            ColumnReader::BoolColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-        }
-        Type::INT32 => {
-            ColumnReader::Int32ColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-        }
-        Type::INT64 => {
-            ColumnReader::Int64ColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-        }
-        Type::INT96 => {
-            ColumnReader::Int96ColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-        }
-        Type::FLOAT => {
-            ColumnReader::FloatColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-        }
-        Type::DOUBLE => {
-            ColumnReader::DoubleColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-        }
-        Type::BYTE_ARRAY => ColumnReader::ByteArrayColumnReader(GenericColumnReader::new(
-            col_descr,
-            col_page_reader,
-        )),
-        Type::FIXED_LEN_BYTE_ARRAY => ColumnReader::FixedLenByteArrayColumnReader(
-            GenericColumnReader::new(col_descr, col_page_reader),
-        ),
-    }
-}
-
-/// Gets a typed column reader for the specific type `T`, by "up-casting" `col_reader` of
-/// non-generic type to a generic column reader type `ColumnReaderImpl`.
-///
-/// Panics if actual enum value for `col_reader` does not match the type `T`.
-pub fn get_typed_column_reader<T: DataType, P: PageReader>(
-    col_reader: ColumnReader<P>,
-) -> GenericColumnReader<BasicColumnValueDecoder<T>, P> {
-    T::get_column_reader(col_reader).unwrap_or_else(|| {
-        panic!(
-            "Failed to convert column reader into a typed column reader for `{}` type",
-            T::get_physical_type()
-        )
-    })
 }
 
 /// Reads data for a given column chunk, using the provided decoders:
@@ -178,19 +129,22 @@ where
     }
 
     /// Read up to `max_records` whole records, returning the number of complete
-    /// records, non-null values and levels decoded. All levels for a given record
-    /// will be read, i.e. the next repetition level, if any, will be 0
+    /// records, non-null values and levels decoded. All levels for a given
+    /// record will be read, i.e. the next repetition level, if any, will be 0
     ///
-    /// If the max definition level is 0, `def_levels` will be ignored and the number of records,
-    /// non-null values and levels decoded will all be equal, otherwise `def_levels` will be
-    /// populated with the number of levels read, with an error returned if it is `None`.
+    /// If the max definition level is 0, `def_levels` will be ignored and the
+    /// number of records, non-null values and levels decoded will all be equal,
+    /// otherwise `def_levels` will be populated with the number of levels read,
+    /// with an error returned if it is `None`.
     ///
-    /// If the max repetition level is 0, `rep_levels` will be ignored and the number of records
-    /// and levels decoded will both be equal, otherwise `rep_levels` will be populated with
-    /// the number of levels read, with an error returned if it is `None`.
+    /// If the max repetition level is 0, `rep_levels` will be ignored and the
+    /// number of records and levels decoded will both be equal, otherwise
+    /// `rep_levels` will be populated with the number of levels read, with an
+    /// error returned if it is `None`.
     ///
-    /// `values` will be contiguously populated with the non-null values. Note that if the column
-    /// is not required, this may be less than either `max_records` or the number of levels read
+    /// `values` will be contiguously populated with the non-null values. Note
+    /// that if the column is not required, this may be less than either
+    /// `max_records` or the number of levels read
     pub fn read_records(
         &mut self,
         max_records: usize,
@@ -575,6 +529,7 @@ mod tests {
     use super::*;
     use crate::basic::Type as PhysicalType;
     use crate::schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType};
+    use crate::testutil::column_reader::{get_column_reader, get_typed_column_reader};
     use crate::testutil::page_util::InMemoryPageReader;
     use crate::testutil::rand_gen::make_pages;
 
@@ -1269,7 +1224,7 @@ mod tests {
             let max_def_level = desc.max_def_level();
             let max_rep_level = desc.max_rep_level();
             let page_reader = InMemoryPageReader::new(pages);
-            let column_reader: ColumnReader<_> = get_column_reader(desc, page_reader);
+            let column_reader: BasicColumnReader<_> = get_column_reader(desc, page_reader);
             let mut typed_column_reader = get_typed_column_reader::<T, _>(column_reader);
 
             let mut values = Vec::new();

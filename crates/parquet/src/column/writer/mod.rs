@@ -1273,11 +1273,12 @@ mod tests {
     use super::*;
     use crate::column::page::PageReader;
     use crate::column::reader::basic::BasicColumnValueDecoder;
-    use crate::column::reader::{get_column_reader, get_typed_column_reader, GenericColumnReader};
+    use crate::column::reader::GenericColumnReader;
     use crate::file::properties::{ReaderProperties, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH};
     use crate::file::reader::SerializedPageReader;
     use crate::file::writer::{SerializedPageWriter, TrackedWrite};
     use crate::schema::types::{ColumnPath, Type as SchemaType};
+    use crate::testutil::column_reader::{get_column_reader, get_typed_column_reader};
     use crate::testutil::rand_gen::random_numbers_range;
 
     #[test]

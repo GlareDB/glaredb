@@ -757,7 +757,7 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
 mod tests {
     use super::*;
     use crate::basic::{self, ColumnOrder};
-    use crate::column::reader::ColumnReader;
+    use crate::column::reader::BasicColumnReader;
     use crate::data_type::private::ParquetValueType;
     use crate::data_type::{AsBytes, FixedLenByteArray};
     use crate::file::page_index::index::{Index, NativeIndex};
@@ -1730,7 +1730,7 @@ mod tests {
         let reader = SerializedFileReader::new(file).unwrap();
         let row_group_reader = reader.get_row_group(0).unwrap();
         match row_group_reader.get_column_reader(0).unwrap() {
-            ColumnReader::Int64ColumnReader(mut reader) => {
+            BasicColumnReader::Int64ColumnReader(mut reader) => {
                 let mut buffer = Vec::with_capacity(1024);
                 let mut def_levels = Vec::with_capacity(1024);
                 let (num_records, num_values, num_levels) = reader
