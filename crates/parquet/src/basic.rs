@@ -22,7 +22,7 @@ use std::str::FromStr;
 use std::{fmt, str};
 
 pub use crate::compression::{BrotliLevel, GzipLevel, ZstdLevel};
-use crate::errors::{ParquetError, ParquetResult};
+use crate::errors::{general_err, ParquetError, ParquetResult};
 use crate::format as parquet;
 // Re-export crate::format types used in this module
 pub use crate::format::{

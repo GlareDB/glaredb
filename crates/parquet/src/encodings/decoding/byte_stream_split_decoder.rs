@@ -22,7 +22,7 @@ use bytes::Bytes;
 use super::Decoder;
 use crate::basic::Encoding;
 use crate::data_type::{DataType, SliceAsBytes};
-use crate::errors::ParquetResult;
+use crate::errors::{general_err, ParquetResult};
 
 #[derive(Debug)]
 pub struct ByteStreamSplitDecoder<T: DataType> {

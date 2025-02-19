@@ -11,7 +11,7 @@ use rayexec_execution::arrays::array::physical_type::{AddressableMut, BinaryView
 use super::Encoding;
 use crate::column::reader::decoder::ColumnValueBuffer;
 use crate::encodings::rle::RleDecoder;
-use crate::errors::{ParquetError, ParquetResult};
+use crate::errors::{general_err, ParquetError, ParquetResult};
 
 #[derive(Debug)]
 pub struct ViewBuffer<'a, B: BufferManager> {

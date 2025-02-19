@@ -32,7 +32,7 @@ use crate::basic::{Encoding, Type};
 use crate::bloom_filter::Sbbf;
 use crate::column::page::{Page, PageMetadata, PageReader};
 use crate::compression::{create_codec, Codec};
-use crate::errors::{ParquetError, ParquetResult};
+use crate::errors::{eof_err, general_err, ParquetError, ParquetResult};
 use crate::file::metadata::*;
 use crate::file::page_index::index_reader;
 use crate::file::properties::{ReaderProperties, ReaderPropertiesPtr};

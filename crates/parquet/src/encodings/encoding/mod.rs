@@ -27,7 +27,7 @@ use crate::basic::*;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
 use crate::encodings::rle::RleEncoder;
-use crate::errors::ParquetResult;
+use crate::errors::{general_err, nyi_err, ParquetResult};
 use crate::util::bit_util::{num_required_bits, BitWriter};
 
 mod byte_stream_split_encoder;

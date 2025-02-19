@@ -34,7 +34,7 @@ use crate::column::writer::{
     GenericColumnWriter,
 };
 use crate::data_type::DataType;
-use crate::errors::ParquetResult;
+use crate::errors::{general_err, ParquetResult};
 use crate::file::metadata::*;
 use crate::file::properties::WriterPropertiesPtr;
 use crate::file::reader::ChunkReader;

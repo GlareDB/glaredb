@@ -33,7 +33,7 @@ use crate::column::reader::decoder::{
     RepetitionLevelDecoder,
 };
 use crate::data_type::*;
-use crate::errors::{ParquetError, ParquetResult};
+use crate::errors::{general_err, ParquetError, ParquetResult};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
 

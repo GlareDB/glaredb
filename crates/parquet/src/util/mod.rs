@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[macro_use]
-pub mod bit_util;
 mod bit_pack;
+pub mod bit_util;
 pub(crate) mod interner;

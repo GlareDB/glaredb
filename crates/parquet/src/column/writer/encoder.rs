@@ -31,7 +31,7 @@ use crate::column::writer::{
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::DataType;
 use crate::encodings::encoding::{get_encoder, DictEncoder, Encoder};
-use crate::errors::ParquetResult;
+use crate::errors::{general_err, ParquetResult};
 use crate::file::properties::{EnabledStatistics, WriterProperties};
 use crate::schema::types::{ColumnDescPtr, ColumnDescriptor};
 

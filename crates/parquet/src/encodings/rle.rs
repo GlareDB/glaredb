@@ -39,7 +39,7 @@ use std::mem::size_of;
 
 use bytes::Bytes;
 
-use crate::errors::ParquetResult;
+use crate::errors::{eof_err, ParquetResult};
 use crate::util::bit_util::{self, from_le_slice, BitReader, BitWriter, FromBytes};
 
 /// Maximum groups of 8 values per bit-packed run. Current value is 64.

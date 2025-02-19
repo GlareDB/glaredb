@@ -2,9 +2,9 @@ use bytes::Bytes;
 use rayexec_execution::arrays::array::buffer_manager::BufferManager;
 
 use super::decoder::ColumnValueDecoder;
-use super::{ConvertedType, Encoding};
+use super::{general_err, ConvertedType, Encoding};
 use crate::decoding::view::{PlainViewDecoder, ViewBuffer, ViewDecoder};
-use crate::errors::ParquetResult;
+use crate::errors::{nyi_err, ParquetResult};
 use crate::schema::types::ColumnDescPtr;
 
 /// Column value decoder for byte arrays that stores bytes in a contiguous

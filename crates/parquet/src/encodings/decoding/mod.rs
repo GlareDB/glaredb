@@ -32,12 +32,13 @@ use super::rle::RleDecoder;
 use crate::basic::*;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
-use crate::errors::ParquetResult;
+use crate::errors::{eof_err, general_err, ParquetResult};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{self, BitReader};
 
 pub(crate) mod private {
     use super::*;
+    use crate::errors::{general_err, nyi_err};
 
     /// A trait that allows getting a [`Decoder`] implementation for a [`DataType`] with
     /// the corresponding [`ParquetValueType`]. This is necessary to support
@@ -1106,7 +1107,7 @@ mod tests {
 
     use super::super::encoding::*;
     use super::*;
-    use crate::errors::ParquetError;
+    use crate::errors::{nyi_err, ParquetError};
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::testutil::rand_gen::RandGen;
 

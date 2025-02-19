@@ -30,7 +30,7 @@ use crate::basic::{
     TimeUnit,
     Type as PhysicalType,
 };
-use crate::errors::ParquetResult;
+use crate::errors::{general_err, ParquetResult};
 use crate::format::SchemaElement;
 
 // ----------------------------------------------------------------------

@@ -81,9 +81,8 @@
 //! [Logical Types]: https://github.com/apache/parquet-format/blob/master/LogicalTypes.md
 //! [object_store]: https://docs.rs/object_store/latest/object_store/
 
-#[macro_use]
-pub mod errors;
 pub mod basic;
+pub mod errors;
 
 /// Automatically generated code for reading parquet thrift definition.
 // see parquet/CONTRIBUTING.md for instructions on regenerating

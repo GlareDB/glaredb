@@ -3,10 +3,11 @@ use std::collections::HashMap;
 use bytes::Bytes;
 
 use super::decoder::ColumnValueDecoder;
+use super::general_err;
 use crate::basic::Encoding;
 use crate::data_type::DataType;
 use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
-use crate::errors::ParquetResult;
+use crate::errors::{nyi_err, ParquetResult};
 use crate::schema::types::ColumnDescPtr;
 
 /// Column value decoder that uses a Vec for the buffer to write to.

@@ -30,7 +30,7 @@ use crate::column::page::{PageReader, PageWriter};
 use crate::column::reader::basic::BasicColumnValueDecoder;
 use crate::column::reader::{ColumnReader, GenericColumnReader};
 use crate::column::writer::{ColumnWriter, GenericColumnWriter};
-use crate::errors::ParquetResult;
+use crate::errors::{general_err, ParquetResult};
 use crate::util::bit_util::FromBytes;
 
 /// Rust representation for logical type INT96, value is backed by an array of `u32`.
@@ -599,9 +599,10 @@ impl AsBytes for str {
 pub(crate) mod private {
     use bytes::Bytes;
 
-    use super::{ParquetResult, SliceAsBytes};
+    use super::{general_err, ParquetResult, SliceAsBytes};
     use crate::basic::Type;
     use crate::encodings::decoding::PlainDecoderDetails;
+    use crate::errors::eof_err;
     use crate::util::bit_util::{read_num_bytes, BitReader, BitWriter};
 
     /// Sealed trait to start to remove specialisation from implementations
@@ -757,7 +758,7 @@ pub(crate) mod private {
                     let bytes_to_decode = std::mem::size_of::<Self>() * num_values;
 
                     if bytes_left < bytes_to_decode {
-                        return Err(eof_err!("Not enough bytes to decode"));
+                        return Err(crate::errors::eof_err!("Not enough bytes to decode"));
                     }
 
                     // SAFETY: Raw types should be as per the standard rust bit-vectors
@@ -781,7 +782,7 @@ pub(crate) mod private {
                     let bytes_to_skip = std::mem::size_of::<Self>() * num_values;
 
                     if bytes_left < bytes_to_skip {
-                        return Err(eof_err!("Not enough bytes to skip"));
+                        return Err(crate::errors::eof_err!("Not enough bytes to skip"));
                     }
 
                     decoder.start += bytes_to_skip;

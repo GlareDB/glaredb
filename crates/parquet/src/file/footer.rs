@@ -19,7 +19,7 @@ use std::io::Read;
 use std::sync::Arc;
 
 use crate::basic::ColumnOrder;
-use crate::errors::{ParquetError, ParquetResult};
+use crate::errors::{general_err, ParquetError, ParquetResult};
 use crate::file::metadata::*;
 use crate::file::reader::ChunkReader;
 use crate::file::{FOOTER_SIZE, PARQUET_MAGIC};

@@ -31,7 +31,7 @@ use crate::compression::{create_codec, Codec, CodecOptionsBuilder};
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
 use crate::encodings::levels::LevelEncoder;
-use crate::errors::ParquetResult;
+use crate::errors::{general_err, ParquetResult};
 use crate::file::metadata::{ColumnChunkMetaData, ColumnIndexBuilder, OffsetIndexBuilder};
 use crate::file::properties::{
     EnabledStatistics,

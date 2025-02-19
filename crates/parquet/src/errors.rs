@@ -118,13 +118,16 @@ macro_rules! general_err {
     ($e:ident, $fmt:expr, $($args:tt),*) => (
         crate::errors::ParquetError::General(&format!($fmt, $($args),*), $e));
 }
+pub(crate) use general_err;
 
 macro_rules! nyi_err {
     ($fmt:expr) => (crate::errors::ParquetError::NYI($fmt.to_owned()));
     ($fmt:expr, $($args:expr),*) => (crate::errors::ParquetError::NYI(format!($fmt, $($args),*)));
 }
+pub(crate) use nyi_err;
 
 macro_rules! eof_err {
     ($fmt:expr) => (crate::errors::ParquetError::EOF($fmt.to_owned()));
     ($fmt:expr, $($args:expr),*) => (crate::errors::ParquetError::EOF(format!($fmt, $($args),*)));
 }
+pub(crate) use eof_err;

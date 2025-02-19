@@ -47,7 +47,7 @@ assert_eq!(output, data);
 "##
 )]
 use crate::basic::Compression as CodecType;
-use crate::errors::{ParquetError, ParquetResult};
+use crate::errors::{nyi_err, ParquetError, ParquetResult};
 
 /// Parquet compression codec interface.
 pub trait Codec: Sync + Send {
