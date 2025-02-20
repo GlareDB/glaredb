@@ -163,7 +163,7 @@ impl<P: Iterator<Item = Page>> InMemoryPageReader<P> {
 }
 
 impl<P: Iterator<Item = Page> + Send> PageReader for InMemoryPageReader<P> {
-    fn get_next_page(&mut self) -> ParquetResult<Option<Page>> {
+    fn read_next_page(&mut self) -> ParquetResult<Option<Page>> {
         Ok(self.page_iter.next())
     }
 
@@ -205,7 +205,7 @@ impl<P: Iterator<Item = Page> + Send> Iterator for InMemoryPageReader<P> {
     type Item = ParquetResult<Page>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.get_next_page().transpose()
+        self.read_next_page().transpose()
     }
 }
 

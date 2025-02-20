@@ -1,18 +1,24 @@
+use rayexec_error::Result;
 use rayexec_execution::arrays::array::buffer_manager::BufferManager;
-use rayexec_execution::arrays::array::raw::TypedRawBuffer;
+use rayexec_execution::arrays::array::raw::{ByteBuffer, TypedRawBuffer};
 
 /// Reusable and resizable byte buffer.
 #[derive(Debug)]
 pub struct ReadBuffer<B: BufferManager> {
     /// The byte read offset into the buffer.
     offset: usize,
-    buffer: TypedRawBuffer<u8, B>,
+    buffer: ByteBuffer<B>,
 }
 
 impl<B> ReadBuffer<B>
 where
     B: BufferManager,
 {
+    pub fn reset_for_new_page(&mut self, page_size: usize) -> Result<()> {
+        self.offset = 0;
+        self.buffer.reserve_for_size(page_size)
+    }
+
     pub fn increment_byte_offset(&mut self, count_bytes: usize) {
         debug_assert!(count_bytes + self.offset <= self.buffer.capacity());
         self.offset += count_bytes;

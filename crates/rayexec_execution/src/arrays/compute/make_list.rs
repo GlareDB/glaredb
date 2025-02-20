@@ -101,7 +101,7 @@ fn make_list_from_values_inner<S: MutableScalarStorage>(
 
     let metadata = list_buf.metadata.try_as_mut()?;
     if metadata.capacity() < num_rows {
-        metadata.reserve(num_rows - metadata.capacity())?;
+        metadata.reserve_additional(num_rows - metadata.capacity())?;
     }
 
     // Overwrite validity with new capacity.

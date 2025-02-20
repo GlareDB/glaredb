@@ -523,7 +523,7 @@ where
     B: BufferManager,
 {
     pub fn try_reserve(&mut self, additional: usize) -> Result<()> {
-        self.metadata.try_as_mut()?.reserve(additional)
+        self.metadata.try_as_mut()?.reserve_additional(additional)
     }
 
     pub fn try_as_string_view(&self) -> Result<StringViewAddressable<B>> {
@@ -689,7 +689,7 @@ where
                     self.bytes_filled,
                     additional,
                 );
-                self.buffer.reserve(reserve_amount)?;
+                self.buffer.reserve_additional(reserve_amount)?;
             }
 
             let offset = self.bytes_filled;

@@ -30,7 +30,6 @@ use crate::format::PageHeader;
 /// List of supported pages.
 /// These are 1-to-1 mapped from the equivalent Thrift definitions, except `buf` which
 /// used to store uncompressed bytes of the page.
-#[derive(Clone)]
 pub enum Page {
     DataPage {
         buf: Bytes,
@@ -290,10 +289,10 @@ impl TryFrom<&PageHeader> for PageMetadata {
 
 /// API for reading pages from a column chunk.
 /// This offers a iterator like API to get the next page.
-pub trait PageReader: Iterator<Item = ParquetResult<Page>> + Send {
+pub trait PageReader: Send {
     /// Gets the next page in the column chunk associated with this reader.
     /// Returns `None` if there are no pages left.
-    fn get_next_page(&mut self) -> ParquetResult<Option<Page>>;
+    fn read_next_page(&mut self) -> ParquetResult<Option<Page>>;
 
     /// Gets metadata about the next page, returns an error if no
     /// column index information

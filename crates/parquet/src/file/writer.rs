@@ -1365,7 +1365,7 @@ mod tests {
             )
             .unwrap();
 
-            while let Some(page) = page_reader.get_next_page().unwrap() {
+            while let Some(page) = page_reader.read_next_page().unwrap() {
                 result_pages.push(page);
             }
         }

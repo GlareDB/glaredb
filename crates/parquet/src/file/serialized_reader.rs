@@ -377,8 +377,8 @@ pub(crate) fn decode_page(
     decompressor: Option<&mut Box<dyn Codec>>,
 ) -> ParquetResult<Page> {
     // When processing data page v2, depending on enabled compression for the
-    // page, we should account for uncompressed data ('offset') of
-    // repetition and definition levels.
+    // page, we should account for uncompressed data ('offset') of repetition
+    // and definition levels.
     //
     // We always use 0 offset for other pages other than v2, `true` flag means
     // that compression will be applied if decompressor is defined
@@ -477,11 +477,10 @@ enum SerializedPageReaderState {
     Values {
         /// The current byte offset in the reader
         offset: usize,
-
         /// The length of the chunk in bytes
         remaining_bytes: usize,
-
-        // If the next page header has already been "peeked", we will cache it and it`s length here
+        /// If the next page header has already been "peeked", we will cache it
+        /// and it`s length here
         next_page_header: Option<Box<PageHeader>>,
     },
     Pages {
@@ -564,16 +563,8 @@ impl<R: ChunkReader> SerializedPageReader<R> {
     }
 }
 
-impl<R: ChunkReader> Iterator for SerializedPageReader<R> {
-    type Item = ParquetResult<Page>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.get_next_page().transpose()
-    }
-}
-
 impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
-    fn get_next_page(&mut self) -> ParquetResult<Option<Page>> {
+    fn read_next_page(&mut self) -> ParquetResult<Option<Page>> {
         loop {
             let page = match &mut self.state {
                 SerializedPageReaderState::Values {
@@ -863,7 +854,7 @@ mod tests {
         // Now buffer each col reader, we do not expect any failures like:
         // General("underlying Thrift error: end of file")
         for mut page_reader in page_readers {
-            assert!(page_reader.get_next_page().is_ok());
+            assert!(page_reader.read_next_page().is_ok());
         }
     }
 
@@ -919,7 +910,7 @@ mod tests {
         assert!(page_reader_0_result.is_ok());
         let mut page_reader_0 = page_reader_0_result.unwrap();
         let mut page_count = 0;
-        while let Ok(Some(page)) = page_reader_0.get_next_page() {
+        while let Ok(Some(page)) = page_reader_0.read_next_page() {
             let is_expected_page = match page {
                 Page::DictionaryPage {
                     buf,
@@ -1013,7 +1004,7 @@ mod tests {
         assert!(page_reader_0_result.is_ok());
         let mut page_reader_0 = page_reader_0_result.unwrap();
         let mut page_count = 0;
-        while let Ok(Some(page)) = page_reader_0.get_next_page() {
+        while let Ok(Some(page)) = page_reader_0.read_next_page() {
             let is_expected_page = match page {
                 Page::DictionaryPage {
                     buf,
@@ -1549,14 +1540,14 @@ mod tests {
 
         for i in 0..325 {
             if i % 2 == 0 {
-                vec.push(column_page_reader.get_next_page().unwrap().unwrap());
+                vec.push(column_page_reader.read_next_page().unwrap().unwrap());
             } else {
                 column_page_reader.skip_next_page().unwrap();
             }
         }
         //check read all pages.
         assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader.get_next_page().unwrap().is_none());
+        assert!(column_page_reader.read_next_page().unwrap().is_none());
 
         assert_eq!(vec.len(), 163);
     }
@@ -1578,7 +1569,7 @@ mod tests {
 
         for i in 0..325 {
             if i % 2 == 0 {
-                vec.push(column_page_reader.get_next_page().unwrap().unwrap());
+                vec.push(column_page_reader.read_next_page().unwrap().unwrap());
             } else {
                 column_page_reader.peek_next_page().unwrap().unwrap();
                 column_page_reader.skip_next_page().unwrap();
@@ -1586,7 +1577,7 @@ mod tests {
         }
         //check read all pages.
         assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader.get_next_page().unwrap().is_none());
+        assert!(column_page_reader.read_next_page().unwrap().is_none());
 
         assert_eq!(vec.len(), 163);
     }
@@ -1608,7 +1599,7 @@ mod tests {
 
         let meta = column_page_reader.peek_next_page().unwrap().unwrap();
         assert!(meta.is_dict);
-        let page = column_page_reader.get_next_page().unwrap().unwrap();
+        let page = column_page_reader.read_next_page().unwrap().unwrap();
         assert!(matches!(page.page_type(), basic::PageType::DICTIONARY_PAGE));
 
         for i in 0..352 {
@@ -1624,13 +1615,13 @@ mod tests {
             }
             assert!(!meta.is_dict);
             vec.push(meta);
-            let page = column_page_reader.get_next_page().unwrap().unwrap();
+            let page = column_page_reader.read_next_page().unwrap().unwrap();
             assert!(matches!(page.page_type(), basic::PageType::DATA_PAGE));
         }
 
         //check read all pages.
         assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader.get_next_page().unwrap().is_none());
+        assert!(column_page_reader.read_next_page().unwrap().is_none());
 
         assert_eq!(vec.len(), 352);
     }
@@ -1650,7 +1641,7 @@ mod tests {
 
         let meta = column_page_reader.peek_next_page().unwrap().unwrap();
         assert!(meta.is_dict);
-        let page = column_page_reader.get_next_page().unwrap().unwrap();
+        let page = column_page_reader.read_next_page().unwrap().unwrap();
         assert!(matches!(page.page_type(), basic::PageType::DICTIONARY_PAGE));
 
         for i in 0..352 {
@@ -1666,13 +1657,13 @@ mod tests {
             }
             assert!(!meta.is_dict);
             vec.push(meta);
-            let page = column_page_reader.get_next_page().unwrap().unwrap();
+            let page = column_page_reader.read_next_page().unwrap().unwrap();
             assert!(matches!(page.page_type(), basic::PageType::DATA_PAGE));
         }
 
         //check read all pages.
         assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader.get_next_page().unwrap().is_none());
+        assert!(column_page_reader.read_next_page().unwrap().is_none());
 
         assert_eq!(vec.len(), 352);
     }

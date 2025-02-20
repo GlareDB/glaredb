@@ -7,6 +7,9 @@ use stdutil::marker::PhantomCovariant;
 
 use super::buffer_manager::{BufferManager, Reservation};
 
+/// Type alias to a raw buffer storing bytes.
+pub type ByteBuffer<B> = TypedRawBuffer<u8, B>;
+
 /// Wrapper around a raw buffer that knows its type.
 #[derive(Debug)]
 pub struct TypedRawBuffer<T, B: BufferManager> {
@@ -27,8 +30,25 @@ where
         })
     }
 
+    /// Resizes the buffer if the current capacity is less than `size` in number
+    /// of `T` elements.
+    ///
+    /// Does nothing if the current capacity is sufficient.
+    ///
+    /// Attempts to amortize reallocations by doubling the current capacity if
+    /// sufficient.
+    pub fn reserve_for_size(&mut self, size: usize) -> Result<()> {
+        if self.raw.typed_capacity() < size {
+            let new_cap = usize::max(size, self.raw.typed_capacity() * 2);
+            let additional = self.raw.typed_capacity() - new_cap;
+            self.reserve_additional(additional)?;
+        }
+
+        Ok(())
+    }
+
     /// Resize this buffer to hold exactly `additional` number of entries.
-    pub fn reserve(&mut self, additional: usize) -> Result<()> {
+    pub fn reserve_additional(&mut self, additional: usize) -> Result<()> {
         unsafe { self.raw.reserve::<T>(additional) }
     }
 

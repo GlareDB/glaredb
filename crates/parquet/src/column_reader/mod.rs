@@ -1,9 +1,16 @@
-use buffer::ReadBuffer;
-use rayexec_execution::arrays::array::buffer_manager::BufferManager;
-
 pub mod buffer;
 pub mod primitive_reader;
 pub mod struct_reader;
+
+use buffer::ReadBuffer;
+use rayexec_execution::arrays::array::buffer_manager::BufferManager;
+use rayexec_execution::arrays::array::raw::ByteBuffer;
+
+#[derive(Debug)]
+pub(crate) struct ColumnData<B: BufferManager> {
+    pub chunk: ByteBuffer<B>,
+    pub decompressed_page: ReadBuffer<B>,
+}
 
 #[derive(Debug)]
 pub struct ColumnReadState<B: BufferManager> {

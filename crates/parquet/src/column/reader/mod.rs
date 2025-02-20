@@ -309,7 +309,7 @@ where
     /// Read the next page as a dictionary page. If the next page is not a
     /// dictionary page, this will return an error.
     fn read_dictionary_page(&mut self) -> ParquetResult<()> {
-        match self.page_reader.get_next_page()? {
+        match self.page_reader.read_next_page()? {
             Some(Page::DictionaryPage {
                 buf,
                 num_values,
@@ -328,7 +328,7 @@ where
     /// dictionary. Returns false if there's no page left.
     fn read_new_page(&mut self) -> ParquetResult<bool> {
         loop {
-            match self.page_reader.get_next_page()? {
+            match self.page_reader.read_next_page()? {
                 // No more page to read
                 None => return Ok(false),
                 Some(current_page) => {

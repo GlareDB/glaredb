@@ -73,11 +73,6 @@ impl<P: PageWriter> ColumnWriter<P> {
     }
 }
 
-pub enum Level {
-    Page,
-    Column,
-}
-
 /// Gets a specific column writer corresponding to column descriptor `descr`.
 pub fn get_column_writer<P: PageWriter>(
     descr: ColumnDescPtr,
@@ -2029,7 +2024,7 @@ mod tests {
             .unwrap(),
         );
         let mut res = Vec::new();
-        while let Some(page) = page_reader.get_next_page().unwrap() {
+        while let Some(page) = page_reader.read_next_page().unwrap() {
             res.push((page.page_type(), page.num_values(), page.buffer().len()));
         }
         assert_eq!(
