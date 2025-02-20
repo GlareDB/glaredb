@@ -7,9 +7,9 @@ use rayexec_execution::arrays::array::buffer_manager::BufferManager;
 use rayexec_execution::arrays::array::raw::ByteBuffer;
 
 #[derive(Debug)]
-pub(crate) struct ColumnData<B: BufferManager> {
-    pub chunk: ByteBuffer<B>,
-    pub decompressed_page: ReadBuffer<B>,
+pub struct ColumnData<B: BufferManager> {
+    pub(crate) chunk: ByteBuffer<B>,
+    pub(crate) decompressed_page: ReadBuffer<B>,
 }
 
 impl<B> ColumnData<B>

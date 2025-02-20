@@ -39,7 +39,7 @@ pub trait Codec: Sync + Send {
     /// data.
     ///
     /// The total number of bytes copied will be returned.
-    fn decompress(&mut self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64>;
+    fn decompress(&self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64>;
 }
 
 /// Struct to hold `Codec` creation options.
@@ -176,7 +176,6 @@ mod snappy_codec {
 
     /// Codec for Snappy compression format.
     pub struct SnappyCodec {
-        decoder: Decoder,
         encoder: Encoder,
     }
 
@@ -184,15 +183,15 @@ mod snappy_codec {
         /// Creates new Snappy compression codec.
         pub(crate) fn new() -> Self {
             Self {
-                decoder: Decoder::new(),
                 encoder: Encoder::new(),
             }
         }
     }
 
     impl Codec for SnappyCodec {
-        fn decompress(&mut self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
-            let n = self.decoder.decompress(input_buf, output_buf)?;
+        fn decompress(&self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
+            let mut decoder = Decoder::new();
+            let n = decoder.decompress(input_buf, output_buf)?;
             Ok(n as u64)
         }
 
@@ -234,7 +233,7 @@ mod gzip_codec {
     }
 
     impl Codec for GZipCodec {
-        fn decompress(&mut self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
+        fn decompress(&self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
             let mut decoder = read::MultiGzDecoder::new(input_buf);
             let n = io::copy(&mut decoder, &mut Cursor::new(output_buf))?;
             Ok(n)
@@ -306,7 +305,7 @@ mod brotli_codec {
     }
 
     impl Codec for BrotliCodec {
-        fn decompress(&mut self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
+        fn decompress(&self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
             let mut decompressor = brotli::Decompressor::new(input_buf, output_buf.len());
             let n = io::copy(&mut decompressor, &mut Cursor::new(output_buf))?;
             Ok(n)
@@ -376,7 +375,7 @@ mod lz4_codec {
     }
 
     impl Codec for LZ4Codec {
-        fn decompress(&mut self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
+        fn decompress(&self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
             let mut decoder = lz4_flex::frame::FrameDecoder::new(input_buf);
             let n = io::copy(&mut decoder, &mut Cursor::new(output_buf))?;
             Ok(n)
@@ -425,7 +424,7 @@ mod zstd_codec {
     }
 
     impl Codec for ZSTDCodec {
-        fn decompress(&mut self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
+        fn decompress(&self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
             let mut decoder = zstd::Decoder::new(input_buf)?;
             let n = io::copy(&mut decoder, &mut Cursor::new(output_buf))?;
             Ok(n)
@@ -491,7 +490,7 @@ mod lz4_raw_codec {
     }
 
     impl Codec for LZ4RawCodec {
-        fn decompress(&mut self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
+        fn decompress(&self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
             let n = lz4_flex::block::decompress_into(input_buf, output_buf)
                 .map_err(|e| ParquetError::External(Box::new(e)))?;
             Ok(n as u64)
@@ -618,7 +617,7 @@ mod lz4_hadoop_codec {
     }
 
     impl Codec for LZ4HadoopCodec {
-        fn decompress(&mut self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
+        fn decompress(&self, input_buf: &[u8], output_buf: &mut [u8]) -> ParquetResult<u64> {
             match try_decompress_hadoop(input_buf, output_buf) {
                 Ok(n) => {
                     if n != output_buf.len() {
