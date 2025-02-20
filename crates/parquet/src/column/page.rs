@@ -18,8 +18,10 @@
 //! Contains Parquet Page definitions and page reader interface.
 
 use bytes::Bytes;
+use rayexec_execution::arrays::array::buffer_manager::BufferManager;
 
 use crate::basic::{Encoding, PageType};
+use crate::column_reader::ColumnData;
 use crate::errors::{ParquetError, ParquetResult};
 use crate::file::metadata::ColumnChunkMetaData;
 use crate::file::statistics::Statistics;
@@ -290,9 +292,15 @@ impl TryFrom<&PageHeader> for PageMetadata {
 /// API for reading pages from a column chunk.
 /// This offers a iterator like API to get the next page.
 pub trait PageReader: Send {
-    /// Gets the next page in the column chunk associated with this reader.
+    /// Read the next page in the column chunk.
+    ///
+    /// The column data provided contains the chunk to read the page from, and a
+    /// buffer for writing the decompressed page to.
+    ///
     /// Returns `None` if there are no pages left.
-    fn read_next_page(&mut self) -> ParquetResult<Option<Page>>;
+    fn read_next_page<B>(&mut self, column_data: &mut ColumnData<B>) -> ParquetResult<Option<Page>>
+    where
+        B: BufferManager;
 
     /// Gets metadata about the next page, returns an error if no
     /// column index information

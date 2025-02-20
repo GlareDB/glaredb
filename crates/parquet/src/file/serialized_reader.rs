@@ -26,11 +26,13 @@ use std::path::Path;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use rayexec_execution::arrays::array::buffer_manager::BufferManager;
 use thrift::protocol::TCompactInputProtocol;
 
 use crate::basic::{Encoding, Type};
 use crate::bloom_filter::Sbbf;
 use crate::column::page::{Page, PageMetadata, PageReader};
+use crate::column_reader::ColumnData;
 use crate::compression::{create_codec, Codec};
 use crate::errors::{eof_err, general_err, ParquetError, ParquetResult};
 use crate::file::metadata::*;
@@ -564,7 +566,10 @@ impl<R: ChunkReader> SerializedPageReader<R> {
 }
 
 impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
-    fn read_next_page(&mut self) -> ParquetResult<Option<Page>> {
+    fn read_next_page<B>(&mut self, column_data: &mut ColumnData<B>) -> ParquetResult<Option<Page>>
+    where
+        B: BufferManager,
+    {
         loop {
             let page = match &mut self.state {
                 SerializedPageReaderState::Values {
@@ -748,6 +753,8 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
 
 #[cfg(test)]
 mod tests {
+    use rayexec_execution::arrays::array::buffer_manager::NopBufferManager;
+
     use super::*;
     use crate::basic::{self, ColumnOrder};
     use crate::data_type::private::ParquetValueType;
@@ -854,7 +861,8 @@ mod tests {
         // Now buffer each col reader, we do not expect any failures like:
         // General("underlying Thrift error: end of file")
         for mut page_reader in page_readers {
-            assert!(page_reader.read_next_page().is_ok());
+            let mut data = ColumnData::empty(&NopBufferManager);
+            assert!(page_reader.read_next_page(&mut data).is_ok());
         }
     }
 
@@ -910,7 +918,8 @@ mod tests {
         assert!(page_reader_0_result.is_ok());
         let mut page_reader_0 = page_reader_0_result.unwrap();
         let mut page_count = 0;
-        while let Ok(Some(page)) = page_reader_0.read_next_page() {
+        let mut data = ColumnData::empty(&NopBufferManager);
+        while let Ok(Some(page)) = page_reader_0.read_next_page(&mut data) {
             let is_expected_page = match page {
                 Page::DictionaryPage {
                     buf,
@@ -1004,7 +1013,8 @@ mod tests {
         assert!(page_reader_0_result.is_ok());
         let mut page_reader_0 = page_reader_0_result.unwrap();
         let mut page_count = 0;
-        while let Ok(Some(page)) = page_reader_0.read_next_page() {
+        let mut data = ColumnData::empty(&NopBufferManager);
+        while let Ok(Some(page)) = page_reader_0.read_next_page(&mut data) {
             let is_expected_page = match page {
                 Page::DictionaryPage {
                     buf,
@@ -1538,16 +1548,25 @@ mod tests {
 
         let mut vec = vec![];
 
+        let mut data = ColumnData::empty(&NopBufferManager);
         for i in 0..325 {
             if i % 2 == 0 {
-                vec.push(column_page_reader.read_next_page().unwrap().unwrap());
+                vec.push(
+                    column_page_reader
+                        .read_next_page(&mut data)
+                        .unwrap()
+                        .unwrap(),
+                );
             } else {
                 column_page_reader.skip_next_page().unwrap();
             }
         }
         //check read all pages.
         assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader.read_next_page().unwrap().is_none());
+        assert!(column_page_reader
+            .read_next_page(&mut data)
+            .unwrap()
+            .is_none());
 
         assert_eq!(vec.len(), 163);
     }
@@ -1567,9 +1586,15 @@ mod tests {
 
         let mut vec = vec![];
 
+        let mut data = ColumnData::empty(&NopBufferManager);
         for i in 0..325 {
             if i % 2 == 0 {
-                vec.push(column_page_reader.read_next_page().unwrap().unwrap());
+                vec.push(
+                    column_page_reader
+                        .read_next_page(&mut data)
+                        .unwrap()
+                        .unwrap(),
+                );
             } else {
                 column_page_reader.peek_next_page().unwrap().unwrap();
                 column_page_reader.skip_next_page().unwrap();
@@ -1577,7 +1602,10 @@ mod tests {
         }
         //check read all pages.
         assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader.read_next_page().unwrap().is_none());
+        assert!(column_page_reader
+            .read_next_page(&mut data)
+            .unwrap()
+            .is_none());
 
         assert_eq!(vec.len(), 163);
     }
@@ -1599,7 +1627,11 @@ mod tests {
 
         let meta = column_page_reader.peek_next_page().unwrap().unwrap();
         assert!(meta.is_dict);
-        let page = column_page_reader.read_next_page().unwrap().unwrap();
+        let mut data = ColumnData::empty(&NopBufferManager);
+        let page = column_page_reader
+            .read_next_page(&mut data)
+            .unwrap()
+            .unwrap();
         assert!(matches!(page.page_type(), basic::PageType::DICTIONARY_PAGE));
 
         for i in 0..352 {
@@ -1615,13 +1647,19 @@ mod tests {
             }
             assert!(!meta.is_dict);
             vec.push(meta);
-            let page = column_page_reader.read_next_page().unwrap().unwrap();
+            let page = column_page_reader
+                .read_next_page(&mut data)
+                .unwrap()
+                .unwrap();
             assert!(matches!(page.page_type(), basic::PageType::DATA_PAGE));
         }
 
         //check read all pages.
         assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader.read_next_page().unwrap().is_none());
+        assert!(column_page_reader
+            .read_next_page(&mut data)
+            .unwrap()
+            .is_none());
 
         assert_eq!(vec.len(), 352);
     }
@@ -1641,7 +1679,11 @@ mod tests {
 
         let meta = column_page_reader.peek_next_page().unwrap().unwrap();
         assert!(meta.is_dict);
-        let page = column_page_reader.read_next_page().unwrap().unwrap();
+        let mut data = ColumnData::empty(&NopBufferManager);
+        let page = column_page_reader
+            .read_next_page(&mut data)
+            .unwrap()
+            .unwrap();
         assert!(matches!(page.page_type(), basic::PageType::DICTIONARY_PAGE));
 
         for i in 0..352 {
@@ -1657,13 +1699,19 @@ mod tests {
             }
             assert!(!meta.is_dict);
             vec.push(meta);
-            let page = column_page_reader.read_next_page().unwrap().unwrap();
+            let page = column_page_reader
+                .read_next_page(&mut data)
+                .unwrap()
+                .unwrap();
             assert!(matches!(page.page_type(), basic::PageType::DATA_PAGE));
         }
 
         //check read all pages.
         assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader.read_next_page().unwrap().is_none());
+        assert!(column_page_reader
+            .read_next_page(&mut data)
+            .unwrap()
+            .is_none());
 
         assert_eq!(vec.len(), 352);
     }

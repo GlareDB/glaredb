@@ -1264,11 +1264,13 @@ mod tests {
     use std::sync::Arc;
 
     use rand::distributions::uniform::SampleUniform;
+    use rayexec_execution::arrays::array::buffer_manager::NopBufferManager;
 
     use super::*;
     use crate::column::page::PageReader;
     use crate::column::reader::basic::BasicColumnValueDecoder;
     use crate::column::reader::GenericColumnReader;
+    use crate::column_reader::ColumnData;
     use crate::file::properties::{ReaderProperties, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH};
     use crate::file::reader::SerializedPageReader;
     use crate::file::writer::{SerializedPageWriter, TrackedWrite};
@@ -1837,7 +1839,7 @@ mod tests {
         let props = ReaderProperties::builder()
             .set_backward_compatible_lz4(false)
             .build();
-        let reader = SerializedPageReader::new_with_properties(
+        let mut reader = SerializedPageReader::new_with_properties(
             Arc::new(Bytes::from(buf)),
             &r.metadata,
             r.rows_written as usize,
@@ -1846,7 +1848,12 @@ mod tests {
         )
         .unwrap();
 
-        let pages = reader.collect::<ParquetResult<Vec<_>>>().unwrap();
+        let mut data = ColumnData::empty(&NopBufferManager);
+
+        let mut pages = Vec::new();
+        while let Some(page) = reader.read_next_page(&mut data).unwrap() {
+            pages.push(page);
+        }
         assert_eq!(pages.len(), 2);
 
         assert_eq!(pages[0].page_type(), PageType::DICTIONARY_PAGE);
@@ -1881,7 +1888,7 @@ mod tests {
         let props = ReaderProperties::builder()
             .set_backward_compatible_lz4(false)
             .build();
-        let reader = SerializedPageReader::new_with_properties(
+        let mut reader = SerializedPageReader::new_with_properties(
             Arc::new(Bytes::from(buf)),
             &r.metadata,
             r.rows_written as usize,
@@ -1890,7 +1897,12 @@ mod tests {
         )
         .unwrap();
 
-        let pages = reader.collect::<ParquetResult<Vec<_>>>().unwrap();
+        let mut data = ColumnData::empty(&NopBufferManager);
+
+        let mut pages = Vec::new();
+        while let Some(page) = reader.read_next_page(&mut data).unwrap() {
+            pages.push(page);
+        }
         assert_eq!(pages.len(), 2);
 
         assert_eq!(pages[0].page_type(), PageType::DICTIONARY_PAGE);
@@ -2024,7 +2036,8 @@ mod tests {
             .unwrap(),
         );
         let mut res = Vec::new();
-        while let Some(page) = page_reader.read_next_page().unwrap() {
+        let mut data = ColumnData::empty(&NopBufferManager);
+        while let Some(page) = page_reader.read_next_page(&mut data).unwrap() {
             res.push((page.page_type(), page.num_values(), page.buffer().len()));
         }
         assert_eq!(

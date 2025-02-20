@@ -21,6 +21,15 @@ impl<T, B> TypedRawBuffer<T, B>
 where
     B: BufferManager,
 {
+    pub fn empty(manager: &B) -> Self {
+        let raw = RawBuffer::try_with_capacity::<T>(manager, 0)
+            .expect("allocating zero sized buffer to no fail");
+        TypedRawBuffer {
+            _type: PhantomCovariant::new(),
+            raw,
+        }
+    }
+
     /// Create a new buffer that can hold `cap` number of entries.
     pub fn try_with_capacity(manager: &B, cap: usize) -> Result<Self> {
         let raw = RawBuffer::try_with_capacity::<T>(manager, cap)?;

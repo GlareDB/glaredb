@@ -14,6 +14,13 @@ impl<B> ReadBuffer<B>
 where
     B: BufferManager,
 {
+    pub fn empty(manager: &B) -> Self {
+        ReadBuffer {
+            offset: 0,
+            buffer: ByteBuffer::empty(manager),
+        }
+    }
+
     pub fn reset_for_new_page(&mut self, page_size: usize) -> Result<()> {
         self.offset = 0;
         self.buffer.reserve_for_size(page_size)

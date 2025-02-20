@@ -15,13 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::VecDeque;
 use std::iter::Peekable;
 use std::mem;
 
 use bytes::Bytes;
+use rayexec_execution::arrays::array::buffer_manager::BufferManager;
 
 use crate::basic::Encoding;
 use crate::column::page::{Page, PageMetadata, PageReader};
+use crate::column_reader::ColumnData;
 use crate::data_type::DataType;
 use crate::encodings::encoding::{get_encoder, Encoder};
 use crate::encodings::levels::LevelEncoder;
@@ -150,25 +153,29 @@ impl DataPageBuilder for DataPageBuilderImpl {
 }
 
 /// A utility page reader which stores pages in memory.
-pub struct InMemoryPageReader<P: Iterator<Item = Page>> {
-    page_iter: Peekable<P>,
+pub struct InMemoryPageReader {
+    pages: VecDeque<Page>,
 }
 
-impl<P: Iterator<Item = Page>> InMemoryPageReader<P> {
-    pub fn new(pages: impl IntoIterator<Item = Page, IntoIter = P>) -> Self {
+impl InMemoryPageReader {
+    pub fn new(pages: impl IntoIterator<Item = Page>) -> Self {
         Self {
-            page_iter: pages.into_iter().peekable(),
+            pages: pages.into_iter().collect(),
         }
     }
 }
 
-impl<P: Iterator<Item = Page> + Send> PageReader for InMemoryPageReader<P> {
-    fn read_next_page(&mut self) -> ParquetResult<Option<Page>> {
-        Ok(self.page_iter.next())
+impl PageReader for InMemoryPageReader {
+    // TODO
+    fn read_next_page<B>(&mut self, _column_data: &mut ColumnData<B>) -> ParquetResult<Option<Page>>
+    where
+        B: BufferManager,
+    {
+        Ok(self.pages.pop_front())
     }
 
     fn peek_next_page(&mut self) -> ParquetResult<Option<PageMetadata>> {
-        if let Some(x) = self.page_iter.peek() {
+        if let Some(x) = self.pages.front() {
             match x {
                 Page::DataPage { num_values, .. } => Ok(Some(PageMetadata {
                     num_rows: None,
@@ -196,40 +203,7 @@ impl<P: Iterator<Item = Page> + Send> PageReader for InMemoryPageReader<P> {
     }
 
     fn skip_next_page(&mut self) -> ParquetResult<()> {
-        self.page_iter.next();
+        let _ = self.pages.pop_front();
         Ok(())
-    }
-}
-
-impl<P: Iterator<Item = Page> + Send> Iterator for InMemoryPageReader<P> {
-    type Item = ParquetResult<Page>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.read_next_page().transpose()
-    }
-}
-
-/// A utility page iterator which stores page readers in memory, used for tests.
-#[derive(Clone)]
-pub struct InMemoryPageIterator<I: Iterator<Item = Vec<Page>>> {
-    page_reader_iter: I,
-}
-
-impl<I: Iterator<Item = Vec<Page>>> InMemoryPageIterator<I> {
-    #[allow(dead_code)]
-    pub fn new(pages: impl IntoIterator<Item = Vec<Page>, IntoIter = I>) -> Self {
-        Self {
-            page_reader_iter: pages.into_iter(),
-        }
-    }
-}
-
-impl<I: Iterator<Item = Vec<Page>>> Iterator for InMemoryPageIterator<I> {
-    type Item = ParquetResult<Box<dyn PageReader>>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.page_reader_iter
-            .next()
-            .map(|x| Ok(Box::new(InMemoryPageReader::new(x)) as Box<dyn PageReader>))
     }
 }

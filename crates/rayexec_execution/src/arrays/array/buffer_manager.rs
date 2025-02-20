@@ -6,6 +6,8 @@ pub trait BufferManager: Debug + Sync + Clone + Send + Sized {
     /// Try to reserve some number of bytes.
     ///
     /// Returns a reservation for keeping tracker of "used" bytes.
+    ///
+    /// This should never error when attempting to reserve zero bytes.
     fn try_reserve(&self, size_bytes: usize) -> Result<Reservation<Self>>;
 
     /// Drops a memory reservation.

@@ -792,6 +792,7 @@ fn serialize_page_header(
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
+    use rayexec_execution::arrays::array::buffer_manager::NopBufferManager;
 
     use super::*;
     use crate::basic::{
@@ -805,6 +806,7 @@ mod tests {
         Type,
     };
     use crate::column::page::{Page, PageReader};
+    use crate::column_reader::ColumnData;
     use crate::compression::{create_codec, Codec, CodecOptionsBuilder};
     use crate::file::page_index::index::Index;
     use crate::file::properties::{
@@ -1365,7 +1367,8 @@ mod tests {
             )
             .unwrap();
 
-            while let Some(page) = page_reader.read_next_page().unwrap() {
+            let mut data = ColumnData::empty(&NopBufferManager);
+            while let Some(page) = page_reader.read_next_page(&mut data).unwrap() {
                 result_pages.push(page);
             }
         }

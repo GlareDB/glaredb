@@ -12,6 +12,21 @@ pub(crate) struct ColumnData<B: BufferManager> {
     pub decompressed_page: ReadBuffer<B>,
 }
 
+impl<B> ColumnData<B>
+where
+    B: BufferManager,
+{
+    /// Create emtpy buffers for the column data.
+    ///
+    /// During page reading, these will be resized as appropriate.
+    pub fn empty(manager: &B) -> Self {
+        ColumnData {
+            chunk: ByteBuffer::empty(manager),
+            decompressed_page: ReadBuffer::empty(manager),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct ColumnReadState<B: BufferManager> {
     /// Buffer holding decompressed column data.

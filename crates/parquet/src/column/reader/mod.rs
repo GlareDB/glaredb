@@ -24,6 +24,7 @@ pub mod view;
 use basic::BasicColumnValueDecoder;
 use bytes::Bytes;
 use decoder::ColumnValueDecoder;
+use rayexec_execution::arrays::array::buffer_manager::NopBufferManager;
 
 use super::page::{Page, PageReader};
 use crate::basic::*;
@@ -32,6 +33,7 @@ use crate::column::reader::decoder::{
     DefinitionLevelDecoder,
     RepetitionLevelDecoder,
 };
+use crate::column_reader::ColumnData;
 use crate::data_type::*;
 use crate::errors::{general_err, ParquetError, ParquetResult};
 use crate::schema::types::ColumnDescPtr;
@@ -309,7 +311,9 @@ where
     /// Read the next page as a dictionary page. If the next page is not a
     /// dictionary page, this will return an error.
     fn read_dictionary_page(&mut self) -> ParquetResult<()> {
-        match self.page_reader.read_next_page()? {
+        // TODO
+        let mut data = ColumnData::empty(&NopBufferManager);
+        match self.page_reader.read_next_page(&mut data)? {
             Some(Page::DictionaryPage {
                 buf,
                 num_values,
@@ -327,8 +331,10 @@ where
     /// Reads a new page and set up the decoders for levels, values or
     /// dictionary. Returns false if there's no page left.
     fn read_new_page(&mut self) -> ParquetResult<bool> {
+        // TODO
+        let mut data = ColumnData::empty(&NopBufferManager);
         loop {
-            match self.page_reader.read_next_page()? {
+            match self.page_reader.read_next_page(&mut data)? {
                 // No more page to read
                 None => return Ok(false),
                 Some(current_page) => {
