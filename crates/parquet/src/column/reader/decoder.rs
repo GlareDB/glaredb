@@ -19,7 +19,7 @@ use bytes::Bytes;
 
 use crate::basic::Encoding;
 use crate::encodings::rle::RleDecoder;
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 use crate::util::bit_util::{num_required_bits, BitReader};
 
 /// Decodes level data
@@ -42,7 +42,7 @@ pub trait ColumnValueDecoder {
         num_values: u32,
         encoding: Encoding,
         _is_sorted: bool,
-    ) -> Result<()>;
+    ) -> ParquetResult<()>;
 
     /// Set the current data page
     ///
@@ -51,25 +51,27 @@ pub trait ColumnValueDecoder {
     /// - `num_levels` - the number of levels contained within the page, i.e. values including nulls
     /// - `num_values` - the number of non-null values contained within the page (V2 page only)
     ///
-    /// Note: data encoded with [`Encoding::RLE`] may not know its exact length, as the final
-    /// run may be zero-padded. As such if `num_values` is not provided (i.e. `None`),
-    /// subsequent calls to `ColumnValueDecoder::read` may yield more values than
-    /// non-null definition levels within the page
+    /// Note: data encoded with [`Encoding::RLE`] may not know its exact length,
+    /// as the final run may be zero-padded. As such if `num_values` is not
+    /// provided (i.e. `None`), subsequent calls to `ColumnValueDecoder::read`
+    /// may yield more values than non-null definition levels within the page
     fn set_data(
         &mut self,
         encoding: Encoding,
         data: Bytes,
         num_levels: usize,
         num_values: Option<usize>,
-    ) -> Result<()>;
+    ) -> ParquetResult<()>;
 
-    /// Read up to `num_values` values into `out`
-    fn read(&mut self, out: &mut Self::Buffer, num_values: usize) -> Result<usize>;
+    /// Read values into `out`.
+    ///
+    /// The length of `out` determines the max number of values to read.
+    fn read(&mut self, out: &mut Self::Buffer, num_values: usize) -> ParquetResult<usize>;
 
     /// Skips over `num_values` values
     ///
     /// Returns the number of values skipped
-    fn skip_values(&mut self, num_values: usize) -> Result<usize>;
+    fn skip_values(&mut self, num_values: usize) -> ParquetResult<usize>;
 }
 
 const SKIP_BUFFER_SIZE: usize = 1024;
@@ -94,7 +96,7 @@ impl LevelDecoder {
         }
     }
 
-    fn read(&mut self, out: &mut [i16]) -> Result<usize> {
+    fn read(&mut self, out: &mut [i16]) -> ParquetResult<usize> {
         match self {
             Self::Packed(reader, bit_width) => {
                 Ok(reader.get_batch::<i16>(out, *bit_width as usize))
@@ -133,7 +135,7 @@ impl DefinitionLevelDecoder {
         &mut self,
         out: &mut Vec<i16>,
         num_levels: usize,
-    ) -> Result<(usize, usize)> {
+    ) -> ParquetResult<(usize, usize)> {
         // TODO: Push vec into decoder (#5177)
         let start = out.len();
         out.resize(start + num_levels, 0);
@@ -148,7 +150,7 @@ impl DefinitionLevelDecoder {
     /// Skips over `num_levels` definition levels
     ///
     /// Returns the number of values skipped, and the number of levels skipped
-    pub fn skip_def_levels(&mut self, num_levels: usize) -> Result<(usize, usize)> {
+    pub fn skip_def_levels(&mut self, num_levels: usize) -> ParquetResult<(usize, usize)> {
         let mut level_skip = 0;
         let mut value_skip = 0;
         let mut buf: Vec<i16> = vec![];
@@ -205,11 +207,12 @@ impl RepetitionLevelDecoder {
         }
     }
 
-    /// Read up to `max_records` of repetition level data into `out` returning the number
-    /// of complete records and levels read
+    /// Read up to `num_records` of repetition level data into `out` returning
+    /// the number of complete records and levels read
     ///
-    /// A record only ends when the data contains a subsequent repetition level of 0,
-    /// it is therefore left to the caller to delimit the final record in a column
+    /// A record only ends when the data contains a subsequent repetition level
+    /// of 0, it is therefore left to the caller to delimit the final record in
+    /// a column
     ///
     /// # Panics
     ///
@@ -219,7 +222,7 @@ impl RepetitionLevelDecoder {
         out: &mut Vec<i16>,
         num_records: usize,
         num_levels: usize,
-    ) -> Result<(usize, usize)> {
+    ) -> ParquetResult<(usize, usize)> {
         let mut total_records_read = 0;
         let mut total_levels_read = 0;
 
@@ -259,7 +262,7 @@ impl RepetitionLevelDecoder {
         &mut self,
         num_records: usize,
         num_levels: usize,
-    ) -> Result<(usize, usize)> {
+    ) -> ParquetResult<(usize, usize)> {
         let mut total_records_read = 0;
         let mut total_levels_read = 0;
 
@@ -289,17 +292,19 @@ impl RepetitionLevelDecoder {
         std::mem::take(&mut self.has_partial)
     }
 
-    fn fill_buf(&mut self) -> Result<()> {
+    fn fill_buf(&mut self) -> ParquetResult<()> {
         let read = self.decoder.as_mut().unwrap().read(self.buffer.as_mut())?;
         self.buffer_offset = 0;
         self.buffer_len = read;
         Ok(())
     }
 
-    /// Inspects the buffered repetition levels in the range `self.buffer_offset..self.buffer_len`
-    /// and returns the number of "complete" records along with the corresponding number of values
+    /// Inspects the buffered repetition levels in the range
+    /// `self.buffer_offset..self.buffer_len` and returns the number of
+    /// "complete" records along with the corresponding number of values
     ///
-    /// A "complete" record is one where the buffer contains a subsequent repetition level of 0
+    /// A "complete" record is one where the buffer contains a subsequent
+    /// repetition level of 0
     fn count_records(&mut self, records_to_read: usize, num_levels: usize) -> (bool, usize, usize) {
         let mut records_read = 0;
 

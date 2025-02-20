@@ -1,15 +1,15 @@
 use std::sync::Arc;
+use std::task::Context;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
-use super::table_storage::{DataTable, DataTableScan, ProjectedScan, Projections, TableStorage};
+use super::table_storage::{DataTable, DataTableScan, Projections, TableStorage};
 use crate::arrays::batch::Batch;
 use crate::database::catalog_entry::CatalogEntry;
-use crate::execution::computed_batch::ComputedBatches;
-use crate::execution::operators::sink::PartitionSink;
-use crate::execution::operators::util::resizer::{BatchResizer, DEFAULT_TARGET_BATCH_SIZE};
+use crate::execution::operators::sink::operation::{PartitionSink, PollPush};
+use crate::execution::operators::PollFinalize;
 
 #[derive(Debug, Default)]
 pub struct MemoryTableStorage {
@@ -93,37 +93,38 @@ impl DataTable for MemoryDataTable {
         projections: Projections,
         num_partitions: usize,
     ) -> Result<Vec<Box<dyn DataTableScan>>> {
-        let mut scans: Vec<_> = (0..num_partitions)
+        let scans: Vec<_> = (0..num_partitions)
             .map(|_| MemoryDataTableScan { data: Vec::new() })
             .collect();
 
-        let data = {
-            let data = self.data.lock();
-            data.clone()
-        };
+        unimplemented!()
+        // let data = {
+        //     let data = self.data.lock();
+        //     data.clone()
+        // };
 
-        for (idx, batch) in data.into_iter().enumerate() {
-            scans[idx % num_partitions].data.push(batch);
-        }
+        // for (idx, batch) in data.into_iter().enumerate() {
+        //     scans[idx % num_partitions].data.push(batch);
+        // }
 
-        Ok(scans
-            .into_iter()
-            .map(|scan| Box::new(ProjectedScan::new(scan, projections.clone())) as Box<_>)
-            .collect())
+        // Ok(scans
+        //     .into_iter()
+        //     .map(|scan| Box::new(ProjectedScan::new(scan, projections.clone())) as Box<_>)
+        //     .collect())
     }
 
     fn insert(&self, input_partitions: usize) -> Result<Vec<Box<dyn PartitionSink>>> {
-        let inserts: Vec<_> = (0..input_partitions)
-            .map(|_| {
-                Box::new(MemoryDataTableInsert {
-                    resizer: BatchResizer::new(DEFAULT_TARGET_BATCH_SIZE),
-                    collected: Vec::new(),
-                    data: self.data.clone(),
-                }) as _
-            })
-            .collect();
+        unimplemented!()
+        // let inserts: Vec<_> = (0..input_partitions)
+        //     .map(|_| {
+        //         Box::new(MemoryDataTableInsert {
+        //             collected: Vec::new(),
+        //             data: self.data.clone(),
+        //         }) as _
+        //     })
+        //     .collect();
 
-        Ok(inserts)
+        // Ok(inserts)
     }
 }
 
@@ -139,37 +140,34 @@ impl DataTableScan for MemoryDataTableScan {
 }
 
 #[derive(Debug)]
-pub struct MemoryDataTableInsert {
-    resizer: BatchResizer, // TODO: Need to replace.
-    collected: Vec<ComputedBatches>,
-    data: Arc<Mutex<Vec<Batch>>>,
-}
+pub struct MemoryDataTableInsert {}
 
 impl PartitionSink for MemoryDataTableInsert {
-    fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async {
-            let batches = self.resizer.try_push(batch)?;
-            if batches.is_empty() {
-                return Ok(());
-            }
-            self.collected.push(batches);
-            Ok(())
-        })
+    fn poll_push(&mut self, cx: &mut Context, input: &mut Batch) -> Result<PollPush> {
+        unimplemented!()
     }
 
-    fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async {
-            let batches = self.resizer.flush_remaining()?;
-            self.collected.push(batches);
-
-            let mut data = self.data.lock();
-            for mut computed in self.collected.drain(..) {
-                while let Some(batch) = computed.try_pop_front()? {
-                    data.push(batch);
-                }
-            }
-
-            Ok(())
-        })
+    fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize> {
+        unimplemented!()
     }
+
+    // fn push(&mut self, batch: Batch) -> BoxFuture<'_, Result<()>> {
+    //     Box::pin(async {
+    //         self.collected.push(batch.into());
+    //         Ok(())
+    //     })
+    // }
+
+    // fn finalize(&mut self) -> BoxFuture<'_, Result<()>> {
+    //     Box::pin(async {
+    //         let mut data = self.data.lock();
+    //         for mut computed in self.collected.drain(..) {
+    //             while let Some(batch) = computed.try_pop_front()? {
+    //                 data.push(batch);
+    //             }
+    //         }
+
+    //         Ok(())
+    //     })
+    // }
 }

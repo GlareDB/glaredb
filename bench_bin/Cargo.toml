@@ -13,7 +13,6 @@ rayexec_shell = { path = '../crates/rayexec_shell' }
 rayexec_rt_native = { path = '../crates/rayexec_rt_native' }
 rayexec_bench = { path = '../crates/rayexec_bench' }
 rayexec_bullet = { path = '../crates/rayexec_bullet' }
-rayexec_postgres = { path = '../crates/rayexec_postgres' }
 rayexec_parquet = { path = '../crates/rayexec_parquet' }
 rayexec_csv = { path = '../crates/rayexec_csv' }
 rayexec_delta = { path = '../crates/rayexec_delta' }

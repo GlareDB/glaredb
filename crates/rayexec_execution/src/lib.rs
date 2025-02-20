@@ -13,3 +13,5 @@ pub mod optimizer;
 pub mod proto;
 pub mod runtime;
 pub mod storage;
+
+pub mod testutil;

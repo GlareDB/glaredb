@@ -161,22 +161,23 @@ impl WasmMaterializedColumn {
     }
 
     pub fn value_as_string(&self, row_idx: usize) -> Result<Option<String>> {
-        const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
-        let v = self.0.with_row(
-            |arr, row| {
-                let valid = arr.is_valid(row).expect("row in bounds");
-                if valid {
-                    Ok(Some(
-                        FORMATTER.format_array_value(arr, row).unwrap().to_string(),
-                    ))
-                } else {
-                    Ok(None)
-                }
-            },
-            row_idx,
-        )?;
+        unimplemented!()
+        // const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
+        // let v = self.0.with_row(
+        //     |arr, row| {
+        //         let valid = arr.is_valid(row).expect("row in bounds");
+        //         if valid {
+        //             Ok(Some(
+        //                 FORMATTER.format_array_value(arr, row).unwrap().to_string(),
+        //             ))
+        //         } else {
+        //             Ok(None)
+        //         }
+        //     },
+        //     row_idx,
+        // )?;
 
-        Ok(v)
+        // Ok(v)
     }
 }
 
@@ -194,9 +195,9 @@ mod tests {
         let table = MaterializedResultTable::try_new(
             Schema::new([Field::new("c1", DataType::Int32, true)]),
             [
-                Batch::try_from_arrays([Array::from_iter([0, 1, 2, 3])]).unwrap(),
-                Batch::try_from_arrays([Array::from_iter([4, 5])]).unwrap(),
-                Batch::try_from_arrays([Array::from_iter([6, 7, 8, 9, 10])]).unwrap(),
+                Batch::from_arrays([Array::from_iter([0, 1, 2, 3])]).unwrap(),
+                Batch::from_arrays([Array::from_iter([4, 5])]).unwrap(),
+                Batch::from_arrays([Array::from_iter([6, 7, 8, 9, 10])]).unwrap(),
             ],
         )
         .unwrap();

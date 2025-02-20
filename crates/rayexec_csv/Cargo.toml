@@ -8,6 +8,7 @@ rayexec_proto = { path = '../rayexec_proto' }
 rayexec_execution = { path = '../rayexec_execution' }
 rayexec_error = { path = '../rayexec_error' }
 rayexec_io = { path = '../rayexec_io' }
+stdutil = { path = "../stdutil" }
 futures = { workspace = true }
 tracing = { workspace = true }
 regex = { workspace = true }

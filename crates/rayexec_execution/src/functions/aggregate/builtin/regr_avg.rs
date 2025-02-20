@@ -3,20 +3,14 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::PhysicalF64;
+use crate::arrays::array::buffer_manager::BufferManager;
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    new_binary_aggregate_states,
-    primitive_finalize,
-    AggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::states::{AggregateFunctionImpl, BinaryStateLogic};
+use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -60,26 +54,16 @@ impl AggregateFunction for RegrAvgY {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(RegrAvgYImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    BinaryStateLogic<RegrAvgState<Self>, PhysicalF64, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct RegrAvgYImpl;
-
-impl AggregateFunctionImpl for RegrAvgYImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
-            RegrAvgState::<Self>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
-    }
-}
-
-impl RegrAvgInput for RegrAvgYImpl {
+impl RegrAvgInput for RegrAvgY {
     fn input(vals: (f64, f64)) -> f64 {
         // 'y' in (y, x)
         vals.0
@@ -125,37 +109,27 @@ impl AggregateFunction for RegrAvgX {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
-                function_impl: Box::new(RegrAvgXImpl),
+                function_impl: AggregateFunctionImpl::new::<
+                    BinaryStateLogic<RegrAvgState<Self>, PhysicalF64, PhysicalF64, PhysicalF64>,
+                >(None),
             }),
             (a, b) => Err(invalid_input_types_error(self, &[a, b])),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct RegrAvgXImpl;
-
-impl AggregateFunctionImpl for RegrAvgXImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
-            RegrAvgState::<Self>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
-    }
-}
-
-impl RegrAvgInput for RegrAvgXImpl {
+impl RegrAvgInput for RegrAvgX {
     fn input(vals: (f64, f64)) -> f64 {
         // 'x' in (y, x)
         vals.1
     }
 }
 
-pub trait RegrAvgInput: Sync + Send + Default + Debug + 'static {
+pub trait RegrAvgInput: Sync + Send + Debug + 'static {
     fn input(vals: (f64, f64)) -> f64;
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct RegrAvgState<F>
 where
     F: RegrAvgInput,
@@ -165,7 +139,20 @@ where
     _input: PhantomData<F>,
 }
 
-impl<F> AggregateState<(f64, f64), f64> for RegrAvgState<F>
+impl<F> Default for RegrAvgState<F>
+where
+    F: RegrAvgInput,
+{
+    fn default() -> Self {
+        RegrAvgState {
+            sum: 0.0,
+            count: 0,
+            _input: PhantomData,
+        }
+    }
+}
+
+impl<F> AggregateState<(&f64, &f64), f64> for RegrAvgState<F>
 where
     F: RegrAvgInput,
 {
@@ -175,17 +162,23 @@ where
         Ok(())
     }
 
-    fn update(&mut self, input: (f64, f64)) -> Result<()> {
-        self.sum += F::input(input);
+    fn update(&mut self, (&y, &x): (&f64, &f64)) -> Result<()> {
+        self.sum += F::input((y, x));
         self.count += 1;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(f64, bool)> {
+    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    where
+        M: AddressableMut<B, T = f64>,
+        B: BufferManager,
+    {
         if self.count == 0 {
-            Ok((0.0, false))
+            output.put_null();
         } else {
-            Ok((self.sum / self.count as f64, true))
+            let v = self.sum / self.count as f64;
+            output.put(&v);
         }
+        Ok(())
     }
 }

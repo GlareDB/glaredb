@@ -10,7 +10,6 @@ use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, Memor
 use rayexec_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
 use rayexec_iceberg::IcebergDataSource;
 use rayexec_parquet::ParquetDataSource;
-use rayexec_postgres::PostgresDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_shell::lineedit::KeyEvent;
 use rayexec_shell::session::SingleUserEngine;
@@ -82,7 +81,6 @@ async fn inner(
 ) -> Result<()> {
     let registry = DataSourceRegistry::default()
         .with_datasource("memory", Box::new(MemoryDataSource))?
-        .with_datasource("postgres", PostgresDataSource::initialize(runtime.clone()))?
         .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
         .with_datasource("unity", UnityCatalogDataSource::initialize(runtime.clone()))?
         .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?

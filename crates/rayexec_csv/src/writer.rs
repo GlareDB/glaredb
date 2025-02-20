@@ -6,7 +6,7 @@ use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::field::Schema;
 use rayexec_execution::arrays::format::{FormatOptions, Formatter};
 
-use crate::reader::DialectOptions;
+use crate::dialect::DialectOptions;
 
 #[derive(Debug)]
 pub struct CsvEncoder {

@@ -21,7 +21,7 @@ use std::ops::Range;
 
 use crate::basic::Type;
 use crate::data_type::Int96;
-use crate::errors::ParquetError;
+use crate::errors::{general_err, ParquetError};
 use crate::file::metadata::ColumnChunkMetaData;
 use crate::file::page_index::index::{Index, NativeIndex};
 use crate::file::reader::ChunkReader;

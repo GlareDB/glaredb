@@ -26,13 +26,15 @@ use std::path::Path;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use rayexec_execution::arrays::array::buffer_manager::BufferManager;
 use thrift::protocol::TCompactInputProtocol;
 
 use crate::basic::{Encoding, Type};
 use crate::bloom_filter::Sbbf;
 use crate::column::page::{Page, PageMetadata, PageReader};
+use crate::column_reader::ColumnData;
 use crate::compression::{create_codec, Codec};
-use crate::errors::{ParquetError, Result};
+use crate::errors::{eof_err, general_err, ParquetError, ParquetResult};
 use crate::file::metadata::*;
 use crate::file::page_index::index_reader;
 use crate::file::properties::{ReaderProperties, ReaderPropertiesPtr};
@@ -44,7 +46,7 @@ use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 impl TryFrom<File> for SerializedFileReader<File> {
     type Error = ParquetError;
 
-    fn try_from(file: File) -> Result<Self> {
+    fn try_from(file: File) -> ParquetResult<Self> {
         Self::new(file)
     }
 }
@@ -52,7 +54,7 @@ impl TryFrom<File> for SerializedFileReader<File> {
 impl TryFrom<&Path> for SerializedFileReader<File> {
     type Error = ParquetError;
 
-    fn try_from(path: &Path) -> Result<Self> {
+    fn try_from(path: &Path) -> ParquetResult<Self> {
         let file = File::open(path)?;
         Self::try_from(file)
     }
@@ -61,7 +63,7 @@ impl TryFrom<&Path> for SerializedFileReader<File> {
 impl TryFrom<String> for SerializedFileReader<File> {
     type Error = ParquetError;
 
-    fn try_from(path: String) -> Result<Self> {
+    fn try_from(path: String) -> ParquetResult<Self> {
         Self::try_from(Path::new(&path))
     }
 }
@@ -69,7 +71,7 @@ impl TryFrom<String> for SerializedFileReader<File> {
 impl TryFrom<&str> for SerializedFileReader<File> {
     type Error = ParquetError;
 
-    fn try_from(path: &str) -> Result<Self> {
+    fn try_from(path: &str) -> ParquetResult<Self> {
         Self::try_from(Path::new(&path))
     }
 }
@@ -165,7 +167,7 @@ pub struct ReadOptions {
 impl<R: 'static + ChunkReader> SerializedFileReader<R> {
     /// Creates file reader from a Parquet file.
     /// Returns error if Parquet file does not exist or is corrupt.
-    pub fn new(chunk_reader: R) -> Result<Self> {
+    pub fn new(chunk_reader: R) -> ParquetResult<Self> {
         let metadata = footer::parse_metadata(&chunk_reader)?;
         let props = Arc::new(ReaderProperties::builder().build());
         Ok(Self {
@@ -177,7 +179,7 @@ impl<R: 'static + ChunkReader> SerializedFileReader<R> {
 
     /// Creates file reader from a Parquet file with read options.
     /// Returns error if Parquet file does not exist or is corrupt.
-    pub fn new_with_options(chunk_reader: R, options: ReadOptions) -> Result<Self> {
+    pub fn new_with_options(chunk_reader: R, options: ReadOptions) -> ParquetResult<Self> {
         let metadata = footer::parse_metadata(&chunk_reader)?;
         let mut predicates = options.predicates;
         let row_groups = metadata.row_groups().to_vec();
@@ -252,7 +254,7 @@ impl<R: 'static + ChunkReader> FileReader<SerializedPageReader<R>, SerializedRow
         self.metadata.num_row_groups()
     }
 
-    fn get_row_group(&self, i: usize) -> Result<SerializedRowGroupReader<R>> {
+    fn get_row_group(&self, i: usize) -> ParquetResult<SerializedRowGroupReader<R>> {
         // Row groups should be processed sequentially.
         SerializedRowGroupReader::new(
             i,
@@ -279,14 +281,14 @@ impl<R: ChunkReader> SerializedRowGroupReader<R> {
         chunk_reader: Arc<R>,
         parquet_metadata: Arc<ParquetMetaData>,
         props: ReaderPropertiesPtr,
-    ) -> Result<Self> {
+    ) -> ParquetResult<Self> {
         let bloom_filters = if props.read_bloom_filter() {
             parquet_metadata
                 .row_group(row_group)
                 .columns()
                 .iter()
                 .map(|col| Sbbf::read_from_column_chunk(col, chunk_reader.clone()))
-                .collect::<Result<Vec<_>>>()?
+                .collect::<ParquetResult<Vec<_>>>()?
         } else {
             iter::repeat(None)
                 .take(parquet_metadata.row_group(row_group).columns().len())
@@ -320,7 +322,7 @@ impl<R: 'static + ChunkReader> RowGroupReader<SerializedPageReader<R>>
     }
 
     // TODO: fix PARQUET-816
-    fn get_column_page_reader(&self, i: usize) -> Result<SerializedPageReader<R>> {
+    fn get_column_page_reader(&self, i: usize) -> ParquetResult<SerializedPageReader<R>> {
         let col = self.metadata().column(i);
 
         SerializedPageReader::new_with_properties(
@@ -339,14 +341,14 @@ impl<R: 'static + ChunkReader> RowGroupReader<SerializedPageReader<R>>
 }
 
 /// Reads a [`PageHeader`] from the provided [`Read`]
-pub(crate) fn read_page_header<T: Read>(input: &mut T) -> Result<PageHeader> {
+pub(crate) fn read_page_header<T: Read>(input: &mut T) -> ParquetResult<PageHeader> {
     let mut prot = TCompactInputProtocol::new(input);
     let page_header = PageHeader::read_from_in_protocol(&mut prot)?;
     Ok(page_header)
 }
 
 /// Reads a [`PageHeader`] from the provided [`Read`] returning the number of bytes read
-fn read_page_header_len<T: Read>(input: &mut T) -> Result<(usize, PageHeader)> {
+fn read_page_header_len<T: Read>(input: &mut T) -> ParquetResult<(usize, PageHeader)> {
     /// A wrapper around a [`std::io::Read`] that keeps track of the bytes read
     struct TrackedRead<R> {
         inner: R,
@@ -375,10 +377,10 @@ pub(crate) fn decode_page(
     buffer: Bytes,
     physical_type: Type,
     decompressor: Option<&mut Box<dyn Codec>>,
-) -> Result<Page> {
+) -> ParquetResult<Page> {
     // When processing data page v2, depending on enabled compression for the
-    // page, we should account for uncompressed data ('offset') of
-    // repetition and definition levels.
+    // page, we should account for uncompressed data ('offset') of repetition
+    // and definition levels.
     //
     // We always use 0 offset for other pages other than v2, `true` flag means
     // that compression will be applied if decompressor is defined
@@ -397,20 +399,22 @@ pub(crate) fn decode_page(
     let buffer = match decompressor {
         Some(decompressor) if can_decompress => {
             let uncompressed_size = page_header.uncompressed_page_size as usize;
-            let mut decompressed = Vec::with_capacity(uncompressed_size);
             let compressed = &buffer.as_ref()[offset..];
-            decompressed.extend_from_slice(&buffer.as_ref()[..offset]);
-            decompressor.decompress(
-                compressed,
-                &mut decompressed,
-                Some(uncompressed_size - offset),
-            )?;
 
-            if decompressed.len() != uncompressed_size {
+            let mut decompressed = vec![0; uncompressed_size];
+            // Move definitions and repetitions into uncompressed buffer. For
+            // whatever reason, those don't get compressed.
+            let prefix = &mut decompressed[0..offset];
+            prefix.copy_from_slice(&buffer.as_ref()[0..offset]);
+
+            let remaining = &mut decompressed[offset..];
+            let n = decompressor.decompress(compressed, remaining)?;
+
+            if remaining.len() != n as usize {
                 return Err(general_err!(
                     "Actual decompressed size doesn't match the expected one ({} vs {})",
-                    decompressed.len(),
-                    uncompressed_size
+                    remaining.len(),
+                    n
                 ));
             }
 
@@ -475,11 +479,10 @@ enum SerializedPageReaderState {
     Values {
         /// The current byte offset in the reader
         offset: usize,
-
         /// The length of the chunk in bytes
         remaining_bytes: usize,
-
-        // If the next page header has already been "peeked", we will cache it and it`s length here
+        /// If the next page header has already been "peeked", we will cache it
+        /// and it`s length here
         next_page_header: Option<Box<PageHeader>>,
     },
     Pages {
@@ -513,7 +516,7 @@ impl<R: ChunkReader> SerializedPageReader<R> {
         meta: &ColumnChunkMetaData,
         total_rows: usize,
         page_locations: Option<Vec<PageLocation>>,
-    ) -> Result<Self> {
+    ) -> ParquetResult<Self> {
         let props = Arc::new(ReaderProperties::builder().build());
         SerializedPageReader::new_with_properties(reader, meta, total_rows, page_locations, props)
     }
@@ -525,7 +528,7 @@ impl<R: ChunkReader> SerializedPageReader<R> {
         total_rows: usize,
         page_locations: Option<Vec<PageLocation>>,
         props: ReaderPropertiesPtr,
-    ) -> Result<Self> {
+    ) -> ParquetResult<Self> {
         let decompressor = create_codec(meta.compression(), props.codec_options())?;
         let (start, len) = meta.byte_range();
 
@@ -562,16 +565,11 @@ impl<R: ChunkReader> SerializedPageReader<R> {
     }
 }
 
-impl<R: ChunkReader> Iterator for SerializedPageReader<R> {
-    type Item = Result<Page>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.get_next_page().transpose()
-    }
-}
-
 impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
-    fn get_next_page(&mut self) -> Result<Option<Page>> {
+    fn read_next_page<B>(&mut self, column_data: &mut ColumnData<B>) -> ParquetResult<Option<Page>>
+    where
+        B: BufferManager,
+    {
         loop {
             let page = match &mut self.state {
                 SerializedPageReaderState::Values {
@@ -653,7 +651,7 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
         }
     }
 
-    fn peek_next_page(&mut self) -> Result<Option<PageMetadata>> {
+    fn peek_next_page(&mut self) -> ParquetResult<Option<PageMetadata>> {
         match &mut self.state {
             SerializedPageReaderState::Values {
                 offset,
@@ -717,7 +715,7 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
         }
     }
 
-    fn skip_next_page(&mut self) -> Result<()> {
+    fn skip_next_page(&mut self) -> ParquetResult<()> {
         match &mut self.state {
             SerializedPageReaderState::Values {
                 offset,
@@ -745,7 +743,7 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
         }
     }
 
-    fn at_record_boundary(&mut self) -> Result<bool> {
+    fn at_record_boundary(&mut self) -> ParquetResult<bool> {
         match &mut self.state {
             SerializedPageReaderState::Values { .. } => Ok(self.peek_next_page()?.is_none()),
             SerializedPageReaderState::Pages { .. } => Ok(true),
@@ -755,9 +753,10 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
 
 #[cfg(test)]
 mod tests {
+    use rayexec_execution::arrays::array::buffer_manager::NopBufferManager;
+
     use super::*;
     use crate::basic::{self, ColumnOrder};
-    use crate::column::reader::ColumnReader;
     use crate::data_type::private::ParquetValueType;
     use crate::data_type::{AsBytes, FixedLenByteArray};
     use crate::file::page_index::index::{Index, NativeIndex};
@@ -765,8 +764,9 @@ mod tests {
     use crate::file::writer::SerializedFileWriter;
     use crate::format::BoundaryOrder;
     use crate::schema::parser::parse_message_type;
+    use crate::testutil::column_reader::{column_reader_from_row_group_reader, BasicColumnReader};
+    use crate::testutil::file_util::{get_test_file, get_test_path};
     use crate::util::bit_util::from_le_slice;
-    use crate::util::test_common::file_util::{get_test_file, get_test_path};
 
     // #[test]
     // fn test_cursor_and_file_has_the_same_behaviour() {
@@ -861,7 +861,8 @@ mod tests {
         // Now buffer each col reader, we do not expect any failures like:
         // General("underlying Thrift error: end of file")
         for mut page_reader in page_readers {
-            assert!(page_reader.get_next_page().is_ok());
+            let mut data = ColumnData::empty(&NopBufferManager);
+            assert!(page_reader.read_next_page(&mut data).is_ok());
         }
     }
 
@@ -917,7 +918,8 @@ mod tests {
         assert!(page_reader_0_result.is_ok());
         let mut page_reader_0 = page_reader_0_result.unwrap();
         let mut page_count = 0;
-        while let Ok(Some(page)) = page_reader_0.get_next_page() {
+        let mut data = ColumnData::empty(&NopBufferManager);
+        while let Ok(Some(page)) = page_reader_0.read_next_page(&mut data) {
             let is_expected_page = match page {
                 Page::DictionaryPage {
                     buf,
@@ -1011,7 +1013,8 @@ mod tests {
         assert!(page_reader_0_result.is_ok());
         let mut page_reader_0 = page_reader_0_result.unwrap();
         let mut page_count = 0;
-        while let Ok(Some(page)) = page_reader_0.get_next_page() {
+        let mut data = ColumnData::empty(&NopBufferManager);
+        while let Ok(Some(page)) = page_reader_0.read_next_page(&mut data) {
             let is_expected_page = match page {
                 Page::DictionaryPage {
                     buf,
@@ -1136,7 +1139,7 @@ mod tests {
     }
 
     #[test]
-    fn test_file_reader_with_no_filter() -> Result<()> {
+    fn test_file_reader_with_no_filter() -> ParquetResult<()> {
         let test_file = get_test_file("alltypes_plain.parquet");
         let origin_reader = SerializedFileReader::new(test_file)?;
         // test initial number of row groups
@@ -1146,7 +1149,7 @@ mod tests {
     }
 
     #[test]
-    fn test_file_reader_filter_row_groups_with_predicate() -> Result<()> {
+    fn test_file_reader_filter_row_groups_with_predicate() -> ParquetResult<()> {
         let test_file = get_test_file("alltypes_plain.parquet");
         let read_options = ReadOptionsBuilder::new()
             .with_predicate(Box::new(|_, _| false))
@@ -1158,7 +1161,7 @@ mod tests {
     }
 
     #[test]
-    fn test_file_reader_filter_row_groups_with_range() -> Result<()> {
+    fn test_file_reader_filter_row_groups_with_range() -> ParquetResult<()> {
         let test_file = get_test_file("alltypes_plain.parquet");
         let origin_reader = SerializedFileReader::new(test_file)?;
         // test initial number of row groups
@@ -1181,7 +1184,7 @@ mod tests {
     }
 
     #[test]
-    fn test_file_reader_filter_row_groups_and_range() -> Result<()> {
+    fn test_file_reader_filter_row_groups_and_range() -> ParquetResult<()> {
         let test_file = get_test_file("alltypes_plain.parquet");
         let origin_reader = SerializedFileReader::new(test_file)?;
         let metadata = origin_reader.metadata();
@@ -1545,16 +1548,25 @@ mod tests {
 
         let mut vec = vec![];
 
+        let mut data = ColumnData::empty(&NopBufferManager);
         for i in 0..325 {
             if i % 2 == 0 {
-                vec.push(column_page_reader.get_next_page().unwrap().unwrap());
+                vec.push(
+                    column_page_reader
+                        .read_next_page(&mut data)
+                        .unwrap()
+                        .unwrap(),
+                );
             } else {
                 column_page_reader.skip_next_page().unwrap();
             }
         }
         //check read all pages.
         assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader.get_next_page().unwrap().is_none());
+        assert!(column_page_reader
+            .read_next_page(&mut data)
+            .unwrap()
+            .is_none());
 
         assert_eq!(vec.len(), 163);
     }
@@ -1574,9 +1586,15 @@ mod tests {
 
         let mut vec = vec![];
 
+        let mut data = ColumnData::empty(&NopBufferManager);
         for i in 0..325 {
             if i % 2 == 0 {
-                vec.push(column_page_reader.get_next_page().unwrap().unwrap());
+                vec.push(
+                    column_page_reader
+                        .read_next_page(&mut data)
+                        .unwrap()
+                        .unwrap(),
+                );
             } else {
                 column_page_reader.peek_next_page().unwrap().unwrap();
                 column_page_reader.skip_next_page().unwrap();
@@ -1584,7 +1602,10 @@ mod tests {
         }
         //check read all pages.
         assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader.get_next_page().unwrap().is_none());
+        assert!(column_page_reader
+            .read_next_page(&mut data)
+            .unwrap()
+            .is_none());
 
         assert_eq!(vec.len(), 163);
     }
@@ -1606,7 +1627,11 @@ mod tests {
 
         let meta = column_page_reader.peek_next_page().unwrap().unwrap();
         assert!(meta.is_dict);
-        let page = column_page_reader.get_next_page().unwrap().unwrap();
+        let mut data = ColumnData::empty(&NopBufferManager);
+        let page = column_page_reader
+            .read_next_page(&mut data)
+            .unwrap()
+            .unwrap();
         assert!(matches!(page.page_type(), basic::PageType::DICTIONARY_PAGE));
 
         for i in 0..352 {
@@ -1622,13 +1647,19 @@ mod tests {
             }
             assert!(!meta.is_dict);
             vec.push(meta);
-            let page = column_page_reader.get_next_page().unwrap().unwrap();
+            let page = column_page_reader
+                .read_next_page(&mut data)
+                .unwrap()
+                .unwrap();
             assert!(matches!(page.page_type(), basic::PageType::DATA_PAGE));
         }
 
         //check read all pages.
         assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader.get_next_page().unwrap().is_none());
+        assert!(column_page_reader
+            .read_next_page(&mut data)
+            .unwrap()
+            .is_none());
 
         assert_eq!(vec.len(), 352);
     }
@@ -1648,7 +1679,11 @@ mod tests {
 
         let meta = column_page_reader.peek_next_page().unwrap().unwrap();
         assert!(meta.is_dict);
-        let page = column_page_reader.get_next_page().unwrap().unwrap();
+        let mut data = ColumnData::empty(&NopBufferManager);
+        let page = column_page_reader
+            .read_next_page(&mut data)
+            .unwrap()
+            .unwrap();
         assert!(matches!(page.page_type(), basic::PageType::DICTIONARY_PAGE));
 
         for i in 0..352 {
@@ -1664,13 +1699,19 @@ mod tests {
             }
             assert!(!meta.is_dict);
             vec.push(meta);
-            let page = column_page_reader.get_next_page().unwrap().unwrap();
+            let page = column_page_reader
+                .read_next_page(&mut data)
+                .unwrap()
+                .unwrap();
             assert!(matches!(page.page_type(), basic::PageType::DATA_PAGE));
         }
 
         //check read all pages.
         assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader.get_next_page().unwrap().is_none());
+        assert!(column_page_reader
+            .read_next_page(&mut data)
+            .unwrap()
+            .is_none());
 
         assert_eq!(vec.len(), 352);
     }
@@ -1729,8 +1770,8 @@ mod tests {
         let file = get_test_file("concatenated_gzip_members.parquet");
         let reader = SerializedFileReader::new(file).unwrap();
         let row_group_reader = reader.get_row_group(0).unwrap();
-        match row_group_reader.get_column_reader(0).unwrap() {
-            ColumnReader::Int64ColumnReader(mut reader) => {
+        match column_reader_from_row_group_reader(&row_group_reader, 0).unwrap() {
+            BasicColumnReader::Int64ColumnReader(mut reader) => {
                 let mut buffer = Vec::with_capacity(1024);
                 let mut def_levels = Vec::with_capacity(1024);
                 let (num_records, num_values, num_levels) = reader

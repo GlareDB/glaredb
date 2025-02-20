@@ -9,7 +9,7 @@ use rayexec_execution::arrays::field::{Field, Schema};
 use rayexec_execution::arrays::scalar::decimal::{Decimal128Type, DecimalType};
 use rayexec_execution::storage::table_storage::Projections;
 use rayexec_io::location::{AccessConfig, FileLocation};
-use rayexec_io::{FileProvider, FileSource};
+use rayexec_io::{FileProvider2, FileSource};
 use rayexec_parquet::metadata::Metadata;
 use rayexec_parquet::reader::AsyncBatchReader;
 use serde_json::Deserializer;
@@ -27,7 +27,7 @@ pub struct Table {
     /// Root of the table.
     root: FileLocation,
     /// Provider for accessing files.
-    provider: Arc<dyn FileProvider>,
+    provider: Arc<dyn FileProvider2>,
     conf: AccessConfig,
     /// Snapshot of the table, including what files we have available to use for
     /// reading.
@@ -38,7 +38,7 @@ impl Table {
     pub async fn create(
         _root: FileLocation,
         _schema: Schema,
-        _provider: Arc<dyn FileProvider>,
+        _provider: Arc<dyn FileProvider2>,
         _conf: AccessConfig,
     ) -> Result<Self> {
         unimplemented!()
@@ -47,7 +47,7 @@ impl Table {
     /// Try to load a table at the given location.
     pub async fn load(
         root: FileLocation,
-        provider: Arc<dyn FileProvider>,
+        provider: Arc<dyn FileProvider2>,
         conf: AccessConfig,
     ) -> Result<Self> {
         // TODO: Look at checkpoints & compacted logs
@@ -99,7 +99,7 @@ impl Table {
 
     // TODO: Maybe don't allocate new vec for every log file.
     async fn read_actions_from_log(
-        provider: &dyn FileProvider,
+        provider: &dyn FileProvider2,
         conf: &AccessConfig,
         root: &FileLocation,
         path: &str,
@@ -172,7 +172,7 @@ pub struct TableScan {
     /// Paths to data files this scan should read one after another.
     paths: VecDeque<String>,
     /// File provider for getting the actual file sources.
-    provider: Arc<dyn FileProvider>,
+    provider: Arc<dyn FileProvider2>,
     conf: AccessConfig,
     /// Current reader, initially empty and populated on first stream.
     ///
@@ -219,7 +219,7 @@ impl TableScan {
         root: &FileLocation,
         conf: &AccessConfig,
         path: String,
-        provider: &dyn FileProvider,
+        provider: &dyn FileProvider2,
         schema: &Schema,
         projections: Projections,
     ) -> Result<AsyncBatchReader<Box<dyn FileSource>>> {

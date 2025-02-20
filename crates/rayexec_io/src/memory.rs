@@ -11,6 +11,7 @@ use futures::{Stream, StreamExt};
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
+use crate::exp::AsyncReadStream;
 use crate::{FileSink, FileSource};
 
 /// Memory-backed filesystem provider.
@@ -147,6 +148,47 @@ impl Stream for MemoryFileStream {
     }
 }
 
+/// Stream read from a shared byte slice.
+///
+/// Also useful for tests.
+#[derive(Debug)]
+pub struct MemoryRead {
+    bytes: Bytes,
+    offset: usize,
+}
+
+impl MemoryRead {
+    pub fn new(bytes: impl Into<Bytes>) -> Self {
+        MemoryRead {
+            bytes: bytes.into(),
+            offset: 0,
+        }
+    }
+}
+
+impl AsyncReadStream for MemoryRead {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context,
+        buf: &mut [u8],
+    ) -> Result<Poll<Option<usize>>> {
+        if self.offset >= self.bytes.len() {
+            return Ok(Poll::Ready(None));
+        }
+
+        let rem = self.bytes.len() - self.offset;
+        let count = usize::min(buf.len(), rem);
+
+        let src = &self.bytes[self.offset..(self.offset + count)];
+        let dest = &mut buf[0..count];
+
+        dest.copy_from_slice(src);
+        self.offset += count;
+
+        Ok(Poll::Ready(Some(count)))
+    }
+}
+
 /// Gets a normalized file name that works with our in-memory file system
 /// implementation.
 ///
@@ -192,6 +234,9 @@ pub fn get_normalized_file_name(path: &Path) -> Result<&str> {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+    use std::task::Waker;
+
+    use stdutil::task::noop_context;
 
     use super::*;
 
@@ -218,5 +263,49 @@ mod tests {
         get_normalized_file_name(&PathBuf::from("./dir/test.parquet")).unwrap_err();
         get_normalized_file_name(&PathBuf::from("/dir/test.parquet")).unwrap_err();
         get_normalized_file_name(&PathBuf::from("/../test.parquet")).unwrap_err();
+    }
+
+    #[test]
+    fn memory_read_complete() {
+        let mut read = Box::pin(MemoryRead::new(b"hello".to_vec()));
+        let mut out = vec![0; 8];
+
+        let poll = read
+            .as_mut()
+            .poll_read(&mut noop_context(), &mut out)
+            .unwrap();
+        assert_eq!(Poll::Ready(Some(5)), poll);
+
+        assert_eq!(b"hello\0\0\0".to_vec(), out);
+
+        let poll = read
+            .as_mut()
+            .poll_read(&mut noop_context(), &mut out)
+            .unwrap();
+        assert_eq!(Poll::Ready(None), poll);
+    }
+
+    #[test]
+    fn memory_read_partial() {
+        let mut read = Box::pin(MemoryRead::new(b"hello".to_vec()));
+        let mut out = vec![0; 4];
+
+        let poll = read
+            .as_mut()
+            .poll_read(&mut noop_context(), &mut out)
+            .unwrap();
+        assert_eq!(Poll::Ready(Some(4)), poll);
+
+        assert_eq!(b"hell".to_vec(), out);
+
+        out.fill(0);
+
+        let poll = read
+            .as_mut()
+            .poll_read(&mut noop_context(), &mut out)
+            .unwrap();
+        assert_eq!(Poll::Ready(Some(1)), poll);
+
+        assert_eq!(b"o\0\0\0".to_vec(), out);
     }
 }

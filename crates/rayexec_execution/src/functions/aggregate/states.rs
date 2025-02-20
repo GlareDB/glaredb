@@ -1,254 +1,343 @@
-use core::fmt;
 use std::any::Any;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 use stdutil::marker::PhantomCovariant;
 
-use super::ChunkGroupAddressIter;
-use crate::arrays::array::physical_type::PhysicalStorage;
-use crate::arrays::array::{Array, ArrayData2};
-use crate::arrays::datatype::DataType;
+use crate::arrays::array::physical_type::{MutableScalarStorage, ScalarStorage};
+use crate::arrays::array::Array;
 use crate::arrays::executor::aggregate::{
     AggregateState,
     BinaryNonNullUpdater,
-    StateCombiner,
-    StateFinalizer,
     UnaryNonNullUpdater,
 };
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer, PrimitiveBuffer};
-use crate::arrays::storage::{AddressableStorage, PrimitiveStorage};
+use crate::arrays::executor::PutBuffer;
 
-pub struct TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdate, StateFinalize> {
-    states: Vec<State>,
+/// Logic for handling aggregate state changes.
+///
+/// `UnaryStateLogic` or `BinaryStateLogic` should be used if `extra` isn't
+/// needed.
+pub trait AggregateStateLogic {
+    type State;
 
-    state_init: StateInit,
-    state_update: StateUpdate,
-    state_finalize: StateFinalize,
+    /// Initialize a new state.
+    fn init_state(extra: Option<&dyn Any>) -> Self::State;
 
-    // Note that these don't use `PhantomData` since we'll want to allow unsized
-    // types for the output type.
-    _input: PhantomCovariant<Input>,
-    _output: PhantomCovariant<Output>,
-}
-
-impl<State, Input, Output, StateInit, StateUpdate, StateFinalize>
-    TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdate, StateFinalize>
-{
-    pub fn new(
-        state_init: StateInit,
-        state_update: StateUpdate,
-        state_finalize: StateFinalize,
-    ) -> Self {
-        TypedAggregateGroupStates {
-            states: Vec::new(),
-            state_init,
-            state_update,
-            state_finalize,
-            _input: PhantomCovariant::new(),
-            _output: PhantomCovariant::new(),
-        }
-    }
-}
-
-/// Helper for create an `AggregateGroupStates` that accepts one input.
-pub fn new_unary_aggregate_states<Storage, State, Output, StateInit, StateFinalize>(
-    state_init: StateInit,
-    state_finalize: StateFinalize,
-) -> Box<dyn AggregateGroupStates>
-where
-    Storage: PhysicalStorage,
-    State: for<'a> AggregateState<
-            <<Storage as PhysicalStorage>::Storage<'a> as AddressableStorage>::T,
-            Output,
-        > + Sync
-        + Send
-        + 'static,
-    Output: Sync + Send + 'static,
-    StateInit: Fn() -> State + Sync + Send + 'static,
-    StateFinalize: Fn(&mut [State]) -> Result<Array> + Sync + Send + 'static,
-{
-    Box::new(TypedAggregateGroupStates {
-        states: Vec::new(),
-        state_init,
-        state_update: unary_update::<State, Storage, Output>,
-        state_finalize,
-        _input: PhantomCovariant::new(),
-        _output: PhantomCovariant::new(),
-    })
-}
-
-/// Helper for create an `AggregateGroupStates` that accepts two inputs.
-pub fn new_binary_aggregate_states<Storage1, Storage2, State, Output, StateInit, StateFinalize>(
-    state_init: StateInit,
-    state_finalize: StateFinalize,
-) -> Box<dyn AggregateGroupStates>
-where
-    Storage1: PhysicalStorage,
-    Storage2: PhysicalStorage,
-    State: for<'a> AggregateState<(Storage1::Type<'a>, Storage2::Type<'a>), Output>
-        + Sync
-        + Send
-        + 'static,
-    Output: Sync + Send + 'static,
-    StateInit: Fn() -> State + Sync + Send + 'static,
-    StateFinalize: Fn(&mut [State]) -> Result<Array> + Sync + Send + 'static,
-{
-    Box::new(TypedAggregateGroupStates {
-        states: Vec::new(),
-        state_init,
-        state_update: binary_update::<State, Storage1, Storage2, Output>,
-        state_finalize,
-        _input: PhantomCovariant::new(),
-        _output: PhantomCovariant::new(),
-    })
-}
-
-impl<State, Input, Output, StateInit, StateUpdate, StateFinalize> AggregateGroupStates
-    for TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdate, StateFinalize>
-where
-    State: AggregateState<Input, Output> + Sync + Send + 'static,
-    Input: Sync + Send,
-    Output: Sync + Send,
-    StateInit: Fn() -> State + Sync + Send,
-    StateUpdate: Fn(&[&Array], ChunkGroupAddressIter, &mut [State]) -> Result<()> + Sync + Send,
-    StateFinalize: Fn(&mut [State]) -> Result<Array> + Sync + Send,
-{
-    fn opaque_states_mut(&mut self) -> OpaqueStatesMut<'_> {
-        OpaqueStatesMut(&mut self.states)
-    }
-
-    fn new_states(&mut self, count: usize) {
-        self.states.extend((0..count).map(|_| (self.state_init)()))
-    }
-
-    fn num_states(&self) -> usize {
-        self.states.len()
-    }
-
-    fn update_states(&mut self, inputs: &[&Array], mapping: ChunkGroupAddressIter) -> Result<()> {
-        (self.state_update)(inputs, mapping, &mut self.states)
-    }
-
-    fn combine(
-        &mut self,
-        consume: &mut Box<dyn AggregateGroupStates>,
-        mapping: ChunkGroupAddressIter,
-    ) -> Result<()> {
-        let consume_states = consume.opaque_states_mut().downcast::<Vec<State>>()?;
-        StateCombiner::combine(consume_states, mapping, &mut self.states)
-    }
-
-    fn finalize(&mut self) -> Result<Array> {
-        (self.state_finalize)(&mut self.states)
-    }
-}
-
-impl<State, Input, Output, StateInit, StateUpdate, StateFinalize> fmt::Debug
-    for TypedAggregateGroupStates<State, Input, Output, StateInit, StateUpdate, StateFinalize>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TypedAggregateGroupedStates")
-            .field("num_states", &self.states.len())
-            .finish_non_exhaustive()
-    }
-}
-
-pub trait AggregateGroupStates: Debug + Sync + Send {
-    /// Get a mutable reference to the underlying states.
+    /// Update states using rows from `inputs`.
     ///
-    /// This may be called multiple times when combining states from multiple
-    /// partitions.
-    fn opaque_states_mut(&mut self) -> OpaqueStatesMut<'_>;
-
-    /// Create `count` number of new states.
-    fn new_states(&mut self, count: usize);
-
-    /// Returns the number of states being tracked.
-    fn num_states(&self) -> usize;
-
-    /// Update states from inputs using some mapping.
-    fn update_states(&mut self, inputs: &[&Array], mapping: ChunkGroupAddressIter) -> Result<()>;
-
-    /// Combine states from another partition into self using some mapping.
-    fn combine(
-        &mut self,
-        consume: &mut Box<dyn AggregateGroupStates>,
-        mapping: ChunkGroupAddressIter,
+    /// Note that `states` is a slice of pointers instead of state references as
+    /// we may be updating the same state for different rows (e.g. rows
+    /// corresponding to the same group).
+    ///
+    /// Implementations must ensure there only exists a single reference per
+    /// state at a time.
+    fn update(
+        extra: Option<&dyn Any>,
+        inputs: &[Array],
+        num_rows: usize,
+        states: &mut [*mut Self::State],
     ) -> Result<()>;
 
-    /// Finalize the states and return an array.
-    fn finalize(&mut self) -> Result<Array>;
+    /// Combine states from `src` into `dest`.
+    fn combine(
+        extra: Option<&dyn Any>,
+        src: &mut [&mut Self::State],
+        dest: &mut [&mut Self::State],
+    ) -> Result<()>;
+
+    /// Finalize `states`, writing the final output to the output array.
+    fn finalize(
+        extra: Option<&dyn Any>,
+        states: &mut [&mut Self::State],
+        output: &mut Array,
+    ) -> Result<()>;
 }
 
+/// Default logic for unary aggregates.
 #[derive(Debug)]
-pub struct OpaqueStatesMut<'a>(pub &'a mut dyn Any);
+pub struct UnaryStateLogic<State, Input, Output> {
+    _input: PhantomCovariant<Input>,
+    _output: PhantomCovariant<Output>,
+    _state: PhantomCovariant<State>,
+}
 
-impl<'a> OpaqueStatesMut<'a> {
-    pub fn downcast<T: 'static>(self) -> Result<&'a mut T> {
-        let states = self.0.downcast_mut::<T>().ok_or_else(|| {
-            RayexecError::new("Attempted to combine aggregate states of different types")
-        })?;
+impl<State, Input, Output> AggregateStateLogic for UnaryStateLogic<State, Input, Output>
+where
+    State: for<'a> AggregateState<&'a Input::StorageType, Output::StorageType> + Default,
+    Input: ScalarStorage,
+    Output: MutableScalarStorage,
+{
+    type State = State;
 
-        Ok(states)
+    fn init_state(_extra: Option<&dyn Any>) -> Self::State {
+        Default::default()
+    }
+
+    fn update(
+        _extra: Option<&dyn Any>,
+        inputs: &[Array],
+        num_rows: usize,
+        states: &mut [*mut Self::State],
+    ) -> Result<()> {
+        UnaryNonNullUpdater::update::<Input, _, _>(&inputs[0], 0..num_rows, states)
+    }
+
+    fn combine(
+        _extra: Option<&dyn Any>,
+        src: &mut [&mut Self::State],
+        dest: &mut [&mut Self::State],
+    ) -> Result<()> {
+        if src.len() != dest.len() {
+            return Err(RayexecError::new(
+                "Source and destination have different number of states",
+            )
+            .with_field("source", src.len())
+            .with_field("dest", dest.len()));
+        }
+
+        for (src, dest) in src.iter_mut().zip(dest) {
+            dest.merge(src)?;
+        }
+
+        Ok(())
+    }
+
+    fn finalize(
+        _extra: Option<&dyn Any>,
+        states: &mut [&mut Self::State],
+        output: &mut Array,
+    ) -> Result<()> {
+        let buffer = &mut Output::get_addressable_mut(&mut output.data)?;
+        let validity = &mut output.validity;
+
+        for (idx, state) in states.iter_mut().enumerate() {
+            state.finalize(PutBuffer::new(idx, buffer, validity))?;
+        }
+
+        Ok(())
     }
 }
 
-/// Update function for a unary aggregate.
-pub fn unary_update<State, Storage, Output>(
-    arrays: &[&Array],
-    mapping: ChunkGroupAddressIter,
-    states: &mut [State],
-) -> Result<()>
-where
-    Storage: PhysicalStorage,
-    State: for<'a> AggregateState<Storage::Type<'a>, Output>,
-{
-    UnaryNonNullUpdater::update::<Storage, _, _, _>(arrays[0], mapping, states)
+/// Default logic for binary aggregates.
+#[derive(Debug)]
+pub struct BinaryStateLogic<State, Input1, Input2, Output> {
+    _input1: PhantomCovariant<Input1>,
+    _input2: PhantomCovariant<Input2>,
+    _output: PhantomCovariant<Output>,
+    _state: PhantomCovariant<State>,
 }
 
-pub fn binary_update<State, Storage1, Storage2, Output>(
-    arrays: &[&Array],
-    mapping: ChunkGroupAddressIter,
-    states: &mut [State],
-) -> Result<()>
+impl<State, Input1, Input2, Output> AggregateStateLogic
+    for BinaryStateLogic<State, Input1, Input2, Output>
 where
-    Storage1: PhysicalStorage,
-    Storage2: PhysicalStorage,
-    State: for<'a> AggregateState<(Storage1::Type<'a>, Storage2::Type<'a>), Output>,
+    State: for<'a> AggregateState<
+            (&'a Input1::StorageType, &'a Input2::StorageType),
+            Output::StorageType,
+        > + Default,
+    Input1: ScalarStorage,
+    Input2: ScalarStorage,
+    Output: MutableScalarStorage,
 {
-    BinaryNonNullUpdater::update::<Storage1, Storage2, _, _, _>(
-        arrays[0], arrays[1], mapping, states,
-    )
+    type State = State;
+
+    fn init_state(_extra: Option<&dyn Any>) -> Self::State {
+        Default::default()
+    }
+
+    fn update(
+        _extra: Option<&dyn Any>,
+        inputs: &[Array],
+        num_rows: usize,
+        states: &mut [*mut Self::State],
+    ) -> Result<()> {
+        BinaryNonNullUpdater::update::<Input1, Input2, _, _>(
+            &inputs[0],
+            &inputs[1],
+            0..num_rows,
+            states,
+        )
+    }
+
+    fn combine(
+        _extra: Option<&dyn Any>,
+        src: &mut [&mut Self::State],
+        dest: &mut [&mut Self::State],
+    ) -> Result<()> {
+        if src.len() != dest.len() {
+            return Err(RayexecError::new(
+                "Source and destination have different number of states",
+            )
+            .with_field("source", src.len())
+            .with_field("dest", dest.len()));
+        }
+
+        for (src, dest) in src.iter_mut().zip(dest) {
+            dest.merge(src)?;
+        }
+
+        Ok(())
+    }
+
+    fn finalize(
+        _extra: Option<&dyn Any>,
+        states: &mut [&mut Self::State],
+        output: &mut Array,
+    ) -> Result<()> {
+        let buffer = &mut Output::get_addressable_mut(&mut output.data)?;
+        let validity = &mut output.validity;
+
+        for (idx, state) in states.iter_mut().enumerate() {
+            state.finalize(PutBuffer::new(idx, buffer, validity))?;
+        }
+
+        Ok(())
+    }
 }
 
-pub fn untyped_null_finalize<State>(states: &mut [State]) -> Result<Array> {
-    Ok(Array::new_untyped_null_array(states.len()))
+/// Aggregagate function implemenation holding logic for updating and finalizing
+/// aggregate states.
+///
+/// This makes heavy of arbitrary pointers as aggregate states are stored inline
+/// with their group values following a row layout.
+// TODO: More comprehensive drop checking (specifically we need to drop
+// arbitrarily on query errors).
+// TODO: Explicit drop function.
+#[derive(Debug, Clone)]
+pub struct AggregateFunctionImpl {
+    /// Alignment requirement of the state.
+    pub state_align: usize,
+    /// Size in bytes of the state (stack).
+    pub state_size: usize,
+
+    /// Extra state to use when initializing an updating states.
+    ///
+    /// For example, this would contain the string separate for STRING_AGG.
+    pub extra: Option<Arc<dyn Any + Sync + Send>>,
+
+    /// Initialize a new aggregate state at the given pointer.
+    pub init_fn: unsafe fn(extra: Option<&dyn Any>, state: *mut u8),
+    /// Update the states using the provided inputs.
+    ///
+    /// The 'i'th row should update the 'i'th state.
+    pub update_fn: unsafe fn(
+        extra: Option<&dyn Any>,
+        inputs: &[Array],
+        num_rows: usize,
+        states: &mut [*mut u8],
+    ) -> Result<()>,
+    /// Combine states.
+    ///
+    /// This will consume states from `src` combining them with states in
+    /// `dest`.
+    ///
+    /// State objects in `src` will be dropped.
+    pub combine_fn:
+        unsafe fn(extra: Option<&dyn Any>, src: &mut [*mut u8], dest: &mut [*mut u8]) -> Result<()>,
+    /// Finalize the given states writing the outputs to `output`.
+    ///
+    /// This is guaranteed to be called exactly once in the aggregate operators.
+    ///
+    /// This will also Drop the state object to ensure cleanup.
+    pub finalize_fn: unsafe fn(
+        extra: Option<&dyn Any>,
+        states: &mut [*mut u8],
+        output: &mut Array,
+    ) -> Result<()>,
 }
 
-pub fn boolean_finalize<State, Input>(datatype: DataType, states: &mut [State]) -> Result<Array>
-where
-    State: AggregateState<Input, bool>,
-{
-    let builder = ArrayBuilder {
-        datatype,
-        buffer: BooleanBuffer::with_len(states.len()),
-    };
-    StateFinalizer::finalize(states, builder)
-}
+impl AggregateFunctionImpl {
+    pub fn new<Agg>(extra: Option<Arc<dyn Any + Sync + Send>>) -> Self
+    where
+        Agg: AggregateStateLogic,
+    {
+        let init_fn = |extra: Option<&dyn Any>, state_ptr: *mut u8| {
+            let state = Agg::init_state(extra);
+            unsafe { state_ptr.cast::<Agg::State>().write(state) };
+        };
 
-pub fn primitive_finalize<State, Input, Output>(
-    datatype: DataType,
-    states: &mut [State],
-) -> Result<Array>
-where
-    State: AggregateState<Input, Output>,
-    Output: Copy + Default,
-    ArrayData2: From<PrimitiveStorage<Output>>,
-{
-    let builder = ArrayBuilder {
-        datatype,
-        buffer: PrimitiveBuffer::with_len(states.len()),
-    };
-    StateFinalizer::finalize(states, builder)
+        let update_fn =
+            |extra: Option<&dyn Any>, inputs: &[Array], num_rows: usize, states: &mut [*mut u8]| {
+                let states: &mut [*mut Agg::State] = unsafe {
+                    std::slice::from_raw_parts_mut(
+                        states.as_mut_ptr() as *mut *mut Agg::State,
+                        states.len(),
+                    )
+                };
+                Agg::update(extra, inputs, num_rows, states)
+            };
+
+        let combine_fn = |extra: Option<&dyn Any>,
+                          src_ptrs: &mut [*mut u8],
+                          dest_ptrs: &mut [*mut u8]|
+         -> Result<()> {
+            if src_ptrs.len() != dest_ptrs.len() {
+                return Err(
+                    RayexecError::new("Different lengths with src and dest ptrs")
+                        .with_field("src", src_ptrs.len())
+                        .with_field("dest", dest_ptrs.len()),
+                );
+            }
+
+            let src: &mut [&mut Agg::State] = unsafe {
+                std::slice::from_raw_parts_mut(
+                    src_ptrs.as_mut_ptr() as *mut &mut Agg::State,
+                    src_ptrs.len(),
+                )
+            };
+
+            let dest: &mut [&mut Agg::State] = unsafe {
+                std::slice::from_raw_parts_mut(
+                    dest_ptrs.as_mut_ptr() as *mut &mut Agg::State,
+                    dest_ptrs.len(),
+                )
+            };
+
+            Agg::combine(extra, src, dest)?;
+
+            // Drop src states.
+            for src_ptr in src_ptrs {
+                unsafe {
+                    src_ptr.drop_in_place();
+                }
+            }
+
+            Ok(())
+        };
+
+        let finalize_fn =
+            |extra: Option<&dyn Any>, states: &mut [*mut u8], output: &mut Array| -> Result<()> {
+                let typed_states: &mut [&mut Agg::State] = unsafe {
+                    std::slice::from_raw_parts_mut(
+                        states.as_mut_ptr() as *mut &mut Agg::State,
+                        states.len(),
+                    )
+                };
+                Agg::finalize(extra, typed_states, output)?;
+
+                // Drop all states, they'll never be read from again.
+                for state_ptr in states {
+                    unsafe {
+                        state_ptr.drop_in_place();
+                    }
+                }
+
+                Ok(())
+            };
+
+        AggregateFunctionImpl {
+            state_align: std::mem::align_of::<Agg::State>(),
+            state_size: std::mem::size_of::<Agg::State>(),
+            extra,
+            init_fn,
+            update_fn,
+            combine_fn,
+            finalize_fn,
+        }
+    }
+
+    /// Deref the extra state for passing into the state functions.
+    pub fn extra_deref(&self) -> Option<&dyn Any> {
+        self.extra.as_deref().map(|v| v as _)
+    }
 }

@@ -1,27 +1,20 @@
-use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{OptionExt, Result};
 
 use super::{
     ExecutableOperator,
-    ExecutionStates,
+    ExecuteInOutState,
     OperatorState,
     PartitionState,
+    PollExecute,
     PollFinalize,
-    PollPull,
-    PollPush,
+    UnaryInputStates,
 };
-use crate::arrays::batch::Batch;
+use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
-use crate::execution::operators::InputOutputStates;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
-
-#[derive(Debug, Default)]
-pub struct EmptyPartitionState {
-    finished: bool,
-}
 
 /// A dummy operator that produces a single batch containing no columns and a
 /// single row for each partition.
@@ -29,57 +22,45 @@ pub struct EmptyPartitionState {
 pub struct PhysicalEmpty;
 
 impl ExecutableOperator for PhysicalEmpty {
+    type States = UnaryInputStates;
+
+    fn output_types(&self) -> &[DataType] {
+        &[]
+    }
+
     fn create_states(
-        &self,
+        &mut self,
         _context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: (0..partitions[0])
-                    .map(|_| PartitionState::Empty(EmptyPartitionState { finished: false }))
-                    .collect(),
-            },
+        _batch_size: usize,
+        partitions: usize,
+    ) -> Result<UnaryInputStates> {
+        let states = (0..partitions).map(|_| PartitionState::None).collect();
+
+        Ok(UnaryInputStates {
+            operator_state: OperatorState::None,
+            partition_states: states,
         })
     }
 
-    fn poll_push(
+    fn poll_execute(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
-        Err(RayexecError::new("Cannot push to physical empty"))
+        inout: ExecuteInOutState,
+    ) -> Result<PollExecute> {
+        let output = inout.output.required("output batch required")?;
+        output.set_num_rows(1)?;
+        Ok(PollExecute::Exhausted)
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
-        Err(RayexecError::new("Cannot push to physical empty"))
-    }
-
-    fn poll_pull(
-        &self,
-        _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
-        match partition_state {
-            PartitionState::Empty(state) => {
-                if state.finished {
-                    Ok(PollPull::Exhausted)
-                } else {
-                    state.finished = true;
-                    Ok(PollPull::Computed(Batch::empty_with_num_rows(1).into()))
-                }
-            }
-            other => panic!("inner join state is not building: {other:?}"),
-        }
+        Ok(PollFinalize::Finalized)
     }
 }
 
@@ -98,5 +79,45 @@ impl DatabaseProtoConv for PhysicalEmpty {
 
     fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
         Ok(Self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::array::Array;
+    use crate::arrays::batch::Batch;
+    use crate::arrays::datatype::DataType;
+    use crate::testutil::database_context::test_database_context;
+    use crate::testutil::operator::OperatorWrapper;
+
+    #[test]
+    fn empty_simple() {
+        let mut wrapper = OperatorWrapper::new(PhysicalEmpty);
+        let mut states = wrapper
+            .operator
+            .create_states(&test_database_context(), 1024, 1)
+            .unwrap();
+
+        let mut output = Batch::from_arrays([
+            Array::new(&NopBufferManager, DataType::Utf8, 1024).unwrap(),
+            Array::new(&NopBufferManager, DataType::Int32, 1024).unwrap(),
+        ])
+        .unwrap();
+
+        let poll = wrapper
+            .poll_execute(
+                &mut states.partition_states[0],
+                &states.operator_state,
+                ExecuteInOutState {
+                    input: None,
+                    output: Some(&mut output),
+                },
+            )
+            .unwrap();
+        assert_eq!(PollExecute::Exhausted, poll);
+        assert_eq!(1, output.num_rows());
     }
 }

@@ -25,7 +25,7 @@ use crate::data_type::private::ParquetValueType;
 use crate::data_type::DataType;
 use crate::encodings::encoding::{Encoder, PlainEncoder};
 use crate::encodings::rle::RleEncoder;
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::num_required_bits;
 use crate::util::interner::{Interner, Storage};
@@ -113,7 +113,7 @@ impl<T: DataType> DictEncoder<T> {
 
     /// Writes out the dictionary values with PLAIN encoding in a byte buffer, and return
     /// the result.
-    pub fn write_dict(&self) -> Result<Bytes> {
+    pub fn write_dict(&self) -> ParquetResult<Bytes> {
         let mut plain_encoder = PlainEncoder::<T>::new();
         plain_encoder.put(&self.interner.storage().uniques)?;
         plain_encoder.flush_buffer()
@@ -121,7 +121,7 @@ impl<T: DataType> DictEncoder<T> {
 
     /// Writes out the dictionary values with RLE encoding in a byte buffer, and return
     /// the result.
-    pub fn write_indices(&mut self) -> Result<Bytes> {
+    pub fn write_indices(&mut self) -> ParquetResult<Bytes> {
         let buffer_len = self.estimated_data_encoded_size();
         let mut buffer = Vec::with_capacity(buffer_len);
         buffer.push(self.bit_width());
@@ -146,7 +146,7 @@ impl<T: DataType> DictEncoder<T> {
 }
 
 impl<T: DataType> Encoder<T> for DictEncoder<T> {
-    fn put(&mut self, values: &[T::T]) -> Result<()> {
+    fn put(&mut self, values: &[T::T]) -> ParquetResult<()> {
         self.indices.reserve(values.len());
         for i in values {
             self.put_one(i)
@@ -166,7 +166,7 @@ impl<T: DataType> Encoder<T> for DictEncoder<T> {
         RleEncoder::max_buffer_size(bit_width, self.indices.len())
     }
 
-    fn flush_buffer(&mut self) -> Result<Bytes> {
+    fn flush_buffer(&mut self) -> ParquetResult<Bytes> {
         self.write_indices()
     }
 }

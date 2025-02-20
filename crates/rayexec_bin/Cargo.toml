@@ -12,7 +12,6 @@ rayexec_shell = { path = '../rayexec_shell' }
 rayexec_execution = { path = '../rayexec_execution' }
 rayexec_rt_native = { path = '../rayexec_rt_native' }
 rayexec_bullet = { path = '../rayexec_bullet' }
-rayexec_postgres = { path = '../rayexec_postgres' }
 rayexec_parquet = { path = '../rayexec_parquet', features = ["zstd"] }
 rayexec_delta = { path = '../rayexec_delta' }
 rayexec_iceberg = { path = '../rayexec_iceberg' }

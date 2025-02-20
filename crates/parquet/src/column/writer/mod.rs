@@ -31,7 +31,7 @@ use crate::compression::{create_codec, Codec, CodecOptionsBuilder};
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
 use crate::encodings::levels::LevelEncoder;
-use crate::errors::Result;
+use crate::errors::{general_err, ParquetResult};
 use crate::file::metadata::{ColumnChunkMetaData, ColumnIndexBuilder, OffsetIndexBuilder};
 use crate::file::properties::{
     EnabledStatistics,
@@ -59,7 +59,7 @@ pub enum ColumnWriter<P: PageWriter> {
 
 impl<P: PageWriter> ColumnWriter<P> {
     /// Close this [`ColumnWriter`] and returns the result alongside the page writer.
-    pub fn close(self) -> Result<(ColumnCloseResult, P)> {
+    pub fn close(self) -> ParquetResult<(ColumnCloseResult, P)> {
         match self {
             Self::BoolColumnWriter(w) => w.close(),
             Self::Int32ColumnWriter(w) => w.close(),
@@ -71,11 +71,6 @@ impl<P: PageWriter> ColumnWriter<P> {
             Self::FixedLenByteArrayColumnWriter(w) => w.close(),
         }
     }
-}
-
-pub enum Level {
-    Page,
-    Column,
 }
 
 /// Gets a specific column writer corresponding to column descriptor `descr`.
@@ -286,7 +281,7 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
         min: Option<&T::T>,
         max: Option<&T::T>,
         distinct_count: Option<u64>,
-    ) -> Result<usize> {
+    ) -> ParquetResult<usize> {
         // Check if number of definition levels is the same as number of repetition levels.
         if let (Some(def), Some(rep)) = (def_levels, rep_levels) {
             if def.len() != rep.len() {
@@ -372,7 +367,7 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
         values: &[T::T],
         def_levels: Option<&[i16]>,
         rep_levels: Option<&[i16]>,
-    ) -> Result<usize> {
+    ) -> ParquetResult<usize> {
         self.write_batch_internal(values, None, def_levels, rep_levels, None, None, None)
     }
 
@@ -391,7 +386,7 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
         min: Option<&T::T>,
         max: Option<&T::T>,
         distinct_count: Option<u64>,
-    ) -> Result<usize> {
+    ) -> ParquetResult<usize> {
         self.write_batch_internal(
             values,
             None,
@@ -430,7 +425,7 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
     ///
     /// Additionally returns the inner page writer as well, allowing for buffer
     /// reuse.
-    pub fn close(mut self) -> Result<(ColumnCloseResult, P)> {
+    pub fn close(mut self) -> ParquetResult<(ColumnCloseResult, P)> {
         if self.page_metrics.num_buffered_values > 0 {
             self.add_data_page()?;
         }
@@ -483,7 +478,7 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
         num_levels: usize,
         def_levels: Option<&[i16]>,
         rep_levels: Option<&[i16]>,
-    ) -> Result<usize> {
+    ) -> ParquetResult<usize> {
         // Process definition levels and determine how many values to write.
         let values_to_write = if self.descr.max_def_level() > 0 {
             let levels = def_levels.ok_or_else(|| {
@@ -588,7 +583,7 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
 
     /// Performs dictionary fallback.
     /// Prepares and writes dictionary and all data pages into page writer.
-    fn dict_fallback(&mut self) -> Result<()> {
+    fn dict_fallback(&mut self) -> ParquetResult<()> {
         // At this point we know that we need to fall back.
         if self.page_metrics.num_buffered_values > 0 {
             self.add_data_page()?;
@@ -719,7 +714,7 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
 
     /// Adds data page.
     /// Data page is either buffered in case of dictionary encoding or written directly.
-    fn add_data_page(&mut self) -> Result<()> {
+    fn add_data_page(&mut self) -> ParquetResult<()> {
         // Extract encoded values
         let values_data = self.encoder.flush_data_page()?;
 
@@ -860,7 +855,7 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
     /// Finalises any outstanding data pages and flushes buffered data pages from
     /// dictionary encoding into underlying sink.
     #[inline]
-    fn flush_data_pages(&mut self) -> Result<()> {
+    fn flush_data_pages(&mut self) -> ParquetResult<()> {
         // Write all outstanding data to a new page.
         if self.page_metrics.num_buffered_values > 0 {
             self.add_data_page()?;
@@ -874,7 +869,7 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
     }
 
     /// Assembles and writes column chunk metadata.
-    fn write_column_metadata(&mut self) -> Result<ColumnChunkMetaData> {
+    fn write_column_metadata(&mut self) -> ParquetResult<ColumnChunkMetaData> {
         let total_compressed_size = self.column_metrics.total_compressed_size as i64;
         let total_uncompressed_size = self.column_metrics.total_uncompressed_size as i64;
         let num_values = self.column_metrics.total_num_values as i64;
@@ -986,7 +981,7 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
 
     /// Writes compressed data page into underlying sink and updates global metrics.
     #[inline]
-    fn write_data_page(&mut self, page: CompressedPage) -> Result<()> {
+    fn write_data_page(&mut self, page: CompressedPage) -> ParquetResult<()> {
         self.encodings.insert(page.encoding());
         let page_spec = self.page_writer.write_page(page)?;
         // update offset index
@@ -999,7 +994,7 @@ impl<T: DataType, P: PageWriter> GenericColumnWriter<T, P> {
 
     /// Writes dictionary page into underlying sink.
     #[inline]
-    fn write_dictionary_page(&mut self) -> Result<()> {
+    fn write_dictionary_page(&mut self) -> ParquetResult<()> {
         let compressed_page = {
             let mut page = self
                 .encoder
@@ -1269,16 +1264,23 @@ mod tests {
     use std::sync::Arc;
 
     use rand::distributions::uniform::SampleUniform;
+    use rayexec_execution::arrays::array::buffer_manager::NopBufferManager;
 
     use super::*;
     use crate::column::page::PageReader;
     use crate::column::reader::basic::BasicColumnValueDecoder;
-    use crate::column::reader::{get_column_reader, get_typed_column_reader, GenericColumnReader};
+    use crate::column::reader::GenericColumnReader;
+    use crate::column_reader::ColumnData;
     use crate::file::properties::{ReaderProperties, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH};
     use crate::file::reader::SerializedPageReader;
     use crate::file::writer::{SerializedPageWriter, TrackedWrite};
     use crate::schema::types::{ColumnPath, Type as SchemaType};
-    use crate::util::test_common::rand_gen::random_numbers_range;
+    use crate::testutil::column_reader::{
+        get_column_reader,
+        get_typed_column_reader,
+        DataTypeTestExt,
+    };
+    use crate::testutil::rand_gen::random_numbers_range;
 
     #[test]
     fn test_column_writer_inconsistent_def_rep_length() {
@@ -1837,7 +1839,7 @@ mod tests {
         let props = ReaderProperties::builder()
             .set_backward_compatible_lz4(false)
             .build();
-        let reader = SerializedPageReader::new_with_properties(
+        let mut reader = SerializedPageReader::new_with_properties(
             Arc::new(Bytes::from(buf)),
             &r.metadata,
             r.rows_written as usize,
@@ -1846,7 +1848,12 @@ mod tests {
         )
         .unwrap();
 
-        let pages = reader.collect::<Result<Vec<_>>>().unwrap();
+        let mut data = ColumnData::empty(&NopBufferManager);
+
+        let mut pages = Vec::new();
+        while let Some(page) = reader.read_next_page(&mut data).unwrap() {
+            pages.push(page);
+        }
         assert_eq!(pages.len(), 2);
 
         assert_eq!(pages[0].page_type(), PageType::DICTIONARY_PAGE);
@@ -1881,7 +1888,7 @@ mod tests {
         let props = ReaderProperties::builder()
             .set_backward_compatible_lz4(false)
             .build();
-        let reader = SerializedPageReader::new_with_properties(
+        let mut reader = SerializedPageReader::new_with_properties(
             Arc::new(Bytes::from(buf)),
             &r.metadata,
             r.rows_written as usize,
@@ -1890,7 +1897,12 @@ mod tests {
         )
         .unwrap();
 
-        let pages = reader.collect::<Result<Vec<_>>>().unwrap();
+        let mut data = ColumnData::empty(&NopBufferManager);
+
+        let mut pages = Vec::new();
+        while let Some(page) = reader.read_next_page(&mut data).unwrap() {
+            pages.push(page);
+        }
         assert_eq!(pages.len(), 2);
 
         assert_eq!(pages[0].page_type(), PageType::DICTIONARY_PAGE);
@@ -2024,7 +2036,8 @@ mod tests {
             .unwrap(),
         );
         let mut res = Vec::new();
-        while let Some(page) = page_reader.get_next_page().unwrap() {
+        let mut data = ColumnData::empty(&NopBufferManager);
+        while let Some(page) = page_reader.read_next_page(&mut data).unwrap() {
             res.push((page.page_type(), page.num_values(), page.buffer().len()));
         }
         assert_eq!(
@@ -2977,7 +2990,7 @@ mod tests {
     }
 
     #[test]
-    fn test_boundary_order() -> Result<()> {
+    fn test_boundary_order() -> ParquetResult<()> {
         let descr = Arc::new(get_test_column_descr::<i32>(1, 0));
         // min max both ascending
         let column_close_result = write_multiple_pages::<i32>(
@@ -3060,7 +3073,7 @@ mod tests {
     }
 
     #[test]
-    fn test_boundary_order_logical_type() -> Result<()> {
+    fn test_boundary_order_logical_type() -> ParquetResult<()> {
         // ensure that logical types account for different sort order than underlying
         // physical type representation
         let f16_descr = Arc::new(get_test_float16_column_descr(1, 0));
@@ -3126,7 +3139,7 @@ mod tests {
     fn write_multiple_pages<T: DataType>(
         column_descr: &Arc<ColumnDescriptor>,
         pages: &[&[Option<T::T>]],
-    ) -> Result<ColumnCloseResult> {
+    ) -> ParquetResult<ColumnCloseResult> {
         let column_writer = get_column_writer(
             column_descr.clone(),
             Default::default(),
@@ -3150,7 +3163,7 @@ mod tests {
     /// Performs write-read roundtrip with randomly generated values and levels.
     /// `max_size` is maximum number of values or levels (if `max_def_level` > 0) to write
     /// for a column.
-    fn column_roundtrip_random<T: DataType>(
+    fn column_roundtrip_random<T: DataTypeTestExt>(
         props: WriterProperties,
         max_size: usize,
         min_value: T::T,
@@ -3192,7 +3205,7 @@ mod tests {
     }
 
     /// Performs write-read roundtrip and asserts written values and levels.
-    fn column_roundtrip<T: DataType>(
+    fn column_roundtrip<T: DataTypeTestExt>(
         props: WriterProperties,
         values: &[T::T],
         def_levels: Option<&[i16]>,
@@ -3331,7 +3344,7 @@ mod tests {
     }
 
     /// Returns column reader.
-    fn get_test_column_reader<T: DataType, P: PageReader>(
+    fn get_test_column_reader<T: DataTypeTestExt, P: PageReader>(
         page_reader: P,
         max_def_level: i16,
         max_rep_level: i16,
@@ -3364,7 +3377,7 @@ mod tests {
     struct TestPageWriter {}
 
     impl PageWriter for TestPageWriter {
-        fn write_page(&mut self, page: CompressedPage) -> Result<PageWriteSpec> {
+        fn write_page(&mut self, page: CompressedPage) -> ParquetResult<PageWriteSpec> {
             let res = PageWriteSpec {
                 page_type: page.page_type(),
                 uncompressed_size: page.uncompressed_size(),
@@ -3376,11 +3389,11 @@ mod tests {
             Ok(res)
         }
 
-        fn write_metadata(&mut self, _metadata: &ColumnChunkMetaData) -> Result<()> {
+        fn write_metadata(&mut self, _metadata: &ColumnChunkMetaData) -> ParquetResult<()> {
             Ok(())
         }
 
-        fn close(&mut self) -> Result<()> {
+        fn close(&mut self) -> ParquetResult<()> {
             Ok(())
         }
     }

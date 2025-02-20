@@ -54,13 +54,13 @@ impl<'a> Formatter<'a> {
     /// Create a formatted scalar value by retrieving the scalar at `idx` from
     /// the array.
     ///
-    /// Returns `None` if the idx is out of bounds.
+    /// Errors if `idx` is out of bounds.
     pub fn format_array_value<'b>(
         &self,
         array: &'b Array,
         idx: usize,
     ) -> Result<FormattedScalarValue<'_, 'b>> {
-        let scalar = array.logical_value(idx)?;
+        let scalar = array.get_value(idx)?;
         Ok(self.format_scalar_value(scalar))
     }
 }

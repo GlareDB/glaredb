@@ -2,17 +2,8 @@ use std::task::Context;
 
 use rayexec_error::Result;
 
-use super::{
-    ExecutableOperator,
-    ExecutionStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
-};
-use crate::arrays::batch::Batch;
-use crate::database::DatabaseContext;
+use super::{ExecutableOperator, OperatorState, PartitionState, PollFinalize, UnaryInputStates};
+use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 /// Physical operator for EXPLAIN ANALYZE.
@@ -20,39 +11,18 @@ use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 pub struct PhysicalAnalyze {}
 
 impl ExecutableOperator for PhysicalAnalyze {
-    fn create_states(
-        &self,
-        _context: &DatabaseContext,
-        _partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
+    type States = UnaryInputStates;
+
+    fn output_types(&self) -> &[DataType] {
         unimplemented!()
     }
 
-    fn poll_push(
-        &self,
-        _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
-        unimplemented!()
-    }
-
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
-        unimplemented!()
-    }
-
-    fn poll_pull(
-        &self,
-        _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
         unimplemented!()
     }
 }

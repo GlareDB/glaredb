@@ -18,7 +18,7 @@
 [package]
 name = "parquet"
 version = { workspace = true }
-description = "Apache Parquet implementation in Rust"
+description = "Apache Parquet implementation in Rust. Forked from github.com/apache/arrow-rs"
 keywords = ["arrow", "parquet", "hadoop"]
 readme = "README.md"
 edition = { workspace = true }
@@ -26,7 +26,9 @@ rust-version = "1.70.0"
 
 [dependencies]
 rayexec_error = { path = "../rayexec_error" }
+rayexec_io = { path = "../rayexec_io" }
 rayexec_execution = { path = "../rayexec_execution" }
+
 ahash = { workspace = true }
 bytes = { version = "1.10", default-features = false, features = ["std"] }
 thrift = { version = "0.17", default-features = false }

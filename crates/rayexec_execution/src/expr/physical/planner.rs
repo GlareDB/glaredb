@@ -1,5 +1,5 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{RayexecError, Result};
 
 use super::case_expr::PhysicalCaseExpr;
 use super::cast_expr::PhysicalCastExpr;
@@ -8,13 +8,11 @@ use super::literal_expr::PhysicalLiteralExpr;
 use super::scalar_function_expr::PhysicalScalarFunctionExpr;
 use super::PhysicalSortExpression;
 use crate::arrays::scalar::ScalarValue;
-use crate::execution::operators::hash_join::condition::HashJoinCondition;
 use crate::expr::physical::case_expr::PhysicalWhenThen;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{AsScalarFunction, Expression};
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::binder::table_list::{TableList, TableRef};
-use crate::logical::logical_join::ComparisonCondition;
 
 /// Plans logical expressions into their physical equivalents.
 #[derive(Debug)]
@@ -28,13 +26,13 @@ impl<'a> PhysicalExpressionPlanner<'a> {
     }
 
     /// Plan more than one scalar expression.
-    pub fn plan_scalars(
+    pub fn plan_scalars<'b>(
         &self,
         table_refs: &[TableRef],
-        exprs: &[Expression],
+        exprs: impl IntoIterator<Item = &'b Expression>,
     ) -> Result<Vec<PhysicalScalarExpression>> {
         exprs
-            .iter()
+            .into_iter()
             .map(|expr| self.plan_scalar(table_refs, expr))
             .collect::<Result<Vec<_>>>()
     }
@@ -58,16 +56,28 @@ impl<'a> PhysicalExpressionPlanner<'a> {
     ) -> Result<PhysicalScalarExpression> {
         match expr {
             Expression::Column(col) => {
-                // TODO: How is projection pushdown going to work? Will tables
-                // be updated by the optimizer?
-
+                // The optimizer should preserve columns in tables so we should
+                // be able to look at the table list directly.
+                //
+                // If we get here and their's either a missing table for table
+                // ref, or missing column for a table, then that should be
+                // considered a bug.
                 let mut offset = 0;
                 for &table_ref in table_refs {
                     let table = self.table_list.get(table_ref)?;
 
                     if col.table_scope == table_ref {
+                        let datatype =
+                            table.column_types.get(col.column).cloned().ok_or_else(|| {
+                                RayexecError::new(format!(
+                                    "Missing column: {}, table: {:?}",
+                                    col.column, table
+                                ))
+                            })?;
+
                         return Ok(PhysicalScalarExpression::Column(PhysicalColumnExpr {
                             idx: offset + col.column,
+                            datatype,
                         }));
                     }
 
@@ -176,7 +186,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 let else_expr = match &expr.else_expr {
                     Some(else_expr) => self.plan_scalar(table_refs, else_expr)?,
                     None => PhysicalScalarExpression::Cast(PhysicalCastExpr {
-                        to: datatype,
+                        to: datatype.clone(),
                         expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
                             literal: ScalarValue::Null,
                         })),
@@ -186,6 +196,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 Ok(PhysicalScalarExpression::Case(PhysicalCaseExpr {
                     cases,
                     else_expr: Box::new(else_expr),
+                    datatype,
                 }))
             }
             other => Err(RayexecError::new(format!(
@@ -194,28 +205,28 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         }
     }
 
-    pub fn plan_join_condition_as_hash_join_condition(
-        &self,
-        left_refs: &[TableRef],
-        right_refs: &[TableRef],
-        condition: &ComparisonCondition,
-    ) -> Result<HashJoinCondition> {
-        let scalar = condition.op.as_scalar_function();
-        let function = scalar.plan(
-            self.table_list,
-            vec![condition.left.clone(), condition.right.clone()],
-        )?;
+    // pub fn plan_join_condition_as_hash_join_condition(
+    //     &self,
+    //     left_refs: &[TableRef],
+    //     right_refs: &[TableRef],
+    //     condition: &ComparisonCondition,
+    // ) -> Result<HashJoinCondition> {
+    //     let scalar = condition.op.as_scalar_function();
+    //     let function = scalar.plan(
+    //         self.table_list,
+    //         vec![condition.left.clone(), condition.right.clone()],
+    //     )?;
 
-        Ok(HashJoinCondition {
-            left: self
-                .plan_scalar(left_refs, &condition.left)
-                .context("Failed to plan for left side of condition")?,
-            right: self
-                .plan_scalar(right_refs, &condition.right)
-                .context("Failed to plan for right side of condition")?,
-            function,
-        })
-    }
+    //     Ok(HashJoinCondition {
+    //         left: self
+    //             .plan_scalar(left_refs, &condition.left)
+    //             .context("Failed to plan for left side of condition")?,
+    //         right: self
+    //             .plan_scalar(right_refs, &condition.right)
+    //             .context("Failed to plan for right side of condition")?,
+    //         function,
+    //     })
+    // }
 
     pub fn plan_sorts(
         &self,
@@ -238,15 +249,10 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         expr: &BoundOrderByExpr,
     ) -> Result<PhysicalSortExpression> {
         let scalar = self.plan_scalar(table_refs, &expr.expr)?;
-        match scalar {
-            PhysicalScalarExpression::Column(column) => Ok(PhysicalSortExpression {
-                column,
-                desc: expr.desc,
-                nulls_first: expr.nulls_first,
-            }),
-            other => Err(RayexecError::new(format!(
-                "Expected column expression for sort expression, got: {other}"
-            ))),
-        }
+        Ok(PhysicalSortExpression {
+            column: scalar,
+            desc: expr.desc,
+            nulls_first: expr.nulls_first,
+        })
     }
 }

@@ -1,24 +1,12 @@
 use std::fmt;
-use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
 
 use futures::future::BoxFuture;
-use futures::FutureExt;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
-use super::{
-    ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
-};
-use crate::arrays::batch::Batch;
-use crate::database::catalog::CatalogTx;
+use super::{ExecutableOperator, OperatorState, PartitionState, PollFinalize, UnaryInputStates};
+use crate::arrays::datatype::DataType;
 use crate::database::drop::DropInfo;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -47,68 +35,48 @@ impl PhysicalDrop {
 }
 
 impl ExecutableOperator for PhysicalDrop {
-    fn create_states(
-        &self,
-        context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        if partitions[0] != 1 {
-            return Err(RayexecError::new("Drop can only handle one partition"));
-        }
+    type States = UnaryInputStates;
 
-        // TODO: Placeholder.
-        let tx = CatalogTx::new();
-
-        let catalog = context.get_database(&self.catalog)?.catalog.clone();
-        let info = self.info.clone();
-        let drop = Box::pin(async move {
-            catalog.drop_entry(&tx, &info)?;
-            // TODO: Log drop, enqueue physical table drop.
-            // TODO: Probably doesn't even need to be async...
-            Ok(())
-        });
-
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: vec![PartitionState::Drop(DropPartitionState { drop })],
-            },
-        })
+    fn output_types(&self) -> &[DataType] {
+        unimplemented!()
     }
 
-    fn poll_push(
-        &self,
-        _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
-        Err(RayexecError::new("Cannot push to physical create table"))
-    }
+    // fn create_states2(
+    //     &self,
+    //     context: &DatabaseContext,
+    //     partitions: Vec<usize>,
+    // ) -> Result<ExecutionStates> {
+    //     if partitions[0] != 1 {
+    //         return Err(RayexecError::new("Drop can only handle one partition"));
+    //     }
 
-    fn poll_finalize_push(
+    //     // TODO: Placeholder.
+    //     let tx = CatalogTx::new();
+
+    //     let catalog = context.get_database(&self.catalog)?.catalog.clone();
+    //     let info = self.info.clone();
+    //     let drop = Box::pin(async move {
+    //         catalog.drop_entry(&tx, &info)?;
+    //         // TODO: Log drop, enqueue physical table drop.
+    //         // TODO: Probably doesn't even need to be async...
+    //         Ok(())
+    //     });
+
+    //     Ok(ExecutionStates {
+    //         operator_state: Arc::new(OperatorState::None),
+    //         partition_states: InputOutputStates::OneToOne {
+    //             partition_states: vec![PartitionState::Drop(DropPartitionState { drop })],
+    //         },
+    //     })
+    // }
+
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         Err(RayexecError::new("Cannot push to physical create table"))
-    }
-
-    fn poll_pull(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
-        match partition_state {
-            PartitionState::Drop(state) => match state.drop.poll_unpin(cx) {
-                Poll::Ready(Ok(_)) => Ok(PollPull::Exhausted),
-                Poll::Ready(Err(e)) => Err(e),
-                Poll::Pending => Ok(PollPull::Pending),
-            },
-            other => panic!("invalid partition state: {other:?}"),
-        }
     }
 }
 

@@ -1,0 +1,42 @@
+pub mod buffer;
+pub mod primitive_reader;
+pub mod struct_reader;
+
+use buffer::ReadBuffer;
+use rayexec_execution::arrays::array::buffer_manager::BufferManager;
+use rayexec_execution::arrays::array::raw::ByteBuffer;
+
+#[derive(Debug)]
+pub struct ColumnData<B: BufferManager> {
+    pub(crate) chunk: ByteBuffer<B>,
+    pub(crate) decompressed_page: ReadBuffer<B>,
+}
+
+impl<B> ColumnData<B>
+where
+    B: BufferManager,
+{
+    /// Create emtpy buffers for the column data.
+    ///
+    /// During page reading, these will be resized as appropriate.
+    pub fn empty(manager: &B) -> Self {
+        ColumnData {
+            chunk: ByteBuffer::empty(manager),
+            decompressed_page: ReadBuffer::empty(manager),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ColumnReadState<B: BufferManager> {
+    /// Buffer holding decompressed column data.
+    decompressed: ReadBuffer<B>,
+    /// Buffer holding compressed column data.
+    ///
+    /// If the parquet source does not use compression, this will be empty.
+    compressed: ReadBuffer<B>,
+    /// Remaining number of rows in the current page.
+    remaining_page_rows: usize,
+    /// Remaining number of rows in the current group.
+    remaining_group_rows: usize,
+}

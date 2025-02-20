@@ -45,7 +45,7 @@ use std::fmt;
 use crate::basic::Type;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
-use crate::errors::{ParquetError, Result};
+use crate::errors::{ParquetError, ParquetResult};
 use crate::format::Statistics as TStatistics;
 use crate::util::bit_util::from_le_slice;
 
@@ -122,7 +122,7 @@ macro_rules! statistics_enum_func {
 pub fn from_thrift(
     physical_type: Type,
     thrift_stats: Option<TStatistics>,
-) -> Result<Option<Statistics>> {
+) -> ParquetResult<Option<Statistics>> {
     Ok(match thrift_stats {
         Some(stats) => {
             // Number of nulls recorded, when it is not available, we just mark it as 0.

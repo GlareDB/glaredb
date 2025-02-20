@@ -1,9 +1,8 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use futures::{FutureExt, StreamExt};
-use rayexec_error::{RayexecError, Result};
+use futures::FutureExt;
+use rayexec_error::Result;
 use rayexec_execution::arrays::datatype::DataTypeId;
 use rayexec_execution::arrays::scalar::OwnedScalarValue;
 use rayexec_execution::database::DatabaseContext;
@@ -19,11 +18,13 @@ use rayexec_execution::functions::table::{
 use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::logical::statistics::StatisticsValue;
 use rayexec_execution::runtime::Runtime;
-use rayexec_io::{FileProvider, FileSource};
+use rayexec_io::exp::FileProvider;
+use rayexec_io::future::read_into::ReadInto;
 
-use crate::datatable::SingleFileCsvDataTable;
-use crate::decoder::{CsvDecoder, DecoderState};
-use crate::reader::{CsvSchema, DialectOptions};
+use crate::decoder::{ByteRecords, CsvDecoder};
+use crate::dialect::DialectOptions;
+use crate::scan::{FileScan, SingleFileCsvScan};
+use crate::schema::CsvSchema;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadCsv<R: Runtime> {
@@ -81,46 +82,49 @@ impl<R: Runtime> ReadCsv<R> {
             .file_provider()
             .file_source(location.clone(), &conf)?;
 
-        let mut stream = source.read_stream();
+        let mut stream = source.read();
+
+        // Read a sample from the stream to attempt to infer options.
+        //
         // TODO: Actually make sure this is a sufficient size to infer from.
-        // TODO: This throws away the buffer after inferring.
-        let infer_buf = match stream.next().await {
-            Some(result) => {
-                const INFER_SIZE: usize = 1024;
-                let buf = result?;
-                if buf.len() > INFER_SIZE {
-                    buf.slice(0..INFER_SIZE)
-                } else {
-                    buf
-                }
-            }
-            None => return Err(RayexecError::new("Stream returned no data")),
-        };
+        const READ_BUFFER_SIZE: usize = 16 * 1024;
+        let mut buf = vec![0; READ_BUFFER_SIZE];
+        let count = ReadInto::new(&mut stream, &mut buf).await?;
 
-        let dialect = DialectOptions::infer_from_sample(&infer_buf)?;
+        let infer_buf = &buf[0..count];
+        let mut output = ByteRecords::with_buffer_capacity(READ_BUFFER_SIZE);
+
+        // Infer the options.
+        let dialect = DialectOptions::infer_from_sample(infer_buf, &mut output).unwrap_or_default();
+
         let mut decoder = CsvDecoder::new(dialect);
-        let mut state = DecoderState::default();
-        let _ = decoder.decode(&infer_buf, &mut state)?;
-        let completed = state.completed_records();
-        let csv_schema = CsvSchema::infer_from_records(completed)?;
+        decoder.decode(infer_buf, &mut output);
 
-        let schema = csv_schema.schema.clone();
+        // Infer the schema.
+        let schema = CsvSchema::infer_from_records(&output)?;
 
-        let datatable = SingleFileCsvDataTable {
-            options: dialect,
-            csv_schema,
-            location,
-            conf,
-            runtime: self.runtime.clone(),
+        // Note that we're creating the scan with the same buffers/streams we
+        // used for inferring. When we create the reader, `output` will already
+        // have decoded records that the reader will process. And then it'll
+        // move on to pulling from the stream which will continue where we
+        // stopped.
+        let scan = SingleFileCsvScan {
+            inner: Some(FileScan {
+                stream,
+                skip_header: schema.has_header,
+                read_buffer: buf,
+                decoder,
+                output,
+            }),
         };
 
         Ok(PlannedTableFunction {
             function: Box::new(self),
             positional_inputs: positional_inputs.into_iter().map(expr::lit).collect(),
             named_inputs,
-            function_impl: TableFunctionImpl::Scan(Arc::new(datatable)),
+            function_impl: TableFunctionImpl::new_scan(scan),
             cardinality: StatisticsValue::Unknown,
-            schema,
+            schema: schema.schema,
         })
     }
 }

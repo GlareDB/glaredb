@@ -24,6 +24,7 @@ pub mod view;
 use basic::BasicColumnValueDecoder;
 use bytes::Bytes;
 use decoder::ColumnValueDecoder;
+use rayexec_execution::arrays::array::buffer_manager::NopBufferManager;
 
 use super::page::{Page, PageReader};
 use crate::basic::*;
@@ -32,78 +33,13 @@ use crate::column::reader::decoder::{
     DefinitionLevelDecoder,
     RepetitionLevelDecoder,
 };
+use crate::column_reader::ColumnData;
 use crate::data_type::*;
-use crate::errors::{ParquetError, Result};
+use crate::errors::{general_err, ParquetError, ParquetResult};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{ceil, num_required_bits, read_num_bytes};
 
-/// Column reader for a Parquet type.
-pub enum ColumnReader<P: PageReader> {
-    BoolColumnReader(GenericColumnReader<BasicColumnValueDecoder<bool>, P>),
-    Int32ColumnReader(GenericColumnReader<BasicColumnValueDecoder<i32>, P>),
-    Int64ColumnReader(GenericColumnReader<BasicColumnValueDecoder<i64>, P>),
-    Int96ColumnReader(GenericColumnReader<BasicColumnValueDecoder<Int96>, P>),
-    FloatColumnReader(GenericColumnReader<BasicColumnValueDecoder<f32>, P>),
-    DoubleColumnReader(GenericColumnReader<BasicColumnValueDecoder<f64>, P>),
-    ByteArrayColumnReader(GenericColumnReader<BasicColumnValueDecoder<ByteArray>, P>),
-    FixedLenByteArrayColumnReader(
-        GenericColumnReader<BasicColumnValueDecoder<FixedLenByteArray>, P>,
-    ),
-}
-
-/// Gets a specific column reader corresponding to column descriptor `col_descr`. The
-/// column reader will read from pages in `col_page_reader`.
-pub fn get_column_reader<P: PageReader>(
-    col_descr: ColumnDescPtr,
-    col_page_reader: P,
-) -> ColumnReader<P> {
-    match col_descr.physical_type() {
-        Type::BOOLEAN => {
-            ColumnReader::BoolColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-        }
-        Type::INT32 => {
-            ColumnReader::Int32ColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-        }
-        Type::INT64 => {
-            ColumnReader::Int64ColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-        }
-        Type::INT96 => {
-            ColumnReader::Int96ColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-        }
-        Type::FLOAT => {
-            ColumnReader::FloatColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-        }
-        Type::DOUBLE => {
-            ColumnReader::DoubleColumnReader(GenericColumnReader::new(col_descr, col_page_reader))
-        }
-        Type::BYTE_ARRAY => ColumnReader::ByteArrayColumnReader(GenericColumnReader::new(
-            col_descr,
-            col_page_reader,
-        )),
-        Type::FIXED_LEN_BYTE_ARRAY => ColumnReader::FixedLenByteArrayColumnReader(
-            GenericColumnReader::new(col_descr, col_page_reader),
-        ),
-    }
-}
-
-/// Gets a typed column reader for the specific type `T`, by "up-casting" `col_reader` of
-/// non-generic type to a generic column reader type `ColumnReaderImpl`.
-///
-/// Panics if actual enum value for `col_reader` does not match the type `T`.
-pub fn get_typed_column_reader<T: DataType, P: PageReader>(
-    col_reader: ColumnReader<P>,
-) -> GenericColumnReader<BasicColumnValueDecoder<T>, P> {
-    T::get_column_reader(col_reader).unwrap_or_else(|| {
-        panic!(
-            "Failed to convert column reader into a typed column reader for `{}` type",
-            T::get_physical_type()
-        )
-    })
-}
-
 /// Reads data for a given column chunk, using the provided decoders:
-///
-/// - T: Parquet data type
 #[derive(Debug)]
 pub struct GenericColumnReader<V: ColumnValueDecoder, P: PageReader> {
     descr: ColumnDescPtr,
@@ -180,26 +116,29 @@ where
     }
 
     /// Read up to `max_records` whole records, returning the number of complete
-    /// records, non-null values and levels decoded. All levels for a given record
-    /// will be read, i.e. the next repetition level, if any, will be 0
+    /// records, non-null values and levels decoded. All levels for a given
+    /// record will be read, i.e. the next repetition level, if any, will be 0
     ///
-    /// If the max definition level is 0, `def_levels` will be ignored and the number of records,
-    /// non-null values and levels decoded will all be equal, otherwise `def_levels` will be
-    /// populated with the number of levels read, with an error returned if it is `None`.
+    /// If the max definition level is 0, `def_levels` will be ignored and the
+    /// number of records, non-null values and levels decoded will all be equal,
+    /// otherwise `def_levels` will be populated with the number of levels read,
+    /// with an error returned if it is `None`.
     ///
-    /// If the max repetition level is 0, `rep_levels` will be ignored and the number of records
-    /// and levels decoded will both be equal, otherwise `rep_levels` will be populated with
-    /// the number of levels read, with an error returned if it is `None`.
+    /// If the max repetition level is 0, `rep_levels` will be ignored and the
+    /// number of records and levels decoded will both be equal, otherwise
+    /// `rep_levels` will be populated with the number of levels read, with an
+    /// error returned if it is `None`.
     ///
-    /// `values` will be contiguously populated with the non-null values. Note that if the column
-    /// is not required, this may be less than either `max_records` or the number of levels read
+    /// `values` will be contiguously populated with the non-null values. Note
+    /// that if the column is not required, this may be less than either
+    /// `max_records` or the number of levels read
     pub fn read_records(
         &mut self,
         max_records: usize,
         mut def_levels: Option<&mut Vec<i16>>,
         mut rep_levels: Option<&mut Vec<i16>>,
         values: &mut V::Buffer,
-    ) -> Result<(usize, usize, usize)> {
+    ) -> ParquetResult<(usize, usize, usize)> {
         let mut total_records_read = 0;
         let mut total_levels_read = 0;
         let mut total_values_read = 0;
@@ -218,8 +157,9 @@ where
                         reader.read_rep_levels(out, remaining_records, remaining_levels)?;
 
                     if levels_read == remaining_levels && self.has_record_delimiter {
-                        // Reached end of page, which implies records_read < remaining_records
-                        // as otherwise would have stopped reading before reaching the end
+                        // Reached end of page, which implies records_read <
+                        // remaining_records as otherwise would have stopped
+                        // reading before reaching the end
                         assert!(records_read < remaining_records); // Sanity check
                         records_read += reader.flush_partial() as usize;
                     }
@@ -265,12 +205,13 @@ where
         Ok((total_records_read, total_values_read, total_levels_read))
     }
 
-    /// Skips over `num_records` records, where records are delimited by repetition levels of 0
+    /// Skips over `num_records` records, where records are delimited by
+    /// repetition levels of 0
     ///
     /// # Returns
     ///
     /// Returns the number of records skipped
-    pub fn skip_records(&mut self, num_records: usize) -> Result<usize> {
+    pub fn skip_records(&mut self, num_records: usize) -> ParquetResult<usize> {
         let mut remaining_records = num_records;
         while remaining_records != 0 {
             if self.num_buffered_values == self.num_decoded_values {
@@ -367,10 +308,12 @@ where
         Ok(num_records - remaining_records)
     }
 
-    /// Read the next page as a dictionary page. If the next page is not a dictionary page,
-    /// this will return an error.
-    fn read_dictionary_page(&mut self) -> Result<()> {
-        match self.page_reader.get_next_page()? {
+    /// Read the next page as a dictionary page. If the next page is not a
+    /// dictionary page, this will return an error.
+    fn read_dictionary_page(&mut self) -> ParquetResult<()> {
+        // TODO
+        let mut data = ColumnData::empty(&NopBufferManager);
+        match self.page_reader.read_next_page(&mut data)? {
             Some(Page::DictionaryPage {
                 buf,
                 num_values,
@@ -385,11 +328,13 @@ where
         }
     }
 
-    /// Reads a new page and set up the decoders for levels, values or dictionary.
-    /// Returns false if there's no page left.
-    fn read_new_page(&mut self) -> Result<bool> {
+    /// Reads a new page and set up the decoders for levels, values or
+    /// dictionary. Returns false if there's no page left.
+    fn read_new_page(&mut self) -> ParquetResult<bool> {
+        // TODO
+        let mut data = ColumnData::empty(&NopBufferManager);
         loop {
-            match self.page_reader.get_next_page()? {
+            match self.page_reader.read_next_page(&mut data)? {
                 // No more page to read
                 None => return Ok(false),
                 Some(current_page) => {
@@ -523,11 +468,11 @@ where
         }
     }
 
-    /// Check whether there is more data to read from this column,
-    /// If the current page is fully decoded, this will load the next page
-    /// (if it exists) into the buffer
+    /// Check whether there is more data to read from this column, If the
+    /// current page is fully decoded, this will load the next page (if it
+    /// exists) into the buffer
     #[inline]
-    pub fn has_next(&mut self) -> Result<bool> {
+    pub fn has_next(&mut self) -> ParquetResult<bool> {
         if self.num_buffered_values == 0 || self.num_buffered_values == self.num_decoded_values {
             // TODO: should we return false if read_new_page() = true and
             // num_buffered_values = 0?
@@ -547,7 +492,7 @@ fn parse_v1_level(
     num_buffered_values: u32,
     encoding: Encoding,
     buf: Bytes,
-) -> Result<(usize, Bytes)> {
+) -> ParquetResult<(usize, Bytes)> {
     match encoding {
         Encoding::RLE => {
             let i32_size = std::mem::size_of::<i32>();
@@ -577,8 +522,14 @@ mod tests {
     use super::*;
     use crate::basic::Type as PhysicalType;
     use crate::schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType};
-    use crate::util::test_common::page_util::InMemoryPageReader;
-    use crate::util::test_common::rand_gen::make_pages;
+    use crate::testutil::column_reader::{
+        get_column_reader,
+        get_typed_column_reader,
+        BasicColumnReader,
+        DataTypeTestExt,
+    };
+    use crate::testutil::page_util::InMemoryPageReader;
+    use crate::testutil::rand_gen::make_pages;
 
     const NUM_LEVELS: usize = 128;
     const NUM_PAGES: usize = 2;
@@ -1121,7 +1072,7 @@ mod tests {
         values: Vec<T::T>,
     }
 
-    impl<T: DataType> ColumnReaderTester<T>
+    impl<T: DataTypeTestExt> ColumnReaderTester<T>
     where
         T::T: PartialOrd + SampleUniform + Copy,
     {
@@ -1271,7 +1222,7 @@ mod tests {
             let max_def_level = desc.max_def_level();
             let max_rep_level = desc.max_rep_level();
             let page_reader = InMemoryPageReader::new(pages);
-            let column_reader: ColumnReader<_> = get_column_reader(desc, page_reader);
+            let column_reader: BasicColumnReader<_> = get_column_reader(desc, page_reader);
             let mut typed_column_reader = get_typed_column_reader::<T, _>(column_reader);
 
             let mut values = Vec::new();

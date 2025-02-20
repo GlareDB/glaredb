@@ -33,18 +33,19 @@ impl QueryHandle for ThreadedQueryHandle {
     }
 
     fn generate_execution_profile_data(&self) -> BoxFuture<'_, Result<ExecutionProfileData>> {
-        Box::pin(async {
-            let mut data = ExecutionProfileData::default();
-            let states = self.states.lock();
+        unimplemented!()
+        // Box::pin(async {
+        //     let mut data = ExecutionProfileData::default();
+        //     let states = self.states.lock();
 
-            for state in states.iter() {
-                let pipeline = state.pipeline.lock();
-                data.add_partition_data(&pipeline.pipeline);
-            }
+        //     for state in states.iter() {
+        //         let pipeline = state.pipeline.lock();
+        //         data.add_partition_data(&pipeline.pipeline);
+        //     }
 
-            // TODO: Get remote pipeline data somehow.
+        //     // TODO: Get remote pipeline data somehow.
 
-            Ok(data)
-        })
+        //     Ok(data)
+        // })
     }
 }

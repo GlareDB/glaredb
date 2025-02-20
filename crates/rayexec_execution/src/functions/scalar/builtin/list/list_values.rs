@@ -1,9 +1,9 @@
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
+use crate::arrays::compute::make_list::make_list_from_values;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
-use crate::arrays::executor::scalar::concat;
-use crate::arrays::storage::ListStorage;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
@@ -52,9 +52,7 @@ impl ScalarFunction for ListValues {
                     function: Box::new(*self),
                     return_type: return_type.clone(),
                     inputs,
-                    function_impl: Box::new(ListValuesImpl {
-                        list_datatype: return_type,
-                    }),
+                    function_impl: Box::new(ListValuesImpl),
                 });
             }
         };
@@ -77,33 +75,70 @@ impl ScalarFunction for ListValues {
             function: Box::new(*self),
             return_type: return_type.clone(),
             inputs,
-            function_impl: Box::new(ListValuesImpl {
-                list_datatype: return_type,
-            }),
+            function_impl: Box::new(ListValuesImpl),
         })
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct ListValuesImpl {
-    list_datatype: DataType,
-}
+pub struct ListValuesImpl;
 
 impl ScalarFunctionImpl for ListValuesImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        if inputs.is_empty() {
-            let inner_type = match &self.list_datatype {
-                DataType::List(l) => l.datatype.as_ref(),
-                other => panic!("invalid data type: {other}"),
-            };
+    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+        make_list_from_values(input.arrays(), input.selection(), output)
+    }
+}
 
-            let data = ListStorage::empty_list(Array::new_typed_null_array(inner_type.clone(), 1)?);
-            return Ok(Array::new_with_array_data(self.list_datatype.clone(), data));
-        }
+#[cfg(test)]
+mod tests {
 
-        let out = concat(inputs)?;
-        let data = ListStorage::single_list(out);
+    use stdutil::iter::TryFromExactSizeIterator;
 
-        Ok(Array::new_with_array_data(self.list_datatype.clone(), data))
+    use super::*;
+    use crate::arrays::array::array_buffer::ListItemMetadata;
+    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::arrays::array::physical_type::{PhysicalList, ScalarStorage};
+    use crate::expr;
+
+    #[test]
+    fn list_values_primitive() {
+        let a = Array::try_from_iter([1, 2, 3]).unwrap();
+        let b = Array::try_from_iter([4, 5, 6]).unwrap();
+        let batch = Batch::from_arrays([a, b]).unwrap();
+
+        let mut table_list = TableList::empty();
+        let table_ref = table_list
+            .push_table(
+                None,
+                vec![DataType::Int32, DataType::Int32],
+                vec!["a".to_string(), "b".to_string()],
+            )
+            .unwrap();
+
+        let planned = ListValues
+            .plan(
+                &table_list,
+                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
+            )
+            .unwrap();
+
+        let mut out = Array::new(
+            &NopBufferManager,
+            DataType::List(ListTypeMeta::new(DataType::Int32)),
+            3,
+        )
+        .unwrap();
+        planned.function_impl.execute(&batch, &mut out).unwrap();
+
+        // TODO: Assert list equality.
+
+        let expected_metas = &[
+            ListItemMetadata { offset: 0, len: 2 },
+            ListItemMetadata { offset: 2, len: 2 },
+            ListItemMetadata { offset: 4, len: 2 },
+        ];
+
+        let s = PhysicalList::get_addressable(&out.data).unwrap();
+        assert_eq!(expected_metas, s.slice);
     }
 }

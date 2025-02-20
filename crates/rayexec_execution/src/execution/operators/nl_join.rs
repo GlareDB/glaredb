@@ -5,7 +5,7 @@ use parking_lot::Mutex;
 use rayexec_error::Result;
 
 use super::util::outer_join_tracker::LeftOuterJoinTracker;
-use super::ComputedBatches;
+use super::{BinaryInputStates, ComputedBatches};
 use crate::arrays::batch::Batch;
 use crate::arrays::selection::SelectionVector;
 use crate::database::DatabaseContext;
@@ -209,7 +209,9 @@ impl PhysicalNestedLoopJoin {
 }
 
 impl ExecutableOperator for PhysicalNestedLoopJoin {
-    fn create_states(
+    type States = BinaryInputStates;
+
+    fn create_states2(
         &self,
         _context: &DatabaseContext,
         partitions: Vec<usize>,
@@ -332,7 +334,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
         }
     }
 
-    fn poll_finalize_push(
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         partition_state: &mut PartitionState,
@@ -442,20 +444,21 @@ fn cross_join(
 
         let mut output = Batch::try_from_arrays(left_columns.into_iter().chain(right_columns))?;
 
-        // If we have a filter, apply it to the output batch.
-        if let Some(filter_expr) = &filter_expr {
-            let selection = Arc::new(filter_expr.select(&output)?);
-            output = output.select_old(selection.clone());
+        unimplemented!()
+        // // If we have a filter, apply it to the output batch.
+        // if let Some(filter_expr) = &filter_expr {
+        //     let selection = Arc::new(filter_expr.select(&output)?);
+        //     output = output.select_old(selection.clone());
 
-            // If we're left joining, compute indices in the left batch that we
-            // visited.
-            if let Some(left_outer_tracker) = &mut left_outer_tracker {
-                left_outer_tracker
-                    .mark_rows_visited_for_batch(left_batch_idx, selection.iter_locations());
-            }
-        }
+        //     // If we're left joining, compute indices in the left batch that we
+        //     // visited.
+        //     if let Some(left_outer_tracker) = &mut left_outer_tracker {
+        //         left_outer_tracker
+        //             .mark_rows_visited_for_batch(left_batch_idx, selection.iter_locations());
+        //     }
+        // }
 
-        batches.push(output);
+        // batches.push(output);
     }
 
     Ok(batches)

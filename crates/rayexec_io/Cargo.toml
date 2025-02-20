@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 rayexec_error = { path = '../rayexec_error' }
 rayexec_proto = { path = '../rayexec_proto' }
+stdutil = { path = "../stdutil" }
 futures = { workspace = true }
 tracing = { workspace = true }
 reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls", "stream"] }

@@ -10,7 +10,6 @@ rayexec_execution = { path = '../rayexec_execution' }
 rayexec_server = { path = '../rayexec_server' }
 rayexec_shell = { path = '../rayexec_shell' }
 rayexec_rt_native = { path = '../rayexec_rt_native' }
-rayexec_postgres = { path = '../rayexec_postgres' }
 rayexec_parquet = { path = '../rayexec_parquet' }
 rayexec_csv = { path = '../rayexec_csv' }
 rayexec_delta = { path = '../rayexec_delta' }

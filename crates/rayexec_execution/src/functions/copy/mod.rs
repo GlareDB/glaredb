@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::arrays::field::Schema;
 use crate::arrays::scalar::OwnedScalarValue;
-use crate::execution::operators::sink::PartitionSink;
+use crate::execution::operators::sink::operation::PartitionSink;
 
 pub const FORMAT_OPT_KEY: &str = "format";
 
@@ -78,7 +78,9 @@ pub trait CopyToFunction: Debug + Sync + Send + DynClone {
         schema: Schema,
         location: FileLocation,
         num_partitions: usize,
-    ) -> Result<Vec<Box<dyn PartitionSink>>>;
+    ) -> Result<Vec<Box<dyn PartitionSink>>> {
+        unimplemented!()
+    }
 }
 
 impl Clone for Box<dyn CopyToFunction> {

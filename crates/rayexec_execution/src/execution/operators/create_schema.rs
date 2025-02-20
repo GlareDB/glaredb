@@ -1,24 +1,12 @@
 use std::fmt;
-use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
 
 use futures::future::BoxFuture;
-use futures::FutureExt;
 use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
-use super::{
-    ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
-};
-use crate::arrays::batch::Batch;
-use crate::database::catalog::CatalogTx;
+use super::{ExecutableOperator, OperatorState, PartitionState, PollFinalize, UnaryInputStates};
+use crate::arrays::datatype::DataType;
 use crate::database::create::CreateSchemaInfo;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -50,72 +38,52 @@ impl PhysicalCreateSchema {
 }
 
 impl ExecutableOperator for PhysicalCreateSchema {
-    fn create_states(
-        &self,
-        context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        if partitions[0] != 1 {
-            return Err(RayexecError::new(
-                "Create schema operator can only handle 1 partition",
-            ));
-        }
+    type States = UnaryInputStates;
 
-        // TODO: Placeholder.
-        let tx = CatalogTx::new();
-
-        let catalog = context.get_database(&self.catalog)?.catalog.clone();
-        let info = self.info.clone();
-        let create = Box::pin(async move {
-            catalog.create_schema(&tx, &info)?;
-            // TODO: And persist some how (write to log, flush on commit)
-            // TODO: Probably doesn't even need to be async...
-            Ok(())
-        });
-
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: vec![PartitionState::CreateSchema(CreateSchemaPartitionState {
-                    create,
-                })],
-            },
-        })
+    fn output_types(&self) -> &[DataType] {
+        unimplemented!()
     }
 
-    fn poll_push(
-        &self,
-        _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
-        Err(RayexecError::new("Cannot push to physical create table"))
-    }
+    // fn create_states2(
+    //     &self,
+    //     context: &DatabaseContext,
+    //     partitions: Vec<usize>,
+    // ) -> Result<ExecutionStates> {
+    //     if partitions[0] != 1 {
+    //         return Err(RayexecError::new(
+    //             "Create schema operator can only handle 1 partition",
+    //         ));
+    //     }
 
-    fn poll_finalize_push(
+    //     // TODO: Placeholder.
+    //     let tx = CatalogTx::new();
+
+    //     let catalog = context.get_database(&self.catalog)?.catalog.clone();
+    //     let info = self.info.clone();
+    //     let create = Box::pin(async move {
+    //         catalog.create_schema(&tx, &info)?;
+    //         // TODO: And persist some how (write to log, flush on commit)
+    //         // TODO: Probably doesn't even need to be async...
+    //         Ok(())
+    //     });
+
+    //     Ok(ExecutionStates {
+    //         operator_state: Arc::new(OperatorState::None),
+    //         partition_states: InputOutputStates::OneToOne {
+    //             partition_states: vec![PartitionState::CreateSchema(CreateSchemaPartitionState {
+    //                 create,
+    //             })],
+    //         },
+    //     })
+    // }
+
+    fn poll_finalize(
         &self,
         _cx: &mut Context,
         _partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
         Err(RayexecError::new("Cannot push to physical create table"))
-    }
-
-    fn poll_pull(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollPull> {
-        match partition_state {
-            PartitionState::CreateSchema(state) => match state.create.poll_unpin(cx) {
-                Poll::Ready(Ok(_)) => Ok(PollPull::Exhausted),
-                Poll::Ready(Err(e)) => Err(e),
-                Poll::Pending => Ok(PollPull::Pending),
-            },
-            other => panic!("invalid partition state: {other:?}"),
-        }
     }
 }
 

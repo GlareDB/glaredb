@@ -13,6 +13,7 @@ use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType}
 /// This is mostly used for determining the input and return types functions
 /// without needing to worry about extra type info (e.g. precision/scale for
 /// decimals).
+// TODO: "Table"
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DataTypeId {
     /// Any datatype.
@@ -264,7 +265,7 @@ impl fmt::Display for TimeUnit {
 /// Metadata associated with structs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct StructTypeMeta {
-    pub fields: Vec<Field>,
+    pub fields: Box<[Field]>,
 }
 
 impl ProtoConv for StructTypeMeta {
@@ -284,7 +285,8 @@ impl ProtoConv for StructTypeMeta {
             .fields
             .into_iter()
             .map(Field::from_proto)
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Result<Vec<_>>>()?
+            .into_boxed_slice();
         Ok(Self { fields })
     }
 }
