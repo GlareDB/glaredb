@@ -49,7 +49,7 @@ where
     pub fn reserve_for_size(&mut self, size: usize) -> Result<()> {
         if self.raw.typed_capacity() < size {
             let new_cap = usize::max(size, self.raw.typed_capacity() * 2);
-            let additional = self.raw.typed_capacity() - new_cap;
+            let additional = new_cap - self.raw.typed_capacity();
             self.reserve_additional(additional)?;
         }
 
@@ -592,5 +592,19 @@ mod tests {
         assert!(b.contains_addr(addr));
         assert!(b.contains_addr(addr + 8));
         assert!(!b.contains_addr(addr + 16));
+    }
+
+    #[test]
+    fn reserve_for_size_no_increase() {
+        let mut buf = ByteBuffer::try_with_capacity(&NopBufferManager, 14).unwrap();
+        buf.reserve_for_size(12).unwrap();
+        assert_eq!(14, buf.capacity());
+    }
+
+    #[test]
+    fn reserve_for_size_with_increase() {
+        let mut buf = ByteBuffer::try_with_capacity(&NopBufferManager, 14).unwrap();
+        buf.reserve_for_size(16).unwrap();
+        assert!(buf.capacity() >= 16);
     }
 }

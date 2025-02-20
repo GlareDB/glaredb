@@ -96,6 +96,12 @@ impl From<str::Utf8Error> for ParquetError {
     }
 }
 
+impl From<RayexecError> for ParquetError {
+    fn from(e: RayexecError) -> Self {
+        ParquetError::External(Box::new(e))
+    }
+}
+
 /// A specialized `Result` for Parquet errors.
 pub type ParquetResult<T, E = ParquetError> = result::Result<T, E>;
 
@@ -131,3 +137,4 @@ macro_rules! eof_err {
     ($fmt:expr, $($args:expr),*) => (crate::errors::ParquetError::EOF(format!($fmt, $($args),*)));
 }
 pub(crate) use eof_err;
+use rayexec_error::RayexecError;

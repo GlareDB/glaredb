@@ -212,10 +212,13 @@ where
     ///
     /// Returns the number of records skipped
     pub fn skip_records(&mut self, num_records: usize) -> ParquetResult<usize> {
+        // TODO
+        let data = ColumnData::empty(&NopBufferManager);
+
         let mut remaining_records = num_records;
         while remaining_records != 0 {
             if self.num_buffered_values == self.num_decoded_values {
-                let metadata = match self.page_reader.peek_next_page()? {
+                let metadata = match self.page_reader.peek_next_page(&data)? {
                     None => return Ok(num_records - remaining_records),
                     Some(metadata) => metadata,
                 };
@@ -237,7 +240,7 @@ where
 
                 if let Some(rows) = rows {
                     if rows <= remaining_records {
-                        self.page_reader.skip_next_page()?;
+                        self.page_reader.skip_next_page(&data)?;
                         remaining_records -= rows;
                         continue;
                     }
@@ -312,160 +315,162 @@ where
     /// dictionary page, this will return an error.
     fn read_dictionary_page(&mut self) -> ParquetResult<()> {
         // TODO
-        let mut data = ColumnData::empty(&NopBufferManager);
-        match self.page_reader.read_next_page(&mut data)? {
-            Some(Page::DictionaryPage {
-                buf,
-                num_values,
-                encoding,
-                is_sorted,
-            }) => self
-                .values_decoder
-                .set_dict(buf, num_values, encoding, is_sorted),
-            _ => Err(ParquetError::General(
-                "Invalid page. Expecting dictionary page".to_string(),
-            )),
-        }
+        unimplemented!()
+        // let mut data = ColumnData::empty(&NopBufferManager);
+        // match self.page_reader.read_next_page(&mut data)? {
+        //     Some(Page::DictionaryPage {
+        //         buf,
+        //         num_values,
+        //         encoding,
+        //         is_sorted,
+        //     }) => self
+        //         .values_decoder
+        //         .set_dict(buf, num_values, encoding, is_sorted),
+        //     _ => Err(ParquetError::General(
+        //         "Invalid page. Expecting dictionary page".to_string(),
+        //     )),
+        // }
     }
 
     /// Reads a new page and set up the decoders for levels, values or
     /// dictionary. Returns false if there's no page left.
     fn read_new_page(&mut self) -> ParquetResult<bool> {
+        unimplemented!()
         // TODO
-        let mut data = ColumnData::empty(&NopBufferManager);
-        loop {
-            match self.page_reader.read_next_page(&mut data)? {
-                // No more page to read
-                None => return Ok(false),
-                Some(current_page) => {
-                    match current_page {
-                        // 1. Dictionary page: configure dictionary for this page.
-                        Page::DictionaryPage {
-                            buf,
-                            num_values,
-                            encoding,
-                            is_sorted,
-                        } => {
-                            self.values_decoder
-                                .set_dict(buf, num_values, encoding, is_sorted)?;
-                            continue;
-                        }
-                        // 2. Data page v1
-                        Page::DataPage {
-                            buf,
-                            num_values,
-                            encoding,
-                            def_level_encoding,
-                            rep_level_encoding,
-                            statistics: _,
-                        } => {
-                            self.num_buffered_values = num_values as _;
-                            self.num_decoded_values = 0;
+        // let mut data = ColumnData::empty(&NopBufferManager);
+        // loop {
+        //     match self.page_reader.read_next_page(&mut data)? {
+        //         // No more page to read
+        //         None => return Ok(false),
+        //         Some(current_page) => {
+        //             match current_page {
+        //                 // 1. Dictionary page: configure dictionary for this page.
+        //                 Page::DictionaryPage {
+        //                     buf,
+        //                     num_values,
+        //                     encoding,
+        //                     is_sorted,
+        //                 } => {
+        //                     self.values_decoder
+        //                         .set_dict(buf, num_values, encoding, is_sorted)?;
+        //                     continue;
+        //                 }
+        //                 // 2. Data page v1
+        //                 Page::DataPage {
+        //                     buf,
+        //                     num_values,
+        //                     encoding,
+        //                     def_level_encoding,
+        //                     rep_level_encoding,
+        //                     statistics: _,
+        //                 } => {
+        //                     self.num_buffered_values = num_values as _;
+        //                     self.num_decoded_values = 0;
 
-                            let max_rep_level = self.descr.max_rep_level();
-                            let max_def_level = self.descr.max_def_level();
+        //                     let max_rep_level = self.descr.max_rep_level();
+        //                     let max_def_level = self.descr.max_def_level();
 
-                            let mut offset = 0;
+        //                     let mut offset = 0;
 
-                            if max_rep_level > 0 {
-                                let (bytes_read, level_data) = parse_v1_level(
-                                    max_rep_level,
-                                    num_values,
-                                    rep_level_encoding,
-                                    buf.slice(offset..),
-                                )?;
-                                offset += bytes_read;
+        //                     if max_rep_level > 0 {
+        //                         let (bytes_read, level_data) = parse_v1_level(
+        //                             max_rep_level,
+        //                             num_values,
+        //                             rep_level_encoding,
+        //                             buf.slice(offset..),
+        //                         )?;
+        //                         offset += bytes_read;
 
-                                self.has_record_delimiter =
-                                    self.page_reader.at_record_boundary()?;
+        //                         self.has_record_delimiter =
+        //                             self.page_reader.at_record_boundary(&data)?;
 
-                                self.rep_level_decoder
-                                    .as_mut()
-                                    .unwrap()
-                                    .set_data(rep_level_encoding, level_data);
-                            }
+        //                         self.rep_level_decoder
+        //                             .as_mut()
+        //                             .unwrap()
+        //                             .set_data(rep_level_encoding, level_data);
+        //                     }
 
-                            if max_def_level > 0 {
-                                let (bytes_read, level_data) = parse_v1_level(
-                                    max_def_level,
-                                    num_values,
-                                    def_level_encoding,
-                                    buf.slice(offset..),
-                                )?;
-                                offset += bytes_read;
+        //                     if max_def_level > 0 {
+        //                         let (bytes_read, level_data) = parse_v1_level(
+        //                             max_def_level,
+        //                             num_values,
+        //                             def_level_encoding,
+        //                             buf.slice(offset..),
+        //                         )?;
+        //                         offset += bytes_read;
 
-                                self.def_level_decoder
-                                    .as_mut()
-                                    .unwrap()
-                                    .set_data(def_level_encoding, level_data);
-                            }
+        //                         self.def_level_decoder
+        //                             .as_mut()
+        //                             .unwrap()
+        //                             .set_data(def_level_encoding, level_data);
+        //                     }
 
-                            self.values_decoder.set_data(
-                                encoding,
-                                buf.slice(offset..),
-                                num_values as usize,
-                                None,
-                            )?;
-                            return Ok(true);
-                        }
-                        // 3. Data page v2
-                        Page::DataPageV2 {
-                            buf,
-                            num_values,
-                            encoding,
-                            num_nulls,
-                            num_rows: _,
-                            def_levels_byte_len,
-                            rep_levels_byte_len,
-                            is_compressed: _,
-                            statistics: _,
-                        } => {
-                            if num_nulls > num_values {
-                                return Err(general_err!("more nulls than values in page, contained {} values and {} nulls", num_values, num_nulls));
-                            }
+        //                     self.values_decoder.set_data(
+        //                         encoding,
+        //                         buf.slice(offset..),
+        //                         num_values as usize,
+        //                         None,
+        //                     )?;
+        //                     return Ok(true);
+        //                 }
+        //                 // 3. Data page v2
+        //                 Page::DataPageV2 {
+        //                     buf,
+        //                     num_values,
+        //                     encoding,
+        //                     num_nulls,
+        //                     num_rows: _,
+        //                     def_levels_byte_len,
+        //                     rep_levels_byte_len,
+        //                     is_compressed: _,
+        //                     statistics: _,
+        //                 } => {
+        //                     if num_nulls > num_values {
+        //                         return Err(general_err!("more nulls than values in page, contained {} values and {} nulls", num_values, num_nulls));
+        //                     }
 
-                            self.num_buffered_values = num_values as _;
-                            self.num_decoded_values = 0;
+        //                     self.num_buffered_values = num_values as _;
+        //                     self.num_decoded_values = 0;
 
-                            // DataPage v2 only supports RLE encoding for repetition
-                            // levels
-                            if self.descr.max_rep_level() > 0 {
-                                // Technically a DataPage v2 should not write a record
-                                // across multiple pages, however, the parquet writer
-                                // used to do this so we preserve backwards compatibility
-                                self.has_record_delimiter =
-                                    self.page_reader.at_record_boundary()?;
+        //                     // DataPage v2 only supports RLE encoding for repetition
+        //                     // levels
+        //                     if self.descr.max_rep_level() > 0 {
+        //                         // Technically a DataPage v2 should not write a record
+        //                         // across multiple pages, however, the parquet writer
+        //                         // used to do this so we preserve backwards compatibility
+        //                         self.has_record_delimiter =
+        //                             self.page_reader.at_record_boundary(&data)?;
 
-                                self.rep_level_decoder.as_mut().unwrap().set_data(
-                                    Encoding::RLE,
-                                    buf.slice(..rep_levels_byte_len as usize),
-                                );
-                            }
+        //                         self.rep_level_decoder.as_mut().unwrap().set_data(
+        //                             Encoding::RLE,
+        //                             buf.slice(..rep_levels_byte_len as usize),
+        //                         );
+        //                     }
 
-                            // DataPage v2 only supports RLE encoding for definition
-                            // levels
-                            if self.descr.max_def_level() > 0 {
-                                self.def_level_decoder.as_mut().unwrap().set_data(
-                                    Encoding::RLE,
-                                    buf.slice(
-                                        rep_levels_byte_len as usize
-                                            ..(rep_levels_byte_len + def_levels_byte_len) as usize,
-                                    ),
-                                );
-                            }
+        //                     // DataPage v2 only supports RLE encoding for definition
+        //                     // levels
+        //                     if self.descr.max_def_level() > 0 {
+        //                         self.def_level_decoder.as_mut().unwrap().set_data(
+        //                             Encoding::RLE,
+        //                             buf.slice(
+        //                                 rep_levels_byte_len as usize
+        //                                     ..(rep_levels_byte_len + def_levels_byte_len) as usize,
+        //                             ),
+        //                         );
+        //                     }
 
-                            self.values_decoder.set_data(
-                                encoding,
-                                buf.slice((rep_levels_byte_len + def_levels_byte_len) as usize..),
-                                num_values as usize,
-                                Some((num_values - num_nulls) as usize),
-                            )?;
-                            return Ok(true);
-                        }
-                    };
-                }
-            }
-        }
+        //                     self.values_decoder.set_data(
+        //                         encoding,
+        //                         buf.slice((rep_levels_byte_len + def_levels_byte_len) as usize..),
+        //                         num_values as usize,
+        //                         Some((num_values - num_nulls) as usize),
+        //                     )?;
+        //                     return Ok(true);
+        //                 }
+        //             };
+        //         }
+        //     }
+        // }
     }
 
     /// Check whether there is more data to read from this column, If the
@@ -514,761 +519,761 @@ fn parse_v1_level(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::VecDeque;
-    use std::sync::Arc;
+    // use std::collections::VecDeque;
+    // use std::sync::Arc;
 
-    use rand::distributions::uniform::SampleUniform;
+    // use rand::distributions::uniform::SampleUniform;
 
-    use super::*;
-    use crate::basic::Type as PhysicalType;
-    use crate::schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType};
-    use crate::testutil::column_reader::{
-        get_column_reader,
-        get_typed_column_reader,
-        BasicColumnReader,
-        DataTypeTestExt,
-    };
-    use crate::testutil::page_util::InMemoryPageReader;
-    use crate::testutil::rand_gen::make_pages;
+    // use super::*;
+    // use crate::basic::Type as PhysicalType;
+    // use crate::schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType};
+    // use crate::testutil::column_reader::{
+    //     get_column_reader,
+    //     get_typed_column_reader,
+    //     BasicColumnReader,
+    //     DataTypeTestExt,
+    // };
+    // use crate::testutil::page_util::InMemoryPageReader;
+    // use crate::testutil::rand_gen::make_pages;
 
-    const NUM_LEVELS: usize = 128;
-    const NUM_PAGES: usize = 2;
-    const MAX_DEF_LEVEL: i16 = 5;
-    const MAX_REP_LEVEL: i16 = 5;
+    // const NUM_LEVELS: usize = 128;
+    // const NUM_PAGES: usize = 2;
+    // const MAX_DEF_LEVEL: i16 = 5;
+    // const MAX_REP_LEVEL: i16 = 5;
 
-    // Macro to generate test cases
-    macro_rules! test {
-        // branch for generating i32 cases
-        ($test_func:ident, i32, $func:ident, $def_level:expr, $rep_level:expr,
-     $num_pages:expr, $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
-            test_internal!(
-                $test_func,
-                i32,
-                get_test_int32_type,
-                $func,
-                $def_level,
-                $rep_level,
-                $num_pages,
-                $num_levels,
-                $batch_size,
-                $min,
-                $max
-            );
-        };
-        // branch for generating i64 cases
-        ($test_func:ident, i64, $func:ident, $def_level:expr, $rep_level:expr,
-     $num_pages:expr, $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
-            test_internal!(
-                $test_func,
-                i64,
-                get_test_int64_type,
-                $func,
-                $def_level,
-                $rep_level,
-                $num_pages,
-                $num_levels,
-                $batch_size,
-                $min,
-                $max
-            );
-        };
-    }
+    // // Macro to generate test cases
+    // macro_rules! test {
+    //     // branch for generating i32 cases
+    //     ($test_func:ident, i32, $func:ident, $def_level:expr, $rep_level:expr,
+    //  $num_pages:expr, $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
+    //         test_internal!(
+    //             $test_func,
+    //             i32,
+    //             get_test_int32_type,
+    //             $func,
+    //             $def_level,
+    //             $rep_level,
+    //             $num_pages,
+    //             $num_levels,
+    //             $batch_size,
+    //             $min,
+    //             $max
+    //         );
+    //     };
+    //     // branch for generating i64 cases
+    //     ($test_func:ident, i64, $func:ident, $def_level:expr, $rep_level:expr,
+    //  $num_pages:expr, $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
+    //         test_internal!(
+    //             $test_func,
+    //             i64,
+    //             get_test_int64_type,
+    //             $func,
+    //             $def_level,
+    //             $rep_level,
+    //             $num_pages,
+    //             $num_levels,
+    //             $batch_size,
+    //             $min,
+    //             $max
+    //         );
+    //     };
+    // }
 
-    macro_rules! test_internal {
-        ($test_func:ident, $ty:ident, $pty:ident, $func:ident, $def_level:expr,
-     $rep_level:expr, $num_pages:expr, $num_levels:expr, $batch_size:expr,
-     $min:expr, $max:expr) => {
-            #[test]
-            fn $test_func() {
-                let desc = Arc::new(ColumnDescriptor::new(
-                    Arc::new($pty()),
-                    $def_level,
-                    $rep_level,
-                    ColumnPath::new(Vec::new()),
-                ));
-                let mut tester = ColumnReaderTester::<$ty>::new();
-                tester.$func(desc, $num_pages, $num_levels, $batch_size, $min, $max);
-            }
-        };
-    }
+    // macro_rules! test_internal {
+    //     ($test_func:ident, $ty:ident, $pty:ident, $func:ident, $def_level:expr,
+    //  $rep_level:expr, $num_pages:expr, $num_levels:expr, $batch_size:expr,
+    //  $min:expr, $max:expr) => {
+    //         #[test]
+    //         fn $test_func() {
+    //             let desc = Arc::new(ColumnDescriptor::new(
+    //                 Arc::new($pty()),
+    //                 $def_level,
+    //                 $rep_level,
+    //                 ColumnPath::new(Vec::new()),
+    //             ));
+    //             let mut tester = ColumnReaderTester::<$ty>::new();
+    //             tester.$func(desc, $num_pages, $num_levels, $batch_size, $min, $max);
+    //         }
+    //     };
+    // }
 
-    test!(
-        test_read_plain_v1_int32,
-        i32,
-        plain_v1,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        16,
-        std::i32::MIN,
-        std::i32::MAX
-    );
-    test!(
-        test_read_plain_v2_int32,
-        i32,
-        plain_v2,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        16,
-        std::i32::MIN,
-        std::i32::MAX
-    );
+    // test!(
+    //     test_read_plain_v1_int32,
+    //     i32,
+    //     plain_v1,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     16,
+    //     std::i32::MIN,
+    //     std::i32::MAX
+    // );
+    // test!(
+    //     test_read_plain_v2_int32,
+    //     i32,
+    //     plain_v2,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     16,
+    //     std::i32::MIN,
+    //     std::i32::MAX
+    // );
 
-    test!(
-        test_read_plain_v1_int32_uneven,
-        i32,
-        plain_v1,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        17,
-        std::i32::MIN,
-        std::i32::MAX
-    );
-    test!(
-        test_read_plain_v2_int32_uneven,
-        i32,
-        plain_v2,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        17,
-        std::i32::MIN,
-        std::i32::MAX
-    );
+    // test!(
+    //     test_read_plain_v1_int32_uneven,
+    //     i32,
+    //     plain_v1,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     17,
+    //     std::i32::MIN,
+    //     std::i32::MAX
+    // );
+    // test!(
+    //     test_read_plain_v2_int32_uneven,
+    //     i32,
+    //     plain_v2,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     17,
+    //     std::i32::MIN,
+    //     std::i32::MAX
+    // );
 
-    test!(
-        test_read_plain_v1_int32_multi_page,
-        i32,
-        plain_v1,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        512,
-        std::i32::MIN,
-        std::i32::MAX
-    );
-    test!(
-        test_read_plain_v2_int32_multi_page,
-        i32,
-        plain_v2,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        512,
-        std::i32::MIN,
-        std::i32::MAX
-    );
+    // test!(
+    //     test_read_plain_v1_int32_multi_page,
+    //     i32,
+    //     plain_v1,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     512,
+    //     std::i32::MIN,
+    //     std::i32::MAX
+    // );
+    // test!(
+    //     test_read_plain_v2_int32_multi_page,
+    //     i32,
+    //     plain_v2,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     512,
+    //     std::i32::MIN,
+    //     std::i32::MAX
+    // );
 
-    // test cases when column descriptor has MAX_DEF_LEVEL = 0 and MAX_REP_LEVEL = 0
-    test!(
-        test_read_plain_v1_int32_required_non_repeated,
-        i32,
-        plain_v1,
-        0,
-        0,
-        NUM_PAGES,
-        NUM_LEVELS,
-        16,
-        std::i32::MIN,
-        std::i32::MAX
-    );
-    test!(
-        test_read_plain_v2_int32_required_non_repeated,
-        i32,
-        plain_v2,
-        0,
-        0,
-        NUM_PAGES,
-        NUM_LEVELS,
-        16,
-        std::i32::MIN,
-        std::i32::MAX
-    );
+    // // test cases when column descriptor has MAX_DEF_LEVEL = 0 and MAX_REP_LEVEL = 0
+    // test!(
+    //     test_read_plain_v1_int32_required_non_repeated,
+    //     i32,
+    //     plain_v1,
+    //     0,
+    //     0,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     16,
+    //     std::i32::MIN,
+    //     std::i32::MAX
+    // );
+    // test!(
+    //     test_read_plain_v2_int32_required_non_repeated,
+    //     i32,
+    //     plain_v2,
+    //     0,
+    //     0,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     16,
+    //     std::i32::MIN,
+    //     std::i32::MAX
+    // );
 
-    test!(
-        test_read_plain_v1_int64,
-        i64,
-        plain_v1,
-        1,
-        1,
-        NUM_PAGES,
-        NUM_LEVELS,
-        16,
-        std::i64::MIN,
-        std::i64::MAX
-    );
-    test!(
-        test_read_plain_v2_int64,
-        i64,
-        plain_v2,
-        1,
-        1,
-        NUM_PAGES,
-        NUM_LEVELS,
-        16,
-        std::i64::MIN,
-        std::i64::MAX
-    );
+    // test!(
+    //     test_read_plain_v1_int64,
+    //     i64,
+    //     plain_v1,
+    //     1,
+    //     1,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     16,
+    //     std::i64::MIN,
+    //     std::i64::MAX
+    // );
+    // test!(
+    //     test_read_plain_v2_int64,
+    //     i64,
+    //     plain_v2,
+    //     1,
+    //     1,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     16,
+    //     std::i64::MIN,
+    //     std::i64::MAX
+    // );
 
-    test!(
-        test_read_plain_v1_int64_uneven,
-        i64,
-        plain_v1,
-        1,
-        1,
-        NUM_PAGES,
-        NUM_LEVELS,
-        17,
-        std::i64::MIN,
-        std::i64::MAX
-    );
-    test!(
-        test_read_plain_v2_int64_uneven,
-        i64,
-        plain_v2,
-        1,
-        1,
-        NUM_PAGES,
-        NUM_LEVELS,
-        17,
-        std::i64::MIN,
-        std::i64::MAX
-    );
+    // test!(
+    //     test_read_plain_v1_int64_uneven,
+    //     i64,
+    //     plain_v1,
+    //     1,
+    //     1,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     17,
+    //     std::i64::MIN,
+    //     std::i64::MAX
+    // );
+    // test!(
+    //     test_read_plain_v2_int64_uneven,
+    //     i64,
+    //     plain_v2,
+    //     1,
+    //     1,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     17,
+    //     std::i64::MIN,
+    //     std::i64::MAX
+    // );
 
-    test!(
-        test_read_plain_v1_int64_multi_page,
-        i64,
-        plain_v1,
-        1,
-        1,
-        NUM_PAGES,
-        NUM_LEVELS,
-        512,
-        std::i64::MIN,
-        std::i64::MAX
-    );
-    test!(
-        test_read_plain_v2_int64_multi_page,
-        i64,
-        plain_v2,
-        1,
-        1,
-        NUM_PAGES,
-        NUM_LEVELS,
-        512,
-        std::i64::MIN,
-        std::i64::MAX
-    );
+    // test!(
+    //     test_read_plain_v1_int64_multi_page,
+    //     i64,
+    //     plain_v1,
+    //     1,
+    //     1,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     512,
+    //     std::i64::MIN,
+    //     std::i64::MAX
+    // );
+    // test!(
+    //     test_read_plain_v2_int64_multi_page,
+    //     i64,
+    //     plain_v2,
+    //     1,
+    //     1,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     512,
+    //     std::i64::MIN,
+    //     std::i64::MAX
+    // );
 
-    // test cases when column descriptor has MAX_DEF_LEVEL = 0 and MAX_REP_LEVEL = 0
-    test!(
-        test_read_plain_v1_int64_required_non_repeated,
-        i64,
-        plain_v1,
-        0,
-        0,
-        NUM_PAGES,
-        NUM_LEVELS,
-        16,
-        std::i64::MIN,
-        std::i64::MAX
-    );
-    test!(
-        test_read_plain_v2_int64_required_non_repeated,
-        i64,
-        plain_v2,
-        0,
-        0,
-        NUM_PAGES,
-        NUM_LEVELS,
-        16,
-        std::i64::MIN,
-        std::i64::MAX
-    );
+    // // test cases when column descriptor has MAX_DEF_LEVEL = 0 and MAX_REP_LEVEL = 0
+    // test!(
+    //     test_read_plain_v1_int64_required_non_repeated,
+    //     i64,
+    //     plain_v1,
+    //     0,
+    //     0,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     16,
+    //     std::i64::MIN,
+    //     std::i64::MAX
+    // );
+    // test!(
+    //     test_read_plain_v2_int64_required_non_repeated,
+    //     i64,
+    //     plain_v2,
+    //     0,
+    //     0,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     16,
+    //     std::i64::MIN,
+    //     std::i64::MAX
+    // );
 
-    test!(
-        test_read_dict_v1_int32_small,
-        i32,
-        dict_v1,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        2,
-        2,
-        16,
-        0,
-        3
-    );
-    test!(
-        test_read_dict_v2_int32_small,
-        i32,
-        dict_v2,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        2,
-        2,
-        16,
-        0,
-        3
-    );
+    // test!(
+    //     test_read_dict_v1_int32_small,
+    //     i32,
+    //     dict_v1,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     2,
+    //     2,
+    //     16,
+    //     0,
+    //     3
+    // );
+    // test!(
+    //     test_read_dict_v2_int32_small,
+    //     i32,
+    //     dict_v2,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     2,
+    //     2,
+    //     16,
+    //     0,
+    //     3
+    // );
 
-    test!(
-        test_read_dict_v1_int32,
-        i32,
-        dict_v1,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        16,
-        0,
-        3
-    );
-    test!(
-        test_read_dict_v2_int32,
-        i32,
-        dict_v2,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        16,
-        0,
-        3
-    );
+    // test!(
+    //     test_read_dict_v1_int32,
+    //     i32,
+    //     dict_v1,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     16,
+    //     0,
+    //     3
+    // );
+    // test!(
+    //     test_read_dict_v2_int32,
+    //     i32,
+    //     dict_v2,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     16,
+    //     0,
+    //     3
+    // );
 
-    test!(
-        test_read_dict_v1_int32_uneven,
-        i32,
-        dict_v1,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        17,
-        0,
-        3
-    );
-    test!(
-        test_read_dict_v2_int32_uneven,
-        i32,
-        dict_v2,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        17,
-        0,
-        3
-    );
+    // test!(
+    //     test_read_dict_v1_int32_uneven,
+    //     i32,
+    //     dict_v1,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     17,
+    //     0,
+    //     3
+    // );
+    // test!(
+    //     test_read_dict_v2_int32_uneven,
+    //     i32,
+    //     dict_v2,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     17,
+    //     0,
+    //     3
+    // );
 
-    test!(
-        test_read_dict_v1_int32_multi_page,
-        i32,
-        dict_v1,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        512,
-        0,
-        3
-    );
-    test!(
-        test_read_dict_v2_int32_multi_page,
-        i32,
-        dict_v2,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        512,
-        0,
-        3
-    );
+    // test!(
+    //     test_read_dict_v1_int32_multi_page,
+    //     i32,
+    //     dict_v1,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     512,
+    //     0,
+    //     3
+    // );
+    // test!(
+    //     test_read_dict_v2_int32_multi_page,
+    //     i32,
+    //     dict_v2,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     512,
+    //     0,
+    //     3
+    // );
 
-    test!(
-        test_read_dict_v1_int64,
-        i64,
-        dict_v1,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        16,
-        0,
-        3
-    );
-    test!(
-        test_read_dict_v2_int64,
-        i64,
-        dict_v2,
-        MAX_DEF_LEVEL,
-        MAX_REP_LEVEL,
-        NUM_PAGES,
-        NUM_LEVELS,
-        16,
-        0,
-        3
-    );
+    // test!(
+    //     test_read_dict_v1_int64,
+    //     i64,
+    //     dict_v1,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     16,
+    //     0,
+    //     3
+    // );
+    // test!(
+    //     test_read_dict_v2_int64,
+    //     i64,
+    //     dict_v2,
+    //     MAX_DEF_LEVEL,
+    //     MAX_REP_LEVEL,
+    //     NUM_PAGES,
+    //     NUM_LEVELS,
+    //     16,
+    //     0,
+    //     3
+    // );
 
-    #[test]
-    fn test_read_batch_values_only() {
-        test_read_batch_int32(16, 0, 0);
-    }
+    // #[test]
+    // fn test_read_batch_values_only() {
+    //     test_read_batch_int32(16, 0, 0);
+    // }
 
-    #[test]
-    fn test_read_batch_values_def_levels() {
-        test_read_batch_int32(16, MAX_DEF_LEVEL, 0);
-    }
+    // #[test]
+    // fn test_read_batch_values_def_levels() {
+    //     test_read_batch_int32(16, MAX_DEF_LEVEL, 0);
+    // }
 
-    #[test]
-    fn test_read_batch_values_rep_levels() {
-        test_read_batch_int32(16, 0, MAX_REP_LEVEL);
-    }
+    // #[test]
+    // fn test_read_batch_values_rep_levels() {
+    //     test_read_batch_int32(16, 0, MAX_REP_LEVEL);
+    // }
 
-    #[test]
-    fn test_read_batch_values_def_rep_levels() {
-        test_read_batch_int32(128, MAX_DEF_LEVEL, MAX_REP_LEVEL);
-    }
+    // #[test]
+    // fn test_read_batch_values_def_rep_levels() {
+    //     test_read_batch_int32(128, MAX_DEF_LEVEL, MAX_REP_LEVEL);
+    // }
 
-    #[test]
-    fn test_read_batch_adjust_after_buffering_page() {
-        // This test covers scenario when buffering new page results in setting number
-        // of decoded values to 0, resulting on reading `batch_size` of values, but it is
-        // larger than we can insert into slice (affects values and levels).
-        //
-        // Note: values are chosen to reproduce the issue.
-        //
-        let primitive_type = get_test_int32_type();
-        let desc = Arc::new(ColumnDescriptor::new(
-            Arc::new(primitive_type),
-            1,
-            1,
-            ColumnPath::new(Vec::new()),
-        ));
+    // #[test]
+    // fn test_read_batch_adjust_after_buffering_page() {
+    //     // This test covers scenario when buffering new page results in setting number
+    //     // of decoded values to 0, resulting on reading `batch_size` of values, but it is
+    //     // larger than we can insert into slice (affects values and levels).
+    //     //
+    //     // Note: values are chosen to reproduce the issue.
+    //     //
+    //     let primitive_type = get_test_int32_type();
+    //     let desc = Arc::new(ColumnDescriptor::new(
+    //         Arc::new(primitive_type),
+    //         1,
+    //         1,
+    //         ColumnPath::new(Vec::new()),
+    //     ));
 
-        let num_pages = 2;
-        let num_levels = 4;
-        let batch_size = 5;
+    //     let num_pages = 2;
+    //     let num_levels = 4;
+    //     let batch_size = 5;
 
-        let mut tester = ColumnReaderTester::<i32>::new();
-        tester.test_read_batch(
-            desc,
-            Encoding::RLE_DICTIONARY,
-            num_pages,
-            num_levels,
-            batch_size,
-            std::i32::MIN,
-            std::i32::MAX,
-            false,
-        );
-    }
+    //     let mut tester = ColumnReaderTester::<i32>::new();
+    //     tester.test_read_batch(
+    //         desc,
+    //         Encoding::RLE_DICTIONARY,
+    //         num_pages,
+    //         num_levels,
+    //         batch_size,
+    //         std::i32::MIN,
+    //         std::i32::MAX,
+    //         false,
+    //     );
+    // }
 
-    // ----------------------------------------------------------------------
-    // Helper methods to make pages and test
-    //
-    // # Overview
-    //
-    // Most of the test functionality is implemented in `ColumnReaderTester`, which
-    // provides some general data page test methods:
-    // - `test_read_batch_general`
-    // - `test_read_batch`
-    //
-    // There are also some high level wrappers that are part of `ColumnReaderTester`:
-    // - `plain_v1` -> call `test_read_batch_general` with data page v1 and plain encoding
-    // - `plain_v2` -> call `test_read_batch_general` with data page v2 and plain encoding
-    // - `dict_v1` -> call `test_read_batch_general` with data page v1 + dictionary page
-    // - `dict_v2` -> call `test_read_batch_general` with data page v2 + dictionary page
-    //
-    // And even higher level wrappers that simplify testing of almost the same test cases:
-    // - `get_test_int32_type`, provides dummy schema type
-    // - `get_test_int64_type`, provides dummy schema type
-    // - `test_read_batch_int32`, wrapper for `read_batch` tests, since they are basically
-    //   the same, just different def/rep levels and batch size.
-    //
-    // # Page assembly
-    //
-    // Page construction and generation of values, definition and repetition levels
-    // happens in `make_pages` function.
-    // All values are randomly generated based on provided min/max, levels are calculated
-    // based on provided max level for column descriptor (which is basically either int32
-    // or int64 type in tests) and `levels_per_page` variable.
-    //
-    // We use `DataPageBuilder` and its implementation `DataPageBuilderImpl` to actually
-    // turn values, definition and repetition levels into data pages (either v1 or v2).
-    //
-    // Those data pages are then stored as part of `TestPageReader` (we just pass vector
-    // of generated pages directly), which implements `PageReader` interface.
-    //
-    // # Comparison
-    //
-    // This allows us to pass test page reader into column reader, so we can test
-    // functionality of column reader - see `test_read_batch`, where we create column
-    // reader -> typed column reader, buffer values in `read_batch` method and compare
-    // output with generated data.
+    // // ----------------------------------------------------------------------
+    // // Helper methods to make pages and test
+    // //
+    // // # Overview
+    // //
+    // // Most of the test functionality is implemented in `ColumnReaderTester`, which
+    // // provides some general data page test methods:
+    // // - `test_read_batch_general`
+    // // - `test_read_batch`
+    // //
+    // // There are also some high level wrappers that are part of `ColumnReaderTester`:
+    // // - `plain_v1` -> call `test_read_batch_general` with data page v1 and plain encoding
+    // // - `plain_v2` -> call `test_read_batch_general` with data page v2 and plain encoding
+    // // - `dict_v1` -> call `test_read_batch_general` with data page v1 + dictionary page
+    // // - `dict_v2` -> call `test_read_batch_general` with data page v2 + dictionary page
+    // //
+    // // And even higher level wrappers that simplify testing of almost the same test cases:
+    // // - `get_test_int32_type`, provides dummy schema type
+    // // - `get_test_int64_type`, provides dummy schema type
+    // // - `test_read_batch_int32`, wrapper for `read_batch` tests, since they are basically
+    // //   the same, just different def/rep levels and batch size.
+    // //
+    // // # Page assembly
+    // //
+    // // Page construction and generation of values, definition and repetition levels
+    // // happens in `make_pages` function.
+    // // All values are randomly generated based on provided min/max, levels are calculated
+    // // based on provided max level for column descriptor (which is basically either int32
+    // // or int64 type in tests) and `levels_per_page` variable.
+    // //
+    // // We use `DataPageBuilder` and its implementation `DataPageBuilderImpl` to actually
+    // // turn values, definition and repetition levels into data pages (either v1 or v2).
+    // //
+    // // Those data pages are then stored as part of `TestPageReader` (we just pass vector
+    // // of generated pages directly), which implements `PageReader` interface.
+    // //
+    // // # Comparison
+    // //
+    // // This allows us to pass test page reader into column reader, so we can test
+    // // functionality of column reader - see `test_read_batch`, where we create column
+    // // reader -> typed column reader, buffer values in `read_batch` method and compare
+    // // output with generated data.
 
-    // Returns dummy Parquet `Type` for primitive field, because most of our tests use
-    // INT32 physical type.
-    fn get_test_int32_type() -> SchemaType {
-        SchemaType::primitive_type_builder("a", PhysicalType::INT32)
-            .with_repetition(Repetition::REQUIRED)
-            .with_converted_type(ConvertedType::INT_32)
-            .with_length(-1)
-            .build()
-            .expect("build() should be OK")
-    }
+    // // Returns dummy Parquet `Type` for primitive field, because most of our tests use
+    // // INT32 physical type.
+    // fn get_test_int32_type() -> SchemaType {
+    //     SchemaType::primitive_type_builder("a", PhysicalType::INT32)
+    //         .with_repetition(Repetition::REQUIRED)
+    //         .with_converted_type(ConvertedType::INT_32)
+    //         .with_length(-1)
+    //         .build()
+    //         .expect("build() should be OK")
+    // }
 
-    // Returns dummy Parquet `Type` for INT64 physical type.
-    fn get_test_int64_type() -> SchemaType {
-        SchemaType::primitive_type_builder("a", PhysicalType::INT64)
-            .with_repetition(Repetition::REQUIRED)
-            .with_converted_type(ConvertedType::INT_64)
-            .with_length(-1)
-            .build()
-            .expect("build() should be OK")
-    }
+    // // Returns dummy Parquet `Type` for INT64 physical type.
+    // fn get_test_int64_type() -> SchemaType {
+    //     SchemaType::primitive_type_builder("a", PhysicalType::INT64)
+    //         .with_repetition(Repetition::REQUIRED)
+    //         .with_converted_type(ConvertedType::INT_64)
+    //         .with_length(-1)
+    //         .build()
+    //         .expect("build() should be OK")
+    // }
 
-    // Tests `read_batch()` functionality for INT32.
-    //
-    // This is a high level wrapper on `ColumnReaderTester` that allows us to specify some
-    // boilerplate code for setting up definition/repetition levels and column descriptor.
-    fn test_read_batch_int32(batch_size: usize, max_def_level: i16, max_rep_level: i16) {
-        let primitive_type = get_test_int32_type();
+    // // Tests `read_batch()` functionality for INT32.
+    // //
+    // // This is a high level wrapper on `ColumnReaderTester` that allows us to specify some
+    // // boilerplate code for setting up definition/repetition levels and column descriptor.
+    // fn test_read_batch_int32(batch_size: usize, max_def_level: i16, max_rep_level: i16) {
+    //     let primitive_type = get_test_int32_type();
 
-        let desc = Arc::new(ColumnDescriptor::new(
-            Arc::new(primitive_type),
-            max_def_level,
-            max_rep_level,
-            ColumnPath::new(Vec::new()),
-        ));
+    //     let desc = Arc::new(ColumnDescriptor::new(
+    //         Arc::new(primitive_type),
+    //         max_def_level,
+    //         max_rep_level,
+    //         ColumnPath::new(Vec::new()),
+    //     ));
 
-        let mut tester = ColumnReaderTester::<i32>::new();
-        tester.test_read_batch(
-            desc,
-            Encoding::RLE_DICTIONARY,
-            NUM_PAGES,
-            NUM_LEVELS,
-            batch_size,
-            i32::MIN,
-            i32::MAX,
-            false,
-        );
-    }
+    //     let mut tester = ColumnReaderTester::<i32>::new();
+    //     tester.test_read_batch(
+    //         desc,
+    //         Encoding::RLE_DICTIONARY,
+    //         NUM_PAGES,
+    //         NUM_LEVELS,
+    //         batch_size,
+    //         i32::MIN,
+    //         i32::MAX,
+    //         false,
+    //     );
+    // }
 
-    struct ColumnReaderTester<T: DataType>
-    where
-        T::T: PartialOrd + SampleUniform + Copy,
-    {
-        rep_levels: Vec<i16>,
-        def_levels: Vec<i16>,
-        values: Vec<T::T>,
-    }
+    // struct ColumnReaderTester<T: DataType>
+    // where
+    //     T::T: PartialOrd + SampleUniform + Copy,
+    // {
+    //     rep_levels: Vec<i16>,
+    //     def_levels: Vec<i16>,
+    //     values: Vec<T::T>,
+    // }
 
-    impl<T: DataTypeTestExt> ColumnReaderTester<T>
-    where
-        T::T: PartialOrd + SampleUniform + Copy,
-    {
-        pub fn new() -> Self {
-            Self {
-                rep_levels: Vec::new(),
-                def_levels: Vec::new(),
-                values: Vec::new(),
-            }
-        }
+    // impl<T: DataTypeTestExt> ColumnReaderTester<T>
+    // where
+    //     T::T: PartialOrd + SampleUniform + Copy,
+    // {
+    //     pub fn new() -> Self {
+    //         Self {
+    //             rep_levels: Vec::new(),
+    //             def_levels: Vec::new(),
+    //             values: Vec::new(),
+    //         }
+    //     }
 
-        // Method to generate and test data pages v1
-        fn plain_v1(
-            &mut self,
-            desc: ColumnDescPtr,
-            num_pages: usize,
-            num_levels: usize,
-            batch_size: usize,
-            min: T::T,
-            max: T::T,
-        ) {
-            self.test_read_batch_general(
-                desc,
-                Encoding::PLAIN,
-                num_pages,
-                num_levels,
-                batch_size,
-                min,
-                max,
-                false,
-            );
-        }
+    //     // Method to generate and test data pages v1
+    //     fn plain_v1(
+    //         &mut self,
+    //         desc: ColumnDescPtr,
+    //         num_pages: usize,
+    //         num_levels: usize,
+    //         batch_size: usize,
+    //         min: T::T,
+    //         max: T::T,
+    //     ) {
+    //         self.test_read_batch_general(
+    //             desc,
+    //             Encoding::PLAIN,
+    //             num_pages,
+    //             num_levels,
+    //             batch_size,
+    //             min,
+    //             max,
+    //             false,
+    //         );
+    //     }
 
-        // Method to generate and test data pages v2
-        fn plain_v2(
-            &mut self,
-            desc: ColumnDescPtr,
-            num_pages: usize,
-            num_levels: usize,
-            batch_size: usize,
-            min: T::T,
-            max: T::T,
-        ) {
-            self.test_read_batch_general(
-                desc,
-                Encoding::PLAIN,
-                num_pages,
-                num_levels,
-                batch_size,
-                min,
-                max,
-                true,
-            );
-        }
+    //     // Method to generate and test data pages v2
+    //     fn plain_v2(
+    //         &mut self,
+    //         desc: ColumnDescPtr,
+    //         num_pages: usize,
+    //         num_levels: usize,
+    //         batch_size: usize,
+    //         min: T::T,
+    //         max: T::T,
+    //     ) {
+    //         self.test_read_batch_general(
+    //             desc,
+    //             Encoding::PLAIN,
+    //             num_pages,
+    //             num_levels,
+    //             batch_size,
+    //             min,
+    //             max,
+    //             true,
+    //         );
+    //     }
 
-        // Method to generate and test dictionary page + data pages v1
-        fn dict_v1(
-            &mut self,
-            desc: ColumnDescPtr,
-            num_pages: usize,
-            num_levels: usize,
-            batch_size: usize,
-            min: T::T,
-            max: T::T,
-        ) {
-            self.test_read_batch_general(
-                desc,
-                Encoding::RLE_DICTIONARY,
-                num_pages,
-                num_levels,
-                batch_size,
-                min,
-                max,
-                false,
-            );
-        }
+    //     // Method to generate and test dictionary page + data pages v1
+    //     fn dict_v1(
+    //         &mut self,
+    //         desc: ColumnDescPtr,
+    //         num_pages: usize,
+    //         num_levels: usize,
+    //         batch_size: usize,
+    //         min: T::T,
+    //         max: T::T,
+    //     ) {
+    //         self.test_read_batch_general(
+    //             desc,
+    //             Encoding::RLE_DICTIONARY,
+    //             num_pages,
+    //             num_levels,
+    //             batch_size,
+    //             min,
+    //             max,
+    //             false,
+    //         );
+    //     }
 
-        // Method to generate and test dictionary page + data pages v2
-        fn dict_v2(
-            &mut self,
-            desc: ColumnDescPtr,
-            num_pages: usize,
-            num_levels: usize,
-            batch_size: usize,
-            min: T::T,
-            max: T::T,
-        ) {
-            self.test_read_batch_general(
-                desc,
-                Encoding::RLE_DICTIONARY,
-                num_pages,
-                num_levels,
-                batch_size,
-                min,
-                max,
-                true,
-            );
-        }
+    //     // Method to generate and test dictionary page + data pages v2
+    //     fn dict_v2(
+    //         &mut self,
+    //         desc: ColumnDescPtr,
+    //         num_pages: usize,
+    //         num_levels: usize,
+    //         batch_size: usize,
+    //         min: T::T,
+    //         max: T::T,
+    //     ) {
+    //         self.test_read_batch_general(
+    //             desc,
+    //             Encoding::RLE_DICTIONARY,
+    //             num_pages,
+    //             num_levels,
+    //             batch_size,
+    //             min,
+    //             max,
+    //             true,
+    //         );
+    //     }
 
-        // Helper function for the general case of `read_batch()` where `values`,
-        // `def_levels` and `rep_levels` are always provided with enough space.
-        #[allow(clippy::too_many_arguments)]
-        fn test_read_batch_general(
-            &mut self,
-            desc: ColumnDescPtr,
-            encoding: Encoding,
-            num_pages: usize,
-            num_levels: usize,
-            batch_size: usize,
-            min: T::T,
-            max: T::T,
-            use_v2: bool,
-        ) {
-            self.test_read_batch(
-                desc, encoding, num_pages, num_levels, batch_size, min, max, use_v2,
-            );
-        }
+    //     // Helper function for the general case of `read_batch()` where `values`,
+    //     // `def_levels` and `rep_levels` are always provided with enough space.
+    //     #[allow(clippy::too_many_arguments)]
+    //     fn test_read_batch_general(
+    //         &mut self,
+    //         desc: ColumnDescPtr,
+    //         encoding: Encoding,
+    //         num_pages: usize,
+    //         num_levels: usize,
+    //         batch_size: usize,
+    //         min: T::T,
+    //         max: T::T,
+    //         use_v2: bool,
+    //     ) {
+    //         self.test_read_batch(
+    //             desc, encoding, num_pages, num_levels, batch_size, min, max, use_v2,
+    //         );
+    //     }
 
-        // Helper function to test `read_batch()` method with custom buffers for values,
-        // definition and repetition levels.
-        #[allow(clippy::too_many_arguments)]
-        fn test_read_batch(
-            &mut self,
-            desc: ColumnDescPtr,
-            encoding: Encoding,
-            num_pages: usize,
-            num_levels: usize,
-            batch_size: usize,
-            min: T::T,
-            max: T::T,
-            use_v2: bool,
-        ) {
-            let mut pages = VecDeque::new();
-            make_pages::<T>(
-                desc.clone(),
-                encoding,
-                num_pages,
-                num_levels,
-                min,
-                max,
-                &mut self.def_levels,
-                &mut self.rep_levels,
-                &mut self.values,
-                &mut pages,
-                use_v2,
-            );
-            let max_def_level = desc.max_def_level();
-            let max_rep_level = desc.max_rep_level();
-            let page_reader = InMemoryPageReader::new(pages);
-            let column_reader: BasicColumnReader<_> = get_column_reader(desc, page_reader);
-            let mut typed_column_reader = get_typed_column_reader::<T, _>(column_reader);
+    //     // Helper function to test `read_batch()` method with custom buffers for values,
+    //     // definition and repetition levels.
+    //     #[allow(clippy::too_many_arguments)]
+    //     fn test_read_batch(
+    //         &mut self,
+    //         desc: ColumnDescPtr,
+    //         encoding: Encoding,
+    //         num_pages: usize,
+    //         num_levels: usize,
+    //         batch_size: usize,
+    //         min: T::T,
+    //         max: T::T,
+    //         use_v2: bool,
+    //     ) {
+    //         let mut pages = VecDeque::new();
+    //         make_pages::<T>(
+    //             desc.clone(),
+    //             encoding,
+    //             num_pages,
+    //             num_levels,
+    //             min,
+    //             max,
+    //             &mut self.def_levels,
+    //             &mut self.rep_levels,
+    //             &mut self.values,
+    //             &mut pages,
+    //             use_v2,
+    //         );
+    //         let max_def_level = desc.max_def_level();
+    //         let max_rep_level = desc.max_rep_level();
+    //         let page_reader = InMemoryPageReader::new(pages);
+    //         let column_reader: BasicColumnReader<_> = get_column_reader(desc, page_reader);
+    //         let mut typed_column_reader = get_typed_column_reader::<T, _>(column_reader);
 
-            let mut values = Vec::new();
-            let mut def_levels = Vec::new();
-            let mut rep_levels = Vec::new();
+    //         let mut values = Vec::new();
+    //         let mut def_levels = Vec::new();
+    //         let mut rep_levels = Vec::new();
 
-            let mut curr_values_read = 0;
-            let mut curr_levels_read = 0;
-            loop {
-                let (_, values_read, levels_read) = typed_column_reader
-                    .read_records(
-                        batch_size,
-                        Some(&mut def_levels),
-                        Some(&mut rep_levels),
-                        &mut values,
-                    )
-                    .expect("read_batch() should be OK");
+    //         let mut curr_values_read = 0;
+    //         let mut curr_levels_read = 0;
+    //         loop {
+    //             let (_, values_read, levels_read) = typed_column_reader
+    //                 .read_records(
+    //                     batch_size,
+    //                     Some(&mut def_levels),
+    //                     Some(&mut rep_levels),
+    //                     &mut values,
+    //                 )
+    //                 .expect("read_batch() should be OK");
 
-                curr_values_read += values_read;
-                curr_levels_read += levels_read;
+    //             curr_values_read += values_read;
+    //             curr_levels_read += levels_read;
 
-                if values_read == 0 && levels_read == 0 {
-                    break;
-                }
-            }
+    //             if values_read == 0 && levels_read == 0 {
+    //                 break;
+    //             }
+    //         }
 
-            assert_eq!(values, self.values, "values content doesn't match");
+    //         assert_eq!(values, self.values, "values content doesn't match");
 
-            if max_def_level > 0 {
-                assert_eq!(
-                    def_levels, self.def_levels,
-                    "definition levels content doesn't match"
-                );
-            }
+    //         if max_def_level > 0 {
+    //             assert_eq!(
+    //                 def_levels, self.def_levels,
+    //                 "definition levels content doesn't match"
+    //             );
+    //         }
 
-            if max_rep_level > 0 {
-                assert_eq!(
-                    rep_levels, self.rep_levels,
-                    "repetition levels content doesn't match"
-                );
-            }
+    //         if max_rep_level > 0 {
+    //             assert_eq!(
+    //                 rep_levels, self.rep_levels,
+    //                 "repetition levels content doesn't match"
+    //             );
+    //         }
 
-            assert!(
-                curr_levels_read >= curr_values_read,
-                "expected levels read to be greater than values read"
-            );
-        }
-    }
+    //         assert!(
+    //             curr_levels_read >= curr_values_read,
+    //             "expected levels read to be greater than values read"
+    //         );
+    //     }
+    // }
 }

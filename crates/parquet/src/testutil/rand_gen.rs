@@ -206,7 +206,6 @@ pub fn make_pages<T: DataType>(
             .write_dict()
             .expect("write_dict() should be OK");
         let dict_page = Page::DictionaryPage {
-            buf: dict,
             num_values: dict_encoder.num_entries() as u32,
             encoding: Encoding::RLE_DICTIONARY,
             is_sorted: false,

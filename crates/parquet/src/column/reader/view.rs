@@ -3,7 +3,7 @@ use rayexec_execution::arrays::array::buffer_manager::BufferManager;
 
 use super::decoder::ColumnValueDecoder;
 use super::{general_err, ConvertedType, Encoding};
-use crate::decoding::view::{PlainViewDecoder, ViewBuffer, ViewDecoder};
+use crate::encodings::decoding::view::{PlainViewDecoder, ViewBuffer, ViewDecoder};
 use crate::errors::{nyi_err, ParquetResult};
 use crate::schema::types::ColumnDescPtr;
 

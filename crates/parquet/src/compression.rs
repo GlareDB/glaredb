@@ -20,11 +20,13 @@
 //! See [`Compression`](crate::basic::Compression) enum for all available compression
 //! algorithms.
 
+use std::fmt::Debug;
+
 use crate::basic::Compression as CodecType;
 use crate::errors::{nyi_err, ParquetError, ParquetResult};
 
 /// Parquet compression codec interface.
-pub trait Codec: Sync + Send {
+pub trait Codec: Debug + Sync + Send {
     /// Compresses data stored in slice `input_buf` and appends the compressed
     /// result to `output_buf`.
     ///
@@ -175,6 +177,7 @@ mod snappy_codec {
     use crate::errors::ParquetResult;
 
     /// Codec for Snappy compression format.
+    #[derive(Debug)]
     pub struct SnappyCodec {
         encoder: Encoder,
     }
@@ -221,6 +224,7 @@ mod gzip_codec {
     use crate::errors::ParquetResult;
 
     /// Codec for GZIP compression algorithm.
+    #[derive(Debug)]
     pub struct GZipCodec {
         level: GzipLevel,
     }
@@ -293,6 +297,7 @@ mod brotli_codec {
     const BROTLI_DEFAULT_LG_WINDOW_SIZE: u32 = 22; // recommended between 20-22
 
     /// Codec for Brotli compression algorithm.
+    #[derive(Debug)]
     pub struct BrotliCodec {
         level: BrotliLevel,
     }
@@ -365,6 +370,7 @@ mod lz4_codec {
     const LZ4_BUFFER_SIZE: usize = 4096;
 
     /// Codec for LZ4 compression algorithm.
+    #[derive(Debug)]
     pub struct LZ4Codec {}
 
     impl LZ4Codec {
@@ -412,6 +418,7 @@ mod zstd_codec {
     use crate::errors::ParquetResult;
 
     /// Codec for Zstandard compression algorithm.
+    #[derive(Debug)]
     pub struct ZSTDCodec {
         level: ZstdLevel,
     }
@@ -480,6 +487,7 @@ mod lz4_raw_codec {
     use crate::errors::{ParquetError, ParquetResult};
 
     /// Codec for LZ4 Raw compression algorithm.
+    #[derive(Debug)]
     pub struct LZ4RawCodec {}
 
     impl LZ4RawCodec {
@@ -529,6 +537,7 @@ mod lz4_hadoop_codec {
     const PREFIX_LEN: usize = SIZE_U32 * 2;
 
     /// Codec for LZ4 Hadoop compression algorithm.
+    #[derive(Debug)]
     pub struct LZ4HadoopCodec {
         /// Whether or not to fallback to other LZ4 implementations on error.
         /// Fallback is done to be backward compatible with older versions of this

@@ -20,7 +20,7 @@
 
 use std::collections::VecDeque;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Cursor, Read};
 use std::iter;
 use std::path::Path;
 use std::sync::Arc;
@@ -32,6 +32,7 @@ use thrift::protocol::TCompactInputProtocol;
 use crate::basic::{Encoding, Type};
 use crate::bloom_filter::Sbbf;
 use crate::column::page::{Page, PageMetadata, PageReader};
+use crate::column_reader::buffer::ReadBuffer;
 use crate::column_reader::ColumnData;
 use crate::compression::{create_codec, Codec};
 use crate::errors::{eof_err, general_err, ParquetError, ParquetResult};
@@ -243,7 +244,7 @@ fn get_midpoint_offset(meta: &RowGroupMetaData) -> i64 {
     offset + meta.compressed_size() / 2
 }
 
-impl<R: 'static + ChunkReader> FileReader<SerializedPageReader<R>, SerializedRowGroupReader<R>>
+impl<R: 'static + ChunkReader> FileReader<SerializedPageReader, SerializedRowGroupReader<R>>
     for SerializedFileReader<R>
 {
     fn metadata(&self) -> &ParquetMetaData {
@@ -310,7 +311,7 @@ impl<R: ChunkReader> SerializedRowGroupReader<R> {
     }
 }
 
-impl<R: 'static + ChunkReader> RowGroupReader<SerializedPageReader<R>>
+impl<R: 'static + ChunkReader> RowGroupReader<SerializedPageReader>
     for SerializedRowGroupReader<R>
 {
     fn metadata(&self) -> &RowGroupMetaData {
@@ -322,16 +323,17 @@ impl<R: 'static + ChunkReader> RowGroupReader<SerializedPageReader<R>>
     }
 
     // TODO: fix PARQUET-816
-    fn get_column_page_reader(&self, i: usize) -> ParquetResult<SerializedPageReader<R>> {
+    fn get_column_page_reader(&self, i: usize) -> ParquetResult<SerializedPageReader> {
         let col = self.metadata().column(i);
 
-        SerializedPageReader::new_with_properties(
-            Arc::clone(&self.chunk_reader),
-            col,
-            self.metadata().num_rows() as usize,
-            self.column_page_locations(i),
-            self.props.clone(),
-        )
+        unimplemented!()
+        // SerializedPageReader::new_with_properties(
+        //     Arc::clone(&self.chunk_reader),
+        //     col,
+        //     self.metadata().num_rows() as usize,
+        //     self.column_page_locations(i),
+        //     self.props.clone(),
+        // )
     }
 
     /// get bloom filter for the `i`th column
@@ -347,7 +349,8 @@ pub(crate) fn read_page_header<T: Read>(input: &mut T) -> ParquetResult<PageHead
     Ok(page_header)
 }
 
-/// Reads a [`PageHeader`] from the provided [`Read`] returning the number of bytes read
+/// Reads a [`PageHeader`] from the provided [`Read`] returning the number of
+/// bytes read.
 fn read_page_header_len<T: Read>(input: &mut T) -> ParquetResult<(usize, PageHeader)> {
     /// A wrapper around a [`std::io::Read`] that keeps track of the bytes read
     struct TrackedRead<R> {
@@ -371,13 +374,30 @@ fn read_page_header_len<T: Read>(input: &mut T) -> ParquetResult<(usize, PageHea
     Ok((tracked.bytes_read, header))
 }
 
-/// Decodes a [`Page`] from the provided `buffer`
-pub(crate) fn decode_page(
+/// Reads a page header starting at the beginning of the slice.
+///
+/// Returns the number of bytes read, and the header.
+fn read_page_header_and_len(input: &[u8]) -> ParquetResult<(usize, PageHeader)> {
+    let mut cursor = Cursor::new(input);
+    let mut prot = TCompactInputProtocol::new(&mut cursor);
+    let header = PageHeader::read_from_in_protocol(&mut prot)?;
+
+    let pos = cursor.position() as usize;
+
+    Ok((pos, header))
+}
+
+/// Decodes a [`Page`] in the provided input data, writing to the output slice.
+pub(crate) fn decode_page<B>(
     page_header: PageHeader,
-    buffer: Bytes,
     physical_type: Type,
     decompressor: Option<&mut Box<dyn Codec>>,
-) -> ParquetResult<Page> {
+    input: &[u8],
+    output: &mut ReadBuffer<B>,
+) -> ParquetResult<Page>
+where
+    B: BufferManager,
+{
     // When processing data page v2, depending on enabled compression for the
     // page, we should account for uncompressed data ('offset') of repetition
     // and definition levels.
@@ -396,16 +416,19 @@ pub(crate) fn decode_page(
 
     // TODO: page header could be huge because of statistics. We should set a
     // maximum page header size and abort if that is exceeded.
-    let buffer = match decompressor {
+    match decompressor {
         Some(decompressor) if can_decompress => {
             let uncompressed_size = page_header.uncompressed_page_size as usize;
-            let compressed = &buffer.as_ref()[offset..];
+            let compressed = &input[offset..];
 
-            let mut decompressed = vec![0; uncompressed_size];
+            // Reset read buffer to be able to hold all uncompressed data.
+            output.reset_for_new_page(uncompressed_size)?;
+            let decompressed = output.as_slice_mut();
+
             // Move definitions and repetitions into uncompressed buffer. For
             // whatever reason, those don't get compressed.
             let prefix = &mut decompressed[0..offset];
-            prefix.copy_from_slice(&buffer.as_ref()[0..offset]);
+            prefix.copy_from_slice(&input[0..offset]);
 
             let remaining = &mut decompressed[offset..];
             let n = decompressor.decompress(compressed, remaining)?;
@@ -417,10 +440,14 @@ pub(crate) fn decode_page(
                     n
                 ));
             }
-
-            Bytes::from(decompressed)
         }
-        _ => buffer,
+        _ => {
+            // Otherwise just copy the page data as-is.
+            // TODO: Could just share a pointer to the page instead of the copy.
+            output.reset_for_new_page(input.len())?;
+            let decompressed = output.as_slice_mut();
+            decompressed.copy_from_slice(input);
+        }
     };
 
     let result = match page_header.type_ {
@@ -430,7 +457,6 @@ pub(crate) fn decode_page(
             })?;
             let is_sorted = dict_header.is_sorted.unwrap_or(false);
             Page::DictionaryPage {
-                buf: buffer,
                 num_values: dict_header.num_values as u32,
                 encoding: Encoding::try_from(dict_header.encoding)?,
                 is_sorted,
@@ -441,7 +467,6 @@ pub(crate) fn decode_page(
                 .data_page_header
                 .ok_or_else(|| ParquetError::General("Missing V1 data page header".to_string()))?;
             Page::DataPage {
-                buf: buffer,
                 num_values: header.num_values as u32,
                 encoding: Encoding::try_from(header.encoding)?,
                 def_level_encoding: Encoding::try_from(header.definition_level_encoding)?,
@@ -455,7 +480,6 @@ pub(crate) fn decode_page(
                 .ok_or_else(|| ParquetError::General("Missing V2 data page header".to_string()))?;
             let is_compressed = header.is_compressed.unwrap_or(true);
             Page::DataPageV2 {
-                buf: buffer,
                 num_values: header.num_values as u32,
                 encoding: Encoding::try_from(header.encoding)?,
                 num_nulls: header.num_nulls as u32,
@@ -496,34 +520,28 @@ enum SerializedPageReaderState {
 }
 
 /// A serialized implementation for Parquet [`PageReader`].
-pub struct SerializedPageReader<R: ChunkReader> {
-    /// The chunk reader
-    reader: Arc<R>,
-
+pub struct SerializedPageReader {
     /// The compression codec for this column chunk. Only set for non-PLAIN codec.
     decompressor: Option<Box<dyn Codec>>,
-
     /// Column chunk type.
     physical_type: Type,
-
+    /// Current read state.
     state: SerializedPageReaderState,
 }
 
-impl<R: ChunkReader> SerializedPageReader<R> {
+impl SerializedPageReader {
     /// Creates a new serialized page reader from a chunk reader and metadata
     pub fn new(
-        reader: Arc<R>,
         meta: &ColumnChunkMetaData,
         total_rows: usize,
         page_locations: Option<Vec<PageLocation>>,
     ) -> ParquetResult<Self> {
         let props = Arc::new(ReaderProperties::builder().build());
-        SerializedPageReader::new_with_properties(reader, meta, total_rows, page_locations, props)
+        SerializedPageReader::new_with_properties(meta, total_rows, page_locations, props)
     }
 
     /// Creates a new serialized page with custom options.
     pub fn new_with_properties(
-        reader: Arc<R>,
         meta: &ColumnChunkMetaData,
         total_rows: usize,
         page_locations: Option<Vec<PageLocation>>,
@@ -557,7 +575,6 @@ impl<R: ChunkReader> SerializedPageReader<R> {
         };
 
         Ok(Self {
-            reader,
             decompressor,
             state,
             physical_type: meta.column_type(),
@@ -565,7 +582,7 @@ impl<R: ChunkReader> SerializedPageReader<R> {
     }
 }
 
-impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
+impl PageReader for SerializedPageReader {
     fn read_next_page<B>(&mut self, column_data: &mut ColumnData<B>) -> ParquetResult<Option<Page>>
     where
         B: BufferManager,
@@ -581,39 +598,46 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
                         return Ok(None);
                     }
 
-                    let mut read = self.reader.get_read(*offset as u64)?;
-                    let header = if let Some(header) = next_page_header.take() {
-                        *header
-                    } else {
-                        let (header_len, header) = read_page_header_len(&mut read)?;
-                        *offset += header_len;
-                        *remaining -= header_len;
-                        header
+                    let page_buf = &column_data.chunk.as_slice()[*offset..];
+                    let header = match next_page_header.take() {
+                        Some(header) => *header,
+                        None => {
+                            let (header_len, header) = read_page_header_and_len(page_buf)?;
+                            *offset += header_len;
+                            *remaining -= header_len;
+                            header
+                        }
                     };
-                    let data_len = header.compressed_page_size as usize;
-                    *offset += data_len;
-                    *remaining -= data_len;
+
+                    let page_start = *offset;
+                    // This page size does not include the header.
+                    let page_len = header.compressed_page_size as usize;
+
+                    *offset += page_len;
+                    *remaining -= page_len;
 
                     if header.type_ == PageType::INDEX_PAGE {
                         continue;
                     }
 
-                    let mut buffer = Vec::with_capacity(data_len);
-                    let read = read.take(data_len as u64).read_to_end(&mut buffer)?;
-
-                    if read != data_len {
+                    // Trim off header bytes.
+                    let page_buf = &page_buf[page_start..];
+                    if page_buf.len() < page_len {
+                        let got = page_buf.len();
                         return Err(eof_err!(
                             "Expected to read {} bytes of page, read only {}",
-                            data_len,
-                            read
+                            page_len,
+                            got
                         ));
                     }
+                    let page_buf = &page_buf[..page_len];
 
                     decode_page(
                         header,
-                        Bytes::from(buffer),
                         self.physical_type,
                         self.decompressor.as_mut(),
+                        page_buf,
+                        &mut column_data.decompressed_page,
                     )?
                 }
                 SerializedPageReaderState::Pages {
@@ -629,20 +653,29 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
                         None => return Ok(None),
                     };
 
+                    // Note this page size includes the header.
                     let page_len = front.compressed_page_size as usize;
+                    let page_buf = &column_data.chunk.as_slice()[front.offset as usize..];
+                    if page_buf.len() < page_len {
+                        let got = page_buf.len();
+                        return Err(eof_err!(
+                            "Expected to read {} bytes of page, read only {}",
+                            page_len,
+                            got
+                        ));
+                    }
 
-                    let buffer = self.reader.get_bytes(front.offset as u64, page_len)?;
-
-                    let mut prot = TCompactSliceInputProtocol::new(buffer.as_ref());
+                    let mut prot = TCompactSliceInputProtocol::new(page_buf);
                     let header = PageHeader::read_from_in_protocol(&mut prot)?;
-                    let offset = buffer.len() - prot.as_slice().len();
+                    let offset = page_buf.len() - prot.as_slice().len();
 
-                    let bytes = buffer.slice(offset..);
+                    let page_buf = &page_buf[offset..];
                     decode_page(
                         header,
-                        bytes,
                         self.physical_type,
                         self.decompressor.as_mut(),
+                        page_buf,
+                        &mut column_data.decompressed_page,
                     )?
                 }
             };
@@ -651,7 +684,13 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
         }
     }
 
-    fn peek_next_page(&mut self) -> ParquetResult<Option<PageMetadata>> {
+    fn peek_next_page<B>(
+        &mut self,
+        column_data: &ColumnData<B>,
+    ) -> ParquetResult<Option<PageMetadata>>
+    where
+        B: BufferManager,
+    {
         match &mut self.state {
             SerializedPageReaderState::Values {
                 offset,
@@ -662,28 +701,32 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
                     if *remaining_bytes == 0 {
                         return Ok(None);
                     }
-                    return if let Some(header) = next_page_header.as_ref() {
-                        if let Ok(page_meta) = (&**header).try_into() {
-                            Ok(Some(page_meta))
-                        } else {
-                            // For unknown page type (e.g., INDEX_PAGE), skip and read next.
+
+                    match next_page_header.as_ref() {
+                        Some(header) => {
+                            if let Ok(page_meta) = PageMetadata::try_from(header.as_ref()) {
+                                return Ok(Some(page_meta));
+                            }
+                            // For unknown page type (e.g., INDEX_PAGE), skip
+                            // and read next.
                             *next_page_header = None;
-                            continue;
                         }
-                    } else {
-                        let mut read = self.reader.get_read(*offset as u64)?;
-                        let (header_len, header) = read_page_header_len(&mut read)?;
-                        *offset += header_len;
-                        *remaining_bytes -= header_len;
-                        let page_meta = if let Ok(page_meta) = (&header).try_into() {
-                            Ok(Some(page_meta))
-                        } else {
-                            // For unknown page type (e.g., INDEX_PAGE), skip and read next.
-                            continue;
-                        };
-                        *next_page_header = Some(Box::new(header));
-                        page_meta
-                    };
+                        None => {
+                            let page_buf = &column_data.chunk.as_slice()[*offset..];
+                            let (header_len, header) = read_page_header_and_len(page_buf)?;
+                            *offset += header_len;
+                            *remaining_bytes -= header_len;
+
+                            if let Ok(page_meta) = PageMetadata::try_from(&header) {
+                                *next_page_header = Some(Box::new(header));
+                                return Ok(Some(page_meta));
+                            }
+                            // For unknown page type (e.g., INDEX_PAGE), skip
+                            // and read next.
+                            //
+                            // Continue to the next page.
+                        }
+                    }
                 }
             }
             SerializedPageReaderState::Pages {
@@ -715,7 +758,10 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
         }
     }
 
-    fn skip_next_page(&mut self) -> ParquetResult<()> {
+    fn skip_next_page<B>(&mut self, column_data: &ColumnData<B>) -> ParquetResult<()>
+    where
+        B: BufferManager,
+    {
         match &mut self.state {
             SerializedPageReaderState::Values {
                 offset,
@@ -727,10 +773,11 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
                     *offset += buffered_header.compressed_page_size as usize;
                     *remaining_bytes -= buffered_header.compressed_page_size as usize;
                 } else {
-                    let mut read = self.reader.get_read(*offset as u64)?;
-                    let (header_len, header) = read_page_header_len(&mut read)?;
+                    let page_buf = &column_data.chunk.as_slice()[*offset..];
+                    let (header_len, header) = read_page_header_and_len(page_buf)?;
                     let data_page_size = header.compressed_page_size as usize;
                     *offset += header_len + data_page_size;
+                    *remaining_bytes -= header_len;
                     *remaining_bytes -= header_len + data_page_size;
                 }
                 Ok(())
@@ -743,9 +790,14 @@ impl<R: ChunkReader> PageReader for SerializedPageReader<R> {
         }
     }
 
-    fn at_record_boundary(&mut self) -> ParquetResult<bool> {
+    fn at_record_boundary<B>(&mut self, column_data: &ColumnData<B>) -> ParquetResult<bool>
+    where
+        B: BufferManager,
+    {
         match &mut self.state {
-            SerializedPageReaderState::Values { .. } => Ok(self.peek_next_page()?.is_none()),
+            SerializedPageReaderState::Values { .. } => {
+                Ok(self.peek_next_page(column_data)?.is_none())
+            }
             SerializedPageReaderState::Pages { .. } => Ok(true),
         }
     }
@@ -761,7 +813,6 @@ mod tests {
     use crate::data_type::{AsBytes, FixedLenByteArray};
     use crate::file::page_index::index::{Index, NativeIndex};
     use crate::file::page_index::index_reader::{read_columns_indexes, read_pages_locations};
-    use crate::file::writer::SerializedFileWriter;
     use crate::format::BoundaryOrder;
     use crate::schema::parser::parse_message_type;
     use crate::testutil::column_reader::{column_reader_from_row_group_reader, BasicColumnReader};
@@ -844,948 +895,948 @@ mod tests {
     //     assert_eq!(values, &[4, 5, 6, 7, 2, 3, 0, 1]);
     // }
 
-    #[test]
-    fn test_reuse_file_chunk() {
-        // This test covers the case of maintaining the correct start position in a file
-        // stream for each column reader after initializing and moving to the next one
-        // (without necessarily reading the entire column).
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let reader = SerializedFileReader::new(test_file).unwrap();
-        let row_group = reader.get_row_group(0).unwrap();
-
-        let mut page_readers = Vec::new();
-        for i in 0..row_group.num_columns() {
-            page_readers.push(row_group.get_column_page_reader(i).unwrap());
-        }
-
-        // Now buffer each col reader, we do not expect any failures like:
-        // General("underlying Thrift error: end of file")
-        for mut page_reader in page_readers {
-            let mut data = ColumnData::empty(&NopBufferManager);
-            assert!(page_reader.read_next_page(&mut data).is_ok());
-        }
-    }
-
-    #[test]
-    fn test_file_reader() {
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let reader_result = SerializedFileReader::new(test_file);
-        assert!(reader_result.is_ok());
-        let reader = reader_result.unwrap();
-
-        // Test contents in Parquet metadata
-        let metadata = reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 1);
-
-        // Test contents in file metadata
-        let file_metadata = metadata.file_metadata();
-        assert!(file_metadata.created_by().is_some());
-        assert_eq!(
-            file_metadata.created_by().unwrap(),
-            "impala version 1.3.0-INTERNAL (build 8a48ddb1eff84592b3fc06bc6f51ec120e1fffc9)"
-        );
-        assert!(file_metadata.key_value_metadata().is_none());
-        assert_eq!(file_metadata.num_rows(), 8);
-        assert_eq!(file_metadata.version(), 1);
-        assert_eq!(file_metadata.column_orders(), None);
-
-        // Test contents in row group metadata
-        let row_group_metadata = metadata.row_group(0);
-        assert_eq!(row_group_metadata.num_columns(), 11);
-        assert_eq!(row_group_metadata.num_rows(), 8);
-        assert_eq!(row_group_metadata.total_byte_size(), 671);
-        // Check each column order
-        for i in 0..row_group_metadata.num_columns() {
-            assert_eq!(file_metadata.column_order(i), ColumnOrder::UNDEFINED);
-        }
-
-        // Test row group reader
-        let row_group_reader_result = reader.get_row_group(0);
-        assert!(row_group_reader_result.is_ok());
-        let row_group_reader = row_group_reader_result.unwrap();
-        assert_eq!(
-            row_group_reader.num_columns(),
-            row_group_metadata.num_columns()
-        );
-        assert_eq!(
-            row_group_reader.metadata().total_byte_size(),
-            row_group_metadata.total_byte_size()
-        );
-
-        // Test page readers
-        // TODO: test for every column
-        let page_reader_0_result = row_group_reader.get_column_page_reader(0);
-        assert!(page_reader_0_result.is_ok());
-        let mut page_reader_0 = page_reader_0_result.unwrap();
-        let mut page_count = 0;
-        let mut data = ColumnData::empty(&NopBufferManager);
-        while let Ok(Some(page)) = page_reader_0.read_next_page(&mut data) {
-            let is_expected_page = match page {
-                Page::DictionaryPage {
-                    buf,
-                    num_values,
-                    encoding,
-                    is_sorted,
-                } => {
-                    assert_eq!(buf.len(), 32);
-                    assert_eq!(num_values, 8);
-                    assert_eq!(encoding, Encoding::PLAIN_DICTIONARY);
-                    assert!(!is_sorted);
-                    true
-                }
-                Page::DataPage {
-                    buf,
-                    num_values,
-                    encoding,
-                    def_level_encoding,
-                    rep_level_encoding,
-                    statistics,
-                } => {
-                    assert_eq!(buf.len(), 11);
-                    assert_eq!(num_values, 8);
-                    assert_eq!(encoding, Encoding::PLAIN_DICTIONARY);
-                    assert_eq!(def_level_encoding, Encoding::RLE);
-                    #[allow(deprecated)]
-                    let expected_rep_level_encoding = Encoding::BIT_PACKED;
-                    assert_eq!(rep_level_encoding, expected_rep_level_encoding);
-                    assert!(statistics.is_none());
-                    true
-                }
-                _ => false,
-            };
-            assert!(is_expected_page);
-            page_count += 1;
-        }
-        assert_eq!(page_count, 2);
-    }
-
-    #[test]
-    fn test_file_reader_datapage_v2() {
-        let test_file = get_test_file("datapage_v2.snappy.parquet");
-        let reader_result = SerializedFileReader::new(test_file);
-        assert!(reader_result.is_ok());
-        let reader = reader_result.unwrap();
-
-        // Test contents in Parquet metadata
-        let metadata = reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 1);
-
-        // Test contents in file metadata
-        let file_metadata = metadata.file_metadata();
-        assert!(file_metadata.created_by().is_some());
-        assert_eq!(
-            file_metadata.created_by().unwrap(),
-            "parquet-mr version 1.8.1 (build 4aba4dae7bb0d4edbcf7923ae1339f28fd3f7fcf)"
-        );
-        assert!(file_metadata.key_value_metadata().is_some());
-        assert_eq!(
-            file_metadata.key_value_metadata().to_owned().unwrap().len(),
-            1
-        );
-
-        assert_eq!(file_metadata.num_rows(), 5);
-        assert_eq!(file_metadata.version(), 1);
-        assert_eq!(file_metadata.column_orders(), None);
-
-        let row_group_metadata = metadata.row_group(0);
-
-        // Check each column order
-        for i in 0..row_group_metadata.num_columns() {
-            assert_eq!(file_metadata.column_order(i), ColumnOrder::UNDEFINED);
-        }
-
-        // Test row group reader
-        let row_group_reader_result = reader.get_row_group(0);
-        assert!(row_group_reader_result.is_ok());
-        let row_group_reader = row_group_reader_result.unwrap();
-        assert_eq!(
-            row_group_reader.num_columns(),
-            row_group_metadata.num_columns()
-        );
-        assert_eq!(
-            row_group_reader.metadata().total_byte_size(),
-            row_group_metadata.total_byte_size()
-        );
-
-        // Test page readers
-        // TODO: test for every column
-        let page_reader_0_result = row_group_reader.get_column_page_reader(0);
-        assert!(page_reader_0_result.is_ok());
-        let mut page_reader_0 = page_reader_0_result.unwrap();
-        let mut page_count = 0;
-        let mut data = ColumnData::empty(&NopBufferManager);
-        while let Ok(Some(page)) = page_reader_0.read_next_page(&mut data) {
-            let is_expected_page = match page {
-                Page::DictionaryPage {
-                    buf,
-                    num_values,
-                    encoding,
-                    is_sorted,
-                } => {
-                    assert_eq!(buf.len(), 7);
-                    assert_eq!(num_values, 1);
-                    assert_eq!(encoding, Encoding::PLAIN);
-                    assert!(!is_sorted);
-                    true
-                }
-                Page::DataPageV2 {
-                    buf,
-                    num_values,
-                    encoding,
-                    num_nulls,
-                    num_rows,
-                    def_levels_byte_len,
-                    rep_levels_byte_len,
-                    is_compressed,
-                    statistics,
-                } => {
-                    assert_eq!(buf.len(), 4);
-                    assert_eq!(num_values, 5);
-                    assert_eq!(encoding, Encoding::RLE_DICTIONARY);
-                    assert_eq!(num_nulls, 1);
-                    assert_eq!(num_rows, 5);
-                    assert_eq!(def_levels_byte_len, 2);
-                    assert_eq!(rep_levels_byte_len, 0);
-                    assert!(is_compressed);
-                    assert!(statistics.is_some());
-                    true
-                }
-                _ => false,
-            };
-            assert!(is_expected_page);
-            page_count += 1;
-        }
-        assert_eq!(page_count, 2);
-    }
-
-    #[test]
-    fn test_page_iterator() {
-        let file = get_test_file("alltypes_plain.parquet");
-        let file_reader = Arc::new(SerializedFileReader::new(file).unwrap());
-
-        let mut page_iterator = FilePageIterator::new(0, file_reader.clone()).unwrap();
-
-        // read first page
-        let page = page_iterator.next();
-        assert!(page.is_some());
-        assert!(page.unwrap().is_ok());
-
-        // reach end of file
-        let page = page_iterator.next();
-        assert!(page.is_none());
-
-        let row_group_indices = Box::new(0..1);
-        let mut page_iterator =
-            FilePageIterator::with_row_groups(0, row_group_indices, file_reader).unwrap();
-
-        // read first page
-        let page = page_iterator.next();
-        assert!(page.is_some());
-        assert!(page.unwrap().is_ok());
-
-        // reach end of file
-        let page = page_iterator.next();
-        assert!(page.is_none());
-    }
-
-    #[test]
-    fn test_file_reader_key_value_metadata() {
-        let file = get_test_file("binary.parquet");
-        let file_reader = Arc::new(SerializedFileReader::new(file).unwrap());
-
-        let metadata = file_reader
-            .metadata
-            .file_metadata()
-            .key_value_metadata()
-            .unwrap();
-
-        assert_eq!(metadata.len(), 3);
-
-        assert_eq!(metadata[0].key, "parquet.proto.descriptor");
-
-        assert_eq!(metadata[1].key, "writer.model.name");
-        assert_eq!(metadata[1].value, Some("protobuf".to_owned()));
-
-        assert_eq!(metadata[2].key, "parquet.proto.class");
-        assert_eq!(metadata[2].value, Some("foo.baz.Foobaz$Event".to_owned()));
-    }
-
-    #[test]
-    fn test_file_reader_optional_metadata() {
-        // file with optional metadata: bloom filters, encoding stats, column index and offset index.
-        let file = get_test_file("data_index_bloom_encoding_stats.parquet");
-        let file_reader = Arc::new(SerializedFileReader::new(file).unwrap());
-
-        let row_group_metadata = file_reader.metadata.row_group(0);
-        let col0_metadata = row_group_metadata.column(0);
-
-        // test optional bloom filter offset
-        assert_eq!(col0_metadata.bloom_filter_offset().unwrap(), 192);
-
-        // test page encoding stats
-        let page_encoding_stats = &col0_metadata.page_encoding_stats().unwrap()[0];
-
-        assert_eq!(page_encoding_stats.page_type, basic::PageType::DATA_PAGE);
-        assert_eq!(page_encoding_stats.encoding, Encoding::PLAIN);
-        assert_eq!(page_encoding_stats.count, 1);
-
-        // test optional column index offset
-        assert_eq!(col0_metadata.column_index_offset().unwrap(), 156);
-        assert_eq!(col0_metadata.column_index_length().unwrap(), 25);
-
-        // test optional offset index offset
-        assert_eq!(col0_metadata.offset_index_offset().unwrap(), 181);
-        assert_eq!(col0_metadata.offset_index_length().unwrap(), 11);
-    }
-
-    #[test]
-    fn test_file_reader_with_no_filter() -> ParquetResult<()> {
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let origin_reader = SerializedFileReader::new(test_file)?;
-        // test initial number of row groups
-        let metadata = origin_reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 1);
-        Ok(())
-    }
-
-    #[test]
-    fn test_file_reader_filter_row_groups_with_predicate() -> ParquetResult<()> {
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let read_options = ReadOptionsBuilder::new()
-            .with_predicate(Box::new(|_, _| false))
-            .build();
-        let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
-        let metadata = reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 0);
-        Ok(())
-    }
-
-    #[test]
-    fn test_file_reader_filter_row_groups_with_range() -> ParquetResult<()> {
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let origin_reader = SerializedFileReader::new(test_file)?;
-        // test initial number of row groups
-        let metadata = origin_reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 1);
-        let mid = get_midpoint_offset(metadata.row_group(0));
-
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let read_options = ReadOptionsBuilder::new().with_range(0, mid + 1).build();
-        let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
-        let metadata = reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 1);
-
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let read_options = ReadOptionsBuilder::new().with_range(0, mid).build();
-        let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
-        let metadata = reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 0);
-        Ok(())
-    }
-
-    #[test]
-    fn test_file_reader_filter_row_groups_and_range() -> ParquetResult<()> {
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let origin_reader = SerializedFileReader::new(test_file)?;
-        let metadata = origin_reader.metadata();
-        let mid = get_midpoint_offset(metadata.row_group(0));
-
-        // true, true predicate
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let read_options = ReadOptionsBuilder::new()
-            .with_predicate(Box::new(|_, _| true))
-            .with_range(mid, mid + 1)
-            .build();
-        let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
-        let metadata = reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 1);
-
-        // true, false predicate
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let read_options = ReadOptionsBuilder::new()
-            .with_predicate(Box::new(|_, _| true))
-            .with_range(0, mid)
-            .build();
-        let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
-        let metadata = reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 0);
-
-        // false, true predicate
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let read_options = ReadOptionsBuilder::new()
-            .with_predicate(Box::new(|_, _| false))
-            .with_range(mid, mid + 1)
-            .build();
-        let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
-        let metadata = reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 0);
-
-        // false, false predicate
-        let test_file = get_test_file("alltypes_plain.parquet");
-        let read_options = ReadOptionsBuilder::new()
-            .with_predicate(Box::new(|_, _| false))
-            .with_range(0, mid)
-            .build();
-        let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
-        let metadata = reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 0);
-        Ok(())
-    }
-
-    #[test]
-    fn test_file_reader_invalid_metadata() {
-        let data = [
-            255, 172, 1, 0, 50, 82, 65, 73, 1, 0, 0, 0, 169, 168, 168, 162, 87, 255, 16, 0, 0, 0,
-            80, 65, 82, 49,
-        ];
-        let ret = SerializedFileReader::new(Bytes::copy_from_slice(&data));
-        assert_eq!(
-            ret.err().unwrap().to_string(),
-            "Parquet error: Could not parse metadata: bad data"
-        );
-    }
-
-    #[test]
-    // Use java parquet-tools get below pageIndex info
-    // !```
-    // parquet-tools column-index ./data_index_bloom_encoding_stats.parquet
-    // row group 0:
-    // column index for column String:
-    // Boundary order: ASCENDING
-    // page-0  :
-    // null count                 min                                  max
-    // 0                          Hello                                today
-    //
-    // offset index for column String:
-    // page-0   :
-    // offset   compressed size       first row index
-    // 4               152                     0
-    ///```
-    //
-    fn test_page_index_reader() {
-        let test_file = get_test_file("data_index_bloom_encoding_stats.parquet");
-        let builder = ReadOptionsBuilder::new();
-        //enable read page index
-        let options = builder.with_page_index().build();
-        let reader_result = SerializedFileReader::new_with_options(test_file, options);
-        let reader = reader_result.unwrap();
-
-        // Test contents in Parquet metadata
-        let metadata = reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 1);
-
-        let column_index = metadata.column_index().unwrap();
-
-        // only one row group
-        assert_eq!(column_index.len(), 1);
-        let index = if let Index::BYTE_ARRAY(index) = &column_index[0][0] {
-            index
-        } else {
-            unreachable!()
-        };
-
-        assert_eq!(index.boundary_order, BoundaryOrder::ASCENDING);
-        let index_in_pages = &index.indexes;
-
-        //only one page group
-        assert_eq!(index_in_pages.len(), 1);
-
-        let page0 = &index_in_pages[0];
-        let min = page0.min.as_ref().unwrap();
-        let max = page0.max.as_ref().unwrap();
-        assert_eq!(b"Hello", min.as_bytes());
-        assert_eq!(b"today", max.as_bytes());
-
-        let offset_indexes = metadata.offset_index().unwrap();
-        // only one row group
-        assert_eq!(offset_indexes.len(), 1);
-        let offset_index = &offset_indexes[0];
-        let page_offset = &offset_index[0][0];
-
-        assert_eq!(4, page_offset.offset);
-        assert_eq!(152, page_offset.compressed_page_size);
-        assert_eq!(0, page_offset.first_row_index);
-    }
-
-    #[test]
-    fn test_page_index_reader_out_of_order() {
-        let test_file = get_test_file("alltypes_tiny_pages_plain.parquet");
-        let options = ReadOptionsBuilder::new().with_page_index().build();
-        let reader = SerializedFileReader::new_with_options(test_file, options).unwrap();
-        let metadata = reader.metadata();
-
-        let test_file = get_test_file("alltypes_tiny_pages_plain.parquet");
-        let columns = metadata.row_group(0).columns();
-        let reversed: Vec<_> = columns.iter().cloned().rev().collect();
-
-        let a = read_columns_indexes(&test_file, columns).unwrap();
-        let mut b = read_columns_indexes(&test_file, &reversed).unwrap();
-        b.reverse();
-        assert_eq!(a, b);
-
-        let a = read_pages_locations(&test_file, columns).unwrap();
-        let mut b = read_pages_locations(&test_file, &reversed).unwrap();
-        b.reverse();
-        assert_eq!(a, b);
-    }
-
-    #[test]
-    fn test_page_index_reader_all_type() {
-        let test_file = get_test_file("alltypes_tiny_pages_plain.parquet");
-        let builder = ReadOptionsBuilder::new();
-        //enable read page index
-        let options = builder.with_page_index().build();
-        let reader_result = SerializedFileReader::new_with_options(test_file, options);
-        let reader = reader_result.unwrap();
-
-        // Test contents in Parquet metadata
-        let metadata = reader.metadata();
-        assert_eq!(metadata.num_row_groups(), 1);
-
-        let column_index = metadata.column_index().unwrap();
-        let row_group_offset_indexes = &metadata.offset_index().unwrap()[0];
-
-        // only one row group
-        assert_eq!(column_index.len(), 1);
-        let row_group_metadata = metadata.row_group(0);
-
-        //col0->id: INT32 UNCOMPRESSED DO:0 FPO:4 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 0, max: 7299, num_nulls: 0]
-        assert!(!&column_index[0][0].is_sorted());
-        let boundary_order = &column_index[0][0].get_boundary_order();
-        assert!(boundary_order.is_some());
-        matches!(boundary_order.unwrap(), BoundaryOrder::UNORDERED);
-        if let Index::INT32(index) = &column_index[0][0] {
-            check_native_page_index(
-                index,
-                325,
-                get_row_group_min_max_bytes(row_group_metadata, 0),
-                BoundaryOrder::UNORDERED,
-            );
-            assert_eq!(row_group_offset_indexes[0].len(), 325);
-        } else {
-            unreachable!()
-        };
-        //col1->bool_col:BOOLEAN UNCOMPRESSED DO:0 FPO:37329 SZ:3022/3022/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: false, max: true, num_nulls: 0]
-        assert!(&column_index[0][1].is_sorted());
-        if let Index::BOOLEAN(index) = &column_index[0][1] {
-            assert_eq!(index.indexes.len(), 82);
-            assert_eq!(row_group_offset_indexes[1].len(), 82);
-        } else {
-            unreachable!()
-        };
-        //col2->tinyint_col: INT32 UNCOMPRESSED DO:0 FPO:40351 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 0, max: 9, num_nulls: 0]
-        assert!(&column_index[0][2].is_sorted());
-        if let Index::INT32(index) = &column_index[0][2] {
-            check_native_page_index(
-                index,
-                325,
-                get_row_group_min_max_bytes(row_group_metadata, 2),
-                BoundaryOrder::ASCENDING,
-            );
-            assert_eq!(row_group_offset_indexes[2].len(), 325);
-        } else {
-            unreachable!()
-        };
-        //col4->smallint_col: INT32 UNCOMPRESSED DO:0 FPO:77676 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 0, max: 9, num_nulls: 0]
-        assert!(&column_index[0][3].is_sorted());
-        if let Index::INT32(index) = &column_index[0][3] {
-            check_native_page_index(
-                index,
-                325,
-                get_row_group_min_max_bytes(row_group_metadata, 3),
-                BoundaryOrder::ASCENDING,
-            );
-            assert_eq!(row_group_offset_indexes[3].len(), 325);
-        } else {
-            unreachable!()
-        };
-        //col5->smallint_col: INT32 UNCOMPRESSED DO:0 FPO:77676 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 0, max: 9, num_nulls: 0]
-        assert!(&column_index[0][4].is_sorted());
-        if let Index::INT32(index) = &column_index[0][4] {
-            check_native_page_index(
-                index,
-                325,
-                get_row_group_min_max_bytes(row_group_metadata, 4),
-                BoundaryOrder::ASCENDING,
-            );
-            assert_eq!(row_group_offset_indexes[4].len(), 325);
-        } else {
-            unreachable!()
-        };
-        //col6->bigint_col: INT64 UNCOMPRESSED DO:0 FPO:152326 SZ:71598/71598/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 0, max: 90, num_nulls: 0]
-        assert!(!&column_index[0][5].is_sorted());
-        if let Index::INT64(index) = &column_index[0][5] {
-            check_native_page_index(
-                index,
-                528,
-                get_row_group_min_max_bytes(row_group_metadata, 5),
-                BoundaryOrder::UNORDERED,
-            );
-            assert_eq!(row_group_offset_indexes[5].len(), 528);
-        } else {
-            unreachable!()
-        };
-        //col7->float_col: FLOAT UNCOMPRESSED DO:0 FPO:223924 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: -0.0, max: 9.9, num_nulls: 0]
-        assert!(&column_index[0][6].is_sorted());
-        if let Index::FLOAT(index) = &column_index[0][6] {
-            check_native_page_index(
-                index,
-                325,
-                get_row_group_min_max_bytes(row_group_metadata, 6),
-                BoundaryOrder::ASCENDING,
-            );
-            assert_eq!(row_group_offset_indexes[6].len(), 325);
-        } else {
-            unreachable!()
-        };
-        //col8->double_col: DOUBLE UNCOMPRESSED DO:0 FPO:261249 SZ:71598/71598/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: -0.0, max: 90.89999999999999, num_nulls: 0]
-        assert!(!&column_index[0][7].is_sorted());
-        if let Index::DOUBLE(index) = &column_index[0][7] {
-            check_native_page_index(
-                index,
-                528,
-                get_row_group_min_max_bytes(row_group_metadata, 7),
-                BoundaryOrder::UNORDERED,
-            );
-            assert_eq!(row_group_offset_indexes[7].len(), 528);
-        } else {
-            unreachable!()
-        };
-        //col9->date_string_col: BINARY UNCOMPRESSED DO:0 FPO:332847 SZ:111948/111948/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 01/01/09, max: 12/31/10, num_nulls: 0]
-        assert!(!&column_index[0][8].is_sorted());
-        if let Index::BYTE_ARRAY(index) = &column_index[0][8] {
-            check_native_page_index(
-                index,
-                974,
-                get_row_group_min_max_bytes(row_group_metadata, 8),
-                BoundaryOrder::UNORDERED,
-            );
-            assert_eq!(row_group_offset_indexes[8].len(), 974);
-        } else {
-            unreachable!()
-        };
-        //col10->string_col: BINARY UNCOMPRESSED DO:0 FPO:444795 SZ:45298/45298/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 0, max: 9, num_nulls: 0]
-        assert!(&column_index[0][9].is_sorted());
-        if let Index::BYTE_ARRAY(index) = &column_index[0][9] {
-            check_native_page_index(
-                index,
-                352,
-                get_row_group_min_max_bytes(row_group_metadata, 9),
-                BoundaryOrder::ASCENDING,
-            );
-            assert_eq!(row_group_offset_indexes[9].len(), 352);
-        } else {
-            unreachable!()
-        };
-        //col11->timestamp_col: INT96 UNCOMPRESSED DO:0 FPO:490093 SZ:111948/111948/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[num_nulls: 0, min/max not defined]
-        //Notice: min_max values for each page for this col not exits.
-        assert!(!&column_index[0][10].is_sorted());
-        if let Index::NONE = &column_index[0][10] {
-            assert_eq!(row_group_offset_indexes[10].len(), 974);
-        } else {
-            unreachable!()
-        };
-        //col12->year: INT32 UNCOMPRESSED DO:0 FPO:602041 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 2009, max: 2010, num_nulls: 0]
-        assert!(&column_index[0][11].is_sorted());
-        if let Index::INT32(index) = &column_index[0][11] {
-            check_native_page_index(
-                index,
-                325,
-                get_row_group_min_max_bytes(row_group_metadata, 11),
-                BoundaryOrder::ASCENDING,
-            );
-            assert_eq!(row_group_offset_indexes[11].len(), 325);
-        } else {
-            unreachable!()
-        };
-        //col13->month: INT32 UNCOMPRESSED DO:0 FPO:639366 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 1, max: 12, num_nulls: 0]
-        assert!(!&column_index[0][12].is_sorted());
-        if let Index::INT32(index) = &column_index[0][12] {
-            check_native_page_index(
-                index,
-                325,
-                get_row_group_min_max_bytes(row_group_metadata, 12),
-                BoundaryOrder::UNORDERED,
-            );
-            assert_eq!(row_group_offset_indexes[12].len(), 325);
-        } else {
-            unreachable!()
-        };
-    }
-
-    fn check_native_page_index<T: ParquetValueType>(
-        row_group_index: &NativeIndex<T>,
-        page_size: usize,
-        min_max: (&[u8], &[u8]),
-        boundary_order: BoundaryOrder,
-    ) {
-        assert_eq!(row_group_index.indexes.len(), page_size);
-        assert_eq!(row_group_index.boundary_order, boundary_order);
-        row_group_index.indexes.iter().all(|x| {
-            x.min.as_ref().unwrap() >= &from_le_slice::<T>(min_max.0)
-                && x.max.as_ref().unwrap() <= &from_le_slice::<T>(min_max.1)
-        });
-    }
-
-    fn get_row_group_min_max_bytes(r: &RowGroupMetaData, col_num: usize) -> (&[u8], &[u8]) {
-        let statistics = r.column(col_num).statistics().unwrap();
-        (statistics.min_bytes(), statistics.max_bytes())
-    }
-
-    #[test]
-    fn test_skip_page_with_offset_index() {
-        let test_file = get_test_file("alltypes_tiny_pages_plain.parquet");
-        let builder = ReadOptionsBuilder::new();
-        //enable read page index
-        let options = builder.with_page_index().build();
-        let reader_result = SerializedFileReader::new_with_options(test_file, options);
-        let reader = reader_result.unwrap();
-
-        let row_group_reader = reader.get_row_group(0).unwrap();
-
-        //use 'int_col', Boundary order: ASCENDING, total 325 pages.
-        let mut column_page_reader = row_group_reader.get_column_page_reader(4).unwrap();
-
-        let mut vec = vec![];
-
-        let mut data = ColumnData::empty(&NopBufferManager);
-        for i in 0..325 {
-            if i % 2 == 0 {
-                vec.push(
-                    column_page_reader
-                        .read_next_page(&mut data)
-                        .unwrap()
-                        .unwrap(),
-                );
-            } else {
-                column_page_reader.skip_next_page().unwrap();
-            }
-        }
-        //check read all pages.
-        assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader
-            .read_next_page(&mut data)
-            .unwrap()
-            .is_none());
-
-        assert_eq!(vec.len(), 163);
-    }
-
-    #[test]
-    fn test_skip_page_without_offset_index() {
-        let test_file = get_test_file("alltypes_tiny_pages_plain.parquet");
-
-        // use default SerializedFileReader without read offsetIndex
-        let reader_result = SerializedFileReader::new(test_file);
-        let reader = reader_result.unwrap();
-
-        let row_group_reader = reader.get_row_group(0).unwrap();
-
-        //use 'int_col', Boundary order: ASCENDING, total 325 pages.
-        let mut column_page_reader = row_group_reader.get_column_page_reader(4).unwrap();
-
-        let mut vec = vec![];
-
-        let mut data = ColumnData::empty(&NopBufferManager);
-        for i in 0..325 {
-            if i % 2 == 0 {
-                vec.push(
-                    column_page_reader
-                        .read_next_page(&mut data)
-                        .unwrap()
-                        .unwrap(),
-                );
-            } else {
-                column_page_reader.peek_next_page().unwrap().unwrap();
-                column_page_reader.skip_next_page().unwrap();
-            }
-        }
-        //check read all pages.
-        assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader
-            .read_next_page(&mut data)
-            .unwrap()
-            .is_none());
-
-        assert_eq!(vec.len(), 163);
-    }
-
-    #[test]
-    fn test_peek_page_with_dictionary_page() {
-        let test_file = get_test_file("alltypes_tiny_pages.parquet");
-        let builder = ReadOptionsBuilder::new();
-        //enable read page index
-        let options = builder.with_page_index().build();
-        let reader_result = SerializedFileReader::new_with_options(test_file, options);
-        let reader = reader_result.unwrap();
-        let row_group_reader = reader.get_row_group(0).unwrap();
-
-        //use 'string_col', Boundary order: UNORDERED, total 352 data ages and 1 dictionary page.
-        let mut column_page_reader = row_group_reader.get_column_page_reader(9).unwrap();
-
-        let mut vec = vec![];
-
-        let meta = column_page_reader.peek_next_page().unwrap().unwrap();
-        assert!(meta.is_dict);
-        let mut data = ColumnData::empty(&NopBufferManager);
-        let page = column_page_reader
-            .read_next_page(&mut data)
-            .unwrap()
-            .unwrap();
-        assert!(matches!(page.page_type(), basic::PageType::DICTIONARY_PAGE));
-
-        for i in 0..352 {
-            let meta = column_page_reader.peek_next_page().unwrap().unwrap();
-            // have checked with `parquet-tools column-index   -c string_col  ./alltypes_tiny_pages.parquet`
-            // page meta has two scenarios(21, 20) of num_rows expect last page has 11 rows.
-            if i != 351 {
-                assert!((meta.num_rows == Some(21)) || (meta.num_rows == Some(20)));
-            } else {
-                // last page first row index is 7290, total row count is 7300
-                // because first row start with zero, last page row count should be 10.
-                assert_eq!(meta.num_rows, Some(10));
-            }
-            assert!(!meta.is_dict);
-            vec.push(meta);
-            let page = column_page_reader
-                .read_next_page(&mut data)
-                .unwrap()
-                .unwrap();
-            assert!(matches!(page.page_type(), basic::PageType::DATA_PAGE));
-        }
-
-        //check read all pages.
-        assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader
-            .read_next_page(&mut data)
-            .unwrap()
-            .is_none());
-
-        assert_eq!(vec.len(), 352);
-    }
-
-    #[test]
-    fn test_peek_page_with_dictionary_page_without_offset_index() {
-        let test_file = get_test_file("alltypes_tiny_pages.parquet");
-
-        let reader_result = SerializedFileReader::new(test_file);
-        let reader = reader_result.unwrap();
-        let row_group_reader = reader.get_row_group(0).unwrap();
-
-        //use 'string_col', Boundary order: UNORDERED, total 352 data ages and 1 dictionary page.
-        let mut column_page_reader = row_group_reader.get_column_page_reader(9).unwrap();
-
-        let mut vec = vec![];
-
-        let meta = column_page_reader.peek_next_page().unwrap().unwrap();
-        assert!(meta.is_dict);
-        let mut data = ColumnData::empty(&NopBufferManager);
-        let page = column_page_reader
-            .read_next_page(&mut data)
-            .unwrap()
-            .unwrap();
-        assert!(matches!(page.page_type(), basic::PageType::DICTIONARY_PAGE));
-
-        for i in 0..352 {
-            let meta = column_page_reader.peek_next_page().unwrap().unwrap();
-            // have checked with `parquet-tools column-index   -c string_col  ./alltypes_tiny_pages.parquet`
-            // page meta has two scenarios(21, 20) of num_rows expect last page has 11 rows.
-            if i != 351 {
-                assert!((meta.num_levels == Some(21)) || (meta.num_levels == Some(20)));
-            } else {
-                // last page first row index is 7290, total row count is 7300
-                // because first row start with zero, last page row count should be 10.
-                assert_eq!(meta.num_levels, Some(10));
-            }
-            assert!(!meta.is_dict);
-            vec.push(meta);
-            let page = column_page_reader
-                .read_next_page(&mut data)
-                .unwrap()
-                .unwrap();
-            assert!(matches!(page.page_type(), basic::PageType::DATA_PAGE));
-        }
-
-        //check read all pages.
-        assert!(column_page_reader.peek_next_page().unwrap().is_none());
-        assert!(column_page_reader
-            .read_next_page(&mut data)
-            .unwrap()
-            .is_none());
-
-        assert_eq!(vec.len(), 352);
-    }
-
-    #[test]
-    fn test_fixed_length_index() {
-        let message_type = "
-        message test_schema {
-          OPTIONAL FIXED_LEN_BYTE_ARRAY (11) value (DECIMAL(25,2));
-        }
-        ";
-
-        let schema = parse_message_type(message_type).unwrap();
-        let mut out = Vec::with_capacity(1024);
-        let mut writer =
-            SerializedFileWriter::new(&mut out, Arc::new(schema), Default::default()).unwrap();
-
-        let mut r = writer.next_row_group().unwrap();
-        let mut c = r.next_column().unwrap().unwrap();
-        c.typed::<FixedLenByteArray>()
-            .write_batch(
-                &[vec![0; 11].into(), vec![5; 11].into(), vec![3; 11].into()],
-                Some(&[1, 1, 0, 1]),
-                None,
-            )
-            .unwrap();
-        c.close().unwrap();
-        r.close().unwrap();
-        writer.close().unwrap();
-
-        let b = Bytes::from(out);
-        let options = ReadOptionsBuilder::new().with_page_index().build();
-        let reader = SerializedFileReader::new_with_options(b, options).unwrap();
-        let index = reader.metadata().column_index().unwrap();
-
-        // 1 row group
-        assert_eq!(index.len(), 1);
-        let c = &index[0];
-        // 1 column
-        assert_eq!(c.len(), 1);
-
-        match &c[0] {
-            Index::FIXED_LEN_BYTE_ARRAY(v) => {
-                assert_eq!(v.indexes.len(), 1);
-                let page_idx = &v.indexes[0];
-                assert_eq!(page_idx.null_count.unwrap(), 1);
-                assert_eq!(page_idx.min.as_ref().unwrap().as_ref(), &[0; 11]);
-                assert_eq!(page_idx.max.as_ref().unwrap().as_ref(), &[5; 11]);
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    #[test]
-    fn test_multi_gz() {
-        let file = get_test_file("concatenated_gzip_members.parquet");
-        let reader = SerializedFileReader::new(file).unwrap();
-        let row_group_reader = reader.get_row_group(0).unwrap();
-        match column_reader_from_row_group_reader(&row_group_reader, 0).unwrap() {
-            BasicColumnReader::Int64ColumnReader(mut reader) => {
-                let mut buffer = Vec::with_capacity(1024);
-                let mut def_levels = Vec::with_capacity(1024);
-                let (num_records, num_values, num_levels) = reader
-                    .read_records(1024, Some(&mut def_levels), None, &mut buffer)
-                    .unwrap();
-
-                assert_eq!(num_records, 513);
-                assert_eq!(num_values, 513);
-                assert_eq!(num_levels, 513);
-
-                let expected: Vec<i64> = (1..514).collect();
-                assert_eq!(&buffer, &expected);
-            }
-            _ => unreachable!(),
-        }
-    }
+    // #[test]
+    // fn test_reuse_file_chunk() {
+    //     // This test covers the case of maintaining the correct start position in a file
+    //     // stream for each column reader after initializing and moving to the next one
+    //     // (without necessarily reading the entire column).
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let reader = SerializedFileReader::new(test_file).unwrap();
+    //     let row_group = reader.get_row_group(0).unwrap();
+
+    //     let mut page_readers = Vec::new();
+    //     for i in 0..row_group.num_columns() {
+    //         page_readers.push(row_group.get_column_page_reader(i).unwrap());
+    //     }
+
+    //     // Now buffer each col reader, we do not expect any failures like:
+    //     // General("underlying Thrift error: end of file")
+    //     for mut page_reader in page_readers {
+    //         let mut data = ColumnData::empty(&NopBufferManager);
+    //         assert!(page_reader.read_next_page(&mut data).is_ok());
+    //     }
+    // }
+
+    // #[test]
+    // fn test_file_reader() {
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let reader_result = SerializedFileReader::new(test_file);
+    //     assert!(reader_result.is_ok());
+    //     let reader = reader_result.unwrap();
+
+    //     // Test contents in Parquet metadata
+    //     let metadata = reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 1);
+
+    //     // Test contents in file metadata
+    //     let file_metadata = metadata.file_metadata();
+    //     assert!(file_metadata.created_by().is_some());
+    //     assert_eq!(
+    //         file_metadata.created_by().unwrap(),
+    //         "impala version 1.3.0-INTERNAL (build 8a48ddb1eff84592b3fc06bc6f51ec120e1fffc9)"
+    //     );
+    //     assert!(file_metadata.key_value_metadata().is_none());
+    //     assert_eq!(file_metadata.num_rows(), 8);
+    //     assert_eq!(file_metadata.version(), 1);
+    //     assert_eq!(file_metadata.column_orders(), None);
+
+    //     // Test contents in row group metadata
+    //     let row_group_metadata = metadata.row_group(0);
+    //     assert_eq!(row_group_metadata.num_columns(), 11);
+    //     assert_eq!(row_group_metadata.num_rows(), 8);
+    //     assert_eq!(row_group_metadata.total_byte_size(), 671);
+    //     // Check each column order
+    //     for i in 0..row_group_metadata.num_columns() {
+    //         assert_eq!(file_metadata.column_order(i), ColumnOrder::UNDEFINED);
+    //     }
+
+    //     // Test row group reader
+    //     let row_group_reader_result = reader.get_row_group(0);
+    //     assert!(row_group_reader_result.is_ok());
+    //     let row_group_reader = row_group_reader_result.unwrap();
+    //     assert_eq!(
+    //         row_group_reader.num_columns(),
+    //         row_group_metadata.num_columns()
+    //     );
+    //     assert_eq!(
+    //         row_group_reader.metadata().total_byte_size(),
+    //         row_group_metadata.total_byte_size()
+    //     );
+
+    //     // Test page readers
+    //     // TODO: test for every column
+    //     let page_reader_0_result = row_group_reader.get_column_page_reader(0);
+    //     assert!(page_reader_0_result.is_ok());
+    //     let mut page_reader_0 = page_reader_0_result.unwrap();
+    //     let mut page_count = 0;
+    //     let mut data = ColumnData::empty(&NopBufferManager);
+    //     while let Ok(Some(page)) = page_reader_0.read_next_page(&mut data) {
+    //         let is_expected_page = match page {
+    //             Page::DictionaryPage {
+    //                 buf,
+    //                 num_values,
+    //                 encoding,
+    //                 is_sorted,
+    //             } => {
+    //                 assert_eq!(buf.len(), 32);
+    //                 assert_eq!(num_values, 8);
+    //                 assert_eq!(encoding, Encoding::PLAIN_DICTIONARY);
+    //                 assert!(!is_sorted);
+    //                 true
+    //             }
+    //             Page::DataPage {
+    //                 buf,
+    //                 num_values,
+    //                 encoding,
+    //                 def_level_encoding,
+    //                 rep_level_encoding,
+    //                 statistics,
+    //             } => {
+    //                 assert_eq!(buf.len(), 11);
+    //                 assert_eq!(num_values, 8);
+    //                 assert_eq!(encoding, Encoding::PLAIN_DICTIONARY);
+    //                 assert_eq!(def_level_encoding, Encoding::RLE);
+    //                 #[allow(deprecated)]
+    //                 let expected_rep_level_encoding = Encoding::BIT_PACKED;
+    //                 assert_eq!(rep_level_encoding, expected_rep_level_encoding);
+    //                 assert!(statistics.is_none());
+    //                 true
+    //             }
+    //             _ => false,
+    //         };
+    //         assert!(is_expected_page);
+    //         page_count += 1;
+    //     }
+    //     assert_eq!(page_count, 2);
+    // }
+
+    // #[test]
+    // fn test_file_reader_datapage_v2() {
+    //     let test_file = get_test_file("datapage_v2.snappy.parquet");
+    //     let reader_result = SerializedFileReader::new(test_file);
+    //     assert!(reader_result.is_ok());
+    //     let reader = reader_result.unwrap();
+
+    //     // Test contents in Parquet metadata
+    //     let metadata = reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 1);
+
+    //     // Test contents in file metadata
+    //     let file_metadata = metadata.file_metadata();
+    //     assert!(file_metadata.created_by().is_some());
+    //     assert_eq!(
+    //         file_metadata.created_by().unwrap(),
+    //         "parquet-mr version 1.8.1 (build 4aba4dae7bb0d4edbcf7923ae1339f28fd3f7fcf)"
+    //     );
+    //     assert!(file_metadata.key_value_metadata().is_some());
+    //     assert_eq!(
+    //         file_metadata.key_value_metadata().to_owned().unwrap().len(),
+    //         1
+    //     );
+
+    //     assert_eq!(file_metadata.num_rows(), 5);
+    //     assert_eq!(file_metadata.version(), 1);
+    //     assert_eq!(file_metadata.column_orders(), None);
+
+    //     let row_group_metadata = metadata.row_group(0);
+
+    //     // Check each column order
+    //     for i in 0..row_group_metadata.num_columns() {
+    //         assert_eq!(file_metadata.column_order(i), ColumnOrder::UNDEFINED);
+    //     }
+
+    //     // Test row group reader
+    //     let row_group_reader_result = reader.get_row_group(0);
+    //     assert!(row_group_reader_result.is_ok());
+    //     let row_group_reader = row_group_reader_result.unwrap();
+    //     assert_eq!(
+    //         row_group_reader.num_columns(),
+    //         row_group_metadata.num_columns()
+    //     );
+    //     assert_eq!(
+    //         row_group_reader.metadata().total_byte_size(),
+    //         row_group_metadata.total_byte_size()
+    //     );
+
+    //     // Test page readers
+    //     // TODO: test for every column
+    //     let page_reader_0_result = row_group_reader.get_column_page_reader(0);
+    //     assert!(page_reader_0_result.is_ok());
+    //     let mut page_reader_0 = page_reader_0_result.unwrap();
+    //     let mut page_count = 0;
+    //     let mut data = ColumnData::empty(&NopBufferManager);
+    //     while let Ok(Some(page)) = page_reader_0.read_next_page(&mut data) {
+    //         let is_expected_page = match page {
+    //             Page::DictionaryPage {
+    //                 buf,
+    //                 num_values,
+    //                 encoding,
+    //                 is_sorted,
+    //             } => {
+    //                 assert_eq!(buf.len(), 7);
+    //                 assert_eq!(num_values, 1);
+    //                 assert_eq!(encoding, Encoding::PLAIN);
+    //                 assert!(!is_sorted);
+    //                 true
+    //             }
+    //             Page::DataPageV2 {
+    //                 buf,
+    //                 num_values,
+    //                 encoding,
+    //                 num_nulls,
+    //                 num_rows,
+    //                 def_levels_byte_len,
+    //                 rep_levels_byte_len,
+    //                 is_compressed,
+    //                 statistics,
+    //             } => {
+    //                 assert_eq!(buf.len(), 4);
+    //                 assert_eq!(num_values, 5);
+    //                 assert_eq!(encoding, Encoding::RLE_DICTIONARY);
+    //                 assert_eq!(num_nulls, 1);
+    //                 assert_eq!(num_rows, 5);
+    //                 assert_eq!(def_levels_byte_len, 2);
+    //                 assert_eq!(rep_levels_byte_len, 0);
+    //                 assert!(is_compressed);
+    //                 assert!(statistics.is_some());
+    //                 true
+    //             }
+    //             _ => false,
+    //         };
+    //         assert!(is_expected_page);
+    //         page_count += 1;
+    //     }
+    //     assert_eq!(page_count, 2);
+    // }
+
+    // #[test]
+    // fn test_page_iterator() {
+    //     let file = get_test_file("alltypes_plain.parquet");
+    //     let file_reader = Arc::new(SerializedFileReader::new(file).unwrap());
+
+    //     let mut page_iterator = FilePageIterator::new(0, file_reader.clone()).unwrap();
+
+    //     // read first page
+    //     let page = page_iterator.next();
+    //     assert!(page.is_some());
+    //     assert!(page.unwrap().is_ok());
+
+    //     // reach end of file
+    //     let page = page_iterator.next();
+    //     assert!(page.is_none());
+
+    //     let row_group_indices = Box::new(0..1);
+    //     let mut page_iterator =
+    //         FilePageIterator::with_row_groups(0, row_group_indices, file_reader).unwrap();
+
+    //     // read first page
+    //     let page = page_iterator.next();
+    //     assert!(page.is_some());
+    //     assert!(page.unwrap().is_ok());
+
+    //     // reach end of file
+    //     let page = page_iterator.next();
+    //     assert!(page.is_none());
+    // }
+
+    // #[test]
+    // fn test_file_reader_key_value_metadata() {
+    //     let file = get_test_file("binary.parquet");
+    //     let file_reader = Arc::new(SerializedFileReader::new(file).unwrap());
+
+    //     let metadata = file_reader
+    //         .metadata
+    //         .file_metadata()
+    //         .key_value_metadata()
+    //         .unwrap();
+
+    //     assert_eq!(metadata.len(), 3);
+
+    //     assert_eq!(metadata[0].key, "parquet.proto.descriptor");
+
+    //     assert_eq!(metadata[1].key, "writer.model.name");
+    //     assert_eq!(metadata[1].value, Some("protobuf".to_owned()));
+
+    //     assert_eq!(metadata[2].key, "parquet.proto.class");
+    //     assert_eq!(metadata[2].value, Some("foo.baz.Foobaz$Event".to_owned()));
+    // }
+
+    // #[test]
+    // fn test_file_reader_optional_metadata() {
+    //     // file with optional metadata: bloom filters, encoding stats, column index and offset index.
+    //     let file = get_test_file("data_index_bloom_encoding_stats.parquet");
+    //     let file_reader = Arc::new(SerializedFileReader::new(file).unwrap());
+
+    //     let row_group_metadata = file_reader.metadata.row_group(0);
+    //     let col0_metadata = row_group_metadata.column(0);
+
+    //     // test optional bloom filter offset
+    //     assert_eq!(col0_metadata.bloom_filter_offset().unwrap(), 192);
+
+    //     // test page encoding stats
+    //     let page_encoding_stats = &col0_metadata.page_encoding_stats().unwrap()[0];
+
+    //     assert_eq!(page_encoding_stats.page_type, basic::PageType::DATA_PAGE);
+    //     assert_eq!(page_encoding_stats.encoding, Encoding::PLAIN);
+    //     assert_eq!(page_encoding_stats.count, 1);
+
+    //     // test optional column index offset
+    //     assert_eq!(col0_metadata.column_index_offset().unwrap(), 156);
+    //     assert_eq!(col0_metadata.column_index_length().unwrap(), 25);
+
+    //     // test optional offset index offset
+    //     assert_eq!(col0_metadata.offset_index_offset().unwrap(), 181);
+    //     assert_eq!(col0_metadata.offset_index_length().unwrap(), 11);
+    // }
+
+    // #[test]
+    // fn test_file_reader_with_no_filter() -> ParquetResult<()> {
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let origin_reader = SerializedFileReader::new(test_file)?;
+    //     // test initial number of row groups
+    //     let metadata = origin_reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 1);
+    //     Ok(())
+    // }
+
+    // #[test]
+    // fn test_file_reader_filter_row_groups_with_predicate() -> ParquetResult<()> {
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let read_options = ReadOptionsBuilder::new()
+    //         .with_predicate(Box::new(|_, _| false))
+    //         .build();
+    //     let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
+    //     let metadata = reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 0);
+    //     Ok(())
+    // }
+
+    // #[test]
+    // fn test_file_reader_filter_row_groups_with_range() -> ParquetResult<()> {
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let origin_reader = SerializedFileReader::new(test_file)?;
+    //     // test initial number of row groups
+    //     let metadata = origin_reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 1);
+    //     let mid = get_midpoint_offset(metadata.row_group(0));
+
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let read_options = ReadOptionsBuilder::new().with_range(0, mid + 1).build();
+    //     let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
+    //     let metadata = reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 1);
+
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let read_options = ReadOptionsBuilder::new().with_range(0, mid).build();
+    //     let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
+    //     let metadata = reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 0);
+    //     Ok(())
+    // }
+
+    // #[test]
+    // fn test_file_reader_filter_row_groups_and_range() -> ParquetResult<()> {
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let origin_reader = SerializedFileReader::new(test_file)?;
+    //     let metadata = origin_reader.metadata();
+    //     let mid = get_midpoint_offset(metadata.row_group(0));
+
+    //     // true, true predicate
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let read_options = ReadOptionsBuilder::new()
+    //         .with_predicate(Box::new(|_, _| true))
+    //         .with_range(mid, mid + 1)
+    //         .build();
+    //     let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
+    //     let metadata = reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 1);
+
+    //     // true, false predicate
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let read_options = ReadOptionsBuilder::new()
+    //         .with_predicate(Box::new(|_, _| true))
+    //         .with_range(0, mid)
+    //         .build();
+    //     let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
+    //     let metadata = reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 0);
+
+    //     // false, true predicate
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let read_options = ReadOptionsBuilder::new()
+    //         .with_predicate(Box::new(|_, _| false))
+    //         .with_range(mid, mid + 1)
+    //         .build();
+    //     let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
+    //     let metadata = reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 0);
+
+    //     // false, false predicate
+    //     let test_file = get_test_file("alltypes_plain.parquet");
+    //     let read_options = ReadOptionsBuilder::new()
+    //         .with_predicate(Box::new(|_, _| false))
+    //         .with_range(0, mid)
+    //         .build();
+    //     let reader = SerializedFileReader::new_with_options(test_file, read_options)?;
+    //     let metadata = reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 0);
+    //     Ok(())
+    // }
+
+    // #[test]
+    // fn test_file_reader_invalid_metadata() {
+    //     let data = [
+    //         255, 172, 1, 0, 50, 82, 65, 73, 1, 0, 0, 0, 169, 168, 168, 162, 87, 255, 16, 0, 0, 0,
+    //         80, 65, 82, 49,
+    //     ];
+    //     let ret = SerializedFileReader::new(Bytes::copy_from_slice(&data));
+    //     assert_eq!(
+    //         ret.err().unwrap().to_string(),
+    //         "Parquet error: Could not parse metadata: bad data"
+    //     );
+    // }
+
+    // #[test]
+    // // Use java parquet-tools get below pageIndex info
+    // // !```
+    // // parquet-tools column-index ./data_index_bloom_encoding_stats.parquet
+    // // row group 0:
+    // // column index for column String:
+    // // Boundary order: ASCENDING
+    // // page-0  :
+    // // null count                 min                                  max
+    // // 0                          Hello                                today
+    // //
+    // // offset index for column String:
+    // // page-0   :
+    // // offset   compressed size       first row index
+    // // 4               152                     0
+    // ///```
+    // //
+    // fn test_page_index_reader() {
+    //     let test_file = get_test_file("data_index_bloom_encoding_stats.parquet");
+    //     let builder = ReadOptionsBuilder::new();
+    //     //enable read page index
+    //     let options = builder.with_page_index().build();
+    //     let reader_result = SerializedFileReader::new_with_options(test_file, options);
+    //     let reader = reader_result.unwrap();
+
+    //     // Test contents in Parquet metadata
+    //     let metadata = reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 1);
+
+    //     let column_index = metadata.column_index().unwrap();
+
+    //     // only one row group
+    //     assert_eq!(column_index.len(), 1);
+    //     let index = if let Index::BYTE_ARRAY(index) = &column_index[0][0] {
+    //         index
+    //     } else {
+    //         unreachable!()
+    //     };
+
+    //     assert_eq!(index.boundary_order, BoundaryOrder::ASCENDING);
+    //     let index_in_pages = &index.indexes;
+
+    //     //only one page group
+    //     assert_eq!(index_in_pages.len(), 1);
+
+    //     let page0 = &index_in_pages[0];
+    //     let min = page0.min.as_ref().unwrap();
+    //     let max = page0.max.as_ref().unwrap();
+    //     assert_eq!(b"Hello", min.as_bytes());
+    //     assert_eq!(b"today", max.as_bytes());
+
+    //     let offset_indexes = metadata.offset_index().unwrap();
+    //     // only one row group
+    //     assert_eq!(offset_indexes.len(), 1);
+    //     let offset_index = &offset_indexes[0];
+    //     let page_offset = &offset_index[0][0];
+
+    //     assert_eq!(4, page_offset.offset);
+    //     assert_eq!(152, page_offset.compressed_page_size);
+    //     assert_eq!(0, page_offset.first_row_index);
+    // }
+
+    // #[test]
+    // fn test_page_index_reader_out_of_order() {
+    //     let test_file = get_test_file("alltypes_tiny_pages_plain.parquet");
+    //     let options = ReadOptionsBuilder::new().with_page_index().build();
+    //     let reader = SerializedFileReader::new_with_options(test_file, options).unwrap();
+    //     let metadata = reader.metadata();
+
+    //     let test_file = get_test_file("alltypes_tiny_pages_plain.parquet");
+    //     let columns = metadata.row_group(0).columns();
+    //     let reversed: Vec<_> = columns.iter().cloned().rev().collect();
+
+    //     let a = read_columns_indexes(&test_file, columns).unwrap();
+    //     let mut b = read_columns_indexes(&test_file, &reversed).unwrap();
+    //     b.reverse();
+    //     assert_eq!(a, b);
+
+    //     let a = read_pages_locations(&test_file, columns).unwrap();
+    //     let mut b = read_pages_locations(&test_file, &reversed).unwrap();
+    //     b.reverse();
+    //     assert_eq!(a, b);
+    // }
+
+    // #[test]
+    // fn test_page_index_reader_all_type() {
+    //     let test_file = get_test_file("alltypes_tiny_pages_plain.parquet");
+    //     let builder = ReadOptionsBuilder::new();
+    //     //enable read page index
+    //     let options = builder.with_page_index().build();
+    //     let reader_result = SerializedFileReader::new_with_options(test_file, options);
+    //     let reader = reader_result.unwrap();
+
+    //     // Test contents in Parquet metadata
+    //     let metadata = reader.metadata();
+    //     assert_eq!(metadata.num_row_groups(), 1);
+
+    //     let column_index = metadata.column_index().unwrap();
+    //     let row_group_offset_indexes = &metadata.offset_index().unwrap()[0];
+
+    //     // only one row group
+    //     assert_eq!(column_index.len(), 1);
+    //     let row_group_metadata = metadata.row_group(0);
+
+    //     //col0->id: INT32 UNCOMPRESSED DO:0 FPO:4 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 0, max: 7299, num_nulls: 0]
+    //     assert!(!&column_index[0][0].is_sorted());
+    //     let boundary_order = &column_index[0][0].get_boundary_order();
+    //     assert!(boundary_order.is_some());
+    //     matches!(boundary_order.unwrap(), BoundaryOrder::UNORDERED);
+    //     if let Index::INT32(index) = &column_index[0][0] {
+    //         check_native_page_index(
+    //             index,
+    //             325,
+    //             get_row_group_min_max_bytes(row_group_metadata, 0),
+    //             BoundaryOrder::UNORDERED,
+    //         );
+    //         assert_eq!(row_group_offset_indexes[0].len(), 325);
+    //     } else {
+    //         unreachable!()
+    //     };
+    //     //col1->bool_col:BOOLEAN UNCOMPRESSED DO:0 FPO:37329 SZ:3022/3022/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: false, max: true, num_nulls: 0]
+    //     assert!(&column_index[0][1].is_sorted());
+    //     if let Index::BOOLEAN(index) = &column_index[0][1] {
+    //         assert_eq!(index.indexes.len(), 82);
+    //         assert_eq!(row_group_offset_indexes[1].len(), 82);
+    //     } else {
+    //         unreachable!()
+    //     };
+    //     //col2->tinyint_col: INT32 UNCOMPRESSED DO:0 FPO:40351 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 0, max: 9, num_nulls: 0]
+    //     assert!(&column_index[0][2].is_sorted());
+    //     if let Index::INT32(index) = &column_index[0][2] {
+    //         check_native_page_index(
+    //             index,
+    //             325,
+    //             get_row_group_min_max_bytes(row_group_metadata, 2),
+    //             BoundaryOrder::ASCENDING,
+    //         );
+    //         assert_eq!(row_group_offset_indexes[2].len(), 325);
+    //     } else {
+    //         unreachable!()
+    //     };
+    //     //col4->smallint_col: INT32 UNCOMPRESSED DO:0 FPO:77676 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 0, max: 9, num_nulls: 0]
+    //     assert!(&column_index[0][3].is_sorted());
+    //     if let Index::INT32(index) = &column_index[0][3] {
+    //         check_native_page_index(
+    //             index,
+    //             325,
+    //             get_row_group_min_max_bytes(row_group_metadata, 3),
+    //             BoundaryOrder::ASCENDING,
+    //         );
+    //         assert_eq!(row_group_offset_indexes[3].len(), 325);
+    //     } else {
+    //         unreachable!()
+    //     };
+    //     //col5->smallint_col: INT32 UNCOMPRESSED DO:0 FPO:77676 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 0, max: 9, num_nulls: 0]
+    //     assert!(&column_index[0][4].is_sorted());
+    //     if let Index::INT32(index) = &column_index[0][4] {
+    //         check_native_page_index(
+    //             index,
+    //             325,
+    //             get_row_group_min_max_bytes(row_group_metadata, 4),
+    //             BoundaryOrder::ASCENDING,
+    //         );
+    //         assert_eq!(row_group_offset_indexes[4].len(), 325);
+    //     } else {
+    //         unreachable!()
+    //     };
+    //     //col6->bigint_col: INT64 UNCOMPRESSED DO:0 FPO:152326 SZ:71598/71598/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 0, max: 90, num_nulls: 0]
+    //     assert!(!&column_index[0][5].is_sorted());
+    //     if let Index::INT64(index) = &column_index[0][5] {
+    //         check_native_page_index(
+    //             index,
+    //             528,
+    //             get_row_group_min_max_bytes(row_group_metadata, 5),
+    //             BoundaryOrder::UNORDERED,
+    //         );
+    //         assert_eq!(row_group_offset_indexes[5].len(), 528);
+    //     } else {
+    //         unreachable!()
+    //     };
+    //     //col7->float_col: FLOAT UNCOMPRESSED DO:0 FPO:223924 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: -0.0, max: 9.9, num_nulls: 0]
+    //     assert!(&column_index[0][6].is_sorted());
+    //     if let Index::FLOAT(index) = &column_index[0][6] {
+    //         check_native_page_index(
+    //             index,
+    //             325,
+    //             get_row_group_min_max_bytes(row_group_metadata, 6),
+    //             BoundaryOrder::ASCENDING,
+    //         );
+    //         assert_eq!(row_group_offset_indexes[6].len(), 325);
+    //     } else {
+    //         unreachable!()
+    //     };
+    //     //col8->double_col: DOUBLE UNCOMPRESSED DO:0 FPO:261249 SZ:71598/71598/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: -0.0, max: 90.89999999999999, num_nulls: 0]
+    //     assert!(!&column_index[0][7].is_sorted());
+    //     if let Index::DOUBLE(index) = &column_index[0][7] {
+    //         check_native_page_index(
+    //             index,
+    //             528,
+    //             get_row_group_min_max_bytes(row_group_metadata, 7),
+    //             BoundaryOrder::UNORDERED,
+    //         );
+    //         assert_eq!(row_group_offset_indexes[7].len(), 528);
+    //     } else {
+    //         unreachable!()
+    //     };
+    //     //col9->date_string_col: BINARY UNCOMPRESSED DO:0 FPO:332847 SZ:111948/111948/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 01/01/09, max: 12/31/10, num_nulls: 0]
+    //     assert!(!&column_index[0][8].is_sorted());
+    //     if let Index::BYTE_ARRAY(index) = &column_index[0][8] {
+    //         check_native_page_index(
+    //             index,
+    //             974,
+    //             get_row_group_min_max_bytes(row_group_metadata, 8),
+    //             BoundaryOrder::UNORDERED,
+    //         );
+    //         assert_eq!(row_group_offset_indexes[8].len(), 974);
+    //     } else {
+    //         unreachable!()
+    //     };
+    //     //col10->string_col: BINARY UNCOMPRESSED DO:0 FPO:444795 SZ:45298/45298/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 0, max: 9, num_nulls: 0]
+    //     assert!(&column_index[0][9].is_sorted());
+    //     if let Index::BYTE_ARRAY(index) = &column_index[0][9] {
+    //         check_native_page_index(
+    //             index,
+    //             352,
+    //             get_row_group_min_max_bytes(row_group_metadata, 9),
+    //             BoundaryOrder::ASCENDING,
+    //         );
+    //         assert_eq!(row_group_offset_indexes[9].len(), 352);
+    //     } else {
+    //         unreachable!()
+    //     };
+    //     //col11->timestamp_col: INT96 UNCOMPRESSED DO:0 FPO:490093 SZ:111948/111948/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[num_nulls: 0, min/max not defined]
+    //     //Notice: min_max values for each page for this col not exits.
+    //     assert!(!&column_index[0][10].is_sorted());
+    //     if let Index::NONE = &column_index[0][10] {
+    //         assert_eq!(row_group_offset_indexes[10].len(), 974);
+    //     } else {
+    //         unreachable!()
+    //     };
+    //     //col12->year: INT32 UNCOMPRESSED DO:0 FPO:602041 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 2009, max: 2010, num_nulls: 0]
+    //     assert!(&column_index[0][11].is_sorted());
+    //     if let Index::INT32(index) = &column_index[0][11] {
+    //         check_native_page_index(
+    //             index,
+    //             325,
+    //             get_row_group_min_max_bytes(row_group_metadata, 11),
+    //             BoundaryOrder::ASCENDING,
+    //         );
+    //         assert_eq!(row_group_offset_indexes[11].len(), 325);
+    //     } else {
+    //         unreachable!()
+    //     };
+    //     //col13->month: INT32 UNCOMPRESSED DO:0 FPO:639366 SZ:37325/37325/1.00 VC:7300 ENC:BIT_PACKED,RLE,PLAIN ST:[min: 1, max: 12, num_nulls: 0]
+    //     assert!(!&column_index[0][12].is_sorted());
+    //     if let Index::INT32(index) = &column_index[0][12] {
+    //         check_native_page_index(
+    //             index,
+    //             325,
+    //             get_row_group_min_max_bytes(row_group_metadata, 12),
+    //             BoundaryOrder::UNORDERED,
+    //         );
+    //         assert_eq!(row_group_offset_indexes[12].len(), 325);
+    //     } else {
+    //         unreachable!()
+    //     };
+    // }
+
+    // fn check_native_page_index<T: ParquetValueType>(
+    //     row_group_index: &NativeIndex<T>,
+    //     page_size: usize,
+    //     min_max: (&[u8], &[u8]),
+    //     boundary_order: BoundaryOrder,
+    // ) {
+    //     assert_eq!(row_group_index.indexes.len(), page_size);
+    //     assert_eq!(row_group_index.boundary_order, boundary_order);
+    //     row_group_index.indexes.iter().all(|x| {
+    //         x.min.as_ref().unwrap() >= &from_le_slice::<T>(min_max.0)
+    //             && x.max.as_ref().unwrap() <= &from_le_slice::<T>(min_max.1)
+    //     });
+    // }
+
+    // fn get_row_group_min_max_bytes(r: &RowGroupMetaData, col_num: usize) -> (&[u8], &[u8]) {
+    //     let statistics = r.column(col_num).statistics().unwrap();
+    //     (statistics.min_bytes(), statistics.max_bytes())
+    // }
+
+    // #[test]
+    // fn test_skip_page_with_offset_index() {
+    //     let test_file = get_test_file("alltypes_tiny_pages_plain.parquet");
+    //     let builder = ReadOptionsBuilder::new();
+    //     //enable read page index
+    //     let options = builder.with_page_index().build();
+    //     let reader_result = SerializedFileReader::new_with_options(test_file, options);
+    //     let reader = reader_result.unwrap();
+
+    //     let row_group_reader = reader.get_row_group(0).unwrap();
+
+    //     //use 'int_col', Boundary order: ASCENDING, total 325 pages.
+    //     let mut column_page_reader = row_group_reader.get_column_page_reader(4).unwrap();
+
+    //     let mut vec = vec![];
+
+    //     let mut data = ColumnData::empty(&NopBufferManager);
+    //     for i in 0..325 {
+    //         if i % 2 == 0 {
+    //             vec.push(
+    //                 column_page_reader
+    //                     .read_next_page(&mut data)
+    //                     .unwrap()
+    //                     .unwrap(),
+    //             );
+    //         } else {
+    //             column_page_reader.skip_next_page(&data).unwrap();
+    //         }
+    //     }
+    //     //check read all pages.
+    //     assert!(column_page_reader.peek_next_page(&data).unwrap().is_none());
+    //     assert!(column_page_reader
+    //         .read_next_page(&mut data)
+    //         .unwrap()
+    //         .is_none());
+
+    //     assert_eq!(vec.len(), 163);
+    // }
+
+    // #[test]
+    // fn test_skip_page_without_offset_index() {
+    //     let test_file = get_test_file("alltypes_tiny_pages_plain.parquet");
+
+    //     // use default SerializedFileReader without read offsetIndex
+    //     let reader_result = SerializedFileReader::new(test_file);
+    //     let reader = reader_result.unwrap();
+
+    //     let row_group_reader = reader.get_row_group(0).unwrap();
+
+    //     //use 'int_col', Boundary order: ASCENDING, total 325 pages.
+    //     let mut column_page_reader = row_group_reader.get_column_page_reader(4).unwrap();
+
+    //     let mut vec = vec![];
+
+    //     let mut data = ColumnData::empty(&NopBufferManager);
+    //     for i in 0..325 {
+    //         if i % 2 == 0 {
+    //             vec.push(
+    //                 column_page_reader
+    //                     .read_next_page(&mut data)
+    //                     .unwrap()
+    //                     .unwrap(),
+    //             );
+    //         } else {
+    //             column_page_reader.peek_next_page(&data).unwrap().unwrap();
+    //             column_page_reader.skip_next_page(&data).unwrap();
+    //         }
+    //     }
+    //     //check read all pages.
+    //     assert!(column_page_reader.peek_next_page(&data).unwrap().is_none());
+    //     assert!(column_page_reader
+    //         .read_next_page(&mut data)
+    //         .unwrap()
+    //         .is_none());
+
+    //     assert_eq!(vec.len(), 163);
+    // }
+
+    // #[test]
+    // fn test_peek_page_with_dictionary_page() {
+    //     let test_file = get_test_file("alltypes_tiny_pages.parquet");
+    //     let builder = ReadOptionsBuilder::new();
+    //     //enable read page index
+    //     let options = builder.with_page_index().build();
+    //     let reader_result = SerializedFileReader::new_with_options(test_file, options);
+    //     let reader = reader_result.unwrap();
+    //     let row_group_reader = reader.get_row_group(0).unwrap();
+
+    //     //use 'string_col', Boundary order: UNORDERED, total 352 data ages and 1 dictionary page.
+    //     let mut column_page_reader = row_group_reader.get_column_page_reader(9).unwrap();
+
+    //     let mut vec = vec![];
+
+    //     let mut data = ColumnData::empty(&NopBufferManager);
+    //     let meta = column_page_reader.peek_next_page(&data).unwrap().unwrap();
+    //     assert!(meta.is_dict);
+    //     let page = column_page_reader
+    //         .read_next_page(&mut data)
+    //         .unwrap()
+    //         .unwrap();
+    //     assert!(matches!(page.page_type(), basic::PageType::DICTIONARY_PAGE));
+
+    //     for i in 0..352 {
+    //         let meta = column_page_reader.peek_next_page(&data).unwrap().unwrap();
+    //         // have checked with `parquet-tools column-index   -c string_col  ./alltypes_tiny_pages.parquet`
+    //         // page meta has two scenarios(21, 20) of num_rows expect last page has 11 rows.
+    //         if i != 351 {
+    //             assert!((meta.num_rows == Some(21)) || (meta.num_rows == Some(20)));
+    //         } else {
+    //             // last page first row index is 7290, total row count is 7300
+    //             // because first row start with zero, last page row count should be 10.
+    //             assert_eq!(meta.num_rows, Some(10));
+    //         }
+    //         assert!(!meta.is_dict);
+    //         vec.push(meta);
+    //         let page = column_page_reader
+    //             .read_next_page(&mut data)
+    //             .unwrap()
+    //             .unwrap();
+    //         assert!(matches!(page.page_type(), basic::PageType::DATA_PAGE));
+    //     }
+
+    //     //check read all pages.
+    //     assert!(column_page_reader.peek_next_page(&data).unwrap().is_none());
+    //     assert!(column_page_reader
+    //         .read_next_page(&mut data)
+    //         .unwrap()
+    //         .is_none());
+
+    //     assert_eq!(vec.len(), 352);
+    // }
+
+    // #[test]
+    // fn test_peek_page_with_dictionary_page_without_offset_index() {
+    //     let test_file = get_test_file("alltypes_tiny_pages.parquet");
+
+    //     let reader_result = SerializedFileReader::new(test_file);
+    //     let reader = reader_result.unwrap();
+    //     let row_group_reader = reader.get_row_group(0).unwrap();
+
+    //     //use 'string_col', Boundary order: UNORDERED, total 352 data ages and 1 dictionary page.
+    //     let mut column_page_reader = row_group_reader.get_column_page_reader(9).unwrap();
+
+    //     let mut vec = vec![];
+
+    //     let mut data = ColumnData::empty(&NopBufferManager);
+    //     let meta = column_page_reader.peek_next_page(&data).unwrap().unwrap();
+    //     assert!(meta.is_dict);
+    //     let page = column_page_reader
+    //         .read_next_page(&mut data)
+    //         .unwrap()
+    //         .unwrap();
+    //     assert!(matches!(page.page_type(), basic::PageType::DICTIONARY_PAGE));
+
+    //     for i in 0..352 {
+    //         let meta = column_page_reader.peek_next_page(&data).unwrap().unwrap();
+    //         // have checked with `parquet-tools column-index   -c string_col  ./alltypes_tiny_pages.parquet`
+    //         // page meta has two scenarios(21, 20) of num_rows expect last page has 11 rows.
+    //         if i != 351 {
+    //             assert!((meta.num_levels == Some(21)) || (meta.num_levels == Some(20)));
+    //         } else {
+    //             // last page first row index is 7290, total row count is 7300
+    //             // because first row start with zero, last page row count should be 10.
+    //             assert_eq!(meta.num_levels, Some(10));
+    //         }
+    //         assert!(!meta.is_dict);
+    //         vec.push(meta);
+    //         let page = column_page_reader
+    //             .read_next_page(&mut data)
+    //             .unwrap()
+    //             .unwrap();
+    //         assert!(matches!(page.page_type(), basic::PageType::DATA_PAGE));
+    //     }
+
+    //     //check read all pages.
+    //     assert!(column_page_reader.peek_next_page(&data).unwrap().is_none());
+    //     assert!(column_page_reader
+    //         .read_next_page(&mut data)
+    //         .unwrap()
+    //         .is_none());
+
+    //     assert_eq!(vec.len(), 352);
+    // }
+
+    // // #[test]
+    // // fn test_fixed_length_index() {
+    // //     let message_type = "
+    // //     message test_schema {
+    // //       OPTIONAL FIXED_LEN_BYTE_ARRAY (11) value (DECIMAL(25,2));
+    // //     }
+    // //     ";
+
+    // //     let schema = parse_message_type(message_type).unwrap();
+    // //     let mut out = Vec::with_capacity(1024);
+    // //     let mut writer =
+    // //         SerializedFileWriter::new(&mut out, Arc::new(schema), Default::default()).unwrap();
+
+    // //     let mut r = writer.next_row_group().unwrap();
+    // //     let mut c = r.next_column().unwrap().unwrap();
+    // //     c.typed::<FixedLenByteArray>()
+    // //         .write_batch(
+    // //             &[vec![0; 11].into(), vec![5; 11].into(), vec![3; 11].into()],
+    // //             Some(&[1, 1, 0, 1]),
+    // //             None,
+    // //         )
+    // //         .unwrap();
+    // //     c.close().unwrap();
+    // //     r.close().unwrap();
+    // //     writer.close().unwrap();
+
+    // //     let b = Bytes::from(out);
+    // //     let options = ReadOptionsBuilder::new().with_page_index().build();
+    // //     let reader = SerializedFileReader::new_with_options(b, options).unwrap();
+    // //     let index = reader.metadata().column_index().unwrap();
+
+    // //     // 1 row group
+    // //     assert_eq!(index.len(), 1);
+    // //     let c = &index[0];
+    // //     // 1 column
+    // //     assert_eq!(c.len(), 1);
+
+    // //     match &c[0] {
+    // //         Index::FIXED_LEN_BYTE_ARRAY(v) => {
+    // //             assert_eq!(v.indexes.len(), 1);
+    // //             let page_idx = &v.indexes[0];
+    // //             assert_eq!(page_idx.null_count.unwrap(), 1);
+    // //             assert_eq!(page_idx.min.as_ref().unwrap().as_ref(), &[0; 11]);
+    // //             assert_eq!(page_idx.max.as_ref().unwrap().as_ref(), &[5; 11]);
+    // //         }
+    // //         _ => unreachable!(),
+    // //     }
+    // // }
+
+    // #[test]
+    // fn test_multi_gz() {
+    //     let file = get_test_file("concatenated_gzip_members.parquet");
+    //     let reader = SerializedFileReader::new(file).unwrap();
+    //     let row_group_reader = reader.get_row_group(0).unwrap();
+    //     match column_reader_from_row_group_reader(&row_group_reader, 0).unwrap() {
+    //         BasicColumnReader::Int64ColumnReader(mut reader) => {
+    //             let mut buffer = Vec::with_capacity(1024);
+    //             let mut def_levels = Vec::with_capacity(1024);
+    //             let (num_records, num_values, num_levels) = reader
+    //                 .read_records(1024, Some(&mut def_levels), None, &mut buffer)
+    //                 .unwrap();
+
+    //             assert_eq!(num_records, 513);
+    //             assert_eq!(num_values, 513);
+    //             assert_eq!(num_levels, 513);
+
+    //             let expected: Vec<i64> = (1..514).collect();
+    //             assert_eq!(&buffer, &expected);
+    //         }
+    //         _ => unreachable!(),
+    //     }
+    // }
 }

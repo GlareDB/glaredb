@@ -76,21 +76,21 @@ pub mod format;
 #[macro_use]
 pub mod data_type;
 
-pub use self::encodings::{decoding, encoding};
-
 #[macro_use]
 mod util;
 
 pub mod bloom_filter;
 pub mod column;
 pub mod column_reader; // TODO: Rename
-mod compression;
-mod encodings;
 pub mod file;
 pub mod reader;
 pub mod schema;
 
 pub mod thrift;
+
+mod compression;
+mod encoding;
+mod encodings;
 
 #[cfg(test)]
 pub mod testutil;

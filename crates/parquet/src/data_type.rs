@@ -26,8 +26,6 @@ use bytes::Bytes;
 use half::f16;
 
 use crate::basic::Type;
-use crate::column::page::PageWriter;
-use crate::column::writer::{ColumnWriter, GenericColumnWriter};
 use crate::errors::{general_err, ParquetResult};
 use crate::util::bit_util::FromBytes;
 
@@ -1082,24 +1080,6 @@ pub trait DataType: 'static + Send + fmt::Debug {
 
     /// Returns size in bytes for Rust representation of the physical type.
     fn get_type_size() -> usize;
-
-    fn get_column_writer<P: PageWriter>(
-        column_writer: ColumnWriter<P>,
-    ) -> Option<GenericColumnWriter<Self, P>>
-    where
-        Self: Sized;
-
-    fn get_column_writer_ref<P: PageWriter>(
-        column_writer: &ColumnWriter<P>,
-    ) -> Option<&GenericColumnWriter<Self, P>>
-    where
-        Self: Sized;
-
-    fn get_column_writer_mut<P: PageWriter>(
-        column_writer: &mut ColumnWriter<P>,
-    ) -> Option<&mut GenericColumnWriter<Self, P>>
-    where
-        Self: Sized;
 }
 
 macro_rules! impl_data_type {
@@ -1109,33 +1089,6 @@ macro_rules! impl_data_type {
 
             fn get_type_size() -> usize {
                 $size
-            }
-
-            fn get_column_writer<P: PageWriter>(
-                column_writer: ColumnWriter<P>,
-            ) -> Option<GenericColumnWriter<Self, P>> {
-                match column_writer {
-                    ColumnWriter::$writer_ident(w) => Some(w),
-                    _ => None,
-                }
-            }
-
-            fn get_column_writer_ref<P: PageWriter>(
-                column_writer: &ColumnWriter<P>,
-            ) -> Option<&GenericColumnWriter<Self, P>> {
-                match column_writer {
-                    ColumnWriter::$writer_ident(w) => Some(w),
-                    _ => None,
-                }
-            }
-
-            fn get_column_writer_mut<P: PageWriter>(
-                column_writer: &mut ColumnWriter<P>,
-            ) -> Option<&mut GenericColumnWriter<Self, P>> {
-                match column_writer {
-                    ColumnWriter::$writer_ident(w) => Some(w),
-                    _ => None,
-                }
             }
         }
     };

@@ -127,7 +127,6 @@ impl DataPageBuilder for DataPageBuilderImpl {
     fn consume(self) -> Page {
         if self.datapage_v2 {
             Page::DataPageV2 {
-                buf: Bytes::from(self.buffer),
                 num_values: self.num_values,
                 encoding: self.encoding.unwrap(),
                 num_nulls: 0, /* set to dummy value - don't need this when reading
@@ -141,7 +140,6 @@ impl DataPageBuilder for DataPageBuilderImpl {
             }
         } else {
             Page::DataPage {
-                buf: Bytes::from(self.buffer),
                 num_values: self.num_values,
                 encoding: self.encoding.unwrap(),
                 def_level_encoding: Encoding::RLE,
@@ -152,6 +150,7 @@ impl DataPageBuilder for DataPageBuilderImpl {
     }
 }
 
+// TODO: Remove
 /// A utility page reader which stores pages in memory.
 pub struct InMemoryPageReader {
     pages: VecDeque<Page>,
@@ -174,7 +173,13 @@ impl PageReader for InMemoryPageReader {
         Ok(self.pages.pop_front())
     }
 
-    fn peek_next_page(&mut self) -> ParquetResult<Option<PageMetadata>> {
+    fn peek_next_page<B>(
+        &mut self,
+        column_data: &ColumnData<B>,
+    ) -> ParquetResult<Option<PageMetadata>>
+    where
+        B: BufferManager,
+    {
         if let Some(x) = self.pages.front() {
             match x {
                 Page::DataPage { num_values, .. } => Ok(Some(PageMetadata {
@@ -202,7 +207,10 @@ impl PageReader for InMemoryPageReader {
         }
     }
 
-    fn skip_next_page(&mut self) -> ParquetResult<()> {
+    fn skip_next_page<B>(&mut self, column_data: &ColumnData<B>) -> ParquetResult<()>
+    where
+        B: BufferManager,
+    {
         let _ = self.pages.pop_front();
         Ok(())
     }

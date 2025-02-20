@@ -105,7 +105,6 @@ pub mod properties;
 pub mod reader;
 pub mod serialized_reader;
 pub mod statistics;
-pub mod writer;
 
 /// The length of the parquet footer in bytes
 pub const FOOTER_SIZE: usize = 8;

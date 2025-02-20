@@ -23,6 +23,18 @@ where
         }
     }
 
+    /// Try to create a new read buffer from the given bytes.
+    ///
+    /// Useful mostly for tests.
+    pub fn from_bytes(manager: &B, bs: impl AsRef<[u8]>) -> Result<Self> {
+        let bs = bs.as_ref();
+        let mut buffer = ByteBuffer::try_with_capacity(manager, bs.len())?;
+
+        buffer.as_slice_mut().copy_from_slice(bs);
+
+        Ok(ReadBuffer { offset: 0, buffer })
+    }
+
     pub fn reset_for_new_page(&mut self, page_size: usize) -> Result<()> {
         self.offset = 0;
         self.buffer.reserve_for_size(page_size)
@@ -67,5 +79,17 @@ where
         self.offset += std::mem::size_of::<T>();
 
         v
+    }
+
+    /// Read the next value from the buffer without incrementing the internal
+    /// read offset.
+    pub unsafe fn peek_next<T>(&self) -> T {
+        debug_assert!(self.offset + std::mem::size_of::<T>() <= self.buffer.capacity());
+
+        self.buffer
+            .as_ptr()
+            .byte_add(self.offset)
+            .cast::<T>()
+            .read_unaligned()
     }
 }
