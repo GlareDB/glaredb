@@ -4,7 +4,7 @@ use std::task::{Context, Waker};
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::sort::binary_merge::BinaryMerger;
 use crate::arrays::sort::partial_sort::PartialSortedRowCollection;

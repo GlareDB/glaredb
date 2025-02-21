@@ -2,7 +2,7 @@ use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::sort_layout::SortLayout;
-use crate::arrays::array::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::row::row_layout::RowLayout;

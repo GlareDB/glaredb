@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 
 use super::sorted_block::SortedBlock;
-use crate::arrays::array::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::batch::Batch;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::block_scan::BlockScanState;

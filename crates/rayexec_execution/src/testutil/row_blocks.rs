@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::row::block::Block;

@@ -4,8 +4,8 @@ use rayexec_error::Result;
 
 use super::aggregate_layout::AggregateLayout;
 use super::row_layout::RowLayout;
-use crate::arrays::array::buffer_manager::BufferManager;
-use crate::arrays::array::raw::{AlignedBuffer, TypedRawBuffer};
+use crate::buffer::buffer_manager::BufferManager;
+use crate::buffer::typed::{AlignedBuffer, TypedBuffer};
 
 /// Describes how we initialize fixed sized blocks.
 pub trait FixedSizedBlockInitializer: Debug {
@@ -86,7 +86,7 @@ impl FixedSizedBlockInitializer for NopInitializer {
 #[derive(Debug)]
 pub struct Block<B: BufferManager> {
     /// Raw byte data.
-    pub data: TypedRawBuffer<u8, B>,
+    pub data: TypedBuffer<u8, B>,
     /// Bytes that have been reserved for writes.
     pub reserved_bytes: usize,
 }
@@ -104,7 +104,7 @@ where
     // there is for now.
     pub fn concat(manager: &B, blocks: Vec<Self>) -> Result<Self> {
         let capacity: usize = blocks.iter().map(|block| block.reserved_bytes).sum();
-        let mut out_buf = TypedRawBuffer::try_with_capacity(manager, capacity)?;
+        let mut out_buf = TypedBuffer::try_with_capacity(manager, capacity)?;
 
         let out_slice = out_buf.as_slice_mut();
 
@@ -141,7 +141,7 @@ where
                 AlignedBuffer::try_with_capacity_and_alignment(manager, byte_capacity, align)?
                     .into_typed_raw_buffer()
             }
-            None => TypedRawBuffer::try_with_capacity(manager, byte_capacity)?,
+            None => TypedBuffer::try_with_capacity(manager, byte_capacity)?,
         };
 
         Ok(Block {
@@ -153,7 +153,7 @@ where
     /// Like `try_new`, but sets reserved bytes the provided byte capacity. This
     /// marks the block as "full".
     pub fn try_new_reserve_all(manager: &B, byte_capacity: usize) -> Result<Self> {
-        let data = TypedRawBuffer::try_with_capacity(manager, byte_capacity)?;
+        let data = TypedBuffer::try_with_capacity(manager, byte_capacity)?;
         Ok(Block {
             data,
             reserved_bytes: byte_capacity,
@@ -184,7 +184,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::NopBufferManager;
 
     #[test]
     fn concat_empty() {

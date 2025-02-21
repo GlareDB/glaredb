@@ -14,7 +14,7 @@ use super::{
     PollFinalize,
     UnaryInputStates,
 };
-use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::arrays::row::row_layout::RowLayout;

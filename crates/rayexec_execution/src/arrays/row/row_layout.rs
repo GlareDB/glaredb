@@ -5,7 +5,7 @@ use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::row_blocks::{BlockAppendState, HeapMutPtr};
-use crate::arrays::array::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -622,7 +622,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::row::block_scan::BlockScanState;
     use crate::arrays::row::row_blocks::RowBlocks;
     use crate::testutil::arrays::assert_arrays_eq;

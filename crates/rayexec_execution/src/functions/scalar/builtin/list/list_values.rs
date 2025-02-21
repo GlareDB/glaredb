@@ -96,7 +96,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::array_buffer::ListItemMetadata;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::array::physical_type::{PhysicalList, ScalarStorage};
     use crate::expr;
 

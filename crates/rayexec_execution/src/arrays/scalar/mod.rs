@@ -14,7 +14,6 @@ use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
-use super::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::compute::cast::format::{
     BoolFormatter,
@@ -49,6 +48,7 @@ use crate::arrays::datatype::{
     TimeUnit,
     TimestampTypeMeta,
 };
+use crate::buffer::buffer_manager::NopBufferManager;
 
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

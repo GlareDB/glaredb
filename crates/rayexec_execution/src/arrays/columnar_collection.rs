@@ -3,7 +3,7 @@ use std::fmt;
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::array_buffer::ArrayBuffer;
-use crate::arrays::array::buffer_manager::{BufferManager, NopBufferManager};
+use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
 use crate::arrays::array::validity::Validity;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;

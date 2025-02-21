@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use rayexec_error::Result;
 
 use super::row_layout::RowLayout;
-use crate::arrays::array::buffer_manager::{BufferManager, NopBufferManager};
+use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,

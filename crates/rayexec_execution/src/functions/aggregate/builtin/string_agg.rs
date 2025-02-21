@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
 use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId};

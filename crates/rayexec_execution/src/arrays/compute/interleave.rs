@@ -41,7 +41,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::datatype::DataType;
     use crate::testutil::arrays::assert_arrays_eq;
 

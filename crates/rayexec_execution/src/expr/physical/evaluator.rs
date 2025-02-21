@@ -1,11 +1,11 @@
 use rayexec_error::{RayexecError, Result};
 
 use super::PhysicalScalarExpression;
-use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::scalar::OwnedScalarValue;
+use crate::buffer::buffer_manager::NopBufferManager;
 
 /// Evaluate expressions on batch inputs.
 #[derive(Debug)]

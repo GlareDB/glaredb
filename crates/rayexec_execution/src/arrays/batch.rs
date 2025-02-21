@@ -3,12 +3,12 @@ use std::fmt::Debug;
 use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
-use super::array::buffer_manager::{BufferManager, NopBufferManager};
 use super::array::selection::Selection;
 use super::cache::{BufferCache, MaybeCache, NopCache};
 use super::datatype::DataType;
 use super::scalar::ScalarValue;
 use crate::arrays::array::Array;
+use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
 
 /// A batch of owned same-length arrays.
 #[derive(Debug)]

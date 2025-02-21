@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
-use crate::arrays::array::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::Array;
@@ -160,7 +160,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::array::Array;
     use crate::arrays::datatype::DataType;

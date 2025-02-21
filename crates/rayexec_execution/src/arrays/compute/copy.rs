@@ -1,7 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::array_buffer::ArrayBuffer;
-use crate::arrays::array::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{
     Addressable,
     AddressableMut,
@@ -29,6 +28,7 @@ use crate::arrays::array::physical_type::{
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::validity::Validity;
 use crate::arrays::array::Array;
+use crate::buffer::buffer_manager::BufferManager;
 
 /// Copy rows from `src` to `dest` using mapping providing (from, to) indices.
 pub fn copy_rows_array<B>(
@@ -306,7 +306,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]

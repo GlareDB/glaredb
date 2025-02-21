@@ -9,7 +9,7 @@ use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
 use super::{ExecutionStates, InputOutputStates, PollFinalize, *};
-use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::physical_type::PhysicalU64;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;

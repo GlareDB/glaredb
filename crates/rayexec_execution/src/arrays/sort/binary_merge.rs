@@ -2,7 +2,7 @@ use rayexec_error::Result;
 
 use super::sort_layout::SortLayout;
 use super::sorted_run::SortedRun;
-use crate::arrays::array::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::row_layout::RowLayout;
 
@@ -508,7 +508,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch, TestSortedRowBlock};

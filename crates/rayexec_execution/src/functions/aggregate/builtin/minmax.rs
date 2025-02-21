@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use rayexec_error::{not_implemented, Result};
 
-use crate::arrays::array::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,

@@ -12,10 +12,10 @@ use super::{
     PollFinalize,
     UnaryInputStates,
 };
-use crate::arrays::array::buffer_manager::NopBufferManager;
-use crate::arrays::array::raw::AlignedBuffer;
 use crate::arrays::batch::Batch;
 use crate::arrays::row::aggregate_layout::AggregateLayout;
+use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::typed::AlignedBuffer;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;

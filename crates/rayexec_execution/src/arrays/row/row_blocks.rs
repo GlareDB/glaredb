@@ -3,7 +3,7 @@ use rayexec_error::{RayexecError, Result};
 use super::block::{Block, FixedSizedBlockInitializer, ValidityInitializer};
 use super::block_scan::BlockScanState;
 use super::row_layout::RowLayout;
-use crate::arrays::array::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::BufferManager;
 
 /// Wrapper around a plan pointer to a heap block to also give us information
 /// about which heap block we're writing to.
@@ -356,7 +356,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::datatype::DataType;
 
     #[test]

@@ -5,7 +5,7 @@ use rayexec_error::Result;
 
 use super::evaluator::ExpressionEvaluator;
 use super::{ExpressionState, PhysicalScalarExpression};
-use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;

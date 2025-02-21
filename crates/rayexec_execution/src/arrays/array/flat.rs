@@ -1,12 +1,12 @@
 use rayexec_error::Result;
 
 use super::array_buffer::ArrayBuffer;
-use super::buffer_manager::{BufferManager, NopBufferManager};
 use super::physical_type::PhysicalType;
 use super::selection::Selection;
 use super::validity::Validity;
 use super::Array;
 use crate::arrays::array::array_buffer::ArrayBufferType;
+use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
 
 /// A view on top of normal arrays flattening some parts of the nested
 /// structure.

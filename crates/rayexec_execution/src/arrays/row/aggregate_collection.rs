@@ -7,7 +7,7 @@ use super::aggregate_layout::AggregateLayout;
 use super::block::ValidityInitializer;
 use super::row_blocks::{BlockAppendState, RowBlocks};
 use super::row_scan::RowScanState;
-use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 
 #[derive(Debug)]

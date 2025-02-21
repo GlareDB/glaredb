@@ -48,7 +48,7 @@ use super::parse::{
     UInt64Parser,
     UInt8Parser,
 };
-use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalBool,

@@ -5,13 +5,13 @@ use rayexec_proto::ProtoConv;
 
 use super::evaluator::ExpressionEvaluator;
 use super::{ExpressionState, PhysicalScalarExpression};
-use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::cast::array::cast_array;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::DataType;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;
 

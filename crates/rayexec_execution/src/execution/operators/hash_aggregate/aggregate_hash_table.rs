@@ -2,9 +2,7 @@ use std::borrow::Borrow;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
-use crate::arrays::array::raw::TypedRawBuffer;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::hash::hash_many_arrays;
@@ -13,6 +11,8 @@ use crate::arrays::row::aggregate_collection::{AggregateAppendState, AggregateCo
 use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::arrays::row::row_scan::RowScanState;
+use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::typed::TypedBuffer;
 use crate::execution::operators::util::power_of_two::{
     compute_offset_from_hash,
     inc_and_wrap_offset,
@@ -513,7 +513,7 @@ pub(crate) struct Directory {
     /// Number of non-null pointers in entries.
     num_occupied: usize,
     /// Row pointers.
-    entries: TypedRawBuffer<Entry, NopBufferManager>,
+    entries: TypedBuffer<Entry, NopBufferManager>,
 }
 
 impl Directory {
@@ -523,7 +523,7 @@ impl Directory {
     fn try_new(capacity: usize) -> Result<Self> {
         let capacity = capacity.next_power_of_two();
 
-        let mut entries = TypedRawBuffer::try_with_capacity(&NopBufferManager, capacity)?;
+        let mut entries = TypedBuffer::try_with_capacity(&NopBufferManager, capacity)?;
         // Initialize...
         entries.as_slice_mut().fill(Entry::EMPTY);
 
@@ -551,7 +551,7 @@ impl Directory {
 
         let old_entries = std::mem::replace(
             &mut self.entries,
-            TypedRawBuffer::try_with_capacity(&NopBufferManager, new_capacity)?,
+            TypedBuffer::try_with_capacity(&NopBufferManager, new_capacity)?,
         );
 
         let entries = self.entries.as_slice_mut();

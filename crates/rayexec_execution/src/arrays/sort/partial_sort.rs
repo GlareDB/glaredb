@@ -4,7 +4,7 @@ use rayexec_error::Result;
 
 use super::sort_layout::SortLayout;
 use super::sorted_block::SortedBlock;
-use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::row::block::{Block, NopInitializer, ValidityInitializer};
 use crate::arrays::row::row_blocks::{BlockAppendState, RowBlocks};

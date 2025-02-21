@@ -1,11 +1,8 @@
 pub mod array_buffer;
-pub mod buffer_manager;
 pub mod flat;
 pub mod physical_type;
 pub mod selection;
 pub mod validity;
-
-pub mod raw;
 
 use std::fmt::Debug;
 
@@ -17,7 +14,6 @@ use array_buffer::{
     ScalarBuffer,
     SharedOrOwned,
 };
-use buffer_manager::{BufferManager, NopBufferManager};
 use flat::FlattenedArray;
 use half::f16;
 use physical_type::{
@@ -44,7 +40,6 @@ use physical_type::{
     PhysicalUtf8,
     ScalarStorage,
 };
-use raw::TypedRawBuffer;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use stdutil::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};
 use validity::Validity;
@@ -56,6 +51,8 @@ use crate::arrays::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::timestamp::TimestampScalar;
 use crate::arrays::scalar::ScalarValue;
+use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
+use crate::buffer::typed::TypedBuffer;
 
 #[derive(Debug)]
 pub struct Array<B: BufferManager = NopBufferManager> {
@@ -362,7 +359,7 @@ where
                 let sel_cloned = selection.clone().into_exact_size_iter();
                 let new_len = sel_cloned.len();
 
-                let mut new_sel = TypedRawBuffer::try_with_capacity(manager, new_len)?;
+                let mut new_sel = TypedBuffer::try_with_capacity(manager, new_len)?;
                 let existing_sel = dict.selection.as_slice();
 
                 for (sel_idx, dest) in sel_cloned.zip(new_sel.as_slice_mut()) {
@@ -379,8 +376,7 @@ where
             _ => {
                 // For everything else, make array buffer a dictionary.
                 let selection = selection.into_exact_size_iter();
-                let mut buf_selection =
-                    TypedRawBuffer::try_with_capacity(manager, selection.len())?;
+                let mut buf_selection = TypedBuffer::try_with_capacity(manager, selection.len())?;
 
                 for (src, dest) in selection.zip(buf_selection.as_slice_mut()) {
                     *dest = src;

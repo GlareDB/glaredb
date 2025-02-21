@@ -2,10 +2,10 @@ use rayexec_error::Result;
 use stdutil::convert::TryAsMut;
 
 use super::array::array_buffer::{ArrayBuffer, ArrayBufferType, ScalarBuffer, StringBuffer};
-use super::array::buffer_manager::BufferManager;
 use super::array::Array;
 use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::array::validity::Validity;
+use crate::buffer::buffer_manager::BufferManager;
 
 /// Maybe cache a buffer.
 pub trait MaybeCache<B: BufferManager> {

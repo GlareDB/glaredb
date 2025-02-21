@@ -10,7 +10,7 @@ use rayexec_error::Result;
 pub use unary::*;
 
 use super::PutBuffer;
-use crate::arrays::array::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::AddressableMut;
 
 /// State for a single group's aggregate.

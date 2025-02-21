@@ -3,9 +3,7 @@ use std::sync::atomic::{self, AtomicBool, AtomicPtr};
 use rayexec_error::Result;
 
 use super::hash_table_scan::HashTableScanState;
-use crate::arrays::array::buffer_manager::NopBufferManager;
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
-use crate::arrays::array::raw::TypedRawBuffer;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -15,6 +13,8 @@ use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::row::row_collection::{RowAppendState, RowCollection};
 use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
+use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::typed::TypedBuffer;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::logical_join::JoinType;
 
@@ -483,7 +483,7 @@ impl JoinHashTable {
 /// of a chain is denoted by a null pointer.
 #[derive(Debug)]
 pub struct Directory {
-    entries: TypedRawBuffer<*mut u8, NopBufferManager>,
+    entries: TypedBuffer<*mut u8, NopBufferManager>,
 }
 
 impl Directory {
@@ -492,7 +492,7 @@ impl Directory {
 
     fn empty() -> Self {
         Directory {
-            entries: TypedRawBuffer::try_with_capacity(&NopBufferManager, 0).unwrap(),
+            entries: TypedBuffer::try_with_capacity(&NopBufferManager, 0).unwrap(),
         }
     }
 
@@ -510,7 +510,7 @@ impl Directory {
         let desired = (num_rows as f64 / Self::LOAD_FACTOR) as usize;
         let actual = usize::max(desired.next_power_of_two(), Self::MIN_SIZE);
 
-        let mut entries = TypedRawBuffer::try_with_capacity(&NopBufferManager, actual)?;
+        let mut entries = TypedBuffer::try_with_capacity(&NopBufferManager, actual)?;
         entries.as_slice_mut().fill(std::ptr::null_mut());
 
         Ok(Directory { entries })

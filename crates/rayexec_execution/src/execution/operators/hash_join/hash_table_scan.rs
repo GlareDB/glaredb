@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 
 use super::join_hash_table::JoinHashTable;
-use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
 use crate::execution::operators::materialize::column_collection::ColumnCollection;

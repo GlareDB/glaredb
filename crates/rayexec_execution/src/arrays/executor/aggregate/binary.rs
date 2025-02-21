@@ -125,7 +125,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::array::buffer_manager::{BufferManager, NopBufferManager};
+    use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
     use crate::arrays::array::physical_type::{AddressableMut, PhysicalI32};
     use crate::arrays::executor::PutBuffer;
 

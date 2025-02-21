@@ -328,7 +328,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::{DataType, ListTypeMeta};
 

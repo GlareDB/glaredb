@@ -7,7 +7,7 @@ use super::block_scan::BlockScanState;
 use super::row_blocks::{BlockAppendState, RowBlocks};
 use super::row_layout::RowLayout;
 use super::row_scan::RowScanState;
-use crate::arrays::array::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 

@@ -5,14 +5,12 @@ use std::sync::Arc;
 use rayexec_error::{RayexecError, Result};
 use stdutil::convert::TryAsMut;
 
-use super::buffer_manager::BufferManager;
 use super::physical_type::{
     BinaryViewAddressable,
     BinaryViewAddressableMut,
     StringViewAddressable,
     StringViewAddressableMut,
 };
-use super::raw::{RawBuffer, TypedRawBuffer};
 use super::validity::Validity;
 use crate::arrays::array::physical_type::{
     PhysicalBinary,
@@ -38,6 +36,9 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::datatype::DataType;
 use crate::arrays::string::{StringView, MAX_INLINE_LEN};
+use crate::buffer::buffer_manager::BufferManager;
+use crate::buffer::raw::RawBuffer;
+use crate::buffer::typed::TypedBuffer;
 
 /// Abstraction layer for holding shared or owned array data.
 ///
@@ -514,7 +515,7 @@ where
 #[derive(Debug)]
 pub struct StringBuffer<B: BufferManager> {
     pub(crate) is_utf8: bool,
-    pub(crate) metadata: SharedOrOwned<TypedRawBuffer<StringView, B>>,
+    pub(crate) metadata: SharedOrOwned<TypedBuffer<StringView, B>>,
     pub(crate) buffer: SharedOrOwned<StringViewBuffer<B>>,
 }
 
@@ -581,7 +582,7 @@ where
     where
         S: ScalarStorage,
     {
-        let metadata = TypedRawBuffer::try_with_capacity(manager, capacity)?;
+        let metadata = TypedBuffer::try_with_capacity(manager, capacity)?;
         let is_utf8 = match S::PHYSICAL_TYPE {
             PhysicalType::Utf8 => true,
             PhysicalType::Binary => false,
@@ -632,7 +633,7 @@ where
 #[derive(Debug)]
 pub struct StringViewBuffer<B: BufferManager> {
     bytes_filled: usize,
-    buffer: TypedRawBuffer<u8, B>,
+    buffer: TypedBuffer<u8, B>,
 }
 
 impl<B> StringViewBuffer<B>
@@ -640,7 +641,7 @@ where
     B: BufferManager,
 {
     pub fn with_capacity(manager: &B, capacity: usize) -> Result<Self> {
-        let buffer = TypedRawBuffer::try_with_capacity(manager, capacity)?;
+        let buffer = TypedBuffer::try_with_capacity(manager, capacity)?;
         Ok(StringViewBuffer {
             bytes_filled: 0,
             buffer,
@@ -730,7 +731,7 @@ where
 
 #[derive(Debug)]
 pub struct DictionaryBuffer<B: BufferManager> {
-    pub(crate) selection: SharedOrOwned<TypedRawBuffer<usize, B>>,
+    pub(crate) selection: SharedOrOwned<TypedBuffer<usize, B>>,
     pub(crate) child_buffer: Box<ArrayBuffer<B>>,
 }
 
@@ -770,7 +771,7 @@ pub struct ListItemMetadata {
 
 #[derive(Debug)]
 pub struct ListBuffer<B: BufferManager> {
-    pub(crate) metadata: SharedOrOwned<TypedRawBuffer<ListItemMetadata, B>>,
+    pub(crate) metadata: SharedOrOwned<TypedBuffer<ListItemMetadata, B>>,
     /// Number of "filled" entries in the child array.
     ///
     /// This differs from the child's capacity as we need to be able
@@ -789,7 +790,7 @@ where
     B: BufferManager,
 {
     fn try_new(manager: &B, inner_type: DataType, capacity: usize) -> Result<Self> {
-        let metadata = TypedRawBuffer::try_with_capacity(manager, capacity)?;
+        let metadata = TypedBuffer::try_with_capacity(manager, capacity)?;
         let child_buffer = ArrayBuffer::try_new_for_datatype(manager, &inner_type, capacity)?;
         let child_validity = Validity::new_all_valid(capacity);
 
@@ -915,7 +916,7 @@ impl<T> TryAsMut<T> for SharedOrOwned<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::array::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::NopBufferManager;
 
     #[test]
     fn string_view_buffer_push_inlined() {
