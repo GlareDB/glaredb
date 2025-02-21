@@ -1,7 +1,6 @@
 use rayexec_error::Result;
 
 use super::sorted_block::SortedBlock;
-use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::batch::Batch;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::block_scan::BlockScanState;
@@ -17,20 +16,17 @@ pub struct SortedRunScanState {
 
 /// Contains multiple blocks that have been totally sorted.
 #[derive(Debug)]
-pub struct SortedRun<B: BufferManager> {
-    pub(crate) keys: Vec<Block<B>>,
-    pub(crate) heap_keys: Vec<Block<B>>,
-    pub(crate) heap_keys_heap: Vec<Block<B>>,
-    pub(crate) data: Vec<Block<B>>,
-    pub(crate) data_heap: Vec<Block<B>>,
+pub struct SortedRun {
+    pub(crate) keys: Vec<Block>,
+    pub(crate) heap_keys: Vec<Block>,
+    pub(crate) heap_keys_heap: Vec<Block>,
+    pub(crate) data: Vec<Block>,
+    pub(crate) data_heap: Vec<Block>,
 }
 
-impl<B> SortedRun<B>
-where
-    B: BufferManager,
-{
+impl SortedRun {
     /// Create a new sorted run from a sorted block.
-    pub fn from_sorted_block(block: SortedBlock<B>) -> Self {
+    pub fn from_sorted_block(block: SortedBlock) -> Self {
         SortedRun {
             keys: vec![block.keys],
             heap_keys: vec![block.heap_keys],
@@ -56,7 +52,7 @@ where
         &self,
         state: &mut SortedRunScanState,
         data_layout: &RowLayout,
-        output: &mut Batch<B>,
+        output: &mut Batch,
     ) -> Result<usize> {
         let mut count = 0;
         let mut rem_cap = output.write_capacity()?;

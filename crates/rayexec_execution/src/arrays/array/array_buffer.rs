@@ -36,7 +36,7 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::datatype::DataType;
 use crate::arrays::string::{StringView, MAX_INLINE_LEN};
-use crate::buffer::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager};
 use crate::buffer::raw::RawBuffer;
 use crate::buffer::typed::TypedBuffer;
 
@@ -46,15 +46,12 @@ use crate::buffer::typed::TypedBuffer;
 /// another array needs to reference it (e.g. for selection), then the
 /// underlying buffers will be transitioned to shared references.
 #[derive(Debug)]
-pub struct ArrayBuffer<B: BufferManager> {
-    inner: ArrayBufferType<B>,
+pub struct ArrayBuffer {
+    inner: ArrayBufferType,
 }
 
-impl<B> ArrayBuffer<B>
-where
-    B: BufferManager,
-{
-    pub(crate) fn new(inner: impl Into<ArrayBufferType<B>>) -> Self {
+impl ArrayBuffer {
+    pub(crate) fn new(inner: impl Into<ArrayBufferType>) -> Self {
         ArrayBuffer {
             inner: inner.into(),
         }
@@ -64,7 +61,7 @@ where
     ///
     /// This will never produce a Constant or Dictionary buffer.
     pub(crate) fn try_new_for_datatype(
-        manager: &B,
+        manager: &impl AsRawBufferManager,
         datatype: &DataType,
         capacity: usize,
     ) -> Result<Self> {
@@ -144,44 +141,32 @@ where
         })
     }
 
-    pub(crate) fn into_inner(self) -> ArrayBufferType<B> {
+    pub(crate) fn into_inner(self) -> ArrayBufferType {
         self.inner
     }
 }
 
-impl<B> AsRef<ArrayBufferType<B>> for ArrayBuffer<B>
-where
-    B: BufferManager,
-{
-    fn as_ref(&self) -> &ArrayBufferType<B> {
+impl AsRef<ArrayBufferType> for ArrayBuffer {
+    fn as_ref(&self) -> &ArrayBufferType {
         &self.inner
     }
 }
 
-impl<B> AsMut<ArrayBufferType<B>> for ArrayBuffer<B>
-where
-    B: BufferManager,
-{
-    fn as_mut(&mut self) -> &mut ArrayBufferType<B> {
+impl AsMut<ArrayBufferType> for ArrayBuffer {
+    fn as_mut(&mut self) -> &mut ArrayBufferType {
         &mut self.inner
     }
 }
 
-impl<B> Deref for ArrayBuffer<B>
-where
-    B: BufferManager,
-{
-    type Target = ArrayBufferType<B>;
+impl Deref for ArrayBuffer {
+    type Target = ArrayBufferType;
 
     fn deref(&self) -> &Self::Target {
         self.as_ref()
     }
 }
 
-impl<B> DerefMut for ArrayBuffer<B>
-where
-    B: BufferManager,
-{
+impl DerefMut for ArrayBuffer {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_mut()
     }
@@ -215,18 +200,15 @@ impl fmt::Display for ArrayBufferKind {
 }
 
 #[derive(Debug)]
-pub enum ArrayBufferType<B: BufferManager> {
-    Scalar(ScalarBuffer<B>),
-    Constant(ConstantBuffer<B>),
-    String(StringBuffer<B>),
-    Dictionary(DictionaryBuffer<B>),
-    List(ListBuffer<B>),
+pub enum ArrayBufferType {
+    Scalar(ScalarBuffer),
+    Constant(ConstantBuffer),
+    String(StringBuffer),
+    Dictionary(DictionaryBuffer),
+    List(ListBuffer),
 }
 
-impl<B> ArrayBufferType<B>
-where
-    B: BufferManager,
-{
+impl ArrayBufferType {
     pub const fn kind(&self) -> ArrayBufferKind {
         match self {
             Self::Scalar(_) => ArrayBufferKind::Scalar,
@@ -253,7 +235,7 @@ where
         }
     }
 
-    pub fn get_list_buffer(&self) -> Result<&ListBuffer<B>> {
+    pub fn get_list_buffer(&self) -> Result<&ListBuffer> {
         match self {
             Self::List(b) => Ok(b),
             other => Err(RayexecError::new(format!(
@@ -263,7 +245,7 @@ where
         }
     }
 
-    pub fn get_list_buffer_mut(&mut self) -> Result<&mut ListBuffer<B>> {
+    pub fn get_list_buffer_mut(&mut self) -> Result<&mut ListBuffer> {
         match self {
             Self::List(b) => Ok(b),
             other => Err(RayexecError::new(format!(
@@ -273,7 +255,7 @@ where
         }
     }
 
-    pub fn get_scalar_buffer(&self) -> Result<&ScalarBuffer<B>> {
+    pub fn get_scalar_buffer(&self) -> Result<&ScalarBuffer> {
         match self {
             Self::Scalar(b) => Ok(b),
             other => Err(RayexecError::new(format!(
@@ -283,7 +265,7 @@ where
         }
     }
 
-    pub fn get_scalar_buffer_mut(&mut self) -> Result<&mut ScalarBuffer<B>> {
+    pub fn get_scalar_buffer_mut(&mut self) -> Result<&mut ScalarBuffer> {
         match self {
             Self::Scalar(b) => Ok(b),
             other => Err(RayexecError::new(format!(
@@ -293,7 +275,7 @@ where
         }
     }
 
-    pub fn get_string_buffer(&self) -> Result<&StringBuffer<B>> {
+    pub fn get_string_buffer(&self) -> Result<&StringBuffer> {
         match self {
             Self::String(b) => Ok(b),
             other => Err(RayexecError::new(format!(
@@ -303,7 +285,7 @@ where
         }
     }
 
-    pub fn get_string_buffer_mut(&self) -> Result<&StringBuffer<B>> {
+    pub fn get_string_buffer_mut(&self) -> Result<&StringBuffer> {
         match self {
             Self::String(b) => Ok(b),
             other => Err(RayexecError::new(format!(
@@ -354,46 +336,43 @@ where
     }
 }
 
-impl<B: BufferManager> From<ScalarBuffer<B>> for ArrayBufferType<B> {
-    fn from(value: ScalarBuffer<B>) -> Self {
+impl From<ScalarBuffer> for ArrayBufferType {
+    fn from(value: ScalarBuffer) -> Self {
         Self::Scalar(value)
     }
 }
 
-impl<B: BufferManager> From<ConstantBuffer<B>> for ArrayBufferType<B> {
-    fn from(value: ConstantBuffer<B>) -> Self {
+impl From<ConstantBuffer> for ArrayBufferType {
+    fn from(value: ConstantBuffer) -> Self {
         Self::Constant(value)
     }
 }
 
-impl<B: BufferManager> From<StringBuffer<B>> for ArrayBufferType<B> {
-    fn from(value: StringBuffer<B>) -> Self {
+impl From<StringBuffer> for ArrayBufferType {
+    fn from(value: StringBuffer) -> Self {
         Self::String(value)
     }
 }
 
-impl<B: BufferManager> From<DictionaryBuffer<B>> for ArrayBufferType<B> {
-    fn from(value: DictionaryBuffer<B>) -> Self {
+impl From<DictionaryBuffer> for ArrayBufferType {
+    fn from(value: DictionaryBuffer) -> Self {
         Self::Dictionary(value)
     }
 }
 
-impl<B: BufferManager> From<ListBuffer<B>> for ArrayBufferType<B> {
-    fn from(value: ListBuffer<B>) -> Self {
+impl From<ListBuffer> for ArrayBufferType {
+    fn from(value: ListBuffer) -> Self {
         Self::List(value)
     }
 }
 
 #[derive(Debug)]
-pub struct ScalarBuffer<B: BufferManager> {
+pub struct ScalarBuffer {
     pub(crate) physical_type: PhysicalType,
-    pub(crate) raw: SharedOrOwned<RawBuffer<B>>,
+    pub(crate) raw: SharedOrOwned<RawBuffer>,
 }
 
-impl<B> ScalarBuffer<B>
-where
-    B: BufferManager,
-{
+impl ScalarBuffer {
     pub fn try_reserve<S>(&mut self, additional: usize) -> Result<()>
     where
         S: ScalarStorage,
@@ -436,7 +415,7 @@ where
     }
 
     /// Create a new scalar buffer for storing sized primitive values.
-    fn try_new<S>(manager: &B, capacity: usize) -> Result<Self>
+    fn try_new<S>(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self>
     where
         S: ScalarStorage,
         S::StorageType: Sized,
@@ -474,16 +453,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct ConstantBuffer<B: BufferManager> {
+pub struct ConstantBuffer {
     pub(crate) row_reference: usize,
     pub(crate) len: usize,
-    pub(crate) child_buffer: Box<ArrayBuffer<B>>,
+    pub(crate) child_buffer: Box<ArrayBuffer>,
 }
 
-impl<B> ConstantBuffer<B>
-where
-    B: BufferManager,
-{
+impl ConstantBuffer {
     fn logical_len(&self) -> usize {
         self.len
     }
@@ -513,21 +489,18 @@ where
 ///
 /// The string view buffer index is always set to '0' within this buffer.
 #[derive(Debug)]
-pub struct StringBuffer<B: BufferManager> {
+pub struct StringBuffer {
     pub(crate) is_utf8: bool,
-    pub(crate) metadata: SharedOrOwned<TypedBuffer<StringView, B>>,
-    pub(crate) buffer: SharedOrOwned<StringViewBuffer<B>>,
+    pub(crate) metadata: SharedOrOwned<TypedBuffer<StringView>>,
+    pub(crate) buffer: SharedOrOwned<StringViewBuffer>,
 }
 
-impl<B> StringBuffer<B>
-where
-    B: BufferManager,
-{
+impl StringBuffer {
     pub fn try_reserve(&mut self, additional: usize) -> Result<()> {
         self.metadata.try_as_mut()?.reserve_additional(additional)
     }
 
-    pub fn try_as_string_view(&self) -> Result<StringViewAddressable<B>> {
+    pub fn try_as_string_view(&self) -> Result<StringViewAddressable> {
         let buffer = &self.buffer;
         if !self.is_utf8 {
             return Err(RayexecError::new("Cannot view raw binary as strings"));
@@ -539,7 +512,7 @@ where
         })
     }
 
-    pub fn try_as_string_view_mut(&mut self) -> Result<StringViewAddressableMut<B>> {
+    pub fn try_as_string_view_mut(&mut self) -> Result<StringViewAddressableMut> {
         let buffer = self.buffer.try_as_mut()?;
         if !self.is_utf8 {
             return Err(RayexecError::new("Cannot view raw binary as strings"));
@@ -551,7 +524,7 @@ where
         })
     }
 
-    pub fn as_binary_view(&self) -> BinaryViewAddressable<B> {
+    pub fn as_binary_view(&self) -> BinaryViewAddressable {
         // Note that we don't check if this is utf8 or not. We always allow
         // getting binary slices even when we're dealing with strings.
         BinaryViewAddressable {
@@ -560,7 +533,7 @@ where
         }
     }
 
-    pub fn try_as_binary_view_mut(&mut self) -> Result<BinaryViewAddressableMut<B>> {
+    pub fn try_as_binary_view_mut(&mut self) -> Result<BinaryViewAddressableMut> {
         let buffer = self.buffer.try_as_mut()?;
         // TODO: Probably do want this check. Currently skipping this for easier
         // row decoding between binary/utf8 data.
@@ -578,7 +551,7 @@ where
         })
     }
 
-    fn try_new<S>(manager: &B, capacity: usize) -> Result<Self>
+    fn try_new<S>(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self>
     where
         S: ScalarStorage,
     {
@@ -631,16 +604,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct StringViewBuffer<B: BufferManager> {
+pub struct StringViewBuffer {
     bytes_filled: usize,
-    buffer: TypedBuffer<u8, B>,
+    buffer: TypedBuffer<u8>,
 }
 
-impl<B> StringViewBuffer<B>
-where
-    B: BufferManager,
-{
-    pub fn with_capacity(manager: &B, capacity: usize) -> Result<Self> {
+impl StringViewBuffer {
+    pub fn with_capacity(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
         let buffer = TypedBuffer::try_with_capacity(manager, capacity)?;
         Ok(StringViewBuffer {
             bytes_filled: 0,
@@ -730,15 +700,12 @@ where
 }
 
 #[derive(Debug)]
-pub struct DictionaryBuffer<B: BufferManager> {
-    pub(crate) selection: SharedOrOwned<TypedBuffer<usize, B>>,
-    pub(crate) child_buffer: Box<ArrayBuffer<B>>,
+pub struct DictionaryBuffer {
+    pub(crate) selection: SharedOrOwned<TypedBuffer<usize>>,
+    pub(crate) child_buffer: Box<ArrayBuffer>,
 }
 
-impl<B> DictionaryBuffer<B>
-where
-    B: BufferManager,
-{
+impl DictionaryBuffer {
     fn make_shared(&mut self) {
         self.selection.make_shared();
         self.child_buffer.make_shared();
@@ -770,8 +737,8 @@ pub struct ListItemMetadata {
 }
 
 #[derive(Debug)]
-pub struct ListBuffer<B: BufferManager> {
-    pub(crate) metadata: SharedOrOwned<TypedBuffer<ListItemMetadata, B>>,
+pub struct ListBuffer {
+    pub(crate) metadata: SharedOrOwned<TypedBuffer<ListItemMetadata>>,
     /// Number of "filled" entries in the child array.
     ///
     /// This differs from the child's capacity as we need to be able
@@ -782,14 +749,15 @@ pub struct ListBuffer<B: BufferManager> {
     #[allow(dead_code)]
     pub(crate) entries: usize,
     pub(crate) child_validity: SharedOrOwned<Validity>, // TODO: Does this need to be wrapped?
-    pub(crate) child_buffer: Box<ArrayBuffer<B>>,
+    pub(crate) child_buffer: Box<ArrayBuffer>,
 }
 
-impl<B> ListBuffer<B>
-where
-    B: BufferManager,
-{
-    fn try_new(manager: &B, inner_type: DataType, capacity: usize) -> Result<Self> {
+impl ListBuffer {
+    fn try_new(
+        manager: &impl AsRawBufferManager,
+        inner_type: DataType,
+        capacity: usize,
+    ) -> Result<Self> {
         let metadata = TypedBuffer::try_with_capacity(manager, capacity)?;
         let child_buffer = ArrayBuffer::try_new_for_datatype(manager, &inner_type, capacity)?;
         let child_validity = Validity::new_all_valid(capacity);

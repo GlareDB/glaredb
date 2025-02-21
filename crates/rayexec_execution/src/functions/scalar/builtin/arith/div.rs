@@ -238,7 +238,7 @@ where
         let a = &input.arrays()[0];
         let b = &input.arrays()[1];
 
-        BinaryExecutor::execute::<S, S, S, _, _>(
+        BinaryExecutor::execute::<S, S, S, _>(
             a,
             sel,
             b,
@@ -255,8 +255,8 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::datatype::DataType;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::expr;
     use crate::functions::scalar::ScalarFunction;
     use crate::testutil::arrays::assert_arrays_eq;

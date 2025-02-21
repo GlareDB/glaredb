@@ -1,11 +1,11 @@
 use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
-use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::Array;
 use crate::arrays::executor::{OutBuffer, PutBuffer};
+use crate::buffer::buffer_manager::BufferManager;
 
 #[derive(Debug, Clone, Copy)]
 pub struct UniformExecutor;
@@ -14,17 +14,16 @@ impl UniformExecutor {
     /// Executes an operation across uniform array types.
     ///
     /// The selection applies to all arrays.
-    pub fn execute<S, O, Op, B>(
-        arrays: &[Array<B>],
+    pub fn execute<S, O, Op>(
+        arrays: &[Array],
         sel: impl IntoExactSizeIterator<Item = usize>,
-        out: OutBuffer<B>,
+        out: OutBuffer,
         mut op: Op,
     ) -> Result<()>
     where
         S: ScalarStorage,
         O: MutableScalarStorage,
-        for<'a> Op: FnMut(&[&S::StorageType], PutBuffer<O::AddressableMut<'a, B>, B>),
-        B: BufferManager,
+        for<'a> Op: FnMut(&[&S::StorageType], PutBuffer<O::AddressableMut<'a>>),
     {
         if arrays.iter().any(|arr| arr.should_flatten_for_execution()) {
             let flats = arrays
@@ -32,7 +31,7 @@ impl UniformExecutor {
                 .map(|arr| arr.flatten())
                 .collect::<Result<Vec<_>>>()?;
 
-            return Self::execute_flat::<S, O, Op, _>(&flats, sel, out, op);
+            return Self::execute_flat::<S, O, Op>(&flats, sel, out, op);
         }
 
         let inputs = arrays
@@ -83,17 +82,16 @@ impl UniformExecutor {
         Ok(())
     }
 
-    pub fn execute_flat<S, O, Op, B>(
-        arrays: &[FlattenedArray<B>],
+    pub fn execute_flat<S, O, Op>(
+        arrays: &[FlattenedArray],
         sel: impl IntoExactSizeIterator<Item = usize>,
-        out: OutBuffer<B>,
+        out: OutBuffer,
         mut op: Op,
     ) -> Result<()>
     where
         S: ScalarStorage,
         O: MutableScalarStorage,
-        for<'a> Op: FnMut(&[&S::StorageType], PutBuffer<O::AddressableMut<'a, B>, B>),
-        B: BufferManager,
+        for<'a> Op: FnMut(&[&S::StorageType], PutBuffer<O::AddressableMut<'a>>),
     {
         // TODO: length check
 
@@ -152,9 +150,9 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::array::physical_type::{PhysicalBool, PhysicalUtf8};
     use crate::arrays::datatype::DataType;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
@@ -165,7 +163,7 @@ mod tests {
 
         let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
 
-        UniformExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+        UniformExecutor::execute::<PhysicalBool, PhysicalBool, _>(
             &[a, b, c],
             0..3,
             OutBuffer::from_array(&mut out).unwrap(),
@@ -191,7 +189,7 @@ mod tests {
 
         let mut str_buf = String::new();
 
-        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
             &[a, b, c],
             0..3,
             OutBuffer::from_array(&mut out).unwrap(),
@@ -220,7 +218,7 @@ mod tests {
 
         let mut str_buf = String::new();
 
-        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
             &[a, b, c],
             0..3,
             OutBuffer::from_array(&mut out).unwrap(),
@@ -251,7 +249,7 @@ mod tests {
 
         let mut str_buf = String::new();
 
-        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
             &[a, b, c],
             0..3,
             OutBuffer::from_array(&mut out).unwrap(),
@@ -282,7 +280,7 @@ mod tests {
 
         let mut str_buf = String::new();
 
-        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
             &[a, b, c],
             0..3,
             OutBuffer::from_array(&mut out).unwrap(),
@@ -310,7 +308,7 @@ mod tests {
         let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
-        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+        UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
             &[a, b, c],
             0..3,
             OutBuffer::from_array(&mut out).unwrap(),

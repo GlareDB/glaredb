@@ -31,14 +31,11 @@ use crate::arrays::array::Array;
 use crate::buffer::buffer_manager::BufferManager;
 
 /// Copy rows from `src` to `dest` using mapping providing (from, to) indices.
-pub fn copy_rows_array<B>(
-    src: &Array<B>,
+pub fn copy_rows_array(
+    src: &Array,
     mapping: impl IntoIterator<Item = (usize, usize)>,
-    dest: &mut Array<B>,
-) -> Result<()>
-where
-    B: BufferManager,
-{
+    dest: &mut Array,
+) -> Result<()> {
     if dest.should_flatten_for_execution() {
         return Err(RayexecError::new(
             "Cannot copy to array that needs to be flattened",
@@ -83,20 +80,17 @@ where
 ///
 /// This is exposed to allow shared copy implementations between `Array`s and
 /// array-type collections like buffers in `ColumnarCollection`.
-pub(in crate::arrays) fn copy_rows_raw<B>(
+pub(in crate::arrays) fn copy_rows_raw(
     phys_type: PhysicalType,
-    src_buf: &ArrayBuffer<B>,
+    src_buf: &ArrayBuffer,
     src_validity: &Validity,
     src_sel: Option<Selection>,
     mapping: impl IntoIterator<Item = (usize, usize)>,
-    dest_buf: &mut ArrayBuffer<B>,
+    dest_buf: &mut ArrayBuffer,
     dest_validity: &mut Validity,
-) -> Result<()>
-where
-    B: BufferManager,
-{
+) -> Result<()> {
     match phys_type {
-        PhysicalType::UntypedNull => copy_rows_scalar::<PhysicalUntypedNull, B>(
+        PhysicalType::UntypedNull => copy_rows_scalar::<PhysicalUntypedNull>(
             src_buf,
             src_validity,
             src_sel,
@@ -104,7 +98,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Boolean => copy_rows_scalar::<PhysicalBool, B>(
+        PhysicalType::Boolean => copy_rows_scalar::<PhysicalBool>(
             src_buf,
             src_validity,
             src_sel,
@@ -112,7 +106,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Int8 => copy_rows_scalar::<PhysicalI8, B>(
+        PhysicalType::Int8 => copy_rows_scalar::<PhysicalI8>(
             src_buf,
             src_validity,
             src_sel,
@@ -120,7 +114,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Int16 => copy_rows_scalar::<PhysicalI16, B>(
+        PhysicalType::Int16 => copy_rows_scalar::<PhysicalI16>(
             src_buf,
             src_validity,
             src_sel,
@@ -128,7 +122,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Int32 => copy_rows_scalar::<PhysicalI32, B>(
+        PhysicalType::Int32 => copy_rows_scalar::<PhysicalI32>(
             src_buf,
             src_validity,
             src_sel,
@@ -136,7 +130,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Int64 => copy_rows_scalar::<PhysicalI64, B>(
+        PhysicalType::Int64 => copy_rows_scalar::<PhysicalI64>(
             src_buf,
             src_validity,
             src_sel,
@@ -144,7 +138,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Int128 => copy_rows_scalar::<PhysicalI128, B>(
+        PhysicalType::Int128 => copy_rows_scalar::<PhysicalI128>(
             src_buf,
             src_validity,
             src_sel,
@@ -152,7 +146,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::UInt8 => copy_rows_scalar::<PhysicalU8, B>(
+        PhysicalType::UInt8 => copy_rows_scalar::<PhysicalU8>(
             src_buf,
             src_validity,
             src_sel,
@@ -160,7 +154,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::UInt16 => copy_rows_scalar::<PhysicalU16, B>(
+        PhysicalType::UInt16 => copy_rows_scalar::<PhysicalU16>(
             src_buf,
             src_validity,
             src_sel,
@@ -168,7 +162,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::UInt32 => copy_rows_scalar::<PhysicalU32, B>(
+        PhysicalType::UInt32 => copy_rows_scalar::<PhysicalU32>(
             src_buf,
             src_validity,
             src_sel,
@@ -176,7 +170,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::UInt64 => copy_rows_scalar::<PhysicalU64, B>(
+        PhysicalType::UInt64 => copy_rows_scalar::<PhysicalU64>(
             src_buf,
             src_validity,
             src_sel,
@@ -184,7 +178,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::UInt128 => copy_rows_scalar::<PhysicalU128, B>(
+        PhysicalType::UInt128 => copy_rows_scalar::<PhysicalU128>(
             src_buf,
             src_validity,
             src_sel,
@@ -192,7 +186,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Float16 => copy_rows_scalar::<PhysicalF16, B>(
+        PhysicalType::Float16 => copy_rows_scalar::<PhysicalF16>(
             src_buf,
             src_validity,
             src_sel,
@@ -200,7 +194,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Float32 => copy_rows_scalar::<PhysicalF32, B>(
+        PhysicalType::Float32 => copy_rows_scalar::<PhysicalF32>(
             src_buf,
             src_validity,
             src_sel,
@@ -208,7 +202,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Float64 => copy_rows_scalar::<PhysicalF64, B>(
+        PhysicalType::Float64 => copy_rows_scalar::<PhysicalF64>(
             src_buf,
             src_validity,
             src_sel,
@@ -216,7 +210,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Interval => copy_rows_scalar::<PhysicalInterval, B>(
+        PhysicalType::Interval => copy_rows_scalar::<PhysicalInterval>(
             src_buf,
             src_validity,
             src_sel,
@@ -224,7 +218,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Utf8 => copy_rows_scalar::<PhysicalUtf8, B>(
+        PhysicalType::Utf8 => copy_rows_scalar::<PhysicalUtf8>(
             src_buf,
             src_validity,
             src_sel,
@@ -232,7 +226,7 @@ where
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Binary => copy_rows_scalar::<PhysicalBinary, B>(
+        PhysicalType::Binary => copy_rows_scalar::<PhysicalBinary>(
             src_buf,
             src_validity,
             src_sel,
@@ -244,16 +238,15 @@ where
     }
 }
 
-fn copy_rows_scalar<S, B>(
-    src_buf: &ArrayBuffer<B>,
+fn copy_rows_scalar<S>(
+    src_buf: &ArrayBuffer,
     src_validity: &Validity,
     src_sel: Option<Selection>,
     mapping: impl IntoIterator<Item = (usize, usize)>,
-    dest_buf: &mut ArrayBuffer<B>,
+    dest_buf: &mut ArrayBuffer,
     dest_validity: &mut Validity,
 ) -> Result<()>
 where
-    B: BufferManager,
     S: MutableScalarStorage,
 {
     let src_buf = S::get_addressable(src_buf)?;

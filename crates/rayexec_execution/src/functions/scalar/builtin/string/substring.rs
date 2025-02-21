@@ -109,7 +109,7 @@ impl ScalarFunctionImpl for SubstringFromImpl {
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _, _>(
+        BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _>(
             &input.arrays()[0],
             sel,
             &input.arrays()[1],
@@ -127,7 +127,7 @@ impl ScalarFunctionImpl for SubstringFromToImpl {
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
-        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalI64, PhysicalUtf8, _, _>(
+        TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalI64, PhysicalUtf8, _>(
             &input.arrays()[0],
             sel,
             &input.arrays()[1],

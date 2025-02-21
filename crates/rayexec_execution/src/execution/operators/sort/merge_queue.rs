@@ -4,12 +4,12 @@ use std::task::{Context, Waker};
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
 
-use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::sort::binary_merge::BinaryMerger;
 use crate::arrays::sort::partial_sort::PartialSortedRowCollection;
 use crate::arrays::sort::sort_layout::SortLayout;
 use crate::arrays::sort::sorted_run::SortedRun;
+use crate::buffer::buffer_manager::NopBufferManager;
 
 /// Result of a single merge pass.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,7 +44,7 @@ pub struct MergeQueue {
 #[derive(Debug)]
 struct MergeQueueInner {
     /// All runs we've collected and merged so far.
-    runs: VecDeque<SortedRun<NopBufferManager>>,
+    runs: VecDeque<SortedRun>,
     /// Remaining number of collections we're waiting on.
     ///
     /// If zero, all partitions completed collecting their data and have added
@@ -166,7 +166,7 @@ impl MergeQueue {
     ///
     /// If there are no sorted runs (e.g. sorting no rows), then None will be
     /// returned.
-    pub fn take_sorted_run(&self) -> Result<Option<SortedRun<NopBufferManager>>> {
+    pub fn take_sorted_run(&self) -> Result<Option<SortedRun>> {
         let mut inner = self.inner.lock();
         if !inner.is_complete() {
             return Err(RayexecError::new(

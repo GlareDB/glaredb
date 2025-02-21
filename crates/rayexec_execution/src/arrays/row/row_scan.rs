@@ -8,8 +8,8 @@ use super::block::ValidityInitializer;
 use super::block_scan::BlockScanState;
 use super::row_blocks::RowBlocks;
 use super::row_layout::RowLayout;
-use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
+use crate::buffer::buffer_manager::NopBufferManager;
 
 /// State for resumable scanning of a set of row blocks conforming to some row
 /// layout.
@@ -56,7 +56,7 @@ impl RowScanState {
         scan
     }
 
-    pub fn new_full_scan(row_blocks: &RowBlocks<NopBufferManager, ValidityInitializer>) -> Self {
+    pub fn new_full_scan(row_blocks: &RowBlocks<ValidityInitializer>) -> Self {
         let mut scan = Self::empty();
         scan.reset_for_full_scan(row_blocks);
         scan
@@ -73,10 +73,7 @@ impl RowScanState {
     }
 
     /// Resets the state for a full scan of the given set of row blocks.
-    pub(crate) fn reset_for_full_scan(
-        &mut self,
-        row_blocks: &RowBlocks<NopBufferManager, ValidityInitializer>,
-    ) {
+    pub(crate) fn reset_for_full_scan(&mut self, row_blocks: &RowBlocks<ValidityInitializer>) {
         self.reset_for_partial_scan(0..row_blocks.num_row_blocks());
     }
 
@@ -106,7 +103,7 @@ impl RowScanState {
     pub fn scan<A>(
         &mut self,
         layout: &RowLayout,
-        row_blocks: &RowBlocks<NopBufferManager, ValidityInitializer>,
+        row_blocks: &RowBlocks<ValidityInitializer>,
         outputs: &mut [A],
         count: usize,
     ) -> Result<usize>
@@ -126,7 +123,7 @@ impl RowScanState {
     pub fn scan_subset<'a, A>(
         &mut self,
         layout: &RowLayout,
-        row_blocks: &RowBlocks<NopBufferManager, ValidityInitializer>,
+        row_blocks: &RowBlocks<ValidityInitializer>,
         columns: impl IntoExactSizeIterator<Item = usize> + Clone,
         outputs: &mut [A],
         count: usize,

@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
 use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -190,10 +189,9 @@ impl AggregateState<&str, str> for StringAggState {
         Ok(())
     }
 
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = str>,
-        B: BufferManager,
+        M: AddressableMut<T = str>,
     {
         match &self.string {
             Some(s) => output.put(s),

@@ -483,7 +483,7 @@ impl JoinHashTable {
 /// of a chain is denoted by a null pointer.
 #[derive(Debug)]
 pub struct Directory {
-    entries: TypedBuffer<*mut u8, NopBufferManager>,
+    entries: TypedBuffer<*mut u8>,
 }
 
 impl Directory {

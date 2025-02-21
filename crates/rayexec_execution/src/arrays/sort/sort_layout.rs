@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 use half::f16;
 use rayexec_error::Result;
 
-use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -190,15 +189,14 @@ impl SortLayout {
         self.row_width * rows
     }
 
-    pub(crate) unsafe fn write_key_arrays<A, B>(
+    pub(crate) unsafe fn write_key_arrays<A>(
         &self,
         state: &mut BlockAppendState,
         arrays: &[A],
         num_rows: usize,
     ) -> Result<()>
     where
-        A: Borrow<Array<B>>,
-        B: BufferManager,
+        A: Borrow<Array>,
     {
         for (array_idx, array) in arrays.iter().enumerate() {
             let array = array.borrow().flatten()?;
@@ -268,81 +266,77 @@ const fn key_width_for_physical_type(phys_type: PhysicalType) -> usize {
     val_width + 1
 }
 
-unsafe fn write_key_array<B>(
+unsafe fn write_key_array(
     layout: &SortLayout,
     phys_type: PhysicalType,
     array_idx: usize,
-    array: FlattenedArray<B>,
+    array: FlattenedArray,
     row_pointers: &[*mut u8],
     num_rows: usize,
-) -> Result<()>
-where
-    B: BufferManager,
-{
+) -> Result<()> {
     match phys_type {
         PhysicalType::UntypedNull => {
-            write_scalar::<PhysicalUntypedNull, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalUntypedNull>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Boolean => {
-            write_scalar::<PhysicalBool, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalBool>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Int8 => {
-            write_scalar::<PhysicalI8, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalI8>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Int16 => {
-            write_scalar::<PhysicalI16, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalI16>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Int32 => {
-            write_scalar::<PhysicalI32, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalI32>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Int64 => {
-            write_scalar::<PhysicalI64, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalI64>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Int128 => {
-            write_scalar::<PhysicalI128, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalI128>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::UInt8 => {
-            write_scalar::<PhysicalU8, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalU8>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::UInt16 => {
-            write_scalar::<PhysicalU16, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalU16>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::UInt32 => {
-            write_scalar::<PhysicalU32, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalU32>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::UInt64 => {
-            write_scalar::<PhysicalU64, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalU64>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::UInt128 => {
-            write_scalar::<PhysicalU128, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalU128>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Float16 => {
-            write_scalar::<PhysicalF16, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalF16>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Float32 => {
-            write_scalar::<PhysicalF32, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalF32>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Float64 => {
-            write_scalar::<PhysicalF64, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalF64>(layout, array_idx, array, row_pointers, num_rows)
         }
         PhysicalType::Interval => {
-            write_scalar::<PhysicalInterval, B>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalInterval>(layout, array_idx, array, row_pointers, num_rows)
         }
         _ => unimplemented!(),
     }
 }
 
-unsafe fn write_scalar<S, B>(
+unsafe fn write_scalar<S>(
     layout: &SortLayout,
     array_idx: usize,
-    array: FlattenedArray<B>,
+    array: FlattenedArray,
     row_pointers: &[*mut u8],
     num_rows: usize,
 ) -> Result<()>
 where
     S: ScalarStorage,
     S::StorageType: ComparableEncode + Default + Copy + Sized,
-    B: BufferManager,
 {
     debug_assert_eq!(num_rows, row_pointers.len());
 

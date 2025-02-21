@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use rayexec_execution::arrays::array::buffer_manager::BufferManager;
+use rayexec_execution::buffer::buffer_manager::BufferManager;
 
 use super::decoder::ColumnValueDecoder;
 use super::{general_err, ConvertedType, Encoding};

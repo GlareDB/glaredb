@@ -48,7 +48,6 @@ use super::parse::{
     UInt64Parser,
     UInt8Parser,
 };
-use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalBool,
@@ -76,6 +75,7 @@ use crate::arrays::datatype::{DataType, TimeUnit};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::buffer::buffer_manager::NopBufferManager;
 
 /// Casts an array to another array.
 ///
@@ -287,7 +287,7 @@ where
     .expect("to be in range");
 
     let mut fail_state = behavior.new_state();
-    UnaryExecutor::execute::<D1::Storage, D2::Storage, _, _>(
+    UnaryExecutor::execute::<D1::Storage, D2::Storage, _>(
         arr,
         sel,
         OutBuffer::from_array(out)?,
@@ -365,7 +365,7 @@ where
         .ok_or_else(|| RayexecError::new(format!("Failed to cast scale {scale} to float")))?;
 
     let mut fail_state = behavior.new_state();
-    UnaryExecutor::execute::<S, D::Storage, _, _>(
+    UnaryExecutor::execute::<S, D::Storage, _>(
         arr,
         sel,
         OutBuffer::from_array(out)?,
@@ -415,7 +415,7 @@ where
         })?;
 
     let mut fail_state = behavior.new_state();
-    UnaryExecutor::execute::<D::Storage, S, _, _>(
+    UnaryExecutor::execute::<D::Storage, S, _>(
         arr,
         sel,
         OutBuffer::from_array(out)?,
@@ -472,7 +472,7 @@ where
         .expect("to be in range");
 
     let mut fail_state = behavior.new_state();
-    UnaryExecutor::execute::<S, D::Storage, _, _>(
+    UnaryExecutor::execute::<S, D::Storage, _>(
         arr,
         sel,
         OutBuffer::from_array(out)?,
@@ -563,7 +563,7 @@ where
     S2::StorageType: NumCast + Copy,
 {
     let mut fail_state = behavior.new_state();
-    UnaryExecutor::execute::<S1, S2, _, _>(arr, sel, OutBuffer::from_array(out)?, |&v, buf| {
+    UnaryExecutor::execute::<S1, S2, _>(arr, sel, OutBuffer::from_array(out)?, |&v, buf| {
         match NumCast::from(v) {
             Some(v) => buf.put(&v),
             None => {
@@ -786,7 +786,7 @@ where
     let mut fail_state = behavior.new_state();
     let mut string_buf = String::new();
 
-    UnaryExecutor::execute::<S, PhysicalUtf8, _, _>(
+    UnaryExecutor::execute::<S, PhysicalUtf8, _>(
         arr,
         sel,
         OutBuffer::from_array(out)?,
@@ -819,7 +819,7 @@ where
     S: MutableScalarStorage,
 {
     let mut fail_state = behavior.new_state();
-    UnaryExecutor::execute::<PhysicalUtf8, S, _, _>(
+    UnaryExecutor::execute::<PhysicalUtf8, S, _>(
         arr,
         sel,
         OutBuffer::from_array(out)?,

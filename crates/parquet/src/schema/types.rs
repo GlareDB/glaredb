@@ -772,13 +772,13 @@ impl AsRef<[String]> for ColumnPath {
 #[derive(Debug, PartialEq)]
 pub struct ColumnDescriptor {
     /// The "leaf" primitive type of this column
-    primitive_type: TypePtr,
+    pub primitive_type: TypePtr,
     /// The maximum definition level for this column
-    max_def_level: i16,
+    pub max_def_level: i16,
     /// The maximum repetition level for this column
-    max_rep_level: i16,
+    pub max_rep_level: i16,
     /// The path of this column. For instance, "a.b.c.d".
-    path: ColumnPath,
+    pub path: ColumnPath,
 }
 
 impl ColumnDescriptor {

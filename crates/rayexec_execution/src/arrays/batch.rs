@@ -8,15 +8,15 @@ use super::cache::{BufferCache, MaybeCache, NopCache};
 use super::datatype::DataType;
 use super::scalar::ScalarValue;
 use crate::arrays::array::Array;
-use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
+use crate::buffer::buffer_manager::NopBufferManager;
 
 /// A batch of owned same-length arrays.
 #[derive(Debug)]
-pub struct Batch<B: BufferManager = NopBufferManager> {
+pub struct Batch {
     /// Arrays making up the batch.
     ///
     /// All arrays must have the same capacity (underlying length).
-    pub(crate) arrays: Vec<Array<B>>,
+    pub(crate) arrays: Vec<Array>,
     /// Number of logical rows in the batch.
     ///
     /// Equal to or less than capacity when batch contains at least one array.
@@ -32,10 +32,9 @@ pub struct Batch<B: BufferManager = NopBufferManager> {
     ///
     /// If the batch is only ever going to reference shared arrays, then we can
     /// omit the caches.
-    pub(crate) cache: Option<BufferCache<B>>,
+    pub(crate) cache: Option<BufferCache>,
 }
 
-// TODO: <B>
 impl Batch {
     pub const fn empty() -> Self {
         Batch {
@@ -68,7 +67,7 @@ impl Batch {
             arrays.push(array)
         }
 
-        let cache = BufferCache::new(NopBufferManager, capacity, arrays.len());
+        let cache = BufferCache::new(&NopBufferManager, capacity, arrays.len());
 
         Ok(Batch {
             arrays,
@@ -351,10 +350,7 @@ impl Batch {
     }
 }
 
-impl<B> Batch<B>
-where
-    B: BufferManager,
-{
+impl Batch {
     /// Get the write capacity for this batch.
     ///
     /// Errors if we don't have a buffer cache configured for this batchs.
@@ -387,7 +383,7 @@ where
 }
 
 /// Check that two batches have the same number of arrays.
-fn check_num_arrays<B: BufferManager>(b1: &Batch<B>, b2: &Batch<B>) -> Result<()> {
+fn check_num_arrays(b1: &Batch, b2: &Batch) -> Result<()> {
     if b1.arrays.len() != b2.arrays.len() {
         return Err(RayexecError::new("Batches have different number of arrays")
             .with_field("batch1", b1.arrays.len())

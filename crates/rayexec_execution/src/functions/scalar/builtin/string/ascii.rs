@@ -66,7 +66,7 @@ impl ScalarFunctionImpl for AsciiImpl {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
-        UnaryExecutor::execute::<PhysicalUtf8, PhysicalI32, _, _>(
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalI32, _>(
             input,
             sel,
             OutBuffer::from_array(output)?,

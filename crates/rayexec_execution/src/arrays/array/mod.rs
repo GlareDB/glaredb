@@ -51,11 +51,11 @@ use crate::arrays::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::timestamp::TimestampScalar;
 use crate::arrays::scalar::ScalarValue;
-use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
+use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager, NopBufferManager};
 use crate::buffer::typed::TypedBuffer;
 
 #[derive(Debug)]
-pub struct Array<B: BufferManager = NopBufferManager> {
+pub struct Array {
     /// Data type of the array.
     pub(crate) datatype: DataType,
     /// Determines the validity at each row in the array.
@@ -63,18 +63,19 @@ pub struct Array<B: BufferManager = NopBufferManager> {
     /// This should match the logical length of the underlying data buffer.
     pub(crate) validity: Validity,
     /// Holds the underlying array data.
-    pub(crate) data: ArrayBuffer<B>,
+    pub(crate) data: ArrayBuffer,
 }
 
-impl<B> Array<B>
-where
-    B: BufferManager,
-{
+impl Array {
     /// Create a new array with the given capacity.
     ///
     /// This will take care of initalizing the data buffer depending on the
     /// datatype. All buffers will be "owned".
-    pub fn new(manager: &B, datatype: DataType, capacity: usize) -> Result<Self> {
+    pub fn new(
+        manager: &impl AsRawBufferManager,
+        datatype: DataType,
+        capacity: usize,
+    ) -> Result<Self> {
         let data = ArrayBuffer::try_new_for_datatype(manager, &datatype, capacity)?;
         let validity = Validity::new_all_valid(capacity);
 
@@ -90,7 +91,7 @@ where
     /// This will make the underlying array from other "managed", which will
     /// then be cloned into this array. No array data will be allocated for this
     /// array.
-    pub fn new_from_other(_manager: &B, other: &mut Self) -> Result<Self> {
+    pub fn new_from_other(_manager: &impl BufferManager, other: &mut Self) -> Result<Self> {
         Ok(Array {
             datatype: other.datatype.clone(),
             validity: other.validity.clone(),
@@ -102,7 +103,11 @@ where
     ///
     /// This internally creates an array of size 1 with all values pointing to
     /// that same element.
-    pub fn new_constant(manager: &B, value: &ScalarValue, len: usize) -> Result<Self> {
+    pub fn new_constant(
+        manager: &impl BufferManager,
+        value: &ScalarValue,
+        len: usize,
+    ) -> Result<Self> {
         let mut arr = Self::new(manager, value.datatype(), 1)?;
         arr.set_value(0, value)?;
 
@@ -127,7 +132,7 @@ where
 
     /// Creates a new array backed by a constant value from another array.
     pub fn new_constant_from_other(
-        manager: &B,
+        manager: &impl BufferManager,
         other: &mut Self,
         row_reference: usize,
         len: usize,
@@ -145,7 +150,11 @@ where
     ///
     /// A buffer of size 1 will be created with all values pointing to the same
     /// element.
-    pub fn new_typed_null(manager: &B, datatype: DataType, len: usize) -> Result<Self> {
+    pub fn new_typed_null(
+        manager: &impl BufferManager,
+        datatype: DataType,
+        len: usize,
+    ) -> Result<Self> {
         let data = ArrayBuffer::try_new_for_datatype(manager, &datatype, 1)?;
         let buffer = ConstantBuffer {
             row_reference: 0,
@@ -183,7 +192,7 @@ where
     pub fn clone_from_other(
         &mut self,
         other: &mut Self,
-        cache: &mut impl MaybeCache<B>,
+        cache: &mut impl MaybeCache,
     ) -> Result<()> {
         if self.datatype != other.datatype {
             return Err(
@@ -210,7 +219,7 @@ where
         other: &mut Self,
         row: usize,
         len: usize,
-        cache: &mut impl MaybeCache<B>,
+        cache: &mut impl MaybeCache,
     ) -> Result<()> {
         if self.datatype != other.datatype {
             return Err(
@@ -280,16 +289,16 @@ where
         &self.datatype
     }
 
-    pub fn data(&self) -> &ArrayBuffer<B> {
+    pub fn data(&self) -> &ArrayBuffer {
         &self.data
     }
 
-    pub fn data_mut(&mut self) -> &mut ArrayBuffer<B> {
+    pub fn data_mut(&mut self) -> &mut ArrayBuffer {
         &mut self.data
     }
 
     /// Gets a mutable reference to bothe the array buffer, and the validity.
-    pub fn data_and_validity_mut(&mut self) -> (&mut ArrayBuffer<B>, &mut Validity) {
+    pub fn data_and_validity_mut(&mut self) -> (&mut ArrayBuffer, &mut Validity) {
         (&mut self.data, &mut self.validity)
     }
 
@@ -322,7 +331,7 @@ where
         )
     }
 
-    pub fn flatten(&self) -> Result<FlattenedArray<B>> {
+    pub fn flatten(&self) -> Result<FlattenedArray> {
         FlattenedArray::from_array(self)
     }
 
@@ -331,7 +340,7 @@ where
     /// This will convert the underlying array buffer into a dictionary buffer.
     pub fn select(
         &mut self,
-        manager: &B,
+        manager: &impl AsRawBufferManager,
         selection: impl IntoExactSizeIterator<Item = usize> + Clone,
     ) -> Result<()> {
         match self.data.as_mut() {
@@ -413,10 +422,10 @@ where
     /// This will attempt to put the current array buffer in provided cache.
     pub fn select_from_other(
         &mut self,
-        manager: &B,
+        manager: &impl AsRawBufferManager,
         other: &mut Self,
         selection: impl IntoExactSizeIterator<Item = usize> + Clone,
-        cache: &mut impl MaybeCache<B>,
+        cache: &mut impl MaybeCache,
     ) -> Result<()> {
         self.clone_from_other(other, cache)?;
         self.select(manager, selection)
@@ -580,15 +589,12 @@ where
 ///
 /// The provided buffer/validity should come from a flattened array. We don't
 /// want to deal with selections here.
-fn get_value_inner<'a, B>(
+fn get_value_inner<'a>(
     datatype: &DataType,
-    buffer: &'a ArrayBuffer<B>,
+    buffer: &'a ArrayBuffer,
     validity: &Validity,
     idx: usize,
-) -> Result<ScalarValue<'a>>
-where
-    B: BufferManager,
-{
+) -> Result<ScalarValue<'a>> {
     if !validity.is_valid(idx) {
         return Ok(ScalarValue::Null);
     }
@@ -773,7 +779,7 @@ pub trait AsRefStr: AsRef<str> {}
 impl AsRefStr for &str {}
 impl AsRefStr for String {}
 
-impl<S> TryFromExactSizeIterator<S> for Array<NopBufferManager>
+impl<S> TryFromExactSizeIterator<S> for Array
 where
     S: AsRefStr,
 {
@@ -798,10 +804,10 @@ where
 
 /// From iterator implementation that creates an array from optionally valid
 /// values. Some is treated as valid, None as invalid.
-impl<V> TryFromExactSizeIterator<Option<V>> for Array<NopBufferManager>
+impl<V> TryFromExactSizeIterator<Option<V>> for Array
 where
     V: Default,
-    Array<NopBufferManager>: TryFromExactSizeIterator<V, Error = RayexecError>,
+    Array: TryFromExactSizeIterator<V, Error = RayexecError>,
 {
     type Error = RayexecError;
 

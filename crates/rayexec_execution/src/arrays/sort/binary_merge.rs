@@ -2,9 +2,9 @@ use rayexec_error::Result;
 
 use super::sort_layout::SortLayout;
 use super::sorted_run::SortedRun;
-use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::row_layout::RowLayout;
+use crate::buffer::buffer_manager::BufferManager;
 
 /// Which side we should copy a row from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,10 +33,7 @@ struct ScanState {
 }
 
 impl ScanState {
-    fn reset_for_run<B>(&mut self, key_layout: &SortLayout, run: &SortedRun<B>)
-    where
-        B: BufferManager,
-    {
+    fn reset_for_run(&mut self, key_layout: &SortLayout, run: &SortedRun) {
         self.block_idx = 0;
         self.row_idx = 0;
         self.remaining = run
@@ -91,9 +88,9 @@ where
     pub fn merge(
         &self,
         state: &mut BinaryMergeState,
-        mut left: SortedRun<B>,
-        right: SortedRun<B>,
-    ) -> Result<SortedRun<B>> {
+        mut left: SortedRun,
+        right: SortedRun,
+    ) -> Result<SortedRun> {
         state.left_scan.reset_for_run(self.key_layout, &left);
         state.right_scan.reset_for_run(self.key_layout, &right);
 
@@ -189,8 +186,8 @@ where
     /// right were exhausted.
     fn find_merge_side(
         &self,
-        left: &SortedRun<B>,
-        right: &SortedRun<B>,
+        left: &SortedRun,
+        right: &SortedRun,
         mut left_scan: ScanState,
         mut right_scan: ScanState,
         scan_sides: &mut [ScanSide],
@@ -284,14 +281,14 @@ where
 
     fn merge_keys(
         &self,
-        left: &SortedRun<B>,
-        right: &SortedRun<B>,
+        left: &SortedRun,
+        right: &SortedRun,
         left_scan: ScanState,
         right_scan: ScanState,
         scan_count: usize,
         scan_sides: &[ScanSide],
-    ) -> Result<(Block<B>, ScanState, ScanState)> {
-        fn block_fn<B: BufferManager>(sorted_run: &SortedRun<B>, block_idx: usize) -> &Block<B> {
+    ) -> Result<(Block, ScanState, ScanState)> {
+        fn block_fn(sorted_run: &SortedRun, block_idx: usize) -> &Block {
             &sorted_run.keys[block_idx]
         }
 
@@ -310,14 +307,14 @@ where
 
     fn merge_heap_keys(
         &self,
-        left: &SortedRun<B>,
-        right: &SortedRun<B>,
+        left: &SortedRun,
+        right: &SortedRun,
         left_scan: ScanState,
         right_scan: ScanState,
         scan_count: usize,
         scan_sides: &[ScanSide],
-    ) -> Result<(Block<B>, ScanState, ScanState)> {
-        fn block_fn<B: BufferManager>(sorted_run: &SortedRun<B>, block_idx: usize) -> &Block<B> {
+    ) -> Result<(Block, ScanState, ScanState)> {
+        fn block_fn(sorted_run: &SortedRun, block_idx: usize) -> &Block {
             &sorted_run.heap_keys[block_idx]
         }
 
@@ -336,14 +333,14 @@ where
 
     fn merge_data(
         &self,
-        left: &SortedRun<B>,
-        right: &SortedRun<B>,
+        left: &SortedRun,
+        right: &SortedRun,
         left_scan: ScanState,
         right_scan: ScanState,
         scan_count: usize,
         scan_sides: &[ScanSide],
-    ) -> Result<(Block<B>, ScanState, ScanState)> {
-        fn block_fn<B: BufferManager>(sorted_run: &SortedRun<B>, block_idx: usize) -> &Block<B> {
+    ) -> Result<(Block, ScanState, ScanState)> {
+        fn block_fn(sorted_run: &SortedRun, block_idx: usize) -> &Block {
             &sorted_run.data[block_idx]
         }
 
@@ -368,14 +365,14 @@ where
     fn merge_fixed_size_blocks(
         manager: &B,
         row_width: usize,
-        left: &SortedRun<B>,
-        right: &SortedRun<B>,
-        block_fn: impl Fn(&SortedRun<B>, usize) -> &Block<B>,
+        left: &SortedRun,
+        right: &SortedRun,
+        block_fn: impl Fn(&SortedRun, usize) -> &Block,
         mut left_scan: ScanState,
         mut right_scan: ScanState,
         scan_count: usize,
         scan_sides: &[ScanSide],
-    ) -> Result<(Block<B>, ScanState, ScanState)> {
+    ) -> Result<(Block, ScanState, ScanState)> {
         debug_assert!(left_scan.remaining + right_scan.remaining >= scan_sides.len());
 
         // Output is exact size for holding the merge.
@@ -466,10 +463,10 @@ where
 
     fn bulk_copy(
         row_width: usize,
-        src: &SortedRun<B>,
+        src: &SortedRun,
         mut src_scan: ScanState,
-        block_fn: impl Fn(&SortedRun<B>, usize) -> &Block<B>,
-        out: &mut Block<B>,
+        block_fn: impl Fn(&SortedRun, usize) -> &Block,
+        out: &mut Block,
         curr_count: usize,
         mut rem_rows: usize,
     ) -> Result<ScanState> {
@@ -508,9 +505,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch, TestSortedRowBlock};
 
     /// Helper that will binary merge left and right, returning the result.

@@ -1,7 +1,5 @@
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::arrays::array::buffer_manager::BufferManager;
-
-use crate::column::read_buffer::ReadBuffer;
+use rayexec_execution::buffer::read::ReadBuffer;
 
 /// All possible masks for an 8-byte wide value.
 pub const BITPACK_MASKS: [u64; 65] = compute_masks();
@@ -11,16 +9,13 @@ pub const BYTE_WIDTH: u8 = 8;
 pub const MAX_VLQ_BYTE_LEN_I64: usize = 10;
 
 #[derive(Debug)]
-pub struct BitUnpacker<'a, B: BufferManager> {
-    pub buf: &'a mut ReadBuffer<B>,
+pub struct BitUnpacker<'a> {
+    pub buf: &'a mut ReadBuffer,
     pub bit_pos: u8,
     pub bit_width: u8,
 }
 
-impl<B> BitUnpacker<'_, B>
-where
-    B: BufferManager,
-{
+impl BitUnpacker<'_> {
     pub fn unpack<T>(&mut self, values: &mut [T])
     where
         T: BitPackEncodeable,
@@ -31,14 +26,15 @@ where
 
         for idx in 0..values.len() {
             // Read value across bytes.
-            let mut v = unsafe { self.buf.peek_next::<u8>() } as u64 >> self.bit_pos & mask;
+            let mut v =
+                unsafe { self.buf.peek_next_unchecked::<u8>() } as u64 >> self.bit_pos & mask;
             self.bit_pos += self.bit_width;
 
             while self.bit_pos > BYTE_WIDTH {
                 // Move to next byte.
-                self.buf.increment_byte_offset(1);
+                unsafe { self.buf.skip_unchecked(1) };
 
-                let next = unsafe { self.buf.peek_next::<u8>() } as u64;
+                let next = unsafe { self.buf.peek_next_unchecked::<u8>() } as u64;
                 let shift = (BYTE_WIDTH - (self.bit_pos - self.bit_width)) as u64;
 
                 v |= next << shift;
@@ -55,7 +51,7 @@ where
         // Ensure we're on a byte boundary.
         if self.bit_pos != 0 {
             self.bit_pos = 0;
-            self.buf.increment_byte_offset(1);
+            unsafe { self.buf.skip_unchecked(1) };
         }
 
         let mut v = 0;
@@ -63,7 +59,7 @@ where
 
         loop {
             // TODO: Length check.
-            let b = unsafe { self.buf.read_next::<u8>() };
+            let b = unsafe { self.buf.read_next_unchecked::<u8>() };
             v |= ((b & 127) as i64) << shift;
             shift += 7;
             // TODO: Max VLQ width check.
@@ -132,7 +128,8 @@ const fn compute_masks() -> [u64; 65] {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_execution::arrays::array::buffer_manager::NopBufferManager;
+
+    use rayexec_execution::buffer::buffer_manager::NopBufferManager;
 
     use super::*;
 

@@ -7,7 +7,6 @@ use std::sync::Arc;
 use num_traits::AsPrimitive;
 use rayexec_error::{RayexecError, Result};
 
-use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
@@ -19,6 +18,7 @@ use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::executor::aggregate::{AggregateState, UnaryNonNullUpdater};
 use crate::arrays::executor::PutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::buffer::buffer_manager::BufferManager;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{
     AggregateFunctionImpl,
@@ -234,10 +234,9 @@ where
         Ok(())
     }
 
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = f64>,
-        B: BufferManager,
+        M: AddressableMut<T = f64>,
     {
         if self.count == 0 {
             output.put_null();
@@ -275,10 +274,9 @@ where
         Ok(())
     }
 
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = f64>,
-        B: BufferManager,
+        M: AddressableMut<T = f64>,
     {
         if self.count == 0 {
             output.put_null();

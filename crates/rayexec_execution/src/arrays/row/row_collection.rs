@@ -7,9 +7,9 @@ use super::block_scan::BlockScanState;
 use super::row_blocks::{BlockAppendState, RowBlocks};
 use super::row_layout::RowLayout;
 use super::row_scan::RowScanState;
-use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
+use crate::buffer::buffer_manager::NopBufferManager;
 
 /// State for appending data to the collection.
 #[derive(Debug)]
@@ -38,13 +38,13 @@ impl RowAppendState {
 #[derive(Debug)]
 pub struct RowCollection {
     layout: RowLayout,
-    blocks: RowBlocks<NopBufferManager, ValidityInitializer>,
+    blocks: RowBlocks<ValidityInitializer>,
 }
 
 impl RowCollection {
     pub fn new(layout: RowLayout, block_capacity: usize) -> Self {
         RowCollection {
-            blocks: RowBlocks::new_using_row_layout(NopBufferManager, &layout, block_capacity),
+            blocks: RowBlocks::new_using_row_layout(&NopBufferManager, &layout, block_capacity),
             layout,
         }
     }
@@ -55,11 +55,11 @@ impl RowCollection {
     }
 
     /// Gets a reference to the underlying blocks backing this row collection.
-    pub fn blocks(&self) -> &RowBlocks<NopBufferManager, ValidityInitializer> {
+    pub fn blocks(&self) -> &RowBlocks<ValidityInitializer> {
         &self.blocks
     }
 
-    pub fn blocks_mut(&mut self) -> &mut RowBlocks<NopBufferManager, ValidityInitializer> {
+    pub fn blocks_mut(&mut self) -> &mut RowBlocks<ValidityInitializer> {
         &mut self.blocks
     }
 

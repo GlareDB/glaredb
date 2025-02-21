@@ -3,24 +3,21 @@ use std::ops::{Deref, DerefMut};
 use rayexec_error::Result;
 use stdutil::marker::PhantomCovariant;
 
-use super::buffer_manager::BufferManager;
+use super::buffer_manager::{AsRawBufferManager, BufferManager};
 use super::raw::RawBuffer;
 
 /// Type alias to a raw buffer storing bytes.
-pub type ByteBuffer<B> = TypedBuffer<u8, B>;
+pub type ByteBuffer = TypedBuffer<u8>;
 
 /// Wrapper around a raw buffer that knows its type.
 #[derive(Debug)]
-pub struct TypedBuffer<T, B: BufferManager> {
+pub struct TypedBuffer<T> {
     pub(crate) _type: PhantomCovariant<T>,
-    pub(crate) raw: RawBuffer<B>,
+    pub(crate) raw: RawBuffer,
 }
 
-impl<T, B> TypedBuffer<T, B>
-where
-    B: BufferManager,
-{
-    pub fn empty(manager: &B) -> Self {
+impl<T> TypedBuffer<T> {
+    pub fn empty(manager: &impl AsRawBufferManager) -> Self {
         let raw = RawBuffer::try_with_capacity::<T>(manager, 0)
             .expect("allocating zero sized buffer to no fail");
         TypedBuffer {
@@ -30,7 +27,7 @@ where
     }
 
     /// Create a new buffer that can hold `cap` number of entries.
-    pub fn try_with_capacity(manager: &B, cap: usize) -> Result<Self> {
+    pub fn try_with_capacity(manager: &impl AsRawBufferManager, cap: usize) -> Result<Self> {
         let raw = RawBuffer::try_with_capacity::<T>(manager, cap)?;
         Ok(TypedBuffer {
             _type: PhantomCovariant::new(),
@@ -41,18 +38,20 @@ where
     /// Resizes the buffer if the current capacity is less than `size` in number
     /// of `T` elements.
     ///
-    /// Does nothing if the current capacity is sufficient.
+    /// Returns a bool indicating if the buffer did reallocate.
     ///
     /// Attempts to amortize reallocations by doubling the current capacity if
     /// sufficient.
-    pub fn reserve_for_size(&mut self, size: usize) -> Result<()> {
+    pub fn reserve_for_size(&mut self, size: usize) -> Result<bool> {
         if self.raw.typed_capacity() < size {
             let new_cap = usize::max(size, self.raw.typed_capacity() * 2);
             let additional = new_cap - self.raw.typed_capacity();
             self.reserve_additional(additional)?;
+
+            return Ok(true);
         }
 
-        Ok(())
+        Ok(false)
     }
 
     /// Resize this buffer to hold exactly `additional` number of entries.
@@ -84,19 +83,13 @@ where
     }
 }
 
-impl<T, B> AsRef<[T]> for TypedBuffer<T, B>
-where
-    B: BufferManager,
-{
+impl<T> AsRef<[T]> for TypedBuffer<T> {
     fn as_ref(&self) -> &[T] {
         self.as_slice()
     }
 }
 
-impl<T, B> AsMut<[T]> for TypedBuffer<T, B>
-where
-    B: BufferManager,
-{
+impl<T> AsMut<[T]> for TypedBuffer<T> {
     fn as_mut(&mut self) -> &mut [T] {
         self.as_slice_mut()
     }
@@ -104,13 +97,14 @@ where
 
 /// Wrapper around a typed raw buffer that has a manual alignemnt.
 #[derive(Debug)]
-pub struct AlignedBuffer<T, B: BufferManager>(TypedBuffer<T, B>);
+pub struct AlignedBuffer<T>(TypedBuffer<T>);
 
-impl<T, B> AlignedBuffer<T, B>
-where
-    B: BufferManager,
-{
-    pub fn try_with_capacity_and_alignment(manager: &B, cap: usize, align: usize) -> Result<Self> {
+impl<T> AlignedBuffer<T> {
+    pub fn try_with_capacity_and_alignment(
+        manager: &impl AsRawBufferManager,
+        cap: usize,
+        align: usize,
+    ) -> Result<Self> {
         let raw = RawBuffer::try_with_capacity_and_alignment::<T>(manager, cap, align)?;
         Ok(AlignedBuffer(TypedBuffer {
             _type: PhantomCovariant::new(),
@@ -121,44 +115,32 @@ where
     /// Gets the underlying typed buffer.
     ///
     /// The returned buffer retains the custom alignment.
-    pub fn into_typed_raw_buffer(self) -> TypedBuffer<T, B> {
+    pub fn into_typed_raw_buffer(self) -> TypedBuffer<T> {
         self.0
     }
 }
 
-impl<T, B> AsRef<TypedBuffer<T, B>> for AlignedBuffer<T, B>
-where
-    B: BufferManager,
-{
-    fn as_ref(&self) -> &TypedBuffer<T, B> {
+impl<T> AsRef<TypedBuffer<T>> for AlignedBuffer<T> {
+    fn as_ref(&self) -> &TypedBuffer<T> {
         &self.0
     }
 }
 
-impl<T, B> AsMut<TypedBuffer<T, B>> for AlignedBuffer<T, B>
-where
-    B: BufferManager,
-{
-    fn as_mut(&mut self) -> &mut TypedBuffer<T, B> {
+impl<T> AsMut<TypedBuffer<T>> for AlignedBuffer<T> {
+    fn as_mut(&mut self) -> &mut TypedBuffer<T> {
         &mut self.0
     }
 }
 
-impl<T, B> Deref for AlignedBuffer<T, B>
-where
-    B: BufferManager,
-{
-    type Target = TypedBuffer<T, B>;
+impl<T> Deref for AlignedBuffer<T> {
+    type Target = TypedBuffer<T>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<T, B> DerefMut for AlignedBuffer<T, B>
-where
-    B: BufferManager,
-{
+impl<T> DerefMut for AlignedBuffer<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

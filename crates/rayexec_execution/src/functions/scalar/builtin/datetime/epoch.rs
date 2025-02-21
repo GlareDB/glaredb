@@ -116,7 +116,7 @@ fn to_timestamp<const S: i64>(
     sel: impl IntoExactSizeIterator<Item = usize>,
     out: &mut Array,
 ) -> Result<()> {
-    UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
+    UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _>(
         input,
         sel,
         OutBuffer::from_array(out)?,

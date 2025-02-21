@@ -7,8 +7,8 @@ use super::aggregate_layout::AggregateLayout;
 use super::block::ValidityInitializer;
 use super::row_blocks::{BlockAppendState, RowBlocks};
 use super::row_scan::RowScanState;
-use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
+use crate::buffer::buffer_manager::NopBufferManager;
 
 #[derive(Debug)]
 pub struct AggregateAppendState {
@@ -31,13 +31,13 @@ pub struct AggregateCollection {
     /// Aggregate layout that all rows conform to.
     layout: AggregateLayout,
     /// Underlying row blocks storing both groups and states.
-    blocks: RowBlocks<NopBufferManager, ValidityInitializer>,
+    blocks: RowBlocks<ValidityInitializer>,
 }
 
 impl AggregateCollection {
     pub fn new(layout: AggregateLayout, block_capacity: usize) -> Self {
         let blocks = RowBlocks::new(
-            NopBufferManager,
+            &NopBufferManager,
             ValidityInitializer::from_aggregate_layout(&layout),
             layout.row_width,
             block_capacity,
@@ -70,7 +70,7 @@ impl AggregateCollection {
         self.blocks.num_row_blocks()
     }
 
-    pub(crate) fn row_blocks(&self) -> &RowBlocks<NopBufferManager, ValidityInitializer> {
+    pub(crate) fn row_blocks(&self) -> &RowBlocks<ValidityInitializer> {
         &self.blocks
     }
 

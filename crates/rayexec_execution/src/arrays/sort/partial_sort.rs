@@ -4,11 +4,11 @@ use rayexec_error::Result;
 
 use super::sort_layout::SortLayout;
 use super::sorted_block::SortedBlock;
-use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::row::block::{Block, NopInitializer, ValidityInitializer};
 use crate::arrays::row::row_blocks::{BlockAppendState, RowBlocks};
 use crate::arrays::row::row_layout::RowLayout;
+use crate::buffer::buffer_manager::NopBufferManager;
 
 #[derive(Debug)]
 pub struct SortedRowAppendState {
@@ -42,7 +42,7 @@ pub struct PartialSortedRowCollection {
     ///
     /// No block initialization is needed. This should also never allocate heap
     /// blocks.
-    key_blocks: RowBlocks<NopBufferManager, NopInitializer>,
+    key_blocks: RowBlocks<NopInitializer>,
     /// Storage for keys that require heap blocks (varlen, nested).
     ///
     /// In addition to having prefixs encoded in `key_blocks`, varlen keys are
@@ -50,17 +50,17 @@ pub struct PartialSortedRowCollection {
     ///
     /// By splitting the full encoding out, we can working fixed sized blocks
     /// when comparing keys.
-    key_heap_blocks: RowBlocks<NopBufferManager, ValidityInitializer>,
+    key_heap_blocks: RowBlocks<ValidityInitializer>,
     /// Storage for data not part of the keys.
-    data_blocks: RowBlocks<NopBufferManager, ValidityInitializer>,
+    data_blocks: RowBlocks<ValidityInitializer>,
     /// All blocks sorted so far.
-    sorted: Vec<SortedBlock<NopBufferManager>>,
+    sorted: Vec<SortedBlock>,
 }
 
 impl PartialSortedRowCollection {
     pub fn new(key_layout: SortLayout, data_layout: RowLayout, block_capacity: usize) -> Self {
         let key_blocks = RowBlocks::new(
-            NopBufferManager,
+            &NopBufferManager,
             NopInitializer,
             key_layout.row_width,
             block_capacity,
@@ -68,13 +68,13 @@ impl PartialSortedRowCollection {
         );
 
         let key_heap_blocks = RowBlocks::new_using_row_layout(
-            NopBufferManager,
+            &NopBufferManager,
             &key_layout.heap_layout,
             block_capacity,
         );
 
         let data_blocks =
-            RowBlocks::new_using_row_layout(NopBufferManager, &data_layout, block_capacity);
+            RowBlocks::new_using_row_layout(&NopBufferManager, &data_layout, block_capacity);
 
         PartialSortedRowCollection {
             key_layout,
@@ -228,7 +228,7 @@ impl PartialSortedRowCollection {
 
     /// Try sort any remaining unsorted blocks, and return all sorted blocks in
     /// the collection.
-    pub fn try_into_sorted_blocks(mut self) -> Result<Vec<SortedBlock<NopBufferManager>>> {
+    pub fn try_into_sorted_blocks(mut self) -> Result<Vec<SortedBlock>> {
         self.sort_unsorted()?;
         debug_assert_eq!(0, self.unsorted_row_count());
 

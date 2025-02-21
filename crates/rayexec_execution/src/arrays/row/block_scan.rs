@@ -45,15 +45,13 @@ impl BlockScanState {
     /// only valid to use for blocks that have created using either `RowLayout`
     /// or `SortLayout`. It's never valid to attempt to scan a heap block (as
     /// they have no fixed layout).
-    pub(crate) unsafe fn prepare_block_scan<B>(
+    pub(crate) unsafe fn prepare_block_scan(
         &mut self,
-        block: &Block<B>,
+        block: &Block,
         row_width: usize,
         selection: impl IntoIterator<Item = usize>,
         clear: bool,
-    ) where
-        B: BufferManager,
-    {
+    ) {
         if clear {
             self.row_pointers.clear();
         }

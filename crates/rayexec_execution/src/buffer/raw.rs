@@ -3,7 +3,7 @@ use std::ptr::NonNull;
 
 use rayexec_error::{RayexecError, Result, ResultExt};
 
-use super::buffer_manager::{BufferManager, Reservation};
+use super::buffer_manager::{AsRawBufferManager, BufferManager, RawBufferManager, Reservation};
 
 /// A raw buffer densely allocated on the heap.
 ///
@@ -14,9 +14,12 @@ use super::buffer_manager::{BufferManager, Reservation};
 /// for storing array data (or raw bytes). Items stored in this buffer **will
 /// not** have their `Drop` implementations called.
 #[derive(Debug)]
-pub struct RawBuffer<B: BufferManager> {
+pub struct RawBuffer {
+    pub(crate) manager: RawBufferManager,
     /// Memory reservation for this buffer.
-    pub(crate) reservation: Reservation<B>,
+    ///
+    /// Stores the size in bytes of this buffer.
+    pub(crate) reservation: Reservation,
     /// Raw pointer to start of vec.
     ///
     /// This stores the pointer as a u8 pointer and it'll be casted to the right
@@ -34,19 +37,16 @@ pub struct RawBuffer<B: BufferManager> {
     pub(crate) align: usize,
 }
 
-unsafe impl<B: BufferManager> Send for RawBuffer<B> {}
-unsafe impl<B: BufferManager> Sync for RawBuffer<B> {}
+unsafe impl Send for RawBuffer {}
+unsafe impl Sync for RawBuffer {}
 
-impl<B> RawBuffer<B>
-where
-    B: BufferManager,
-{
+impl RawBuffer {
     /// Try to create a new buffer with a given capacity for type `T`.
     ///
     /// This will allocate the underlying buffer to fit exactly `cap` elements.
     /// The block of memory may or may not be initialized. Data must be written
     /// to buffer locations prior to reading from those locations.
-    pub fn try_with_capacity<T>(manager: &B, cap: usize) -> Result<Self> {
+    pub fn try_with_capacity<T>(manager: &impl AsRawBufferManager, cap: usize) -> Result<Self> {
         let align = std::mem::align_of::<T>();
         Self::try_with_capacity_and_alignment::<T>(manager, cap, align)
     }
@@ -59,7 +59,19 @@ where
     /// - A power of 2
     /// - A multiple of the true alignment of `T`.
     pub fn try_with_capacity_and_alignment<T>(
-        manager: &B,
+        manager: &impl AsRawBufferManager,
+        cap: usize,
+        align: usize,
+    ) -> Result<Self> {
+        Self::try_with_capacity_and_alignment_inner::<T>(
+            manager.as_raw_buffer_manager(),
+            cap,
+            align,
+        )
+    }
+
+    fn try_with_capacity_and_alignment_inner<T>(
+        manager: RawBufferManager,
         cap: usize,
         align: usize,
     ) -> Result<Self> {
@@ -71,7 +83,7 @@ where
         }
 
         let size_bytes = std::mem::size_of::<T>() * cap;
-        let reservation = manager.try_reserve(size_bytes)?;
+        let reservation = unsafe { manager.call_reserve(size_bytes)? };
 
         let ptr = if size_bytes == 0 {
             // If the amount we're trying to allocate is zero, we still want a
@@ -93,6 +105,7 @@ where
         };
 
         Ok(RawBuffer {
+            manager,
             reservation,
             ptr,
             capacity: cap,
@@ -121,13 +134,13 @@ where
         debug_assert_eq!(
             0,
             if std::mem::size_of::<T>() > 0 {
-                self.reservation.size() % std::mem::size_of::<T>()
+                self.reservation.size % std::mem::size_of::<T>()
             } else {
                 0
             }
         );
         debug_assert_eq!(
-            self.reservation.size(),
+            self.reservation.size,
             self.capacity * std::mem::size_of::<T>()
         );
 
@@ -139,13 +152,13 @@ where
         debug_assert_eq!(
             0,
             if std::mem::size_of::<T>() > 0 {
-                self.reservation.size() % std::mem::size_of::<T>()
+                self.reservation.size % std::mem::size_of::<T>()
             } else {
                 0
             }
         );
         debug_assert_eq!(
-            self.reservation.size(),
+            self.reservation.size,
             self.capacity * std::mem::size_of::<T>()
         );
 
@@ -160,13 +173,13 @@ where
         debug_assert_eq!(
             0,
             if std::mem::size_of::<T>() > 0 {
-                self.reservation.size() % std::mem::size_of::<T>()
+                self.reservation.size % std::mem::size_of::<T>()
             } else {
                 0
             }
         );
         debug_assert_eq!(
-            self.reservation.size(),
+            self.reservation.size,
             self.capacity * std::mem::size_of::<T>()
         );
 
@@ -178,7 +191,11 @@ where
         if self.capacity == 0 {
             // Just replace self with a new buffer to avoid the below logic (and
             // avoid needing to special case zero-cap layouts).
-            *self = Self::try_with_capacity::<T>(self.reservation.manager(), additional)?;
+            *self = Self::try_with_capacity_and_alignment_inner::<T>(
+                self.manager,
+                additional,
+                self.align,
+            )?;
             return Ok(());
         }
 
@@ -198,7 +215,7 @@ where
         let additional_bytes = std::mem::size_of::<T>() * additional;
 
         // Reserve additional.
-        let additional_reservation = self.reservation.manager().try_reserve(additional_bytes)?;
+        let additional_reservation = unsafe { self.manager.call_reserve(additional_bytes)? };
 
         let new_ptr = if self.capacity == 0 {
             unsafe { alloc::alloc(new_layout) }
@@ -214,7 +231,7 @@ where
 
         self.capacity += additional;
         self.reservation.merge(additional_reservation);
-        debug_assert_eq!(self.reservation.size(), new_layout.size());
+        debug_assert_eq!(self.reservation.size, new_layout.size());
 
         Ok(())
     }
@@ -222,7 +239,7 @@ where
     fn current_layout(&self) -> Layout {
         // If we were able to construct this buffer, then the layout here should
         // always be valid.
-        unsafe { Layout::from_size_align_unchecked(self.reservation.size(), self.align) }
+        unsafe { Layout::from_size_align_unchecked(self.reservation.size, self.align) }
     }
 
     /// Writes all bytes in this buffer to the provided value.
@@ -241,22 +258,22 @@ where
     #[allow(unused)]
     pub fn contains_addr(&self, addr: usize) -> bool {
         let min = self.as_ptr().addr();
-        let max = min + self.reservation.size();
+        let max = min + self.reservation.size;
         addr >= min && addr < max
     }
 }
 
-impl<B> Drop for RawBuffer<B>
-where
-    B: BufferManager,
-{
+impl Drop for RawBuffer {
     fn drop(&mut self) {
-        if self.reservation.size() != 0 {
+        if self.reservation.size != 0 {
             let layout = self.current_layout();
             unsafe {
                 alloc::dealloc(self.ptr.as_ptr(), layout);
             }
         }
+        // Always call this as the buffer manager might track number of buffers
+        // even if the capacity is zero.
+        unsafe { self.manager.call_drop(&self.reservation) }
     }
 }
 
@@ -269,7 +286,7 @@ mod tests {
     fn new_drop() {
         let b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 4).unwrap();
 
-        assert_eq!(32, b.reservation.size());
+        assert_eq!(32, b.reservation.size);
 
         std::mem::drop(b);
     }
@@ -277,7 +294,7 @@ mod tests {
     #[test]
     fn new_zero_cap() {
         let b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 0).unwrap();
-        assert_eq!(0, b.reservation.size());
+        assert_eq!(0, b.reservation.size);
         assert_eq!(8, b.align);
 
         // Ensure we get empty slices.
@@ -291,7 +308,7 @@ mod tests {
         struct Zst;
 
         let b = RawBuffer::try_with_capacity::<Zst>(&NopBufferManager, 4).unwrap();
-        assert_eq!(0, b.reservation.size());
+        assert_eq!(0, b.reservation.size);
         assert_eq!(1, b.align);
 
         let s = unsafe { b.as_slice::<Zst>() };
@@ -338,7 +355,7 @@ mod tests {
         }
 
         unsafe { b.reserve::<i64>(4).unwrap() };
-        assert_eq!(64, b.reservation.size());
+        assert_eq!(64, b.reservation.size);
 
         let s = unsafe { b.as_slice_mut::<i64>() };
         assert_eq!(8, s.len());

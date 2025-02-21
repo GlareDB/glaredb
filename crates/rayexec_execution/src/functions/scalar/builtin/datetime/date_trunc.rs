@@ -182,7 +182,7 @@ impl ScalarFunctionImpl for DateTruncImpl {
             },
         };
 
-        UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _, _>(
+        UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _>(
             input,
             sel,
             OutBuffer::from_array(output)?,

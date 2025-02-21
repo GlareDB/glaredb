@@ -1,16 +1,15 @@
-pub mod buffer;
-pub mod primitive_reader;
-pub mod struct_reader;
+use std::marker::PhantomData;
 
-use buffer::ReadBuffer;
 use rayexec_error::Result;
-use rayexec_execution::arrays::array::buffer_manager::BufferManager;
-use rayexec_execution::arrays::array::raw::ByteBuffer;
+use rayexec_execution::buffer::buffer_manager::BufferManager;
+use rayexec_execution::buffer::read::ReadBuffer;
+use rayexec_execution::buffer::typed::ByteBuffer;
 
 #[derive(Debug)]
 pub struct ColumnData<B: BufferManager> {
-    pub(crate) chunk: ByteBuffer<B>,
-    pub(crate) decompressed_page: ReadBuffer<B>,
+    pub(crate) chunk: ByteBuffer,
+    pub(crate) decompressed_page: ReadBuffer,
+    _b: PhantomData<B>,
 }
 
 impl<B> ColumnData<B>
@@ -24,6 +23,7 @@ where
         ColumnData {
             chunk: ByteBuffer::empty(manager),
             decompressed_page: ReadBuffer::empty(manager),
+            _b: PhantomData,
         }
     }
 
@@ -40,20 +40,7 @@ where
         Ok(ColumnData {
             chunk,
             decompressed_page: ReadBuffer::empty(manager),
+            _b: PhantomData,
         })
     }
-}
-
-#[derive(Debug)]
-pub struct ColumnReadState<B: BufferManager> {
-    /// Buffer holding decompressed column data.
-    decompressed: ReadBuffer<B>,
-    /// Buffer holding compressed column data.
-    ///
-    /// If the parquet source does not use compression, this will be empty.
-    compressed: ReadBuffer<B>,
-    /// Remaining number of rows in the current page.
-    remaining_page_rows: usize,
-    /// Remaining number of rows in the current group.
-    remaining_group_rows: usize,
 }

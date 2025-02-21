@@ -89,7 +89,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
             1 => {
                 let input = &input.arrays()[0];
 
-                UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
                     input,
                     sel,
                     OutBuffer::from_array(output)?,
@@ -102,7 +102,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
 
                 let mut str_buf = String::new();
 
-                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _, _>(
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
                     a,
                     sel,
                     b,
@@ -119,7 +119,7 @@ impl ScalarFunctionImpl for StringConcatImpl {
             _ => {
                 let mut str_buf = String::new();
 
-                UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
                     input.arrays(),
                     sel,
                     OutBuffer::from_array(output)?,

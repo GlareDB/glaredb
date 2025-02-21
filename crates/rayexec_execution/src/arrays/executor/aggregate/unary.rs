@@ -101,9 +101,9 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
     use crate::arrays::array::physical_type::{AddressableMut, PhysicalI32, PhysicalUtf8};
     use crate::arrays::executor::PutBuffer;
+    use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
 
     #[derive(Debug, Default)]
     struct TestSumState {
@@ -121,10 +121,9 @@ mod tests {
             Ok(())
         }
 
-        fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+        fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
         where
-            M: AddressableMut<B, T = i32>,
-            B: BufferManager,
+            M: AddressableMut<T = i32>,
         {
             output.put(&self.val);
             Ok(())
@@ -259,10 +258,9 @@ mod tests {
             Ok(())
         }
 
-        fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+        fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
         where
-            M: AddressableMut<B, T = str>,
-            B: BufferManager,
+            M: AddressableMut<T = str>,
         {
             output.put(&self.val);
             Ok(())

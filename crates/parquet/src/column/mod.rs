@@ -23,7 +23,4 @@
 pub mod page;
 pub mod reader;
 
-pub(crate) mod read_buffer;
-
-mod column_data;
 mod page_reader;

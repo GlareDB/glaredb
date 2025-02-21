@@ -513,7 +513,7 @@ pub(crate) struct Directory {
     /// Number of non-null pointers in entries.
     num_occupied: usize,
     /// Row pointers.
-    entries: TypedBuffer<Entry, NopBufferManager>,
+    entries: TypedBuffer<Entry>,
 }
 
 impl Directory {

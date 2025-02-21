@@ -5,19 +5,18 @@ use super::array::array_buffer::{ArrayBuffer, ArrayBufferType, ScalarBuffer, Str
 use super::array::Array;
 use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::array::validity::Validity;
-use crate::buffer::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::{BufferManager, RawBufferManager};
 
 /// Maybe cache a buffer.
-pub trait MaybeCache<B: BufferManager> {
-    fn maybe_cache(&mut self, buffer: ArrayBuffer<B>);
+pub trait MaybeCache {
+    fn maybe_cache(&mut self, buffer: ArrayBuffer);
 }
 
-impl<M, B> MaybeCache<B> for Option<M>
+impl<M> MaybeCache for Option<M>
 where
-    M: MaybeCache<B>,
-    B: BufferManager,
+    M: MaybeCache,
 {
-    fn maybe_cache(&mut self, buffer: ArrayBuffer<B>) {
+    fn maybe_cache(&mut self, buffer: ArrayBuffer) {
         match self {
             Some(cache) => cache.maybe_cache(buffer),
             None => NopCache.maybe_cache(buffer),
@@ -29,20 +28,17 @@ where
 #[derive(Debug, Clone, Copy)]
 pub struct NopCache;
 
-impl<B> MaybeCache<B> for NopCache
-where
-    B: BufferManager,
-{
-    fn maybe_cache(&mut self, _buffer: ArrayBuffer<B>) {
+impl MaybeCache for NopCache {
+    fn maybe_cache(&mut self, _buffer: ArrayBuffer) {
         // Just drop...
     }
 }
 
 #[derive(Debug)]
-pub struct BufferCache<B: BufferManager> {
-    pub(crate) manager: B,
+pub struct BufferCache {
+    pub(crate) manager: RawBufferManager,
     /// Contains an optionally cached buffer for each array in a batch.
-    pub(crate) cached: Vec<Cached<B>>,
+    pub(crate) cached: Vec<Cached>,
     /// Capacity of all writable arrays in the batch.
     ///
     /// Newly allocated buffers for an array will use this as their initial
@@ -50,15 +46,12 @@ pub struct BufferCache<B: BufferManager> {
     pub(crate) capacity: usize,
 }
 
-impl<B> BufferCache<B>
-where
-    B: BufferManager,
-{
-    pub fn new(manager: B, capacity: usize, num_arrays: usize) -> Self {
+impl BufferCache {
+    pub fn new(manager: &impl BufferManager, capacity: usize, num_arrays: usize) -> Self {
         let cached = (0..num_arrays).map(|_| Cached::None).collect();
 
         BufferCache {
-            manager,
+            manager: RawBufferManager::from_buffer_manager(manager),
             cached,
             capacity,
         }
@@ -74,7 +67,7 @@ where
     /// new buffers if a cached one isn't available.
     ///
     /// Arrays will all be the same capacity, and all validities reset.
-    pub fn reset_arrays(&mut self, arrays: &mut [Array<B>]) -> Result<()> {
+    pub fn reset_arrays(&mut self, arrays: &mut [Array]) -> Result<()> {
         assert_eq!(arrays.len(), self.cached.len());
 
         for (cached, array) in self.cached.iter_mut().zip(arrays) {
@@ -86,9 +79,9 @@ where
 
     /// Resets a single array, allocating a new buffer if necessary.
     fn reset_array(
-        manager: &B,
-        array: &mut Array<B>,
-        cached: &mut Cached<B>,
+        manager: &RawBufferManager,
+        array: &mut Array,
+        cached: &mut Cached,
         cap: usize,
     ) -> Result<()> {
         // TODO: Possibly check ref count.
@@ -124,25 +117,19 @@ where
 
 /// Contains a possibly cached buffer for a single array.
 #[derive(Debug)]
-pub enum Cached<B: BufferManager> {
-    Scalar(ScalarBuffer<B>),
-    String(StringBuffer<B>),
+pub enum Cached {
+    Scalar(ScalarBuffer),
+    String(StringBuffer),
     None,
 }
 
-impl<B> Cached<B>
-where
-    B: BufferManager,
-{
+impl Cached {
     pub fn has_cached_buffer(&self) -> bool {
         !matches!(self, Cached::None)
     }
 }
 
-impl<B> MaybeCache<B> for Cached<B>
-where
-    B: BufferManager,
-{
+impl MaybeCache for Cached {
     /// Maybe cache the provided buffer.
     ///
     /// The buffer will be dropped if:
@@ -150,7 +137,7 @@ where
     /// - we already have a buffer in the cache.
     /// - the buffer is not a type we can cache (yet).
     /// - the buffer contains a shared component.
-    fn maybe_cache(&mut self, buffer: ArrayBuffer<B>) {
+    fn maybe_cache(&mut self, buffer: ArrayBuffer) {
         if self.has_cached_buffer() {
             // Already have buffer cached.
             return;

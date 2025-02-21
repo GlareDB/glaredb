@@ -4,15 +4,13 @@ use rayexec_error::Result;
 
 use super::aggregate_layout::AggregateLayout;
 use super::row_layout::RowLayout;
-use crate::buffer::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::AsRawBufferManager;
 use crate::buffer::typed::{AlignedBuffer, TypedBuffer};
 
 /// Describes how we initialize fixed sized blocks.
 pub trait FixedSizedBlockInitializer: Debug {
     /// Initialize a fixed-sized block.
-    fn initialize<B>(&self, block: Block<B>) -> Result<Block<B>>
-    where
-        B: BufferManager;
+    fn initialize(&self, block: Block) -> Result<Block>;
 }
 
 /// Initialize a validity bytes in a block conforming to some row layout.
@@ -53,10 +51,7 @@ impl ValidityInitializer {
 }
 
 impl FixedSizedBlockInitializer for ValidityInitializer {
-    fn initialize<B>(&self, mut block: Block<B>) -> Result<Block<B>>
-    where
-        B: BufferManager,
-    {
+    fn initialize(&self, mut block: Block) -> Result<Block> {
         let row_capacity = block.remaing_row_capacity(self.row_width);
         let buffer = block.data.as_slice_mut();
 
@@ -75,26 +70,20 @@ impl FixedSizedBlockInitializer for ValidityInitializer {
 pub struct NopInitializer;
 
 impl FixedSizedBlockInitializer for NopInitializer {
-    fn initialize<B>(&self, block: Block<B>) -> Result<Block<B>>
-    where
-        B: BufferManager,
-    {
+    fn initialize(&self, block: Block) -> Result<Block> {
         Ok(block)
     }
 }
 
 #[derive(Debug)]
-pub struct Block<B: BufferManager> {
+pub struct Block {
     /// Raw byte data.
-    pub data: TypedBuffer<u8, B>,
+    pub data: TypedBuffer<u8>,
     /// Bytes that have been reserved for writes.
     pub reserved_bytes: usize,
 }
 
-impl<B> Block<B>
-where
-    B: BufferManager,
-{
+impl Block {
     /// Concats many blocks into a single block.
     ///
     /// This will allocate a block of the exact capacity needed, and each input
@@ -102,7 +91,7 @@ where
     // TODO: Does this need to care about alignment? Probably want to keep a
     // bool on the block indicating if there's a custom alignment, and error if
     // there is for now.
-    pub fn concat(manager: &B, blocks: Vec<Self>) -> Result<Self> {
+    pub fn concat(manager: &impl AsRawBufferManager, blocks: Vec<Self>) -> Result<Self> {
         let capacity: usize = blocks.iter().map(|block| block.reserved_bytes).sum();
         let mut out_buf = TypedBuffer::try_with_capacity(manager, capacity)?;
 
@@ -132,7 +121,7 @@ where
     /// If `alignment` is provided, the buffer will be allocated with that
     /// alignment.
     pub fn try_new_reserve_none(
-        manager: &B,
+        manager: &impl AsRawBufferManager,
         byte_capacity: usize,
         alignment: Option<usize>,
     ) -> Result<Self> {
@@ -152,7 +141,10 @@ where
 
     /// Like `try_new`, but sets reserved bytes the provided byte capacity. This
     /// marks the block as "full".
-    pub fn try_new_reserve_all(manager: &B, byte_capacity: usize) -> Result<Self> {
+    pub fn try_new_reserve_all(
+        manager: &impl AsRawBufferManager,
+        byte_capacity: usize,
+    ) -> Result<Self> {
         let data = TypedBuffer::try_with_capacity(manager, byte_capacity)?;
         Ok(Block {
             data,

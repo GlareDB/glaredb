@@ -6,21 +6,17 @@ use super::selection::Selection;
 use super::validity::Validity;
 use super::Array;
 use crate::arrays::array::array_buffer::ArrayBufferType;
-use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
 
 /// A view on top of normal arrays flattening some parts of the nested
 /// structure.
 #[derive(Debug)]
-pub struct FlattenedArray<'a, B: BufferManager = NopBufferManager> {
+pub struct FlattenedArray<'a> {
     pub(crate) validity: &'a Validity,
-    pub(crate) array_buffer: &'a ArrayBuffer<B>,
+    pub(crate) array_buffer: &'a ArrayBuffer,
     pub(crate) selection: Selection<'a>,
 }
 
-impl<'a, B> FlattenedArray<'a, B>
-where
-    B: BufferManager,
-{
+impl<'a> FlattenedArray<'a> {
     /// Create a new flattend array with a linear selection.
     ///
     /// This is useful for when we have borrowed data from an array.
@@ -28,7 +24,7 @@ where
     /// The logical length of the buffer and the length of the validity must be
     /// the same.
     pub fn from_buffer_and_validity(
-        buffer: &'a ArrayBuffer<B>,
+        buffer: &'a ArrayBuffer,
         validity: &'a Validity,
     ) -> Result<Self> {
         debug_assert_eq!(buffer.logical_len(), validity.len());
@@ -57,7 +53,7 @@ where
     /// Create a flattend array from a normal array.
     ///
     /// This will pull up any selections from child buffers.
-    pub fn from_array(array: &'a Array<B>) -> Result<Self> {
+    pub fn from_array(array: &'a Array) -> Result<Self> {
         Self::from_buffer_and_validity(&array.data, &array.validity)
     }
 

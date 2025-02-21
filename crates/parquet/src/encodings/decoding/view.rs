@@ -4,9 +4,11 @@
 //! for byte arrays. Note also that none of these implement the `Decoder` trait
 //! since that's hard to work with.
 
+use std::marker::PhantomData;
+
 use bytes::Bytes;
-use rayexec_execution::arrays::array::buffer_manager::BufferManager;
 use rayexec_execution::arrays::array::physical_type::{AddressableMut, BinaryViewAddressableMut};
+use rayexec_execution::buffer::buffer_manager::BufferManager;
 
 use super::Encoding;
 use crate::encodings::rle::RleDecoder;
@@ -18,7 +20,8 @@ pub struct ViewBuffer<'a, B: BufferManager> {
     current_idx: usize,
     /// The actual buffer, should be initialized to the max length we expect to
     /// read.
-    buffer: BinaryViewAddressableMut<'a, B>,
+    buffer: BinaryViewAddressableMut<'a>,
+    _b: PhantomData<B>,
 }
 
 impl<B> ViewBuffer<'_, B>

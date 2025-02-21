@@ -3,7 +3,7 @@ use rayexec_error::{RayexecError, Result};
 use super::block::{Block, FixedSizedBlockInitializer, ValidityInitializer};
 use super::block_scan::BlockScanState;
 use super::row_layout::RowLayout;
-use crate::buffer::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 
 /// Wrapper around a plan pointer to a heap block to also give us information
 /// about which heap block we're writing to.
@@ -50,8 +50,8 @@ impl BlockAppendState {
 }
 
 #[derive(Debug)]
-pub struct RowBlocks<B: BufferManager, I: FixedSizedBlockInitializer> {
-    pub manager: B,
+pub struct RowBlocks<I: FixedSizedBlockInitializer> {
+    pub manager: RawBufferManager,
     /// Row capacity per row block. Does not impact size of heap blocks.
     pub row_capacity: usize,
     /// Size in bytes of a single row stored in a fixed-size block.
@@ -59,42 +59,42 @@ pub struct RowBlocks<B: BufferManager, I: FixedSizedBlockInitializer> {
     /// Fixed size blocks initializer.
     pub initializer: I,
     /// Blocks for encoded rows.
-    pub row_blocks: Vec<Block<B>>,
+    pub row_blocks: Vec<Block>,
     /// Blocks for varlen and nested data.
-    pub heap_blocks: Vec<Block<B>>,
+    pub heap_blocks: Vec<Block>,
     /// Optional alignment requirement for fixed size blocks.
     ///
     /// If set, blocks will be allocated aligned to some multiple of this.
     pub fixed_block_alignment: Option<usize>,
 }
 
-impl<B> RowBlocks<B, ValidityInitializer>
-where
-    B: BufferManager,
-{
-    pub fn new_using_row_layout(manager: B, row_layout: &RowLayout, row_capacity: usize) -> Self {
+impl RowBlocks<ValidityInitializer> {
+    pub fn new_using_row_layout(
+        manager: &impl AsRawBufferManager,
+        row_layout: &RowLayout,
+        row_capacity: usize,
+    ) -> Self {
         let row_width = row_layout.row_width;
         let initializer = ValidityInitializer::from_row_layout(&row_layout);
         Self::new(manager, initializer, row_width, row_capacity, None)
     }
 }
 
-impl<B, I> RowBlocks<B, I>
+impl<I> RowBlocks<I>
 where
-    B: BufferManager,
     I: FixedSizedBlockInitializer,
 {
     const MAX_HEAP_SIZE: usize = 1024 * 1024 * 1024 * 32; // 32GB
 
     pub fn new(
-        manager: B,
+        manager: &impl AsRawBufferManager,
         initializer: I,
         row_width: usize,
         row_capacity: usize,
         fixed_block_alignment: Option<usize>,
     ) -> Self {
         RowBlocks {
-            manager,
+            manager: manager.as_raw_buffer_manager(),
             row_capacity,
             row_width,
             initializer,
@@ -104,7 +104,7 @@ where
         }
     }
 
-    pub fn row_mut_ptr_iter(&self) -> RowMutPtrIter<B, I> {
+    pub fn row_mut_ptr_iter(&self) -> RowMutPtrIter<I> {
         RowMutPtrIter {
             blocks: self,
             block_idx: 0,
@@ -150,7 +150,7 @@ where
     /// capacity.
     ///
     /// This will initialize the block before returning it.
-    fn allocate_and_init_fixed_size_block(&self) -> Result<Block<B>> {
+    fn allocate_and_init_fixed_size_block(&self) -> Result<Block> {
         let buf_size = self.row_width * self.row_capacity;
         let block =
             Block::try_new_reserve_none(&self.manager, buf_size, self.fixed_block_alignment)?;
@@ -298,7 +298,7 @@ where
     /// heap_blocks).
     ///
     /// This collection can continue to be used after taking the blocks.
-    pub fn take_blocks(&mut self) -> (Vec<Block<B>>, Vec<Block<B>>) {
+    pub fn take_blocks(&mut self) -> (Vec<Block>, Vec<Block>) {
         let row_blocks = std::mem::take(&mut self.row_blocks);
         let heap_blocks = std::mem::take(&mut self.heap_blocks);
         (row_blocks, heap_blocks)
@@ -318,15 +318,14 @@ where
 /// Should only be used in tests. `RowBlocks::prepare_read` should be used
 /// outside of tests.
 #[derive(Debug)]
-pub struct RowMutPtrIter<'a, B: BufferManager, I: FixedSizedBlockInitializer> {
-    blocks: &'a RowBlocks<B, I>,
+pub struct RowMutPtrIter<'a, I: FixedSizedBlockInitializer> {
+    blocks: &'a RowBlocks<I>,
     block_idx: usize,
     row_idx: usize,
 }
 
-impl<'a, B, I> Iterator for RowMutPtrIter<'a, B, I>
+impl<'a, I> Iterator for RowMutPtrIter<'a, I>
 where
-    B: BufferManager,
     I: FixedSizedBlockInitializer,
 {
     type Item = *mut u8;
@@ -356,13 +355,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::datatype::DataType;
+    use crate::buffer::buffer_manager::NopBufferManager;
 
     #[test]
     fn prepare_append_allocate_single_row_block() {
         let layout = RowLayout::new([DataType::Int32]);
-        let mut blocks = RowBlocks::new_using_row_layout(NopBufferManager, &layout, 16);
+        let mut blocks = RowBlocks::new_using_row_layout(&NopBufferManager, &layout, 16);
 
         let mut append_state = BlockAppendState {
             row_pointers: Vec::new(),
@@ -386,7 +385,7 @@ mod tests {
     #[test]
     fn prepare_append_allocate_multiple_row_blocks() {
         let layout = RowLayout::new([DataType::Int32]);
-        let mut blocks = RowBlocks::new_using_row_layout(NopBufferManager, &layout, 16);
+        let mut blocks = RowBlocks::new_using_row_layout(&NopBufferManager, &layout, 16);
 
         let mut append_state = BlockAppendState {
             row_pointers: Vec::new(),

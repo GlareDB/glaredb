@@ -108,7 +108,7 @@ where
         let sel = input.selection();
         let input = &input.arrays()[0];
 
-        UnaryExecutor::execute::<S, PhysicalBool, _, _>(
+        UnaryExecutor::execute::<S, PhysicalBool, _>(
             input,
             sel,
             OutBuffer::from_array(output)?,

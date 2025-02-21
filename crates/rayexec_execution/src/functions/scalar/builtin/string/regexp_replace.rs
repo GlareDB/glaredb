@@ -104,7 +104,7 @@ impl ScalarFunctionImpl for RegexpReplaceImpl {
 
         match (self.pattern.as_ref(), self.replacement.as_ref()) {
             (Some(pattern), Some(replacement)) => {
-                UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
                     &input.arrays()[0],
                     sel,
                     OutBuffer::from_array(output)?,
@@ -116,7 +116,7 @@ impl ScalarFunctionImpl for RegexpReplaceImpl {
                 )
             }
             (Some(pattern), None) => {
-                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _, _>(
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
                     &input.arrays()[0],
                     sel,
                     &input.arrays()[2],
@@ -129,7 +129,7 @@ impl ScalarFunctionImpl for RegexpReplaceImpl {
                 )
             }
             (None, Some(replacement)) => {
-                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _, _>(
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
                     &input.arrays()[0],
                     sel,
                     &input.arrays()[1],
@@ -150,14 +150,7 @@ impl ScalarFunctionImpl for RegexpReplaceImpl {
                 )
             }
             (None, None) => {
-                TernaryExecutor::execute::<
-                    PhysicalUtf8,
-                    PhysicalUtf8,
-                    PhysicalUtf8,
-                    PhysicalUtf8,
-                    _,
-                    _,
-                >(
+                TernaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
                     &input.arrays()[0],
                     sel,
                     &input.arrays()[1],

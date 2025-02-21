@@ -775,7 +775,7 @@ where
         let left = &input.arrays()[0];
         let right = &input.arrays()[1];
 
-        BinaryExecutor::execute::<S, S, PhysicalBool, _, _>(
+        BinaryExecutor::execute::<S, S, PhysicalBool, _>(
             left,
             sel,
             right,

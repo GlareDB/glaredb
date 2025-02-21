@@ -91,7 +91,7 @@ impl ScalarFunctionImpl for EndsWithConstantImpl {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
-        UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _, _>(
+        UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _>(
             input,
             sel,
             OutBuffer::from_array(output)?,
@@ -112,7 +112,7 @@ impl ScalarFunctionImpl for EndsWithImpl {
         let strings = &input.arrays()[0];
         let suffix = &input.arrays()[1];
 
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _, _>(
+        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
             strings,
             sel,
             suffix,

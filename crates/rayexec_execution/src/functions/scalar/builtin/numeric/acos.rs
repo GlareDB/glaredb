@@ -26,7 +26,7 @@ impl UnaryInputNumericOperation for AcosOp {
         S: MutableScalarStorage,
         S::StorageType: Float,
     {
-        UnaryExecutor::execute::<S, S, _, _>(
+        UnaryExecutor::execute::<S, S, _>(
             input,
             selection,
             OutBuffer::from_array(output)?,

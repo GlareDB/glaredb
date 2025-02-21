@@ -4,7 +4,6 @@ use std::ops::AddAssign;
 use num_traits::CheckedAdd;
 use rayexec_error::Result;
 
-use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64, PhysicalI128, PhysicalI64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
@@ -130,10 +129,9 @@ where
         Ok(())
     }
 
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = T>,
-        B: BufferManager,
+        M: AddressableMut<T = T>,
     {
         if self.valid {
             output.put(&self.sum);
@@ -166,10 +164,9 @@ where
         Ok(())
     }
 
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = T>,
-        B: BufferManager,
+        M: AddressableMut<T = T>,
     {
         if self.valid {
             output.put(&self.sum);

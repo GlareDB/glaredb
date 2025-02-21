@@ -82,7 +82,7 @@ impl ScalarFunctionImpl for AndImpl {
             }
             1 => {
                 let input = &input.arrays()[0];
-                UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _>(
                     input,
                     sel,
                     OutBuffer::from_array(output)?,
@@ -93,7 +93,7 @@ impl ScalarFunctionImpl for AndImpl {
                 let a = &input.arrays()[0];
                 let b = &input.arrays()[1];
 
-                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _, _>(
+                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _>(
                     a,
                     sel,
                     b,
@@ -102,7 +102,7 @@ impl ScalarFunctionImpl for AndImpl {
                     |&a, &b, buf| buf.put(&(a && b)),
                 )?;
             }
-            _ => UniformExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+            _ => UniformExecutor::execute::<PhysicalBool, PhysicalBool, _>(
                 input.arrays(),
                 sel,
                 OutBuffer::from_array(output)?,
@@ -181,7 +181,7 @@ impl ScalarFunctionImpl for OrImpl {
             }
             1 => {
                 let input = &input.arrays()[0];
-                UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+                UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _>(
                     input,
                     sel,
                     OutBuffer::from_array(output)?,
@@ -192,7 +192,7 @@ impl ScalarFunctionImpl for OrImpl {
                 let a = &input.arrays()[0];
                 let b = &input.arrays()[1];
 
-                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _, _>(
+                BinaryExecutor::execute::<PhysicalBool, PhysicalBool, PhysicalBool, _>(
                     a,
                     sel,
                     b,
@@ -201,7 +201,7 @@ impl ScalarFunctionImpl for OrImpl {
                     |&a, &b, buf| buf.put(&(a || b)),
                 )?;
             }
-            _ => UniformExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+            _ => UniformExecutor::execute::<PhysicalBool, PhysicalBool, _>(
                 input.arrays(),
                 sel,
                 OutBuffer::from_array(output)?,

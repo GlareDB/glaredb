@@ -24,7 +24,7 @@ pub mod view;
 use basic::BasicColumnValueDecoder;
 use bytes::Bytes;
 use decoder::ColumnValueDecoder;
-use rayexec_execution::arrays::array::buffer_manager::NopBufferManager;
+use rayexec_execution::buffer::buffer_manager::NopBufferManager;
 
 use super::page::{Page, PageReader};
 use crate::basic::*;

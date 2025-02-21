@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use rayexec_error::Result;
 
 use super::corr::CorrelationState;
-use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
@@ -79,10 +78,9 @@ impl AggregateState<(&f64, &f64), f64> for RegrR2State {
         Ok(())
     }
 
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = f64>,
-        B: BufferManager,
+        M: AddressableMut<T = f64>,
     {
         match self.corr.finalize_value() {
             Some(val) => {

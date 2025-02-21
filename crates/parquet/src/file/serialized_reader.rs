@@ -26,13 +26,13 @@ use std::path::Path;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use rayexec_execution::arrays::array::buffer_manager::BufferManager;
+use rayexec_execution::buffer::buffer_manager::BufferManager;
+use rayexec_execution::buffer::read::ReadBuffer;
 use thrift::protocol::TCompactInputProtocol;
 
 use crate::basic::{Encoding, Type};
 use crate::bloom_filter::Sbbf;
 use crate::column::page::{Page, PageMetadata, PageReader};
-use crate::column_reader::buffer::ReadBuffer;
 use crate::column_reader::ColumnData;
 use crate::compression::{create_codec, Codec};
 use crate::errors::{eof_err, general_err, ParquetError, ParquetResult};
@@ -388,16 +388,13 @@ fn read_page_header_and_len(input: &[u8]) -> ParquetResult<(usize, PageHeader)> 
 }
 
 /// Decodes a [`Page`] in the provided input data, writing to the output slice.
-pub(crate) fn decode_page<B>(
+pub(crate) fn decode_page(
     page_header: PageHeader,
     physical_type: Type,
     decompressor: Option<&mut Box<dyn Codec>>,
     input: &[u8],
-    output: &mut ReadBuffer<B>,
-) -> ParquetResult<Page>
-where
-    B: BufferManager,
-{
+    output: &mut ReadBuffer,
+) -> ParquetResult<Page> {
     // When processing data page v2, depending on enabled compression for the
     // page, we should account for uncompressed data ('offset') of repetition
     // and definition levels.
@@ -421,32 +418,34 @@ where
             let uncompressed_size = page_header.uncompressed_page_size as usize;
             let compressed = &input[offset..];
 
+            unimplemented!()
             // Reset read buffer to be able to hold all uncompressed data.
-            output.reset_for_new_page(uncompressed_size)?;
-            let decompressed = output.as_slice_mut();
+            // output.reset_for_new_page(uncompressed_size)?;
+            // let decompressed = output.as_slice_mut();
 
-            // Move definitions and repetitions into uncompressed buffer. For
-            // whatever reason, those don't get compressed.
-            let prefix = &mut decompressed[0..offset];
-            prefix.copy_from_slice(&input[0..offset]);
+            // // Move definitions and repetitions into uncompressed buffer. For
+            // // whatever reason, those don't get compressed.
+            // let prefix = &mut decompressed[0..offset];
+            // prefix.copy_from_slice(&input[0..offset]);
 
-            let remaining = &mut decompressed[offset..];
-            let n = decompressor.decompress(compressed, remaining)?;
+            // let remaining = &mut decompressed[offset..];
+            // let n = decompressor.decompress(compressed, remaining)?;
 
-            if remaining.len() != n as usize {
-                return Err(general_err!(
-                    "Actual decompressed size doesn't match the expected one ({} vs {})",
-                    remaining.len(),
-                    n
-                ));
-            }
+            // if remaining.len() != n as usize {
+            //     return Err(general_err!(
+            //         "Actual decompressed size doesn't match the expected one ({} vs {})",
+            //         remaining.len(),
+            //         n
+            //     ));
+            // }
         }
         _ => {
-            // Otherwise just copy the page data as-is.
-            // TODO: Could just share a pointer to the page instead of the copy.
-            output.reset_for_new_page(input.len())?;
-            let decompressed = output.as_slice_mut();
-            decompressed.copy_from_slice(input);
+            unimplemented!()
+            // // Otherwise just copy the page data as-is.
+            // // TODO: Could just share a pointer to the page instead of the copy.
+            // output.reset_for_new_page(input.len())?;
+            // let decompressed = output.as_slice_mut();
+            // decompressed.copy_from_slice(input);
         }
     };
 
@@ -805,7 +804,6 @@ impl PageReader for SerializedPageReader {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_execution::arrays::array::buffer_manager::NopBufferManager;
 
     use super::*;
     use crate::basic::{self, ColumnOrder};

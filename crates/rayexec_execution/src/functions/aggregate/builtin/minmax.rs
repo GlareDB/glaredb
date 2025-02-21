@@ -2,7 +2,6 @@ use std::fmt::Debug;
 
 use rayexec_error::{not_implemented, Result};
 
-use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
@@ -29,6 +28,7 @@ use crate::arrays::array::physical_type::{
 use crate::arrays::datatype::DataTypeId;
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
+use crate::buffer::buffer_manager::BufferManager;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
 use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
@@ -232,10 +232,9 @@ where
         Ok(())
     }
 
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = T>,
-        B: BufferManager,
+        M: AddressableMut<T = T>,
     {
         if self.valid {
             output.put(&self.max);
@@ -282,10 +281,9 @@ impl AggregateState<&[u8], [u8]> for MaxStateBinary {
         Ok(())
     }
 
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = [u8]>,
-        B: BufferManager,
+        M: AddressableMut<T = [u8]>,
     {
         if self.valid {
             output.put(&self.max);
@@ -332,10 +330,9 @@ impl AggregateState<&str, str> for MaxStateString {
         Ok(())
     }
 
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = str>,
-        B: BufferManager,
+        M: AddressableMut<T = str>,
     {
         if self.valid {
             output.put(&self.max);
@@ -385,10 +382,9 @@ where
         Ok(())
     }
 
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = T>,
-        B: BufferManager,
+        M: AddressableMut<T = T>,
     {
         if self.valid {
             output.put(&self.min);
@@ -435,10 +431,9 @@ impl AggregateState<&[u8], [u8]> for MinStateBinary {
         Ok(())
     }
 
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = [u8]>,
-        B: BufferManager,
+        M: AddressableMut<T = [u8]>,
     {
         if self.valid {
             output.put(&self.min);
@@ -485,10 +480,9 @@ impl AggregateState<&str, str> for MinStateString {
         Ok(())
     }
 
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = str>,
-        B: BufferManager,
+        M: AddressableMut<T = str>,
     {
         if self.valid {
             output.put(&self.min);

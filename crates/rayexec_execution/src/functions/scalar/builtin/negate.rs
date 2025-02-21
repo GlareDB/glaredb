@@ -100,7 +100,7 @@ where
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
-        UnaryExecutor::execute::<S, S, _, _>(
+        UnaryExecutor::execute::<S, S, _>(
             &input.arrays()[0],
             sel,
             OutBuffer::from_array(output)?,
@@ -161,7 +161,7 @@ impl ScalarFunctionImpl for NotImpl {
     fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
-        UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _, _>(
+        UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _>(
             &input.arrays()[0],
             sel,
             OutBuffer::from_array(output)?,

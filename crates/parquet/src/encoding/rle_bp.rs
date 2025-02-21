@@ -3,16 +3,15 @@
 //! See <https://parquet.apache.org/docs/file-format/data-pages/encodings/#run-length-encoding--bit-packing-hybrid-rle--3>
 
 use rayexec_error::Result;
-use rayexec_execution::arrays::array::buffer_manager::BufferManager;
+use rayexec_execution::buffer::read::ReadBuffer;
 
 use super::bitutil::BitPackEncodeable;
-use crate::column::read_buffer::ReadBuffer;
 use crate::encoding::bitutil::BitUnpacker;
 
 /// An RLE/bit packing hybrid decoder.
 #[derive(Debug)]
-pub struct RleBpDecoder<B: BufferManager> {
-    buffer: ReadBuffer<B>,
+pub struct RleBpDecoder {
+    buffer: ReadBuffer,
     /// Bits needed to encode the value.
     bit_width: u8,
     /// Current value.
@@ -27,10 +26,7 @@ pub struct RleBpDecoder<B: BufferManager> {
     byte_enc_len: usize,
 }
 
-impl<B> RleBpDecoder<B>
-where
-    B: BufferManager,
-{
+impl RleBpDecoder {
     pub fn get_batch<T>(&mut self, values: &mut [T]) -> Result<()>
     where
         T: BitPackEncodeable,
@@ -89,7 +85,7 @@ where
             // Read the next set of bytes to get the new current value.
             self.curr_val = 0;
             for idx in 0..self.byte_enc_len {
-                let b = unsafe { self.buffer.read_next::<u8>() } as u64;
+                let b = unsafe { self.buffer.read_next_unchecked::<u8>() } as u64;
                 self.curr_val |= b << (idx * 8);
             }
         }

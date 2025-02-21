@@ -1,22 +1,25 @@
-use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
-use rayexec_execution::arrays::array::buffer_manager::BufferManager;
-use rayexec_execution::arrays::array::raw::ByteBuffer;
+use std::sync::Arc;
 
-use super::column_data::ColumnData;
+use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_execution::buffer::read::ReadBuffer;
+use rayexec_execution::buffer::typed::ByteBuffer;
+
 use super::page::Page;
-use super::read_buffer::ReadBuffer;
 use crate::compression::Codec;
 use crate::format::{PageHeader, PageType};
+use crate::schema::types::ColumnDescriptor;
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 
 #[derive(Debug)]
-pub struct PageReader<B: BufferManager> {
+pub struct PageReader {
+    /// Column description.
+    pub(crate) descr: Arc<ColumnDescriptor>,
     /// Current offset into the chunk buffer.
     pub(crate) chunk_offset: usize,
     /// Column chunk buffer.
-    pub(crate) chunk: ByteBuffer<B>,
+    pub(crate) chunk: ByteBuffer,
     /// Decompressed page data for the current page.
-    pub(crate) decompressed_page: ReadBuffer<B>,
+    pub(crate) decompressed_page: ReadBuffer,
     /// Decompression codec to use for this column.
     pub(crate) codec: Option<Box<dyn Codec>>,
 }
@@ -29,10 +32,7 @@ pub struct ScanState {
     pub num_values: usize,
 }
 
-impl<B> PageReader<B>
-where
-    B: BufferManager,
-{
+impl PageReader {
     /// Reads the next page from the chunk.
     ///
     /// Returns None if there's no more pages to read in the chunk.
@@ -64,8 +64,9 @@ where
 
     fn read_data_page(&mut self, header: &PageHeader) -> Result<()> {
         // Ensure our read buffer can fit the entire decompressed page.
+        self.decompressed_page.reset();
         self.decompressed_page
-            .reset_for_new_page(header.uncompressed_page_size as usize)?;
+            .reserve_for_size(header.uncompressed_page_size as usize)?;
 
         let src = &self
             .chunk
@@ -78,14 +79,14 @@ where
         match self.codec.as_ref() {
             Some(codec) => {
                 // Page is compressed, decompress into our read buffer.
-                let dest = self.decompressed_page.as_slice_mut();
+                let dest = self.decompressed_page.remaining_as_slice_mut();
                 codec
                     .decompress(src, dest)
                     .context("failed to decompress page")?;
             }
             None => {
                 // Page not compressed, just copy the data directly.
-                let dest = self.decompressed_page.as_slice_mut();
+                let dest = self.decompressed_page.remaining_as_slice_mut();
                 dest.copy_from_slice(src);
             }
         }
@@ -94,8 +95,9 @@ where
     }
 
     fn read_data_page_v2(&mut self, header: &PageHeader) -> Result<()> {
+        self.decompressed_page.reset();
         self.decompressed_page
-            .reset_for_new_page(header.uncompressed_page_size as usize)?;
+            .reserve_for_size(header.uncompressed_page_size as usize)?;
 
         let header_v2 = header
             .data_page_header_v2
@@ -106,7 +108,7 @@ where
         // spec.
         let is_compressed = header_v2.is_compressed.unwrap_or(true);
 
-        let dest = self.decompressed_page.as_slice_mut();
+        let dest = self.decompressed_page.remaining_as_slice_mut();
 
         if !is_compressed {
             // Can just read as-is.
@@ -153,7 +155,7 @@ where
     }
 
     /// Gets a slice of the given size from the chunk starting at an offset.
-    fn chunk_slice(chunk: &ByteBuffer<B>, offset: usize, size: usize) -> Result<&[u8]> {
+    fn chunk_slice(chunk: &ByteBuffer, offset: usize, size: usize) -> Result<&[u8]> {
         let bs = &chunk
             .as_slice()
             .get(offset..(offset + size))

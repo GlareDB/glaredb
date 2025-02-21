@@ -5,7 +5,6 @@ use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::row_blocks::{BlockAppendState, HeapMutPtr};
-use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -128,15 +127,14 @@ impl RowLayout {
     /// All arrays should be provided so that it matches this row layout.
     ///
     /// `sizes` will initially be set to all zeros.
-    pub fn compute_heap_sizes<A, B>(
+    pub fn compute_heap_sizes<A>(
         &self,
         arrays: &[A],
         rows: impl IntoExactSizeIterator<Item = usize> + Clone,
         sizes: &mut [usize],
     ) -> Result<()>
     where
-        A: Borrow<Array<B>>,
-        B: BufferManager,
+        A: Borrow<Array>,
     {
         let num_rows = rows.clone().into_exact_size_iter().len();
         debug_assert_eq!(sizes.len(), num_rows);
@@ -170,15 +168,14 @@ impl RowLayout {
         Ok(())
     }
 
-    pub(crate) unsafe fn write_arrays<A, B>(
+    pub(crate) unsafe fn write_arrays<A>(
         &self,
         state: &mut BlockAppendState,
         arrays: &[A],
         rows: impl IntoExactSizeIterator<Item = usize> + Clone,
     ) -> Result<()>
     where
-        A: Borrow<Array<B>>,
-        B: BufferManager,
+        A: Borrow<Array>,
     {
         for (array_idx, array) in arrays.iter().enumerate() {
             let rows = rows.clone();
@@ -197,15 +194,14 @@ impl RowLayout {
         Ok(())
     }
 
-    pub(crate) unsafe fn read_arrays<'a, A, B>(
+    pub(crate) unsafe fn read_arrays<'a, A>(
         &self,
         row_ptrs: impl IntoIterator<Item = *const u8> + Clone,
         arrays: impl IntoIterator<Item = (usize, &'a mut A)>,
         write_offset: usize,
     ) -> Result<()>
     where
-        A: BorrowMut<Array<B>> + 'a,
-        B: BufferManager,
+        A: BorrowMut<Array> + 'a,
     {
         for (array_idx, array) in arrays {
             let array = array.borrow_mut();
@@ -260,66 +256,63 @@ pub(crate) const fn row_width_for_physical_type(phys_type: PhysicalType) -> usiz
 /// `rows` selects which rows from the array to write. This must match the
 /// length of `row_pointers`. If the type we're writing requires writing to heap
 /// blocks, then it should also match the length of `heap_pointers`.
-unsafe fn write_array<B>(
+unsafe fn write_array(
     layout: &RowLayout,
     phys_type: PhysicalType,
     array_idx: usize,
-    array: FlattenedArray<B>,
+    array: FlattenedArray,
     row_pointers: &[*mut u8],
     heap_pointers: &mut [HeapMutPtr],
     rows: impl IntoExactSizeIterator<Item = usize>,
-) -> Result<()>
-where
-    B: BufferManager,
-{
+) -> Result<()> {
     match phys_type {
         PhysicalType::UntypedNull => {
-            write_scalar::<PhysicalUntypedNull, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalUntypedNull>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Boolean => {
-            write_scalar::<PhysicalBool, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalBool>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Int8 => {
-            write_scalar::<PhysicalI8, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalI8>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Int16 => {
-            write_scalar::<PhysicalI16, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalI16>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Int32 => {
-            write_scalar::<PhysicalI32, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalI32>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Int64 => {
-            write_scalar::<PhysicalI64, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalI64>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Int128 => {
-            write_scalar::<PhysicalI128, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalI128>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::UInt8 => {
-            write_scalar::<PhysicalU8, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalU8>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::UInt16 => {
-            write_scalar::<PhysicalU16, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalU16>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::UInt32 => {
-            write_scalar::<PhysicalU32, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalU32>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::UInt64 => {
-            write_scalar::<PhysicalU64, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalU64>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::UInt128 => {
-            write_scalar::<PhysicalU128, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalU128>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Float16 => {
-            write_scalar::<PhysicalF16, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalF16>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Float32 => {
-            write_scalar::<PhysicalF32, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalF32>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Float64 => {
-            write_scalar::<PhysicalF64, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalF64>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Interval => {
-            write_scalar::<PhysicalInterval, B>(layout, array_idx, array, row_pointers, rows)
+            write_scalar::<PhysicalInterval>(layout, array_idx, array, row_pointers, rows)
         }
         PhysicalType::Utf8 | PhysicalType::Binary => {
             write_binary(layout, array_idx, array, row_pointers, heap_pointers, rows)
@@ -336,17 +329,14 @@ where
 /// pointers directly without having to compute the appropriate offset.
 ///
 /// Row pointers will remain unchanged.
-unsafe fn write_binary<B>(
+unsafe fn write_binary(
     layout: &RowLayout,
     array_idx: usize,
-    array: FlattenedArray<B>,
+    array: FlattenedArray,
     row_pointers: &[*mut u8],
     heap_pointers: &mut [HeapMutPtr],
     rows: impl IntoExactSizeIterator<Item = usize>,
-) -> Result<()>
-where
-    B: BufferManager,
-{
+) -> Result<()> {
     let rows = rows.into_exact_size_iter();
 
     debug_assert_eq!(rows.len(), row_pointers.len());
@@ -432,17 +422,16 @@ where
 }
 
 /// Write a scalar array to the specified row pointers.
-unsafe fn write_scalar<S, B>(
+unsafe fn write_scalar<S>(
     layout: &RowLayout,
     array_idx: usize,
-    array: FlattenedArray<B>,
+    array: FlattenedArray,
     row_pointers: &[*mut u8],
     rows: impl IntoExactSizeIterator<Item = usize>,
 ) -> Result<()>
 where
     S: ScalarStorage,
     S::StorageType: Default + Copy + Sized,
-    B: BufferManager,
 {
     let rows = rows.into_exact_size_iter();
     debug_assert_eq!(rows.len(), row_pointers.len());
@@ -483,69 +472,62 @@ where
     Ok(())
 }
 
-unsafe fn read_array<B>(
+unsafe fn read_array(
     layout: &RowLayout,
     phys_type: PhysicalType,
     row_pointers: impl IntoIterator<Item = *const u8>,
     array_idx: usize,
-    out: &mut Array<B>,
+    out: &mut Array,
     write_offset: usize,
-) -> Result<()>
-where
-    B: BufferManager,
-{
+) -> Result<()> {
     match phys_type {
-        PhysicalType::UntypedNull => read_scalar::<PhysicalUntypedNull, B>(
-            layout,
-            row_pointers,
-            array_idx,
-            out,
-            write_offset,
-        ),
+        PhysicalType::UntypedNull => {
+            read_scalar::<PhysicalUntypedNull>(layout, row_pointers, array_idx, out, write_offset)
+        }
         PhysicalType::Boolean => {
-            read_scalar::<PhysicalBool, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalBool>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::Int8 => {
-            read_scalar::<PhysicalI8, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalI8>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::Int16 => {
-            read_scalar::<PhysicalI16, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalI16>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::Int32 => {
-            read_scalar::<PhysicalI32, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalI32>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::Int64 => {
-            read_scalar::<PhysicalI64, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalI64>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::Int128 => {
-            read_scalar::<PhysicalI128, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalI128>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::UInt8 => {
-            read_scalar::<PhysicalU8, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalU8>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::UInt16 => {
-            read_scalar::<PhysicalU16, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalU16>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::UInt32 => {
-            read_scalar::<PhysicalU32, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalU32>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::UInt64 => {
-            read_scalar::<PhysicalU64, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalU64>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::UInt128 => {
-            read_scalar::<PhysicalU128, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalU128>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::Float16 => {
-            read_scalar::<PhysicalF16, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalF16>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::Float32 => {
-            read_scalar::<PhysicalF32, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalF32>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::Float64 => {
-            read_scalar::<PhysicalF64, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalF64>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::Interval => {
-            read_scalar::<PhysicalInterval, B>(layout, row_pointers, array_idx, out, write_offset)
+            read_scalar::<PhysicalInterval>(layout, row_pointers, array_idx, out, write_offset)
         }
         PhysicalType::Utf8 | PhysicalType::Binary => {
             read_binary(layout, row_pointers, array_idx, out, write_offset)
@@ -554,17 +536,16 @@ where
     }
 }
 
-unsafe fn read_scalar<S, B>(
+unsafe fn read_scalar<S>(
     layout: &RowLayout,
     row_pointers: impl IntoIterator<Item = *const u8>,
     array_idx: usize,
-    out: &mut Array<B>,
+    out: &mut Array,
     write_offset: usize,
 ) -> Result<()>
 where
     S: MutableScalarStorage,
     S::StorageType: Copy + Sized,
-    B: BufferManager,
 {
     let mut data = S::get_addressable_mut(&mut out.data)?;
     let validity = &mut out.validity;
@@ -586,16 +567,13 @@ where
     Ok(())
 }
 
-unsafe fn read_binary<B>(
+unsafe fn read_binary(
     layout: &RowLayout,
     row_pointers: impl IntoIterator<Item = *const u8>,
     array_idx: usize,
-    out: &mut Array<B>,
+    out: &mut Array,
     write_offset: usize,
-) -> Result<()>
-where
-    B: BufferManager,
-{
+) -> Result<()> {
     let mut data = PhysicalBinary::get_addressable_mut(&mut out.data)?;
     let validity = &mut out.validity;
 
@@ -622,9 +600,9 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::row::block_scan::BlockScanState;
     use crate::arrays::row::row_blocks::RowBlocks;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
@@ -741,7 +719,7 @@ mod tests {
             None
         };
 
-        let mut blocks = RowBlocks::new_using_row_layout(NopBufferManager, &layout, 16);
+        let mut blocks = RowBlocks::new_using_row_layout(&NopBufferManager, &layout, 16);
         let mut state = BlockAppendState {
             row_pointers: Vec::new(),
             heap_pointers: Vec::new(),

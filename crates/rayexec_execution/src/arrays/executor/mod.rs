@@ -1,21 +1,18 @@
 pub mod aggregate;
 pub mod scalar;
 
-use std::marker::PhantomData;
-
 use rayexec_error::Result;
 
 use super::array::array_buffer::ArrayBuffer;
 use super::array::physical_type::AddressableMut;
 use super::array::validity::Validity;
 use super::array::Array;
-use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
 
 /// Wrapper around an array buffer and validity buffer that will be used to
 /// construct a full array.
 #[derive(Debug)]
-pub struct OutBuffer<'a, B: BufferManager = NopBufferManager> {
-    pub buffer: &'a mut ArrayBuffer<B>,
+pub struct OutBuffer<'a> {
+    pub buffer: &'a mut ArrayBuffer,
     pub validity: &'a mut Validity,
 }
 
@@ -30,21 +27,18 @@ impl<'a> OutBuffer<'a> {
 
 /// Helper for assigning a value to a location in a buffer.
 #[derive(Debug)]
-pub struct PutBuffer<'a, M, B>
+pub struct PutBuffer<'a, M>
 where
-    M: AddressableMut<B>,
-    B: BufferManager,
+    M: AddressableMut,
 {
     pub(crate) idx: usize,
     pub(crate) buffer: &'a mut M,
     pub(crate) validity: &'a mut Validity,
-    _b: PhantomData<B>,
 }
 
-impl<'a, M, B> PutBuffer<'a, M, B>
+impl<'a, M> PutBuffer<'a, M>
 where
-    M: AddressableMut<B>,
-    B: BufferManager,
+    M: AddressableMut,
 {
     pub(crate) fn new(idx: usize, buffer: &'a mut M, validity: &'a mut Validity) -> Self {
         debug_assert_eq!(buffer.len(), validity.len());
@@ -52,7 +46,6 @@ where
             idx,
             buffer,
             validity,
-            _b: PhantomData,
         }
     }
 

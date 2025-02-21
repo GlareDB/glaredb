@@ -20,7 +20,7 @@ use std::iter::Peekable;
 use std::mem;
 
 use bytes::Bytes;
-use rayexec_execution::arrays::array::buffer_manager::BufferManager;
+use rayexec_execution::buffer::buffer_manager::BufferManager;
 
 use crate::basic::Encoding;
 use crate::column::page::{Page, PageMetadata, PageReader};

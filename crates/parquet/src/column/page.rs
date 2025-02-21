@@ -17,7 +17,7 @@
 
 //! Contains Parquet Page definitions.
 
-use rayexec_execution::arrays::array::buffer_manager::BufferManager;
+use rayexec_execution::buffer::buffer_manager::BufferManager;
 
 use crate::basic::{Encoding, PageType};
 use crate::column_reader::ColumnData;

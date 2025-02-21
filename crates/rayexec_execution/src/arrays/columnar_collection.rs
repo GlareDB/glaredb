@@ -3,12 +3,12 @@ use std::fmt;
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::array_buffer::ArrayBuffer;
-use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
 use crate::arrays::array::validity::Validity;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::copy::copy_rows_raw;
 use crate::arrays::datatype::DataType;
+use crate::buffer::buffer_manager::{AsRawBufferManager, NopBufferManager};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CollectionState {
@@ -40,7 +40,7 @@ pub struct ColumnarCollection {
     ///
     /// When a new chunk is append, the previous chunk will have all of its
     /// buffers made into shared references.
-    chunks: Vec<ColumnarChunk<NopBufferManager>>,
+    chunks: Vec<ColumnarChunk>,
     /// Capacity to initialize each chunk with.
     chunk_capacity: usize,
     /// Current state of the collection.
@@ -101,17 +101,18 @@ impl ColumnarCollection {
 }
 
 #[derive(Debug)]
-struct ColumnarChunk<B: BufferManager> {
-    buffers: Vec<ColumnarBuffer<B>>,
+struct ColumnarChunk {
+    buffers: Vec<ColumnarBuffer>,
     capacity: usize,
     filled: usize,
 }
 
-impl<B> ColumnarChunk<B>
-where
-    B: BufferManager,
-{
-    fn try_new(manager: &B, datatypes: &[DataType], capacity: usize) -> Result<Self> {
+impl ColumnarChunk {
+    fn try_new(
+        manager: &impl AsRawBufferManager,
+        datatypes: &[DataType],
+        capacity: usize,
+    ) -> Result<Self> {
         let mut buffers = Vec::with_capacity(datatypes.len());
         for datatype in datatypes {
             let buffer = ArrayBuffer::try_new_for_datatype(manager, datatype, capacity)?;
@@ -141,7 +142,7 @@ where
     /// chunk.
     ///
     /// `count` must not exceed the remaining capacity of the chunk.
-    fn copy_rows(&mut self, src: &[Array<B>], src_offset: usize, count: usize) -> Result<()> {
+    fn copy_rows(&mut self, src: &[Array], src_offset: usize, count: usize) -> Result<()> {
         debug_assert_eq!(self.buffers.len(), src.len());
         debug_assert!(count <= self.capacity - self.filled);
 
@@ -155,20 +156,17 @@ where
 }
 
 #[derive(Debug)]
-struct ColumnarBuffer<B: BufferManager> {
+struct ColumnarBuffer {
     validity: Validity,
-    buffer: ArrayBuffer<B>,
+    buffer: ArrayBuffer,
 }
 
-impl<B> ColumnarBuffer<B>
-where
-    B: BufferManager,
-{
+impl ColumnarBuffer {
     /// Copy rows from a source buffer and validity into this buffer.
     fn copy_rows_from_array(
         &mut self,
         dest_offset: usize,
-        src: &Array<B>,
+        src: &Array,
         src_offset: usize,
         count: usize,
     ) -> Result<()> {

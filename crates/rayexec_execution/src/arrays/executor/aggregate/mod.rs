@@ -10,7 +10,6 @@ use rayexec_error::Result;
 pub use unary::*;
 
 use super::PutBuffer;
-use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::array::physical_type::AddressableMut;
 
 /// State for a single group's aggregate.
@@ -25,10 +24,9 @@ pub trait AggregateState<Input, Output: ?Sized>: Debug {
     fn update(&mut self, input: Input) -> Result<()>;
 
     /// Produce a single value from the state and write it to the buffer.
-    fn finalize<M, B>(&mut self, output: PutBuffer<M, B>) -> Result<()>
+    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<B, T = Output>,
-        B: BufferManager;
+        M: AddressableMut<T = Output>;
 }
 
 #[derive(Debug, Clone, Copy)]

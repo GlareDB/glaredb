@@ -2,46 +2,43 @@ use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::sort_layout::SortLayout;
-use crate::buffer::buffer_manager::BufferManager;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::row::row_layout::RowLayout;
+use crate::buffer::buffer_manager::AsRawBufferManager;
 
 /// Contains a single block with all keys in sorted order.
 #[derive(Debug)]
-pub struct SortedBlock<B: BufferManager> {
+pub struct SortedBlock {
     /// All sort keys in this block.
     ///
     /// Encoded using a sort layout.
-    pub(crate) keys: Block<B>,
+    pub(crate) keys: Block,
     /// Keys that also require the heap.
     ///
     /// Encoded using a row layout.
-    pub(crate) heap_keys: Block<B>,
+    pub(crate) heap_keys: Block,
     /// Heap blocks for `heap_keys`.
-    pub(crate) heap_keys_heap: Vec<Block<B>>,
+    pub(crate) heap_keys_heap: Vec<Block>,
     /// Data not part of the sort keys.
-    pub(crate) data: Block<B>,
+    pub(crate) data: Block,
     /// Heap blocks for data.
-    pub(crate) data_heap: Vec<Block<B>>,
+    pub(crate) data_heap: Vec<Block>,
 }
 
-impl<B> SortedBlock<B>
-where
-    B: BufferManager,
-{
+impl SortedBlock {
     /// Create a sorted block from the given key/data blocks.
     ///
     /// Returns None if the number of rows in the block is zero.
     pub fn sort_from_blocks(
-        manager: &B,
+        manager: &impl AsRawBufferManager,
         key_layout: &SortLayout,
         data_layout: &RowLayout,
-        mut keys: Block<B>,
-        heap_keys: Block<B>,
-        heap_keys_heap: Vec<Block<B>>,
-        data: Block<B>,
-        data_heap: Vec<Block<B>>,
+        mut keys: Block,
+        heap_keys: Block,
+        heap_keys_heap: Vec<Block>,
+        data: Block,
+        data_heap: Vec<Block>,
     ) -> Result<Option<Self>> {
         let row_width = key_layout.row_width;
         let num_rows = keys.num_rows(row_width);
@@ -170,14 +167,12 @@ where
     }
 }
 
-fn apply_sort_indices<B>(
-    src: &Block<B>,
-    dest: &mut Block<B>,
+fn apply_sort_indices(
+    src: &Block,
+    dest: &mut Block,
     indices: impl IntoExactSizeIterator<Item = usize>,
     row_width: usize,
-) where
-    B: BufferManager,
-{
+) {
     let indices = indices.into_exact_size_iter();
 
     debug_assert_eq!(src.data.capacity(), indices.len() * row_width);
@@ -210,10 +205,7 @@ struct BlockRowIndexIter<'a> {
 }
 
 impl<'a> BlockRowIndexIter<'a> {
-    fn new<B>(layout: &'a SortLayout, block: &Block<B>, count: usize) -> Self
-    where
-        B: BufferManager,
-    {
+    fn new(layout: &'a SortLayout, block: &Block, count: usize) -> Self {
         BlockRowIndexIter {
             block_ptr: block.as_ptr(),
             count,
