@@ -102,8 +102,6 @@ pub mod metadata;
 pub mod page_encoding_stats;
 pub mod page_index;
 pub mod properties;
-pub mod reader;
-pub mod serialized_reader;
 pub mod statistics;
 
 /// The length of the parquet footer in bytes

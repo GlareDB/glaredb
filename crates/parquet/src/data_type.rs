@@ -29,6 +29,8 @@ use crate::basic::Type;
 use crate::errors::{general_err, ParquetResult};
 use crate::util::bit_util::FromBytes;
 
+// TODO: Delete me
+
 /// Rust representation for logical type INT96, value is backed by an array of `u32`.
 /// The type only takes 12 bytes, without extra padding.
 #[derive(Clone, Copy, Debug, PartialOrd, Default, PartialEq, Eq)]

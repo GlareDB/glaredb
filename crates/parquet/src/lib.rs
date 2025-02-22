@@ -81,15 +81,14 @@ mod util;
 
 pub mod bloom_filter;
 pub mod column;
-pub mod column_reader; // TODO: Rename
 pub mod file;
-pub mod reader;
+pub mod page;
+pub mod row_groups_reader;
 pub mod schema;
 
 pub mod thrift;
 
 mod compression;
-mod encoding;
 mod encodings;
 
 #[cfg(test)]

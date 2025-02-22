@@ -1,5 +1,6 @@
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::buffer::read::ReadBuffer;
+
+use super::read_buffer::ReadBuffer;
 
 /// All possible masks for an 8-byte wide value.
 pub const BITPACK_MASKS: [u64; 65] = compute_masks();
@@ -32,7 +33,7 @@ impl BitUnpacker<'_> {
 
             while self.bit_pos > BYTE_WIDTH {
                 // Move to next byte.
-                unsafe { self.buf.skip_unchecked(1) };
+                unsafe { self.buf.skip_bytes_unchecked(1) };
 
                 let next = unsafe { self.buf.peek_next_unchecked::<u8>() } as u64;
                 let shift = (BYTE_WIDTH - (self.bit_pos - self.bit_width)) as u64;
@@ -51,7 +52,7 @@ impl BitUnpacker<'_> {
         // Ensure we're on a byte boundary.
         if self.bit_pos != 0 {
             self.bit_pos = 0;
-            unsafe { self.buf.skip_unchecked(1) };
+            unsafe { self.buf.skip_bytes_unchecked(1) };
         }
 
         let mut v = 0;
@@ -132,6 +133,7 @@ mod tests {
     use rayexec_execution::buffer::buffer_manager::NopBufferManager;
 
     use super::*;
+    use crate::column::read_buffer::OwnedReadBuffer;
 
     #[test]
     fn masks_sanity() {
@@ -149,10 +151,11 @@ mod tests {
     #[test]
     fn bit_unpack_get_aligned_width_3() {
         // 01110101 11001011
-        let mut buffer = ReadBuffer::from_bytes(&NopBufferManager, [0x75, 0xCB]).unwrap();
+        let mut buffer = OwnedReadBuffer::from_bytes(&NopBufferManager, [0x75, 0xCB]).unwrap();
+        let mut read = buffer.take_remaining();
 
         let mut unpacker = BitUnpacker {
-            buf: &mut buffer,
+            buf: &mut read,
             bit_pos: 0,
             bit_width: 3,
         };
@@ -166,10 +169,11 @@ mod tests {
     #[test]
     fn bit_unpack_get_aligned_width_8() {
         // 01110101 11001011
-        let mut buffer = ReadBuffer::from_bytes(&NopBufferManager, [0x75, 0xCB]).unwrap();
+        let mut buffer = OwnedReadBuffer::from_bytes(&NopBufferManager, [0x75, 0xCB]).unwrap();
+        let mut read = buffer.take_remaining();
 
         let mut unpacker = BitUnpacker {
-            buf: &mut buffer,
+            buf: &mut read,
             bit_pos: 0,
             bit_width: 8,
         };
@@ -183,10 +187,11 @@ mod tests {
     #[test]
     fn bit_unpack_get_aligned_width_13() {
         // 01110101 11001011
-        let mut buffer = ReadBuffer::from_bytes(&NopBufferManager, [0x75, 0xCB]).unwrap();
+        let mut buffer = OwnedReadBuffer::from_bytes(&NopBufferManager, [0x75, 0xCB]).unwrap();
+        let mut read = buffer.take_remaining();
 
         let mut unpacker = BitUnpacker {
-            buf: &mut buffer,
+            buf: &mut read,
             bit_pos: 0,
             bit_width: 13,
         };
@@ -201,10 +206,11 @@ mod tests {
     fn tget_vlq_int() {
         // 10001001 00000001 11110010 10110101 00000110
         let mut buffer =
-            ReadBuffer::from_bytes(&NopBufferManager, [0x89, 0x01, 0xF2, 0xB5, 0x06]).unwrap();
+            OwnedReadBuffer::from_bytes(&NopBufferManager, [0x89, 0x01, 0xF2, 0xB5, 0x06]).unwrap();
+        let mut read = buffer.take_remaining();
 
         let mut unpacker = BitUnpacker {
-            buf: &mut buffer,
+            buf: &mut read,
             bit_pos: 0,
             bit_width: 3,
         };

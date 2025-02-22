@@ -18,6 +18,7 @@
 //! Common Parquet errors and macros.
 
 use std::error::Error;
+use std::num::TryFromIntError;
 use std::{cell, io, result, str};
 
 /// Parquet error enumeration
@@ -62,6 +63,12 @@ impl Error for ParquetError {
             ParquetError::External(e) => Some(e.as_ref()),
             _ => None,
         }
+    }
+}
+
+impl From<TryFromIntError> for ParquetError {
+    fn from(e: TryFromIntError) -> ParquetError {
+        ParquetError::General(format!("Integer overflow: {e}"))
     }
 }
 

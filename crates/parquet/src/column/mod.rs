@@ -20,7 +20,12 @@
 //! This API is designed for reading and writing column values, definition and
 //! repetition levels directly.
 
-pub mod page;
-pub mod reader;
+pub mod column_reader;
+pub mod struct_reader;
 
+mod bitutil;
+mod converter;
+mod encoding;
 mod page_reader;
+mod read_buffer;
+mod value_reader;

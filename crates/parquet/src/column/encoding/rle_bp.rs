@@ -3,10 +3,9 @@
 //! See <https://parquet.apache.org/docs/file-format/data-pages/encodings/#run-length-encoding--bit-packing-hybrid-rle--3>
 
 use rayexec_error::Result;
-use rayexec_execution::buffer::read::ReadBuffer;
 
-use super::bitutil::BitPackEncodeable;
-use crate::encoding::bitutil::BitUnpacker;
+use crate::column::bitutil::{BitPackEncodeable, BitUnpacker};
+use crate::column::read_buffer::ReadBuffer;
 
 /// An RLE/bit packing hybrid decoder.
 #[derive(Debug)]
@@ -27,6 +26,22 @@ pub struct RleBpDecoder {
 }
 
 impl RleBpDecoder {
+    pub fn new(buffer: ReadBuffer, bit_width: u8) -> Self {
+        assert!(bit_width <= 64);
+
+        let byte_enc_len = ((bit_width + 7) / 8) as usize;
+
+        RleBpDecoder {
+            buffer,
+            bit_width,
+            curr_val: 0,
+            bit_pos: 0,
+            rle_left: 0,
+            bit_packed_left: 0,
+            byte_enc_len,
+        }
+    }
+
     pub fn get_batch<T>(&mut self, values: &mut [T]) -> Result<()>
     where
         T: BitPackEncodeable,

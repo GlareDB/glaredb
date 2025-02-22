@@ -1797,6 +1797,7 @@ dependencies = [
  "serde",
  "serde_json",
  "snap",
+ "stdutil",
  "tempfile",
  "thrift",
  "tokio",

@@ -18,6 +18,8 @@
 //! Contains Rust mappings for Thrift definition.
 //! Refer to [`parquet.thrift`](https://github.com/apache/parquet-format/blob/master/src/main/thrift/parquet.thrift) file to see raw definitions.
 
+// TODO: Figure out how much of this is necessary.
+
 use std::str::FromStr;
 use std::{fmt, str};
 

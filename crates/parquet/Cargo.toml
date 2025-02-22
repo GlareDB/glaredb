@@ -28,6 +28,7 @@ rust-version = "1.70.0"
 rayexec_error = { path = "../rayexec_error" }
 rayexec_io = { path = "../rayexec_io" }
 rayexec_execution = { path = "../rayexec_execution" }
+stdutil = { path = "../stdutil" }
 
 ahash = { workspace = true }
 bytes = { version = "1.10", default-features = false, features = ["std"] }
@@ -45,7 +46,7 @@ clap = { version = "4.1", default-features = false, features = ["std", "derive",
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
 serde_json = { version = "1.0", default-features = false, features = ["std"], optional = true }
 seq-macro = { version = "0.3", default-features = false }
-futures = { version = "0.3", default-features = false, features = ["std"], optional = true }
+futures = { workspace = true }
 tokio = { version = "1.43", optional = true, default-features = false, features = ["macros", "rt", "io-util"] }
 hashbrown = { version = "0.14", default-features = false }
 twox-hash = { version = "1.6", default-features = false }
@@ -87,7 +88,7 @@ json = ["serde_json", "base64"]
 # Experimental, unstable functionality primarily used for testing
 experimental = []
 # Enable async APIs
-async = ["futures", "tokio"]
+async = ["tokio"]
 # Group Zstd dependencies
 zstd = ["dep:zstd", "zstd-sys"]
 

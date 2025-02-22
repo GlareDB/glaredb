@@ -6,6 +6,10 @@ use rayexec_error::Result;
 
 use crate::exp::AsyncReadStream;
 
+// TODO:
+// - Clarify resume.
+// - Error if we read more than buffer size?
+
 /// A future that reads from the stream into a buffer.
 ///
 /// This will return the number of bytes written to the buffer, which may be
