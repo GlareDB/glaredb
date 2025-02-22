@@ -57,9 +57,6 @@ pub trait AsyncWriteSink: Send {
 
 #[cfg(test)]
 pub(crate) mod testutil {
-    use std::sync::Arc;
-    use std::task::Wake;
-
     use super::*;
 
     #[derive(Debug)]

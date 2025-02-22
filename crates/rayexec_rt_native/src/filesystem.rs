@@ -54,6 +54,7 @@ impl FileSource for LocalFile {
     }
 }
 
+#[derive(Debug)]
 enum LocalFileRead {
     Seeking {
         file: StdFile,
