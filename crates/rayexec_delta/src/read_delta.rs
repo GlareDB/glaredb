@@ -5,7 +5,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use rayexec_error::Result;
 use rayexec_execution::arrays::datatype::DataTypeId;
-use rayexec_execution::arrays::scalar::OwnedScalarValue;
+use rayexec_execution::arrays::scalar::ScalarValue;
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::expr;
 use rayexec_execution::functions::table::{
@@ -57,8 +57,8 @@ impl<R: Runtime> ScanPlanner for ReadDelta<R> {
     fn plan<'a>(
         &self,
         context: &'a DatabaseContext,
-        positional_inputs: Vec<OwnedScalarValue>,
-        named_inputs: HashMap<String, OwnedScalarValue>,
+        positional_inputs: Vec<ScalarValue>,
+        named_inputs: HashMap<String, ScalarValue>,
     ) -> BoxFuture<'a, Result<PlannedTableFunction>> {
         Self::plan_inner(self.clone(), context, positional_inputs, named_inputs).boxed()
     }
@@ -68,8 +68,8 @@ impl<R: Runtime> ReadDelta<R> {
     async fn plan_inner(
         self,
         _context: &DatabaseContext,
-        positional_inputs: Vec<OwnedScalarValue>,
-        named_inputs: HashMap<String, OwnedScalarValue>,
+        positional_inputs: Vec<ScalarValue>,
+        named_inputs: HashMap<String, ScalarValue>,
     ) -> Result<PlannedTableFunction> {
         let (location, conf) =
             try_location_and_access_config_from_args(&self, &positional_inputs, &named_inputs)?;
@@ -81,8 +81,8 @@ impl<R: Runtime> ReadDelta<R> {
 
         Ok(PlannedTableFunction {
             function: Box::new(self),
-            positional_inputs: positional_inputs.into_iter().map(expr::lit).collect(),
-            named_inputs,
+            positional: positional_inputs.into_iter().map(expr::lit).collect(),
+            named: named_inputs,
             function_impl: TableFunctionImpl::Scan(Arc::new(DeltaDataTable {
                 table: Arc::new(table), // TODO: Arc Arc
             })),

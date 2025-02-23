@@ -11,7 +11,7 @@ use rayexec_execution::arrays::array::Array;
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::datatype::{DataType, DataTypeId};
 use rayexec_execution::arrays::field::{Field, Schema};
-use rayexec_execution::arrays::scalar::OwnedScalarValue;
+use rayexec_execution::arrays::scalar::ScalarValue;
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::expr;
 use rayexec_execution::functions::table::{
@@ -56,8 +56,8 @@ pub trait UnityObjectsOperation<R: Runtime>:
     fn create_connection_state(
         info: UnityObjects<R, Self>,
         context: &DatabaseContext,
-        positional_args: Vec<OwnedScalarValue>,
-        named_args: HashMap<String, OwnedScalarValue>,
+        positional_args: Vec<ScalarValue>,
+        named_args: HashMap<String, ScalarValue>,
     ) -> BoxFuture<'_, Result<Self::ConnectionState>>;
 
     /// Create a stream state from the connection state.
@@ -110,8 +110,8 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
     fn create_connection_state(
         info: UnityObjects<R, Self>,
         _context: &DatabaseContext,
-        positional_args: Vec<OwnedScalarValue>,
-        _named_args: HashMap<String, OwnedScalarValue>,
+        positional_args: Vec<ScalarValue>,
+        _named_args: HashMap<String, ScalarValue>,
     ) -> BoxFuture<'_, Result<Self::ConnectionState>> {
         Box::pin(async move {
             let endpoint = try_get_positional(&info, 0, &positional_args)?.try_as_str()?;
@@ -194,8 +194,8 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
     fn create_connection_state(
         info: UnityObjects<R, Self>,
         _context: &DatabaseContext,
-        positional_args: Vec<OwnedScalarValue>,
-        _named_args: HashMap<String, OwnedScalarValue>,
+        positional_args: Vec<ScalarValue>,
+        _named_args: HashMap<String, ScalarValue>,
     ) -> BoxFuture<'_, Result<Self::ConnectionState>> {
         Box::pin(async move {
             let endpoint = try_get_positional(&info, 0, &positional_args)?.try_as_str()?;
@@ -287,8 +287,8 @@ impl<R: Runtime, O: UnityObjectsOperation<R>> ScanPlanner for UnityObjects<R, O>
     fn plan<'a>(
         &self,
         context: &'a DatabaseContext,
-        positional_inputs: Vec<OwnedScalarValue>,
-        named_inputs: HashMap<String, OwnedScalarValue>,
+        positional_inputs: Vec<ScalarValue>,
+        named_inputs: HashMap<String, ScalarValue>,
     ) -> BoxFuture<'a, Result<PlannedTableFunction>> {
         Self::plan_inner(self.clone(), context, positional_inputs, named_inputs).boxed()
     }
@@ -298,8 +298,8 @@ impl<R: Runtime, O: UnityObjectsOperation<R>> UnityObjects<R, O> {
     async fn plan_inner(
         self,
         context: &DatabaseContext,
-        positional_inputs: Vec<OwnedScalarValue>,
-        named_inputs: HashMap<String, OwnedScalarValue>,
+        positional_inputs: Vec<ScalarValue>,
+        named_inputs: HashMap<String, ScalarValue>,
     ) -> Result<PlannedTableFunction> {
         // TODO: Remove clones.
         let state = O::create_connection_state(
@@ -312,8 +312,8 @@ impl<R: Runtime, O: UnityObjectsOperation<R>> UnityObjects<R, O> {
 
         Ok(PlannedTableFunction {
             function: Box::new(self),
-            positional_inputs: positional_inputs.into_iter().map(expr::lit).collect(),
-            named_inputs,
+            positional: positional_inputs.into_iter().map(expr::lit).collect(),
+            named: named_inputs,
             function_impl: TableFunctionImpl::Scan(Arc::new(UnityObjectsDataTable::<R, O> {
                 state,
             })),

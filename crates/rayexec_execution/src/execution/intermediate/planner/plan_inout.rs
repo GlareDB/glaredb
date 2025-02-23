@@ -1,4 +1,3 @@
-
 use rayexec_error::{Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
@@ -22,7 +21,7 @@ impl IntermediatePipelineBuildState<'_> {
 
         let function_inputs = self
             .expr_planner
-            .plan_scalars(&input_refs, &inout.node.function.positional_inputs)
+            .plan_scalars(&input_refs, &inout.node.function.positional)
             .context("Failed to plan input expressions for table inout")?;
 
         let projected_outputs = self

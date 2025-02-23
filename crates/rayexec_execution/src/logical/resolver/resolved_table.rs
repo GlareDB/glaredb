@@ -114,7 +114,7 @@ mod tests {
     use rayexec_proto::testutil::assert_proto_roundtrip;
 
     use super::*;
-    use crate::arrays::scalar::OwnedScalarValue;
+    use crate::arrays::scalar::ScalarValue;
 
     #[test]
     fn roundtrip_unbound_table_reference() {
@@ -123,7 +123,7 @@ mod tests {
             catalog: "catalog".to_string(),
             attach_info: Some(AttachInfo {
                 datasource: "snowbricks".to_string(),
-                options: [("key".to_string(), OwnedScalarValue::Float32(3.5))].into(),
+                options: [("key".to_string(), ScalarValue::Float32(3.5))].into(),
             }),
         };
 

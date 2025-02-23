@@ -11,7 +11,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -41,15 +41,15 @@ impl FunctionInfo for IsNull {
     }
 }
 
-impl ScalarFunction for IsNull {
+impl ScalarFunction2 for IsNull {
     fn plan(
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,
@@ -84,15 +84,15 @@ impl FunctionInfo for IsNotNull {
     }
 }
 
-impl ScalarFunction for IsNotNull {
+impl ScalarFunction2 for IsNotNull {
     fn plan(
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,
@@ -157,15 +157,15 @@ impl FunctionInfo for IsTrue {
     }
 }
 
-impl ScalarFunction for IsTrue {
+impl ScalarFunction2 for IsTrue {
     fn plan(
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,
@@ -200,15 +200,15 @@ impl FunctionInfo for IsNotTrue {
     }
 }
 
-impl ScalarFunction for IsNotTrue {
+impl ScalarFunction2 for IsNotTrue {
     fn plan(
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,
@@ -243,15 +243,15 @@ impl FunctionInfo for IsFalse {
     }
 }
 
-impl ScalarFunction for IsFalse {
+impl ScalarFunction2 for IsFalse {
     fn plan(
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,
@@ -286,15 +286,15 @@ impl FunctionInfo for IsNotFalse {
     }
 }
 
-impl ScalarFunction for IsNotFalse {
+impl ScalarFunction2 for IsNotFalse {
     fn plan(
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,

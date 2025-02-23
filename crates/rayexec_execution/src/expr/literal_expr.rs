@@ -1,11 +1,11 @@
 use std::fmt;
 
-use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
+use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LiteralExpr {
-    pub literal: OwnedScalarValue,
+    pub literal: ScalarValue,
 }
 
 impl ContextDisplay for LiteralExpr {
@@ -15,7 +15,7 @@ impl ContextDisplay for LiteralExpr {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self.literal {
-            ScalarValue::Utf8(_) => {
+            BorrowedScalarValue::Utf8(_) => {
                 // Quote strings.
                 //
                 // This shouldn't be put in the normal formatting for scalar

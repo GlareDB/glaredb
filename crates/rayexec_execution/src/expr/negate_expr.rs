@@ -6,7 +6,7 @@ use super::{AsScalarFunction, Expression};
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::scalar::builtin::negate;
-use crate::functions::scalar::ScalarFunction;
+use crate::functions::scalar::ScalarFunction2;
 use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -16,7 +16,7 @@ pub enum NegateOperator {
 }
 
 impl AsScalarFunction for NegateOperator {
-    fn as_scalar_function(&self) -> &dyn ScalarFunction {
+    fn as_scalar_function(&self) -> &dyn ScalarFunction2 {
         match self {
             Self::Not => &negate::Not,
             Self::Negate => &negate::Negate,

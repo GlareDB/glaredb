@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Read;
 use std::sync::Arc;
 
+use super::PARQUET_MAGIC_ENC;
 use crate::basic::ColumnOrder;
 use crate::errors::{general_err, ParquetError, ParquetResult};
 use crate::file::metadata::*;
@@ -70,7 +70,11 @@ pub fn decode_metadata(buf: &[u8]) -> ParquetResult<ParquetMetaData> {
 /// ```
 pub fn decode_footer(slice: &[u8; FOOTER_SIZE]) -> ParquetResult<usize> {
     // check this is indeed a parquet file
-    if slice[4..] != PARQUET_MAGIC {
+    if &slice[4..] == PARQUET_MAGIC_ENC {
+        return Err(general_err!("Encrypted parquet files not yet supported"));
+    }
+
+    if &slice[4..] != PARQUET_MAGIC {
         return Err(general_err!("Invalid Parquet file. Corrupt footer"));
     }
 
@@ -115,42 +119,11 @@ fn parse_column_orders(
 
 #[cfg(test)]
 mod tests {
-    use bytes::Bytes;
 
     use super::*;
     use crate::basic::{SortOrder, Type};
     use crate::format::TypeDefinedOrder;
     use crate::schema::types::Type as SchemaType;
-
-    // #[test]
-    // fn test_parse_metadata_size_smaller_than_footer() {
-    //     let test_file = tempfile::tempfile().unwrap();
-    //     let reader_result = parse_metadata(&test_file);
-    //     assert_eq!(
-    //         reader_result.unwrap_err().to_string(),
-    //         "Parquet error: Invalid Parquet file. Size is smaller than footer"
-    //     );
-    // }
-
-    // #[test]
-    // fn test_parse_metadata_corrupt_footer() {
-    //     let data = Bytes::from(vec![1, 2, 3, 4, 5, 6, 7, 8]);
-    //     let reader_result = parse_metadata(&data);
-    //     assert_eq!(
-    //         reader_result.unwrap_err().to_string(),
-    //         "Parquet error: Invalid Parquet file. Corrupt footer"
-    //     );
-    // }
-
-    // #[test]
-    // fn test_parse_metadata_invalid_start() {
-    //     let test_file = Bytes::from(vec![255, 0, 0, 0, b'P', b'A', b'R', b'1']);
-    //     let reader_result = parse_metadata(&test_file);
-    //     assert_eq!(
-    //         reader_result.unwrap_err().to_string(),
-    //         "Parquet error: Invalid Parquet file. Reported metadata length of 255 + 8 byte footer, but file is only 8 bytes"
-    //     );
-    // }
 
     #[test]
     fn test_metadata_column_orders_parse() {

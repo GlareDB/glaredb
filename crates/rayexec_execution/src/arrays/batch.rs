@@ -6,7 +6,7 @@ use stdutil::iter::IntoExactSizeIterator;
 use super::array::selection::Selection;
 use super::cache::{BufferCache, MaybeCache, NopCache};
 use super::datatype::DataType;
-use super::scalar::ScalarValue;
+use super::scalar::BorrowedScalarValue;
 use crate::arrays::array::Array;
 use crate::buffer::buffer_manager::NopBufferManager;
 
@@ -186,7 +186,7 @@ impl Batch {
     }
 
     /// Sets a constant value for an array.
-    pub fn set_constant_value(&mut self, arr_idx: usize, val: ScalarValue) -> Result<()> {
+    pub fn set_constant_value(&mut self, arr_idx: usize, val: BorrowedScalarValue) -> Result<()> {
         let arr = &mut self.arrays[arr_idx];
         let new_arr = Array::new_constant(&NopBufferManager, &val, self.num_rows)?;
         let old = std::mem::replace(arr, new_arr);
@@ -472,7 +472,7 @@ mod tests {
     fn set_constant_val_simple() {
         let mut batch = generate_batch!([1, 2, 3, 4], ["a", "b", "c", "d"]);
         batch
-            .set_constant_value(1, ScalarValue::Utf8("dog".into()))
+            .set_constant_value(1, BorrowedScalarValue::Utf8("dog".into()))
             .unwrap();
 
         let expected = generate_batch!([1, 2, 3, 4], ["dog", "dog", "dog", "dog"]);

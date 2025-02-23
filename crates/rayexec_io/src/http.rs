@@ -1,5 +1,4 @@
 use std::fmt::{self, Debug};
-use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
@@ -60,18 +59,21 @@ impl<C> FileSource for HttpFile<C>
 where
     C: HttpClient + Unpin + 'static,
 {
-    fn read(&mut self) -> Pin<Box<dyn AsyncReadStream>> {
+    type ReadStream = HttpRead<C>;
+    type ReadRangeStream = HttpRead<C>;
+
+    fn read(&mut self) -> Self::ReadStream {
         debug!(url = %self.url, "http read");
         let request = Request::new(Method::GET, self.url.clone());
         let fut = self.client.do_request(request);
 
-        Box::pin(HttpRead::<C>::Requesting {
+        HttpRead::<C>::Requesting {
             fut,
             expected_status: StatusCode::OK,
-        })
+        }
     }
 
-    fn read_range(&mut self, start: usize, len: usize) -> Pin<Box<dyn AsyncReadStream>> {
+    fn read_range(&mut self, start: usize, len: usize) -> Self::ReadRangeStream {
         debug!(url = %self.url, %start, %len, "http reading range");
         let range = format_range_header(start, start + len - 1);
         let mut request = Request::new(Method::GET, self.url.clone());
@@ -80,19 +82,19 @@ where
             .insert(RANGE, range.try_into().unwrap());
         let fut = self.client.do_request(request);
 
-        Box::pin(HttpRead::<C>::Requesting {
+        HttpRead::<C>::Requesting {
             fut,
             expected_status: StatusCode::PARTIAL_CONTENT,
-        })
+        }
     }
 }
 
-struct BufferedBytes {
+pub struct BufferedBytes {
     offset: usize,
     bytes: Bytes,
 }
 
-enum HttpRead<C: HttpClient> {
+pub enum HttpRead<C: HttpClient> {
     Requesting {
         fut: C::RequestFuture,
         expected_status: StatusCode,
@@ -105,13 +107,9 @@ enum HttpRead<C: HttpClient> {
 
 impl<C> AsyncReadStream for HttpRead<C>
 where
-    C: HttpClient + Unpin,
+    C: HttpClient,
 {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Result<Poll<Option<usize>>> {
+    fn poll_read(self: &mut Self, cx: &mut Context, buf: &mut [u8]) -> Result<Poll<Option<usize>>> {
         let this = &mut *self;
 
         loop {

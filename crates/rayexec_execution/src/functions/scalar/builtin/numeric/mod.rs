@@ -49,7 +49,7 @@ use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -114,12 +114,12 @@ impl<O: UnaryInputNumericOperation> FunctionInfo for UnaryInputNumericScalar<O> 
     }
 }
 
-impl<O: UnaryInputNumericOperation> ScalarFunction for UnaryInputNumericScalar<O> {
+impl<O: UnaryInputNumericOperation> ScalarFunction2 for UnaryInputNumericScalar<O> {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
         let datatype = inputs[0].datatype(table_list)?;
 
@@ -129,7 +129,7 @@ impl<O: UnaryInputNumericOperation> ScalarFunction for UnaryInputNumericScalar<O
             other => return Err(invalid_input_types_error(self, &[other])),
         }
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: datatype.clone(),
             inputs,

@@ -8,7 +8,7 @@ use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -40,12 +40,12 @@ impl FunctionInfo for Contains {
     }
 }
 
-impl ScalarFunction for Contains {
+impl ScalarFunction2 for Contains {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
@@ -68,7 +68,7 @@ impl ScalarFunction for Contains {
             Box::new(StringContainsImpl)
         };
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: DataType::Boolean,
             inputs,

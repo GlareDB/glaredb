@@ -30,7 +30,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -62,12 +62,12 @@ impl FunctionInfo for ListExtract {
     }
 }
 
-impl ScalarFunction for ListExtract {
+impl ScalarFunction2 for ListExtract {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
@@ -93,7 +93,7 @@ impl ScalarFunction for ListExtract {
             }
         };
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: inner_datatype.clone(),
             inputs,
@@ -207,9 +207,9 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::ListTypeMeta;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]

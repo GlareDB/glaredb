@@ -168,7 +168,7 @@ impl MemoryRead {
 
 impl AsyncReadStream for MemoryRead {
     fn poll_read(
-        mut self: Pin<&mut Self>,
+        self: &mut Self,
         _cx: &mut Context,
         buf: &mut [u8],
     ) -> Result<Poll<Option<usize>>> {
@@ -234,7 +234,6 @@ pub fn get_normalized_file_name(path: &Path) -> Result<&str> {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
-    use std::task::Waker;
 
     use stdutil::task::noop_context;
 

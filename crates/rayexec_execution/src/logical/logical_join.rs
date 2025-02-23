@@ -323,16 +323,16 @@ impl LogicalNode for Node<LogicalCrossJoin> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::scalar::ScalarValue;
+    use crate::arrays::scalar::BorrowedScalarValue;
     use crate::expr::literal_expr::LiteralExpr;
 
     #[test]
     fn flip_comparison() {
         let a = Expression::Literal(LiteralExpr {
-            literal: ScalarValue::Int8(1),
+            literal: BorrowedScalarValue::Int8(1),
         });
         let b = Expression::Literal(LiteralExpr {
-            literal: ScalarValue::Int8(2),
+            literal: BorrowedScalarValue::Int8(2),
         });
 
         // (original, flipped)

@@ -11,7 +11,7 @@ use connection::{UnityCatalogConnection, CATALOG_OPTION_KEY, ENDPOINT_OPTION_KEY
 use functions::{ListSchemasOperation, ListTablesOperation, UnityObjects};
 use futures::future::BoxFuture;
 use rayexec_error::Result;
-use rayexec_execution::arrays::scalar::OwnedScalarValue;
+use rayexec_execution::arrays::scalar::ScalarValue;
 use rayexec_execution::datasource::{
     take_option,
     DataSource,
@@ -36,7 +36,7 @@ impl<R: Runtime> DataSourceBuilder<R> for UnityCatalogDataSource<R> {
 impl<R: Runtime> DataSource for UnityCatalogDataSource<R> {
     fn connect(
         &self,
-        mut options: HashMap<String, OwnedScalarValue>,
+        mut options: HashMap<String, ScalarValue>,
     ) -> BoxFuture<'_, Result<DataSourceConnection>> {
         Box::pin(async move {
             let endpoint = take_option(ENDPOINT_OPTION_KEY, &mut options)?.try_into_string()?;

@@ -4,7 +4,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::expr_binder::RecursionContext;
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::column_binder::ErroringColumnBinder;
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
@@ -25,10 +25,7 @@ impl<'a> ConstantBinder<'a> {
     }
 
     /// Try to bind an AST expression as a constant value.
-    pub fn bind_constant_expression(
-        &self,
-        expr: &ast::Expr<ResolvedMeta>,
-    ) -> Result<OwnedScalarValue> {
+    pub fn bind_constant_expression(&self, expr: &ast::Expr<ResolvedMeta>) -> Result<ScalarValue> {
         // TODO: Probably want to check that we didn't bind a subquery.
         let mut bind_context = BindContext::new();
         let expr = BaseExpressionBinder::new(bind_context.root_scope_ref(), self.resolve_context)
@@ -74,7 +71,7 @@ impl<'a> ConstantBinder<'a> {
     fn bind_constant_function_arg_expr(
         &self,
         arg: &ast::FunctionArgExpr<ResolvedMeta>,
-    ) -> Result<OwnedScalarValue> {
+    ) -> Result<ScalarValue> {
         match arg {
             ast::FunctionArgExpr::Expr(expr) => self.bind_constant_expression(expr),
             ast::FunctionArgExpr::Wildcard => Err(RayexecError::new(

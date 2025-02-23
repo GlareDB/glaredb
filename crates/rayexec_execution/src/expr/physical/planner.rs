@@ -7,7 +7,7 @@ use super::column_expr::PhysicalColumnExpr;
 use super::literal_expr::PhysicalLiteralExpr;
 use super::scalar_function_expr::PhysicalScalarFunctionExpr;
 use super::PhysicalSortExpression;
-use crate::arrays::scalar::ScalarValue;
+use crate::arrays::scalar::BorrowedScalarValue;
 use crate::expr::physical::case_expr::PhysicalWhenThen;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{AsScalarFunction, Expression};
@@ -188,7 +188,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                     None => PhysicalScalarExpression::Cast(PhysicalCastExpr {
                         to: datatype.clone(),
                         expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                            literal: ScalarValue::Null,
+                            literal: BorrowedScalarValue::Null,
                         })),
                     }),
                 };

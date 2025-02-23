@@ -25,7 +25,7 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -101,12 +101,12 @@ impl FunctionInfo for Rem {
     }
 }
 
-impl ScalarFunction for Rem {
+impl ScalarFunction2 for Rem {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 2)?;
 
         let (function_impl, return_type): (Box<dyn ScalarFunctionImpl>, _) = match (
@@ -157,7 +157,7 @@ impl ScalarFunction for Rem {
             (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
         };
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type,
             inputs,
@@ -207,7 +207,7 @@ mod tests {
     use crate::arrays::datatype::DataType;
     use crate::buffer::buffer_manager::NopBufferManager;
     use crate::expr;
-    use crate::functions::scalar::ScalarFunction;
+    use crate::functions::scalar::ScalarFunction2;
     use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]

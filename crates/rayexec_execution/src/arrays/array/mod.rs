@@ -50,7 +50,7 @@ use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::timestamp::TimestampScalar;
-use crate::arrays::scalar::ScalarValue;
+use crate::arrays::scalar::BorrowedScalarValue;
 use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager, NopBufferManager};
 use crate::buffer::typed::TypedBuffer;
 
@@ -105,7 +105,7 @@ impl Array {
     /// that same element.
     pub fn new_constant(
         manager: &impl BufferManager,
-        value: &ScalarValue,
+        value: &BorrowedScalarValue,
         len: usize,
     ) -> Result<Self> {
         let mut arr = Self::new(manager, value.datatype(), 1)?;
@@ -443,7 +443,7 @@ impl Array {
         copy_rows_array(self, mapping, dest)
     }
 
-    pub fn get_value(&self, idx: usize) -> Result<ScalarValue> {
+    pub fn get_value(&self, idx: usize) -> Result<BorrowedScalarValue> {
         if idx >= self.logical_len() {
             return Err(RayexecError::new("Index out of bounds")
                 .with_field("idx", idx)
@@ -457,7 +457,7 @@ impl Array {
     }
 
     /// Set a scalar value at a given index.
-    pub fn set_value(&mut self, idx: usize, val: &ScalarValue) -> Result<()> {
+    pub fn set_value(&mut self, idx: usize, val: &BorrowedScalarValue) -> Result<()> {
         // TODO: Handle constant, dictionary
         //
         // - Constant => convert to dictionary
@@ -476,76 +476,76 @@ impl Array {
         self.validity.set_valid(idx);
 
         match val {
-            ScalarValue::Null => {
+            BorrowedScalarValue::Null => {
                 self.validity.set_invalid(idx);
             }
-            ScalarValue::Boolean(val) => {
+            BorrowedScalarValue::Boolean(val) => {
                 PhysicalBool::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Int8(val) => {
+            BorrowedScalarValue::Int8(val) => {
                 PhysicalI8::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Int16(val) => {
+            BorrowedScalarValue::Int16(val) => {
                 PhysicalI16::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Int32(val) => {
+            BorrowedScalarValue::Int32(val) => {
                 PhysicalI32::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Int64(val) => {
+            BorrowedScalarValue::Int64(val) => {
                 PhysicalI64::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Int128(val) => {
+            BorrowedScalarValue::Int128(val) => {
                 PhysicalI128::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::UInt8(val) => {
+            BorrowedScalarValue::UInt8(val) => {
                 PhysicalU8::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::UInt16(val) => {
+            BorrowedScalarValue::UInt16(val) => {
                 PhysicalU16::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::UInt32(val) => {
+            BorrowedScalarValue::UInt32(val) => {
                 PhysicalU32::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::UInt64(val) => {
+            BorrowedScalarValue::UInt64(val) => {
                 PhysicalU64::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::UInt128(val) => {
+            BorrowedScalarValue::UInt128(val) => {
                 PhysicalU128::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Float16(val) => {
+            BorrowedScalarValue::Float16(val) => {
                 PhysicalF16::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Float32(val) => {
+            BorrowedScalarValue::Float32(val) => {
                 PhysicalF32::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Float64(val) => {
+            BorrowedScalarValue::Float64(val) => {
                 PhysicalF64::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Decimal64(val) => {
+            BorrowedScalarValue::Decimal64(val) => {
                 PhysicalI64::get_addressable_mut(&mut self.data)?.put(idx, &val.value);
             }
-            ScalarValue::Decimal128(val) => {
+            BorrowedScalarValue::Decimal128(val) => {
                 PhysicalI128::get_addressable_mut(&mut self.data)?.put(idx, &val.value);
             }
-            ScalarValue::Date32(val) => {
+            BorrowedScalarValue::Date32(val) => {
                 PhysicalI32::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Date64(val) => {
+            BorrowedScalarValue::Date64(val) => {
                 PhysicalI64::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Timestamp(val) => {
+            BorrowedScalarValue::Timestamp(val) => {
                 PhysicalI64::get_addressable_mut(&mut self.data)?.put(idx, &val.value);
             }
-            ScalarValue::Interval(val) => {
+            BorrowedScalarValue::Interval(val) => {
                 PhysicalInterval::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Utf8(val) => {
+            BorrowedScalarValue::Utf8(val) => {
                 PhysicalUtf8::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::Binary(val) => {
+            BorrowedScalarValue::Binary(val) => {
                 PhysicalBinary::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            ScalarValue::List(list) => {
+            BorrowedScalarValue::List(list) => {
                 unimplemented!()
                 // let secondary = self.data.try_as_mut()?.get_secondary_mut().get_list_mut()?;
 
@@ -578,7 +578,7 @@ impl Array {
                 //     },
                 // );
             }
-            ScalarValue::Struct(_) => not_implemented!("set value for struct"),
+            BorrowedScalarValue::Struct(_) => not_implemented!("set value for struct"),
         }
 
         Ok(())
@@ -594,71 +594,71 @@ fn get_value_inner<'a>(
     buffer: &'a ArrayBuffer,
     validity: &Validity,
     idx: usize,
-) -> Result<ScalarValue<'a>> {
+) -> Result<BorrowedScalarValue<'a>> {
     if !validity.is_valid(idx) {
-        return Ok(ScalarValue::Null);
+        return Ok(BorrowedScalarValue::Null);
     }
 
     match datatype {
         DataType::Boolean => {
             let v = PhysicalBool::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Boolean(*v))
+            Ok(BorrowedScalarValue::Boolean(*v))
         }
         DataType::Int8 => {
             let v = PhysicalI8::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Int8(*v))
+            Ok(BorrowedScalarValue::Int8(*v))
         }
         DataType::Int16 => {
             let v = PhysicalI16::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Int16(*v))
+            Ok(BorrowedScalarValue::Int16(*v))
         }
         DataType::Int32 => {
             let v = PhysicalI32::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Int32(*v))
+            Ok(BorrowedScalarValue::Int32(*v))
         }
         DataType::Int64 => {
             let v = PhysicalI64::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Int64(*v))
+            Ok(BorrowedScalarValue::Int64(*v))
         }
         DataType::Int128 => {
             let v = PhysicalI128::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Int128(*v))
+            Ok(BorrowedScalarValue::Int128(*v))
         }
         DataType::UInt8 => {
             let v = PhysicalU8::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::UInt8(*v))
+            Ok(BorrowedScalarValue::UInt8(*v))
         }
         DataType::UInt16 => {
             let v = PhysicalU16::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::UInt16(*v))
+            Ok(BorrowedScalarValue::UInt16(*v))
         }
         DataType::UInt32 => {
             let v = PhysicalU32::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::UInt32(*v))
+            Ok(BorrowedScalarValue::UInt32(*v))
         }
         DataType::UInt64 => {
             let v = PhysicalU64::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::UInt64(*v))
+            Ok(BorrowedScalarValue::UInt64(*v))
         }
         DataType::UInt128 => {
             let v = PhysicalU128::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::UInt128(*v))
+            Ok(BorrowedScalarValue::UInt128(*v))
         }
         DataType::Float16 => {
             let v = PhysicalF16::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Float16(*v))
+            Ok(BorrowedScalarValue::Float16(*v))
         }
         DataType::Float32 => {
             let v = PhysicalF32::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Float32(*v))
+            Ok(BorrowedScalarValue::Float32(*v))
         }
         DataType::Float64 => {
             let v = PhysicalF64::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Float64(*v))
+            Ok(BorrowedScalarValue::Float64(*v))
         }
         DataType::Decimal64(m) => {
             let v = PhysicalI64::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Decimal64(Decimal64Scalar {
+            Ok(BorrowedScalarValue::Decimal64(Decimal64Scalar {
                 precision: m.precision,
                 scale: m.scale,
                 value: *v,
@@ -666,7 +666,7 @@ fn get_value_inner<'a>(
         }
         DataType::Decimal128(m) => {
             let v = PhysicalI128::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Decimal128(Decimal128Scalar {
+            Ok(BorrowedScalarValue::Decimal128(Decimal128Scalar {
                 precision: m.precision,
                 scale: m.scale,
                 value: *v,
@@ -674,11 +674,11 @@ fn get_value_inner<'a>(
         }
         DataType::Interval => {
             let v = PhysicalInterval::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Interval(*v))
+            Ok(BorrowedScalarValue::Interval(*v))
         }
         DataType::Timestamp(m) => {
             let v = PhysicalI64::get_addressable(buffer)?.get(idx).unwrap();
-            Ok(ScalarValue::Timestamp(TimestampScalar {
+            Ok(BorrowedScalarValue::Timestamp(TimestampScalar {
                 unit: m.unit,
                 value: *v,
             }))
@@ -686,12 +686,12 @@ fn get_value_inner<'a>(
         DataType::Utf8 => {
             let addressable = PhysicalUtf8::get_addressable(buffer)?;
             let v = addressable.get(idx).unwrap();
-            Ok(ScalarValue::Utf8(v.into()))
+            Ok(BorrowedScalarValue::Utf8(v.into()))
         }
         DataType::Binary => {
             let addressable = PhysicalBinary::get_addressable(buffer)?;
             let v = addressable.get(idx).unwrap();
-            Ok(ScalarValue::Binary(v.into()))
+            Ok(BorrowedScalarValue::Binary(v.into()))
         }
         DataType::List(m) => {
             let list_buf = match buffer.as_ref() {
@@ -712,7 +712,7 @@ fn get_value_inner<'a>(
                 vals.push(v);
             }
 
-            Ok(ScalarValue::List(vals))
+            Ok(BorrowedScalarValue::List(vals))
         }
 
         other => not_implemented!("get value for scalar type: {other:?}"),
@@ -889,7 +889,7 @@ mod tests {
         let expected = Array::try_from_iter::<[Option<i32>; 4]>([None, None, None, None]).unwrap();
         assert_arrays_eq(&expected, &arr);
 
-        assert_eq!(ScalarValue::Null, arr.get_value(2).unwrap());
+        assert_eq!(BorrowedScalarValue::Null, arr.get_value(2).unwrap());
     }
 
     #[test]
@@ -972,7 +972,7 @@ mod tests {
     fn get_value_simple() {
         let arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         let val = arr.get_value(1).unwrap();
-        assert_eq!(ScalarValue::Utf8("b".into()), val);
+        assert_eq!(BorrowedScalarValue::Utf8("b".into()), val);
     }
 
     #[test]
@@ -980,10 +980,10 @@ mod tests {
         let arr = Array::try_from_iter([Some("a"), None, Some("c")]).unwrap();
 
         let val = arr.get_value(0).unwrap();
-        assert_eq!(ScalarValue::Utf8("a".into()), val);
+        assert_eq!(BorrowedScalarValue::Utf8("a".into()), val);
 
         let val = arr.get_value(1).unwrap();
-        assert_eq!(ScalarValue::Null, val);
+        assert_eq!(BorrowedScalarValue::Null, val);
     }
 
     #[test]
@@ -993,14 +993,14 @@ mod tests {
         arr.select(&NopBufferManager, [0, 2]).unwrap();
         let val = arr.get_value(1).unwrap();
 
-        assert_eq!(ScalarValue::Utf8("c".into()), val);
+        assert_eq!(BorrowedScalarValue::Utf8("c".into()), val);
     }
 
     #[test]
     fn get_value_constant() {
         let arr = Array::new_constant(&NopBufferManager, &"cat".into(), 4).unwrap();
         let val = arr.get_value(2).unwrap();
-        assert_eq!(ScalarValue::Utf8("cat".into()), val);
+        assert_eq!(BorrowedScalarValue::Utf8("cat".into()), val);
     }
 
     #[test]
@@ -1022,11 +1022,11 @@ mod tests {
         )
         .unwrap();
 
-        let expected0 = ScalarValue::List(vec![1.into(), 5.into()]);
+        let expected0 = BorrowedScalarValue::List(vec![1.into(), 5.into()]);
         let v0 = lists.get_value(0).unwrap();
         assert_eq!(expected0, v0);
 
-        let expected2 = ScalarValue::List(vec![ScalarValue::Null, 7.into()]);
+        let expected2 = BorrowedScalarValue::List(vec![BorrowedScalarValue::Null, 7.into()]);
         let v2 = lists.get_value(2).unwrap();
         assert_eq!(expected2, v2);
     }

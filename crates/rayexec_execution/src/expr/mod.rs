@@ -39,9 +39,9 @@ use unnest_expr::UnnestExpr;
 use window_expr::WindowExpr;
 
 use crate::arrays::datatype::DataType;
-use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
+use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
-use crate::functions::scalar::{FunctionVolatility, ScalarFunction};
+use crate::functions::scalar::{FunctionVolatility, ScalarFunction2};
 use crate::logical::binder::table_list::{TableList, TableRef};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -246,7 +246,7 @@ impl Expression {
         let expr = std::mem::replace(
             self,
             Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Null,
+                literal: BorrowedScalarValue::Null,
             }),
         );
 
@@ -334,7 +334,7 @@ impl Expression {
         match self {
             Self::Literal(v) => {
                 match &v.literal {
-                    ScalarValue::Null => {
+                    BorrowedScalarValue::Null => {
                         // TODO: Not allowing null to be const foldable is
                         // currently a workaround for not have comprehensive
                         // support for evaluating null arrays without type
@@ -440,7 +440,7 @@ impl Expression {
 
     /// Try to get a top-level literal from this expression, erroring if it's
     /// not one.
-    pub fn try_into_scalar(self) -> Result<OwnedScalarValue> {
+    pub fn try_into_scalar(self) -> Result<ScalarValue> {
         match self {
             Self::Literal(lit) => Ok(lit.literal),
             other => Err(RayexecError::new(format!("Not a literal: {other}"))),
@@ -537,7 +537,7 @@ pub fn col_ref(table_ref: impl Into<TableRef>, column_idx: usize) -> Expression 
     })
 }
 
-pub fn lit(scalar: impl Into<OwnedScalarValue>) -> Expression {
+pub fn lit(scalar: impl Into<ScalarValue>) -> Expression {
     Expression::Literal(LiteralExpr {
         literal: scalar.into(),
     })
@@ -585,11 +585,11 @@ impl ContextDisplay for Expression {
 
 pub trait AsScalarFunction {
     /// Returns the scalar function that implements the expression.
-    fn as_scalar_function(&self) -> &dyn ScalarFunction;
+    fn as_scalar_function(&self) -> &dyn ScalarFunction2;
 }
 
-impl<S: ScalarFunction> AsScalarFunction for S {
-    fn as_scalar_function(&self) -> &dyn ScalarFunction {
+impl<S: ScalarFunction2> AsScalarFunction for S {
+    fn as_scalar_function(&self) -> &dyn ScalarFunction2 {
         self as _
     }
 }

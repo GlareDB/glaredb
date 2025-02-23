@@ -16,17 +16,20 @@ use crate::exp::AsyncReadStream;
 /// less than the length of the buffer if the stream completes sooner.
 ///
 /// The stream can continue to be used after this future complete.
-pub struct ReadInto<'a> {
-    stream: &'a mut Pin<Box<dyn AsyncReadStream>>,
+pub struct ReadInto<'a, S> {
+    stream: &'a mut S,
     buf: &'a mut [u8],
     count: usize,
 }
 
-impl<'a> ReadInto<'a> {
+impl<'a, S> ReadInto<'a, S>
+where
+    S: AsyncReadStream,
+{
     /// Create a new future for reading into the provided buffer.
     ///
     /// This will write to the start of the buffer.
-    pub fn new(stream: &'a mut Pin<Box<dyn AsyncReadStream>>, buf: &'a mut [u8]) -> Self {
+    pub fn new(stream: &'a mut S, buf: &'a mut [u8]) -> Self {
         ReadInto {
             stream,
             buf,
@@ -45,16 +48,15 @@ impl<'a> ReadInto<'a> {
     ///
     /// Assumes that the stream and buffer provided is the same stream and
     /// buffer used to create the initial future.
-    pub fn resume(
-        stream: &'a mut Pin<Box<dyn AsyncReadStream>>,
-        buf: &'a mut [u8],
-        count: usize,
-    ) -> Self {
+    pub fn resume(stream: &'a mut S, buf: &'a mut [u8], count: usize) -> Self {
         ReadInto { stream, buf, count }
     }
 }
 
-impl<'a> Future for ReadInto<'a> {
+impl<'a, S> Future for ReadInto<'a, S>
+where
+    S: AsyncReadStream,
+{
     type Output = Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -67,7 +69,7 @@ impl<'a> Future for ReadInto<'a> {
 
             let buf = &mut this.buf[this.count..];
 
-            match this.stream.as_mut().poll_read(cx, buf) {
+            match this.stream.poll_read(cx, buf) {
                 Ok(Poll::Ready(Some(count))) => {
                     this.count += count;
                     // Keep trying to read more.
@@ -93,7 +95,7 @@ mod tests {
     fn read_small_buffer() {
         let mut buf = vec![0; 4];
 
-        let mut stream = TestReadStream::new_pinned(8, 100);
+        let mut stream = TestReadStream::new(8, 100);
         let poll = ReadInto::new(&mut stream, &mut buf).poll_unpin(&mut noop_context());
 
         match poll {
@@ -111,7 +113,7 @@ mod tests {
     fn read_stream_terminates() {
         let mut buf = vec![0; 4];
 
-        let mut stream = TestReadStream::new_pinned(8, 2);
+        let mut stream = TestReadStream::new(8, 2);
         let poll = ReadInto::new(&mut stream, &mut buf).poll_unpin(&mut noop_context());
 
         match poll {

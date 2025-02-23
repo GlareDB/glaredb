@@ -7,7 +7,7 @@ use std::sync::Arc;
 use discard::DiscardCopyToFunction;
 use futures::future::BoxFuture;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::arrays::scalar::OwnedScalarValue;
+use rayexec_execution::arrays::scalar::ScalarValue;
 use rayexec_execution::database::catalog_entry::TableEntry;
 use rayexec_execution::database::memory_catalog::MemoryCatalog;
 use rayexec_execution::datasource::{DataSource, DataSourceConnection, DataSourceCopyTo};
@@ -25,7 +25,7 @@ pub struct DebugDataSourceOptions {
 
     /// Options we expect to receive on connect, errors if we receive options
     /// that don't exactly match these.
-    pub expected_options: HashMap<String, OwnedScalarValue>,
+    pub expected_options: HashMap<String, ScalarValue>,
 
     /// Format string to use for using the discard COPY TO implementation.
     pub discard_format: String,
@@ -67,7 +67,7 @@ impl DebugDataSource {
 impl DataSource for DebugDataSource {
     fn connect(
         &self,
-        options: HashMap<String, OwnedScalarValue>,
+        options: HashMap<String, ScalarValue>,
     ) -> BoxFuture<'_, Result<DataSourceConnection>> {
         Box::pin(async move {
             if options != self.opts.expected_options {

@@ -6,7 +6,7 @@ use rayexec_error::{RayexecError, Result};
 use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::field::{Field, Schema};
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation};
@@ -66,7 +66,7 @@ impl InOutPlanner for Unnest {
         &self,
         table_list: &TableList,
         positional_inputs: Vec<Expression>,
-        named_inputs: HashMap<String, OwnedScalarValue>,
+        named_inputs: HashMap<String, ScalarValue>,
     ) -> Result<PlannedTableFunction> {
         plan_check_num_args(self, &positional_inputs, 1)?;
         if !named_inputs.is_empty() {
@@ -87,8 +87,8 @@ impl InOutPlanner for Unnest {
 
         Ok(PlannedTableFunction {
             function: Box::new(*self),
-            positional_inputs,
-            named_inputs,
+            positional: positional_inputs,
+            named: named_inputs,
             function_impl: TableFunctionImpl::InOut(Box::new(UnnestInOutImpl)),
             cardinality: StatisticsValue::Unknown,
             schema,

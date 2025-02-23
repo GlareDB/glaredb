@@ -8,7 +8,7 @@ use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::field::{Field, Schema};
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize};
 use crate::expr::{self, Expression};
 use crate::functions::documentation::{Category, Documentation};
@@ -79,7 +79,7 @@ impl InOutPlanner for GenerateSeriesInOutPlanner {
         &self,
         table_list: &TableList,
         mut positional_inputs: Vec<Expression>,
-        named_inputs: HashMap<String, OwnedScalarValue>,
+        named_inputs: HashMap<String, ScalarValue>,
     ) -> Result<PlannedTableFunction> {
         plan_check_num_args_one_of(&GenerateSeries, &positional_inputs, [2, 3])?;
         if !named_inputs.is_empty() {
@@ -107,8 +107,8 @@ impl InOutPlanner for GenerateSeriesInOutPlanner {
 
         Ok(PlannedTableFunction {
             function: Box::new(GenerateSeries),
-            positional_inputs,
-            named_inputs,
+            positional: positional_inputs,
+            named: named_inputs,
             function_impl: TableFunctionImpl::InOut(Box::new(GenerateSeriesInOutImpl)),
             cardinality: StatisticsValue::Unknown,
             schema: Schema::new([Field::new("generate_series", DataType::Int64, false)]),

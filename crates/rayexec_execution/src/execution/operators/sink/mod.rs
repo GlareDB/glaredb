@@ -16,7 +16,7 @@ use super::{
     PollFinalize,
     UnaryInputStates,
 };
-use crate::arrays::scalar::ScalarValue;
+use crate::arrays::scalar::BorrowedScalarValue;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
@@ -147,7 +147,7 @@ impl<S: SinkOperation> ExecutableOperator for PhysicalSink<S> {
                 Some(count) => {
                     let output = inout.output.required("output batch required")?;
                     output.reset_for_write()?;
-                    output.arrays[0].set_value(0, &ScalarValue::Int64(count as i64))?;
+                    output.arrays[0].set_value(0, &BorrowedScalarValue::Int64(count as i64))?;
                     output.set_num_rows(1)?;
 
                     Ok(PollExecute::Exhausted)

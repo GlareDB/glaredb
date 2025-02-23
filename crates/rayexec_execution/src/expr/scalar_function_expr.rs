@@ -3,15 +3,15 @@ use std::fmt;
 use fmtutil::IntoDisplayableSlice;
 
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::scalar::PlannedScalarFunction;
+use crate::functions::scalar::PlannedScalarFunction2;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScalarFunctionExpr {
-    pub function: PlannedScalarFunction,
+    pub function: PlannedScalarFunction2,
 }
 
-impl From<PlannedScalarFunction> for ScalarFunctionExpr {
-    fn from(value: PlannedScalarFunction) -> Self {
+impl From<PlannedScalarFunction2> for ScalarFunctionExpr {
+    fn from(value: PlannedScalarFunction2) -> Self {
         ScalarFunctionExpr { function: value }
     }
 }

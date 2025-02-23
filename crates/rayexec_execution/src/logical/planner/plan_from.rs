@@ -2,7 +2,7 @@ use rayexec_error::{RayexecError, Result};
 
 use super::plan_query::QueryPlanner;
 use super::plan_subquery::SubqueryPlanner;
-use crate::arrays::scalar::ScalarValue;
+use crate::arrays::scalar::BorrowedScalarValue;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::literal_expr::LiteralExpr;
@@ -327,7 +327,7 @@ impl FromPlanner {
             // completely.
             if expressions.is_empty() {
                 expressions.push(Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Boolean(true),
+                    literal: BorrowedScalarValue::Boolean(true),
                 }));
             }
 

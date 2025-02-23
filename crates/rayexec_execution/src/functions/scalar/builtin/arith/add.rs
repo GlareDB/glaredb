@@ -25,9 +25,31 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{
+    BindState,
+    FunctionVolatility,
+    PlannedScalarFunction2,
+    RawScalarFunction,
+    ScalarFunction,
+    ScalarFunction2,
+    ScalarFunctionImpl,
+};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
+
+pub const FUNCTION_SET_ADD: ScalarFunctionSet = ScalarFunctionSet {
+    name: "+",
+    aliases: &["add"],
+    doc: None,
+    functions: &[RawScalarFunction::new(
+        Signature::new_positional(
+            &[DataTypeId::Float16, DataTypeId::Float16],
+            DataTypeId::Float16,
+        ),
+        &SimpleAdd::<PhysicalF16>::new(&DataType::Float16),
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Add;
@@ -87,12 +109,12 @@ impl FunctionInfo for Add {
     }
 }
 
-impl ScalarFunction for Add {
+impl ScalarFunction2 for Add {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 2)?;
 
         let (function_impl, return_type): (Box<dyn ScalarFunctionImpl>, _) = match (
@@ -161,12 +183,62 @@ impl ScalarFunction for Add {
             (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
         };
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type,
             inputs,
             function_impl,
         })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SimpleAdd<S> {
+    return_type: &'static DataType,
+    _s: PhantomData<S>,
+}
+
+impl<S> SimpleAdd<S> {
+    pub const fn new(return_type: &'static DataType) -> Self {
+        SimpleAdd {
+            return_type,
+            _s: PhantomData,
+        }
+    }
+}
+
+impl<S> ScalarFunction for SimpleAdd<S>
+where
+    S: MutableScalarStorage,
+    S::StorageType: std::ops::Add<Output = S::StorageType> + Sized + Copy,
+{
+    type State = ();
+
+    fn bind(
+        &self,
+        _table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: self.return_type.clone(),
+            inputs,
+        })
+    }
+
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
+
+        BinaryExecutor::execute::<S, S, S, _>(
+            a,
+            sel,
+            b,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, &b, buf| buf.put(&(a + b)),
+        )
     }
 }
 
@@ -211,7 +283,7 @@ mod tests {
     use crate::arrays::datatype::DataType;
     use crate::buffer::buffer_manager::NopBufferManager;
     use crate::expr;
-    use crate::functions::scalar::ScalarFunction;
+    use crate::functions::scalar::ScalarFunction2;
     use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]

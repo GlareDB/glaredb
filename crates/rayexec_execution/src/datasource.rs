@@ -6,7 +6,7 @@ use futures::future::BoxFuture;
 use rayexec_error::{RayexecError, Result};
 use regex::Regex;
 
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::table::TableFunction;
 use crate::runtime::Runtime;
@@ -65,7 +65,7 @@ pub struct DataSourceConnection {
 pub trait DataSource: Sync + Send + Debug {
     fn connect(
         &self,
-        _options: HashMap<String, OwnedScalarValue>,
+        _options: HashMap<String, ScalarValue>,
     ) -> BoxFuture<'_, Result<DataSourceConnection>> {
         Box::pin(async {
             Err(RayexecError::new(
@@ -206,17 +206,14 @@ impl DataSourceRegistry {
 }
 
 /// Take an option from the options map, returning an error if it doesn't exist.
-pub fn take_option(
-    name: &str,
-    options: &mut HashMap<String, OwnedScalarValue>,
-) -> Result<OwnedScalarValue> {
+pub fn take_option(name: &str, options: &mut HashMap<String, ScalarValue>) -> Result<ScalarValue> {
     options
         .remove(name)
         .ok_or_else(|| RayexecError::new(format!("Missing required option '{name}'")))
 }
 
 /// Check that options is empty, erroring if it isn't.
-pub fn check_options_empty(options: &HashMap<String, OwnedScalarValue>) -> Result<()> {
+pub fn check_options_empty(options: &HashMap<String, ScalarValue>) -> Result<()> {
     if options.is_empty() {
         return Ok(());
     }
@@ -237,7 +234,7 @@ pub struct MemoryDataSource;
 impl DataSource for MemoryDataSource {
     fn connect(
         &self,
-        options: HashMap<String, OwnedScalarValue>,
+        options: HashMap<String, ScalarValue>,
     ) -> BoxFuture<'_, Result<DataSourceConnection>> {
         Box::pin(async move {
             if !options.is_empty() {

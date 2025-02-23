@@ -11,7 +11,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::arrays::row::row_scan::RowScanState;
-use crate::arrays::scalar::ScalarValue;
+use crate::arrays::scalar::BorrowedScalarValue;
 use crate::execution::operators::hash_aggregate::grouping_value::compute_grouping_value;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 
@@ -392,7 +392,7 @@ impl GroupingSetHashTable {
         // Append grouping values.
         for (idx, &grouping_val) in self.grouping_values.iter().enumerate() {
             let output_idx = num_groups + num_aggs + idx;
-            output.set_constant_value(output_idx, ScalarValue::UInt64(grouping_val))?;
+            output.set_constant_value(output_idx, BorrowedScalarValue::UInt64(grouping_val))?;
         }
 
         output.set_num_rows(group_row_count)?;

@@ -4,22 +4,22 @@ use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
 use super::ExpressionState;
-use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PhysicalLiteralExpr {
-    pub literal: OwnedScalarValue,
+    pub literal: ScalarValue,
 }
 
 impl PhysicalLiteralExpr {
-    pub fn new(literal: impl Into<OwnedScalarValue>) -> Self {
+    pub fn new(literal: impl Into<ScalarValue>) -> Self {
         PhysicalLiteralExpr {
             literal: literal.into(),
         }

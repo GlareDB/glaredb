@@ -4,14 +4,19 @@ use std::task::{Context, Poll};
 
 use rayexec_error::Result;
 
-use crate::location::{AccessConfig, FileLocation};
+use crate::access::AccessConfig;
 
 pub trait FileProvider: Sync + Send + Debug {
-    fn file_source(
-        &self,
-        location: FileLocation,
-        config: &AccessConfig,
-    ) -> Result<Box<dyn FileSource>>;
+    /// Configuration for accessing a single file source.
+    ///
+    /// This should include location, credentials, etc for accessing the file.
+    type AccessConfig: AccessConfig;
+
+    /// File type to use for reads.
+    type ReadFile: FileSource;
+
+    /// Open a file for reading.
+    fn open_for_read(&self, conf: &Self::AccessConfig) -> Result<Self::ReadFile>;
 }
 
 /// Describes accessing some "file" object.
@@ -21,26 +26,27 @@ pub trait FileProvider: Sync + Send + Debug {
 /// don't need mut access, but the descriptors get updated on reads/seeks). This
 /// doesn't guard against misuse, but close enough.
 pub trait FileSource: Sync + Send + Debug {
+    type ReadStream: AsyncReadStream;
+    type ReadRangeStream: AsyncReadStream;
+
     /// Reads the file as a stream, with the stream starting at the beginning.
-    fn read(&mut self) -> Pin<Box<dyn AsyncReadStream>>;
+    fn read(&mut self) -> Self::ReadStream;
 
     /// Reads a range of bytes from the file as a stream.
-    fn read_range(&mut self, start: usize, len: usize) -> Pin<Box<dyn AsyncReadStream>>;
+    fn read_range(&mut self, start: usize, len: usize) -> Self::ReadRangeStream;
 }
 
 pub trait AsyncReadStream: Debug + Sync + Send {
     /// Polls the stream to read data into `buf`.
+    ///
+    /// Each poll will start writing at the beginning of the buffer.
     ///
     /// `Poll::Ready(Some(n))` indicates `n` bytes were written to the buffer.
     /// Should continue polling to read more data.
     ///
     /// `Poll::Ready(None)` indicates the stream is complete. No data is written
     /// to the buffer.
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Result<Poll<Option<usize>>>;
+    fn poll_read(self: &mut Self, cx: &mut Context, buf: &mut [u8]) -> Result<Poll<Option<usize>>>;
 }
 
 pub trait AsyncWriteSink: Send {
@@ -68,17 +74,17 @@ pub(crate) mod testutil {
     }
 
     impl TestReadStream {
-        pub fn new_pinned(value: u8, count: usize) -> Pin<Box<dyn AsyncReadStream>> {
-            Box::pin(TestReadStream {
+        pub fn new(value: u8, count: usize) -> Self {
+            TestReadStream {
                 value,
                 remaining: count,
-            })
+            }
         }
     }
 
     impl AsyncReadStream for TestReadStream {
         fn poll_read(
-            mut self: Pin<&mut Self>,
+            self: &mut Self,
             _cx: &mut Context,
             buf: &mut [u8],
         ) -> Result<Poll<Option<usize>>> {

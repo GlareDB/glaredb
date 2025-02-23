@@ -8,7 +8,7 @@ use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args_one_of,
@@ -65,12 +65,12 @@ impl FunctionInfo for Substring {
     }
 }
 
-impl ScalarFunction for Substring {
+impl ScalarFunction2 for Substring {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args_one_of(self, &inputs, [2, 3])?;
 
         let datatypes = inputs
@@ -80,7 +80,7 @@ impl ScalarFunction for Substring {
 
         match datatypes.len() {
             2 => match (&datatypes[0], &datatypes[1]) {
-                (DataType::Utf8, DataType::Int64) => Ok(PlannedScalarFunction {
+                (DataType::Utf8, DataType::Int64) => Ok(PlannedScalarFunction2 {
                     function: Box::new(*self),
                     return_type: DataType::Utf8,
                     inputs,
@@ -89,7 +89,7 @@ impl ScalarFunction for Substring {
                 (a, b) => Err(invalid_input_types_error(self, &[a, b])),
             },
             3 => match (&datatypes[0], &datatypes[1], &datatypes[2]) {
-                (DataType::Utf8, DataType::Int64, DataType::Int64) => Ok(PlannedScalarFunction {
+                (DataType::Utf8, DataType::Int64, DataType::Int64) => Ok(PlannedScalarFunction2 {
                     function: Box::new(*self),
                     return_type: DataType::Utf8,
                     inputs,

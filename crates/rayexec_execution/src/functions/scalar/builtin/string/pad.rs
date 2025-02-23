@@ -8,7 +8,7 @@ use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args_one_of,
@@ -59,12 +59,12 @@ impl FunctionInfo for LeftPad {
     }
 }
 
-impl ScalarFunction for LeftPad {
+impl ScalarFunction2 for LeftPad {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args_one_of(self, &inputs, [2, 3])?;
 
         let datatypes = inputs
@@ -84,7 +84,7 @@ impl ScalarFunction for LeftPad {
             other => unreachable!("num inputs checked, got {other}"),
         }
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: DataType::Utf8,
             inputs,
@@ -177,12 +177,12 @@ impl FunctionInfo for RightPad {
     }
 }
 
-impl ScalarFunction for RightPad {
+impl ScalarFunction2 for RightPad {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args_one_of(self, &inputs, [2, 3])?;
 
         let datatypes = inputs
@@ -202,7 +202,7 @@ impl ScalarFunction for RightPad {
             other => unreachable!("num inputs checked, got {other}"),
         }
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: DataType::Utf8,
             inputs,

@@ -30,7 +30,7 @@ use super::binder::expr_binder::BaseExpressionBinder;
 use super::binder::table_list::TableAlias;
 use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
-use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
+use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::database::builtin_views::{
     BuiltinView,
     SHOW_DATABASES_VIEW,
@@ -352,9 +352,7 @@ impl<'a> Resolver<'a> {
                     BaseExpressionBinder::bind_literal(&lit)?.try_into_scalar()?
                 }
                 // Ident allows for example `(FORMAT parquet)`, the user doesn't need to quote parquet.
-                ast::Expr::Ident(ident) => {
-                    OwnedScalarValue::Utf8(ident.into_normalized_string().into())
-                }
+                ast::Expr::Ident(ident) => ScalarValue::Utf8(ident.into_normalized_string().into()),
                 other => {
                     return Err(RayexecError::new(format!(
                         "COPY TO options must be constant, got: {other:?}"
@@ -370,7 +368,7 @@ impl<'a> Resolver<'a> {
         let target = match copy_to.target {
             ast::CopyToTarget::File(file_name) => {
                 let func = match options.try_remove_format() {
-                    Some(ScalarValue::Utf8(format)) => {
+                    Some(BorrowedScalarValue::Utf8(format)) => {
                         // User specified a format, lookup in system catalog.
                         let ent = self
                             .context

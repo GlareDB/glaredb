@@ -3,7 +3,7 @@ use std::collections::{BTreeSet, HashMap};
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::datatype::DataType;
-use crate::arrays::scalar::ScalarValue;
+use crate::arrays::scalar::BorrowedScalarValue;
 use crate::expr::aggregate_expr::AggregateExpr;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
@@ -417,7 +417,7 @@ impl SubqueryPlanner {
                                 column: 0,
                             })),
                             right: Box::new(Expression::Literal(LiteralExpr {
-                                literal: ScalarValue::Int64(1),
+                                literal: BorrowedScalarValue::Int64(1),
                             })),
                             op: if *negated {
                                 ComparisonOperator::NotEq
@@ -655,7 +655,7 @@ impl DependentJoinPushdown {
             }
             LogicalOperator::InOut(inout) => {
                 has_correlation =
-                    self.any_expression_has_correlation(&inout.node.function.positional_inputs);
+                    self.any_expression_has_correlation(&inout.node.function.positional);
                 has_correlation |= self.find_correlations_in_children(&inout.children)?;
             }
             _ => (),
@@ -803,7 +803,7 @@ impl DependentJoinPushdown {
             }
             LogicalOperator::InOut(inout) => {
                 self.pushdown_children(bind_context, &mut inout.children)?;
-                self.rewrite_expressions(&mut inout.node.function.positional_inputs)?;
+                self.rewrite_expressions(&mut inout.node.function.positional)?;
 
                 // Add projections table as needed.
                 let table_ref = match inout.node.projected_table_ref {

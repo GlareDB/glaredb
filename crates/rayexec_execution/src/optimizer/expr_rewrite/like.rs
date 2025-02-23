@@ -5,7 +5,7 @@ use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::{self, Expression};
 use crate::functions::scalar::builtin::string::{Contains, EndsWith, Like, StartsWith};
-use crate::functions::scalar::ScalarFunction;
+use crate::functions::scalar::ScalarFunction2;
 use crate::functions::FunctionInfo;
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;

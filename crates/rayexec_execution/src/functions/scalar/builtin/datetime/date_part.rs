@@ -8,7 +8,7 @@ use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::scalar::decimal::{Decimal64Type, DecimalType};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -57,12 +57,12 @@ impl FunctionInfo for DatePart {
     }
 }
 
-impl ScalarFunction for DatePart {
+impl ScalarFunction2 for DatePart {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
@@ -81,7 +81,7 @@ impl ScalarFunction for DatePart {
 
         match &datatypes[1] {
             DataType::Date32 | DataType::Date64 | DataType::Timestamp(_) => {
-                Ok(PlannedScalarFunction {
+                Ok(PlannedScalarFunction2 {
                     function: Box::new(*self),
                     return_type: DataType::Decimal64(DecimalTypeMeta::new(
                         Decimal64Type::MAX_PRECISION,

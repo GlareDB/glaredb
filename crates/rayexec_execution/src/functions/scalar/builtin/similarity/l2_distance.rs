@@ -18,7 +18,7 @@ use crate::arrays::executor::scalar::{BinaryListReducer, BinaryReducer};
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -55,12 +55,12 @@ impl FunctionInfo for L2Distance {
     }
 }
 
-impl ScalarFunction for L2Distance {
+impl ScalarFunction2 for L2Distance {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 2)?;
 
         let function_impl: Box<dyn ScalarFunctionImpl> = match (
@@ -84,7 +84,7 @@ impl ScalarFunction for L2Distance {
             (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
         };
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: DataType::Float64,
             inputs,
@@ -152,9 +152,9 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::ListTypeMeta;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::expr;
     use crate::testutil::arrays::assert_arrays_eq;
 

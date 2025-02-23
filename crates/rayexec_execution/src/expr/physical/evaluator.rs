@@ -4,7 +4,7 @@ use super::PhysicalScalarExpression;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::buffer::buffer_manager::NopBufferManager;
 
 /// Evaluate expressions on batch inputs.
@@ -54,7 +54,7 @@ impl ExpressionEvaluator {
     }
 
     /// Try to evaluate a single expression into a constant value.
-    pub fn try_eval_constant(&mut self) -> Result<OwnedScalarValue> {
+    pub fn try_eval_constant(&mut self) -> Result<ScalarValue> {
         if self.expressions.len() != 1 {
             return Err(RayexecError::new(
                 "Single expression for constant eval required",

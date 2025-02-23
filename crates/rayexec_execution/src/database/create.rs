@@ -5,7 +5,7 @@ use rayexec_proto::ProtoConv;
 use crate::arrays::field::Field;
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::copy::CopyToFunction;
-use crate::functions::scalar::ScalarFunction;
+use crate::functions::scalar::ScalarFunction2;
 use crate::functions::table::TableFunction;
 
 /// Behavior on create conflict.
@@ -121,7 +121,7 @@ pub struct CreateViewInfo {
 #[derive(Debug, PartialEq, Eq)]
 pub struct CreateScalarFunctionInfo {
     pub name: String,
-    pub implementation: Box<dyn ScalarFunction>,
+    pub implementation: Box<dyn ScalarFunction2>,
     pub on_conflict: OnConflict,
 }
 

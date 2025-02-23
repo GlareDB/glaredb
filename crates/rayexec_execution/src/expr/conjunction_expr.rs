@@ -3,7 +3,7 @@ use std::fmt;
 use super::{AsScalarFunction, Expression};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::scalar::builtin::boolean;
-use crate::functions::scalar::ScalarFunction;
+use crate::functions::scalar::ScalarFunction2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ConjunctionOperator {
@@ -12,7 +12,7 @@ pub enum ConjunctionOperator {
 }
 
 impl AsScalarFunction for ConjunctionOperator {
-    fn as_scalar_function(&self) -> &dyn ScalarFunction {
+    fn as_scalar_function(&self) -> &dyn ScalarFunction2 {
         match self {
             Self::And => &boolean::And,
             Self::Or => &boolean::Or,

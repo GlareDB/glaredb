@@ -9,7 +9,7 @@ use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta}
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -58,12 +58,12 @@ impl FunctionInfo for DateTrunc {
     }
 }
 
-impl ScalarFunction for DateTrunc {
+impl ScalarFunction2 for DateTrunc {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         let datatypes = inputs
             .iter()
             .map(|expr| expr.datatype(table_list))
@@ -81,7 +81,7 @@ impl ScalarFunction for DateTrunc {
         let field = field.parse::<TruncField>()?;
 
         match &datatypes[1] {
-            DataType::Timestamp(m) => Ok(PlannedScalarFunction {
+            DataType::Timestamp(m) => Ok(PlannedScalarFunction2 {
                 function: Box::new(*self),
                 return_type: DataType::Timestamp(TimestampTypeMeta { unit: m.unit }),
                 inputs,

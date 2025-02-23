@@ -32,7 +32,7 @@ use crate::arrays::executor::OutBuffer;
 use crate::expr::cast_expr::CastExpr;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -197,12 +197,12 @@ impl FunctionInfo for Eq {
     }
 }
 
-impl ScalarFunction for Eq {
+impl ScalarFunction2 for Eq {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         new_planned_comparison_function::<_, EqOperation>(*self, inputs, table_list)
     }
 }
@@ -237,12 +237,12 @@ impl FunctionInfo for Neq {
     }
 }
 
-impl ScalarFunction for Neq {
+impl ScalarFunction2 for Neq {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         new_planned_comparison_function::<_, NotEqOperation>(*self, inputs, table_list)
     }
 }
@@ -273,12 +273,12 @@ impl FunctionInfo for Lt {
     }
 }
 
-impl ScalarFunction for Lt {
+impl ScalarFunction2 for Lt {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         new_planned_comparison_function::<_, LtOperation>(*self, inputs, table_list)
     }
 }
@@ -309,12 +309,12 @@ impl FunctionInfo for LtEq {
     }
 }
 
-impl ScalarFunction for LtEq {
+impl ScalarFunction2 for LtEq {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         new_planned_comparison_function::<_, LtEqOperation>(*self, inputs, table_list)
     }
 }
@@ -345,12 +345,12 @@ impl FunctionInfo for Gt {
     }
 }
 
-impl ScalarFunction for Gt {
+impl ScalarFunction2 for Gt {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         new_planned_comparison_function::<_, GtOperation>(*self, inputs, table_list)
     }
 }
@@ -381,12 +381,12 @@ impl FunctionInfo for GtEq {
     }
 }
 
-impl ScalarFunction for GtEq {
+impl ScalarFunction2 for GtEq {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         new_planned_comparison_function::<_, GtEqOperation>(*self, inputs, table_list)
     }
 }
@@ -417,12 +417,12 @@ impl FunctionInfo for IsDistinctFrom {
     }
 }
 
-impl ScalarFunction for IsDistinctFrom {
+impl ScalarFunction2 for IsDistinctFrom {
     fn plan(
         &self,
         _table_list: &TableList,
         _inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         not_implemented!("IS DISTINCT FROM scalar function")
     }
 }
@@ -453,12 +453,12 @@ impl FunctionInfo for IsNotDistinctFrom {
     }
 }
 
-impl ScalarFunction for IsNotDistinctFrom {
+impl ScalarFunction2 for IsNotDistinctFrom {
     fn plan(
         &self,
         _table_list: &TableList,
         _inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         not_implemented!("IS NOT DISTINCT FROM scalar function")
     }
 }
@@ -620,9 +620,9 @@ fn new_planned_comparison_function<F, O>(
     func: F,
     mut inputs: Vec<Expression>,
     table_list: &TableList,
-) -> Result<PlannedScalarFunction>
+) -> Result<PlannedScalarFunction2>
 where
-    F: ScalarFunction + 'static,
+    F: ScalarFunction2 + 'static,
     O: ComparisonOperation,
 {
     plan_check_num_args(&func, &inputs, 2)?;
@@ -737,7 +737,7 @@ where
         (a, b) => return Err(invalid_input_types_error(&func, &[a, b])),
     };
 
-    Ok(PlannedScalarFunction {
+    Ok(PlannedScalarFunction2 {
         function: Box::new(func),
         return_type: DataType::Boolean,
         inputs,

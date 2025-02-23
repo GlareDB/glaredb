@@ -4,7 +4,7 @@ use rayexec_error::{not_implemented, Result};
 
 use crate::arrays::datatype::DataTypeId;
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2};
 use crate::functions::{FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -26,12 +26,12 @@ impl FunctionInfo for StructPack {
     }
 }
 
-impl ScalarFunction for StructPack {
+impl ScalarFunction2 for StructPack {
     fn plan(
         &self,
         _table_list: &TableList,
         _inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         not_implemented!("struct pack")
     }
 }
@@ -54,12 +54,12 @@ impl FunctionInfo for StructExtract {
     }
 }
 
-impl ScalarFunction for StructExtract {
+impl ScalarFunction2 for StructExtract {
     fn plan(
         &self,
         _table_list: &TableList,
         _inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         not_implemented!("struct extract")
     }
 }

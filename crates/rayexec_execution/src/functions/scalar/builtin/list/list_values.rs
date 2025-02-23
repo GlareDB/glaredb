@@ -6,7 +6,7 @@ use crate::arrays::compute::make_list::make_list_from_values;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -36,19 +36,19 @@ impl FunctionInfo for ListValues {
     }
 }
 
-impl ScalarFunction for ListValues {
+impl ScalarFunction2 for ListValues {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         let first = match inputs.first() {
             Some(expr) => expr.datatype(table_list)?,
             None => {
                 let return_type = DataType::List(ListTypeMeta {
                     datatype: Box::new(DataType::Null),
                 });
-                return Ok(PlannedScalarFunction {
+                return Ok(PlannedScalarFunction2 {
                     function: Box::new(*self),
                     return_type: return_type.clone(),
                     inputs,
@@ -71,7 +71,7 @@ impl ScalarFunction for ListValues {
             datatype: Box::new(first.clone()),
         });
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: return_type.clone(),
             inputs,
@@ -96,8 +96,8 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::array_buffer::ListItemMetadata;
-    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::array::physical_type::{PhysicalList, ScalarStorage};
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::expr;
 
     #[test]

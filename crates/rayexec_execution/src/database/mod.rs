@@ -18,7 +18,7 @@ use memory_catalog::MemoryCatalog;
 use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::storage::catalog_storage::CatalogStorage;
 use crate::storage::memory::MemoryTableStorage;
 use crate::storage::table_storage::TableStorage;
@@ -31,7 +31,7 @@ pub struct AttachInfo {
     ///
     /// This includes things like connection strings, and other possibly
     /// sensitive info.
-    pub options: HashMap<String, OwnedScalarValue>,
+    pub options: HashMap<String, ScalarValue>,
 }
 
 impl ProtoConv for AttachInfo {

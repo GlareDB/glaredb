@@ -8,7 +8,7 @@ use super::DatabaseContext;
 use crate::arrays::field::Field;
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::copy::CopyToFunction;
-use crate::functions::scalar::ScalarFunction;
+use crate::functions::scalar::ScalarFunction2;
 use crate::functions::table::TableFunction;
 use crate::proto::DatabaseProtoConv;
 
@@ -160,7 +160,7 @@ impl DatabaseProtoConv for CatalogEntryInner {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ScalarFunctionEntry {
-    pub function: Box<dyn ScalarFunction>,
+    pub function: Box<dyn ScalarFunction2>,
 }
 
 impl DatabaseProtoConv for ScalarFunctionEntry {

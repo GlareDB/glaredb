@@ -2,7 +2,7 @@ use rayexec_error::{OptionExt, Result};
 
 use crate::database::DatabaseContext;
 use crate::functions::aggregate::AggregateFunction;
-use crate::functions::scalar::ScalarFunction;
+use crate::functions::scalar::ScalarFunction2;
 use crate::proto::DatabaseProtoConv;
 
 /// "Builtin" functions that require special handling.
@@ -35,7 +35,7 @@ impl SpecialBuiltinFunction {
 /// A resolved aggregate or scalar function.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedFunction {
-    Scalar(Box<dyn ScalarFunction>),
+    Scalar(Box<dyn ScalarFunction2>),
     Aggregate(Box<dyn AggregateFunction>),
     Special(SpecialBuiltinFunction),
 }

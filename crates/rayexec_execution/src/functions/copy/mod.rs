@@ -9,7 +9,7 @@ use rayexec_io::s3::S3Location;
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::field::Schema;
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::execution::operators::sink::operation::PartitionSink;
 
 pub const FORMAT_OPT_KEY: &str = "format";
@@ -19,7 +19,7 @@ pub const FORMAT_OPT_KEY: &str = "format";
 /// Only named arguments are supported.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CopyToArgs {
-    pub named: HashMap<String, OwnedScalarValue>,
+    pub named: HashMap<String, ScalarValue>,
 }
 
 impl CopyToArgs {
@@ -56,11 +56,11 @@ impl CopyToArgs {
     /// We remove from the map so that function implemenations can more easily
     /// ensure that it can handle all args, and not have to worry about a left
     /// over FORMAT option.
-    pub fn try_remove_format(&mut self) -> Option<OwnedScalarValue> {
+    pub fn try_remove_format(&mut self) -> Option<ScalarValue> {
         self.named.remove(FORMAT_OPT_KEY)
     }
 
-    pub fn try_get_named(&self, name: &str) -> Result<&OwnedScalarValue> {
+    pub fn try_get_named(&self, name: &str) -> Result<&ScalarValue> {
         self.named
             .get(name)
             .ok_or_else(|| RayexecError::new(format!("Missing COPY TO argument: '{name}'")))

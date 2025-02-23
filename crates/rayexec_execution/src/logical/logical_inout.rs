@@ -28,7 +28,7 @@ impl Explainable for LogicalInOut {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         let mut ent = ExplainEntry::new("TableInOut")
             .with_value("function", self.function.function.name())
-            .with_values_context("inputs", conf, &self.function.positional_inputs);
+            .with_values_context("inputs", conf, &self.function.positional);
 
         if conf.verbose {
             ent = ent.with_value("function_table_ref", self.function_table_ref);
@@ -57,7 +57,7 @@ impl LogicalNode for Node<LogicalInOut> {
     where
         F: FnMut(&Expression) -> Result<()>,
     {
-        for expr in &self.node.function.positional_inputs {
+        for expr in &self.node.function.positional {
             func(expr)?
         }
         for expr in &self.node.projected_outputs {
@@ -71,7 +71,7 @@ impl LogicalNode for Node<LogicalInOut> {
     where
         F: FnMut(&mut Expression) -> Result<()>,
     {
-        for expr in &mut self.node.function.positional_inputs {
+        for expr in &mut self.node.function.positional {
             func(expr)?
         }
         for expr in &mut self.node.projected_outputs {

@@ -1,6 +1,7 @@
 pub mod aggregate;
 pub mod copy;
 pub mod documentation;
+pub mod function_set;
 pub mod implicit;
 pub mod proto;
 pub mod scalar;
@@ -124,13 +125,6 @@ pub trait FunctionInfo {
     /// the catalog using both its name and all of its aliases.
     fn aliases(&self) -> &'static [&'static str] {
         &[]
-    }
-
-    /// A description for the function.
-    ///
-    /// Defaults to an empty string.
-    fn description(&self) -> &'static str {
-        ""
     }
 
     /// Signature for the function.

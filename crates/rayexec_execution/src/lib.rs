@@ -9,6 +9,7 @@ pub mod explain;
 pub mod expr;
 pub mod functions;
 pub mod hybrid;
+pub mod io;
 pub mod logical;
 pub mod optimizer;
 pub mod proto;

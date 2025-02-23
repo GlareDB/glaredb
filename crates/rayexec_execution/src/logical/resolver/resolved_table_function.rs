@@ -4,15 +4,15 @@ use rayexec_error::Result;
 use rayexec_parser::ast;
 use rayexec_proto::ProtoConv;
 
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::database::DatabaseContext;
 use crate::functions::table::{PlannedTableFunction, TableFunction};
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstantFunctionArgs {
-    pub positional: Vec<OwnedScalarValue>,
-    pub named: HashMap<String, OwnedScalarValue>,
+    pub positional: Vec<ScalarValue>,
+    pub named: HashMap<String, ScalarValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

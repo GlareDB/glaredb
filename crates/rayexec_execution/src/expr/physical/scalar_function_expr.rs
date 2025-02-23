@@ -5,18 +5,18 @@ use rayexec_error::Result;
 
 use super::evaluator::ExpressionEvaluator;
 use super::{ExpressionState, PhysicalScalarExpression};
-use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::database::DatabaseContext;
-use crate::functions::scalar::PlannedScalarFunction;
+use crate::functions::scalar::PlannedScalarFunction2;
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalScalarFunctionExpr {
-    pub function: PlannedScalarFunction,
+    pub function: PlannedScalarFunction2,
     pub inputs: Vec<PhysicalScalarExpression>,
 }
 

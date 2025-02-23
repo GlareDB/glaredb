@@ -19,7 +19,7 @@ use crate::execution::operators::{
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::PhysicalScalarExpression;
-use crate::functions::scalar::PlannedScalarFunction;
+use crate::functions::scalar::PlannedScalarFunction2;
 use crate::logical::logical_join::JoinType;
 
 #[derive(Debug)]
@@ -29,7 +29,7 @@ pub struct HashJoinOperatorState {}
 pub struct JoinCondition {
     pub left: PhysicalScalarExpression,
     pub right: PhysicalScalarExpression,
-    pub function: PlannedScalarFunction,
+    pub function: PlannedScalarFunction2,
 }
 
 #[derive(Debug)]

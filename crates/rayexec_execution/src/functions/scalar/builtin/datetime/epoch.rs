@@ -8,7 +8,7 @@ use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta}
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -37,15 +37,15 @@ impl FunctionInfo for Epoch {
     }
 }
 
-impl ScalarFunction for Epoch {
+impl ScalarFunction2 for Epoch {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Int64 => Ok(PlannedScalarFunction {
+            DataType::Int64 => Ok(PlannedScalarFunction2 {
                 function: Box::new(*self),
                 return_type: DataType::Timestamp(TimestampTypeMeta {
                     unit: TimeUnit::Microsecond,
@@ -79,15 +79,15 @@ impl FunctionInfo for EpochMs {
     }
 }
 
-impl ScalarFunction for EpochMs {
+impl ScalarFunction2 for EpochMs {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Int64 => Ok(PlannedScalarFunction {
+            DataType::Int64 => Ok(PlannedScalarFunction2 {
                 function: Box::new(*self),
                 return_type: DataType::Timestamp(TimestampTypeMeta {
                     unit: TimeUnit::Microsecond,

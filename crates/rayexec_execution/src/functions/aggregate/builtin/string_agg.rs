@@ -9,7 +9,7 @@ use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::{AggregateState, UnaryNonNullUpdater};
 use crate::arrays::executor::PutBuffer;
-use crate::arrays::scalar::ScalarValue;
+use crate::arrays::scalar::BorrowedScalarValue;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{AggregateFunctionImpl, AggregateStateLogic};
 use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
@@ -67,8 +67,8 @@ impl AggregateFunction for StringAgg {
         }
 
         let sep = match ConstFold::rewrite(table_list, inputs[1].clone())?.try_into_scalar()? {
-            ScalarValue::Null => String::new(),
-            ScalarValue::Utf8(v) => v.into_owned(),
+            BorrowedScalarValue::Null => String::new(),
+            BorrowedScalarValue::Utf8(v) => v.into_owned(),
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected value for STRING_AGG: {other}"

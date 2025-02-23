@@ -5,16 +5,16 @@ use rayexec_proto::ProtoConv;
 
 use super::aggregate::{AggregateFunction, PlannedAggregateFunction};
 use super::copy::{CopyToArgs, CopyToFunction};
-use super::scalar::{PlannedScalarFunction, ScalarFunction};
+use super::scalar::{PlannedScalarFunction2, ScalarFunction2};
 use super::table::{PlannedTableFunction, TableFunction};
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::database::catalog::CatalogTx;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;
 
 pub const FUNCTION_LOOKUP_CATALOG: &str = "glare_catalog";
 
-impl DatabaseProtoConv for Box<dyn ScalarFunction> {
+impl DatabaseProtoConv for Box<dyn ScalarFunction2> {
     type ProtoType = rayexec_proto::generated::functions::ScalarFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
@@ -37,7 +37,7 @@ impl DatabaseProtoConv for Box<dyn ScalarFunction> {
     }
 }
 
-impl DatabaseProtoConv for PlannedScalarFunction {
+impl DatabaseProtoConv for PlannedScalarFunction2 {
     type ProtoType = rayexec_proto::generated::functions::PlannedScalarFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
@@ -214,7 +214,7 @@ impl ProtoConv for CopyToArgs {
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         let mut named = HashMap::new();
         for (key, val) in proto.named {
-            named.insert(key, OwnedScalarValue::from_proto(val)?);
+            named.insert(key, ScalarValue::from_proto(val)?);
         }
 
         Ok(Self { named })

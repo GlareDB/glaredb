@@ -12,7 +12,7 @@ use rayexec_execution::runtime::{
     Runtime,
     TokioHandlerProvider,
 };
-use rayexec_io::exp::{FileProvider, FileSource};
+use rayexec_io::exp::{FileProvider2, FileSource};
 use rayexec_io::http::HttpFile;
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::s3::{S3Client, S3Location};
@@ -129,7 +129,7 @@ pub struct NativeFileProvider {
     handle: Option<tokio::runtime::Handle>,
 }
 
-impl FileProvider for NativeFileProvider {
+impl FileProvider2 for NativeFileProvider {
     fn file_source(
         &self,
         location: FileLocation,

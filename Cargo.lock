@@ -2150,7 +2150,6 @@ dependencies = [
  "futures",
  "rayexec_error",
  "rayexec_execution",
- "rayexec_io",
  "rayexec_proto",
  "regex",
  "serde",

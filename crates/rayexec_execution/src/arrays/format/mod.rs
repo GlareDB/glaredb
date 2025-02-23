@@ -6,7 +6,7 @@ use std::fmt;
 use rayexec_error::Result;
 
 use crate::arrays::array::Array;
-use crate::arrays::scalar::ScalarValue;
+use crate::arrays::scalar::BorrowedScalarValue;
 
 /// Formatting options for arrays and scalars.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,7 +44,10 @@ impl<'a> Formatter<'a> {
     }
 
     /// Create a formatted scalar value directly from a scalar value.
-    pub fn format_scalar_value<'b>(&self, scalar: ScalarValue<'b>) -> FormattedScalarValue<'_, 'b> {
+    pub fn format_scalar_value<'b>(
+        &self,
+        scalar: BorrowedScalarValue<'b>,
+    ) -> FormattedScalarValue<'_, 'b> {
         FormattedScalarValue {
             options: &self.options,
             scalar,
@@ -68,14 +71,14 @@ impl<'a> Formatter<'a> {
 #[derive(Debug, Clone)]
 pub struct FormattedScalarValue<'a, 'b> {
     options: &'a FormatOptions<'a>,
-    scalar: ScalarValue<'b>,
+    scalar: BorrowedScalarValue<'b>,
 }
 
 impl fmt::Display for FormattedScalarValue<'_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.scalar {
-            ScalarValue::Null => write!(f, "{}", self.options.null),
-            ScalarValue::Utf8(v) => {
+            BorrowedScalarValue::Null => write!(f, "{}", self.options.null),
+            BorrowedScalarValue::Utf8(v) => {
                 if v.is_empty() {
                     write!(f, "{}", self.options.empty_string)
                 } else {
@@ -97,11 +100,11 @@ mod tests {
 
         // (input, formatted output)
         let test_cases = [
-            (ScalarValue::Null, "NULL"),
-            (ScalarValue::Int64(8), "8"),
-            (ScalarValue::Utf8("hello".into()), "hello"),
+            (BorrowedScalarValue::Null, "NULL"),
+            (BorrowedScalarValue::Int64(8), "8"),
+            (BorrowedScalarValue::Utf8("hello".into()), "hello"),
             (
-                ScalarValue::Binary([245, 255, 18].as_slice().into()),
+                BorrowedScalarValue::Binary([245, 255, 18].as_slice().into()),
                 "[F5, FF, 12]",
             ),
         ];
@@ -122,7 +125,7 @@ mod tests {
         };
 
         let out = Formatter::new(opts)
-            .format_scalar_value(ScalarValue::Null)
+            .format_scalar_value(BorrowedScalarValue::Null)
             .to_string();
 
         assert_eq!("NuLl", out);
@@ -138,7 +141,7 @@ mod tests {
         let formatter = Formatter::new(opts);
 
         let out = formatter
-            .format_scalar_value(ScalarValue::Utf8("".into()))
+            .format_scalar_value(BorrowedScalarValue::Utf8("".into()))
             .to_string();
         assert_eq!("(empty)", out);
     }

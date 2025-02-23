@@ -9,7 +9,7 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -39,15 +39,15 @@ impl FunctionInfo for Lower {
     }
 }
 
-impl ScalarFunction for Lower {
+impl ScalarFunction2 for Lower {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFunction {
+            DataType::Utf8 => Ok(PlannedScalarFunction2 {
                 function: Box::new(*self),
                 return_type: DataType::Utf8,
                 inputs,
@@ -95,15 +95,15 @@ impl FunctionInfo for Upper {
     }
 }
 
-impl ScalarFunction for Upper {
+impl ScalarFunction2 for Upper {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
         match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFunction {
+            DataType::Utf8 => Ok(PlannedScalarFunction2 {
                 function: Box::new(*self),
                 return_type: DataType::Utf8,
                 inputs,

@@ -3,14 +3,14 @@ use rayexec_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalSetVar {
     pub name: String,
-    pub value: OwnedScalarValue,
+    pub value: ScalarValue,
 }
 
 impl Explainable for LogicalSetVar {
@@ -79,7 +79,7 @@ impl LogicalNode for Node<LogicalResetVar> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalShowVar {
     pub name: String,
-    pub value: OwnedScalarValue,
+    pub value: ScalarValue,
 }
 
 impl Explainable for LogicalShowVar {

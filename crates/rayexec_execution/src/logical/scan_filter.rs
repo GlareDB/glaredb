@@ -1,4 +1,4 @@
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::expr::comparison_expr::ComparisonOperator;
 
 /// A simplified filter that can be pushed into a scan.
@@ -21,6 +21,6 @@ pub enum ScanFilterType {
         /// constant on the right.
         op: ComparisonOperator,
         /// The value we're comparing to.
-        constant: OwnedScalarValue,
+        constant: ScalarValue,
     },
 }

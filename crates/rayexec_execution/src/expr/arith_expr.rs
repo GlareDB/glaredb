@@ -6,7 +6,7 @@ use super::{AsScalarFunction, Expression};
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::scalar::builtin::arith;
-use crate::functions::scalar::ScalarFunction;
+use crate::functions::scalar::ScalarFunction2;
 use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -19,7 +19,7 @@ pub enum ArithOperator {
 }
 
 impl AsScalarFunction for ArithOperator {
-    fn as_scalar_function(&self) -> &dyn ScalarFunction {
+    fn as_scalar_function(&self) -> &dyn ScalarFunction2 {
         match self {
             Self::Add => &arith::Add,
             Self::Sub => &arith::Sub,

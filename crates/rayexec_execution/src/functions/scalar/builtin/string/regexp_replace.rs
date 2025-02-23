@@ -9,7 +9,7 @@ use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor, UnaryExec
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -41,12 +41,12 @@ impl FunctionInfo for RegexpReplace {
     }
 }
 
-impl ScalarFunction for RegexpReplace {
+impl ScalarFunction2 for RegexpReplace {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 3)?;
         let datatypes = inputs
             .iter()
@@ -80,7 +80,7 @@ impl ScalarFunction for RegexpReplace {
             None
         };
 
-        Ok(PlannedScalarFunction {
+        Ok(PlannedScalarFunction2 {
             function: Box::new(*self),
             return_type: DataType::Utf8,
             inputs,

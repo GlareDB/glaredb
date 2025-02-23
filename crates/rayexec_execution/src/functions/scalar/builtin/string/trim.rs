@@ -11,7 +11,7 @@ use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{
     invalid_input_types_error,
     plan_check_num_args_one_of,
@@ -174,12 +174,12 @@ impl<F: StringTrimOp> FunctionInfo for Trim<F> {
     }
 }
 
-impl<F: StringTrimOp> ScalarFunction for Trim<F> {
+impl<F: StringTrimOp> ScalarFunction2 for Trim<F> {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
+    ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args_one_of(self, &inputs, [1, 2])?;
 
         let datatypes = inputs
@@ -189,7 +189,7 @@ impl<F: StringTrimOp> ScalarFunction for Trim<F> {
 
         match datatypes.len() {
             1 => match &datatypes[0] {
-                DataType::Utf8 => Ok(PlannedScalarFunction {
+                DataType::Utf8 => Ok(PlannedScalarFunction2 {
                     function: Box::new(*self),
                     return_type: DataType::Utf8,
                     inputs,
@@ -198,7 +198,7 @@ impl<F: StringTrimOp> ScalarFunction for Trim<F> {
                 a => Err(invalid_input_types_error(self, &[a])),
             },
             2 => match (&datatypes[0], &datatypes[1]) {
-                (DataType::Utf8, DataType::Utf8) => Ok(PlannedScalarFunction {
+                (DataType::Utf8, DataType::Utf8) => Ok(PlannedScalarFunction2 {
                     function: Box::new(*self),
                     return_type: DataType::Utf8,
                     inputs,

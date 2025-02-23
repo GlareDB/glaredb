@@ -10,7 +10,7 @@ use rayexec_error::{RayexecError, Result};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::arrays::field::{Field, Schema};
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, DatabaseContext};
 use crate::functions::table::{
@@ -394,8 +394,8 @@ where
     fn plan<'a>(
         &self,
         context: &'a DatabaseContext,
-        positional_inputs: Vec<OwnedScalarValue>,
-        named_inputs: HashMap<String, OwnedScalarValue>,
+        positional_inputs: Vec<ScalarValue>,
+        named_inputs: HashMap<String, ScalarValue>,
     ) -> BoxFuture<'a, Result<PlannedTableFunction>> {
         // let databases = context
         //     .iter_databases()

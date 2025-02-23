@@ -6,7 +6,7 @@ use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ExpressionColumnBinder;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
+use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::expr::aggregate_expr::AggregateExpr;
 use crate::expr::arith_expr::{ArithExpr, ArithOperator};
 use crate::expr::case_expr::{CaseExpr, WhenThen};
@@ -26,7 +26,7 @@ use crate::functions::scalar::builtin::datetime::DatePart;
 use crate::functions::scalar::builtin::is;
 use crate::functions::scalar::builtin::list::{ListExtract, ListValues};
 use crate::functions::scalar::builtin::string::{Concat, Like, StartsWith, Substring};
-use crate::functions::scalar::ScalarFunction;
+use crate::functions::scalar::ScalarFunction2;
 use crate::functions::table::TableFunction;
 use crate::functions::CastType;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
@@ -574,7 +574,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 }))
             }
             ast::Expr::TypedString { datatype, value } => {
-                let scalar = OwnedScalarValue::Utf8(value.clone().into());
+                let scalar = ScalarValue::Utf8(value.clone().into());
                 // TODO: Add this back. Currently doing this to avoid having to
                 // update cast rules for arrays and scalars at the same time.
                 //
@@ -746,7 +746,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         };
 
                         let interval = Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Interval(const_interval),
+                            literal: BorrowedScalarValue::Interval(const_interval),
                         });
 
                         let op = ArithOperator::Mul;
@@ -1061,19 +1061,19 @@ impl<'a> BaseExpressionBinder<'a> {
             ast::Literal::Number(n) => {
                 if let Ok(n) = n.parse::<i32>() {
                     Expression::Literal(LiteralExpr {
-                        literal: OwnedScalarValue::Int32(n),
+                        literal: ScalarValue::Int32(n),
                     })
                 } else if let Ok(n) = n.parse::<i64>() {
                     Expression::Literal(LiteralExpr {
-                        literal: OwnedScalarValue::Int64(n),
+                        literal: ScalarValue::Int64(n),
                     })
                 } else if let Ok(n) = n.parse::<u64>() {
                     Expression::Literal(LiteralExpr {
-                        literal: OwnedScalarValue::UInt64(n),
+                        literal: ScalarValue::UInt64(n),
                     })
                 } else if let Ok(n) = n.parse::<f64>() {
                     Expression::Literal(LiteralExpr {
-                        literal: OwnedScalarValue::Float64(n),
+                        literal: ScalarValue::Float64(n),
                     })
                 } else {
                     return Err(RayexecError::new(format!(
@@ -1082,13 +1082,13 @@ impl<'a> BaseExpressionBinder<'a> {
                 }
             }
             ast::Literal::Boolean(b) => Expression::Literal(LiteralExpr {
-                literal: OwnedScalarValue::Boolean(*b),
+                literal: ScalarValue::Boolean(*b),
             }),
             ast::Literal::Null => Expression::Literal(LiteralExpr {
-                literal: OwnedScalarValue::Null,
+                literal: ScalarValue::Null,
             }),
             ast::Literal::SingleQuotedString(s) => Expression::Literal(LiteralExpr {
-                literal: OwnedScalarValue::Utf8(s.to_string().into()),
+                literal: ScalarValue::Utf8(s.to_string().into()),
             }),
             other => {
                 return Err(RayexecError::new(format!(
@@ -1417,7 +1417,7 @@ impl<'a> BaseExpressionBinder<'a> {
     fn apply_casts_for_scalar_function(
         &self,
         bind_context: &BindContext,
-        scalar: &dyn ScalarFunction,
+        scalar: &dyn ScalarFunction2,
         inputs: Vec<Expression>,
     ) -> Result<Vec<Expression>> {
         let input_datatypes = inputs

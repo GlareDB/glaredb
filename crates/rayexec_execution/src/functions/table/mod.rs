@@ -1,5 +1,8 @@
 pub mod builtin;
+pub mod file_scan;
 pub mod inout;
+pub mod multi_file;
+pub mod scan;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -16,7 +19,7 @@ use rayexec_io::s3::S3Location;
 
 use super::FunctionInfo;
 use crate::arrays::field::Schema;
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::database::DatabaseContext;
 use crate::execution::operators::source::operation::SourceOperation;
 use crate::expr::Expression;
@@ -61,7 +64,7 @@ impl Eq for dyn TableFunction {}
 pub enum TableFunctionPlanner<'a> {
     /// Produces a table function that accept inputs and produce outputs.
     InOut(&'a dyn InOutPlanner),
-    /// Produces a table function that acts as a just a scan.
+    /// Produces a table function that acts as just a scan.
     Scan(&'a dyn ScanPlanner),
 }
 
@@ -71,7 +74,7 @@ pub trait InOutPlanner: Debug {
         &self,
         table_list: &TableList,
         positional_inputs: Vec<Expression>,
-        named_inputs: HashMap<String, OwnedScalarValue>,
+        named_inputs: HashMap<String, ScalarValue>,
     ) -> Result<PlannedTableFunction>;
 }
 
@@ -84,8 +87,8 @@ pub trait ScanPlanner: Debug {
     fn plan<'a>(
         &self,
         context: &'a DatabaseContext,
-        positional_inputs: Vec<OwnedScalarValue>,
-        named_inputs: HashMap<String, OwnedScalarValue>,
+        positional: Vec<ScalarValue>,
+        named: HashMap<String, ScalarValue>,
     ) -> BoxFuture<'a, Result<PlannedTableFunction>>;
 }
 
@@ -94,9 +97,9 @@ pub struct PlannedTableFunction {
     /// The function that did the planning.
     pub function: Box<dyn TableFunction>,
     /// Unnamed positional arguments.
-    pub positional_inputs: Vec<Expression>,
+    pub positional: Vec<Expression>,
     /// Named arguments.
-    pub named_inputs: HashMap<String, OwnedScalarValue>, // Requiring constant values for named args is currently a limitation.
+    pub named: HashMap<String, ScalarValue>, // Requiring constant values for named args is currently a limitation.
     /// The function implementation.
     ///
     /// The variant used here should match the variant of the planner that
@@ -111,8 +114,8 @@ pub struct PlannedTableFunction {
 impl PartialEq for PlannedTableFunction {
     fn eq(&self, other: &Self) -> bool {
         self.function == other.function
-            && self.positional_inputs == other.positional_inputs
-            && self.named_inputs == other.named_inputs
+            && self.positional == other.positional
+            && self.named == other.named
             && self.schema == other.schema
     }
 }
@@ -152,8 +155,8 @@ impl TableFunctionImpl {
 // secrets store.
 pub fn try_location_and_access_config_from_args(
     func: &impl TableFunction,
-    positional: &[OwnedScalarValue],
-    named: &HashMap<String, OwnedScalarValue>,
+    positional: &[ScalarValue],
+    named: &HashMap<String, ScalarValue>,
 ) -> Result<(FileLocation, AccessConfig)> {
     let loc = match positional.first() {
         Some(loc) => {
@@ -198,8 +201,8 @@ pub fn try_location_and_access_config_from_args(
 pub fn try_get_named<'a>(
     func: &impl TableFunction,
     name: &str,
-    named: &'a HashMap<String, OwnedScalarValue>,
-) -> Result<&'a OwnedScalarValue> {
+    named: &'a HashMap<String, ScalarValue>,
+) -> Result<&'a ScalarValue> {
     named.get(name).ok_or_else(|| {
         RayexecError::new(format!(
             "Expected named argument '{name}' for function {}",
@@ -211,8 +214,8 @@ pub fn try_get_named<'a>(
 pub fn try_get_positional<'a>(
     func: &impl TableFunction,
     pos: usize,
-    positional: &'a [OwnedScalarValue],
-) -> Result<&'a OwnedScalarValue> {
+    positional: &'a [ScalarValue],
+) -> Result<&'a ScalarValue> {
     positional.get(pos).ok_or_else(|| {
         RayexecError::new(format!(
             "Expected argument at position {pos} for function {}",
