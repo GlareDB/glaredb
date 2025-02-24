@@ -22,7 +22,7 @@ pub const FUNCTION_SET_RANDOM: ScalarFunctionSet = ScalarFunctionSet {
         example: None,
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new_positional(&[], DataTypeId::Float64),
+        Signature::new(&[], DataTypeId::Float64),
         &Random,
     )],
 };

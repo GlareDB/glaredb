@@ -8,103 +8,50 @@ use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta}
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::logical::binder::table_list::TableList;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Epoch;
+pub const FUNCTION_SET_EPOCH: ScalarFunctionSet = ScalarFunctionSet {
+    name: "epoch",
+    aliases: &["epoch_s"],
+    doc: None,
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Int64], DataTypeId::Timestamp),
+        &EpochImpl::<1_000_000>,
+    )],
+};
 
-impl FunctionInfo for Epoch {
-    fn name(&self) -> &'static str {
-        "epoch"
-    }
-
-    fn aliases(&self) -> &'static [&'static str] {
-        &["epoch_s"]
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[
-            // S -> Timestamp
-            Signature {
-                positional_args: &[DataTypeId::Int64],
-                variadic_arg: None,
-                return_type: DataTypeId::Timestamp,
-                doc: None,
-            },
-        ]
-    }
-}
-
-impl ScalarFunction2 for Epoch {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype(table_list)? {
-            DataType::Int64 => Ok(PlannedScalarFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Timestamp(TimestampTypeMeta {
-                    unit: TimeUnit::Microsecond,
-                }),
-                inputs,
-                function_impl: Box::new(EpochImpl::<1_000_000>),
-            }),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EpochMs;
-
-impl FunctionInfo for EpochMs {
-    fn name(&self) -> &'static str {
-        "epoch_ms"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[
-            // MS -> Timestamp
-            Signature {
-                positional_args: &[DataTypeId::Int64],
-                variadic_arg: None,
-                return_type: DataTypeId::Timestamp,
-                doc: None,
-            },
-        ]
-    }
-}
-
-impl ScalarFunction2 for EpochMs {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype(table_list)? {
-            DataType::Int64 => Ok(PlannedScalarFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Timestamp(TimestampTypeMeta {
-                    unit: TimeUnit::Microsecond,
-                }),
-                inputs,
-                function_impl: Box::new(EpochImpl::<1000>),
-            }),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
-    }
-}
+pub const FUNCTION_SET_EPOCH_MS: ScalarFunctionSet = ScalarFunctionSet {
+    name: "epoch_ms",
+    aliases: &[],
+    doc: None,
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Int64], DataTypeId::Timestamp),
+        &EpochImpl::<1000>,
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EpochImpl<const S: i64>;
 
-impl<const S: i64> ScalarFunctionImpl for EpochImpl<S> {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+impl<const S: i64> ScalarFunction for EpochImpl<S> {
+    type State = ();
+
+    fn bind(
+        &self,
+        _table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond)),
+            inputs,
+        })
+    }
+
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
         to_timestamp::<S>(input, sel, output)

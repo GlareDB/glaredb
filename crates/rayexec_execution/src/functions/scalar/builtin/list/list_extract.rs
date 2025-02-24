@@ -30,51 +30,47 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ListExtract;
+pub const FUNCTION_SET_LIST_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
+    name: "list_extract",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::List,
+        description: "Extract an item from the list. Used 1-based indexing.",
+        arguments: &["list", "index"],
+        example: Some(Example {
+            example: "list_extract([4,5,6], 2)",
+            output: "5",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::List, DataTypeId::Int64], DataTypeId::Any),
+        &ListExtract,
+    )],
+};
 
-impl FunctionInfo for ListExtract {
-    fn name(&self) -> &'static str {
-        "list_extract"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::List, DataTypeId::Int64],
-            variadic_arg: None,
-            return_type: DataTypeId::Any,
-            doc: Some(&Documentation {
-                category: Category::List,
-                description: "Extract an item from the list. Used 1-based indexing.",
-                arguments: &["list", "index"],
-                example: Some(Example {
-                    example: "list_extract([4,5,6], 2)",
-                    output: "5",
-                }),
-            }),
-        }]
-    }
+#[derive(Debug)]
+pub struct ListExtractState {
+    index: usize,
 }
 
-impl ScalarFunction2 for ListExtract {
-    fn plan(
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListExtract;
+
+impl ScalarFunction for ListExtract {
+    type State = ListExtractState;
+
+    fn bind(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        let datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype(table_list))
-            .collect::<Result<Vec<_>>>()?;
-
-        plan_check_num_args(self, &datatypes, 2)?;
-
+    ) -> Result<BindState<Self::State>> {
         let index = ConstFold::rewrite(table_list, inputs[1].clone())?
             .try_into_scalar()?
             .try_as_i64()?;
@@ -82,9 +78,10 @@ impl ScalarFunction2 for ListExtract {
         if index <= 0 {
             return Err(RayexecError::new("Index cannot be less than 1"));
         }
+        // Adjust from 1-based indexing.
         let index = (index - 1) as usize;
 
-        let inner_datatype = match &datatypes[0] {
+        let inner_datatype = match inputs[0].datatype(table_list)? {
             DataType::List(meta) => meta.datatype.as_ref().clone(),
             other => {
                 return Err(RayexecError::new(format!(
@@ -93,25 +90,17 @@ impl ScalarFunction2 for ListExtract {
             }
         };
 
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
-            return_type: inner_datatype.clone(),
+        Ok(BindState {
+            state: ListExtractState { index },
+            return_type: inner_datatype,
             inputs,
-            function_impl: Box::new(ListExtractImpl { index }),
         })
     }
-}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ListExtractImpl {
-    index: usize,
-}
-
-impl ScalarFunctionImpl for ListExtractImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
-        list_extract(input, sel, output, self.index)
+        list_extract(input, sel, output, state.index)
     }
 }
 

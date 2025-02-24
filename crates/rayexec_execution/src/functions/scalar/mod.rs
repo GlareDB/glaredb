@@ -43,6 +43,16 @@ impl PartialEq for PlannedScalarFunction {
     }
 }
 
+impl Eq for PlannedScalarFunction {}
+
+impl Hash for PlannedScalarFunction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.state.return_type.hash(state);
+        self.state.inputs.hash(state);
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct RawScalarFunctionVTable {
     /// Create the function state and compute the return type.
@@ -51,7 +61,6 @@ pub struct RawScalarFunctionVTable {
         table_list: &TableList,
         inputs: Vec<Expression>,
     ) -> Result<RawBindState>,
-
     /// Execute the function. First argument is a pointer to the function state.
     execute_fn: unsafe fn(
         function: *const (),
@@ -68,6 +77,9 @@ pub struct RawScalarFunction {
     volatility: FunctionVolatility,
     vtable: &'static RawScalarFunctionVTable,
 }
+
+unsafe impl Send for RawScalarFunction {}
+unsafe impl Sync for RawScalarFunction {}
 
 impl RawScalarFunction {
     pub const fn new<F>(sig: Signature, function: &'static F) -> Self
@@ -119,6 +131,10 @@ struct StateInner {
     drop_fn: unsafe fn(ptr: *const ()),
 }
 
+// SAFETY: `ScalarFunction::State` has Sync+Send bounds.
+unsafe impl Send for StateInner {}
+unsafe impl Sync for StateInner {}
+
 impl Drop for RawScalarFunctionState {
     fn drop(&mut self) {
         unsafe { (self.0.drop_fn)(self.0.ptr) }
@@ -129,7 +145,7 @@ pub trait ScalarFunction: Debug + Sync + Send + Sized {
     const VOLATILITY: FunctionVolatility = FunctionVolatility::Consistent;
 
     /// State that gets passed to the function during execute.
-    type State;
+    type State: Sync + Send;
 
     /// Compute the return type from the expression inputs and return a function
     /// state.
@@ -199,6 +215,7 @@ impl<F> ScalarFunctionVTable for F where F: ScalarFunction {}
 /// For data type that require additional metadata (e.g. precision and scale for
 /// decimals), this will error. Functions that return such types need to handle
 /// determining the exact type to return.
+#[allow(unused)] // For now maybe
 fn try_return_type_from_type_id(id: DataTypeId) -> Result<DataType> {
     fn fmt_err(id: DataTypeId) -> RayexecError {
         RayexecError::new("Cannot create a default return type for type id")
@@ -334,20 +351,5 @@ pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
 impl Clone for Box<dyn ScalarFunctionImpl> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sanity_eq_check() {
-        let fn1 = Box::new(builtin::arith::Add) as Box<dyn ScalarFunction2>;
-        let fn2 = Box::new(builtin::arith::Sub) as Box<dyn ScalarFunction2>;
-        let fn3 = Box::new(builtin::arith::Sub) as Box<dyn ScalarFunction2>;
-
-        assert_ne!(fn1, fn2);
-        assert_eq!(fn2, fn3);
     }
 }

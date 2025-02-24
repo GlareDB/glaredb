@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 use num_traits::Float;
 use rayexec_error::Result;
 
-use super::ScalarFunction2;
 use crate::arrays::array::physical_type::{
     PhysicalBool,
     PhysicalF16,
@@ -18,93 +17,70 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::logical::binder::table_list::TableList;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsNan;
-
-impl FunctionInfo for IsNan {
-    fn name(&self) -> &'static str {
-        "isnan"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const DOC: &Documentation = &Documentation {
-            category: Category::Numeric,
-            description: "Return if the given float is a NaN.",
-            arguments: &["float"],
-            example: Some(Example {
-                example: "isnan('NaN'::FLOAT)",
-                output: "true",
-            }),
-        };
-
-        &[
-            Signature {
-                positional_args: &[DataTypeId::Float16],
-                variadic_arg: None,
-                return_type: DataTypeId::Boolean,
-                doc: Some(DOC),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Float32],
-                variadic_arg: None,
-                return_type: DataTypeId::Boolean,
-                doc: Some(DOC),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Float64],
-                variadic_arg: None,
-                return_type: DataTypeId::Boolean,
-                doc: Some(DOC),
-            },
-        ]
-    }
-}
-
-impl ScalarFunction2 for IsNan {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        let function_impl: Box<dyn ScalarFunctionImpl> = match inputs[0].datatype(table_list)? {
-            DataType::Float16 => Box::new(IsNanImpl::<PhysicalF16>::new()),
-            DataType::Float32 => Box::new(IsNanImpl::<PhysicalF32>::new()),
-            DataType::Float64 => Box::new(IsNanImpl::<PhysicalF64>::new()),
-            other => return Err(invalid_input_types_error(self, &[other])),
-        };
-
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
-            return_type: DataType::Boolean,
-            inputs,
-            function_impl,
-        })
-    }
-}
+pub const FUNCTION_SET_IS_NAN: ScalarFunctionSet = ScalarFunctionSet {
+    name: "is_nan",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Numeric,
+        description: "Return if the given float is a NaN.",
+        arguments: &["float"],
+        example: Some(Example {
+            example: "isnan('NaN'::FLOAT)",
+            output: "true",
+        }),
+    }),
+    functions: &[
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Float16], DataTypeId::Boolean),
+            &IsNan::<PhysicalF16>::new(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Float32], DataTypeId::Boolean),
+            &IsNan::<PhysicalF32>::new(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Float64], DataTypeId::Boolean),
+            &IsNan::<PhysicalF64>::new(),
+        ),
+    ],
+};
 
 #[derive(Debug, Clone, Copy)]
-pub struct IsNanImpl<S: ScalarStorage> {
+pub struct IsNan<S: ScalarStorage> {
     _s: PhantomData<S>,
 }
 
-impl<S: ScalarStorage> IsNanImpl<S> {
-    const fn new() -> Self {
-        IsNanImpl { _s: PhantomData }
+impl<S: ScalarStorage> IsNan<S> {
+    pub const fn new() -> Self {
+        IsNan { _s: PhantomData }
     }
 }
 
-impl<S> ScalarFunctionImpl for IsNanImpl<S>
+impl<S> ScalarFunction for IsNan<S>
 where
     S: ScalarStorage,
     S::StorageType: Float,
 {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    type State = ();
+
+    fn bind(
+        &self,
+        _table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Boolean,
+            inputs,
+        })
+    }
+
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 

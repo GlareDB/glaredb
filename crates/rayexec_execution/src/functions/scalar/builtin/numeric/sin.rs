@@ -3,20 +3,50 @@ use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
-use crate::arrays::array::physical_type::MutableScalarStorage;
+use crate::arrays::array::physical_type::{
+    MutableScalarStorage,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+};
 use crate::arrays::array::Array;
+use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
+use crate::functions::documentation::{Category, Documentation};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::RawScalarFunction;
+use crate::functions::Signature;
 
-pub type Sin = UnaryInputNumericScalar<SinOp>;
+pub const FUNCTION_SET_SIN: ScalarFunctionSet = ScalarFunctionSet {
+    name: "sin",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Numeric,
+        description: "Compute the sin of value",
+        arguments: &["float"],
+        example: None,
+    }),
+    functions: &[
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
+            &UnaryInputNumericScalar::<PhysicalF16, SinOp>::new(&DataType::Float16),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
+            &UnaryInputNumericScalar::<PhysicalF32, SinOp>::new(&DataType::Float32),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+            &UnaryInputNumericScalar::<PhysicalF64, SinOp>::new(&DataType::Float64),
+        ),
+    ],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SinOp;
 
 impl UnaryInputNumericOperation for SinOp {
-    const NAME: &'static str = "sin";
-    const DESCRIPTION: &'static str = "Compute the sin of value";
-
     fn execute_float<S>(
         input: &Array,
         selection: impl IntoExactSizeIterator<Item = usize>,

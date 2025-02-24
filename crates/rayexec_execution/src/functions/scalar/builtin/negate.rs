@@ -35,15 +35,15 @@ impl FunctionInfo for Negate {
 
     fn signatures(&self) -> &[Signature] {
         const SIGS: &[Signature] = &[
-            Signature::new_positional(&[DataTypeId::Float16], DataTypeId::Float16),
-            Signature::new_positional(&[DataTypeId::Float32], DataTypeId::Float32),
-            Signature::new_positional(&[DataTypeId::Float64], DataTypeId::Float64),
-            Signature::new_positional(&[DataTypeId::Int8], DataTypeId::Int8),
-            Signature::new_positional(&[DataTypeId::Int16], DataTypeId::Int16),
-            Signature::new_positional(&[DataTypeId::Int32], DataTypeId::Int32),
-            Signature::new_positional(&[DataTypeId::Int64], DataTypeId::Int64),
-            Signature::new_positional(&[DataTypeId::Int128], DataTypeId::Int128),
-            Signature::new_positional(&[DataTypeId::Interval], DataTypeId::Interval),
+            Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
+            Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
+            Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+            Signature::new(&[DataTypeId::Int8], DataTypeId::Int8),
+            Signature::new(&[DataTypeId::Int16], DataTypeId::Int16),
+            Signature::new(&[DataTypeId::Int32], DataTypeId::Int32),
+            Signature::new(&[DataTypeId::Int64], DataTypeId::Int64),
+            Signature::new(&[DataTypeId::Int128], DataTypeId::Int128),
+            Signature::new(&[DataTypeId::Interval], DataTypeId::Interval),
         ];
         SIGS
     }

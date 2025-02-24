@@ -20,13 +20,14 @@ pub enum ArithOperator {
 
 impl AsScalarFunction for ArithOperator {
     fn as_scalar_function(&self) -> &dyn ScalarFunction2 {
-        match self {
-            Self::Add => &arith::Add,
-            Self::Sub => &arith::Sub,
-            Self::Div => &arith::Div,
-            Self::Mul => &arith::Mul,
-            Self::Mod => &arith::Rem,
-        }
+        unimplemented!()
+        // match self {
+        //     Self::Add => &arith::Add,
+        //     Self::Sub => &arith::Sub,
+        //     Self::Div => &arith::Div,
+        //     Self::Mul => &arith::Mul,
+        //     Self::Mod => &arith::Rem,
+        // }
     }
 }
 

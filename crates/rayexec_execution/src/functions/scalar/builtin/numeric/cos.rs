@@ -3,20 +3,50 @@ use rayexec_error::Result;
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
-use crate::arrays::array::physical_type::MutableScalarStorage;
+use crate::arrays::array::physical_type::{
+    MutableScalarStorage,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+};
 use crate::arrays::array::Array;
+use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
+use crate::functions::documentation::{Category, Documentation};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::RawScalarFunction;
+use crate::functions::Signature;
 
-pub type Cos = UnaryInputNumericScalar<CosOp>;
+pub const FUNCTION_SET_COS: ScalarFunctionSet = ScalarFunctionSet {
+    name: "cos",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Numeric,
+        description: "Compute the cosine of a value",
+        arguments: &["float"],
+        example: None,
+    }),
+    functions: &[
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
+            &UnaryInputNumericScalar::<PhysicalF16, CosOp>::new(&DataType::Float16),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
+            &UnaryInputNumericScalar::<PhysicalF32, CosOp>::new(&DataType::Float32),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+            &UnaryInputNumericScalar::<PhysicalF64, CosOp>::new(&DataType::Float64),
+        ),
+    ],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CosOp;
 
 impl UnaryInputNumericOperation for CosOp {
-    const NAME: &'static str = "cos";
-    const DESCRIPTION: &'static str = "Compute the cosine of value";
-
     fn execute_float<S>(
         input: &Array,
         selection: impl IntoExactSizeIterator<Item = usize>,

@@ -5,11 +5,8 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::physical_type::{
-    MutableScalarStorage,
-    PhysicalI128,
-    PhysicalI64,
-};
+use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalI128, PhysicalI64};
+use crate::arrays::datatype::{DataType, DecimalTypeMeta};
 
 pub trait DecimalPrimitive:
     PrimInt + FromPrimitive + Signed + Default + Debug + Display + Sync + Send
@@ -66,6 +63,14 @@ pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
 
         Ok(())
     }
+
+    /// Try to unwrap the decimal type metadata from a data type.
+    ///
+    /// Should return None if the datatype is not the correct type or size.
+    fn try_unwrap_decimal_meta(datatype: &DataType) -> Option<DecimalTypeMeta>;
+
+    /// Create a new datatype using the provide precision and scale.
+    fn datatype_from_decimal_meta(meta: DecimalTypeMeta) -> DataType;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -78,6 +83,17 @@ impl DecimalType for Decimal64Type {
     // Note that changing this would require changing some of the date functions
     // since they assume this is 3.
     const DEFAULT_SCALE: i8 = 3;
+
+    fn try_unwrap_decimal_meta(datatype: &DataType) -> Option<DecimalTypeMeta> {
+        match datatype {
+            DataType::Decimal64(m) => Some(*m),
+            _ => None,
+        }
+    }
+
+    fn datatype_from_decimal_meta(meta: DecimalTypeMeta) -> DataType {
+        DataType::Decimal64(meta)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -88,6 +104,17 @@ impl DecimalType for Decimal128Type {
     type Storage = PhysicalI128;
     const MAX_PRECISION: u8 = 38;
     const DEFAULT_SCALE: i8 = 9;
+
+    fn try_unwrap_decimal_meta(datatype: &DataType) -> Option<DecimalTypeMeta> {
+        match datatype {
+            DataType::Decimal128(m) => Some(*m),
+            _ => None,
+        }
+    }
+
+    fn datatype_from_decimal_meta(meta: DecimalTypeMeta) -> DataType {
+        DataType::Decimal128(meta)
+    }
 }
 
 /// Represents a single decimal value.

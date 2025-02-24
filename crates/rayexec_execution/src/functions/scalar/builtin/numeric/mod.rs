@@ -33,54 +33,22 @@ pub use ln::*;
 pub use log::*;
 use num_traits::Float;
 pub use radians::*;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 pub use sin::*;
 pub use sqrt::*;
 use stdutil::iter::IntoExactSizeIterator;
 pub use tan::*;
 
-use crate::arrays::array::physical_type::{
-    MutableScalarStorage,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-};
+use crate::arrays::array::physical_type::MutableScalarStorage;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::scalar::{BindState, ScalarFunction};
 use crate::logical::binder::table_list::TableList;
-
-/// Signature for functions that accept a single numeric and produce a numeric.
-// TODO: Include decimals.
-const UNARY_NUMERIC_INPUT_OUTPUT_SIGS: &[Signature] = &[
-    Signature {
-        positional_args: &[DataTypeId::Float16],
-        variadic_arg: None,
-        return_type: DataTypeId::Float16,
-        doc: None,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Float32],
-        variadic_arg: None,
-        return_type: DataTypeId::Float32,
-        doc: None,
-    },
-    Signature {
-        positional_args: &[DataTypeId::Float64],
-        variadic_arg: None,
-        return_type: DataTypeId::Float64,
-        doc: None,
-    },
-];
 
 /// Helper trait for defining math functions on floats.
 pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'static {
-    const NAME: &'static str;
-    const DESCRIPTION: &'static str;
-
     fn execute_float<S>(
         input: &Array,
         selection: impl IntoExactSizeIterator<Item = usize>,
@@ -93,72 +61,51 @@ pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'stat
 
 /// Helper struct for creating functions that accept and produce a single
 /// numeric argument.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct UnaryInputNumericScalar<O: UnaryInputNumericOperation> {
+#[derive(Debug, Clone, Copy)]
+pub struct UnaryInputNumericScalar<S: MutableScalarStorage, O: UnaryInputNumericOperation> {
+    return_type: &'static DataType,
+    _s: PhantomData<S>,
     _op: PhantomData<O>,
 }
 
-impl<O: UnaryInputNumericOperation> UnaryInputNumericScalar<O> {
-    pub const fn new() -> Self {
-        UnaryInputNumericScalar { _op: PhantomData }
-    }
-}
-
-impl<O: UnaryInputNumericOperation> FunctionInfo for UnaryInputNumericScalar<O> {
-    fn name(&self) -> &'static str {
-        O::NAME
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        UNARY_NUMERIC_INPUT_OUTPUT_SIGS
-    }
-}
-
-impl<O: UnaryInputNumericOperation> ScalarFunction2 for UnaryInputNumericScalar<O> {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-        let datatype = inputs[0].datatype(table_list)?;
-
-        // TODO: Decimals too
-        match &datatype {
-            DataType::Float16 | DataType::Float32 | DataType::Float64 => (),
-            other => return Err(invalid_input_types_error(self, &[other])),
+impl<S, O> UnaryInputNumericScalar<S, O>
+where
+    S: MutableScalarStorage,
+    O: UnaryInputNumericOperation,
+{
+    pub const fn new(return_type: &'static DataType) -> Self {
+        UnaryInputNumericScalar {
+            return_type,
+            _s: PhantomData,
+            _op: PhantomData,
         }
+    }
+}
 
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
-            return_type: datatype.clone(),
+impl<S, O> ScalarFunction for UnaryInputNumericScalar<S, O>
+where
+    S: MutableScalarStorage,
+    S::StorageType: Float,
+    O: UnaryInputNumericOperation,
+{
+    type State = ();
+
+    fn bind(
+        &self,
+        _table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: self.return_type.clone(),
             inputs,
-            function_impl: Box::new(UnaryInputNumericScalarImpl::<O> {
-                ret: datatype,
-                _op: PhantomData,
-            }),
         })
     }
-}
 
-#[derive(Debug, Clone)]
-pub(crate) struct UnaryInputNumericScalarImpl<O: UnaryInputNumericOperation> {
-    ret: DataType,
-    _op: PhantomData<O>,
-}
-
-impl<O: UnaryInputNumericOperation> ScalarFunctionImpl for UnaryInputNumericScalarImpl<O> {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
-        match input.datatype() {
-            DataType::Float16 => O::execute_float::<PhysicalF16>(input, sel, output),
-            DataType::Float32 => O::execute_float::<PhysicalF32>(input, sel, output),
-            DataType::Float64 => O::execute_float::<PhysicalF64>(input, sel, output),
-            other => Err(RayexecError::new(format!(
-                "Invalid physical type: {other:?}"
-            ))),
-        }
+        O::execute_float::<S>(input, sel, output)
     }
 }
