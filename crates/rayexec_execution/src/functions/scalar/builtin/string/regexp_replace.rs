@@ -9,56 +9,51 @@ use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor, UnaryExec
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RegexpReplace;
+pub const FUNCTION_SET_REGEXP_REPLACE: ScalarFunctionSet = ScalarFunctionSet {
+    name: "regexp_replace",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Regexp,
+        description: "Replace the first regular expression match in a string.",
+        arguments: &["string", "regexp", "replacement"],
+        example: Some(Example {
+            example: "regexp_replace('alphabet', '[ae]', 'DOG')",
+            output: "DOGlphabet",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(
+            &[DataTypeId::Utf8, DataTypeId::Utf8, DataTypeId::Utf8],
+            DataTypeId::Utf8,
+        ),
+        &RegexpReplace,
+    )],
+};
 
-impl FunctionInfo for RegexpReplace {
-    fn name(&self) -> &'static str {
-        "regexp_replace"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8, DataTypeId::Utf8],
-            variadic_arg: None,
-            return_type: DataTypeId::Utf8,
-            doc: Some(&Documentation {
-                category: Category::Regexp,
-                description: "Replace the first regular expression match in a string.",
-                arguments: &["string", "regexp", "replacement"],
-                example: Some(Example {
-                    example: "regexp_replace('alphabet', '[ae]', 'DOG')",
-                    output: "DOGlphabet",
-                }),
-            }),
-        }]
-    }
+#[derive(Debug)]
+pub struct RegexpReplaceState {
+    pattern: Option<Regex>,
+    replacement: Option<String>,
 }
 
-impl ScalarFunction2 for RegexpReplace {
-    fn plan(
+#[derive(Debug, Clone)]
+pub struct RegexpReplace;
+
+impl ScalarFunction for RegexpReplace {
+    type State = RegexpReplaceState;
+
+    fn bind(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 3)?;
-        let datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype(table_list))
-            .collect::<Result<Vec<_>>>()?;
-
-        for datatype in &datatypes {
-            if datatype != &DataType::Utf8 {
-                return Err(invalid_input_types_error(self, &datatypes));
-            }
-        }
-
+    ) -> Result<BindState<Self::State>> {
         let pattern = if inputs[1].is_const_foldable() {
             let pattern = ConstFold::rewrite(table_list, inputs[1].clone())?
                 .try_into_scalar()?
@@ -80,29 +75,20 @@ impl ScalarFunction2 for RegexpReplace {
             None
         };
 
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
-            return_type: DataType::Utf8,
-            inputs,
-            function_impl: Box::new(RegexpReplaceImpl {
+        Ok(BindState {
+            state: RegexpReplaceState {
                 pattern,
                 replacement,
-            }),
+            },
+            return_type: DataType::Utf8,
+            inputs,
         })
     }
-}
 
-#[derive(Debug, Clone)]
-pub struct RegexpReplaceImpl {
-    pub pattern: Option<Regex>,
-    pub replacement: Option<String>,
-}
-
-impl ScalarFunctionImpl for RegexpReplaceImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
-        match (self.pattern.as_ref(), self.replacement.as_ref()) {
+        match (state.pattern.as_ref(), state.replacement.as_ref()) {
             (Some(pattern), Some(replacement)) => {
                 UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
                     &input.arrays()[0],

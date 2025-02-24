@@ -8,7 +8,7 @@ use super::DatabaseContext;
 use crate::arrays::field::Field;
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::copy::CopyToFunction;
-use crate::functions::scalar::ScalarFunction2;
+use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::table::TableFunction;
 use crate::proto::DatabaseProtoConv;
 
@@ -65,7 +65,7 @@ impl ProtoConv for CatalogEntryType {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct CatalogEntry {
     pub oid: u32,
     pub name: String,
@@ -106,7 +106,7 @@ impl DatabaseProtoConv for CatalogEntry {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum CatalogEntryInner {
     Table(TableEntry),
     Schema(SchemaEntry),
@@ -158,27 +158,29 @@ impl DatabaseProtoConv for CatalogEntryInner {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct ScalarFunctionEntry {
-    pub function: Box<dyn ScalarFunction2>,
+    pub function: ScalarFunctionSet,
 }
 
 impl DatabaseProtoConv for ScalarFunctionEntry {
     type ProtoType = rayexec_proto::generated::catalog::ScalarFunctionEntry;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            function: Some(self.function.to_proto_ctx(context)?),
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     function: Some(self.function.to_proto_ctx(context)?),
+        // })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            function: DatabaseProtoConv::from_proto_ctx(
-                proto.function.required("function")?,
-                context,
-            )?,
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     function: DatabaseProtoConv::from_proto_ctx(
+        //         proto.function.required("function")?,
+        //         context,
+        //     )?,
+        // })
     }
 }
 

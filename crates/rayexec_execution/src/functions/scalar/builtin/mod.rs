@@ -13,7 +13,28 @@ pub mod struct_funcs;
 
 use std::sync::LazyLock;
 
+use arith::{
+    FUNCTION_SET_ADD,
+    FUNCTION_SET_DIV,
+    FUNCTION_SET_MUL,
+    FUNCTION_SET_REM,
+    FUNCTION_SET_SUB,
+};
+
 use super::ScalarFunction2;
+use crate::functions::function_set::ScalarFunctionSet;
+
+pub const BUILTIN_SCALAR_FUNCTION_SETS: &[ScalarFunctionSet] = &[
+    // Arith
+    FUNCTION_SET_ADD,
+    FUNCTION_SET_SUB,
+    FUNCTION_SET_DIV,
+    FUNCTION_SET_MUL,
+    FUNCTION_SET_REM,
+    // Boolean
+    // Comparison
+    // ...
+];
 
 // List of all scalar functions.
 pub static BUILTIN_SCALAR_FUNCTIONS: LazyLock<Vec<Box<dyn ScalarFunction2>>> =

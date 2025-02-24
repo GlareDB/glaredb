@@ -11,108 +11,73 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::logical::binder::table_list::TableList;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsNull;
+pub const FUNCTION_SET_IS_NULL: ScalarFunctionSet = ScalarFunctionSet {
+    name: "is_null",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Check if a value is NULL.",
+        arguments: &["value"],
+        example: Some(Example {
+            example: "is_null(NULL)",
+            output: "true",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Any], DataTypeId::Boolean),
+        &IsNull::<false>,
+    )],
+};
 
-impl FunctionInfo for IsNull {
-    fn name(&self) -> &'static str {
-        "is_null"
-    }
+pub const FUNCTION_SET_IS_NOT_NULL: ScalarFunctionSet = ScalarFunctionSet {
+    name: "is_not_null",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Check if a value is not NULL.",
+        arguments: &["value"],
+        example: Some(Example {
+            example: "is_not_null(NULL)",
+            output: "false",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Any], DataTypeId::Boolean),
+        &IsNull::<true>,
+    )],
+};
 
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Any],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(&Documentation {
-                category: Category::General,
-                description: "Check if a value is NULL.",
-                arguments: &["value"],
-                example: Some(Example {
-                    example: "is_null(NULL)",
-                    output: "true",
-                }),
-            }),
-        }]
-    }
-}
+#[derive(Debug)]
+pub struct IsNull<const NEGATE: bool>;
 
-impl ScalarFunction2 for IsNull {
-    fn plan(
+impl<const NEGATE: bool> ScalarFunction for IsNull<NEGATE> {
+    type State = ();
+
+    fn bind(
         &self,
         _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
             return_type: DataType::Boolean,
             inputs,
-            function_impl: Box::new(CheckNullImpl::<true>),
         })
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsNotNull;
-
-impl FunctionInfo for IsNotNull {
-    fn name(&self) -> &'static str {
-        "is_not_null"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Any],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(&Documentation {
-                category: Category::General,
-                description: "Check if a value is not NULL.",
-                arguments: &["value"],
-                example: Some(Example {
-                    example: "is_not_null(NULL)",
-                    output: "false",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for IsNotNull {
-    fn plan(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
-            return_type: DataType::Boolean,
-            inputs,
-            function_impl: Box::new(CheckNullImpl::<false>),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CheckNullImpl<const IS_NULL: bool>;
-
-impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
         let out = PhysicalBool::get_addressable_mut(&mut output.data)?;
         if input.physical_type() == PhysicalType::UntypedNull {
             // Everything null, just set to default value.
-            out.slice.iter_mut().for_each(|v| *v = IS_NULL);
+            out.slice.iter_mut().for_each(|v| *v = NEGATE);
             return Ok(());
         }
 
@@ -121,9 +86,9 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
         for (output_idx, idx) in sel.into_iter().enumerate() {
             let is_valid = flat.validity.is_valid(idx);
             if is_valid {
-                out.slice[output_idx] = !IS_NULL;
+                out.slice[output_idx] = NEGATE;
             } else {
-                out.slice[output_idx] = IS_NULL;
+                out.slice[output_idx] = !NEGATE;
             }
         }
 
@@ -131,183 +96,97 @@ impl<const IS_NULL: bool> ScalarFunctionImpl for CheckNullImpl<IS_NULL> {
     }
 }
 
+pub const FUNCTION_SET_IS_TRUE: ScalarFunctionSet = ScalarFunctionSet {
+    name: "is_true",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Check if a value is true.",
+        arguments: &["value"],
+        example: Some(Example {
+            example: "is_true(false)",
+            output: "false",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
+        &IsBool::<false, true>,
+    )],
+};
+
+pub const FUNCTION_SET_IS_NOT_TRUE: ScalarFunctionSet = ScalarFunctionSet {
+    name: "is_not_true",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Check if a value is not true.",
+        arguments: &["value"],
+        example: Some(Example {
+            example: "is_not_true(false)",
+            output: "true",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
+        &IsBool::<true, true>,
+    )],
+};
+
+pub const FUNCTION_SET_IS_FALSE: ScalarFunctionSet = ScalarFunctionSet {
+    name: "is_false",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Check if a value is false.",
+        arguments: &["value"],
+        example: Some(Example {
+            example: "is_false(false)",
+            output: "true",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
+        &IsBool::<false, false>,
+    )],
+};
+
+pub const FUNCTION_SET_IS_NOT_FALSE: ScalarFunctionSet = ScalarFunctionSet {
+    name: "is_false",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Check if a value is not false.",
+        arguments: &["value"],
+        example: Some(Example {
+            example: "is_not_false(false)",
+            output: "false",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
+        &IsBool::<true, false>,
+    )],
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsTrue;
+pub struct IsBool<const NOT: bool, const BOOL: bool>;
 
-impl FunctionInfo for IsTrue {
-    fn name(&self) -> &'static str {
-        "is_true"
-    }
+impl<const NOT: bool, const BOOL: bool> ScalarFunction for IsBool<NOT, BOOL> {
+    type State = ();
 
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Boolean],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(&Documentation {
-                category: Category::General,
-                description: "Check if a value is true.",
-                arguments: &["value"],
-                example: Some(Example {
-                    example: "is_true(false)",
-                    output: "false",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for IsTrue {
-    fn plan(
+    fn bind(
         &self,
-        _table_list: &TableList,
+        table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
             return_type: DataType::Boolean,
             inputs,
-            function_impl: Box::new(CheckBoolImpl::<false, true>),
         })
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsNotTrue;
-
-impl FunctionInfo for IsNotTrue {
-    fn name(&self) -> &'static str {
-        "is_not_true"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Boolean],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(&Documentation {
-                category: Category::General,
-                description: "Check if a value is not true.",
-                arguments: &["value"],
-                example: Some(Example {
-                    example: "is_not_true(false)",
-                    output: "true",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for IsNotTrue {
-    fn plan(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
-            return_type: DataType::Boolean,
-            inputs,
-            function_impl: Box::new(CheckBoolImpl::<true, true>),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsFalse;
-
-impl FunctionInfo for IsFalse {
-    fn name(&self) -> &'static str {
-        "is_false"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Boolean],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(&Documentation {
-                category: Category::General,
-                description: "Check if a value is false.",
-                arguments: &["value"],
-                example: Some(Example {
-                    example: "is_false(false)",
-                    output: "true",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for IsFalse {
-    fn plan(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
-            return_type: DataType::Boolean,
-            inputs,
-            function_impl: Box::new(CheckBoolImpl::<false, false>),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsNotFalse;
-
-impl FunctionInfo for IsNotFalse {
-    fn name(&self) -> &'static str {
-        "is_not_false"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Boolean],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(&Documentation {
-                category: Category::General,
-                description: "Check if a value is not false.",
-                arguments: &["value"],
-                example: Some(Example {
-                    example: "is_not_false(false)",
-                    output: "false",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for IsNotFalse {
-    fn plan(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
-            return_type: DataType::Boolean,
-            inputs,
-            function_impl: Box::new(CheckBoolImpl::<true, false>),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CheckBoolImpl<const NOT: bool, const BOOL: bool>;
-
-impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT, BOOL> {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
@@ -328,104 +207,5 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunctionImpl for CheckBoolImpl<NOT
         }
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use stdutil::iter::TryFromExactSizeIterator;
-
-    use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
-    use crate::expr;
-    use crate::testutil::arrays::assert_arrays_eq;
-
-    #[test]
-    fn is_null_all_valid() {
-        let a = Array::try_from_iter([1, 2, 3]).unwrap();
-        let batch = Batch::from_arrays([a]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(None, vec![DataType::Boolean], vec!["a".to_string()])
-            .unwrap();
-
-        let planned = IsNull
-            .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-
-        let expected = Array::try_from_iter([false, false, false]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
-    }
-
-    #[test]
-    fn is_null_some_invalid() {
-        let a = Array::try_from_iter([Some(1), None, None]).unwrap();
-        let batch = Batch::from_arrays([a]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(None, vec![DataType::Boolean], vec!["a".to_string()])
-            .unwrap();
-
-        let planned = IsNull
-            .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-
-        let expected = Array::try_from_iter([false, true, true]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
-    }
-
-    #[test]
-    fn is_true() {
-        let a = Array::try_from_iter([Some(true), Some(false), None]).unwrap();
-        let batch = Batch::from_arrays([a]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(None, vec![DataType::Boolean], vec!["a".to_string()])
-            .unwrap();
-
-        let planned = IsTrue
-            .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-
-        let expected = Array::try_from_iter([Some(true), Some(false), Some(false)]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
-    }
-
-    #[test]
-    fn is_not_true() {
-        let a = Array::try_from_iter([Some(true), Some(false), None]).unwrap();
-        let batch = Batch::from_arrays([a]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(None, vec![DataType::Boolean], vec!["a".to_string()])
-            .unwrap();
-
-        let planned = IsNotTrue
-            .plan(&table_list, vec![expr::col_ref(table_ref, 0)])
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-
-        let expected = Array::try_from_iter([Some(false), Some(true), Some(true)]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
     }
 }

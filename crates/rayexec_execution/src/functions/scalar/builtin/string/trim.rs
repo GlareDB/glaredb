@@ -11,6 +11,7 @@ use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
+use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
 use crate::functions::{
     invalid_input_types_error,
@@ -33,6 +34,21 @@ pub trait StringTrimOp: Sync + Send + Debug + Clone + Copy + PartialEq + Eq + 's
 
     fn trim_func<'a>(input: &'a str, pattern: &str) -> &'a str;
 }
+
+pub const FUNCTION_SET_BTRIM: ScalarFunctionSet = ScalarFunctionSet {
+    name: "btrim",
+    aliases: &["trim"],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Trim matching characters from both sides of the string.",
+        arguments: &["string", "characters"],
+        example: Some(Example {
+            example: "trim('->hello<', '<>-')",
+            output: "hello",
+        }),
+    }),
+    functions: &[],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BothTrimOp;

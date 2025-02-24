@@ -1,7 +1,8 @@
 use std::fmt;
 
-use super::{AsScalarFunction, Expression};
+use super::{AsScalarFunctionSet, Expression};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::builtin::comparison;
 use crate::functions::scalar::ScalarFunction2;
 
@@ -45,18 +46,9 @@ impl ComparisonOperator {
     }
 }
 
-impl AsScalarFunction for ComparisonOperator {
-    fn as_scalar_function(&self) -> &dyn ScalarFunction2 {
-        match self {
-            Self::Eq => &comparison::Eq,
-            Self::NotEq => &comparison::Neq,
-            Self::Lt => &comparison::Lt,
-            Self::LtEq => &comparison::LtEq,
-            Self::Gt => &comparison::Gt,
-            Self::GtEq => &comparison::GtEq,
-            Self::IsDistinctFrom => &comparison::IsDistinctFrom,
-            Self::IsNotDistinctFrom => &comparison::IsNotDistinctFrom,
-        }
+impl AsScalarFunctionSet for ComparisonOperator {
+    fn as_scalar_function_set(&self) -> &ScalarFunctionSet {
+        unimplemented!()
     }
 }
 

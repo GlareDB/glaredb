@@ -11,12 +11,12 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::buffer::buffer_manager::NopBufferManager;
 use crate::database::DatabaseContext;
-use crate::functions::scalar::PlannedScalarFunction2;
+use crate::functions::scalar::PlannedScalarFunction;
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalScalarFunctionExpr {
-    pub function: PlannedScalarFunction2,
+    pub function: PlannedScalarFunction,
     pub inputs: Vec<PhysicalScalarExpression>,
 }
 
@@ -40,7 +40,7 @@ impl PhysicalScalarFunctionExpr {
     }
 
     pub fn datatype(&self) -> DataType {
-        self.function.return_type.clone()
+        self.function.state.return_type.clone()
     }
 
     pub(crate) fn eval(
@@ -59,7 +59,7 @@ impl PhysicalScalarFunctionExpr {
 
         // Eval function with child outputs.
         state.buffer.set_num_rows(sel.len())?;
-        self.function.function_impl.execute(&state.buffer, output)?;
+        self.function.call_execute(&state.buffer, output)?;
 
         Ok(())
     }
@@ -70,7 +70,7 @@ impl fmt::Display for PhysicalScalarFunctionExpr {
         write!(
             f,
             "{}({})",
-            self.function.function.name(),
+            self.function.name,
             self.inputs.display_as_list()
         )
     }

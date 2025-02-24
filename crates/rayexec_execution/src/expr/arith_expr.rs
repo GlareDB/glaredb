@@ -2,10 +2,17 @@ use std::fmt;
 
 use rayexec_error::Result;
 
-use super::{AsScalarFunction, Expression};
+use super::{AsScalarFunctionSet, Expression};
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::scalar::builtin::arith;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::builtin::arith::{
+    FUNCTION_SET_ADD,
+    FUNCTION_SET_DIV,
+    FUNCTION_SET_MUL,
+    FUNCTION_SET_REM,
+    FUNCTION_SET_SUB,
+};
 use crate::functions::scalar::ScalarFunction2;
 use crate::logical::binder::table_list::TableList;
 
@@ -18,16 +25,15 @@ pub enum ArithOperator {
     Mod,
 }
 
-impl AsScalarFunction for ArithOperator {
-    fn as_scalar_function(&self) -> &dyn ScalarFunction2 {
-        unimplemented!()
-        // match self {
-        //     Self::Add => &arith::Add,
-        //     Self::Sub => &arith::Sub,
-        //     Self::Div => &arith::Div,
-        //     Self::Mul => &arith::Mul,
-        //     Self::Mod => &arith::Rem,
-        // }
+impl AsScalarFunctionSet for ArithOperator {
+    fn as_scalar_function_set(&self) -> &ScalarFunctionSet {
+        match self {
+            Self::Add => &FUNCTION_SET_ADD,
+            Self::Sub => &FUNCTION_SET_SUB,
+            Self::Div => &FUNCTION_SET_DIV,
+            Self::Mul => &FUNCTION_SET_MUL,
+            Self::Mod => &FUNCTION_SET_REM,
+        }
     }
 }
 

@@ -183,11 +183,14 @@ impl CandidateSignature {
     ///
     /// This will return a sorted vec where the first element is the candidate
     /// with the highest score.
-    fn find_candidates(inputs: &[DataType], sigs: &[Signature]) -> Vec<Self> {
+    fn find_candidates<'a>(
+        inputs: &[DataType],
+        sigs: impl IntoIterator<Item = &'a Signature>,
+    ) -> Vec<Self> {
         let mut candidates = Vec::new();
 
         let mut buf = Vec::new();
-        for (idx, sig) in sigs.iter().enumerate() {
+        for (idx, sig) in sigs.into_iter().enumerate() {
             if !Self::compare_and_fill_types(
                 inputs,
                 sig.positional_args,

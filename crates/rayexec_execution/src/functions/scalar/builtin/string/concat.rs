@@ -1,11 +1,6 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::{
-    Addressable,
-    AddressableMut,
-    MutableScalarStorage,
-    PhysicalUtf8,
-};
+use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -13,68 +8,56 @@ use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor, UniformExec
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::logical::binder::table_list::TableList;
 
 // TODO: Currently '||' aliases to this, however there should be two separate
 // concat functions. One that should return null on any null arguments (||), and
 // one that should omit null arguments when concatenating (the normal concat).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Concat;
-
-impl FunctionInfo for Concat {
-    fn name(&self) -> &'static str {
-        "concat"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
+pub const FUNCTION_SET_CONCAT: ScalarFunctionSet = ScalarFunctionSet {
+    name: "concat",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Concatenate many strings into a single string.",
+        arguments: &["var_args"],
+        example: Some(Example {
+            example: "concat('cat', 'dog', 'mouse')",
+            output: "catdogmouse",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Utf8),
             return_type: DataTypeId::Utf8,
-            doc: Some(&Documentation {
-                category: Category::String,
-                description: "Concatenate many strings into a single string.",
-                arguments: &["var_args"],
-                example: Some(Example {
-                    example: "concat('cat', 'dog', 'mouse')",
-                    output: "catdogmouse",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for Concat {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        let datatypes = inputs
-            .iter()
-            .map(|input| input.datatype(table_list))
-            .collect::<Result<Vec<_>>>()?;
-
-        if !datatypes.iter().all(|dt| dt == &DataType::Utf8) {
-            return Err(invalid_input_types_error(self, &datatypes));
-        }
-
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
-            return_type: DataType::Utf8,
-            inputs,
-            function_impl: Box::new(StringConcatImpl),
-        })
-    }
-}
+            doc: None,
+        },
+        &StringConcat,
+    )],
+};
 
 #[derive(Debug, Clone)]
-pub struct StringConcatImpl;
+pub struct StringConcat;
 
-impl ScalarFunctionImpl for StringConcatImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+impl ScalarFunction for StringConcat {
+    type State = ();
+
+    fn bind(
+        &self,
+        _table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Utf8,
+            inputs,
+        })
+    }
+
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
         match input.arrays().len() {

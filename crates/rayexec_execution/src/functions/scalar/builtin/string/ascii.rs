@@ -8,61 +8,48 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::logical::binder::table_list::TableList;
+
+pub const FUNCTION_SET_ASCII: ScalarFunctionSet = ScalarFunctionSet {
+    name: "ascii",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Get the ascii code of the first character of the argument.",
+        arguments: &["string"],
+        example: Some(Example {
+            example: "ascii('h')",
+            output: "104",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Utf8], DataTypeId::Int32),
+        &Ascii,
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ascii;
 
-impl FunctionInfo for Ascii {
-    fn name(&self) -> &'static str {
-        "ascii"
-    }
+impl ScalarFunction for Ascii {
+    type State = ();
 
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Utf8],
-            variadic_arg: None,
-            return_type: DataTypeId::Int32,
-            doc: Some(&Documentation {
-                category: Category::String,
-                description: "Get the ascii code of the first character of the argument.",
-                arguments: &["string"],
-                example: Some(Example {
-                    example: "ascii('h')",
-                    output: "104",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for Ascii {
-    fn plan(
+    fn bind(
         &self,
-        table_list: &TableList,
+        _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Int32,
-                inputs,
-                function_impl: Box::new(AsciiImpl),
-            }),
-            a => Err(invalid_input_types_error(self, &[a])),
-        }
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Int32,
+            inputs,
+        })
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AsciiImpl;
-
-impl ScalarFunctionImpl for AsciiImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 

@@ -8,64 +8,48 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::logical::binder::table_list::TableList;
 
+pub const FUNCTION_SET_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
+    name: "length",
+    aliases: &["char_length", "character_length"],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Get the number of characters in a string.",
+        arguments: &["string"],
+        example: Some(Example {
+            example: "length('tschüß')",
+            output: "6",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),
+        &StringLength,
+    )],
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Length;
+pub struct StringLength;
 
-impl FunctionInfo for Length {
-    fn name(&self) -> &'static str {
-        "length"
-    }
+impl ScalarFunction for StringLength {
+    type State = ();
 
-    fn aliases(&self) -> &'static [&'static str] {
-        &["char_length", "character_length"]
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Utf8],
-            variadic_arg: None,
-            return_type: DataTypeId::Int64,
-            doc: Some(&Documentation {
-                category: Category::String,
-                description: "Get the number of characters in a string.",
-                arguments: &["string"],
-                example: Some(Example {
-                    example: "length('tschüß')",
-                    output: "6",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for Length {
-    fn plan(
+    fn bind(
         &self,
-        table_list: &TableList,
+        _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Int64,
-                inputs,
-                function_impl: Box::new(StrLengthImpl),
-            }),
-            a => Err(invalid_input_types_error(self, &[a])),
-        }
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Int64,
+            inputs,
+        })
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StrLengthImpl;
-
-impl ScalarFunctionImpl for StrLengthImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
@@ -81,73 +65,49 @@ impl ScalarFunctionImpl for StrLengthImpl {
     }
 }
 
+pub const FUNCTION_SET_BYTE_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
+    name: "byte_length",
+    aliases: &["octet_length"],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Get the number of bytes in a string or blob.",
+        arguments: &["string"],
+        example: Some(Example {
+            example: "byte_length('tschüß')",
+            output: "6",
+        }),
+    }),
+    functions: &[
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),
+            &ByteLength,
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Binary], DataTypeId::Int64),
+            &ByteLength,
+        ),
+    ],
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ByteLength;
 
-impl FunctionInfo for ByteLength {
-    fn name(&self) -> &'static str {
-        "byte_length"
-    }
+impl ScalarFunction for ByteLength {
+    type State = ();
 
-    fn aliases(&self) -> &'static [&'static str] {
-        &["octet_length"]
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                positional_args: &[DataTypeId::Utf8],
-                variadic_arg: None,
-                return_type: DataTypeId::Int64,
-                doc: Some(&Documentation {
-                    category: Category::String,
-                    description: "Get the number of bytes in a string.",
-                    arguments: &["string"],
-                    example: Some(Example {
-                        example: "byte_length('tschüß')",
-                        output: "6",
-                    }),
-                }),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Binary],
-                variadic_arg: None,
-                return_type: DataTypeId::Int64,
-                doc: Some(&Documentation {
-                    category: Category::String,
-                    description: "Get the number of bytes in a binary blob.",
-                    arguments: &["blob"],
-                    example: None,
-                }),
-            },
-        ]
-    }
-}
-
-impl ScalarFunction2 for ByteLength {
-    fn plan(
+    fn bind(
         &self,
-        table_list: &TableList,
+        _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype(table_list)? {
-            DataType::Utf8 | DataType::Binary => Ok(PlannedScalarFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Int64,
-                inputs,
-                function_impl: Box::new(ByteLengthImpl),
-            }),
-            a => Err(invalid_input_types_error(self, &[a])),
-        }
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Int64,
+            inputs,
+        })
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ByteLengthImpl;
-
-impl ScalarFunctionImpl for ByteLengthImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
@@ -161,69 +121,49 @@ impl ScalarFunctionImpl for ByteLengthImpl {
     }
 }
 
+pub const FUNCTION_SET_BIT_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
+    name: "bit_length",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Get the number of bits in a string or blob.",
+        arguments: &["string"],
+        example: Some(Example {
+            example: "bit_length('tschüß')",
+            output: "64",
+        }),
+    }),
+    functions: &[
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),
+            &ByteLength,
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Binary], DataTypeId::Int64),
+            &ByteLength,
+        ),
+    ],
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BitLength;
 
-impl FunctionInfo for BitLength {
-    fn name(&self) -> &'static str {
-        "bit_length"
-    }
+impl ScalarFunction for BitLength {
+    type State = ();
 
-    fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                positional_args: &[DataTypeId::Utf8],
-                variadic_arg: None,
-                return_type: DataTypeId::Int64,
-                doc: Some(&Documentation {
-                    category: Category::String,
-                    description: "Get the number of bits in a string.",
-                    arguments: &["string"],
-                    example: Some(Example {
-                        example: "bit_length('tschüß')",
-                        output: "64",
-                    }),
-                }),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Binary],
-                variadic_arg: None,
-                return_type: DataTypeId::Int64,
-                doc: Some(&Documentation {
-                    category: Category::String,
-                    description: "Get the number of bits in a binary blob.",
-                    arguments: &["blob"],
-                    example: None,
-                }),
-            },
-        ]
-    }
-}
-
-impl ScalarFunction2 for BitLength {
-    fn plan(
+    fn bind(
         &self,
-        table_list: &TableList,
+        _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype(table_list)? {
-            DataType::Utf8 | DataType::Binary => Ok(PlannedScalarFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Int64,
-                inputs,
-                function_impl: Box::new(BitLengthImpl),
-            }),
-            a => Err(invalid_input_types_error(self, &[a])),
-        }
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Int64,
+            inputs,
+        })
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BitLengthImpl;
-
-impl ScalarFunctionImpl for BitLengthImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 

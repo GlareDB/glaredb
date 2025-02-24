@@ -1,9 +1,8 @@
 use std::fmt;
 
-use super::{AsScalarFunction, Expression};
+use super::{AsScalarFunctionSet, Expression};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::scalar::builtin::boolean;
-use crate::functions::scalar::ScalarFunction2;
+use crate::functions::function_set::ScalarFunctionSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ConjunctionOperator {
@@ -11,12 +10,9 @@ pub enum ConjunctionOperator {
     Or,
 }
 
-impl AsScalarFunction for ConjunctionOperator {
-    fn as_scalar_function(&self) -> &dyn ScalarFunction2 {
-        match self {
-            Self::And => &boolean::And,
-            Self::Or => &boolean::Or,
-        }
+impl AsScalarFunctionSet for ConjunctionOperator {
+    fn as_scalar_function_set(&self) -> &ScalarFunctionSet {
+        unimplemented!()
     }
 }
 

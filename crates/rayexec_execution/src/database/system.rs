@@ -13,7 +13,7 @@ use crate::database::create::{
 };
 use crate::datasource::DataSourceRegistry;
 use crate::functions::aggregate::builtin::BUILTIN_AGGREGATE_FUNCTIONS;
-use crate::functions::scalar::builtin::BUILTIN_SCALAR_FUNCTIONS;
+use crate::functions::scalar::builtin::BUILTIN_SCALAR_FUNCTION_SETS;
 use crate::functions::table::builtin::BUILTIN_TABLE_FUNCTIONS;
 
 /// Create a new system catalog with builtin functions.
@@ -50,17 +50,17 @@ pub fn new_system_catalog(registry: &DataSourceRegistry) -> Result<MemoryCatalog
     )?;
 
     // Add builtin scalars.
-    for func in BUILTIN_SCALAR_FUNCTIONS.iter() {
+    for func in BUILTIN_SCALAR_FUNCTION_SETS.iter() {
         builtin.create_scalar_function(
             tx,
             &CreateScalarFunctionInfo {
-                name: func.name().to_string(),
+                name: func.name.to_string(),
                 implementation: func.clone(),
                 on_conflict: OnConflict::Error,
             },
         )?;
 
-        for alias in func.aliases() {
+        for alias in func.aliases {
             builtin.create_scalar_function(
                 tx,
                 &CreateScalarFunctionInfo {

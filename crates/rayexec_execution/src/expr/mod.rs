@@ -41,6 +41,7 @@ use window_expr::WindowExpr;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
+use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{FunctionVolatility, ScalarFunction2};
 use crate::logical::binder::table_list::{TableList, TableRef};
 
@@ -82,7 +83,7 @@ impl Expression {
             Self::Is(_) => DataType::Boolean,
             Self::Literal(expr) => expr.literal.datatype(),
             Self::Negate(expr) => expr.datatype(table_list)?,
-            Self::ScalarFunction(expr) => expr.function.return_type.clone(),
+            Self::ScalarFunction(expr) => expr.function.state.return_type.clone(),
             Self::Subquery(expr) => expr.return_type.clone(),
             Self::Window(window) => window.agg.return_type.clone(),
             Self::Unnest(expr) => expr.datatype(table_list)?,
@@ -138,7 +139,7 @@ impl Expression {
             Self::Literal(_) => (),
             Self::Negate(negate) => func(&mut negate.expr)?,
             Self::ScalarFunction(scalar) => {
-                for input in &mut scalar.function.inputs {
+                for input in &mut scalar.function.state.inputs {
                     func(input)?;
                 }
             }
@@ -212,7 +213,7 @@ impl Expression {
             Self::Literal(_) => (),
             Self::Negate(negate) => func(&negate.expr)?,
             Self::ScalarFunction(scalar) => {
-                for input in &scalar.function.inputs {
+                for input in &scalar.function.state.inputs {
                     func(input)?;
                 }
             }
@@ -351,7 +352,7 @@ impl Expression {
             Self::Window(_) => false,
             Self::Subquery(_) => false, // Subquery shouldn't be in the plan anyways once this gets called.
             Self::ScalarFunction(f)
-                if f.function.function.volatility() == FunctionVolatility::Volatile =>
+                if f.function.raw.volatility() == FunctionVolatility::Volatile =>
             {
                 false
             }
@@ -583,15 +584,13 @@ impl ContextDisplay for Expression {
     }
 }
 
-pub trait AsScalarFunction {
-    /// Returns the scalar function that implements the expression.
-    fn as_scalar_function(&self) -> &dyn ScalarFunction2;
-}
-
-impl<S: ScalarFunction2> AsScalarFunction for S {
-    fn as_scalar_function(&self) -> &dyn ScalarFunction2 {
-        self as _
-    }
+pub trait AsScalarFunctionSet {
+    /// Returns the the function set for an operator.
+    ///
+    /// Called during planning to get the function implementation for arith,
+    /// comparision, etc operators to apply appropriate casts to the input
+    /// expressions.
+    fn as_scalar_function_set(&self) -> &ScalarFunctionSet;
 }
 
 #[cfg(test)]

@@ -1,12 +1,17 @@
-use rayexec_error::Result;
+use rayexec_error::{OptionExt, Result};
 
 use super::ExpressionRewriteRule;
+use crate::arrays::datatype::DataType;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::{self, Expression};
-use crate::functions::scalar::builtin::string::{Contains, EndsWith, Like, StartsWith};
-use crate::functions::scalar::ScalarFunction2;
-use crate::functions::FunctionInfo;
+use crate::functions::scalar::builtin::string::{
+    FUNCTION_SET_CONTAINS,
+    FUNCTION_SET_ENDS_WITH,
+    FUNCTION_SET_LIKE,
+    FUNCTION_SET_STARTS_WITH,
+};
+use crate::functions::scalar::PlannedScalarFunction;
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
@@ -20,9 +25,9 @@ impl ExpressionRewriteRule for LikeRewrite {
         fn inner(table_list: &TableList, expr: &mut Expression) -> Result<()> {
             match expr {
                 Expression::ScalarFunction(scalar)
-                    if scalar.function.function.name() == Like.name() =>
+                    if scalar.function.name == FUNCTION_SET_LIKE.name =>
                 {
-                    let pattern = &scalar.function.inputs[1];
+                    let pattern = &scalar.function.state.inputs[1];
                     if !pattern.is_const_foldable() {
                         return Ok(());
                     }
@@ -33,7 +38,7 @@ impl ExpressionRewriteRule for LikeRewrite {
 
                     if can_str_compare(&pattern) {
                         *expr = Expression::Comparison(ComparisonExpr {
-                            left: Box::new(scalar.function.inputs[0].clone()),
+                            left: Box::new(scalar.function.state.inputs[0].clone()),
                             right: Box::new(expr::lit(pattern)),
                             op: ComparisonOperator::Eq,
                         });
@@ -43,33 +48,66 @@ impl ExpressionRewriteRule for LikeRewrite {
                         // LIKE -> STARTS_WITH
 
                         let pattern = pattern.trim_matches('%').to_string();
+                        let inputs =
+                            vec![scalar.function.state.inputs[0].clone(), expr::lit(pattern)];
 
-                        let inputs = vec![scalar.function.inputs[0].clone(), expr::lit(pattern)];
-                        let function = StartsWith.plan(table_list, inputs)?;
+                        let func = FUNCTION_SET_STARTS_WITH
+                            .find_exact(&[DataType::Utf8, DataType::Utf8])
+                            .required("STARTS_WITH implementation to exist")?;
 
-                        *expr = Expression::ScalarFunction(ScalarFunctionExpr { function });
+                        let bind_state = func.call_bind(table_list, inputs)?;
+                        let planned = PlannedScalarFunction {
+                            name: FUNCTION_SET_STARTS_WITH.name,
+                            raw: *func,
+                            state: bind_state,
+                        };
+
+                        *expr =
+                            Expression::ScalarFunction(ScalarFunctionExpr { function: planned });
 
                         Ok(())
                     } else if is_suffix_pattern(&pattern) {
                         // LIKE -> ENDS_WITH
 
                         let pattern = pattern.trim_matches('%').to_string();
+                        let inputs =
+                            vec![scalar.function.state.inputs[0].clone(), expr::lit(pattern)];
 
-                        let inputs = vec![scalar.function.inputs[0].clone(), expr::lit(pattern)];
-                        let function = EndsWith.plan(table_list, inputs)?;
+                        let func = FUNCTION_SET_ENDS_WITH
+                            .find_exact(&[DataType::Utf8, DataType::Utf8])
+                            .required("ENDS_WITH implementation to exist")?;
 
-                        *expr = Expression::ScalarFunction(ScalarFunctionExpr { function });
+                        let bind_state = func.call_bind(table_list, inputs)?;
+                        let planned = PlannedScalarFunction {
+                            name: FUNCTION_SET_ENDS_WITH.name,
+                            raw: *func,
+                            state: bind_state,
+                        };
+
+                        *expr =
+                            Expression::ScalarFunction(ScalarFunctionExpr { function: planned });
 
                         Ok(())
                     } else if is_contains_pattern(&pattern) {
                         // LIKE -> CONTAINS
 
                         let pattern = pattern.trim_matches('%').to_string();
+                        let inputs =
+                            vec![scalar.function.state.inputs[0].clone(), expr::lit(pattern)];
 
-                        let inputs = vec![scalar.function.inputs[0].clone(), expr::lit(pattern)];
-                        let function = Contains.plan(table_list, inputs)?;
+                        let func = FUNCTION_SET_CONTAINS
+                            .find_exact(&[DataType::Utf8, DataType::Utf8])
+                            .required("ENDS_WITH implementation to exist")?;
 
-                        *expr = Expression::ScalarFunction(ScalarFunctionExpr { function });
+                        let bind_state = func.call_bind(table_list, inputs)?;
+                        let planned = PlannedScalarFunction {
+                            name: FUNCTION_SET_CONTAINS.name,
+                            raw: *func,
+                            state: bind_state,
+                        };
+
+                        *expr =
+                            Expression::ScalarFunction(ScalarFunctionExpr { function: planned });
 
                         Ok(())
                     } else {

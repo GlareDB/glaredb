@@ -484,7 +484,7 @@ impl MemorySchema {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct SimilarEntry {
     pub score: f64,
     pub entry: Arc<CatalogEntry>,
@@ -574,6 +574,6 @@ mod tests {
         let similar = schema
             .find_similar_entry(&CatalogTx {}, &[CatalogEntryType::AggregateFunction], "ham")
             .unwrap();
-        assert_eq!(None, similar);
+        assert!(similar.is_none());
     }
 }

@@ -8,120 +8,90 @@ use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EndsWith;
+pub const FUNCTION_SET_ENDS_WITH: ScalarFunctionSet = ScalarFunctionSet {
+    name: "ends_with",
+    aliases: &["suffix"],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Check if a string ends with a suffix.",
+        arguments: &["string", "prefix"],
+        example: Some(Example {
+            example: "ends_with('house', 'se')",
+            output: "true",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Boolean),
+        &EndsWith,
+    )],
+};
 
-impl FunctionInfo for EndsWith {
-    fn name(&self) -> &'static str {
-        "ends_with"
-    }
-
-    fn aliases(&self) -> &'static [&'static str] {
-        &["suffix"]
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(&Documentation {
-                category: Category::String,
-                description: "Check if a string ends with a given suffix.",
-                arguments: &["string", "suffix"],
-                example: Some(Example {
-                    example: "ends_with('house', 'se')",
-                    output: "true",
-                }),
-            }),
-        }]
-    }
+#[derive(Debug)]
+pub struct EndsWithState {
+    constant: Option<String>,
 }
 
-impl ScalarFunction2 for EndsWith {
-    fn plan(
+#[derive(Debug, Clone)]
+pub struct EndsWith;
+
+impl ScalarFunction for EndsWith {
+    type State = EndsWithState;
+
+    fn bind(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        let datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype(table_list))
-            .collect::<Result<Vec<_>>>()?;
-
-        match (&datatypes[0], &datatypes[1]) {
-            (DataType::Utf8, DataType::Utf8) => (),
-            (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
-        }
-
-        let function_impl: Box<dyn ScalarFunctionImpl> = if inputs[1].is_const_foldable() {
+    ) -> Result<BindState<Self::State>> {
+        let constant = if inputs[1].is_const_foldable() {
             let search_string = ConstFold::rewrite(table_list, inputs[1].clone())?
                 .try_into_scalar()?
                 .try_into_string()?;
 
-            Box::new(EndsWithConstantImpl {
-                constant: search_string,
-            })
+            Some(search_string)
         } else {
-            Box::new(EndsWithImpl)
+            None
         };
 
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
+        Ok(BindState {
+            state: EndsWithState { constant },
             return_type: DataType::Boolean,
             inputs,
-            function_impl,
         })
     }
-}
 
-#[derive(Debug, Clone)]
-pub struct EndsWithConstantImpl {
-    pub constant: String,
-}
-
-impl ScalarFunctionImpl for EndsWithConstantImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
-        let sel = input.selection();
-        let input = &input.arrays()[0];
-
-        UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _>(
-            input,
-            sel,
-            OutBuffer::from_array(output)?,
-            |s, buf| {
-                let v = s.ends_with(&self.constant);
-                buf.put(&v);
-            },
-        )
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct EndsWithImpl;
-
-impl ScalarFunctionImpl for EndsWithImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let strings = &input.arrays()[0];
         let suffix = &input.arrays()[1];
 
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
-            strings,
-            sel,
-            suffix,
-            sel,
-            OutBuffer::from_array(output)?,
-            |s, suffix, buf| {
-                let v = s.ends_with(&suffix);
-                buf.put(&v);
-            },
-        )
+        match state.constant.as_ref() {
+            Some(constant) => UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _>(
+                strings,
+                sel,
+                OutBuffer::from_array(output)?,
+                |s, buf| {
+                    let v = s.ends_with(constant);
+                    buf.put(&v);
+                },
+            ),
+            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
+                strings,
+                sel,
+                suffix,
+                sel,
+                OutBuffer::from_array(output)?,
+                |s, suffix, buf| {
+                    let v = s.ends_with(&suffix);
+                    buf.put(&v);
+                },
+            ),
+        }
     }
 }

@@ -9,116 +9,91 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::logical::binder::table_list::TableList;
+
+pub const FUNCTION_SET_LOWER: ScalarFunctionSet = ScalarFunctionSet {
+    name: "lower",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Convert the string to lowercase.",
+        arguments: &["string"],
+        example: Some(Example {
+            example: "lower('ABC')",
+            output: "abc",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
+        &Lower,
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Lower;
 
-impl FunctionInfo for Lower {
-    fn name(&self) -> &'static str {
-        "lower"
-    }
+impl ScalarFunction for Lower {
+    type State = ();
 
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Utf8],
-            variadic_arg: None,
-            return_type: DataTypeId::Utf8,
-            doc: Some(&Documentation {
-                category: Category::String,
-                description: "Convert the string to lowercase.",
-                arguments: &["string"],
-                example: Some(Example {
-                    example: "lower('ABC')",
-                    output: "abc",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for Lower {
-    fn plan(
+    fn bind(
         &self,
-        table_list: &TableList,
+        _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Utf8,
-                inputs,
-                function_impl: Box::new(LowerImpl),
-            }),
-            a => Err(invalid_input_types_error(self, &[a])),
-        }
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Utf8,
+            inputs,
+        })
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LowerImpl;
-
-impl ScalarFunctionImpl for LowerImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
         case_convert_execute(input, sel, str::to_lowercase, output)
     }
 }
 
+pub const FUNCTION_SET_UPPER: ScalarFunctionSet = ScalarFunctionSet {
+    name: "upper",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Convert the string to uppercase.",
+        arguments: &["string"],
+        example: Some(Example {
+            example: "upper('ABC')",
+            output: "ABC",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
+        &Upper,
+    )],
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Upper;
 
-impl FunctionInfo for Upper {
-    fn name(&self) -> &'static str {
-        "upper"
-    }
+impl ScalarFunction for Upper {
+    type State = ();
 
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Utf8],
-            variadic_arg: None,
-            return_type: DataTypeId::Utf8,
-            doc: Some(&Documentation {
-                category: Category::String,
-                description: "Convert the string to uppercase.",
-                arguments: &["string"],
-                example: Some(Example {
-                    example: "lower('abc')",
-                    output: "ABC",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for Upper {
-    fn plan(
+    fn bind(
         &self,
-        table_list: &TableList,
+        _table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Utf8,
-                inputs,
-                function_impl: Box::new(UpperImpl),
-            }),
-            a => Err(invalid_input_types_error(self, &[a])),
-        }
+    ) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Utf8,
+            inputs,
+        })
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UpperImpl;
-
-impl ScalarFunctionImpl for UpperImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
         case_convert_execute(input, sel, str::to_uppercase, output)

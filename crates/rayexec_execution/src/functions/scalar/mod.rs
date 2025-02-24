@@ -27,10 +27,18 @@ pub enum FunctionVolatility {
 pub struct PlannedScalarFunction {
     /// Name of this function.
     pub name: &'static str,
-    /// VTable of the scalar function.
-    pub vtable: &'static RawScalarFunctionVTable,
+    /// The raw function containing the vtable to call into.
+    pub raw: RawScalarFunction,
     /// State for the function (inputs, return type).
     pub state: RawBindState,
+}
+
+impl PlannedScalarFunction {
+    pub fn call_execute(&self, batch: &Batch, output: &mut Array) -> Result<()> {
+        unsafe {
+            (self.raw.vtable.execute_fn)(self.raw.function, self.state.state.0.ptr, batch, output)
+        }
+    }
 }
 
 /// Assumes that a function with same inputs and return type is using the same
@@ -93,6 +101,14 @@ impl RawScalarFunction {
             volatility: F::VOLATILITY,
             vtable: F::VTABLE,
         }
+    }
+
+    pub fn call_bind(
+        &self,
+        table_list: &TableList,
+        inputs: Vec<Expression>,
+    ) -> Result<RawBindState> {
+        unsafe { (self.vtable.bind_fn)(self.function, table_list, inputs) }
     }
 
     pub fn signature(&self) -> &Signature {

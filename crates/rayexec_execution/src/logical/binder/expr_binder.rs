@@ -20,13 +20,30 @@ use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
-use crate::expr::{AsScalarFunction, Expression};
+use crate::expr::{AsScalarFunctionSet, Expression};
 use crate::functions::aggregate::AggregateFunction;
-use crate::functions::scalar::builtin::datetime::DatePart;
-use crate::functions::scalar::builtin::is;
-use crate::functions::scalar::builtin::list::{ListExtract, ListValues};
-use crate::functions::scalar::builtin::string::{Concat, Like, StartsWith, Substring};
-use crate::functions::scalar::ScalarFunction2;
+use crate::functions::function_set::{FunctionInfo, FunctionSet};
+use crate::functions::scalar::builtin::datetime::{DatePart, FUNCTION_SET_DATE_PART};
+use crate::functions::scalar::builtin::is::{
+    self,
+    FUNCTION_SET_IS_FALSE,
+    FUNCTION_SET_IS_NOT_FALSE,
+    FUNCTION_SET_IS_NOT_NULL,
+    FUNCTION_SET_IS_NOT_TRUE,
+    FUNCTION_SET_IS_NULL,
+    FUNCTION_SET_IS_TRUE,
+};
+use crate::functions::scalar::builtin::list::{
+    FUNCTION_SET_LIST_EXTRACT,
+    FUNCTION_SET_LIST_VALUES,
+};
+use crate::functions::scalar::builtin::string::{
+    FUNCTION_SET_CONCAT,
+    FUNCTION_SET_LIKE,
+    FUNCTION_SET_STARTS_WITH,
+    FUNCTION_SET_SUBSTRING,
+};
+use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction2};
 use crate::functions::table::TableFunction;
 use crate::functions::CastType;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
@@ -149,10 +166,15 @@ impl<'a> BaseExpressionBinder<'a> {
                     })
                     .collect::<Result<Vec<_>>>()?;
 
-                let scalar = Box::new(ListValues);
-                let exprs =
-                    self.apply_casts_for_scalar_function(bind_context, scalar.as_ref(), exprs)?;
-                let planned = scalar.plan(bind_context.get_table_list(), exprs)?;
+                let (func, exprs) =
+                    self.bind_function_signature(bind_context, &FUNCTION_SET_LIST_VALUES, exprs)?;
+
+                let bind_state = func.call_bind(bind_context.get_table_list(), exprs)?;
+                let planned = PlannedScalarFunction {
+                    name: FUNCTION_SET_LIST_VALUES.name,
+                    raw: func,
+                    state: bind_state,
+                };
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
                     function: planned,
@@ -181,17 +203,18 @@ impl<'a> BaseExpressionBinder<'a> {
                             },
                         )?;
 
-                        let scalar = Box::new(ListExtract);
-                        let mut exprs = self.apply_casts_for_scalar_function(
+                        let (func, exprs) = self.bind_function_signature(
                             bind_context,
-                            scalar.as_ref(),
+                            &FUNCTION_SET_LIST_EXTRACT,
                             vec![expr, index],
                         )?;
-                        let index = exprs.pop().unwrap();
-                        let expr = exprs.pop().unwrap();
 
-                        let planned =
-                            scalar.plan(bind_context.get_table_list(), vec![expr, index])?;
+                        let bind_state = func.call_bind(bind_context.get_table_list(), exprs)?;
+                        let planned = PlannedScalarFunction {
+                            name: FUNCTION_SET_LIST_EXTRACT.name,
+                            raw: func,
+                            state: bind_state,
+                        };
 
                         Ok(Expression::ScalarFunction(ScalarFunctionExpr {
                             function: planned,
@@ -216,9 +239,9 @@ impl<'a> BaseExpressionBinder<'a> {
                 Ok(match op {
                     ast::UnaryOperator::Plus => expr,
                     ast::UnaryOperator::Not => {
-                        let [expr] = self.apply_cast_for_operator(
+                        let [expr] = self.bind_operator_signature(
                             bind_context,
-                            NegateOperator::Not,
+                            NegateOperator::Not.as_scalar_function_set(),
                             [expr],
                         )?;
                         Expression::Negate(NegateExpr {
@@ -227,9 +250,9 @@ impl<'a> BaseExpressionBinder<'a> {
                         })
                     }
                     ast::UnaryOperator::Minus => {
-                        let [expr] = self.apply_cast_for_operator(
+                        let [expr] = self.bind_operator_signature(
                             bind_context,
-                            NegateOperator::Negate,
+                            NegateOperator::Negate.as_scalar_function_set(),
                             [expr],
                         )?;
 
@@ -263,8 +286,11 @@ impl<'a> BaseExpressionBinder<'a> {
                 Ok(match op {
                     ast::BinaryOperator::NotEq => {
                         let op = ComparisonOperator::NotEq;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Comparison(ComparisonExpr {
                             left: Box::new(left),
                             right: Box::new(right),
@@ -273,8 +299,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     ast::BinaryOperator::Eq => {
                         let op = ComparisonOperator::Eq;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Comparison(ComparisonExpr {
                             left: Box::new(left),
                             right: Box::new(right),
@@ -283,8 +312,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     ast::BinaryOperator::Lt => {
                         let op = ComparisonOperator::Lt;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Comparison(ComparisonExpr {
                             left: Box::new(left),
                             right: Box::new(right),
@@ -293,8 +325,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     ast::BinaryOperator::LtEq => {
                         let op = ComparisonOperator::LtEq;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Comparison(ComparisonExpr {
                             left: Box::new(left),
                             right: Box::new(right),
@@ -303,8 +338,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     ast::BinaryOperator::Gt => {
                         let op = ComparisonOperator::Gt;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Comparison(ComparisonExpr {
                             left: Box::new(left),
                             right: Box::new(right),
@@ -313,8 +351,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     ast::BinaryOperator::GtEq => {
                         let op = ComparisonOperator::GtEq;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Comparison(ComparisonExpr {
                             left: Box::new(left),
                             right: Box::new(right),
@@ -323,8 +364,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     ast::BinaryOperator::Plus => {
                         let op = ArithOperator::Add;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Arith(ArithExpr {
                             left: Box::new(left),
                             right: Box::new(right),
@@ -333,8 +377,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     ast::BinaryOperator::Minus => {
                         let op = ArithOperator::Sub;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Arith(ArithExpr {
                             left: Box::new(left),
                             right: Box::new(right),
@@ -343,8 +390,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     ast::BinaryOperator::Multiply => {
                         let op = ArithOperator::Mul;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Arith(ArithExpr {
                             left: Box::new(left),
                             right: Box::new(right),
@@ -353,8 +403,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     ast::BinaryOperator::Divide => {
                         let op = ArithOperator::Div;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Arith(ArithExpr {
                             left: Box::new(left),
                             right: Box::new(right),
@@ -363,8 +416,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     ast::BinaryOperator::Modulo => {
                         let op = ArithOperator::Mod;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Arith(ArithExpr {
                             left: Box::new(left),
                             right: Box::new(right),
@@ -373,8 +429,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     ast::BinaryOperator::And => {
                         let op = ConjunctionOperator::And;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Conjunction(ConjunctionExpr {
                             expressions: vec![left, right],
                             op,
@@ -382,25 +441,46 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     ast::BinaryOperator::Or => {
                         let op = ConjunctionOperator::Or;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
+                        let [left, right] = self.bind_operator_signature(
+                            bind_context,
+                            op.as_scalar_function_set(),
+                            [left, right],
+                        )?;
                         Expression::Conjunction(ConjunctionExpr {
                             expressions: vec![left, right],
                             op,
                         })
                     }
                     ast::BinaryOperator::StringConcat => {
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, Concat, [left, right])?;
-                        let planned =
-                            Concat.plan(bind_context.get_table_list(), vec![left, right])?;
+                        let (func, inputs) = self.bind_function_signature(
+                            bind_context,
+                            &FUNCTION_SET_CONCAT,
+                            vec![left, right],
+                        )?;
+
+                        let bind_state = func.call_bind(bind_context.get_table_list(), inputs)?;
+                        let planned = PlannedScalarFunction {
+                            name: FUNCTION_SET_CONCAT.name,
+                            raw: func,
+                            state: bind_state,
+                        };
+
                         Expression::ScalarFunction(ScalarFunctionExpr { function: planned })
                     }
                     ast::BinaryOperator::StringStartsWith => {
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, StartsWith, [left, right])?;
-                        let planned =
-                            StartsWith.plan(bind_context.get_table_list(), vec![left, right])?;
+                        let (func, inputs) = self.bind_function_signature(
+                            bind_context,
+                            &FUNCTION_SET_STARTS_WITH,
+                            vec![left, right],
+                        )?;
+
+                        let bind_state = func.call_bind(bind_context.get_table_list(), inputs)?;
+                        let planned = PlannedScalarFunction {
+                            name: FUNCTION_SET_STARTS_WITH.name,
+                            raw: func,
+                            state: bind_state,
+                        };
+
                         Expression::ScalarFunction(ScalarFunctionExpr { function: planned })
                     }
                     other => not_implemented!("binary operator {other:?}"),
@@ -553,9 +633,9 @@ impl<'a> BaseExpressionBinder<'a> {
                 let cmp_exprs = list
                     .into_iter()
                     .map(|expr| {
-                        let [needle, expr] = self.apply_cast_for_operator(
+                        let [needle, expr] = self.bind_operator_signature(
                             bind_context,
-                            cmp_op,
+                            cmp_op.as_scalar_function_set(),
                             [needle.clone(), expr],
                         )?;
                         Ok(Expression::Comparison(ComparisonExpr {
@@ -628,9 +708,20 @@ impl<'a> BaseExpressionBinder<'a> {
                     },
                 )?;
 
-                let scalar = Like.plan(bind_context.get_table_list(), vec![expr, pattern])?;
+                let (func, inputs) = self.bind_function_signature(
+                    bind_context,
+                    &FUNCTION_SET_LIKE,
+                    vec![expr, pattern],
+                )?;
 
-                let mut expr = Expression::ScalarFunction(ScalarFunctionExpr { function: scalar });
+                let bind_state = func.call_bind(bind_context.get_table_list(), inputs)?;
+                let planned = PlannedScalarFunction {
+                    name: FUNCTION_SET_LIKE.name,
+                    raw: func,
+                    state: bind_state,
+                };
+
+                let mut expr = Expression::ScalarFunction(ScalarFunctionExpr { function: planned });
 
                 if *negated {
                     expr = Expression::Negate(NegateExpr {
@@ -652,14 +743,23 @@ impl<'a> BaseExpressionBinder<'a> {
                     },
                 )?;
 
-                let scalar = if !negated {
-                    is::IsNull.plan(bind_context.get_table_list(), vec![expr])?
+                let function_set = if !negated {
+                    &FUNCTION_SET_IS_NULL
                 } else {
-                    is::IsNotNull.plan(bind_context.get_table_list(), vec![expr])?
+                    &FUNCTION_SET_IS_NOT_NULL
+                };
+
+                let (func, inputs) =
+                    self.bind_function_signature(bind_context, function_set, vec![expr])?;
+                let bind_state = func.call_bind(bind_context.get_table_list(), inputs)?;
+                let planned = PlannedScalarFunction {
+                    name: function_set.name,
+                    raw: func,
+                    state: bind_state,
                 };
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
-                    function: scalar,
+                    function: planned,
                 }))
             }
             ast::Expr::IsBool { expr, val, negated } => {
@@ -673,21 +773,24 @@ impl<'a> BaseExpressionBinder<'a> {
                     },
                 )?;
 
-                let scalar = match (val, negated) {
-                    (true, false) => is::IsTrue.plan(bind_context.get_table_list(), vec![expr])?,
-                    (true, true) => {
-                        is::IsNotTrue.plan(bind_context.get_table_list(), vec![expr])?
-                    }
-                    (false, false) => {
-                        is::IsFalse.plan(bind_context.get_table_list(), vec![expr])?
-                    }
-                    (false, true) => {
-                        is::IsNotFalse.plan(bind_context.get_table_list(), vec![expr])?
-                    }
+                let function_set = match (val, negated) {
+                    (true, false) => &FUNCTION_SET_IS_TRUE,
+                    (true, true) => &FUNCTION_SET_IS_NOT_TRUE,
+                    (false, false) => &FUNCTION_SET_IS_FALSE,
+                    (false, true) => &FUNCTION_SET_IS_NOT_FALSE,
+                };
+
+                let (func, inputs) =
+                    self.bind_function_signature(bind_context, function_set, vec![expr])?;
+                let bind_state = func.call_bind(bind_context.get_table_list(), inputs)?;
+                let planned = PlannedScalarFunction {
+                    name: function_set.name,
+                    raw: func,
+                    state: bind_state,
                 };
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr {
-                    function: scalar,
+                    function: planned,
                 }))
             }
             ast::Expr::Interval(ast::Interval {
@@ -796,8 +899,11 @@ impl<'a> BaseExpressionBinder<'a> {
                 } else {
                     ComparisonOperator::Lt
                 };
-                let [low_left, low_right] =
-                    self.apply_cast_for_operator(bind_context, low_op, [expr.clone(), low])?;
+                let [low_left, low_right] = self.bind_operator_signature(
+                    bind_context,
+                    low_op.as_scalar_function_set(),
+                    [expr.clone(), low],
+                )?;
 
                 let left = Expression::Comparison(ComparisonExpr {
                     left: Box::new(low_left),
@@ -810,8 +916,11 @@ impl<'a> BaseExpressionBinder<'a> {
                 } else {
                     ComparisonOperator::Gt
                 };
-                let [high_left, high_right] =
-                    self.apply_cast_for_operator(bind_context, high_op, [expr, high])?;
+                let [high_left, high_right] = self.bind_operator_signature(
+                    bind_context,
+                    high_op.as_scalar_function_set(),
+                    [expr, high],
+                )?;
 
                 let right = Expression::Comparison(ComparisonExpr {
                     left: Box::new(high_left),
@@ -824,8 +933,11 @@ impl<'a> BaseExpressionBinder<'a> {
                 } else {
                     ConjunctionOperator::Or
                 };
-                let [left, right] =
-                    self.apply_cast_for_operator(bind_context, conj_op, [left, right])?;
+                let [left, right] = self.bind_operator_signature(
+                    bind_context,
+                    conj_op.as_scalar_function_set(),
+                    [left, right],
+                )?;
 
                 Ok(Expression::Conjunction(ConjunctionExpr {
                     expressions: vec![left, right],
@@ -875,9 +987,9 @@ impl<'a> BaseExpressionBinder<'a> {
                 // When leading expr is provided, conditions are implicit equalities.
                 let build_condition = |cond_expr| match &expr {
                     Some(expr) => {
-                        let [left, right] = self.apply_cast_for_operator(
+                        let [left, right] = self.bind_operator_signature(
                             bind_context,
-                            ComparisonOperator::Eq,
+                            ComparisonOperator::Eq.as_scalar_function_set(),
                             [expr.clone(), cond_expr],
                         )?;
 
@@ -925,13 +1037,13 @@ impl<'a> BaseExpressionBinder<'a> {
                 }))
             }
             ast::Expr::Substring { expr, from, count } => {
-                let func = Box::new(Substring);
+                let function_set = &FUNCTION_SET_SUBSTRING;
                 let expr =
                     self.bind_expression(bind_context, expr, column_binder, recur.not_root())?;
                 let from =
                     self.bind_expression(bind_context, from, column_binder, recur.not_root())?;
 
-                let inputs = match count {
+                let (func, inputs) = match count {
                     Some(count) => {
                         let count = self.bind_expression(
                             bind_context,
@@ -939,22 +1051,27 @@ impl<'a> BaseExpressionBinder<'a> {
                             column_binder,
                             recur.not_root(),
                         )?;
-                        self.apply_casts_for_scalar_function(
+                        self.bind_function_signature(
                             bind_context,
-                            func.as_ref(),
+                            function_set,
                             vec![expr, from, count],
                         )?
                     }
-                    None => self.apply_casts_for_scalar_function(
-                        bind_context,
-                        func.as_ref(),
-                        vec![expr, from],
-                    )?,
+                    None => {
+                        self.bind_function_signature(bind_context, function_set, vec![expr, from])?
+                    }
                 };
 
-                let function = func.plan(bind_context.get_table_list(), inputs)?;
+                let bind_state = func.call_bind(bind_context.get_table_list(), inputs)?;
+                let planned = PlannedScalarFunction {
+                    name: function_set.name,
+                    raw: func,
+                    state: bind_state,
+                };
 
-                Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function: planned,
+                }))
             }
             ast::Expr::Extract { date_part, expr } => {
                 let date_part_expr = Expression::Literal(LiteralExpr {
@@ -964,11 +1081,21 @@ impl<'a> BaseExpressionBinder<'a> {
                 let expr =
                     self.bind_expression(bind_context, expr, column_binder, recur.not_root())?;
 
-                let func = Box::new(DatePart);
-                let function =
-                    func.plan(bind_context.get_table_list(), vec![date_part_expr, expr])?;
+                let (func, inputs) = self.bind_function_signature(
+                    bind_context,
+                    &FUNCTION_SET_DATE_PART,
+                    vec![date_part_expr, expr],
+                )?;
+                let bind_state = func.call_bind(bind_context.get_table_list(), inputs)?;
+                let planned = PlannedScalarFunction {
+                    name: FUNCTION_SET_DATE_PART.name,
+                    raw: func,
+                    state: bind_state,
+                };
 
-                Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function: planned,
+                }))
             }
             ast::Expr::Columns(_) => {
                 // TODO: This doens't need to be the case, but there's going to
@@ -1251,12 +1378,17 @@ impl<'a> BaseExpressionBinder<'a> {
                     ));
                 }
 
-                let inputs =
-                    self.apply_casts_for_scalar_function(bind_context, scalar.as_ref(), inputs)?;
+                let (func, inputs) = self.bind_function_signature(bind_context, &scalar, inputs)?;
+                let bind_state = func.call_bind(bind_context.get_table_list(), inputs)?;
+                let planned = PlannedScalarFunction {
+                    name: scalar.name,
+                    raw: func,
+                    state: bind_state,
+                };
 
-                let function = scalar.plan(bind_context.get_table_list(), inputs)?;
-
-                Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
+                    function: planned,
+                }))
             }
             (ResolvedFunction::Aggregate(agg), _) => {
                 let inputs =
@@ -1358,17 +1490,21 @@ impl<'a> BaseExpressionBinder<'a> {
         }
     }
 
-    pub(crate) fn apply_cast_for_operator<const N: usize>(
+    // TODO: Do something else with this. It's really just getting the inputs
+    // casted correctly (with some additional work being done for decimals).
+    pub(crate) fn bind_operator_signature<const N: usize, T>(
         &self,
         bind_context: &BindContext,
-        operator: impl AsScalarFunction,
+        function: &FunctionSet<T>,
         inputs: [Expression; N],
-    ) -> Result<[Expression; N]> {
-        let mut inputs = self.apply_casts_for_scalar_function(
-            bind_context,
-            operator.as_scalar_function(),
-            inputs.to_vec(),
-        )?;
+    ) -> Result<[Expression; N]>
+    where
+        T: FunctionInfo,
+    {
+        // Ignore the resulting function, we should now have inputs that match a
+        // signature exactly.
+        let (_, mut inputs) =
+            self.bind_function_signature(bind_context, function, inputs.to_vec())?;
 
         // Further refine the types. When we're applying casts for an operator,
         // we know there's some relationship between the inputs.
@@ -1410,6 +1546,70 @@ impl<'a> BaseExpressionBinder<'a> {
         inputs
             .try_into()
             .map_err(|_| RayexecError::new("Number of casted inputs incorrect"))
+    }
+
+    /// Find the the best function to use from the function based on signature.
+    ///
+    /// If the there isn't an exact match, but a candidate exists, casts will be
+    /// applied to match the closest signature.
+    fn bind_function_signature<T>(
+        &self,
+        bind_context: &BindContext,
+        function: &FunctionSet<T>,
+        mut inputs: Vec<Expression>,
+    ) -> Result<(T, Vec<Expression>)>
+    where
+        T: FunctionInfo,
+    {
+        let datatypes = inputs
+            .iter()
+            .map(|expr| expr.datatype(bind_context.get_table_list()))
+            .collect::<Result<Vec<_>>>()?;
+
+        let func = match function.find_exact(&datatypes) {
+            Some(func) => func,
+            None => {
+                // No exact, try to see if there's candidate.
+                let mut candidates = function.candidates(&datatypes);
+
+                if candidates.is_empty() {
+                    // TODO: Better error.
+                    return Err(RayexecError::new(format!(
+                        "Invalid inputs to '{}': {}",
+                        function.name,
+                        datatypes.display_with_brackets(),
+                    )));
+                }
+
+                // TODO: Maybe more sophisticated candidate selection.
+                //
+                // We should do some lightweight const folding and prefer candidates
+                // that cast the consts over ones that need array inputs to be
+                // casted.
+                let candidate = candidates.swap_remove(0);
+
+                // Apply casts where needed.
+                inputs = inputs
+                    .into_iter()
+                    .zip(candidate.casts)
+                    .map(|(input, cast_to)| {
+                        Ok(match cast_to {
+                            CastType::Cast { to, .. } => Expression::Cast(CastExpr {
+                                to: DataType::try_default_datatype(to)?, // TODO: Still want this?
+                                expr: Box::new(input),
+                            }),
+                            CastType::NoCastNeeded => input,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                function
+                    .get(candidate.signature_idx)
+                    .expect("candidate to return value index")
+            }
+        };
+
+        Ok((*func, inputs))
     }
 
     /// Applies casts to an input expression based on the signatures for a
