@@ -12,7 +12,7 @@ use crate::logical::binder::table_list::TableList;
 pub struct UnnestConjunctionRewrite;
 
 impl ExpressionRewriteRule for UnnestConjunctionRewrite {
-    fn rewrite(_table_list: &TableList, mut expression: Expression) -> Result<Expression> {
+    fn rewrite(mut expression: Expression) -> Result<Expression> {
         fn inner(expression: &mut Expression) {
             match expression {
                 Expression::Conjunction(ConjunctionExpr { op, expressions }) => {

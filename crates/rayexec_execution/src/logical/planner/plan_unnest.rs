@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 
 use crate::arrays::datatype::DataType;
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
@@ -60,9 +60,14 @@ impl UnnestPlanner {
             // expression with a column ref.
             if !did_extract {
                 let col_idx = project_expressions.len();
-                let replace = Expression::Column(ColumnExpr {
+                let reference = ColumnReference {
                     table_scope: projection_ref,
                     column: col_idx,
+                };
+                let datatype = bind_context.get_column_type(reference)?;
+                let replace = Expression::Column(ColumnExpr {
+                    reference,
+                    datatype,
                 });
 
                 let orig = std::mem::replace(expr, replace);
@@ -77,7 +82,7 @@ impl UnnestPlanner {
         for (idx, expr) in unnest_expressions.iter().enumerate() {
             // Need to store the type that's being produced from the unnest, so
             // unwrap the list data type.
-            let datatype = match expr.datatype(bind_context.get_table_list())? {
+            let datatype = match expr.datatype()? {
                 DataType::List(list) => list.datatype.as_ref().clone(),
                 other => other,
             };
@@ -91,7 +96,7 @@ impl UnnestPlanner {
 
         for (idx, expr) in project_expressions.iter().enumerate() {
             // Just plain projections, no need to modify types.
-            let datatype = expr.datatype(bind_context.get_table_list())?;
+            let datatype = expr.datatype()?;
             bind_context.push_column_for_table(
                 projection_ref,
                 format!("__generated_project{idx}"),
@@ -129,15 +134,19 @@ fn extract_unnest(
     extracted: &mut Vec<Expression>,
 ) -> Result<bool> {
     match expr {
-        Expression::Unnest(_) => {
+        Expression::Unnest(unnest) => {
             // Replace with the column expr that'll represent the output of the
             // UNNEST.
             let col_idx = extracted.len();
+            let datatype = unnest.datatype()?;
             let inner = std::mem::replace(
                 expr,
                 Expression::Column(ColumnExpr {
-                    table_scope: unnest_ref,
-                    column: col_idx,
+                    reference: ColumnReference {
+                        table_scope: unnest_ref,
+                        column: col_idx,
+                    },
+                    datatype,
                 }),
             );
 

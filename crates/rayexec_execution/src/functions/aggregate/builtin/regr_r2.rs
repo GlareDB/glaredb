@@ -45,10 +45,7 @@ impl AggregateFunction for RegrR2 {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 2)?;
 
-        match (
-            inputs[0].datatype(table_list)?,
-            inputs[1].datatype(table_list)?,
-        ) {
+        match (inputs[0].datatype()?, inputs[1].datatype()?) {
             (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
                 return_type: DataType::Float64,

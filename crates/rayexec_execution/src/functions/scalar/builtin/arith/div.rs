@@ -152,11 +152,7 @@ where
 {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
             return_type: self.return_type.clone(),
@@ -187,11 +183,7 @@ pub struct DivDecimal;
 impl ScalarFunction for DivDecimal {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        mut inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, mut inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         // Wrap decimals in float casts. Then we'll just do the div on floats.
         debug_assert_eq!(2, inputs.len());
         let right = Expression::Cast(CastExpr {

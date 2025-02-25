@@ -20,7 +20,7 @@ use crate::logical::binder::table_list::{TableList, TableRef};
 pub struct JoinFilterOrRewrite;
 
 impl ExpressionRewriteRule for JoinFilterOrRewrite {
-    fn rewrite(_table_list: &TableList, mut expression: Expression) -> Result<Expression> {
+    fn rewrite(mut expression: Expression) -> Result<Expression> {
         fn inner(expr: &mut Expression) -> Result<()> {
             match expr {
                 Expression::Conjunction(conj) if conj.op == ConjunctionOperator::Or => {

@@ -46,7 +46,7 @@ impl AggregateFunction for StddevPop {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        match inputs[0].datatype(table_list)? {
+        match inputs[0].datatype()? {
             DataType::Float64 => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
@@ -95,7 +95,7 @@ impl AggregateFunction for StddevSamp {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        match inputs[0].datatype(table_list)? {
+        match inputs[0].datatype()? {
             DataType::Float64 => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
@@ -140,7 +140,7 @@ impl AggregateFunction for VarPop {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        match inputs[0].datatype(table_list)? {
+        match inputs[0].datatype()? {
             DataType::Float64 => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
@@ -185,7 +185,7 @@ impl AggregateFunction for VarSamp {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        match inputs[0].datatype(table_list)? {
+        match inputs[0].datatype()? {
             DataType::Float64 => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
                 return_type: DataType::Float64,

@@ -26,11 +26,11 @@ pub enum FunctionVolatility {
 #[derive(Debug, Clone)]
 pub struct PlannedScalarFunction {
     /// Name of this function.
-    pub name: &'static str,
+    pub(crate) name: &'static str,
     /// The raw function containing the vtable to call into.
-    pub raw: RawScalarFunction,
+    pub(crate) raw: RawScalarFunction,
     /// State for the function (inputs, return type).
-    pub state: RawBindState,
+    pub(crate) state: RawBindState,
 }
 
 impl PlannedScalarFunction {
@@ -64,11 +64,7 @@ impl Hash for PlannedScalarFunction {
 #[derive(Debug, Clone, Copy)]
 pub struct RawScalarFunctionVTable {
     /// Create the function state and compute the return type.
-    bind_fn: unsafe fn(
-        function: *const (),
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<RawBindState>,
+    bind_fn: unsafe fn(function: *const (), inputs: Vec<Expression>) -> Result<RawBindState>,
     /// Execute the function. First argument is a pointer to the function state.
     execute_fn: unsafe fn(
         function: *const (),
@@ -103,12 +99,8 @@ impl RawScalarFunction {
         }
     }
 
-    pub fn call_bind(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<RawBindState> {
-        unsafe { (self.vtable.bind_fn)(self.function, table_list, inputs) }
+    pub fn call_bind(&self, inputs: Vec<Expression>) -> Result<RawBindState> {
+        unsafe { (self.vtable.bind_fn)(self.function, inputs) }
     }
 
     pub fn signature(&self) -> &Signature {
@@ -169,11 +161,7 @@ pub trait ScalarFunction: Debug + Sync + Send + Sized {
     /// This will only be called with expressions that match the signature this
     /// function was registered with.
     // TODO: Try to remove table list.
-    fn bind(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>>;
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>>;
 
     /// Execute the function the input batch, writing the output for each row
     /// into `output` at the same index.
@@ -190,12 +178,9 @@ pub trait ScalarFunction: Debug + Sync + Send + Sized {
 
 trait ScalarFunctionVTable: ScalarFunction {
     const VTABLE: &'static RawScalarFunctionVTable = &RawScalarFunctionVTable {
-        bind_fn: |function: *const (),
-                  table_list: &TableList,
-                  inputs: Vec<Expression>|
-         -> Result<RawBindState> {
+        bind_fn: |function: *const (), inputs: Vec<Expression>| -> Result<RawBindState> {
             let function = unsafe { function.cast::<Self>().as_ref().unwrap() };
-            let state = function.bind(table_list, inputs)?;
+            let state = function.bind(inputs)?;
             let ptr = (&state.state as *const Self::State).cast();
             std::mem::forget(state.state); // We'll handle dropping manually.
 

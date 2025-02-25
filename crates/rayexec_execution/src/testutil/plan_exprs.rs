@@ -144,7 +144,7 @@ mod tests {
         let t0 = list
             .push_table(None, [DataType::Int32, DataType::Utf8], ["c1", "c2"])
             .unwrap();
-        let phys = plan_scalar(&list, expr::col_ref(t0, 1));
+        let phys = plan_scalar(&list, list.column_as_expr((t0, 1)).unwrap());
 
         match phys {
             PhysicalScalarExpression::Column(col) => {

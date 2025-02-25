@@ -52,7 +52,7 @@ impl AggregateFunction for StringAgg {
 
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(table_list))
+            .map(|expr| expr.datatype())
             .collect::<Result<Vec<_>>>()?;
 
         match &datatypes[0] {
@@ -66,7 +66,7 @@ impl AggregateFunction for StringAgg {
             ));
         }
 
-        let sep = match ConstFold::rewrite(table_list, inputs[1].clone())?.try_into_scalar()? {
+        let sep = match ConstFold::rewrite(inputs[1].clone())?.try_into_scalar()? {
             BorrowedScalarValue::Null => String::new(),
             BorrowedScalarValue::Utf8(v) => v.into_owned(),
             other => {

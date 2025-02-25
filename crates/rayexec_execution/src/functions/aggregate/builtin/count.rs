@@ -81,7 +81,7 @@ impl AggregateFunction for Count {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        let function_impl = match inputs[0].datatype(table_list)?.physical_type() {
+        let function_impl = match inputs[0].datatype()?.physical_type() {
             PhysicalType::UntypedNull => create_impl::<PhysicalUntypedNull>(),
             PhysicalType::Boolean => create_impl::<PhysicalBool>(),
             PhysicalType::Int8 => create_impl::<PhysicalI8>(),

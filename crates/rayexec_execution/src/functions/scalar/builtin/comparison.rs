@@ -627,115 +627,113 @@ where
 {
     plan_check_num_args(&func, &inputs, 2)?;
 
-    let function_impl: Box<dyn ScalarFunctionImpl> = match (
-        inputs[0].datatype(table_list)?,
-        inputs[1].datatype(table_list)?,
-    ) {
-        (DataType::Boolean, DataType::Boolean) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalBool>::new())
-        }
-        (DataType::Int8, DataType::Int8) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalI8>::new())
-        }
-        (DataType::Int16, DataType::Int16) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalI16>::new())
-        }
-        (DataType::Int32, DataType::Int32) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalI32>::new())
-        }
-        (DataType::Int64, DataType::Int64) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalI64>::new())
-        }
-        (DataType::Int128, DataType::Int128) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalI128>::new())
-        }
-        (DataType::UInt8, DataType::UInt8) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalU8>::new())
-        }
-        (DataType::UInt16, DataType::UInt16) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalU16>::new())
-        }
-        (DataType::UInt32, DataType::UInt32) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalU32>::new())
-        }
-        (DataType::UInt64, DataType::UInt64) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalU64>::new())
-        }
-        (DataType::UInt128, DataType::UInt128) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalU128>::new())
-        }
-        (DataType::Float16, DataType::Float16) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalF16>::new())
-        }
-        (DataType::Float32, DataType::Float32) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalF32>::new())
-        }
-        (DataType::Float64, DataType::Float64) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalF64>::new())
-        }
-        (DataType::Decimal64(left), DataType::Decimal64(right)) => {
-            // Normalize decimals.
-            match left.scale.cmp(&right.scale) {
-                Ordering::Less => {
-                    // Scale up left.
-                    inputs[0] = Expression::Cast(CastExpr {
-                        to: DataType::Decimal64(right),
-                        expr: Box::new(inputs[0].clone()),
-                    })
-                }
-                Ordering::Greater => {
-                    // Scale up right.
-                    inputs[1] = Expression::Cast(CastExpr {
-                        to: DataType::Decimal64(left),
-                        expr: Box::new(inputs[1].clone()),
-                    })
-                }
-                Ordering::Equal => (), // Nothing to do
+    let function_impl: Box<dyn ScalarFunctionImpl> =
+        match (inputs[0].datatype()?, inputs[1].datatype()?) {
+            (DataType::Boolean, DataType::Boolean) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalBool>::new())
             }
-            Box::new(UnnestedComparisonImpl::<O, PhysicalI64>::new())
-        }
-        (DataType::Decimal128(left), DataType::Decimal128(right)) => {
-            // Normalize decimals.
-            match left.scale.cmp(&right.scale) {
-                Ordering::Less => {
-                    // Scale up left.
-                    inputs[0] = Expression::Cast(CastExpr {
-                        to: DataType::Decimal128(right),
-                        expr: Box::new(inputs[0].clone()),
-                    })
-                }
-                Ordering::Greater => {
-                    // Scale up right.
-                    inputs[1] = Expression::Cast(CastExpr {
-                        to: DataType::Decimal128(left),
-                        expr: Box::new(inputs[1].clone()),
-                    })
-                }
-                Ordering::Equal => (), // Nothing to do
+            (DataType::Int8, DataType::Int8) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalI8>::new())
             }
-            Box::new(UnnestedComparisonImpl::<O, PhysicalI128>::new())
-        }
-        (DataType::Timestamp(_), DataType::Timestamp(_)) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalBool>::new())
-        }
-        (DataType::Interval, DataType::Interval) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalInterval>::new())
-        }
-        (DataType::Date32, DataType::Date32) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalI32>::new())
-        }
-        (DataType::Date64, DataType::Date64) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalI64>::new())
-        }
-        (DataType::Utf8, DataType::Utf8) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalUtf8>::new())
-        }
-        (DataType::Binary, DataType::Binary) => {
-            Box::new(UnnestedComparisonImpl::<O, PhysicalBinary>::new())
-        }
+            (DataType::Int16, DataType::Int16) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalI16>::new())
+            }
+            (DataType::Int32, DataType::Int32) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalI32>::new())
+            }
+            (DataType::Int64, DataType::Int64) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalI64>::new())
+            }
+            (DataType::Int128, DataType::Int128) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalI128>::new())
+            }
+            (DataType::UInt8, DataType::UInt8) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalU8>::new())
+            }
+            (DataType::UInt16, DataType::UInt16) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalU16>::new())
+            }
+            (DataType::UInt32, DataType::UInt32) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalU32>::new())
+            }
+            (DataType::UInt64, DataType::UInt64) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalU64>::new())
+            }
+            (DataType::UInt128, DataType::UInt128) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalU128>::new())
+            }
+            (DataType::Float16, DataType::Float16) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalF16>::new())
+            }
+            (DataType::Float32, DataType::Float32) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalF32>::new())
+            }
+            (DataType::Float64, DataType::Float64) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalF64>::new())
+            }
+            (DataType::Decimal64(left), DataType::Decimal64(right)) => {
+                // Normalize decimals.
+                match left.scale.cmp(&right.scale) {
+                    Ordering::Less => {
+                        // Scale up left.
+                        inputs[0] = Expression::Cast(CastExpr {
+                            to: DataType::Decimal64(right),
+                            expr: Box::new(inputs[0].clone()),
+                        })
+                    }
+                    Ordering::Greater => {
+                        // Scale up right.
+                        inputs[1] = Expression::Cast(CastExpr {
+                            to: DataType::Decimal64(left),
+                            expr: Box::new(inputs[1].clone()),
+                        })
+                    }
+                    Ordering::Equal => (), // Nothing to do
+                }
+                Box::new(UnnestedComparisonImpl::<O, PhysicalI64>::new())
+            }
+            (DataType::Decimal128(left), DataType::Decimal128(right)) => {
+                // Normalize decimals.
+                match left.scale.cmp(&right.scale) {
+                    Ordering::Less => {
+                        // Scale up left.
+                        inputs[0] = Expression::Cast(CastExpr {
+                            to: DataType::Decimal128(right),
+                            expr: Box::new(inputs[0].clone()),
+                        })
+                    }
+                    Ordering::Greater => {
+                        // Scale up right.
+                        inputs[1] = Expression::Cast(CastExpr {
+                            to: DataType::Decimal128(left),
+                            expr: Box::new(inputs[1].clone()),
+                        })
+                    }
+                    Ordering::Equal => (), // Nothing to do
+                }
+                Box::new(UnnestedComparisonImpl::<O, PhysicalI128>::new())
+            }
+            (DataType::Timestamp(_), DataType::Timestamp(_)) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalBool>::new())
+            }
+            (DataType::Interval, DataType::Interval) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalInterval>::new())
+            }
+            (DataType::Date32, DataType::Date32) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalI32>::new())
+            }
+            (DataType::Date64, DataType::Date64) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalI64>::new())
+            }
+            (DataType::Utf8, DataType::Utf8) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalUtf8>::new())
+            }
+            (DataType::Binary, DataType::Binary) => {
+                Box::new(UnnestedComparisonImpl::<O, PhysicalBinary>::new())
+            }
 
-        (a, b) => return Err(invalid_input_types_error(&func, &[a, b])),
-    };
+            (a, b) => return Err(invalid_input_types_error(&func, &[a, b])),
+        };
 
     Ok(PlannedScalarFunction2 {
         function: Box::new(func),
@@ -788,13 +786,7 @@ where
 
 #[cfg(test)]
 mod tests {
-
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
-    use crate::expr;
-    use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn null_coerced_eq() {
@@ -809,179 +801,5 @@ mod tests {
         // 4 = NULL => false
         let out = NullCoercedComparison::<EqOperation>::compare_with_valid(4, 4, true, false);
         assert!(!out);
-    }
-
-    #[test]
-    fn eq_i32() {
-        let a = Array::try_from_iter([1, 2, 3]).unwrap();
-        let b = Array::try_from_iter([2, 2, 6]).unwrap();
-        let batch = Batch::from_arrays([a, b]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Int32, DataType::Int32],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
-
-        let planned = Eq
-            .plan(
-                &table_list,
-                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
-            )
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-        let expected = Array::try_from_iter([false, true, false]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
-    }
-
-    #[test]
-    fn neq_i32() {
-        let a = Array::try_from_iter([1, 2, 3]).unwrap();
-        let b = Array::try_from_iter([2, 2, 6]).unwrap();
-        let batch = Batch::from_arrays([a, b]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Int32, DataType::Int32],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
-
-        let planned = Neq
-            .plan(
-                &table_list,
-                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
-            )
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-        let expected = Array::try_from_iter([true, false, true]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
-    }
-
-    #[test]
-    fn lt_i32() {
-        let a = Array::try_from_iter([1, 2, 3]).unwrap();
-        let b = Array::try_from_iter([2, 2, 6]).unwrap();
-        let batch = Batch::from_arrays([a, b]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Int32, DataType::Int32],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
-
-        let planned = Lt
-            .plan(
-                &table_list,
-                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
-            )
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-        let expected = Array::try_from_iter([true, false, true]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
-    }
-
-    #[test]
-    fn lt_eq_i32() {
-        let a = Array::try_from_iter([1, 2, 3]).unwrap();
-        let b = Array::try_from_iter([2, 2, 6]).unwrap();
-        let batch = Batch::from_arrays([a, b]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Int32, DataType::Int32],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
-
-        let planned = LtEq
-            .plan(
-                &table_list,
-                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
-            )
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-        let expected = Array::try_from_iter([true, true, true]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
-    }
-
-    #[test]
-    fn gt_i32() {
-        let a = Array::try_from_iter([1, 2, 3]).unwrap();
-        let b = Array::try_from_iter([2, 2, 6]).unwrap();
-        let batch = Batch::from_arrays([a, b]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Int32, DataType::Int32],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
-
-        let planned = Gt
-            .plan(
-                &table_list,
-                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
-            )
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-        let expected = Array::try_from_iter([false, false, false]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
-    }
-
-    #[test]
-    fn gt_eq_i32() {
-        let a = Array::try_from_iter([1, 2, 3]).unwrap();
-        let b = Array::try_from_iter([2, 2, 6]).unwrap();
-        let batch = Batch::from_arrays([a, b]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Int32, DataType::Int32],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
-
-        let planned = GtEq
-            .plan(
-                &table_list,
-                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
-            )
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-        let expected = Array::try_from_iter([false, true, false]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
     }
 }

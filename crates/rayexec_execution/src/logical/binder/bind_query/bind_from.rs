@@ -7,7 +7,7 @@ use rayexec_parser::ast;
 use super::{BoundQuery, QueryBinder};
 use crate::arrays::datatype::DataType;
 use crate::database::catalog_entry::CatalogEntry;
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::{self, Expression};
 use crate::functions::table::{PlannedTableFunction, TableFunctionPlanner};
@@ -452,9 +452,7 @@ impl<'a> FromBinder<'a> {
                                         recur,
                                     )?;
 
-                                    let val =
-                                        ConstFold::rewrite(bind_context.get_table_list(), expr)?
-                                            .try_into_scalar()?;
+                                    let val = ConstFold::rewrite(expr)?.try_into_scalar()?;
                                     named.insert(name.as_normalized_string(), val);
                                 }
                                 ast::FunctionArgExpr::Wildcard => {
@@ -671,17 +669,23 @@ impl<'a> FromBinder<'a> {
             }
 
             // Generate additional equality condition.
+            let left_reference = ColumnReference {
+                table_scope: left_table,
+                column: left_col_idx,
+            };
+            let right_reference = ColumnReference {
+                table_scope: right_table,
+                column: right_col_idx,
+            };
+
             let condition = expr::compare(
-                bind_context.get_table_list(),
                 ComparisonOperator::Eq,
-                Expression::Column(ColumnExpr {
-                    table_scope: left_table,
-                    column: left_col_idx,
-                }),
-                Expression::Column(ColumnExpr {
-                    table_scope: right_table,
-                    column: right_col_idx,
-                }),
+                bind_context
+                    .get_table_list()
+                    .column_as_expr(left_reference)?,
+                bind_context
+                    .get_table_list()
+                    .column_as_expr(right_reference)?,
             )?;
 
             conditions.push(condition.into());

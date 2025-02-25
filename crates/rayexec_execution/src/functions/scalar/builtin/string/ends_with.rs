@@ -44,13 +44,9 @@ pub struct EndsWith;
 impl ScalarFunction for EndsWith {
     type State = EndsWithState;
 
-    fn bind(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         let constant = if inputs[1].is_const_foldable() {
-            let search_string = ConstFold::rewrite(table_list, inputs[1].clone())?
+            let search_string = ConstFold::rewrite(inputs[1].clone())?
                 .try_into_scalar()?
                 .try_into_string()?;
 

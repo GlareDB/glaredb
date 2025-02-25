@@ -49,13 +49,9 @@ pub struct RegexpReplace;
 impl ScalarFunction for RegexpReplace {
     type State = RegexpReplaceState;
 
-    fn bind(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         let pattern = if inputs[1].is_const_foldable() {
-            let pattern = ConstFold::rewrite(table_list, inputs[1].clone())?
+            let pattern = ConstFold::rewrite(inputs[1].clone())?
                 .try_into_scalar()?
                 .try_into_string()?;
             let pattern = Regex::new(&pattern).context("Failed to build regexp pattern")?;
@@ -66,7 +62,7 @@ impl ScalarFunction for RegexpReplace {
         };
 
         let replacement = if inputs[2].is_const_foldable() {
-            let replacement = ConstFold::rewrite(table_list, inputs[2].clone())?
+            let replacement = ConstFold::rewrite(inputs[2].clone())?
                 .try_into_scalar()?
                 .try_into_string()?;
 

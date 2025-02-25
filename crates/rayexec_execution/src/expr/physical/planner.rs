@@ -47,10 +47,10 @@ impl<'a> PhysicalExpressionPlanner<'a> {
     /// Plans a physical scalar expressions.
     ///
     /// Tables refs is a list of table references that represent valid
-    /// expression inputs into some plan. For example, a join will have two
-    /// table refs, left and right. Column expression may reference either the
-    /// left or right table. If the expression does not reference a table, it
-    /// indicates we didn't properly decorrelate the expression, and we error.
+    /// expression inputs into some plan.
+    ///
+    /// If the expression does not reference a table, it indicates we didn't
+    /// properly decorrelate the expression, and we error.
     ///
     /// The output expression list assumes that the input into an operator is a
     /// flat batch of columns. This means for a join, the batch will represent
@@ -74,18 +74,10 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 for &table_ref in table_refs {
                     let table = self.table_list.get(table_ref)?;
 
-                    if col.table_scope == table_ref {
-                        let datatype =
-                            table.column_types.get(col.column).cloned().ok_or_else(|| {
-                                RayexecError::new(format!(
-                                    "Missing column: {}, table: {:?}",
-                                    col.column, table
-                                ))
-                            })?;
-
+                    if col.reference.table_scope == table_ref {
                         return Ok(PhysicalScalarExpression::Column(PhysicalColumnExpr {
-                            idx: offset + col.column,
-                            datatype,
+                            idx: offset + col.reference.column,
+                            datatype: col.datatype.clone(),
                         }));
                     }
 
@@ -137,7 +129,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 self.plan_as_scalar_function(table_refs, expr.op, vec![expr.expr.as_ref().clone()])
             }
             Expression::Case(expr) => {
-                let datatype = expr.datatype(self.table_list)?;
+                let datatype = &expr.datatype;
 
                 let cases = expr
                     .cases
@@ -162,7 +154,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 Ok(PhysicalScalarExpression::Case(PhysicalCaseExpr {
                     cases,
                     else_expr: Box::new(else_expr),
-                    datatype,
+                    datatype: datatype.clone(),
                 }))
             }
             other => Err(RayexecError::new(format!(
@@ -179,14 +171,14 @@ impl<'a> PhysicalExpressionPlanner<'a> {
     ) -> Result<PhysicalScalarExpression> {
         let datatypes = inputs
             .iter()
-            .map(|input| input.datatype(self.table_list))
+            .map(|input| input.datatype())
             .collect::<Result<Vec<_>>>()?;
         let exact = op
             .as_scalar_function_set()
             .find_exact(&datatypes)
             .ok_or_else(|| RayexecError::new("Expected exact function signature match"))?;
 
-        let bind_state = exact.call_bind(self.table_list, inputs)?;
+        let bind_state = exact.call_bind(inputs)?;
         let planned = PlannedScalarFunction {
             name: op.as_scalar_function_set().name,
             raw: *exact,

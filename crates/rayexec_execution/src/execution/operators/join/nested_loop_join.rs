@@ -397,7 +397,11 @@ mod tests {
         let t1 = list.push_table(None, [DataType::Utf8], ["r1"]).unwrap();
         let filter = plan_scalar(
             &list,
-            expr::eq(&list, expr::col_ref(t0, 1), expr::col_ref(t1, 0)).unwrap(),
+            expr::eq(
+                list.column_as_expr((t0, 1)).unwrap(),
+                list.column_as_expr((t1, 0)).unwrap(),
+            )
+            .unwrap(),
         );
         let mut operator = OperatorWrapper::new(PhysicalNestedLoopJoin::new(
             JoinType::Inner,

@@ -186,11 +186,7 @@ where
 {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
             return_type: self.return_type.clone(),
@@ -231,13 +227,9 @@ where
 {
     type State = ();
 
-    fn bind(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
-        let d1 = inputs[0].datatype(table_list)?;
-        let d2 = inputs[1].datatype(table_list)?;
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        let d1 = inputs[0].datatype()?;
+        let d2 = inputs[1].datatype()?;
 
         let m1 = D::try_unwrap_decimal_meta(&d1).required("Decimal data type")?;
         let m2 = D::try_unwrap_decimal_meta(&d2).required("Decimal data type")?;
@@ -291,11 +283,7 @@ where
 {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
             return_type: DataType::Interval,

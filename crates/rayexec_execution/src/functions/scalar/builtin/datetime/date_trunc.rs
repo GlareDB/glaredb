@@ -81,20 +81,16 @@ pub struct DateTrunc;
 impl ScalarFunction for DateTrunc {
     type State = DateTruncState;
 
-    fn bind(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         // Requires first argument to be constant (for now)
-        let field = ConstFold::rewrite(table_list, inputs[0].clone())?
+        let field = ConstFold::rewrite(inputs[0].clone())?
             .try_into_scalar()?
             .try_into_string()?
             .to_lowercase();
 
         let field = field.parse::<TruncField>()?;
 
-        let time_m = match inputs[1].datatype(table_list)? {
+        let time_m = match inputs[1].datatype()? {
             DataType::Timestamp(m) => m,
             other => {
                 return Err(RayexecError::new("Unexpected data type").with_field("datatype", other))

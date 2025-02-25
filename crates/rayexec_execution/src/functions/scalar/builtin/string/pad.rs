@@ -49,11 +49,7 @@ pub struct LeftPad;
 impl ScalarFunction for LeftPad {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
             return_type: DataType::Utf8,
@@ -134,11 +130,7 @@ pub struct RightPad;
 impl ScalarFunction for RightPad {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
             return_type: DataType::Utf8,

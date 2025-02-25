@@ -4,7 +4,7 @@ use rayexec_parser::ast;
 use super::bind_group_by::BoundGroupBy;
 use super::bind_select_list::SelectListBinder;
 use super::select_list::{BoundSelectList, SelectList};
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::DefaultColumnBinder;
@@ -71,11 +71,11 @@ impl<'a> HavingBinder<'a> {
     ) -> Result<()> {
         fn update_expr(
             group_by_expr: &Expression,
-            group_by_col: ColumnExpr,
+            group_by_col: &ColumnExpr,
             expr: &mut Expression,
         ) -> Result<()> {
             if expr == group_by_expr {
-                *expr = Expression::Column(group_by_col);
+                *expr = Expression::Column(group_by_col.clone());
                 return Ok(());
             }
 
@@ -87,11 +87,14 @@ impl<'a> HavingBinder<'a> {
             // BY expressions.
             for (idx, group_by_expr) in group_by.expressions.iter().enumerate() {
                 let group_by_col = ColumnExpr {
-                    table_scope: group_by.group_exprs_table,
-                    column: idx,
+                    reference: ColumnReference {
+                        table_scope: group_by.group_exprs_table,
+                        column: idx,
+                    },
+                    datatype: group_by_expr.datatype()?,
                 };
 
-                update_expr(group_by_expr, group_by_col, having_expr)?;
+                update_expr(group_by_expr, &group_by_col, having_expr)?;
             }
         }
 

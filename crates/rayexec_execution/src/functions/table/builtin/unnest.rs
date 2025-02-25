@@ -75,7 +75,7 @@ impl InOutPlanner for Unnest {
             ));
         }
 
-        let datatype = positional_inputs[0].datatype(table_list)?;
+        let datatype = positional_inputs[0].datatype()?;
 
         let return_type = match datatype {
             DataType::List(m) => *m.datatype,

@@ -40,13 +40,9 @@ pub struct ListValues;
 impl ScalarFunction for ListValues {
     type State = ();
 
-    fn bind(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         let first = match inputs.first() {
-            Some(expr) => expr.datatype(table_list)?,
+            Some(expr) => expr.datatype()?,
             None => {
                 // No values in the list.
                 DataType::Null
@@ -54,7 +50,7 @@ impl ScalarFunction for ListValues {
         };
 
         for input in &inputs {
-            let dt = input.datatype(table_list)?;
+            let dt = input.datatype()?;
             // TODO: We can add casts here.
             if dt != first {
                 return Err(RayexecError::new(format!(

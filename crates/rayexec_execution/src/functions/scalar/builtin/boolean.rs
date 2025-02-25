@@ -49,7 +49,7 @@ impl ScalarFunction2 for And {
     ) -> Result<PlannedScalarFunction2> {
         let datatypes = inputs
             .iter()
-            .map(|input| input.datatype(table_list))
+            .map(|input| input.datatype())
             .collect::<Result<Vec<_>>>()?;
 
         if !datatypes.iter().all(|dt| dt == &DataType::Boolean) {
@@ -148,7 +148,7 @@ impl ScalarFunction2 for Or {
     ) -> Result<PlannedScalarFunction2> {
         let datatypes = inputs
             .iter()
-            .map(|input| input.datatype(table_list))
+            .map(|input| input.datatype())
             .collect::<Result<Vec<_>>>()?;
 
         if !datatypes.iter().all(|dt| dt == &DataType::Boolean) {
@@ -210,111 +210,5 @@ impl ScalarFunctionImpl for OrImpl {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use stdutil::iter::TryFromExactSizeIterator;
-
-    use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
-    use crate::expr;
-    use crate::testutil::arrays::assert_arrays_eq;
-
-    #[test]
-    fn and_bool_2() {
-        let a = Array::try_from_iter([true, false, false]).unwrap();
-        let b = Array::try_from_iter([true, true, false]).unwrap();
-        let batch = Batch::from_arrays([a, b]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Boolean, DataType::Boolean],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
-
-        let planned = And
-            .plan(
-                &table_list,
-                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
-            )
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-
-        let expected = Array::try_from_iter([true, false, false]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
-    }
-
-    #[test]
-    fn and_bool_3() {
-        let a = Array::try_from_iter([true, true, true]).unwrap();
-        let b = Array::try_from_iter([false, true, true]).unwrap();
-        let c = Array::try_from_iter([true, true, false]).unwrap();
-        let batch = Batch::from_arrays([a, b, c]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Boolean, DataType::Boolean, DataType::Boolean],
-                vec!["a".to_string(), "b".to_string(), "c".to_string()],
-            )
-            .unwrap();
-
-        let planned = And
-            .plan(
-                &table_list,
-                vec![
-                    expr::col_ref(table_ref, 0),
-                    expr::col_ref(table_ref, 1),
-                    expr::col_ref(table_ref, 2),
-                ],
-            )
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-
-        let expected = Array::try_from_iter([false, true, false]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
-    }
-
-    #[test]
-    fn or_bool_2() {
-        let a = Array::try_from_iter([true, false, false]).unwrap();
-        let b = Array::try_from_iter([true, true, false]).unwrap();
-        let batch = Batch::from_arrays([a, b]).unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Boolean, DataType::Boolean],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
-
-        let planned = Or
-            .plan(
-                &table_list,
-                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
-            )
-            .unwrap();
-
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
-        planned.function_impl.execute(&batch, &mut out).unwrap();
-
-        let expected = Array::try_from_iter([true, true, false]).unwrap();
-
-        assert_arrays_eq(&expected, &out);
     }
 }

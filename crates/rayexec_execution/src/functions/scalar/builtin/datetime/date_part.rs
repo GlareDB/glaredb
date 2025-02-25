@@ -64,13 +64,9 @@ pub struct DatePart;
 impl ScalarFunction for DatePart {
     type State = DatePartState;
 
-    fn bind(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         // Requires first argument to be constant (for now)
-        let part = ConstFold::rewrite(table_list, inputs[0].clone())?
+        let part = ConstFold::rewrite(inputs[0].clone())?
             .try_into_scalar()?
             .try_into_string()?;
 

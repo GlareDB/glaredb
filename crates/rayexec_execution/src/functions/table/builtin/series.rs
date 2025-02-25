@@ -91,7 +91,7 @@ impl InOutPlanner for GenerateSeriesInOutPlanner {
 
         let datatypes = positional_inputs
             .iter()
-            .map(|expr| expr.datatype(table_list))
+            .map(|expr| expr.datatype())
             .collect::<Result<Vec<_>>>()?;
 
         for datatype in &datatypes {

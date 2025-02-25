@@ -37,11 +37,7 @@ pub struct StringLength;
 impl ScalarFunction for StringLength {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
             return_type: DataType::Int64,
@@ -95,11 +91,7 @@ pub struct ByteLength;
 impl ScalarFunction for ByteLength {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
             return_type: DataType::Int64,
@@ -151,11 +143,7 @@ pub struct BitLength;
 impl ScalarFunction for BitLength {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
             return_type: DataType::Int64,

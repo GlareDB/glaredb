@@ -24,7 +24,7 @@ impl IntermediatePipelineBuildState<'_> {
             .node
             .on
             .iter()
-            .map(|expr| expr.datatype(self.bind_context.get_table_list()))
+            .map(|expr| expr.datatype())
             .collect::<Result<Vec<_>>>()?;
         let group_exprs = self
             .expr_planner

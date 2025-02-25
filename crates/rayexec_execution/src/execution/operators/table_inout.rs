@@ -197,7 +197,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::array::Array;
-    use crate::expr::column_expr::ColumnExpr;
+    use crate::expr::column_expr::{ColumnExpr, ColumnReference};
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
     use crate::expr::Expression;
     use crate::functions::table::builtin::series::GenerateSeriesInOutPlanner;
@@ -222,16 +222,25 @@ mod tests {
                 &table_list,
                 vec![
                     Expression::Column(ColumnExpr {
-                        table_scope: table_ref,
-                        column: 0,
+                        reference: ColumnReference {
+                            table_scope: table_ref,
+                            column: 0,
+                        },
+                        datatype: DataType::Int64,
                     }),
                     Expression::Column(ColumnExpr {
-                        table_scope: table_ref,
-                        column: 1,
+                        reference: ColumnReference {
+                            table_scope: table_ref,
+                            column: 1,
+                        },
+                        datatype: DataType::Int64,
                     }),
                     Expression::Column(ColumnExpr {
-                        table_scope: table_ref,
-                        column: 2,
+                        reference: ColumnReference {
+                            table_scope: table_ref,
+                            column: 2,
+                        },
+                        datatype: DataType::Int64,
                     }),
                 ],
                 HashMap::new(),

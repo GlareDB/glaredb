@@ -57,7 +57,7 @@ impl ScalarFunction2 for Negate {
     ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        let dt = inputs[0].datatype(table_list)?;
+        let dt = inputs[0].datatype()?;
 
         // TODO: Interval
         let function_impl: Box<dyn ScalarFunctionImpl> = match dt.clone() {
@@ -142,7 +142,7 @@ impl ScalarFunction2 for Not {
         inputs: Vec<Expression>,
     ) -> Result<PlannedScalarFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype(table_list)? {
+        match inputs[0].datatype()? {
             DataType::Boolean => Ok(PlannedScalarFunction2 {
                 function: Box::new(*self),
                 return_type: DataType::Boolean,

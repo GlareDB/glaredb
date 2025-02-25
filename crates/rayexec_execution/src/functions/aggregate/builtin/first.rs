@@ -67,7 +67,7 @@ impl AggregateFunction for First {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        let datatype = inputs[0].datatype(table_list)?;
+        let datatype = inputs[0].datatype()?;
 
         let function_impl = match datatype.physical_type() {
             PhysicalType::UntypedNull => create_primitive_impl::<PhysicalUntypedNull>(),

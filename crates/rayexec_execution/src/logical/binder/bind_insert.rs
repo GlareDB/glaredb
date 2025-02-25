@@ -6,7 +6,7 @@ use super::bind_query::BoundQuery;
 use super::table_list::TableRef;
 use crate::arrays::datatype::DataType;
 use crate::expr::cast_expr::CastExpr;
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::operator::LocationRequirement;
@@ -114,8 +114,11 @@ impl<'a> InsertBinder<'a> {
 
         for (have, want) in source_types.into_iter().zip(table_types) {
             let mut expr = Expression::Column(ColumnExpr {
-                table_scope: have.0,
-                column: have.1,
+                reference: ColumnReference {
+                    table_scope: have.0,
+                    column: have.1,
+                },
+                datatype: have.2.clone(),
             });
 
             if have.2 != want {
@@ -134,7 +137,7 @@ impl<'a> InsertBinder<'a> {
             let projection_table = bind_context.new_ephemeral_table_with_columns(
                 projections
                     .iter()
-                    .map(|p| p.datatype(bind_context.get_table_list()))
+                    .map(|p| p.datatype())
                     .collect::<Result<Vec<_>>>()?,
                 (0..projections.len())
                     .map(|idx| format!("__generated_insert_project_{idx}"))

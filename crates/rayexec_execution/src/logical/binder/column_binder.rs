@@ -4,7 +4,7 @@ use rayexec_parser::ast;
 use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn};
 use super::expr_binder::RecursionContext;
 use super::table_list::TableAlias;
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
 use crate::logical::resolver::ResolvedMeta;
 
@@ -123,9 +123,15 @@ impl DefaultColumnBinder {
                         bind_context.push_correlation(bind_scope, correlated)?;
                     }
 
-                    return Ok(Some(Expression::Column(ColumnExpr {
+                    let reference = ColumnReference {
                         table_scope: table,
                         column: col_idx,
+                    };
+                    let datatype = bind_context.get_column_type(reference)?;
+
+                    return Ok(Some(Expression::Column(ColumnExpr {
+                        reference,
+                        datatype,
                     })));
                 }
                 None => {

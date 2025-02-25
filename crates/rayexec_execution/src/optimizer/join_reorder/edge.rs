@@ -7,7 +7,7 @@ use rayexec_error::{RayexecError, Result};
 use super::graph::{BaseRelation, RelId, RelationSet};
 use super::ReorderableCondition;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::binder::table_list::TableRef;
 
@@ -35,7 +35,7 @@ pub struct HyperEdge {
     /// This is the basis for our cardinality estimate.
     pub min_ndv: f64,
     /// All column expressions within this hyper edge.
-    pub columns: HashSet<ColumnExpr>,
+    pub columns: HashSet<ColumnReference>,
 }
 
 /// Edge connecting extactly two relations in the graph.

@@ -40,7 +40,7 @@ impl<'a> ConstantBinder<'a> {
             },
         )?;
 
-        let val = ConstFold::rewrite(bind_context.get_table_list(), expr)?.try_into_scalar()?;
+        let val = ConstFold::rewrite(expr)?.try_into_scalar()?;
 
         Ok(val)
     }

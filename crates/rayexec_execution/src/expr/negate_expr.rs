@@ -27,10 +27,10 @@ pub struct NegateExpr {
 }
 
 impl NegateExpr {
-    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
+    pub fn datatype(&self) -> Result<DataType> {
         Ok(match self.op {
             NegateOperator::Not => DataType::Boolean,
-            NegateOperator::Negate => self.expr.datatype(table_list)?,
+            NegateOperator::Negate => self.expr.datatype()?,
         })
     }
 }

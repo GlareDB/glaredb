@@ -4,7 +4,7 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_parser::ast;
 use regex::Regex;
 
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::table_list::TableAlias;
 use crate::logical::resolver::ResolvedMeta;
@@ -87,10 +87,16 @@ impl<'a> SelectExprExpander<'a> {
                 // columns.
                 let mut handled = HashSet::new();
                 for using in self.bind_context.get_using_columns(self.current)? {
+                    let reference = ColumnReference {
+                        table_scope: using.table_ref,
+                        column: using.col_idx,
+                    };
+                    let datatype = self.bind_context.get_column_type(reference)?;
+
                     exprs.push(ExpandedSelectExpr::Column {
                         expr: ColumnExpr {
-                            table_scope: using.table_ref,
-                            column: using.col_idx,
+                            reference,
+                            datatype,
                         },
                         name: using.column.clone(),
                     });
@@ -105,10 +111,16 @@ impl<'a> SelectExprExpander<'a> {
                             continue;
                         }
 
+                        let reference = ColumnReference {
+                            table_scope: table.reference,
+                            column: col_idx,
+                        };
+                        let datatype = self.bind_context.get_column_type(reference)?;
+
                         exprs.push(ExpandedSelectExpr::Column {
                             expr: ColumnExpr {
-                                table_scope: table.reference,
-                                column: col_idx,
+                                reference,
+                                datatype,
                             },
                             name: name.clone(),
                         })
@@ -148,13 +160,18 @@ impl<'a> SelectExprExpander<'a> {
                     })?;
 
                 let mut exprs = Vec::new();
-                for (col_idx, name) in table.column_names.iter().enumerate() {
+                debug_assert_eq!(table.column_names.len(), table.column_types.len());
+
+                for (col_idx, (name, datatype)) in table.iter_names_and_types().enumerate() {
                     exprs.push(ExpandedSelectExpr::Column {
                         expr: ColumnExpr {
-                            table_scope: table.reference,
-                            column: col_idx,
+                            reference: ColumnReference {
+                                table_scope: table.reference,
+                                column: col_idx,
+                            },
+                            datatype: datatype.clone(),
                         },
-                        name: name.clone(),
+                        name: name.to_string(),
                     })
                 }
 
@@ -180,17 +197,22 @@ impl<'a> SelectExprExpander<'a> {
                             // Iter all columns in the context, select the ones
                             // that match the regex.
                             for table in self.bind_context.iter_tables_in_scope(self.current)? {
-                                for (col_idx, name) in table.column_names.iter().enumerate() {
+                                for (col_idx, (name, datatype)) in
+                                    table.iter_names_and_types().enumerate()
+                                {
                                     if !regex.is_match(name) {
                                         continue;
                                     }
 
                                     exprs.push(ExpandedSelectExpr::Column {
                                         expr: ColumnExpr {
-                                            table_scope: table.reference,
-                                            column: col_idx,
+                                            reference: ColumnReference {
+                                                table_scope: table.reference,
+                                                column: col_idx,
+                                            },
+                                            datatype: datatype.clone(),
                                         },
-                                        name: name.clone(),
+                                        name: name.to_string(),
                                     })
                                 }
                             }
@@ -347,15 +369,21 @@ mod tests {
         let expected = vec![
             ExpandedSelectExpr::Column {
                 expr: ColumnExpr {
-                    table_scope: table_ref,
-                    column: 0,
+                    reference: ColumnReference {
+                        table_scope: table_ref,
+                        column: 0,
+                    },
+                    datatype: DataType::Utf8,
                 },
                 name: "c1".to_string(),
             },
             ExpandedSelectExpr::Column {
                 expr: ColumnExpr {
-                    table_scope: table_ref,
-                    column: 1,
+                    reference: ColumnReference {
+                        table_scope: table_ref,
+                        column: 1,
+                    },
+                    datatype: DataType::Utf8,
                 },
                 name: "c2".to_string(),
             },
@@ -409,15 +437,21 @@ mod tests {
         let expected = vec![
             ExpandedSelectExpr::Column {
                 expr: ColumnExpr {
-                    table_scope: t1_table_ref,
-                    column: 0,
+                    reference: ColumnReference {
+                        table_scope: t1_table_ref,
+                        column: 0,
+                    },
+                    datatype: DataType::Utf8,
                 },
                 name: "c1".to_string(),
             },
             ExpandedSelectExpr::Column {
                 expr: ColumnExpr {
-                    table_scope: t1_table_ref,
-                    column: 1,
+                    reference: ColumnReference {
+                        table_scope: t1_table_ref,
+                        column: 1,
+                    },
+                    datatype: DataType::Utf8,
                 },
                 name: "c2".to_string(),
             },

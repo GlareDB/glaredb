@@ -141,11 +141,7 @@ where
 {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
             return_type: self.return_type.clone(),

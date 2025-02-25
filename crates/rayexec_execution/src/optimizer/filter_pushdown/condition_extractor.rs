@@ -110,9 +110,11 @@ impl ExprJoinSide {
             C2: TableRefContainer,
         {
             match expr {
-                Expression::Column(col) => {
-                    ExprJoinSide::try_from_table_ref(col.table_scope, left_tables, right_tables)
-                }
+                Expression::Column(col) => ExprJoinSide::try_from_table_ref(
+                    col.reference.table_scope,
+                    left_tables,
+                    right_tables,
+                ),
                 Expression::Subquery(_) => not_implemented!("subquery in join condition"),
                 other => {
                     let mut side = side;

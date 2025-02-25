@@ -143,11 +143,8 @@ impl IntermediatePipelineBuildState<'_> {
             let condition = if join.node.conditions.is_empty() {
                 None
             } else {
-                let condition: Expression = expr::and(
-                    self.bind_context.get_table_list(),
-                    join.node.conditions.into_iter().map(Expression::Comparison),
-                )?
-                .into();
+                let condition: Expression =
+                    expr::and(join.node.conditions.into_iter().map(Expression::Comparison))?.into();
                 let condition = self.expr_planner.plan_scalar(&table_refs, &condition)?;
 
                 Some(condition)

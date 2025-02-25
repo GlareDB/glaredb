@@ -3,7 +3,7 @@ use rayexec_error::{RayexecError, Result};
 use super::plan_query::QueryPlanner;
 use super::plan_subquery::SubqueryPlanner;
 use crate::arrays::scalar::BorrowedScalarValue;
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::{self, Expression};
@@ -132,8 +132,11 @@ impl FromPlanner {
                     let table = bind_context.get_table(table_ref)?;
                     for col_idx in 0..table.num_columns() {
                         projections.push(Expression::Column(ColumnExpr {
-                            table_scope: table_ref,
-                            column: col_idx,
+                            reference: ColumnReference {
+                                table_scope: table_ref,
+                                column: col_idx,
+                            },
+                            datatype: table.column_types[col_idx].clone(),
                         }));
                     }
                 }
@@ -183,8 +186,11 @@ impl FromPlanner {
                     let table = bind_context.get_table(table_ref)?;
                     for col_idx in 0..table.num_columns() {
                         projections.push(Expression::Column(ColumnExpr {
-                            table_scope: table_ref,
-                            column: col_idx,
+                            reference: ColumnReference {
+                                table_scope: table_ref,
+                                column: col_idx,
+                            },
+                            datatype: table.column_types[col_idx].clone(),
                         }));
                     }
                 }
@@ -248,7 +254,7 @@ impl FromPlanner {
         if !extracted.left_filter.is_empty() {
             left = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: expr::and(bind_context.get_table_list(), extracted.left_filter)?.into(),
+                    filter: expr::and(extracted.left_filter)?.into(),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left],
@@ -259,8 +265,7 @@ impl FromPlanner {
         if !extracted.right_filter.is_empty() {
             right = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: expr::and(bind_context.get_table_list(), extracted.right_filter)?
-                        .into(),
+                    filter: expr::and(extracted.right_filter)?.into(),
                 },
                 location: LocationRequirement::Any,
                 children: vec![right],
@@ -333,7 +338,7 @@ impl FromPlanner {
             return Ok(LogicalOperator::ArbitraryJoin(Node {
                 node: LogicalArbitraryJoin {
                     join_type,
-                    condition: expr::and(table_list, expressions)?.into(),
+                    condition: expr::and(expressions)?.into(),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left, right],
@@ -356,7 +361,7 @@ impl FromPlanner {
         if !arbitrary.is_empty() {
             plan = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: expr::and(table_list, arbitrary)?.into(),
+                    filter: expr::and(arbitrary)?.into(),
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],

@@ -45,11 +45,7 @@ pub struct SubstringFrom;
 impl ScalarFunction for SubstringFrom {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
             return_type: DataType::Utf8,
@@ -77,11 +73,7 @@ pub struct SubstringFromTo;
 impl ScalarFunction for SubstringFromTo {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
             return_type: DataType::Utf8,

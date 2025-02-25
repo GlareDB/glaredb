@@ -6,6 +6,7 @@ use rayexec_error::{RayexecError, Result};
 use super::bind_query::BoundQuery;
 use super::table_list::{Table, TableAlias, TableList, TableRef};
 use crate::arrays::datatype::DataType;
+use crate::expr::column_expr::ColumnReference;
 use crate::expr::Expression;
 use crate::logical::operator::{LogicalNode, LogicalOperator};
 
@@ -452,7 +453,7 @@ impl BindContext {
         exprs_iter: impl Iterator<Item = &'a Expression>,
     ) -> Result<TableRef> {
         let column_types = exprs_iter
-            .map(|expr| expr.datatype(&self.tables))
+            .map(|expr| expr.datatype())
             .collect::<Result<Vec<_>>>()?;
 
         self.new_ephemeral_table_from_types(generated_prefix, column_types)
@@ -503,8 +504,12 @@ impl BindContext {
         Ok(idx)
     }
 
-    pub fn get_column(&self, table_ref: TableRef, col_idx: usize) -> Result<(&str, &DataType)> {
-        self.tables.get_column(table_ref, col_idx)
+    pub fn get_column(&self, reference: impl Into<ColumnReference>) -> Result<(&str, &DataType)> {
+        self.tables.get_column(reference)
+    }
+
+    pub fn get_column_type(&self, reference: impl Into<ColumnReference>) -> Result<DataType> {
+        self.tables.get_column_type(reference)
     }
 
     pub fn get_table(&self, table_ref: TableRef) -> Result<&Table> {

@@ -12,7 +12,6 @@ use crate::arrays::array::physical_type::{
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
-use crate::buffer::buffer_manager::BufferManager;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{AggregateFunctionImpl, BinaryStateLogic};
 use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
@@ -51,10 +50,7 @@ impl AggregateFunction for RegrCount {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 2)?;
 
-        match (
-            inputs[0].datatype(table_list)?,
-            inputs[1].datatype(table_list)?,
-        ) {
+        match (inputs[0].datatype()?, inputs[1].datatype()?) {
             (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
                 function: Box::new(*self),
                 return_type: DataType::Float64,

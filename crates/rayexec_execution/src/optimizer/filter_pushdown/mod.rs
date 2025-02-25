@@ -107,11 +107,7 @@ impl FilterPushdown {
             return Ok(plan);
         }
 
-        let filter = expr::and(
-            bind_context.get_table_list(),
-            self.drain_filters().map(|ex| ex.filter),
-        )?
-        .into();
+        let filter = expr::and(self.drain_filters().map(|ex| ex.filter))?.into();
 
         Ok(LogicalOperator::Filter(Node {
             node: LogicalFilter { filter },
@@ -637,20 +633,20 @@ fn replace_references(
 ) -> Result<()> {
     match expr {
         Expression::Column(col) => {
-            if col.table_scope != table_ref {
+            if col.reference.table_scope != table_ref {
                 return Err(RayexecError::new(format!(
                     "Unexpected table ref, expected {}, got {}",
-                    table_ref, col.table_scope
+                    table_ref, col.reference.table_scope
                 )));
             }
-            if col.column >= columns.len() {
+            if col.reference.column >= columns.len() {
                 return Err(RayexecError::new(format!(
                     "Column reference outside of expected columns, ref: {col}, columns len: {}",
                     columns.len()
                 )));
             }
 
-            *expr = columns[col.column].clone();
+            *expr = columns[col.reference.column].clone();
 
             Ok(())
         }

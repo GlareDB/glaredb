@@ -45,13 +45,9 @@ pub struct Like;
 impl ScalarFunction for Like {
     type State = LikeState;
 
-    fn bind(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         let constant = if inputs[1].is_const_foldable() {
-            let pattern = ConstFold::rewrite(table_list, inputs[1].clone())?
+            let pattern = ConstFold::rewrite(inputs[1].clone())?
                 .try_into_scalar()?
                 .try_into_string()?;
 

@@ -68,7 +68,7 @@ impl AggregateFunction for Sum {
     ) -> Result<PlannedAggregateFunction> {
         plan_check_num_args(self, &inputs, 1)?;
 
-        let (function_impl, return_type) = match inputs[0].datatype(table_list)? {
+        let (function_impl, return_type) = match inputs[0].datatype()? {
             DataType::Int64 => {
                 let function_impl = AggregateFunctionImpl::new::<
                     UnaryStateLogic<SumStateCheckedAdd<i64>, PhysicalI64, PhysicalI64>,

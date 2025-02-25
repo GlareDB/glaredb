@@ -11,7 +11,7 @@ use rayexec_error::Result;
 use super::filter_pushdown::extracted_filter::ExtractedFilter;
 use super::filter_pushdown::split::split_conjunction;
 use super::OptimizeRule;
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::ColumnReference;
 use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
@@ -44,7 +44,7 @@ pub(super) enum ReorderableCondition {
 }
 
 impl ReorderableCondition {
-    pub fn get_column_refs(&self) -> HashSet<ColumnExpr> {
+    pub fn get_column_refs(&self) -> HashSet<ColumnReference> {
         match self {
             Self::Inner { condition } => condition
                 .left

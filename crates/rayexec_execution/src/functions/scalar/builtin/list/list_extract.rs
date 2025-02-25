@@ -33,7 +33,6 @@ use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
-use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
@@ -66,12 +65,8 @@ pub struct ListExtract;
 impl ScalarFunction for ListExtract {
     type State = ListExtractState;
 
-    fn bind(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
-        let index = ConstFold::rewrite(table_list, inputs[1].clone())?
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        let index = ConstFold::rewrite(inputs[1].clone())?
             .try_into_scalar()?
             .try_as_i64()?;
 
@@ -81,7 +76,7 @@ impl ScalarFunction for ListExtract {
         // Adjust from 1-based indexing.
         let index = (index - 1) as usize;
 
-        let inner_datatype = match inputs[0].datatype(table_list)? {
+        let inner_datatype = match inputs[0].datatype()? {
             DataType::List(meta) => meta.datatype.as_ref().clone(),
             other => {
                 return Err(RayexecError::new(format!(

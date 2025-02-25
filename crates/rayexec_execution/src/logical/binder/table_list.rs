@@ -4,6 +4,7 @@ use rayexec_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::datatype::DataType;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 
 /// Reference to a table in a context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -79,6 +80,14 @@ impl Table {
     pub fn num_columns(&self) -> usize {
         self.column_types.len()
     }
+
+    pub fn iter_names_and_types(&self) -> impl Iterator<Item = (&str, &DataType)> + '_ {
+        debug_assert_eq!(self.column_types.len(), self.column_names.len());
+        self.column_names
+            .iter()
+            .map(|s| s.as_str())
+            .zip(&self.column_types)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -140,16 +149,35 @@ impl TableList {
         Ok(reference)
     }
 
-    pub fn get_column(&self, table_ref: TableRef, col_idx: usize) -> Result<(&str, &DataType)> {
-        let table = self.get(table_ref)?;
+    pub fn column_as_expr(&self, reference: impl Into<ColumnReference>) -> Result<ColumnExpr> {
+        let reference = reference.into();
+        let datatype = self.get_column_type(reference)?;
+
+        Ok(ColumnExpr {
+            reference,
+            datatype,
+        })
+    }
+
+    pub fn get_column(&self, reference: impl Into<ColumnReference>) -> Result<(&str, &DataType)> {
+        let reference = reference.into();
+        let table = self.get(reference.table_scope)?;
         let name = table
             .column_names
-            .get(col_idx)
+            .get(reference.column)
             .map(|s| s.as_str())
             .ok_or_else(|| {
-                RayexecError::new(format!("Missing column {col_idx} in table {table_ref}"))
+                RayexecError::new(format!(
+                    "Missing column {} in table {}",
+                    reference.column, reference.table_scope
+                ))
             })?;
-        let datatype = &table.column_types[col_idx];
+        let datatype = &table.column_types[reference.column];
         Ok((name, datatype))
+    }
+
+    pub fn get_column_type(&self, reference: impl Into<ColumnReference>) -> Result<DataType> {
+        let (_, datatype) = self.get_column(reference)?;
+        Ok(datatype.clone())
     }
 }

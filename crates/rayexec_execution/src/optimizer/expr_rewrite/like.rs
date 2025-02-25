@@ -21,8 +21,8 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 pub struct LikeRewrite;
 
 impl ExpressionRewriteRule for LikeRewrite {
-    fn rewrite(table_list: &TableList, mut expression: Expression) -> Result<Expression> {
-        fn inner(table_list: &TableList, expr: &mut Expression) -> Result<()> {
+    fn rewrite(mut expression: Expression) -> Result<Expression> {
+        fn inner(expr: &mut Expression) -> Result<()> {
             match expr {
                 Expression::ScalarFunction(scalar)
                     if scalar.function.name == FUNCTION_SET_LIKE.name =>
@@ -32,7 +32,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                         return Ok(());
                     }
 
-                    let pattern = ConstFold::rewrite(table_list, pattern.clone())?
+                    let pattern = ConstFold::rewrite(pattern.clone())?
                         .try_into_scalar()?
                         .try_into_string()?;
 
@@ -57,7 +57,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                             .find_exact(&[DataType::Utf8, DataType::Utf8])
                             .required("STARTS_WITH implementation to exist")?;
 
-                        let bind_state = func.call_bind(table_list, inputs)?;
+                        let bind_state = func.call_bind(inputs)?;
                         let planned = PlannedScalarFunction {
                             name: FUNCTION_SET_STARTS_WITH.name,
                             raw: *func,
@@ -81,7 +81,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                             .find_exact(&[DataType::Utf8, DataType::Utf8])
                             .required("ENDS_WITH implementation to exist")?;
 
-                        let bind_state = func.call_bind(table_list, inputs)?;
+                        let bind_state = func.call_bind(inputs)?;
                         let planned = PlannedScalarFunction {
                             name: FUNCTION_SET_ENDS_WITH.name,
                             raw: *func,
@@ -105,7 +105,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                             .find_exact(&[DataType::Utf8, DataType::Utf8])
                             .required("ENDS_WITH implementation to exist")?;
 
-                        let bind_state = func.call_bind(table_list, inputs)?;
+                        let bind_state = func.call_bind(inputs)?;
                         let planned = PlannedScalarFunction {
                             name: FUNCTION_SET_CONTAINS.name,
                             raw: *func,
@@ -121,11 +121,11 @@ impl ExpressionRewriteRule for LikeRewrite {
                         Ok(())
                     }
                 }
-                other => other.for_each_child_mut(&mut |child| inner(table_list, child)),
+                other => other.for_each_child_mut(&mut |child| inner(child)),
             }
         }
 
-        inner(table_list, &mut expression)?;
+        inner(&mut expression)?;
 
         Ok(expression)
     }

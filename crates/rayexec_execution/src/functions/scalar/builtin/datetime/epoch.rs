@@ -11,7 +11,6 @@ use crate::expr::Expression;
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
-use crate::logical::binder::table_list::TableList;
 
 pub const FUNCTION_SET_EPOCH: ScalarFunctionSet = ScalarFunctionSet {
     name: "epoch",
@@ -39,11 +38,7 @@ pub struct EpochImpl<const S: i64>;
 impl<const S: i64> ScalarFunction for EpochImpl<S> {
     type State = ();
 
-    fn bind(
-        &self,
-        _table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
             return_type: DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond)),

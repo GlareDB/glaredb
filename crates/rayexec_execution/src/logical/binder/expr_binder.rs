@@ -166,11 +166,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     })
                     .collect::<Result<Vec<_>>>()?;
 
-                let function = expr::bind_scalar_function(
-                    bind_context.get_table_list(),
-                    &FUNCTION_SET_LIST_VALUES,
-                    exprs,
-                )?;
+                let function = expr::bind_scalar_function(&FUNCTION_SET_LIST_VALUES, exprs)?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
@@ -198,7 +194,6 @@ impl<'a> BaseExpressionBinder<'a> {
                         )?;
 
                         let function = expr::bind_scalar_function(
-                            bind_context.get_table_list(),
                             &FUNCTION_SET_LIST_EXTRACT,
                             vec![expr, index],
                         )?;
@@ -223,14 +218,8 @@ impl<'a> BaseExpressionBinder<'a> {
 
                 Ok(match op {
                     ast::UnaryOperator::Plus => expr,
-                    ast::UnaryOperator::Not => {
-                        expr::negate(bind_context.get_table_list(), NegateOperator::Not, expr)?
-                            .into()
-                    }
-                    ast::UnaryOperator::Minus => {
-                        expr::negate(bind_context.get_table_list(), NegateOperator::Negate, expr)?
-                            .into()
-                    }
+                    ast::UnaryOperator::Not => expr::negate(NegateOperator::Not, expr)?.into(),
+                    ast::UnaryOperator::Minus => expr::negate(NegateOperator::Negate, expr)?.into(),
                 })
             }
             ast::Expr::BinaryExpr { left, op, right } => {
@@ -258,67 +247,63 @@ impl<'a> BaseExpressionBinder<'a> {
                 Ok(match op {
                     ast::BinaryOperator::NotEq => {
                         let op = ComparisonOperator::NotEq;
-                        expr::compare(table_list, op, left, right)?.into()
+                        expr::compare(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Eq => {
                         let op = ComparisonOperator::Eq;
-                        expr::compare(table_list, op, left, right)?.into()
+                        expr::compare(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Lt => {
                         let op = ComparisonOperator::Lt;
-                        expr::compare(table_list, op, left, right)?.into()
+                        expr::compare(op, left, right)?.into()
                     }
                     ast::BinaryOperator::LtEq => {
                         let op = ComparisonOperator::LtEq;
-                        expr::compare(table_list, op, left, right)?.into()
+                        expr::compare(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Gt => {
                         let op = ComparisonOperator::Gt;
-                        expr::compare(table_list, op, left, right)?.into()
+                        expr::compare(op, left, right)?.into()
                     }
                     ast::BinaryOperator::GtEq => {
                         let op = ComparisonOperator::GtEq;
-                        expr::compare(table_list, op, left, right)?.into()
+                        expr::compare(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Plus => {
                         let op = ArithOperator::Add;
-                        expr::arith(table_list, op, left, right)?.into()
+                        expr::arith(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Minus => {
                         let op = ArithOperator::Sub;
-                        expr::arith(table_list, op, left, right)?.into()
+                        expr::arith(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Multiply => {
                         let op = ArithOperator::Mul;
-                        expr::arith(table_list, op, left, right)?.into()
+                        expr::arith(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Divide => {
                         let op = ArithOperator::Div;
-                        expr::arith(table_list, op, left, right)?.into()
+                        expr::arith(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Modulo => {
                         let op = ArithOperator::Mod;
-                        expr::arith(table_list, op, left, right)?.into()
+                        expr::arith(op, left, right)?.into()
                     }
                     ast::BinaryOperator::And => {
                         let op = ConjunctionOperator::And;
-                        expr::conjunction(table_list, op, [left, right])?.into()
+                        expr::conjunction(op, [left, right])?.into()
                     }
                     ast::BinaryOperator::Or => {
                         let op = ConjunctionOperator::Or;
-                        expr::conjunction(table_list, op, [left, right])?.into()
+                        expr::conjunction(op, [left, right])?.into()
                     }
                     ast::BinaryOperator::StringConcat => {
-                        let function = expr::bind_scalar_function(
-                            table_list,
-                            &FUNCTION_SET_CONCAT,
-                            vec![left, right],
-                        )?;
+                        let function =
+                            expr::bind_scalar_function(&FUNCTION_SET_CONCAT, vec![left, right])?;
                         Expression::ScalarFunction(ScalarFunctionExpr { function })
                     }
                     ast::BinaryOperator::StringStartsWith => {
                         let function = expr::bind_scalar_function(
-                            table_list,
                             &FUNCTION_SET_STARTS_WITH,
                             vec![left, right],
                         )?;
@@ -397,11 +382,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         };
                         let subquery = self.bind_subquery(bind_context, right, typ)?;
 
-                        let negated = expr::negate(
-                            bind_context.get_table_list(),
-                            NegateOperator::Not,
-                            subquery,
-                        )?;
+                        let negated = expr::negate(NegateOperator::Not, subquery)?;
 
                         Ok(negated.into())
                     }
@@ -433,8 +414,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 )?;
 
                 if *negated {
-                    expr = expr::negate(bind_context.get_table_list(), NegateOperator::Not, expr)?
-                        .into();
+                    expr = expr::negate(NegateOperator::Not, expr)?.into();
                 }
 
                 Ok(expr)
@@ -475,19 +455,14 @@ impl<'a> BaseExpressionBinder<'a> {
                 let cmp_exprs = list
                     .into_iter()
                     .map(|expr| {
-                        let cmp = expr::compare(
-                            bind_context.get_table_list(),
-                            cmp_op,
-                            needle.clone(),
-                            expr,
-                        )?;
+                        let cmp = expr::compare(cmp_op, needle.clone(), expr)?;
                         Ok(cmp.into())
                     })
                     .collect::<Result<Vec<_>>>()?;
 
                 // TODO: Error on no expressions?
 
-                let conj = expr::conjunction(bind_context.get_table_list(), conj_op, cmp_exprs)?;
+                let conj = expr::conjunction(conj_op, cmp_exprs)?;
                 Ok(conj.into())
             }
             ast::Expr::TypedString { datatype, value } => {
@@ -545,17 +520,12 @@ impl<'a> BaseExpressionBinder<'a> {
                     },
                 )?;
 
-                let function = expr::bind_scalar_function(
-                    bind_context.get_table_list(),
-                    &FUNCTION_SET_LIKE,
-                    vec![expr, pattern],
-                )?;
+                let function = expr::bind_scalar_function(&FUNCTION_SET_LIKE, vec![expr, pattern])?;
 
                 let mut expr = Expression::ScalarFunction(ScalarFunctionExpr { function });
 
                 if *negated {
-                    expr = expr::negate(bind_context.get_table_list(), NegateOperator::Not, expr)?
-                        .into();
+                    expr = expr::negate(NegateOperator::Not, expr)?.into();
                 }
 
                 Ok(expr)
@@ -577,11 +547,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     &FUNCTION_SET_IS_NOT_NULL
                 };
 
-                let function = expr::bind_scalar_function(
-                    bind_context.get_table_list(),
-                    function_set,
-                    vec![expr],
-                )?;
+                let function = expr::bind_scalar_function(function_set, vec![expr])?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
@@ -603,11 +569,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     (false, true) => &FUNCTION_SET_IS_NOT_FALSE,
                 };
 
-                let function = expr::bind_scalar_function(
-                    bind_context.get_table_list(),
-                    function_set,
-                    vec![expr],
-                )?;
+                let function = expr::bind_scalar_function(function_set, vec![expr])?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
@@ -672,7 +634,7 @@ impl<'a> BaseExpressionBinder<'a> {
 
                         let op = ArithOperator::Mul;
                         // Plan `mul(<interval>, <expr>)`
-                        let expr = expr::arith(bind_context.get_table_list(), op, interval, expr)?;
+                        let expr = expr::arith(op, interval, expr)?;
                         Ok(expr.into())
                     }
                     None => Ok(Expression::Cast(CastExpr {
@@ -715,7 +677,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     ComparisonOperator::Lt
                 };
 
-                let left = expr::compare(bind_context.get_table_list(), low_op, expr.clone(), low)?;
+                let left = expr::compare(low_op, expr.clone(), low)?;
 
                 let high_op = if !negated {
                     ComparisonOperator::LtEq
@@ -723,7 +685,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     ComparisonOperator::Gt
                 };
 
-                let right = expr::compare(bind_context.get_table_list(), low_op, expr, high)?;
+                let right = expr::compare(low_op, expr, high)?;
 
                 let conj_op = if !negated {
                     ConjunctionOperator::And
@@ -731,11 +693,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     ConjunctionOperator::Or
                 };
 
-                let conj = expr::conjunction(
-                    bind_context.get_table_list(),
-                    conj_op,
-                    [left.into(), right.into()],
-                )?;
+                let conj = expr::conjunction(conj_op, [left.into(), right.into()])?;
                 Ok(conj.into())
             }
             ast::Expr::Case {
@@ -782,12 +740,8 @@ impl<'a> BaseExpressionBinder<'a> {
                 let build_condition = |cond_expr| -> Result<Expression> {
                     match &expr {
                         Some(expr) => {
-                            let cmp = expr::compare(
-                                bind_context.get_table_list(),
-                                ComparisonOperator::Eq,
-                                expr.clone(),
-                                cond_expr,
-                            )?;
+                            let cmp =
+                                expr::compare(ComparisonOperator::Eq, expr.clone(), cond_expr)?;
                             Ok(cmp.into())
                         }
                         None => Ok(cond_expr),
@@ -807,13 +761,10 @@ impl<'a> BaseExpressionBinder<'a> {
 
                 // Apply cast to else if needed.
                 if let Some(expr) = else_expr {
-                    let first_case_dt = cases
-                        .first()
-                        .expect("at least one case")
-                        .then
-                        .datatype(bind_context.get_table_list())?;
+                    let first_case_dt =
+                        cases.first().expect("at least one case").then.datatype()?;
 
-                    if expr.datatype(bind_context.get_table_list())? != first_case_dt {
+                    if expr.datatype()? != first_case_dt {
                         else_expr = Some(Expression::Cast(CastExpr {
                             to: first_case_dt,
                             expr: Box::new(expr),
@@ -823,10 +774,9 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                 }
 
-                Ok(Expression::Case(CaseExpr {
-                    cases,
-                    else_expr: else_expr.map(Box::new),
-                }))
+                let case_expr = CaseExpr::try_new(cases, else_expr.map(Box::new))?;
+
+                Ok(Expression::Case(case_expr))
             }
             ast::Expr::Substring { expr, from, count } => {
                 let function_set = &FUNCTION_SET_SUBSTRING;
@@ -844,17 +794,9 @@ impl<'a> BaseExpressionBinder<'a> {
                             recur.not_root(),
                         )?;
 
-                        expr::bind_scalar_function(
-                            bind_context.get_table_list(),
-                            function_set,
-                            vec![expr, from, count],
-                        )?
+                        expr::bind_scalar_function(function_set, vec![expr, from, count])?
                     }
-                    None => expr::bind_scalar_function(
-                        bind_context.get_table_list(),
-                        function_set,
-                        vec![expr, from],
-                    )?,
+                    None => expr::bind_scalar_function(function_set, vec![expr, from])?,
                 };
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
@@ -868,7 +810,6 @@ impl<'a> BaseExpressionBinder<'a> {
                     self.bind_expression(bind_context, expr, column_binder, recur.not_root())?;
 
                 let function = expr::bind_scalar_function(
-                    bind_context.get_table_list(),
                     &FUNCTION_SET_DATE_PART,
                     vec![date_part_expr, expr],
                 )?;
@@ -928,7 +869,7 @@ impl<'a> BaseExpressionBinder<'a> {
         // if needed.
         let subquery_type = match subquery_type {
             SubqueryType::Any { expr, op } => {
-                if expr.datatype(bind_context.get_table_list())? != return_type {
+                if expr.datatype()? != return_type {
                     SubqueryType::Any {
                         expr: Box::new(Expression::Cast(CastExpr {
                             to: query_return_type,
@@ -1099,7 +1040,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         });
 
                         // To verify input types.
-                        let _ = unnest_expr.datatype(bind_context.get_table_list())?;
+                        let _ = unnest_expr.datatype()?;
 
                         Ok(unnest_expr)
                     }
@@ -1156,8 +1097,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     ));
                 }
 
-                let function =
-                    expr::bind_scalar_function(bind_context.get_table_list(), &scalar, inputs)?;
+                let function = expr::bind_scalar_function(&scalar, inputs)?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
@@ -1276,7 +1216,7 @@ impl<'a> BaseExpressionBinder<'a> {
     {
         let datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context.get_table_list()))
+            .map(|expr| expr.datatype())
             .collect::<Result<Vec<_>>>()?;
 
         let func = match function.find_exact(&datatypes) {
@@ -1335,7 +1275,7 @@ impl<'a> BaseExpressionBinder<'a> {
     ) -> Result<Vec<Expression>> {
         let input_datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context.get_table_list()))
+            .map(|expr| expr.datatype())
             .collect::<Result<Vec<_>>>()?;
 
         if scalar.exact_signature(&input_datatypes).is_some() {
@@ -1392,7 +1332,7 @@ impl<'a> BaseExpressionBinder<'a> {
     ) -> Result<Vec<Expression>> {
         let input_datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context.get_table_list()))
+            .map(|expr| expr.datatype())
             .collect::<Result<Vec<_>>>()?;
 
         if agg.exact_signature(&input_datatypes).is_some() {
@@ -1444,7 +1384,7 @@ impl<'a> BaseExpressionBinder<'a> {
     ) -> Result<Vec<Expression>> {
         let input_datatypes = inputs
             .iter()
-            .map(|expr| expr.datatype(bind_context.get_table_list()))
+            .map(|expr| expr.datatype())
             .collect::<Result<Vec<_>>>()?;
 
         if table.exact_signature(&input_datatypes).is_some() {

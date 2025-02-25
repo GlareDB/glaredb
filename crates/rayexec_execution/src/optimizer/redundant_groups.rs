@@ -3,7 +3,7 @@ use std::collections::{BTreeSet, HashMap};
 use rayexec_error::{RayexecError, Result};
 
 use super::OptimizeRule;
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::logical_aggregate::LogicalAggregate;
@@ -12,9 +12,9 @@ use crate::logical::operator::{LogicalNode, LogicalOperator, Node};
 /// Remove redundant groupings in the GROUP BY
 #[derive(Debug, Default)]
 pub struct RemoveRedundantGroups {
-    /// Mapping of column expression to a new expression that should be used
+    /// Mapping of column references to a new expression that should be used
     /// instead.
-    column_expr_map: HashMap<ColumnExpr, Expression>,
+    column_expr_map: HashMap<ColumnReference, Expression>,
 }
 
 impl OptimizeRule for RemoveRedundantGroups {
@@ -47,8 +47,8 @@ struct RemovedExpression {
     /// Index of the expression that this expression is considered a duplicated
     /// of, prior to any deduplication.
     base_original_idx: usize,
-    /// The column expression that we saw to indicate this is a redundant group.
-    column_expr: ColumnExpr,
+    /// The column reference that we saw to indicate this is a redundant group.
+    column_reference: ColumnReference,
 }
 
 impl RemoveRedundantGroups {
@@ -94,10 +94,10 @@ impl RemoveRedundantGroups {
     }
 
     fn apply_updated_exprs(&self, plan: &mut impl LogicalNode) -> Result<()> {
-        fn inner(expr: &mut Expression, replacements: &HashMap<ColumnExpr, Expression>) {
+        fn inner(expr: &mut Expression, replacements: &HashMap<ColumnReference, Expression>) {
             match expr {
                 Expression::Column(col) => {
-                    if let Some(replace_expr) = replacements.get(col) {
+                    if let Some(replace_expr) = replacements.get(&col.reference) {
                         *expr = replace_expr.clone();
                     }
                 }
@@ -140,14 +140,14 @@ impl RemoveRedundantGroups {
         };
 
         // Maps a column expr to the group index.
-        let mut base_col_map: HashMap<ColumnExpr, usize> = HashMap::new();
+        let mut base_col_map: HashMap<ColumnReference, usize> = HashMap::new();
 
         // Find all base columns.
         for (idx, group_expr) in agg.node.group_exprs.iter().enumerate() {
             if let Expression::Column(expr) = group_expr {
                 // Only store one group index per column expr.
-                if !base_col_map.contains_key(expr) {
-                    base_col_map.insert(*expr, idx);
+                if !base_col_map.contains_key(&expr.reference) {
+                    base_col_map.insert(expr.reference, idx);
                 }
             }
         }
@@ -177,7 +177,7 @@ impl RemoveRedundantGroups {
                             expr: group_expr,
                             original_idx: group_idx,
                             base_original_idx: base_group_idx,
-                            column_expr: col_ref,
+                            column_reference: col_ref,
                         });
                         continue;
                     }
@@ -255,15 +255,21 @@ impl RemoveRedundantGroups {
                 continue;
             }
 
+            let retained_reference = ColumnReference {
+                table_scope: group_table,
+                column: retained.new_idx,
+            };
+            let retained_column = ColumnExpr {
+                reference: retained_reference,
+                datatype: bind_context.get_column_type(retained_reference)?,
+            };
+
             self.column_expr_map.insert(
-                ColumnExpr {
+                ColumnReference {
                     table_scope: group_table,
                     column: retained.original_idx,
                 },
-                Expression::Column(ColumnExpr {
-                    table_scope: group_table,
-                    column: retained.new_idx,
-                }),
+                Expression::Column(retained_column),
             );
         }
 
@@ -285,17 +291,21 @@ impl RemoveRedundantGroups {
                     ))
                 })?;
 
-            let updated_col = ColumnExpr {
+            let updated_reference = ColumnReference {
                 table_scope: group_table,
                 column: updated_retained,
+            };
+            let updated_col = ColumnExpr {
+                reference: updated_reference,
+                datatype: bind_context.get_column_type(updated_reference)?,
             };
 
             let expr = removed
                 .expr
-                .replace_column(removed.column_expr, updated_col);
+                .replace_column(removed.column_reference, &updated_col);
 
             self.column_expr_map.insert(
-                ColumnExpr {
+                ColumnReference {
                     table_scope: group_table,
                     column: removed.original_idx,
                 },
