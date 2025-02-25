@@ -89,10 +89,16 @@ impl ExpressionColumnBinder for GroupByColumnBinder<'_> {
     fn bind_from_root_literal(
         &mut self,
         _bind_scope: BindScopeRef,
-        _bind_context: &mut BindContext,
+        bind_context: &mut BindContext,
         literal: &ast::Literal<ResolvedMeta>,
     ) -> Result<Option<Expression>> {
         if let Some(col) = self.select_list.column_by_ordinal(literal)? {
+            let t = bind_context
+                .get_table_list()
+                .get_column(col.table_scope, col.column)
+                .unwrap();
+            println!("(GROUP) ORDINAL BOUND: {t:?}");
+
             return Ok(Some(Expression::Column(col)));
         }
         Ok(None)
@@ -119,6 +125,12 @@ impl ExpressionColumnBinder for GroupByColumnBinder<'_> {
 
         // Try to bind to a user-provided alias.
         if let Some(col) = self.select_list.column_by_user_alias(ident) {
+            let t = bind_context
+                .get_table_list()
+                .get_column(col.table_scope, col.column)
+                .unwrap();
+            println!("(GROUP) ALIAS BOUND: {t:?}");
+
             return Ok(Some(Expression::Column(col)));
         }
 
