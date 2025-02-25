@@ -28,10 +28,11 @@ use cast_expr::CastExpr;
 use column_expr::ColumnExpr;
 use comparison_expr::{ComparisonExpr, ComparisonOperator};
 use conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use fmtutil::IntoDisplayableSlice;
 use grouping_set_expr::GroupingSetExpr;
 use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
-use negate_expr::NegateExpr;
+use negate_expr::{NegateExpr, NegateOperator};
 use rayexec_error::{RayexecError, Result};
 use scalar_function_expr::ScalarFunctionExpr;
 use subquery_expr::SubqueryExpr;
@@ -41,8 +42,9 @@ use window_expr::WindowExpr;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
-use crate::functions::function_set::ScalarFunctionSet;
-use crate::functions::scalar::{FunctionVolatility, ScalarFunction2};
+use crate::functions::function_set::{FunctionInfo, FunctionSet, ScalarFunctionSet};
+use crate::functions::scalar::{FunctionVolatility, PlannedScalarFunction};
+use crate::functions::CastType;
 use crate::logical::binder::table_list::{TableList, TableRef};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -70,10 +72,13 @@ impl Expression {
     ///
     /// The provided table list is used when resolving the return type for a
     /// column expression.
+    // TODO: Ideally we can remove the table list arg, but that would require
+    // some planning rework (specifically around referencing user aliases and
+    // column ordinals in GROUP BY and ORDER BY).
     pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
         Ok(match self {
             Self::Aggregate(expr) => expr.agg.return_type.clone(),
-            Self::Arith(expr) => expr.datatype(table_list)?,
+            Self::Arith(expr) => expr.return_type.clone(),
             Self::Between(_) => DataType::Boolean,
             Self::Case(expr) => expr.datatype(table_list)?,
             Self::Cast(expr) => expr.to.clone(),
@@ -449,86 +454,198 @@ impl Expression {
     }
 }
 
-pub fn add(left: Expression, right: Expression) -> Expression {
-    Expression::Arith(ArithExpr {
+macro_rules! impl_from_expr {
+    ($variant:ident, $expr:ident) => {
+        impl From<$expr> for Expression {
+            fn from(expr: $expr) -> Self {
+                Expression::$variant(expr)
+            }
+        }
+    };
+}
+
+impl_from_expr!(Aggregate, AggregateExpr);
+impl_from_expr!(Arith, ArithExpr);
+impl_from_expr!(Between, BetweenExpr);
+impl_from_expr!(Case, CaseExpr);
+impl_from_expr!(Cast, CastExpr);
+impl_from_expr!(Column, ColumnExpr);
+impl_from_expr!(Comparison, ComparisonExpr);
+impl_from_expr!(Conjunction, ConjunctionExpr);
+impl_from_expr!(Is, IsExpr);
+impl_from_expr!(Literal, LiteralExpr);
+impl_from_expr!(Negate, NegateExpr);
+impl_from_expr!(ScalarFunction, ScalarFunctionExpr);
+impl_from_expr!(Unnest, UnnestExpr);
+impl_from_expr!(Window, WindowExpr);
+
+pub fn compare(
+    table_list: &TableList,
+    op: ComparisonOperator,
+    left: impl Into<Expression>,
+    right: impl Into<Expression>,
+) -> Result<ComparisonExpr> {
+    let (_, [left, right]) = bind_function_signature_fixed(
+        table_list,
+        op.as_scalar_function_set(),
+        [left.into(), right.into()],
+    )?;
+
+    Ok(ComparisonExpr {
+        op,
         left: Box::new(left),
         right: Box::new(right),
-        op: ArithOperator::Add,
     })
 }
 
-pub fn eq(left: Expression, right: Expression) -> Expression {
-    Expression::Comparison(ComparisonExpr {
+pub fn arith(
+    table_list: &TableList,
+    op: ArithOperator,
+    left: impl Into<Expression>,
+    right: impl Into<Expression>,
+) -> Result<ArithExpr> {
+    let (raw, inputs) = bind_function_signature(
+        table_list,
+        op.as_scalar_function_set(),
+        vec![left.into(), right.into()],
+    )?;
+
+    // TODO: Avoid
+    let state = raw.call_bind(table_list, inputs)?;
+    let return_type = state.return_type;
+    let [left, right] = state.inputs.try_into().unwrap();
+
+    Ok(ArithExpr {
+        op,
         left: Box::new(left),
         right: Box::new(right),
-        op: ComparisonOperator::Eq,
+        return_type,
     })
 }
 
-pub fn lt(left: Expression, right: Expression) -> Expression {
-    Expression::Comparison(ComparisonExpr {
-        left: Box::new(left),
-        right: Box::new(right),
-        op: ComparisonOperator::Lt,
+pub fn conjunction(
+    table_list: &TableList,
+    op: ConjunctionOperator,
+    inputs: impl IntoIterator<Item = Expression>,
+) -> Result<ConjunctionExpr> {
+    let (_, inputs) = bind_function_signature(
+        table_list,
+        op.as_scalar_function_set(),
+        inputs.into_iter().collect(),
+    )?;
+
+    Ok(ConjunctionExpr {
+        op,
+        expressions: inputs,
     })
 }
 
-pub fn lt_eq(left: Expression, right: Expression) -> Expression {
-    Expression::Comparison(ComparisonExpr {
-        left: Box::new(left),
-        right: Box::new(right),
-        op: ComparisonOperator::LtEq,
+pub fn negate(
+    table_list: &TableList,
+    op: NegateOperator,
+    input: impl Into<Expression>,
+) -> Result<NegateExpr> {
+    let (_, [input]) =
+        bind_function_signature_fixed(table_list, op.as_scalar_function_set(), [input.into()])?;
+
+    Ok(NegateExpr {
+        op,
+        expr: Box::new(input),
     })
 }
 
-pub fn gt(left: Expression, right: Expression) -> Expression {
-    Expression::Comparison(ComparisonExpr {
-        left: Box::new(left),
-        right: Box::new(right),
-        op: ComparisonOperator::Gt,
-    })
+pub fn add(
+    table_list: &TableList,
+    left: impl Into<Expression>,
+    right: impl Into<Expression>,
+) -> Result<ArithExpr> {
+    arith(table_list, ArithOperator::Add, left, right)
 }
 
-pub fn gt_eq(left: Expression, right: Expression) -> Expression {
-    Expression::Comparison(ComparisonExpr {
-        left: Box::new(left),
-        right: Box::new(right),
-        op: ComparisonOperator::GtEq,
-    })
+pub fn sub(
+    table_list: &TableList,
+    left: impl Into<Expression>,
+    right: impl Into<Expression>,
+) -> Result<ArithExpr> {
+    arith(table_list, ArithOperator::Sub, left, right)
 }
 
-pub fn and(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
-    let mut exprs: Vec<_> = exprs.into_iter().collect();
-    if exprs.is_empty() {
-        return None;
-    }
-
-    // ANDing one expression is the same as just the expression itself.
-    if exprs.len() == 1 {
-        return exprs.pop();
-    }
-
-    Some(Expression::Conjunction(ConjunctionExpr {
-        op: ConjunctionOperator::And,
-        expressions: exprs,
-    }))
+pub fn mul(
+    table_list: &TableList,
+    left: impl Into<Expression>,
+    right: impl Into<Expression>,
+) -> Result<ArithExpr> {
+    arith(table_list, ArithOperator::Mul, left, right)
 }
 
-pub fn or(exprs: impl IntoIterator<Item = Expression>) -> Option<Expression> {
-    let mut exprs: Vec<_> = exprs.into_iter().collect();
-    if exprs.is_empty() {
-        return None;
-    }
+pub fn div(
+    table_list: &TableList,
+    left: impl Into<Expression>,
+    right: impl Into<Expression>,
+) -> Result<ArithExpr> {
+    arith(table_list, ArithOperator::Div, left, right)
+}
 
-    // ORing one expression is the same as just the expression itself.
-    if exprs.len() == 1 {
-        return exprs.pop();
-    }
+pub fn eq(
+    table_list: &TableList,
+    left: impl Into<Expression>,
+    right: impl Into<Expression>,
+) -> Result<ComparisonExpr> {
+    compare(table_list, ComparisonOperator::Eq, left, right)
+}
 
-    Some(Expression::Conjunction(ConjunctionExpr {
-        op: ConjunctionOperator::Or,
-        expressions: exprs,
-    }))
+pub fn not_eq(
+    table_list: &TableList,
+    left: impl Into<Expression>,
+    right: impl Into<Expression>,
+) -> Result<ComparisonExpr> {
+    compare(table_list, ComparisonOperator::NotEq, left, right)
+}
+
+pub fn lt(
+    table_list: &TableList,
+    left: impl Into<Expression>,
+    right: impl Into<Expression>,
+) -> Result<ComparisonExpr> {
+    compare(table_list, ComparisonOperator::Lt, left, right)
+}
+
+pub fn lt_eq(
+    table_list: &TableList,
+    left: impl Into<Expression>,
+    right: impl Into<Expression>,
+) -> Result<ComparisonExpr> {
+    compare(table_list, ComparisonOperator::LtEq, left, right)
+}
+
+pub fn gt(
+    table_list: &TableList,
+    left: impl Into<Expression>,
+    right: impl Into<Expression>,
+) -> Result<ComparisonExpr> {
+    compare(table_list, ComparisonOperator::Gt, left, right)
+}
+
+pub fn gt_eq(
+    table_list: &TableList,
+    left: impl Into<Expression>,
+    right: impl Into<Expression>,
+) -> Result<ComparisonExpr> {
+    compare(table_list, ComparisonOperator::GtEq, left, right)
+}
+
+pub fn and(
+    table_list: &TableList,
+    exprs: impl IntoIterator<Item = Expression>,
+) -> Result<ConjunctionExpr> {
+    conjunction(table_list, ConjunctionOperator::And, exprs)
+}
+
+pub fn or(
+    table_list: &TableList,
+    exprs: impl IntoIterator<Item = Expression>,
+) -> Result<ConjunctionExpr> {
+    conjunction(table_list, ConjunctionOperator::Or, exprs)
 }
 
 pub fn col_ref(table_ref: impl Into<TableRef>, column_idx: usize) -> Expression {
@@ -538,17 +655,17 @@ pub fn col_ref(table_ref: impl Into<TableRef>, column_idx: usize) -> Expression 
     })
 }
 
-pub fn lit(scalar: impl Into<ScalarValue>) -> Expression {
-    Expression::Literal(LiteralExpr {
+pub fn lit(scalar: impl Into<ScalarValue>) -> LiteralExpr {
+    LiteralExpr {
         literal: scalar.into(),
-    })
+    }
 }
 
-pub fn cast(expr: Expression, to: DataType) -> Expression {
-    Expression::Cast(CastExpr {
+pub fn cast(expr: Expression, to: DataType) -> CastExpr {
+    CastExpr {
         to,
         expr: Box::new(expr),
-    })
+    }
 }
 
 impl fmt::Display for Expression {
@@ -593,35 +710,166 @@ pub trait AsScalarFunctionSet {
     fn as_scalar_function_set(&self) -> &ScalarFunctionSet;
 }
 
+/// Binds a scalar function with the given inputs.
+///
+/// This will cast the inputs as needed.
+pub fn bind_scalar_function(
+    table_list: &TableList,
+    function: &ScalarFunctionSet,
+    inputs: Vec<Expression>,
+) -> Result<PlannedScalarFunction> {
+    let (func, inputs) = bind_function_signature(table_list, function, inputs)?;
+    let bind_state = func.call_bind(table_list, inputs)?;
+
+    Ok(PlannedScalarFunction {
+        name: function.name,
+        raw: func,
+        state: bind_state,
+    })
+}
+
+/// Convenience function for working with fixed sized inputs.
+pub(crate) fn bind_function_signature_fixed<F, const N: usize>(
+    table_list: &TableList,
+    function: &FunctionSet<F>,
+    inputs: [Expression; N],
+) -> Result<(F, [Expression; N])>
+where
+    F: FunctionInfo,
+{
+    let (f, inputs) = bind_function_signature(table_list, function, inputs.to_vec())?;
+    let inputs = inputs
+        .try_into()
+        .map_err(|_| RayexecError::new("failed to convert to array"))?;
+    Ok((f, inputs))
+}
+
+/// Find the the best function to use from the function based on signature,
+/// returning the raw function and possibly updated expressions.
+///
+/// If the there isn't an exact match, but a candidate exists, casts will be
+/// applied to match the closest signature.
+pub(crate) fn bind_function_signature<F>(
+    table_list: &TableList,
+    function: &FunctionSet<F>,
+    mut inputs: Vec<Expression>,
+) -> Result<(F, Vec<Expression>)>
+where
+    F: FunctionInfo,
+{
+    let datatypes = inputs
+        .iter()
+        .map(|expr| expr.datatype(table_list))
+        .collect::<Result<Vec<_>>>()?;
+
+    let func = match function.find_exact(&datatypes) {
+        Some(func) => func,
+        None => {
+            // No exact, try to see if there's candidate.
+            let mut candidates = function.candidates(&datatypes);
+
+            if candidates.is_empty() {
+                // TODO: Better error.
+                return Err(RayexecError::new(format!(
+                    "Invalid inputs to '{}': {}",
+                    function.name,
+                    datatypes.display_with_brackets(),
+                )));
+            }
+
+            // TODO: Maybe more sophisticated candidate selection.
+            //
+            // We should do some lightweight const folding and prefer candidates
+            // that cast the consts over ones that need array inputs to be
+            // casted.
+            let candidate = candidates.swap_remove(0);
+
+            // Apply casts where needed.
+            inputs = inputs
+                .into_iter()
+                .zip(candidate.casts)
+                .map(|(input, cast_to)| {
+                    Ok(match cast_to {
+                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
+                            to: DataType::try_default_datatype(to)?, // TODO: Still want this?
+                            expr: Box::new(input),
+                        }),
+                        CastType::NoCastNeeded => input,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            function
+                .get(candidate.signature_idx)
+                .expect("candidate to return value index")
+        }
+    };
+
+    // TODO: Further refine the types (e.g. aligning precision/scale for
+    // decimals).
+
+    Ok((*func, inputs))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn get_column_refs_simple() {
-        let expr = and([
-            col_ref(0, 0),
-            col_ref(0, 1),
-            or([col_ref(1, 8), col_ref(2, 4)]).unwrap(),
-        ])
-        .unwrap();
+        let mut list = TableList::empty();
+        let t0 = list
+            .push_table(
+                None,
+                vec![DataType::Int64, DataType::Int64],
+                vec!["c1".to_string(), "c2".to_string()],
+            )
+            .unwrap();
+        let t1 = list
+            .push_table(
+                None,
+                vec![
+                    DataType::Int64,
+                    DataType::Int64,
+                    DataType::Int64,
+                    DataType::Int64,
+                ],
+                vec![
+                    "c1".to_string(),
+                    "c2".to_string(),
+                    "c3".to_string(),
+                    "c4".to_string(),
+                ],
+            )
+            .unwrap();
+
+        let expr: Expression = and(
+            &list,
+            [
+                col_ref(t0, 0).into(),
+                col_ref(t0, 1).into(),
+                or(&list, [col_ref(t1, 4), col_ref(t1, 2)]).unwrap().into(),
+            ],
+        )
+        .unwrap()
+        .into();
 
         let expected = vec![
             ColumnExpr {
-                table_scope: 0.into(),
+                table_scope: t0,
                 column: 0,
             },
             ColumnExpr {
-                table_scope: 0.into(),
+                table_scope: t0,
                 column: 1,
             },
             ColumnExpr {
-                table_scope: 1.into(),
-                column: 8,
+                table_scope: t1,
+                column: 4,
             },
             ColumnExpr {
-                table_scope: 2.into(),
-                column: 4,
+                table_scope: t1,
+                column: 2,
             },
         ];
 
@@ -631,20 +879,38 @@ mod tests {
 
     #[test]
     fn is_const_foldable() {
-        let expr = and([
-            gt_eq(add(lit(4), lit(8)), lit(12)), // ((4 + 8) >= 12)
-            lit(false),
-        ])
-        .unwrap();
+        let empty = TableList::empty();
+        let expr: Expression = and(
+            &empty,
+            [
+                gt_eq(&empty, add(&empty, lit(4), lit(8)).unwrap(), lit(12))
+                    .unwrap()
+                    .into(), // ((4 + 8) >= 12)
+                lit(false).into(),
+            ],
+        )
+        .unwrap()
+        .into();
 
         let is_foldable = expr.is_const_foldable();
         assert!(is_foldable);
 
-        let expr = and([
-            gt_eq(add(lit(4), lit(8)), col_ref(1, 1)), // ((4 + 8) >= #column)
-            lit(false),
-        ])
-        .unwrap();
+        let mut list = TableList::empty();
+        let t0 = list
+            .push_table(None, vec![DataType::Int32], vec!["c1".to_string()])
+            .unwrap();
+
+        let expr: Expression = and(
+            &list,
+            [
+                gt_eq(&list, add(&list, lit(4), lit(8)).unwrap(), col_ref(t0, 0))
+                    .unwrap()
+                    .into(), // ((4 + 8) >= #column)
+                lit(false).into(),
+            ],
+        )
+        .unwrap()
+        .into();
 
         let is_foldable = expr.is_const_foldable();
         assert!(!is_foldable);
@@ -652,16 +918,27 @@ mod tests {
 
     #[test]
     fn is_const_foldable_fixed() {
-        let expr = and([
-            gt_eq(add(lit(4), lit(8)), col_ref(1, 1)), // ((4 + 8) >= #column)
-            lit(false),
-        ])
-        .unwrap();
+        let mut list = TableList::empty();
+        let t0 = list
+            .push_table(None, vec![DataType::Int32], vec!["c1".to_string()])
+            .unwrap();
 
-        let is_foldable = expr.is_const_foldable_with_fixed_column(&ColumnExpr::new(0, 1));
-        assert!(!is_foldable);
+        let expr: Expression = and(
+            &list,
+            [
+                gt_eq(&list, add(&list, lit(4), lit(8)).unwrap(), col_ref(t0, 0))
+                    .unwrap()
+                    .into(), // ((4 + 8) >= #column)
+                lit(false).into(),
+            ],
+        )
+        .unwrap()
+        .into();
 
-        let is_foldable = expr.is_const_foldable_with_fixed_column(&ColumnExpr::new(1, 1));
+        let is_foldable = expr.is_const_foldable_with_fixed_column(&ColumnExpr::new(t0, 0));
         assert!(is_foldable);
+
+        let is_foldable = expr.is_const_foldable_with_fixed_column(&ColumnExpr::new(12, 1));
+        assert!(!is_foldable);
     }
 }

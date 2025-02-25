@@ -108,12 +108,18 @@ impl TableList {
             .ok_or_else(|| RayexecError::new(format!("Missing table in table list: {table_ref}")))
     }
 
-    pub fn push_table(
+    pub fn push_table<S>(
         &mut self,
         alias: Option<TableAlias>,
-        column_types: Vec<DataType>,
-        column_names: Vec<String>,
-    ) -> Result<TableRef> {
+        column_types: impl IntoIterator<Item = DataType>,
+        column_names: impl IntoIterator<Item = S>,
+    ) -> Result<TableRef>
+    where
+        S: Into<String>,
+    {
+        let column_types: Vec<_> = column_types.into_iter().collect();
+        let column_names: Vec<_> = column_names.into_iter().map(|s| s.into()).collect();
+
         if column_types.len() != column_names.len() {
             return Err(
                 RayexecError::new("Column names and types have different lengths")

@@ -18,7 +18,7 @@ use crate::logical::operator::LocationRequirement;
 use crate::proto::DatabaseProtoConv;
 
 /// Context containing resolved database objects.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ResolveContext {
     /// A resolved table may reference either an actual table, or a CTE. An
     /// unresolved reference may only reference a table.

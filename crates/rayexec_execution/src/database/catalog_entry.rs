@@ -65,6 +65,7 @@ impl ProtoConv for CatalogEntryType {
     }
 }
 
+/// Describe a single entry in the catalog.
 #[derive(Debug)]
 pub struct CatalogEntry {
     pub oid: u32,

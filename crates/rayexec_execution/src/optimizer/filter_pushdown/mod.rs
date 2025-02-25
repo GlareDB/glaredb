@@ -107,8 +107,11 @@ impl FilterPushdown {
             return Ok(plan);
         }
 
-        let filter = expr::and(self.drain_filters().map(|ex| ex.filter))
-            .expect("expression to be created from non-empty iter");
+        let filter = expr::and(
+            bind_context.get_table_list(),
+            self.drain_filters().map(|ex| ex.filter),
+        )?
+        .into();
 
         Ok(LogicalOperator::Filter(Node {
             node: LogicalFilter { filter },
@@ -458,8 +461,7 @@ impl FilterPushdown {
             JoinType::Inner => {
                 // Convert to cross join, push down on cross join.
                 for cond in plan.node.conditions {
-                    let expr = cond.into_expression();
-                    self.add_filters([expr]);
+                    self.add_filters([Expression::Comparison(cond)]);
                 }
 
                 let plan = Node {
@@ -613,6 +615,7 @@ impl FilterPushdown {
         //
         // This will handle creating the join + filter if needed.
         FromPlanner.plan_join_from_conditions(
+            bind_context.get_table_list(),
             JoinType::Inner,
             conditions.comparisons,
             conditions.arbitrary,

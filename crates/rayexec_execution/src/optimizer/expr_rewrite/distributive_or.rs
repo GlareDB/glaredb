@@ -172,72 +172,133 @@ mod tests {
 
     #[test]
     fn distribute_none() {
+        let table_list = TableList::empty();
         // '(0 AND 1) OR (2 AND 3)'
-        let expr = or([
-            and([lit(0), lit(1)]).unwrap(),
-            and([lit(2), lit(3)]).unwrap(),
-        ])
+        let expr = or(
+            &table_list,
+            [
+                and(&table_list, [lit(0).into(), lit(1).into()])
+                    .unwrap()
+                    .into(),
+                and(&table_list, [lit(2).into(), lit(3).into()])
+                    .unwrap()
+                    .into(),
+            ],
+        )
         .unwrap();
 
         // No changes.
-        let expected = or([
-            and([lit(0), lit(1)]).unwrap(),
-            and([lit(2), lit(3)]).unwrap(),
-        ])
-        .unwrap();
+        let expected: Expression = or(
+            &table_list,
+            [
+                and(&table_list, [lit(0).into(), lit(1).into()])
+                    .unwrap()
+                    .into(),
+                and(&table_list, [lit(2).into(), lit(3).into()])
+                    .unwrap()
+                    .into(),
+            ],
+        )
+        .unwrap()
+        .into();
 
-        let table_list = TableList::empty();
-        let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();
+        let got = DistributiveOrRewrite::rewrite(&table_list, expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn distribute_eliminate_redundant_or() {
+        let table_list = TableList::empty();
         // '(0 AND 1) OR (0 AND 1)' => '(0 AND 1)'
-        let expr = or([
-            and([lit(0), lit(1)]).unwrap(),
-            and([lit(0), lit(1)]).unwrap(),
-        ])
+        let expr = or(
+            &table_list,
+            [
+                and(&table_list, [lit(0).into(), lit(1).into()])
+                    .unwrap()
+                    .into(),
+                and(&table_list, [lit(0).into(), lit(1).into()])
+                    .unwrap()
+                    .into(),
+            ],
+        )
         .unwrap();
 
-        let expected = and([lit(0), lit(1)]).unwrap();
+        let expected: Expression = and(&table_list, [lit(0).into(), lit(1).into()])
+            .unwrap()
+            .into();
 
-        let table_list = TableList::empty();
-        let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();
+        let got = DistributiveOrRewrite::rewrite(&table_list, expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn distribute_eliminate_or_with_single_remaining() {
+        let table_list = TableList::empty();
         // '(0) OR (0 AND 1)' => '(0 AND 1)'
-        let expr = or([lit(0), and([lit(0), lit(1)]).unwrap()]).unwrap();
+        let expr = or(
+            &table_list,
+            [
+                lit(0).into(),
+                and(&table_list, [lit(0).into(), lit(1).into()])
+                    .unwrap()
+                    .into(),
+            ],
+        )
+        .unwrap();
 
-        let expected = and([lit(0), lit(1)]).unwrap();
+        let expected: Expression = and(&table_list, [lit(0).into(), lit(1).into()])
+            .unwrap()
+            .into();
 
         let table_list = TableList::empty();
-        let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();
+        let got = DistributiveOrRewrite::rewrite(&table_list, expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn distribute_or_keep_inner_and() {
+        let table_list = TableList::empty();
         // '(0 AND 1 AND 2 AND 3) OR (0 AND 4)
         // =>
         // '((0) AND ((1 AND 2 AND 3) OR (4))'
-        let expr = or([
-            and([lit(0), lit(1), lit(2), lit(3)]).unwrap(),
-            and([lit(0), lit(4)]).unwrap(),
-        ])
+        let expr = or(
+            &table_list,
+            [
+                and(
+                    &table_list,
+                    [lit(0).into(), lit(1).into(), lit(2).into(), lit(3).into()],
+                )
+                .unwrap()
+                .into(),
+                and(&table_list, [lit(0).into(), lit(4).into()])
+                    .unwrap()
+                    .into(),
+            ],
+        )
         .unwrap();
 
-        let expected = and([
-            lit(0),
-            or([and([lit(1), lit(2), lit(3)]).unwrap(), lit(4)]).unwrap(),
-        ])
-        .unwrap();
+        let expected: Expression = and(
+            &table_list,
+            [
+                lit(0).into(),
+                or(
+                    &table_list,
+                    [
+                        and(&table_list, [lit(1).into(), lit(2).into(), lit(3).into()])
+                            .unwrap()
+                            .into(),
+                        lit(4).into(),
+                    ],
+                )
+                .unwrap()
+                .into(),
+            ],
+        )
+        .unwrap()
+        .into();
 
         let table_list = TableList::empty();
-        let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();
+        let got = DistributiveOrRewrite::rewrite(&table_list, expr.into()).unwrap();
         assert_eq!(expected, got, "expected: {expected:#?}\n, got: {got:#?}");
     }
 }

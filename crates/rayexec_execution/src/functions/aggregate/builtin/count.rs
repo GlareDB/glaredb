@@ -47,7 +47,7 @@ impl Count {
         PlannedAggregateFunction {
             function: Box::new(*self),
             return_type: DataType::Int64,
-            inputs: vec![expr::lit(true)],
+            inputs: vec![expr::lit(true).into()],
             function_impl: create_impl::<PhysicalBool>(),
         }
     }

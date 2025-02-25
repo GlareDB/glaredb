@@ -13,7 +13,7 @@ use crate::functions::scalar::builtin::arith::{
     FUNCTION_SET_REM,
     FUNCTION_SET_SUB,
 };
-use crate::functions::scalar::ScalarFunction2;
+use crate::functions::scalar::PlannedScalarFunction;
 use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -51,23 +51,10 @@ impl fmt::Display for ArithOperator {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArithExpr {
+    pub op: ArithOperator,
     pub left: Box<Expression>,
     pub right: Box<Expression>,
-    pub op: ArithOperator,
-}
-
-impl ArithExpr {
-    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
-        // TODO: Be more efficient here.
-        Ok(self
-            .op
-            .as_scalar_function()
-            .plan(
-                table_list,
-                vec![self.left.as_ref().clone(), self.right.as_ref().clone()],
-            )?
-            .return_type)
-    }
+    pub return_type: DataType,
 }
 
 impl ContextDisplay for ArithExpr {

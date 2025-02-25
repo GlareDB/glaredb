@@ -74,6 +74,16 @@ pub struct ComparisonExpr {
     pub op: ComparisonOperator,
 }
 
+impl ComparisonExpr {
+    /// Flips the sides of the expression, including flipping the operatator.
+    ///
+    /// E.g. 'a >= b' becomes 'b <= a'
+    pub fn flip_sides(&mut self) {
+        self.op = self.op.flip();
+        std::mem::swap(&mut self.left, &mut self.right);
+    }
+}
+
 impl ContextDisplay for ComparisonExpr {
     fn fmt_using_context(
         &self,

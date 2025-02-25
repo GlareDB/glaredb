@@ -15,7 +15,7 @@ use crate::functions::table::PlannedTableFunction;
 
 // TODO: Probably remove view from this.
 // Maybe just split it all up.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum ScanSource {
     Table {
         catalog: String,
@@ -33,6 +33,42 @@ pub enum ScanSource {
         schema: String,
         source: Arc<CatalogEntry>,
     },
+}
+
+// TODO: Remove...
+impl PartialEq for ScanSource {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Table {
+                    catalog: catalog_a,
+                    schema: schema_a,
+                    source: source_a,
+                },
+                Self::Table {
+                    catalog: catalog_b,
+                    schema: schema_b,
+                    source: source_b,
+                },
+            ) => catalog_a == catalog_b && schema_a == schema_b && source_a.name == source_b.name,
+            (Self::TableFunction { function: a }, Self::TableFunction { function: b }) => a == b,
+            (Self::ExpressionList { rows: a }, Self::ExpressionList { rows: b }) => a == b,
+            (
+                Self::View {
+                    catalog: catalog_a,
+                    schema: schema_a,
+                    source: source_a,
+                },
+                Self::View {
+                    catalog: catalog_b,
+                    schema: schema_b,
+                    source: source_b,
+                },
+            ) => catalog_a == catalog_b && schema_a == schema_b && source_a.name == source_b.name,
+
+            _ => false,
+        }
+    }
 }
 
 impl ScanSource {

@@ -338,6 +338,7 @@ mod tests {
     use super::*;
     use crate::arrays::batch::Batch;
     use crate::expr;
+    use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
     use crate::testutil::exprs::plan_scalar;
     use crate::testutil::operator::OperatorWrapper;
@@ -389,9 +390,14 @@ mod tests {
     #[test]
     fn inner_join_single_build_batch_single_partition() {
         // left[1] == right[0]
+        let mut list = TableList::empty();
+        let t0 = list
+            .push_table(None, [DataType::Int32, DataType::Utf8], ["l1", "l2"])
+            .unwrap();
+        let t1 = list.push_table(None, [DataType::Utf8], ["r1"]).unwrap();
         let filter = plan_scalar(
-            &expr::eq(expr::col_ref(0, 1), expr::col_ref(1, 0)),
-            &[&[DataType::Int32, DataType::Utf8], &[DataType::Utf8]],
+            &list,
+            expr::eq(&list, expr::col_ref(t0, 1), expr::col_ref(t1, 0)).unwrap(),
         );
         let mut operator = OperatorWrapper::new(PhysicalNestedLoopJoin::new(
             JoinType::Inner,

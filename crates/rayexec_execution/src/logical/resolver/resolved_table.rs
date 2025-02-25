@@ -9,7 +9,7 @@ use crate::database::{AttachInfo, DatabaseContext};
 use crate::proto::DatabaseProtoConv;
 
 /// Table or CTE found in the FROM clause.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum ResolvedTableOrCteReference {
     /// Resolved table.
     Table(ResolvedTableReference),
@@ -20,7 +20,7 @@ pub enum ResolvedTableOrCteReference {
     Cte(String),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct ResolvedTableReference {
     pub catalog: String,
     pub schema: String,

@@ -12,10 +12,11 @@ use super::filter_pushdown::extracted_filter::ExtractedFilter;
 use super::filter_pushdown::split::split_conjunction;
 use super::OptimizeRule;
 use crate::expr::column_expr::ColumnExpr;
+use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
-use crate::logical::logical_join::{ComparisonCondition, JoinType};
+use crate::logical::logical_join::JoinType;
 use crate::logical::operator::{LogicalNode, LogicalOperator};
 
 /// Reorders joins in the plan.
@@ -38,12 +39,8 @@ impl OptimizeRule for JoinReorder {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ReorderableCondition {
-    Inner {
-        condition: ComparisonCondition,
-    },
-    Semi {
-        conditions: Vec<ComparisonCondition>,
-    },
+    Inner { condition: ComparisonExpr },
+    Semi { conditions: Vec<ComparisonExpr> },
 }
 
 impl ReorderableCondition {

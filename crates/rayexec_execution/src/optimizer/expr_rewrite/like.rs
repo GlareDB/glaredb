@@ -39,7 +39,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                     if can_str_compare(&pattern) {
                         *expr = Expression::Comparison(ComparisonExpr {
                             left: Box::new(scalar.function.state.inputs[0].clone()),
-                            right: Box::new(expr::lit(pattern)),
+                            right: Box::new(expr::lit(pattern).into()),
                             op: ComparisonOperator::Eq,
                         });
 
@@ -48,8 +48,10 @@ impl ExpressionRewriteRule for LikeRewrite {
                         // LIKE -> STARTS_WITH
 
                         let pattern = pattern.trim_matches('%').to_string();
-                        let inputs =
-                            vec![scalar.function.state.inputs[0].clone(), expr::lit(pattern)];
+                        let inputs = vec![
+                            scalar.function.state.inputs[0].clone(),
+                            expr::lit(pattern).into(),
+                        ];
 
                         let func = FUNCTION_SET_STARTS_WITH
                             .find_exact(&[DataType::Utf8, DataType::Utf8])
@@ -70,8 +72,10 @@ impl ExpressionRewriteRule for LikeRewrite {
                         // LIKE -> ENDS_WITH
 
                         let pattern = pattern.trim_matches('%').to_string();
-                        let inputs =
-                            vec![scalar.function.state.inputs[0].clone(), expr::lit(pattern)];
+                        let inputs = vec![
+                            scalar.function.state.inputs[0].clone(),
+                            expr::lit(pattern).into(),
+                        ];
 
                         let func = FUNCTION_SET_ENDS_WITH
                             .find_exact(&[DataType::Utf8, DataType::Utf8])
@@ -92,8 +96,10 @@ impl ExpressionRewriteRule for LikeRewrite {
                         // LIKE -> CONTAINS
 
                         let pattern = pattern.trim_matches('%').to_string();
-                        let inputs =
-                            vec![scalar.function.state.inputs[0].clone(), expr::lit(pattern)];
+                        let inputs = vec![
+                            scalar.function.state.inputs[0].clone(),
+                            expr::lit(pattern).into(),
+                        ];
 
                         let func = FUNCTION_SET_CONTAINS
                             .find_exact(&[DataType::Utf8, DataType::Utf8])

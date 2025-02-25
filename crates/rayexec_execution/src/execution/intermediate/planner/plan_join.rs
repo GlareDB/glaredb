@@ -1,9 +1,9 @@
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
-use crate::expr;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
+use crate::expr::{self, Expression};
 use crate::logical::logical_join::{
     JoinType,
     LogicalArbitraryJoin,
@@ -140,19 +140,17 @@ impl IntermediatePipelineBuildState<'_> {
             let table_refs = join.get_output_table_refs(self.bind_context);
             let [left, right] = join.take_two_children_exact()?;
 
-            let condition = expr::and(
-                join.node
-                    .conditions
-                    .into_iter()
-                    .map(|cond| cond.into_expression()),
-            );
+            let condition = if join.node.conditions.is_empty() {
+                None
+            } else {
+                let condition: Expression = expr::and(
+                    self.bind_context.get_table_list(),
+                    join.node.conditions.into_iter().map(Expression::Comparison),
+                )?
+                .into();
+                let condition = self.expr_planner.plan_scalar(&table_refs, &condition)?;
 
-            let condition = match condition {
-                Some(cond) => {
-                    let cond = self.expr_planner.plan_scalar(&table_refs, &cond)?;
-                    Some(cond)
-                }
-                None => None,
+                Some(condition)
             };
 
             self.push_nl_join(

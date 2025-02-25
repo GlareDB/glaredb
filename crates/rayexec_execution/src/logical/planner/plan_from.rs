@@ -10,11 +10,11 @@ use crate::expr::{self, Expression};
 use crate::functions::table::TableFunctionImpl;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin};
+use crate::logical::binder::table_list::TableList;
 use crate::logical::logical_empty::LogicalEmpty;
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_inout::LogicalInOut;
 use crate::logical::logical_join::{
-    ComparisonCondition,
     JoinType,
     LogicalArbitraryJoin,
     LogicalComparisonJoin,
@@ -248,7 +248,7 @@ impl FromPlanner {
         if !extracted.left_filter.is_empty() {
             left = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: expr::and(extracted.left_filter).expect("at least one expression"),
+                    filter: expr::and(bind_context.get_table_list(), extracted.left_filter)?.into(),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left],
@@ -259,7 +259,8 @@ impl FromPlanner {
         if !extracted.right_filter.is_empty() {
             right = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: expr::and(extracted.right_filter).expect("at least one expression"),
+                    filter: expr::and(bind_context.get_table_list(), extracted.right_filter)?
+                        .into(),
                 },
                 location: LocationRequirement::Any,
                 children: vec![right],
@@ -290,6 +291,7 @@ impl FromPlanner {
 
         // Normal join planning.
         self.plan_join_from_conditions(
+            bind_context.get_table_list(),
             join.join_type,
             extracted.comparisons,
             extracted.arbitrary,
@@ -300,8 +302,9 @@ impl FromPlanner {
 
     pub fn plan_join_from_conditions(
         &self,
+        table_list: &TableList,
         join_type: JoinType,
-        comparisons: Vec<ComparisonCondition>,
+        comparisons: Vec<ComparisonExpr>,
         arbitrary: Vec<Expression>,
         left: LogicalOperator,
         right: LogicalOperator,
@@ -316,11 +319,7 @@ impl FromPlanner {
         if use_arbitrary_join {
             let mut expressions = arbitrary;
             for condition in comparisons {
-                expressions.push(Expression::Comparison(ComparisonExpr {
-                    left: Box::new(condition.left),
-                    right: Box::new(condition.right),
-                    op: condition.op,
-                }));
+                expressions.push(Expression::Comparison(condition));
             }
 
             // Possible if we were able to push filters to left/right
@@ -334,7 +333,7 @@ impl FromPlanner {
             return Ok(LogicalOperator::ArbitraryJoin(Node {
                 node: LogicalArbitraryJoin {
                     join_type,
-                    condition: expr::and(expressions).expect("at least one expression"),
+                    condition: expr::and(table_list, expressions)?.into(),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left, right],
@@ -357,7 +356,7 @@ impl FromPlanner {
         if !arbitrary.is_empty() {
             plan = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: expr::and(arbitrary).expect("at least one expression"),
+                    filter: expr::and(table_list, arbitrary)?.into(),
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],

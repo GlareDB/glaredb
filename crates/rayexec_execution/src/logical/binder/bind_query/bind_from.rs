@@ -8,8 +8,8 @@ use super::{BoundQuery, QueryBinder};
 use crate::arrays::datatype::DataType;
 use crate::database::catalog_entry::CatalogEntry;
 use crate::expr::column_expr::ColumnExpr;
-use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
-use crate::expr::Expression;
+use crate::expr::comparison_expr::ComparisonOperator;
+use crate::expr::{self, Expression};
 use crate::functions::table::{PlannedTableFunction, TableFunctionPlanner};
 use crate::logical::binder::bind_context::{
     BindContext,
@@ -46,7 +46,8 @@ pub enum BoundFromItem {
     Empty,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// References a table in the catalog.
+#[derive(Debug, Clone)]
 pub struct BoundBaseTable {
     pub table_ref: TableRef,
     pub location: LocationRequirement,
@@ -54,6 +55,18 @@ pub struct BoundBaseTable {
     pub schema: String,
     pub entry: Arc<CatalogEntry>,
 }
+
+impl PartialEq for BoundBaseTable {
+    fn eq(&self, other: &Self) -> bool {
+        self.table_ref == other.table_ref
+            && self.location == other.location
+            && self.catalog == other.catalog
+            && self.schema == other.schema
+            && self.entry.name == other.entry.name
+    }
+}
+
+impl Eq for BoundBaseTable {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundTableFunction {
@@ -658,27 +671,20 @@ impl<'a> FromBinder<'a> {
             }
 
             // Generate additional equality condition.
-            // TODO: Probably make this a method on the expr binder. Easy to miss the cast.
-            let [left, right] = condition_binder.apply_cast_for_operator(
-                bind_context,
+            let condition = expr::compare(
+                bind_context.get_table_list(),
                 ComparisonOperator::Eq,
-                [
-                    Expression::Column(ColumnExpr {
-                        table_scope: left_table,
-                        column: left_col_idx,
-                    }),
-                    Expression::Column(ColumnExpr {
-                        table_scope: right_table,
-                        column: right_col_idx,
-                    }),
-                ],
+                Expression::Column(ColumnExpr {
+                    table_scope: left_table,
+                    column: left_col_idx,
+                }),
+                Expression::Column(ColumnExpr {
+                    table_scope: right_table,
+                    column: right_col_idx,
+                }),
             )?;
 
-            conditions.push(Expression::Comparison(ComparisonExpr {
-                left: Box::new(left),
-                right: Box::new(right),
-                op: ComparisonOperator::Eq,
-            }))
+            conditions.push(condition.into());
         }
 
         // Remove right columns from scope for semi joins.

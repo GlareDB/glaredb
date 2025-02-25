@@ -23,7 +23,7 @@ pub struct InsertProjections {
     pub projection_table: TableRef,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct BoundInsert {
     /// Source of the insert.
     pub source: BoundQuery,

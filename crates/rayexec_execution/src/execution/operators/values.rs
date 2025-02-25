@@ -202,16 +202,24 @@ mod tests {
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
     use crate::expr;
+    use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
-    use crate::testutil::exprs::plan_scalars;
+    use crate::testutil::exprs::plan_scalar;
     use crate::testutil::operator::OperatorWrapper;
 
     #[test]
     fn values_literal() {
         // `VALUES ('a', 2), ('b', 3)`
+        let list = TableList::empty();
         let expr_rows = vec![
-            plan_scalars(&[expr::lit("a"), expr::lit(2)], &[]),
-            plan_scalars(&[expr::lit("b"), expr::lit(3)], &[]),
+            vec![
+                plan_scalar(&list, expr::lit("a")),
+                plan_scalar(&list, expr::lit(2)),
+            ],
+            vec![
+                plan_scalar(&list, expr::lit("b")),
+                plan_scalar(&list, expr::lit(3)),
+            ],
         ];
 
         let mut wrapper = OperatorWrapper::new(PhysicalValues::new(expr_rows));
@@ -238,9 +246,16 @@ mod tests {
         // Each poll can only handle a single row of expressions.
 
         // `VALUES ('a', 2), ('b', 3)`
+        let list = TableList::empty();
         let expr_rows = vec![
-            plan_scalars(&[expr::lit("a"), expr::lit(2)], &[]),
-            plan_scalars(&[expr::lit("b"), expr::lit(3)], &[]),
+            vec![
+                plan_scalar(&list, expr::lit("a")),
+                plan_scalar(&list, expr::lit(2)),
+            ],
+            vec![
+                plan_scalar(&list, expr::lit("b")),
+                plan_scalar(&list, expr::lit(3)),
+            ],
         ];
 
         let mut wrapper = OperatorWrapper::new(PhysicalValues::new(expr_rows));

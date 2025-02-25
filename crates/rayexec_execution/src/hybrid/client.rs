@@ -37,7 +37,7 @@ pub struct Endpoints {
     pub rpc_hybrid_pull: &'static str,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct HybridPlanRequest {
     /// The sql statement we're planning.
     ///

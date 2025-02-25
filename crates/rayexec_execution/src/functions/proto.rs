@@ -18,22 +18,24 @@ impl DatabaseProtoConv for Box<dyn ScalarFunction2> {
     type ProtoType = rayexec_proto::generated::functions::ScalarFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            name: self.name().to_string(),
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     name: self.name().to_string(),
+        // })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        let tx = &CatalogTx {};
-        let ent = context
-            .system_catalog()?
-            .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
-            .required("lookup schema")?
-            .get_scalar_function(tx, &proto.name)?
-            .required("scalar function")?;
-        let ent = ent.try_as_scalar_function_entry()?;
+        unimplemented!()
+        // let tx = &CatalogTx {};
+        // let ent = context
+        //     .system_catalog()?
+        //     .get_schema(tx, FUNCTION_LOOKUP_CATALOG)?
+        //     .required("lookup schema")?
+        //     .get_scalar_function(tx, &proto.name)?
+        //     .required("scalar function")?;
+        // let ent = ent.try_as_scalar_function_entry()?;
 
-        Ok(ent.function.clone())
+        // Ok(ent.function.clone())
     }
 }
 

@@ -56,7 +56,8 @@ impl OptimizeRule for ExpressionRewriter {
             }
             mut other => {
                 other.for_each_expr_mut(&mut |expr| {
-                    let mut orig = std::mem::replace(expr, expr::lit(83));
+                    // Replace with temp dummy value.
+                    let mut orig = std::mem::replace(expr, expr::lit(83).into());
                     orig = Self::apply_rewrites(table_list, orig)?;
                     *expr = orig;
                     Ok(())

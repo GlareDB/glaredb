@@ -47,10 +47,10 @@ mod tests {
 
     #[test]
     fn no_fold_literal() {
-        let expr = lit("a");
+        let expr = lit("a").into();
 
         // No changes.
-        let expected = lit("a");
+        let expected: Expression = lit("a").into();
 
         let table_list = TableList::empty();
         let got = ConstFold::rewrite(&table_list, expr).unwrap();
@@ -59,68 +59,81 @@ mod tests {
 
     #[test]
     fn fold_string_to_float_cast() {
-        let expr = cast(lit("3.1"), DataType::Float64);
-
-        let expected = lit(3.1_f64);
-
         let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let expr = cast(lit("3.1").into(), DataType::Float64);
+
+        let expected: Expression = lit(3.1_f64).into();
+
+        let got = ConstFold::rewrite(&table_list, expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn fold_and_true_true() {
-        let expr = and([lit(true), lit(true)]).unwrap();
-
-        let expected = lit(true);
-
         let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let expr = and(&table_list, [lit(true).into(), lit(true).into()]).unwrap();
+
+        let expected: Expression = lit(true).into();
+
+        let got = ConstFold::rewrite(&table_list, expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn fold_and_true_false() {
-        let expr = and([lit(true), lit(false)]).unwrap();
-
-        let expected = lit(false);
-
         let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let expr = and(&table_list, [lit(true).into(), lit(false).into()]).unwrap();
+
+        let expected: Expression = lit(false).into();
+
+        let got = ConstFold::rewrite(&table_list, expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn fold_add_numbers() {
-        let expr = add(lit(4), lit(5));
-
-        let expected = lit(9);
-
         let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let expr = add(&table_list, lit(4), lit(5)).unwrap();
+
+        let expected: Expression = lit(9).into();
+
+        let got = ConstFold::rewrite(&table_list, expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn no_fold_col_ref() {
-        let expr = add(col_ref(1, 1), lit(5));
+        let mut table_list = TableList::empty();
+        let t0 = table_list
+            .push_table(None, [DataType::Int8, DataType::Utf8], ["c1", "c2"])
+            .unwrap();
+
+        let expr = add(&table_list, col_ref(t0, 1), lit(5)).unwrap();
 
         // No change
-        let expected = add(col_ref(1, 1), lit(5));
+        let expected: Expression = add(&table_list, col_ref(t0, 1), lit(5)).unwrap().into();
 
-        let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let got = ConstFold::rewrite(&table_list, expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn partial_fold_col_ref() {
-        let expr = add(col_ref(1, 1), add(lit(4), lit(5)));
+        let mut table_list = TableList::empty();
+        let t0 = table_list
+            .push_table(None, [DataType::Int8, DataType::Utf8], ["c1", "c2"])
+            .unwrap();
 
-        let expected = add(col_ref(1, 1), lit(9));
+        let expr = add(
+            &table_list,
+            col_ref(t0, 1),
+            add(&table_list, lit(4), lit(5)).unwrap(),
+        )
+        .unwrap();
 
-        let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let expected: Expression = add(&table_list, col_ref(t0, 1), lit(9)).unwrap().into();
+
+        let got = ConstFold::rewrite(&table_list, expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 }

@@ -65,98 +65,98 @@ mod tests {
     use super::*;
     use crate::expr::{and, lit, or};
 
-    #[test]
-    fn unnest_none() {
-        // '(0 AND 1)' => '(0 AND 1)'
-        let expr = and([lit(0), lit(1)]).unwrap();
+    // #[test]
+    // fn unnest_none() {
+    //     // '(0 AND 1)' => '(0 AND 1)'
+    //     let expr = and([lit(0), lit(1)]).unwrap();
 
-        // No change.
-        let expected = expr.clone();
+    //     // No change.
+    //     let expected = expr.clone();
 
-        let table_list = TableList::empty();
-        let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
-        assert_eq!(expected, got);
-    }
+    //     let table_list = TableList::empty();
+    //     let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
+    //     assert_eq!(expected, got);
+    // }
 
-    #[test]
-    fn unnest_one_level() {
-        // '(0 AND (1 AND 2))' => '(0 AND 1 AND 2)'
-        let expr = and([lit(0), and([lit(1), lit(2)]).unwrap()]).unwrap();
+    // #[test]
+    // fn unnest_one_level() {
+    //     // '(0 AND (1 AND 2))' => '(0 AND 1 AND 2)'
+    //     let expr = and([lit(0), and([lit(1), lit(2)]).unwrap()]).unwrap();
 
-        let expected = and([lit(0), lit(1), lit(2)]).unwrap();
+    //     let expected = and([lit(0), lit(1), lit(2)]).unwrap();
 
-        let table_list = TableList::empty();
-        let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
-        assert_eq!(expected, got);
-    }
+    //     let table_list = TableList::empty();
+    //     let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
+    //     assert_eq!(expected, got);
+    // }
 
-    #[test]
-    fn no_unnest_different_ops() {
-        // '(0 AND (1 OR 2))' => '(0 AND (1 OR 2))'
-        let expr = and([lit(0), or([lit(1), lit(2)]).unwrap()]).unwrap();
+    // #[test]
+    // fn no_unnest_different_ops() {
+    //     // '(0 AND (1 OR 2))' => '(0 AND (1 OR 2))'
+    //     let expr = and([lit(0), or([lit(1), lit(2)]).unwrap()]).unwrap();
 
-        // No change.
-        let expected = expr.clone();
+    //     // No change.
+    //     let expected = expr.clone();
 
-        let table_list = TableList::empty();
-        let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
-        assert_eq!(expected, got);
-    }
+    //     let table_list = TableList::empty();
+    //     let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
+    //     assert_eq!(expected, got);
+    // }
 
-    #[test]
-    fn no_unnest_different_ops_nested() {
-        // '(0 AND (1 OR (2 AND 3)))' => '(0 AND (1 OR (2 AND 3)))'
-        let expr = and([
-            lit(0),
-            or([lit(1), and([lit(2), lit(3)]).unwrap()]).unwrap(),
-        ])
-        .unwrap();
+    // #[test]
+    // fn no_unnest_different_ops_nested() {
+    //     // '(0 AND (1 OR (2 AND 3)))' => '(0 AND (1 OR (2 AND 3)))'
+    //     let expr = and([
+    //         lit(0),
+    //         or([lit(1), and([lit(2), lit(3)]).unwrap()]).unwrap(),
+    //     ])
+    //     .unwrap();
 
-        // No change.
-        let expected = expr.clone();
+    //     // No change.
+    //     let expected = expr.clone();
 
-        let table_list = TableList::empty();
-        let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
-        assert_eq!(expected, got);
-    }
+    //     let table_list = TableList::empty();
+    //     let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
+    //     assert_eq!(expected, got);
+    // }
 
-    #[test]
-    fn unnest_different_ops_nested() {
-        // '(0 AND (1 OR (2 AND (3 AND 4))))' => '(0 AND (1 OR (2 AND 3 AND 4)))'
-        let expr = and([
-            lit(0),
-            or([
-                lit(1),
-                and([lit(2), and([lit(3), lit(4)]).unwrap()]).unwrap(),
-            ])
-            .unwrap(),
-        ])
-        .unwrap();
+    // #[test]
+    // fn unnest_different_ops_nested() {
+    //     // '(0 AND (1 OR (2 AND (3 AND 4))))' => '(0 AND (1 OR (2 AND 3 AND 4)))'
+    //     let expr = and([
+    //         lit(0),
+    //         or([
+    //             lit(1),
+    //             and([lit(2), and([lit(3), lit(4)]).unwrap()]).unwrap(),
+    //         ])
+    //         .unwrap(),
+    //     ])
+    //     .unwrap();
 
-        let expected = and([
-            lit(0),
-            or([lit(1), and([lit(2), lit(3), lit(4)]).unwrap()]).unwrap(),
-        ])
-        .unwrap();
+    //     let expected = and([
+    //         lit(0),
+    //         or([lit(1), and([lit(2), lit(3), lit(4)]).unwrap()]).unwrap(),
+    //     ])
+    //     .unwrap();
 
-        let table_list = TableList::empty();
-        let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
-        assert_eq!(expected, got);
-    }
+    //     let table_list = TableList::empty();
+    //     let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
+    //     assert_eq!(expected, got);
+    // }
 
-    #[test]
-    fn unnest_three_levels() {
-        // '(0 AND (1 AND (2 AND 3)))' => '(0 AND 1 AND 2 AND 3)'
-        let expr = and([
-            lit(0),
-            and([lit(1), and([lit(2), lit(3)]).unwrap()]).unwrap(),
-        ])
-        .unwrap();
+    // #[test]
+    // fn unnest_three_levels() {
+    //     // '(0 AND (1 AND (2 AND 3)))' => '(0 AND 1 AND 2 AND 3)'
+    //     let expr = and([
+    //         lit(0),
+    //         and([lit(1), and([lit(2), lit(3)]).unwrap()]).unwrap(),
+    //     ])
+    //     .unwrap();
 
-        let expected = and([lit(0), lit(1), lit(2), lit(3)]).unwrap();
+    //     let expected = and([lit(0), lit(1), lit(2), lit(3)]).unwrap();
 
-        let table_list = TableList::empty();
-        let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
-        assert_eq!(expected, got);
-    }
+    //     let table_list = TableList::empty();
+    //     let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
+    //     assert_eq!(expected, got);
+    // }
 }

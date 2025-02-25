@@ -3,20 +3,17 @@ use std::collections::{BTreeSet, HashMap};
 use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::datatype::DataType;
-use crate::arrays::scalar::BorrowedScalarValue;
 use crate::expr::aggregate_expr::AggregateExpr;
 use crate::expr::column_expr::ColumnExpr;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
-use crate::expr::literal_expr::LiteralExpr;
-use crate::expr::negate_expr::{NegateExpr, NegateOperator};
+use crate::expr::negate_expr::NegateOperator;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
-use crate::expr::Expression;
+use crate::expr::{self, Expression};
 use crate::functions::aggregate::builtin::count::Count;
 use crate::functions::aggregate::AggregateFunction;
 use crate::logical::binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef};
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_join::{
-    ComparisonCondition,
     JoinType,
     LogicalComparisonJoin,
     LogicalCrossJoin,
@@ -54,7 +51,7 @@ impl SubqueryPlanner {
         left: LogicalOperator,
         mut right: LogicalOperator,
         join_type: JoinType,
-        mut conditions: Vec<ComparisonCondition>,
+        mut conditions: Vec<ComparisonExpr>,
         lateral_columns: Vec<CorrelatedColumn>,
     ) -> Result<LogicalOperator> {
         // Very similar to planning correlated subqueries (becuase it is), just
@@ -89,11 +86,14 @@ impl SubqueryPlanner {
                 ))
             })?;
 
-            conditions.push(ComparisonCondition {
+            let condition = expr::compare(
+                bind_context.get_table_list(),
+                ComparisonOperator::Eq,
                 left,
-                right: Expression::Column(*right),
-                op: ComparisonOperator::Eq,
-            });
+                Expression::Column(*right),
+            )?;
+
+            conditions.push(condition);
         }
 
         // Produce the output join with additional comparison conditions.
@@ -202,10 +202,12 @@ impl SubqueryPlanner {
                 });
 
                 if *negated {
-                    visited_expr = Expression::Negate(NegateExpr {
-                        op: NegateOperator::Not,
-                        expr: Box::new(visited_expr),
-                    })
+                    visited_expr = expr::negate(
+                        bind_context.get_table_list(),
+                        NegateOperator::Not,
+                        visited_expr,
+                    )?
+                    .into();
                 }
 
                 Ok(visited_expr)
@@ -226,11 +228,13 @@ impl SubqueryPlanner {
                     DataType::Boolean,
                 )?;
 
-                conditions.push(ComparisonCondition {
-                    left: expr.as_ref().clone(),
-                    right: right_out,
-                    op: *op,
-                });
+                let condition = expr::compare(
+                    bind_context.get_table_list(),
+                    *op,
+                    expr.as_ref().clone(),
+                    right_out,
+                )?;
+                conditions.push(condition);
 
                 *plan = LogicalOperator::MagicJoin(Node {
                     node: LogicalMagicJoin {
@@ -264,7 +268,7 @@ impl SubqueryPlanner {
         plan: LogicalOperator,
     ) -> Result<(
         [LogicalOperator; 2],
-        Vec<ComparisonCondition>,
+        Vec<ComparisonExpr>,
         MaterializationRef,
     )> {
         let mut subquery_plan =
@@ -323,11 +327,13 @@ impl SubqueryPlanner {
                 ))
             })?;
 
-            conditions.push(ComparisonCondition {
+            let condition = expr::compare(
+                bind_context.get_table_list(),
+                ComparisonOperator::Eq,
                 left,
-                right: Expression::Column(*right),
-                op: ComparisonOperator::Eq,
-            });
+                Expression::Column(*right),
+            )?;
+            conditions.push(condition);
         }
 
         Ok(([left, subquery_plan], conditions, mat_ref))
@@ -409,22 +415,22 @@ impl SubqueryPlanner {
                     DataType::Boolean,
                 )?;
 
+                let cmp_op = if *negated {
+                    ComparisonOperator::NotEq
+                } else {
+                    ComparisonOperator::Eq
+                };
+
+                let projection = expr::compare(
+                    bind_context.get_table_list(),
+                    cmp_op,
+                    expr::col_ref(agg_table, 0),
+                    expr::lit(1_i64),
+                )?;
+
                 let subquery_exists_plan = LogicalOperator::Project(Node {
                     node: LogicalProject {
-                        projections: vec![Expression::Comparison(ComparisonExpr {
-                            left: Box::new(Expression::Column(ColumnExpr {
-                                table_scope: agg_table,
-                                column: 0,
-                            })),
-                            right: Box::new(Expression::Literal(LiteralExpr {
-                                literal: BorrowedScalarValue::Int64(1),
-                            })),
-                            op: if *negated {
-                                ComparisonOperator::NotEq
-                            } else {
-                                ComparisonOperator::Eq
-                            },
-                        })],
+                        projections: vec![projection.into()],
                         projection_table,
                     },
                     location: LocationRequirement::Any,
@@ -496,11 +502,12 @@ impl SubqueryPlanner {
                     column: 0,
                 };
 
-                let condition = ComparisonCondition {
-                    left: expr.as_ref().clone(),
-                    right: Expression::Column(column),
-                    op: *op,
-                };
+                let condition = expr::compare(
+                    bind_context.get_table_list(),
+                    *op,
+                    expr.as_ref().clone(),
+                    Expression::Column(column),
+                )?;
 
                 let orig = std::mem::replace(plan, LogicalOperator::Invalid);
                 *plan = LogicalOperator::ComparisonJoin(Node {
@@ -640,7 +647,7 @@ impl DependentJoinPushdown {
                     join.node
                         .conditions
                         .iter()
-                        .flat_map(|c| [&c.left, &c.right].into_iter()),
+                        .flat_map(|c| [c.left.as_ref(), c.right.as_ref()].into_iter()),
                 );
                 has_correlation |= self.find_correlations_in_children(&join.children)?;
             }

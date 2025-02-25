@@ -6,7 +6,6 @@ use super::{AsScalarFunctionSet, Expression};
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::function_set::ScalarFunctionSet;
-use crate::functions::scalar::ScalarFunction2;
 use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -31,13 +30,7 @@ impl NegateExpr {
     pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
         Ok(match self.op {
             NegateOperator::Not => DataType::Boolean,
-            NegateOperator::Negate => {
-                // Sure
-                self.op
-                    .as_scalar_function()
-                    .plan(table_list, vec![self.expr.as_ref().clone()])?
-                    .return_type
-            }
+            NegateOperator::Negate => self.expr.datatype(table_list)?,
         })
     }
 }

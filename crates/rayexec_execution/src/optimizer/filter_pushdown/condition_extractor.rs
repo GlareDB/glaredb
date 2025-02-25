@@ -6,13 +6,13 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableRef;
-use crate::logical::logical_join::{ComparisonCondition, JoinType};
+use crate::logical::logical_join::JoinType;
 use crate::optimizer::filter_pushdown::split::split_conjunction;
 
 #[derive(Debug, Default)]
 pub struct ExtractedConditions {
     /// Join conditions successfully extracted from expressions.
-    pub comparisons: Vec<ComparisonCondition>,
+    pub comparisons: Vec<ComparisonExpr>,
     /// Expressions that we could not build a condition for.
     ///
     /// These expressions should filter the output of a join.
@@ -208,11 +208,7 @@ where
                             if left_side != ExprJoinSide::Both && right_side != ExprJoinSide::Both {
                                 debug_assert_ne!(left_side, right_side);
 
-                                let mut condition = ComparisonCondition {
-                                    left: *left,
-                                    right: *right,
-                                    op,
-                                };
+                                let mut condition = ComparisonExpr { left, right, op };
 
                                 // If left expression is actually referencing right
                                 // side, flip the condition.

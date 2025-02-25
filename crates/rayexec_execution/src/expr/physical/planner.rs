@@ -1,5 +1,5 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 
 use super::case_expr::PhysicalCaseExpr;
 use super::cast_expr::PhysicalCastExpr;
@@ -22,6 +22,12 @@ pub struct PhysicalExpressionPlanner<'a> {
 }
 
 impl<'a> PhysicalExpressionPlanner<'a> {
+    /// Construct a physical expression planner with the given table list.
+    ///
+    /// When planning an expression, tables refs are provided to indicate the
+    /// scope of that expression, and those refs are used to look up the tables
+    /// in the list. This is done to map a "logical" column reference to a flat
+    /// index in an input batch.
     pub fn new(table_list: &'a TableList) -> Self {
         PhysicalExpressionPlanner { table_list }
     }
@@ -114,68 +120,21 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 to: expr.to.clone(),
                 expr: Box::new(self.plan_scalar(table_refs, &expr.expr)?),
             })),
-            Expression::Comparison(expr) => self.plan_binary_op(
+            Expression::Comparison(expr) => self.plan_as_scalar_function(
                 table_refs,
                 expr.op,
-                expr.left.as_ref().clone(),
-                expr.right.as_ref().clone(),
+                vec![expr.left.as_ref().clone(), expr.right.as_ref().clone()],
             ),
-            Expression::Arith(expr) => self.plan_binary_op(
+            Expression::Arith(expr) => self.plan_as_scalar_function(
                 table_refs,
                 expr.op,
-                expr.left.as_ref().clone(),
-                expr.right.as_ref().clone(),
+                vec![expr.left.as_ref().clone(), expr.right.as_ref().clone()],
             ),
             Expression::Conjunction(expr) => {
-                let datatypes = expr
-                    .expressions
-                    .iter()
-                    .map(|expr| expr.datatype(self.table_list))
-                    .collect::<Result<Vec<_>>>()?;
-                let scalar_set = expr.op.as_scalar_function_set();
-                let scalar = scalar_set
-                    .find_exact(&datatypes)
-                    .required("find exact function for comparison operator")?;
-
-                let bind_state = scalar.call_bind(self.table_list, expr.expressions.clone())?;
-                let physical_inputs = self.plan_scalars(table_refs, &bind_state.inputs)?;
-
-                let planned = PlannedScalarFunction {
-                    name: scalar_set.name,
-                    raw: *scalar,
-                    state: bind_state,
-                };
-
-                Ok(PhysicalScalarExpression::ScalarFunction(
-                    PhysicalScalarFunctionExpr {
-                        function: planned,
-                        inputs: physical_inputs,
-                    },
-                ))
+                self.plan_as_scalar_function(table_refs, expr.op, expr.expressions.clone())
             }
             Expression::Negate(expr) => {
-                let input_type = expr.expr.datatype(self.table_list)?;
-                let scalar_set = expr.op.as_scalar_function_set();
-                let scalar = scalar_set
-                    .find_exact(&[input_type])
-                    .required("find exact function for comparison operator")?;
-
-                let bind_state =
-                    scalar.call_bind(self.table_list, vec![expr.expr.as_ref().clone()])?;
-                let physical_inputs = self.plan_scalars(table_refs, &bind_state.inputs)?;
-
-                let planned = PlannedScalarFunction {
-                    name: scalar_set.name,
-                    raw: *scalar,
-                    state: bind_state,
-                };
-
-                Ok(PhysicalScalarExpression::ScalarFunction(
-                    PhysicalScalarFunctionExpr {
-                        function: planned,
-                        inputs: physical_inputs,
-                    },
-                ))
+                self.plan_as_scalar_function(table_refs, expr.op, vec![expr.expr.as_ref().clone()])
             }
             Expression::Case(expr) => {
                 let datatype = expr.datatype(self.table_list)?;
@@ -212,34 +171,44 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         }
     }
 
-    fn plan_binary_op(
+    fn plan_as_scalar_function(
         &self,
         table_refs: &[TableRef],
         op: impl AsScalarFunctionSet,
-        left: Expression,
-        right: Expression,
+        inputs: Vec<Expression>,
     ) -> Result<PhysicalScalarExpression> {
-        // Planning should have already casted everything to the right
-        // type. So we should be able to find an exact match.
-        //
-        // TODO: Probably just store the function on the expr to avoid
-        // having to look it up again?
-        let scalar_set = op.as_scalar_function_set();
-        let scalar = scalar_set
-            .find_exact(&[
-                left.datatype(self.table_list)?,
-                right.datatype(self.table_list)?,
-            ])
-            .required("find exact function for comparison operator")?;
+        let datatypes = inputs
+            .iter()
+            .map(|input| input.datatype(self.table_list))
+            .collect::<Result<Vec<_>>>()?;
+        let exact = op
+            .as_scalar_function_set()
+            .find_exact(&datatypes)
+            .ok_or_else(|| RayexecError::new("Expected exact function signature match"))?;
 
-        let bind_state = scalar.call_bind(self.table_list, vec![left, right])?;
-        let physical_inputs = self.plan_scalars(table_refs, &bind_state.inputs)?;
-
+        let bind_state = exact.call_bind(self.table_list, inputs)?;
         let planned = PlannedScalarFunction {
-            name: scalar_set.name,
-            raw: *scalar,
+            name: op.as_scalar_function_set().name,
+            raw: *exact,
             state: bind_state,
         };
+
+        let physical_inputs = self.plan_scalars(table_refs, &planned.state.inputs)?;
+
+        Ok(PhysicalScalarExpression::ScalarFunction(
+            PhysicalScalarFunctionExpr {
+                function: planned,
+                inputs: physical_inputs,
+            },
+        ))
+    }
+
+    fn plan_scalar_function(
+        &self,
+        table_refs: &[TableRef],
+        planned: PlannedScalarFunction,
+    ) -> Result<PhysicalScalarExpression> {
+        let physical_inputs = self.plan_scalars(table_refs, &planned.state.inputs)?;
 
         Ok(PhysicalScalarExpression::ScalarFunction(
             PhysicalScalarFunctionExpr {

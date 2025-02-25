@@ -168,6 +168,7 @@ pub trait ScalarFunction: Debug + Sync + Send + Sized {
     ///
     /// This will only be called with expressions that match the signature this
     /// function was registered with.
+    // TODO: Try to remove table list.
     fn bind(
         &self,
         table_list: &TableList,
