@@ -29,15 +29,15 @@ pub const FUNCTION_SET_LOG: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
+            &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
             &UnaryInputNumericScalar::<PhysicalF16, LogOp>::new(&DataType::Float16),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
+            &Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
             &UnaryInputNumericScalar::<PhysicalF32, LogOp>::new(&DataType::Float32),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+            &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
             &UnaryInputNumericScalar::<PhysicalF64, LogOp>::new(&DataType::Float64),
         ),
     ],
@@ -76,15 +76,15 @@ pub const FUNCTION_SET_LOG_2: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
+            &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
             &UnaryInputNumericScalar::<PhysicalF16, Log2Op>::new(&DataType::Float16),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
+            &Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
             &UnaryInputNumericScalar::<PhysicalF32, Log2Op>::new(&DataType::Float32),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+            &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
             &UnaryInputNumericScalar::<PhysicalF64, Log2Op>::new(&DataType::Float64),
         ),
     ],

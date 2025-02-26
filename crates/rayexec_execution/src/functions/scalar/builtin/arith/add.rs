@@ -36,76 +36,76 @@ pub const FUNCTION_SET_ADD: ScalarFunctionSet = ScalarFunctionSet {
     doc: None,
     functions: &[
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::Float16, DataTypeId::Float16],
                 DataTypeId::Float16,
             ),
             &Add::<PhysicalF16>::new(&DataType::Float16),
         ),
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::Float32, DataTypeId::Float32],
                 DataTypeId::Float32,
             ),
             &Add::<PhysicalF32>::new(&DataType::Float32),
         ),
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::Float64, DataTypeId::Float64],
                 DataTypeId::Float64,
             ),
             &Add::<PhysicalF64>::new(&DataType::Float64),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
+            &Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
             &Add::<PhysicalI8>::new(&DataType::Int8),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
+            &Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
             &Add::<PhysicalI16>::new(&DataType::Int16),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
+            &Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
             &Add::<PhysicalI32>::new(&DataType::Int32),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
+            &Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
             &Add::<PhysicalI64>::new(&DataType::Int64),
         ),
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::Int128, DataTypeId::Int128],
                 DataTypeId::Int128,
             ),
             &Add::<PhysicalI128>::new(&DataType::Int128),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
+            &Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
             &Add::<PhysicalU8>::new(&DataType::UInt8),
         ),
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::UInt16, DataTypeId::UInt16],
                 DataTypeId::UInt16,
             ),
             &Add::<PhysicalU16>::new(&DataType::UInt16),
         ),
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::UInt32, DataTypeId::UInt32],
                 DataTypeId::UInt32,
             ),
             &Add::<PhysicalU32>::new(&DataType::UInt32),
         ),
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::UInt64, DataTypeId::UInt64],
                 DataTypeId::UInt64,
             ),
             &Add::<PhysicalU64>::new(&DataType::UInt64),
         ),
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::UInt128, DataTypeId::UInt128],
                 DataTypeId::UInt128,
             ),
@@ -113,24 +113,24 @@ pub const FUNCTION_SET_ADD: ScalarFunctionSet = ScalarFunctionSet {
         ),
         // Date + days => date
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Date32, DataTypeId::Int32], DataTypeId::Date32),
+            &Signature::new(&[DataTypeId::Date32, DataTypeId::Int32], DataTypeId::Date32),
             &Add::<PhysicalI32>::new(&DataType::Date32),
         ),
         // Days + date => date
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int32, DataTypeId::Date32], DataTypeId::Date32),
+            &Signature::new(&[DataTypeId::Int32, DataTypeId::Date32], DataTypeId::Date32),
             &Add::<PhysicalI32>::new(&DataType::Date32),
         ),
         // Decimals.
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::Decimal64, DataTypeId::Decimal64],
                 DataTypeId::Decimal64,
             ),
             &AddDecimal::<Decimal64Type>::new(),
         ),
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::Decimal128, DataTypeId::Decimal128],
                 DataTypeId::Decimal128,
             ),

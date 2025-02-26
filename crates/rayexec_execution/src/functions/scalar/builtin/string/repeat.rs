@@ -28,7 +28,7 @@ pub const FUNCTION_SET_REPEAT: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
+        &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
         &Repeat,
     )],
 };

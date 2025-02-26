@@ -22,7 +22,7 @@ pub const FUNCTION_SET_DATE_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
     doc: None,
     // TODO: Date32/64
     functions: &[RawScalarFunction::new(
-        Signature::new(
+        &Signature::new(
             &[DataTypeId::Utf8, DataTypeId::Timestamp],
             DataTypeId::Timestamp,
         ),

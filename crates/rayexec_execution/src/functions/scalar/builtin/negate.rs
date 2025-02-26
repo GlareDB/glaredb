@@ -30,35 +30,35 @@ pub const FUNCTION_SET_NEGATE: ScalarFunctionSet = ScalarFunctionSet {
     doc: None,
     functions: &[
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
+            &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
             &Negate::<PhysicalF16>::new(&DataType::Float16),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
+            &Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
             &Negate::<PhysicalF32>::new(&DataType::Float32),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+            &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
             &Negate::<PhysicalF64>::new(&DataType::Float64),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int8], DataTypeId::Int8),
+            &Signature::new(&[DataTypeId::Int8], DataTypeId::Int8),
             &Negate::<PhysicalI8>::new(&DataType::Int8),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int16], DataTypeId::Int16),
+            &Signature::new(&[DataTypeId::Int16], DataTypeId::Int16),
             &Negate::<PhysicalI16>::new(&DataType::Int16),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int32], DataTypeId::Int32),
+            &Signature::new(&[DataTypeId::Int32], DataTypeId::Int32),
             &Negate::<PhysicalI32>::new(&DataType::Int32),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int64], DataTypeId::Int64),
+            &Signature::new(&[DataTypeId::Int64], DataTypeId::Int64),
             &Negate::<PhysicalI64>::new(&DataType::Int64),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int128], DataTypeId::Int128),
+            &Signature::new(&[DataTypeId::Int128], DataTypeId::Int128),
             &Negate::<PhysicalI128>::new(&DataType::Int128),
         ),
     ],
@@ -69,7 +69,7 @@ pub const FUNCTION_SET_NOT: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: None,
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
+        &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
         &Not,
     )],
 };

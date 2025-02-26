@@ -36,15 +36,15 @@ pub const FUNCTION_SET_L2_DISTANCE: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::List(&DataTypeId::Float16),DataTypeId::List(&DataTypeId::Float16)], DataTypeId::Float64),
+            &Signature::new(&[DataTypeId::List(&DataTypeId::Float16),DataTypeId::List(&DataTypeId::Float16)], DataTypeId::Float64),
             &L2Distance::<PhysicalF16>::new(),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::List(&DataTypeId::Float32),DataTypeId::List(&DataTypeId::Float32)], DataTypeId::Float64),
+            &Signature::new(&[DataTypeId::List(&DataTypeId::Float32),DataTypeId::List(&DataTypeId::Float32)], DataTypeId::Float64),
             &L2Distance::<PhysicalF32>::new(),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::List(&DataTypeId::Float64),DataTypeId::List(&DataTypeId::Float64)], DataTypeId::Float64),
+            &Signature::new(&[DataTypeId::List(&DataTypeId::Float64),DataTypeId::List(&DataTypeId::Float64)], DataTypeId::Float64),
             &L2Distance::<PhysicalF64>::new(),
         ),
     ],

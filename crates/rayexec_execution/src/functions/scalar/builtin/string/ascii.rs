@@ -26,7 +26,7 @@ pub const FUNCTION_SET_ASCII: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Utf8], DataTypeId::Int32),
+        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Int32),
         &Ascii,
     )],
 };

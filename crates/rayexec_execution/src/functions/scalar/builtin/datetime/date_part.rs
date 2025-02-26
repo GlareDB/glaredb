@@ -30,21 +30,21 @@ pub const FUNCTION_SET_DATE_PART: ScalarFunctionSet = ScalarFunctionSet {
     // TODO: Optional third arg for timezone.
     functions: &[
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::Utf8, DataTypeId::Date32],
                 DataTypeId::Decimal64,
             ),
             &DatePart,
         ),
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::Utf8, DataTypeId::Date64],
                 DataTypeId::Decimal64,
             ),
             &DatePart,
         ),
         RawScalarFunction::new(
-            Signature::new(
+            &Signature::new(
                 &[DataTypeId::Utf8, DataTypeId::Timestamp],
                 DataTypeId::Decimal64,
             ),

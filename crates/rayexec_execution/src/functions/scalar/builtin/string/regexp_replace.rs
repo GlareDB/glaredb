@@ -29,7 +29,7 @@ pub const FUNCTION_SET_REGEXP_REPLACE: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(
+        &Signature::new(
             &[DataTypeId::Utf8, DataTypeId::Utf8, DataTypeId::Utf8],
             DataTypeId::Utf8,
         ),

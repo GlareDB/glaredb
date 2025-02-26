@@ -73,7 +73,7 @@ pub struct RawScalarFunctionVTable {
 #[derive(Debug, Clone, Copy)]
 pub struct RawScalarFunction {
     function: *const (),
-    signature: Signature,
+    signature: &'static Signature,
     volatility: FunctionVolatility,
     vtable: &'static RawScalarFunctionVTable,
 }
@@ -82,7 +82,7 @@ unsafe impl Send for RawScalarFunction {}
 unsafe impl Sync for RawScalarFunction {}
 
 impl RawScalarFunction {
-    pub const fn new<F>(sig: Signature, function: &'static F) -> Self
+    pub const fn new<F>(sig: &'static Signature, function: &'static F) -> Self
     where
         F: ScalarFunction,
     {
@@ -100,7 +100,7 @@ impl RawScalarFunction {
     }
 
     pub fn signature(&self) -> &Signature {
-        &self.signature
+        self.signature
     }
 
     pub fn volatility(&self) -> FunctionVolatility {

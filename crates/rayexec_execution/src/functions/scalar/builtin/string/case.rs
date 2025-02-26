@@ -27,7 +27,7 @@ pub const FUNCTION_SET_LOWER: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
+        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
         &Lower,
     )],
 };
@@ -66,7 +66,7 @@ pub const FUNCTION_SET_UPPER: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
+        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
         &Upper,
     )],
 };

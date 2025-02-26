@@ -29,7 +29,7 @@ pub const FUNCTION_SET_CONCAT: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature {
+        &Signature {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Utf8),
             return_type: DataTypeId::Utf8,

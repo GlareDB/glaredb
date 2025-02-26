@@ -26,7 +26,7 @@ pub const FUNCTION_SET_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),
+        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),
         &StringLength,
     )],
 };
@@ -75,11 +75,11 @@ pub const FUNCTION_SET_BYTE_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),
             &ByteLength,
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Binary], DataTypeId::Int64),
+            &Signature::new(&[DataTypeId::Binary], DataTypeId::Int64),
             &ByteLength,
         ),
     ],
@@ -127,11 +127,11 @@ pub const FUNCTION_SET_BIT_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),
             &ByteLength,
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Binary], DataTypeId::Int64),
+            &Signature::new(&[DataTypeId::Binary], DataTypeId::Int64),
             &ByteLength,
         ),
     ],

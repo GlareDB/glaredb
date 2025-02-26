@@ -45,7 +45,6 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
 use crate::functions::scalar::{BindState, ScalarFunction};
-use crate::logical::binder::table_list::TableList;
 
 /// Helper trait for defining math functions on floats.
 pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'static {

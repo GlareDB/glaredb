@@ -29,15 +29,15 @@ pub const FUNCTION_SET_EXP: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
+            &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
             &UnaryInputNumericScalar::<PhysicalF16, ExpOp>::new(&DataType::Float16),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
+            &Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
             &UnaryInputNumericScalar::<PhysicalF32, ExpOp>::new(&DataType::Float32),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+            &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
             &UnaryInputNumericScalar::<PhysicalF64, ExpOp>::new(&DataType::Float64),
         ),
     ],

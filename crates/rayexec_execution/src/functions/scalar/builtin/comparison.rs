@@ -278,152 +278,203 @@ impl ComparisonOperation for GtEqOperation {
     }
 }
 
+struct Sigs {
+    bool: Signature,
+    i8: Signature,
+    i16: Signature,
+    i32: Signature,
+    i64: Signature,
+    i128: Signature,
+    u8: Signature,
+    u16: Signature,
+    u32: Signature,
+    u64: Signature,
+    u128: Signature,
+    f16: Signature,
+    f32: Signature,
+    f64: Signature,
+    date32: Signature,
+    date64: Signature,
+    timestamp: Signature,
+    interval: Signature,
+    decimal64: Signature,
+    decimal128: Signature,
+    binary: Signature,
+    utf8: Signature,
+}
+
+const SIGS: Sigs = Sigs {
+    bool: Signature::new(
+        &[DataTypeId::Boolean, DataTypeId::Boolean],
+        DataTypeId::Boolean,
+    ),
+    i8: Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Boolean),
+    i16: Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Boolean),
+    i32: Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Boolean),
+    i64: Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Boolean),
+    i128: Signature::new(
+        &[DataTypeId::Int128, DataTypeId::Int128],
+        DataTypeId::Boolean,
+    ),
+
+    u8: Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::Boolean),
+    u16: Signature::new(
+        &[DataTypeId::UInt16, DataTypeId::UInt16],
+        DataTypeId::Boolean,
+    ),
+    u32: Signature::new(
+        &[DataTypeId::UInt32, DataTypeId::UInt32],
+        DataTypeId::Boolean,
+    ),
+    u64: Signature::new(
+        &[DataTypeId::UInt64, DataTypeId::UInt64],
+        DataTypeId::Boolean,
+    ),
+    u128: Signature::new(
+        &[DataTypeId::UInt128, DataTypeId::UInt128],
+        DataTypeId::Boolean,
+    ),
+    f16: Signature::new(
+        &[DataTypeId::Float16, DataTypeId::Float16],
+        DataTypeId::Boolean,
+    ),
+    f32: Signature::new(
+        &[DataTypeId::Float32, DataTypeId::Float32],
+        DataTypeId::Boolean,
+    ),
+    f64: Signature::new(
+        &[DataTypeId::Float64, DataTypeId::Float64],
+        DataTypeId::Boolean,
+    ),
+    date32: Signature::new(
+        &[DataTypeId::Date32, DataTypeId::Date32],
+        DataTypeId::Boolean,
+    ),
+    date64: Signature::new(
+        &[DataTypeId::Date64, DataTypeId::Date64],
+        DataTypeId::Boolean,
+    ),
+    timestamp: Signature::new(
+        &[DataTypeId::Timestamp, DataTypeId::Timestamp],
+        DataTypeId::Boolean,
+    ),
+    interval: Signature::new(
+        &[DataTypeId::Interval, DataTypeId::Interval],
+        DataTypeId::Boolean,
+    ),
+    decimal64: Signature::new(
+        &[DataTypeId::Decimal64, DataTypeId::Decimal64],
+        DataTypeId::Boolean,
+    ),
+    decimal128: Signature::new(
+        &[DataTypeId::Decimal128, DataTypeId::Decimal128],
+        DataTypeId::Boolean,
+    ),
+    binary: Signature::new(
+        &[DataTypeId::Binary, DataTypeId::Binary],
+        DataTypeId::Boolean,
+    ),
+    utf8: Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Boolean),
+};
+
 const fn generate_functions<O>() -> [RawScalarFunction; 22]
 where
     O: ComparisonOperation,
 {
     [
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::Boolean, DataTypeId::Boolean],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.bool,
             UnnestedComparisonImpl::<O, PhysicalBool>::new_static(),
         ),
         // Ints
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Boolean),
+            &SIGS.i8,
             UnnestedComparisonImpl::<O, PhysicalI8>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Boolean),
+            &SIGS.i16,
             UnnestedComparisonImpl::<O, PhysicalI16>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Boolean),
+            &SIGS.i32,
             UnnestedComparisonImpl::<O, PhysicalI32>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Boolean),
+            &SIGS.i64,
             UnnestedComparisonImpl::<O, PhysicalI64>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::Int128, DataTypeId::Int128],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.i128,
             UnnestedComparisonImpl::<O, PhysicalI128>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::Boolean),
+            &SIGS.u8,
             UnnestedComparisonImpl::<O, PhysicalU8>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::UInt16, DataTypeId::UInt16],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.u16,
             UnnestedComparisonImpl::<O, PhysicalU16>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::UInt32, DataTypeId::UInt32],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.u32,
             UnnestedComparisonImpl::<O, PhysicalU32>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::UInt64, DataTypeId::UInt64],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.u64,
             UnnestedComparisonImpl::<O, PhysicalU64>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::UInt128, DataTypeId::UInt128],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.u128,
             UnnestedComparisonImpl::<O, PhysicalU128>::new_static(),
         ),
         // Floats
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::Float16, DataTypeId::Float16],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.f16,
             UnnestedComparisonImpl::<O, PhysicalF16>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::Float32, DataTypeId::Float32],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.f32,
             UnnestedComparisonImpl::<O, PhysicalF32>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::Float64, DataTypeId::Float64],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.f64,
             UnnestedComparisonImpl::<O, PhysicalF64>::new_static(),
         ),
         // Date/times
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::Date32, DataTypeId::Date32],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.date32,
             UnnestedComparisonImpl::<O, PhysicalI32>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::Date64, DataTypeId::Date64],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.date64,
             UnnestedComparisonImpl::<O, PhysicalI64>::new_static(),
         ),
         // TODO: Probably scale
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::Timestamp, DataTypeId::Timestamp],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.timestamp,
             UnnestedComparisonImpl::<O, PhysicalI64>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::Interval, DataTypeId::Interval],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.interval,
             UnnestedComparisonImpl::<O, PhysicalInterval>::new_static(),
         ),
         // Decimals
         // TODO: Definitely scale
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::Decimal64, DataTypeId::Decimal64],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.decimal64,
             UnnestedComparisonImpl::<O, PhysicalI64>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::Decimal128, DataTypeId::Decimal128],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.decimal128,
             UnnestedComparisonImpl::<O, PhysicalI128>::new_static(),
         ),
         // Varlen
         RawScalarFunction::new(
-            Signature::new(
-                &[DataTypeId::Binary, DataTypeId::Binary],
-                DataTypeId::Boolean,
-            ),
+            &SIGS.binary,
             UnnestedComparisonImpl::<O, PhysicalBinary>::new_static(),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Boolean),
+            &SIGS.utf8,
             UnnestedComparisonImpl::<O, PhysicalUtf8>::new_static(),
         ),
     ]

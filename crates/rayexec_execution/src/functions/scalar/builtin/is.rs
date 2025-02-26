@@ -28,7 +28,7 @@ pub const FUNCTION_SET_IS_NULL: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Any], DataTypeId::Boolean),
+        &Signature::new(&[DataTypeId::Any], DataTypeId::Boolean),
         &IsNull::<false>,
     )],
 };
@@ -46,7 +46,7 @@ pub const FUNCTION_SET_IS_NOT_NULL: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Any], DataTypeId::Boolean),
+        &Signature::new(&[DataTypeId::Any], DataTypeId::Boolean),
         &IsNull::<true>,
     )],
 };
@@ -104,7 +104,7 @@ pub const FUNCTION_SET_IS_TRUE: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
+        &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
         &IsBool::<false, true>,
     )],
 };
@@ -122,7 +122,7 @@ pub const FUNCTION_SET_IS_NOT_TRUE: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
+        &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
         &IsBool::<true, true>,
     )],
 };
@@ -140,7 +140,7 @@ pub const FUNCTION_SET_IS_FALSE: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
+        &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
         &IsBool::<false, false>,
     )],
 };
@@ -158,7 +158,7 @@ pub const FUNCTION_SET_IS_NOT_FALSE: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
+        &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
         &IsBool::<true, false>,
     )],
 };

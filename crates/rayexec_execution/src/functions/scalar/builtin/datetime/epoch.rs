@@ -17,7 +17,7 @@ pub const FUNCTION_SET_EPOCH: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &["epoch_s"],
     doc: None,
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Int64], DataTypeId::Timestamp),
+        &&Signature::new(&[DataTypeId::Int64], DataTypeId::Timestamp),
         &EpochImpl::<1_000_000>,
     )],
 };
@@ -27,7 +27,7 @@ pub const FUNCTION_SET_EPOCH_MS: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: None,
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::Int64], DataTypeId::Timestamp),
+        &Signature::new(&[DataTypeId::Int64], DataTypeId::Timestamp),
         &EpochImpl::<1000>,
     )],
 };

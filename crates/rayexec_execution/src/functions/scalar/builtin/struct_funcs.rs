@@ -9,7 +9,7 @@ pub const FUNCTION_SET_STRUCT_PACK: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: None,
     functions: &[RawScalarFunction::new(
-        Signature {
+        &Signature {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Any),
             return_type: DataTypeId::Struct,
@@ -24,7 +24,7 @@ pub const FUNCTION_SET_STRUCT_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: None,
     functions: &[RawScalarFunction::new(
-        Signature {
+        &Signature {
             positional_args: &[DataTypeId::Struct],
             variadic_arg: None,
             return_type: DataTypeId::Any,

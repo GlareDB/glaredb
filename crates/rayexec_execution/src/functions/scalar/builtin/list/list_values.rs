@@ -24,7 +24,7 @@ pub const FUNCTION_SET_LIST_VALUES: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature {
+        &Signature {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Any),
             return_type: DataTypeId::List(&DataTypeId::Any),

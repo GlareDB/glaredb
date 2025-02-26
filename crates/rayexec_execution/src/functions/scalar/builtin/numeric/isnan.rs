@@ -36,15 +36,15 @@ pub const FUNCTION_SET_IS_NAN: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float16], DataTypeId::Boolean),
+            &Signature::new(&[DataTypeId::Float16], DataTypeId::Boolean),
             &IsNan::<PhysicalF16>::new(),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float32], DataTypeId::Boolean),
+            &Signature::new(&[DataTypeId::Float32], DataTypeId::Boolean),
             &IsNan::<PhysicalF32>::new(),
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Float64], DataTypeId::Boolean),
+            &Signature::new(&[DataTypeId::Float64], DataTypeId::Boolean),
             &IsNan::<PhysicalF64>::new(),
         ),
     ],

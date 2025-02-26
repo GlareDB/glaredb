@@ -34,11 +34,11 @@ pub const FUNCTION_SET_BTRIM: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Utf8),
+            &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Utf8),
             &BothTrimOp,
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
             &BothTrimOp,
         ),
     ],
@@ -83,11 +83,11 @@ pub const FUNCTION_SET_LTRIM: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Utf8),
+            &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Utf8),
             &LeftTrimOp,
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
             &LeftTrimOp,
         ),
     ],
@@ -132,11 +132,11 @@ pub const FUNCTION_SET_RTRIM: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Utf8),
+            &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Utf8),
             &RightTrimOp,
         ),
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
             &RightTrimOp,
         ),
     ],

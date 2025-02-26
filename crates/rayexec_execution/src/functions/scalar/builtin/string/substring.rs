@@ -28,12 +28,12 @@ pub const FUNCTION_SET_SUBSTRING: ScalarFunctionSet = ScalarFunctionSet {
     functions: &[
         // substring(<string>, <from>)
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
+            &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
             &SubstringFrom
         ),
         // substring(<string>, <from>, <to>)
         RawScalarFunction::new(
-            Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Utf8),
+            &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Utf8),
             &SubstringFromTo,
         ),
     ],
