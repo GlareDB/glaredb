@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn fold_string_to_float_cast() {
-        let expr = cast(lit("3.1").into(), DataType::Float64);
+        let expr = cast(lit("3.1"), DataType::Float64);
 
         let expected: Expression = lit(3.1_f64).into();
 
@@ -100,10 +100,10 @@ mod tests {
 
     #[test]
     fn no_fold_col_ref() {
-        let expr = add(column((0, 1), DataType::Utf8), lit(5)).unwrap();
+        let expr = add(column((0, 1), DataType::Int32), lit(5)).unwrap();
 
         // No change
-        let expected: Expression = add(column((0, 1), DataType::Utf8), lit(5)).unwrap().into();
+        let expected: Expression = add(column((0, 1), DataType::Int32), lit(5)).unwrap().into();
 
         let got = ConstFold::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
@@ -111,9 +111,35 @@ mod tests {
 
     #[test]
     fn partial_fold_col_ref() {
-        let expr = add(column((0, 1), DataType::Utf8), add(lit(4), lit(5)).unwrap()).unwrap();
+        let expr = add(
+            column((0, 1), DataType::Int32),
+            add(lit(4), lit(5)).unwrap(),
+        )
+        .unwrap();
 
-        let expected: Expression = add(column((0, 1), DataType::Utf8), lit(9)).unwrap().into();
+        // 4 + 5 => 9
+        let expected: Expression = add(column((0, 1), DataType::Int32), lit(9)).unwrap().into();
+
+        let got = ConstFold::rewrite(expr.into()).unwrap();
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn partial_fold_col_ref_with_cast() {
+        // Same as above but with the addition of an implicit cast from i32 to
+        // i64 for the constant part since the non-constant part is i64. The
+        // cast should be folded away leaving a literal value of the right type.
+
+        let expr = add(
+            column((0, 1), DataType::Int64),
+            add(lit(4), lit(5)).unwrap(),
+        )
+        .unwrap();
+
+        // 4 + 5 => 9
+        let expected: Expression = add(column((0, 1), DataType::Int64), lit(9_i64))
+            .unwrap()
+            .into();
 
         let got = ConstFold::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);

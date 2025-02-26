@@ -237,7 +237,7 @@ impl CandidateSignature {
                 continue;
             }
 
-            let score = implicit_cast_score(have, want);
+            let score = implicit_cast_score(have, want, false);
             if let Some(score) = score {
                 buf.push(CastType::Cast { to: want, score });
                 continue;
@@ -266,7 +266,7 @@ impl CandidateSignature {
                         continue;
                     }
 
-                    let score = implicit_cast_score(have, expected);
+                    let score = implicit_cast_score(have, expected, false);
                     if let Some(score) = score {
                         buf.push(CastType::Cast {
                             to: expected,
@@ -307,7 +307,7 @@ impl CandidateSignature {
                     continue;
                 }
 
-                let score = implicit_cast_score(input, test_type);
+                let score = implicit_cast_score(input, test_type, false);
                 match score {
                     Some(score) => total_score += score,
                     None => {

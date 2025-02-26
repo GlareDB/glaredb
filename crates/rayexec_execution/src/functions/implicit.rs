@@ -11,7 +11,14 @@ pub const NO_CAST_SCORE: u32 = 400;
 ///
 /// This is a best-effort attempt to determine if casting from one type to
 /// another is valid and won't lose precision.
-pub const fn implicit_cast_score(have: &DataType, want: DataTypeId) -> Option<u32> {
+///
+/// `allow_from_utf8` determines if we should allow implicit casting from
+/// strings.
+pub const fn implicit_cast_score(
+    have: &DataType,
+    want: DataTypeId,
+    allow_from_utf8: bool,
+) -> Option<u32> {
     // Cast NULL to anything.
     if have.is_null() {
         return Some(target_score(want));
@@ -34,7 +41,7 @@ pub const fn implicit_cast_score(have: &DataType, want: DataTypeId) -> Option<u3
         DataType::Float64 => return float64_cast_score(want),
 
         // String casts
-        DataType::Utf8 => match want {
+        DataType::Utf8 if allow_from_utf8 => match want {
             DataTypeId::Int8
             | DataTypeId::Int16
             | DataTypeId::Int32
@@ -229,18 +236,26 @@ mod tests {
 
     #[test]
     fn implicit_cast_from_utf8() {
-        assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Int32).is_some());
-        assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Timestamp).is_some());
-        assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Interval).is_some());
+        assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Int32, true).is_some());
+        assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Timestamp, true).is_some());
+        assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Interval, true).is_some());
+    }
+
+    #[test]
+    fn disallow_implicit_cast_from_utf8() {
+        assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Int32, false).is_none());
+        assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Timestamp, false).is_none());
+        assert!(implicit_cast_score(&DataType::Utf8, DataTypeId::Interval, false).is_none());
     }
 
     #[test]
     fn never_implicit_to_utf8() {
         // ...except when we're casting from utf8 utf8
-        assert!(implicit_cast_score(&DataType::Int16, DataTypeId::Utf8).is_none());
+        assert!(implicit_cast_score(&DataType::Int16, DataTypeId::Utf8, true).is_none());
         assert!(implicit_cast_score(
             &DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Millisecond)),
-            DataTypeId::Utf8
+            DataTypeId::Utf8,
+            true,
         )
         .is_none());
     }
@@ -248,29 +263,31 @@ mod tests {
     #[test]
     fn integer_casts() {
         // Valid
-        assert!(implicit_cast_score(&DataType::Int16, DataTypeId::Int64).is_some());
-        assert!(implicit_cast_score(&DataType::Int16, DataTypeId::Decimal64).is_some());
-        assert!(implicit_cast_score(&DataType::Int16, DataTypeId::Float32).is_some());
+        assert!(implicit_cast_score(&DataType::Int16, DataTypeId::Int64, false).is_some());
+        assert!(implicit_cast_score(&DataType::Int16, DataTypeId::Decimal64, false).is_some());
+        assert!(implicit_cast_score(&DataType::Int16, DataTypeId::Float32, false).is_some());
 
         // Not valid
-        assert!(implicit_cast_score(&DataType::Int16, DataTypeId::UInt64).is_none());
+        assert!(implicit_cast_score(&DataType::Int16, DataTypeId::UInt64, false).is_none());
     }
 
     #[test]
     fn float_casts() {
         // Valid
-        assert!(implicit_cast_score(&DataType::Float64, DataTypeId::Decimal64).is_some());
+        assert!(implicit_cast_score(&DataType::Float64, DataTypeId::Decimal64, false).is_some());
 
         // Not valid
-        assert!(implicit_cast_score(&DataType::Float64, DataTypeId::Int64).is_none());
+        assert!(implicit_cast_score(&DataType::Float64, DataTypeId::Int64, false).is_none());
     }
 
     #[test]
     fn prefer_cast_int32_to_int64() {
         // https://github.com/GlareDB/rayexec/issues/229
 
-        let to_int64_score = implicit_cast_score(&DataType::Int32, DataTypeId::Int64).unwrap();
-        let to_float32_score = implicit_cast_score(&DataType::Int32, DataTypeId::Float32).unwrap();
+        let to_int64_score =
+            implicit_cast_score(&DataType::Int32, DataTypeId::Int64, false).unwrap();
+        let to_float32_score =
+            implicit_cast_score(&DataType::Int32, DataTypeId::Float32, false).unwrap();
 
         assert!(
             to_int64_score > to_float32_score,

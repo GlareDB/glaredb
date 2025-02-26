@@ -167,24 +167,28 @@ fn insert_children_to_common_set<'a>(child: &'a Expression, exprs: &mut IndexSet
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expr::{and, lit, or};
+    use crate::arrays::datatype::DataType;
+    use crate::expr::{and, column, or};
 
     #[test]
     fn distribute_none() {
-        // '(0 AND 1) OR (2 AND 3)'
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
+        let c2: Expression = column((0, 2), DataType::Boolean).into();
+        let c3: Expression = column((0, 3), DataType::Boolean).into();
+
+        // '(c0 AND c1) OR (c2 AND c3)'
         let expr = or([
-            and([lit(0).into(), lit(1).into()]).unwrap().into(),
-            and([lit(2).into(), lit(3).into()]).unwrap().into(),
+            and([c0.clone(), c1.clone()]).unwrap().into(),
+            and([c2.clone(), c3.clone()]).unwrap().into(),
         ])
         .unwrap();
 
         // No changes.
-        let expected: Expression = or([
-            and([lit(0).into(), lit(1).into()]).unwrap().into(),
-            and([lit(2).into(), lit(3).into()]).unwrap().into(),
-        ])
-        .unwrap()
-        .into();
+        let expected: Expression =
+            or([and([c0, c1]).unwrap().into(), and([c2, c3]).unwrap().into()])
+                .unwrap()
+                .into();
 
         let got = DistributiveOrRewrite::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
@@ -192,14 +196,17 @@ mod tests {
 
     #[test]
     fn distribute_eliminate_redundant_or() {
-        // '(0 AND 1) OR (0 AND 1)' => '(0 AND 1)'
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
+
+        // '(c0 AND c1) OR (c0 AND c1)' => '(c0 AND c1)'
         let expr = or([
-            and([lit(0).into(), lit(1).into()]).unwrap().into(),
-            and([lit(0).into(), lit(1).into()]).unwrap().into(),
+            and([c0.clone(), c1.clone()]).unwrap().into(),
+            and([c0.clone(), c1.clone()]).unwrap().into(),
         ])
         .unwrap();
 
-        let expected: Expression = and([lit(0).into(), lit(1).into()]).unwrap().into();
+        let expected: Expression = and([c0, c1]).unwrap().into();
 
         let got = DistributiveOrRewrite::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
@@ -207,14 +214,13 @@ mod tests {
 
     #[test]
     fn distribute_eliminate_or_with_single_remaining() {
-        // '(0) OR (0 AND 1)' => '(0 AND 1)'
-        let expr = or([
-            lit(0).into(),
-            and([lit(0).into(), lit(1).into()]).unwrap().into(),
-        ])
-        .unwrap();
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
 
-        let expected: Expression = and([lit(0).into(), lit(1).into()]).unwrap().into();
+        // '(c0) OR (c0 AND c1)' => '(c0 AND c1)'
+        let expr = or([c0.clone(), and([c0.clone(), c1.clone()]).unwrap().into()]).unwrap();
+
+        let expected: Expression = and([c0, c1]).unwrap().into();
 
         let got = DistributiveOrRewrite::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
@@ -222,27 +228,26 @@ mod tests {
 
     #[test]
     fn distribute_or_keep_inner_and() {
-        // '(0 AND 1 AND 2 AND 3) OR (0 AND 4)
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
+        let c2: Expression = column((0, 2), DataType::Boolean).into();
+        let c3: Expression = column((0, 3), DataType::Boolean).into();
+        let c4: Expression = column((0, 4), DataType::Boolean).into();
+
+        // '(c0 AND c1 AND c2 AND c3) OR (c0 AND c4)
         // =>
-        // '((0) AND ((1 AND 2 AND 3) OR (4))'
+        // '((c0) AND ((c1 AND c2 AND c3) OR (c4))'
         let expr = or([
-            and([lit(0).into(), lit(1).into(), lit(2).into(), lit(3).into()])
+            and([c0.clone(), c1.clone(), c2.clone(), c3.clone()])
                 .unwrap()
                 .into(),
-            and([lit(0).into(), lit(4).into()]).unwrap().into(),
+            and([c0.clone(), c4.clone()]).unwrap().into(),
         ])
         .unwrap();
 
         let expected: Expression = and([
-            lit(0).into(),
-            or([
-                and([lit(1).into(), lit(2).into(), lit(3).into()])
-                    .unwrap()
-                    .into(),
-                lit(4).into(),
-            ])
-            .unwrap()
-            .into(),
+            c0,
+            or([and([c1, c2, c3]).unwrap().into(), c4]).unwrap().into(),
         ])
         .unwrap()
         .into();

@@ -47,6 +47,15 @@ use crate::functions::scalar::{FunctionVolatility, PlannedScalarFunction};
 use crate::functions::CastType;
 use crate::logical::binder::table_list::TableRef;
 
+/// A logical expression.
+///
+/// The helper functions that create expressions in this module will attempt to
+/// cast inputs according to the underlying function implementation. They should
+/// be used during logical planning.
+///
+/// Expressions may be constructed directly which skips the argument type
+/// checks, but may be useful when we already know the types are correct (e.g.
+/// during optimization after we've already generated the initial plan).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
     Aggregate(AggregateExpr),
@@ -596,10 +605,10 @@ pub fn lit(scalar: impl Into<ScalarValue>) -> LiteralExpr {
     }
 }
 
-pub fn cast(expr: Expression, to: DataType) -> CastExpr {
+pub fn cast(expr: impl Into<Expression>, to: DataType) -> CastExpr {
     CastExpr {
         to,
-        expr: Box::new(expr),
+        expr: Box::new(expr.into()),
     }
 }
 
@@ -748,10 +757,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn add_i32_utf8_error() {
+        add(lit(4_i32), lit("8")).unwrap_err();
+    }
+
+    #[test]
+    fn add_i32_i64_implicit_cast() {
+        let expr = add(lit(4), lit(5_i64)).unwrap();
+        // Construction of the expression should lookup the function, and add a
+        // cast where needed.
+        let expected = add(cast(lit(4), DataType::Int64), lit(5_i64)).unwrap();
+
+        assert_eq!(expected, expr);
+    }
+
+    #[test]
     fn get_column_refs_simple() {
         let expr: Expression = and([
-            column((0, 0), DataType::Utf8).into(),
-            column((0, 1), DataType::Int32).into(),
+            column((0, 0), DataType::Boolean).into(),
+            column((0, 1), DataType::Boolean).into(),
             or([
                 column((1, 4), DataType::Boolean),
                 column((1, 2), DataType::Boolean),
