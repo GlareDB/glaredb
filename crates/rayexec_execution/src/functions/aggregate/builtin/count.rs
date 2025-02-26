@@ -32,9 +32,16 @@ use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::buffer::buffer_manager::BufferManager;
 use crate::expr::{self, Expression};
+use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
-use crate::functions::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
+use crate::functions::aggregate::{
+    AggregateFunction2,
+    PlannedAggregateFunction2,
+    RawAggregateFunction,
+};
+use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
+use crate::functions::function_set::AggregateFunctionSet;
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -118,6 +125,58 @@ where
     S: ScalarStorage,
 {
     AggregateFunctionImpl::new::<UnaryStateLogic<CountNonNullState<S>, S, PhysicalI64>>(None)
+}
+
+pub const FUNCTION_SET_COUNT: AggregateFunctionSet = AggregateFunctionSet {
+    name: "count",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Return the count of non-NULL inputs.",
+        arguments: &["input"],
+        example: None,
+    }),
+    functions: &[RawAggregateFunction::new(
+        &Signature::new(&[DataTypeId::Boolean], DataTypeId::Int64),
+        &SimpleUnaryAggregate::new(&CountTest::<PhysicalBool>::new()),
+    )],
+};
+
+#[derive(Debug)]
+pub struct CountTest<S: ScalarStorage> {
+    _s: PhantomData<S>,
+}
+
+impl<S> CountTest<S>
+where
+    S: ScalarStorage,
+{
+    pub const fn new() -> Self {
+        CountTest { _s: PhantomData }
+    }
+}
+
+impl<S> UnaryAggregate for CountTest<S>
+where
+    S: ScalarStorage,
+{
+    type Input = S;
+    type Output = PhysicalI64;
+
+    type BindState = ();
+    type AggregateState = CountNonNullState<S>;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Int64,
+            inputs,
+        })
+    }
+
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+        CountNonNullState::default()
+    }
 }
 
 #[derive(Debug, Default)]

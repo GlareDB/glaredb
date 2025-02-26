@@ -120,7 +120,7 @@ pub struct FirstPrimitiveState<T> {
 
 impl<T> AggregateState<&T, T> for FirstPrimitiveState<T>
 where
-    T: Debug + Default + Copy,
+    T: Debug + Default + Copy + Sync + Send,
 {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         if self.value.is_none() {

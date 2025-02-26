@@ -1,11 +1,12 @@
 pub mod builtin;
+pub mod simple;
 pub mod states;
 
 use std::fmt::Debug;
 use std::hash::Hash;
 
 use dyn_clone::DynClone;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 use states::AggregateFunctionImpl;
 
 use super::bind_state::{BindState, RawBindState, RawBindStateInner};
@@ -103,6 +104,10 @@ impl RawAggregateFunction {
 
     pub fn call_bind(&self, inputs: Vec<Expression>) -> Result<RawBindState> {
         unsafe { (self.vtable.bind_fn)(self.function, inputs) }
+    }
+
+    pub fn signature(&self) -> &Signature {
+        self.signature
     }
 }
 
@@ -210,14 +215,6 @@ trait AggregateFunctionVTable: AggregateFunction {
         },
         combine_fn: |state: *const (), src_ptrs: &mut [*mut u8], dest_ptrs: &mut [*mut u8]| {
             let state = unsafe { state.cast::<Self::State>().as_ref().unwrap() };
-            if src_ptrs.len() != dest_ptrs.len() {
-                return Err(
-                    RayexecError::new("Different lengths with src and dest ptrs")
-                        .with_field("src", src_ptrs.len())
-                        .with_field("dest", dest_ptrs.len()),
-                );
-            }
-
             let src: &mut [&mut Self::AggregateState] = unsafe {
                 std::slice::from_raw_parts_mut(
                     src_ptrs.as_mut_ptr() as *mut &mut Self::AggregateState,

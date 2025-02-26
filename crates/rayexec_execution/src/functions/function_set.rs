@@ -1,9 +1,11 @@
+use super::aggregate::RawAggregateFunction;
 use super::documentation::Documentation;
 use super::scalar::RawScalarFunction;
 use super::{CandidateSignature, Signature};
 use crate::arrays::datatype::DataType;
 
 pub type ScalarFunctionSet = FunctionSet<RawScalarFunction>;
+pub type AggregateFunctionSet = FunctionSet<RawAggregateFunction>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct FunctionSet<T: 'static> {
@@ -59,5 +61,11 @@ pub trait FunctionInfo: Sized + Copy {
 impl FunctionInfo for RawScalarFunction {
     fn signature(&self) -> &Signature {
         RawScalarFunction::signature(self)
+    }
+}
+
+impl FunctionInfo for RawAggregateFunction {
+    fn signature(&self) -> &Signature {
+        RawAggregateFunction::signature(self)
     }
 }

@@ -5,7 +5,6 @@ use std::marker::PhantomData;
 use rayexec_error::Result;
 
 use super::row_layout::RowLayout;
-use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -32,6 +31,7 @@ use crate::arrays::array::physical_type::{
 use crate::arrays::array::Array;
 use crate::arrays::bitmap::view::BitmapView;
 use crate::arrays::string::StringPtr;
+use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::functions::scalar::builtin::comparison::{
     EqOperation,

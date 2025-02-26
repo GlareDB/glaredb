@@ -115,7 +115,7 @@ pub struct SumStateCheckedAdd<T> {
 
 impl<T> AggregateState<&T, T> for SumStateCheckedAdd<T>
 where
-    T: CheckedAdd + Default + Debug + Copy,
+    T: CheckedAdd + Default + Debug + Copy + Sync + Send,
 {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum = self.sum.checked_add(&other.sum).unwrap_or_default(); // TODO
@@ -150,7 +150,7 @@ pub struct SumStateAdd<T> {
 
 impl<T> AggregateState<&T, T> for SumStateAdd<T>
 where
-    T: AddAssign + Default + Debug + Copy,
+    T: AddAssign + Default + Debug + Copy + Sync + Send,
 {
     fn merge(&mut self, other: &mut Self) -> Result<()> {
         self.sum += other.sum;

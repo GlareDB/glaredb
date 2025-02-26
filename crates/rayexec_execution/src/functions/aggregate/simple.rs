@@ -1,0 +1,101 @@
+use std::fmt::Debug;
+
+use rayexec_error::{RayexecError, Result};
+
+use super::AggregateFunction;
+use crate::arrays::array::physical_type::{MutableScalarStorage, ScalarStorage};
+use crate::arrays::array::Array;
+use crate::arrays::executor::aggregate::{AggregateState, UnaryNonNullUpdater};
+use crate::arrays::executor::PutBuffer;
+use crate::expr::Expression;
+use crate::functions::bind_state::BindState;
+
+pub trait UnaryAggregate: Debug + Sync + Send + Sized + 'static {
+    type Input: ScalarStorage;
+    type Output: MutableScalarStorage;
+
+    type BindState: Sync + Send;
+
+    type AggregateState: for<'a> AggregateState<
+        &'a <Self::Input as ScalarStorage>::StorageType,
+        <Self::Output as ScalarStorage>::StorageType,
+    >;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>>;
+
+    fn new_aggregate_state(state: &Self::BindState) -> Self::AggregateState;
+}
+
+#[derive(Debug)]
+pub struct SimpleUnaryAggregate<U: UnaryAggregate> {
+    unary: &'static U,
+}
+
+impl<U> SimpleUnaryAggregate<U>
+where
+    U: UnaryAggregate,
+{
+    pub const fn new(unary: &'static U) -> Self {
+        SimpleUnaryAggregate { unary }
+    }
+}
+
+impl<U> AggregateFunction for SimpleUnaryAggregate<U>
+where
+    U: UnaryAggregate,
+{
+    type State = U::BindState;
+    type AggregateState = U::AggregateState;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        self.unary.bind(inputs)
+    }
+
+    fn new_aggregate_state(state: &Self::State) -> Self::AggregateState {
+        U::new_aggregate_state(state)
+    }
+
+    fn update(
+        _state: &Self::State,
+        inputs: &[Array],
+        num_rows: usize,
+        states: &mut [*mut Self::AggregateState],
+    ) -> Result<()> {
+        UnaryNonNullUpdater::update::<U::Input, _, _>(&inputs[0], 0..num_rows, states)
+    }
+
+    fn combine(
+        _state: &Self::State,
+        src: &mut [&mut Self::AggregateState],
+        dest: &mut [&mut Self::AggregateState],
+    ) -> Result<()> {
+        if src.len() != dest.len() {
+            return Err(RayexecError::new(
+                "Source and destination have different number of states",
+            )
+            .with_field("source", src.len())
+            .with_field("dest", dest.len()));
+        }
+
+        for (src, dest) in src.iter_mut().zip(dest) {
+            dest.merge(src)?;
+        }
+
+        Ok(())
+    }
+
+    fn finalize(
+        _state: &Self::State,
+        states: &mut [&mut Self::AggregateState],
+        output: &mut Array,
+    ) -> Result<()> {
+        let buffer = &mut <U::Output>::get_addressable_mut(&mut output.data)?;
+        let validity = &mut output.validity;
+
+        for (idx, state) in states.iter_mut().enumerate() {
+            state.finalize(PutBuffer::new(idx, buffer, validity))?;
+        }
+
+        Ok(())
+    }
+}
