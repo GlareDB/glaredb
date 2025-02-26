@@ -49,7 +49,10 @@ pub const FUNCTION_SET_LIST_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }),
     functions: &[RawScalarFunction::new(
-        Signature::new(&[DataTypeId::List, DataTypeId::Int64], DataTypeId::Any),
+        Signature::new(
+            &[DataTypeId::List(&DataTypeId::Any), DataTypeId::Int64],
+            DataTypeId::Any,
+        ),
         &ListExtract,
     )],
 };

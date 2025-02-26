@@ -40,7 +40,7 @@ impl FunctionInfo for Unnest {
 
         &[
             Signature {
-                positional_args: &[DataTypeId::List],
+                positional_args: &[DataTypeId::List(&DataTypeId::Any)],
                 variadic_arg: None,
                 return_type: DataTypeId::Any,
                 doc: Some(DOC),

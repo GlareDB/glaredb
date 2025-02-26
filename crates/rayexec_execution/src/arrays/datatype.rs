@@ -14,7 +14,7 @@ use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType}
 /// without needing to worry about extra type info (e.g. precision/scale for
 /// decimals).
 // TODO: "Table"
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DataTypeId {
     /// Any datatype.
     ///
@@ -48,112 +48,39 @@ pub enum DataTypeId {
     Utf8,
     Binary,
     Struct,
-    List,
-}
-
-impl DataTypeId {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Any => "Any",
-            Self::Null => "Null",
-            Self::Boolean => "Boolean",
-            Self::Int8 => "Int8",
-            Self::Int16 => "Int16",
-            Self::Int32 => "Int32",
-            Self::Int64 => "Int64",
-            Self::Int128 => "Int128",
-            Self::UInt8 => "UInt8",
-            Self::UInt16 => "UInt16",
-            Self::UInt32 => "UInt32",
-            Self::UInt64 => "UInt64",
-            Self::UInt128 => "UInt128",
-            Self::Float16 => "Float16",
-            Self::Float32 => "Float32",
-            Self::Float64 => "Float64",
-            Self::Decimal64 => "Decimal64",
-            Self::Decimal128 => "Decimal128",
-            Self::Timestamp => "Timestamp",
-            Self::Date32 => "Date32",
-            Self::Date64 => "Date64",
-            Self::Interval => "Interval",
-            Self::Utf8 => "Utf8",
-            Self::Binary => "Binary",
-            Self::Struct => "Struct",
-            Self::List => "List",
-        }
-    }
-}
-
-impl ProtoConv for DataTypeId {
-    type ProtoType = rayexec_proto::generated::schema::DataTypeId;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(match self {
-            Self::Any => Self::ProtoType::Any,
-            Self::Null => Self::ProtoType::Null,
-            Self::Boolean => Self::ProtoType::Boolean,
-            Self::Int8 => Self::ProtoType::Int8,
-            Self::Int16 => Self::ProtoType::Int16,
-            Self::Int32 => Self::ProtoType::Int32,
-            Self::Int64 => Self::ProtoType::Int64,
-            Self::Int128 => Self::ProtoType::Int128,
-            Self::UInt8 => Self::ProtoType::Uint8,
-            Self::UInt16 => Self::ProtoType::Uint16,
-            Self::UInt32 => Self::ProtoType::Uint32,
-            Self::UInt64 => Self::ProtoType::Uint64,
-            Self::UInt128 => Self::ProtoType::Uint128,
-            Self::Float16 => Self::ProtoType::Float16,
-            Self::Float32 => Self::ProtoType::Float32,
-            Self::Float64 => Self::ProtoType::Float64,
-            Self::Decimal64 => Self::ProtoType::Decimal64,
-            Self::Decimal128 => Self::ProtoType::Decimal128,
-            Self::Timestamp => Self::ProtoType::Timestamp,
-            Self::Date32 => Self::ProtoType::Date32,
-            Self::Date64 => Self::ProtoType::Date64,
-            Self::Interval => Self::ProtoType::Interval,
-            Self::Utf8 => Self::ProtoType::Utf8,
-            Self::Binary => Self::ProtoType::Binary,
-            Self::Struct => Self::ProtoType::Struct,
-            Self::List => Self::ProtoType::List,
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(match proto {
-            Self::ProtoType::InvalidDatatypeId => return Err(RayexecError::new("invalid")),
-            Self::ProtoType::Any => Self::Any,
-            Self::ProtoType::Null => Self::Null,
-            Self::ProtoType::Boolean => Self::Boolean,
-            Self::ProtoType::Int8 => Self::Int8,
-            Self::ProtoType::Int16 => Self::Int16,
-            Self::ProtoType::Int32 => Self::Int32,
-            Self::ProtoType::Int64 => Self::Int64,
-            Self::ProtoType::Int128 => Self::Int128,
-            Self::ProtoType::Uint8 => Self::UInt8,
-            Self::ProtoType::Uint16 => Self::UInt16,
-            Self::ProtoType::Uint32 => Self::UInt32,
-            Self::ProtoType::Uint64 => Self::UInt64,
-            Self::ProtoType::Uint128 => Self::UInt128,
-            Self::ProtoType::Float16 => Self::Float16,
-            Self::ProtoType::Float32 => Self::Float32,
-            Self::ProtoType::Float64 => Self::Float64,
-            Self::ProtoType::Decimal64 => Self::Decimal64,
-            Self::ProtoType::Decimal128 => Self::Decimal128,
-            Self::ProtoType::Timestamp => Self::Timestamp,
-            Self::ProtoType::Date32 => Self::Date32,
-            Self::ProtoType::Date64 => Self::Date64,
-            Self::ProtoType::Interval => Self::Interval,
-            Self::ProtoType::Utf8 => Self::Utf8,
-            Self::ProtoType::Binary => Self::Binary,
-            Self::ProtoType::Struct => Self::Struct,
-            Self::ProtoType::List => Self::List,
-        })
-    }
+    List(&'static DataTypeId),
 }
 
 impl fmt::Display for DataTypeId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
+        match self {
+            Self::Any => write!(f, "Any"),
+            Self::Null => write!(f, "Null"),
+            Self::Boolean => write!(f, "Boolean"),
+            Self::Int8 => write!(f, "Int8"),
+            Self::Int16 => write!(f, "Int16"),
+            Self::Int32 => write!(f, "Int32"),
+            Self::Int64 => write!(f, "Int64"),
+            Self::Int128 => write!(f, "Int128"),
+            Self::UInt8 => write!(f, "UInt8"),
+            Self::UInt16 => write!(f, "UInt16"),
+            Self::UInt32 => write!(f, "UInt32"),
+            Self::UInt64 => write!(f, "UInt64"),
+            Self::UInt128 => write!(f, "UInt128"),
+            Self::Float16 => write!(f, "Float16"),
+            Self::Float32 => write!(f, "Float32"),
+            Self::Float64 => write!(f, "Float64"),
+            Self::Decimal64 => write!(f, "Decimal64"),
+            Self::Decimal128 => write!(f, "Decimal128"),
+            Self::Timestamp => write!(f, "Timestamp"),
+            Self::Date32 => write!(f, "Date32"),
+            Self::Date64 => write!(f, "Date64"),
+            Self::Interval => write!(f, "Interval"),
+            Self::Utf8 => write!(f, "Utf8"),
+            Self::Binary => write!(f, "Binary"),
+            Self::Struct => write!(f, "Struct"),
+            Self::List(inner) => write!(f, "List({inner})"),
+        }
     }
 }
 
@@ -410,14 +337,14 @@ impl DataType {
             DataTypeId::Struct => {
                 return Err(RayexecError::new("Cannot create a default Struct datatype"))
             }
-            DataTypeId::List => {
+            DataTypeId::List(_) => {
                 return Err(RayexecError::new("Cannot create a default List datatype"))
             }
         })
     }
 
     /// Get the data type id from the data type.
-    pub const fn datatype_id(&self) -> DataTypeId {
+    pub fn datatype_id(&self) -> DataTypeId {
         match self {
             DataType::Null => DataTypeId::Null,
             DataType::Boolean => DataTypeId::Boolean,
@@ -443,7 +370,37 @@ impl DataType {
             DataType::Utf8 => DataTypeId::Utf8,
             DataType::Binary => DataTypeId::Binary,
             DataType::Struct(_) => DataTypeId::Struct,
-            DataType::List(_) => DataTypeId::List,
+            DataType::List(m) => {
+                // Destructure one level deeper.
+                match m.datatype.as_ref() {
+                    DataType::Null => DataTypeId::List(&DataTypeId::Null),
+                    DataType::Boolean => DataTypeId::List(&DataTypeId::Boolean),
+                    DataType::Int8 => DataTypeId::List(&DataTypeId::Int8),
+                    DataType::Int16 => DataTypeId::List(&DataTypeId::Int16),
+                    DataType::Int32 => DataTypeId::List(&DataTypeId::Int32),
+                    DataType::Int64 => DataTypeId::List(&DataTypeId::Int64),
+                    DataType::Int128 => DataTypeId::List(&DataTypeId::Int128),
+                    DataType::UInt8 => DataTypeId::List(&DataTypeId::UInt8),
+                    DataType::UInt16 => DataTypeId::List(&DataTypeId::UInt16),
+                    DataType::UInt32 => DataTypeId::List(&DataTypeId::UInt32),
+                    DataType::UInt64 => DataTypeId::List(&DataTypeId::UInt64),
+                    DataType::UInt128 => DataTypeId::List(&DataTypeId::UInt128),
+                    DataType::Float16 => DataTypeId::List(&DataTypeId::Float16),
+                    DataType::Float32 => DataTypeId::List(&DataTypeId::Float32),
+                    DataType::Float64 => DataTypeId::List(&DataTypeId::Float64),
+                    DataType::Decimal64(_) => DataTypeId::List(&DataTypeId::Decimal64),
+                    DataType::Decimal128(_) => DataTypeId::List(&DataTypeId::Decimal128),
+                    DataType::Timestamp(_) => DataTypeId::List(&DataTypeId::Timestamp),
+                    DataType::Date32 => DataTypeId::List(&DataTypeId::Date32),
+                    DataType::Date64 => DataTypeId::List(&DataTypeId::Date64),
+                    DataType::Interval => DataTypeId::List(&DataTypeId::Interval),
+                    DataType::Utf8 => DataTypeId::List(&DataTypeId::Utf8),
+                    DataType::Binary => DataTypeId::List(&DataTypeId::Binary),
+                    DataType::Struct(_) => DataTypeId::List(&DataTypeId::Struct),
+                    // Unknown or deeply nested type.
+                    _ => DataTypeId::List(&DataTypeId::Any),
+                }
+            }
         }
     }
 

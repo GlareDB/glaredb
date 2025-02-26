@@ -42,9 +42,9 @@ use window_expr::WindowExpr;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
+use crate::functions::candidate::CastType;
 use crate::functions::function_set::{FunctionInfo, FunctionSet, ScalarFunctionSet};
 use crate::functions::scalar::{FunctionVolatility, PlannedScalarFunction};
-use crate::functions::CastType;
 use crate::logical::binder::table_list::TableRef;
 
 /// A logical expression.

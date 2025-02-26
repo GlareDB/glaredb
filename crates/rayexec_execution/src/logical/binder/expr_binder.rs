@@ -22,6 +22,7 @@ use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
 use crate::expr::{self, AsScalarFunctionSet, Expression};
 use crate::functions::aggregate::AggregateFunction;
+use crate::functions::candidate::CastType;
 use crate::functions::function_set::{FunctionInfo, FunctionSet};
 use crate::functions::scalar::builtin::datetime::{DatePart, FUNCTION_SET_DATE_PART};
 use crate::functions::scalar::builtin::is::{
@@ -45,7 +46,6 @@ use crate::functions::scalar::builtin::string::{
 };
 use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction2};
 use crate::functions::table::TableFunction;
-use crate::functions::CastType;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -1198,128 +1198,6 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                 }
             }
-        }
-    }
-
-    /// Find the the best function to use from the function based on signature.
-    ///
-    /// If the there isn't an exact match, but a candidate exists, casts will be
-    /// applied to match the closest signature.
-    fn bind_function_signature<T>(
-        &self,
-        bind_context: &BindContext,
-        function: &FunctionSet<T>,
-        mut inputs: Vec<Expression>,
-    ) -> Result<(T, Vec<Expression>)>
-    where
-        T: FunctionInfo,
-    {
-        let datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype())
-            .collect::<Result<Vec<_>>>()?;
-
-        let func = match function.find_exact(&datatypes) {
-            Some(func) => func,
-            None => {
-                // No exact, try to see if there's candidate.
-                let mut candidates = function.candidates(&datatypes);
-
-                if candidates.is_empty() {
-                    // TODO: Better error.
-                    return Err(RayexecError::new(format!(
-                        "Invalid inputs to '{}': {}",
-                        function.name,
-                        datatypes.display_with_brackets(),
-                    )));
-                }
-
-                // TODO: Maybe more sophisticated candidate selection.
-                //
-                // We should do some lightweight const folding and prefer candidates
-                // that cast the consts over ones that need array inputs to be
-                // casted.
-                let candidate = candidates.swap_remove(0);
-
-                // Apply casts where needed.
-                inputs = inputs
-                    .into_iter()
-                    .zip(candidate.casts)
-                    .map(|(input, cast_to)| {
-                        Ok(match cast_to {
-                            CastType::Cast { to, .. } => Expression::Cast(CastExpr {
-                                to: DataType::try_default_datatype(to)?, // TODO: Still want this?
-                                expr: Box::new(input),
-                            }),
-                            CastType::NoCastNeeded => input,
-                        })
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-
-                function
-                    .get(candidate.signature_idx)
-                    .expect("candidate to return value index")
-            }
-        };
-
-        Ok((*func, inputs))
-    }
-
-    /// Applies casts to an input expression based on the signatures for a
-    /// scalar function.
-    fn apply_casts_for_scalar_function(
-        &self,
-        bind_context: &BindContext,
-        scalar: &dyn ScalarFunction2,
-        inputs: Vec<Expression>,
-    ) -> Result<Vec<Expression>> {
-        let input_datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype())
-            .collect::<Result<Vec<_>>>()?;
-
-        if scalar.exact_signature(&input_datatypes).is_some() {
-            // Exact
-            Ok(inputs)
-        } else {
-            // Try to find candidates that we can cast to.
-            let mut candidates = scalar.candidate(&input_datatypes);
-
-            if candidates.is_empty() {
-                // TODO: Do we want to fall through? Is it possible for a
-                // scalar and aggregate function to have the same name?
-
-                // TODO: Better error.
-                return Err(RayexecError::new(format!(
-                    "Invalid inputs to '{}': {}",
-                    scalar.name(),
-                    input_datatypes.display_with_brackets(),
-                )));
-            }
-
-            // TODO: Maybe more sophisticated candidate selection.
-            //
-            // We should do some lightweight const folding and prefer candidates
-            // that cast the consts over ones that need array inputs to be
-            // casted.
-            let candidate = candidates.swap_remove(0);
-
-            // Apply casts where needed.
-            let inputs = inputs
-                .into_iter()
-                .zip(candidate.casts)
-                .map(|(input, cast_to)| {
-                    Ok(match cast_to {
-                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
-                            to: DataType::try_default_datatype(to)?,
-                            expr: Box::new(input),
-                        }),
-                        CastType::NoCastNeeded => input,
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?;
-
-            Ok(inputs)
         }
     }
 

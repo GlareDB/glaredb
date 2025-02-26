@@ -18,99 +18,68 @@ use crate::arrays::executor::scalar::{BinaryListReducer, BinaryReducer};
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 
-/// Euclidean distance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct L2Distance;
-
-impl FunctionInfo for L2Distance {
-    fn name(&self) -> &'static str {
-        "l2_distance"
-    }
-
-    fn aliases(&self) -> &'static [&'static str] {
-        &["array_distance"]
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        // TODO: Ideally return type would depend on the primitive type in the
-        // list.
-        &[Signature {
-            positional_args: &[DataTypeId::List, DataTypeId::List],
-            variadic_arg: None,
-            return_type: DataTypeId::Float64,
-            doc: Some(&Documentation{
-                category: Category::List,
-                description: "Compute the Euclidean distance between two lists. Both lists must be the same length and cannot contain NULLs.",
-                arguments: &["list1", "list2"],
-                example: Some(Example{
-                    example: "l2_distance([1.0, 1.0], [2.0, 4.0])",
-                    output: "3.1622776601683795",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for L2Distance {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 2)?;
-
-        let function_impl: Box<dyn ScalarFunctionImpl> =
-            match (inputs[0].datatype()?, inputs[1].datatype()?) {
-                (DataType::List(a), DataType::List(b)) => {
-                    match (a.datatype.as_ref(), b.datatype.as_ref()) {
-                        (DataType::Float16, DataType::Float16) => {
-                            Box::new(L2DistanceImpl::<PhysicalF16>::new())
-                        }
-                        (DataType::Float32, DataType::Float32) => {
-                            Box::new(L2DistanceImpl::<PhysicalF32>::new())
-                        }
-                        (DataType::Float64, DataType::Float64) => {
-                            Box::new(L2DistanceImpl::<PhysicalF64>::new())
-                        }
-                        (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
-                    }
-                }
-                (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
-            };
-
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
-            return_type: DataType::Float64,
-            inputs,
-            function_impl,
-        })
-    }
-}
+pub const FUNCTION_SET_L2_DISTANCE: ScalarFunctionSet = ScalarFunctionSet {
+    name: "l2_distance",
+    aliases: &["array_distance"],
+    doc: Some(&Documentation{
+        category: Category::List,
+        description: "Compute the Euclidean distance between two lists. Both lists must be the same length and cannot contain NULLs.",
+        arguments: &["list1", "list2"],
+        example: Some(Example{
+            example: "l2_distance([1.0, 1.0], [2.0, 4.0])",
+            output: "3.1622776601683795",
+        }),
+    }),
+    functions: &[
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::List(&DataTypeId::Float16),DataTypeId::List(&DataTypeId::Float16)], DataTypeId::Float64),
+            &L2Distance::<PhysicalF16>::new(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::List(&DataTypeId::Float32),DataTypeId::List(&DataTypeId::Float32)], DataTypeId::Float64),
+            &L2Distance::<PhysicalF32>::new(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::List(&DataTypeId::Float64),DataTypeId::List(&DataTypeId::Float64)], DataTypeId::Float64),
+            &L2Distance::<PhysicalF64>::new(),
+        ),
+    ],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct L2DistanceImpl<S: ScalarStorage> {
+pub struct L2Distance<S: ScalarStorage> {
     _s: PhantomData<S>,
 }
 
-impl<S> L2DistanceImpl<S>
+impl<S> L2Distance<S>
 where
     S: ScalarStorage,
 {
-    fn new() -> Self {
-        L2DistanceImpl { _s: PhantomData }
+    pub const fn new() -> Self {
+        L2Distance { _s: PhantomData }
     }
 }
 
-impl<S> ScalarFunctionImpl for L2DistanceImpl<S>
+impl<S> ScalarFunction for L2Distance<S>
 where
     S: MutableScalarStorage,
     S::StorageType: Float + AddAssign + AsPrimitive<f64> + Default + Copy,
 {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    type State = ();
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Float64,
+            inputs,
+        })
+    }
+
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let a = &input.arrays()[0];
         let b = &input.arrays()[1];

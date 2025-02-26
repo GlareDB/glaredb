@@ -212,48 +212,6 @@ trait ScalarFunctionVTable: ScalarFunction {
 
 impl<F> ScalarFunctionVTable for F where F: ScalarFunction {}
 
-/// Try to create a return type for a data type id.
-///
-/// For data type that require additional metadata (e.g. precision and scale for
-/// decimals), this will error. Functions that return such types need to handle
-/// determining the exact type to return.
-#[allow(unused)] // For now maybe
-fn try_return_type_from_type_id(id: DataTypeId) -> Result<DataType> {
-    fn fmt_err(id: DataTypeId) -> RayexecError {
-        RayexecError::new("Cannot create a default return type for type id")
-            .with_field("type_id", id)
-    }
-
-    Ok(match id {
-        DataTypeId::Any => return Err(fmt_err(id)),
-        DataTypeId::Null => DataType::Null,
-        DataTypeId::Boolean => DataType::Boolean,
-        DataTypeId::Int8 => DataType::Int8,
-        DataTypeId::Int16 => DataType::Int16,
-        DataTypeId::Int32 => DataType::Int32,
-        DataTypeId::Int64 => DataType::Int64,
-        DataTypeId::Int128 => DataType::Int128,
-        DataTypeId::UInt8 => DataType::UInt8,
-        DataTypeId::UInt16 => DataType::UInt16,
-        DataTypeId::UInt32 => DataType::UInt32,
-        DataTypeId::UInt64 => DataType::UInt64,
-        DataTypeId::UInt128 => DataType::UInt128,
-        DataTypeId::Float16 => DataType::Float16,
-        DataTypeId::Float32 => DataType::Float32,
-        DataTypeId::Float64 => DataType::Float64,
-        DataTypeId::Decimal64 => return Err(fmt_err(id)),
-        DataTypeId::Decimal128 => return Err(fmt_err(id)),
-        DataTypeId::Timestamp => return Err(fmt_err(id)),
-        DataTypeId::Date32 => DataType::Date32,
-        DataTypeId::Date64 => DataType::Date64,
-        DataTypeId::Interval => DataType::Interval,
-        DataTypeId::Utf8 => DataType::Utf8,
-        DataTypeId::Binary => DataType::Binary,
-        DataTypeId::Struct => return Err(fmt_err(id)),
-        DataTypeId::List => return Err(fmt_err(id)),
-    })
-}
-
 /// A generic scalar function that can specialize into a more specific function
 /// depending on input types.
 ///

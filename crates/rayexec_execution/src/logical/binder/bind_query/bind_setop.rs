@@ -117,8 +117,8 @@ impl<'a> SetOpBinder<'a> {
                 continue;
             }
 
-            let left_score = implicit_cast_score(&right, left.datatype_id(), false);
-            let right_score = implicit_cast_score(&left, right.datatype_id(), false);
+            let left_score = implicit_cast_score(right.datatype_id(), left.datatype_id(), false);
+            let right_score = implicit_cast_score(left.datatype_id(), right.datatype_id(), false);
 
             if left_score.is_none() && right_score.is_none() {
                 return Err(RayexecError::new(format!(
