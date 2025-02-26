@@ -10,7 +10,7 @@ use crate::arrays::executor::PutBuffer;
 use crate::buffer::buffer_manager::BufferManager;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{AggregateFunctionImpl, BinaryStateLogic};
-use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
+use crate::functions::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -38,16 +38,16 @@ impl FunctionInfo for CovarPop {
     }
 }
 
-impl AggregateFunction for CovarPop {
+impl AggregateFunction2 for CovarPop {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction> {
+    ) -> Result<PlannedAggregateFunction2> {
         plan_check_num_args(self, &inputs, 2)?;
 
         match (inputs[0].datatype()?, inputs[1].datatype()?) {
-            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
+            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction2 {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,
@@ -88,16 +88,16 @@ impl FunctionInfo for CovarSamp {
     }
 }
 
-impl AggregateFunction for CovarSamp {
+impl AggregateFunction2 for CovarSamp {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction> {
+    ) -> Result<PlannedAggregateFunction2> {
         plan_check_num_args(self, &inputs, 2)?;
 
         match (inputs[0].datatype()?, inputs[1].datatype()?) {
-            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
+            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction2 {
                 function: Box::new(*self),
                 return_type: DataType::Float64,
                 inputs,

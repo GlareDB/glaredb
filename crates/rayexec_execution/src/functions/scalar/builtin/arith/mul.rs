@@ -193,7 +193,7 @@ where
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let a = &input.arrays()[0];
         let b = &input.arrays()[1];
@@ -247,7 +247,7 @@ where
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let a = &input.arrays()[0];
         let b = &input.arrays()[1];
@@ -290,7 +290,7 @@ where
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let a = &input.arrays()[0];
         let b = &input.arrays()[1];

@@ -62,7 +62,7 @@ impl ScalarFunction for StringContains {
         })
     }
 
-    fn execute(&self, state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let haystack = &input.arrays()[0];
         let needle = &input.arrays()[1];

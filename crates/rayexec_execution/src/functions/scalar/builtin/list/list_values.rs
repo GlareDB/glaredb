@@ -70,7 +70,7 @@ impl ScalarFunction for ListValues {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         make_list_from_values(input.arrays(), input.selection(), output)
     }
 }

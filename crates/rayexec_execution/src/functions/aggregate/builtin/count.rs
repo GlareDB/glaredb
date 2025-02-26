@@ -33,7 +33,7 @@ use crate::arrays::executor::PutBuffer;
 use crate::buffer::buffer_manager::BufferManager;
 use crate::expr::{self, Expression};
 use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
-use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
+use crate::functions::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -43,8 +43,8 @@ pub struct Count;
 
 impl Count {
     /// Returns a planned aggregate function representing `COUNT(*)`.
-    pub fn count_star(&self) -> PlannedAggregateFunction {
-        PlannedAggregateFunction {
+    pub fn count_star(&self) -> PlannedAggregateFunction2 {
+        PlannedAggregateFunction2 {
             function: Box::new(*self),
             return_type: DataType::Int64,
             inputs: vec![expr::lit(true).into()],
@@ -73,12 +73,12 @@ impl FunctionInfo for Count {
     }
 }
 
-impl AggregateFunction for Count {
+impl AggregateFunction2 for Count {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction> {
+    ) -> Result<PlannedAggregateFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
 
         let function_impl = match inputs[0].datatype()?.physical_type() {
@@ -104,7 +104,7 @@ impl AggregateFunction for Count {
             PhysicalType::Struct => not_implemented!("count struct"),
         };
 
-        Ok(PlannedAggregateFunction {
+        Ok(PlannedAggregateFunction2 {
             function: Box::new(*self),
             return_type: DataType::Int64,
             inputs,

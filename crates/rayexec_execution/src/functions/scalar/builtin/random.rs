@@ -43,7 +43,7 @@ impl ScalarFunction for Random {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         UnaryExecutor::execute_in_place::<PhysicalF64, _>(output, sel, |v| {
             *v = rand::random::<f64>()

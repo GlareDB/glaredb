@@ -2,14 +2,13 @@ pub mod builtin;
 
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::sync::Arc;
 
 use rayexec_error::Result;
 
-use super::{FunctionInfo, Signature};
+use super::bind_state::{BindState, RawBindState, RawBindStateInner};
+use super::Signature;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,9 +38,7 @@ pub struct PlannedScalarFunction {
 
 impl PlannedScalarFunction {
     pub fn call_execute(&self, batch: &Batch, output: &mut Array) -> Result<()> {
-        unsafe {
-            (self.raw.vtable.execute_fn)(self.raw.function, self.state.state.0.ptr, batch, output)
-        }
+        unsafe { (self.raw.vtable.execute_fn)(self.state.state_ptr(), batch, output) }
     }
 }
 
@@ -70,12 +67,7 @@ pub struct RawScalarFunctionVTable {
     /// Create the function state and compute the return type.
     bind_fn: unsafe fn(function: *const (), inputs: Vec<Expression>) -> Result<RawBindState>,
     /// Execute the function. First argument is a pointer to the function state.
-    execute_fn: unsafe fn(
-        function: *const (),
-        state: *const (),
-        input: &Batch,
-        output: &mut Array,
-    ) -> Result<()>,
+    execute_fn: unsafe fn(state: *const (), input: &Batch, output: &mut Array) -> Result<()>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -116,47 +108,6 @@ impl RawScalarFunction {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct RawBindState {
-    pub state: RawScalarFunctionState,
-    pub return_type: DataType,
-    pub inputs: Vec<Expression>,
-}
-
-/// Bind state for a function. Paramterized on the function state.
-#[derive(Debug)]
-pub struct BindState<S> {
-    pub state: S,
-    pub return_type: DataType,
-    pub inputs: Vec<Expression>,
-}
-
-/// State passed to functions during execute.
-///
-/// Inner state is wrapped in an arc since we allow cloning functions as we
-/// allow cloning expressions.
-///
-/// The state passed during execute is not mutable, so if we end up with
-/// multiple function calls using the same state, that's fine.
-#[derive(Debug, Clone)]
-pub struct RawScalarFunctionState(Arc<StateInner>);
-
-#[derive(Debug)]
-struct StateInner {
-    ptr: *const (),
-    drop_fn: unsafe fn(ptr: *const ()),
-}
-
-// SAFETY: `ScalarFunction::State` has Sync+Send bounds.
-unsafe impl Send for StateInner {}
-unsafe impl Sync for StateInner {}
-
-impl Drop for RawScalarFunctionState {
-    fn drop(&mut self) {
-        unsafe { (self.0.drop_fn)(self.0.ptr) }
-    }
-}
-
 pub trait ScalarFunction: Debug + Sync + Send + Sized {
     const VOLATILITY: FunctionVolatility = FunctionVolatility::Consistent;
 
@@ -180,7 +131,7 @@ pub trait ScalarFunction: Debug + Sync + Send + Sized {
     ///
     /// The batch's `selection` method should be called to determine which rows
     /// should be looked at during function eval.
-    fn execute(&self, state: &Self::State, input: &Batch, output: &mut Array) -> Result<()>;
+    fn execute(state: &Self::State, input: &Batch, output: &mut Array) -> Result<()>;
 }
 
 trait ScalarFunctionVTable: ScalarFunction {
@@ -188,16 +139,7 @@ trait ScalarFunctionVTable: ScalarFunction {
         bind_fn: |function: *const (), inputs: Vec<Expression>| -> Result<RawBindState> {
             let function = unsafe { function.cast::<Self>().as_ref().unwrap() };
             let state = function.bind(inputs)?;
-            let ptr = (&state.state as *const Self::State).cast();
-            std::mem::forget(state.state); // We'll handle dropping manually.
-
-            let raw = RawScalarFunctionState(Arc::new(StateInner {
-                ptr,
-                drop_fn: |ptr: *const ()| {
-                    let ptr = ptr.cast::<Self::State>().cast_mut();
-                    unsafe { ptr.drop_in_place() };
-                },
-            }));
+            let raw = RawBindStateInner::from_state(state.state);
 
             Ok(RawBindState {
                 state: raw,
@@ -205,14 +147,9 @@ trait ScalarFunctionVTable: ScalarFunction {
                 inputs: state.inputs,
             })
         },
-        execute_fn: |function: *const (),
-                     state: *const (),
-                     input: &Batch,
-                     output: &mut Array|
-         -> Result<()> {
-            let function = unsafe { function.cast::<Self>().as_ref().unwrap() };
+        execute_fn: |state: *const (), input: &Batch, output: &mut Array| -> Result<()> {
             let state = unsafe { state.cast::<Self::State>().as_ref().unwrap() };
-            function.execute(state, input, output)
+            Self::execute(state, input, output)
         },
     };
 }

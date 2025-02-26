@@ -5,13 +5,13 @@ use rayexec_error::Result;
 use super::Expression;
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::aggregate::PlannedAggregateFunction;
+use crate::functions::aggregate::PlannedAggregateFunction2;
 use crate::logical::binder::bind_context::BindContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AggregateExpr {
     /// The function.
-    pub agg: PlannedAggregateFunction,
+    pub agg: PlannedAggregateFunction2,
     /// Optional filter to the aggregate.
     pub filter: Option<Box<Expression>>,
     /// If the inputs should be deduplicated.

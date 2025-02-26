@@ -53,7 +53,7 @@ impl ScalarFunction for SubstringFrom {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
         BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _>(
@@ -81,7 +81,7 @@ impl ScalarFunction for SubstringFromTo {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
         TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalI64, PhysicalUtf8, _>(

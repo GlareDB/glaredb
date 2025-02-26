@@ -104,7 +104,7 @@ where
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
         UnaryExecutor::execute::<S, S, _>(
@@ -130,7 +130,7 @@ impl ScalarFunction for Not {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
         UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _>(

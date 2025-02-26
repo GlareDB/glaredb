@@ -75,7 +75,7 @@ impl ScalarFunction for And {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
         match input.arrays().len() {
@@ -134,7 +134,7 @@ impl ScalarFunction for Or {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
         match input.arrays().len() {

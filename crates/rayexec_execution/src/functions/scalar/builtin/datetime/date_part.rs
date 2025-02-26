@@ -83,7 +83,7 @@ impl ScalarFunction for DatePart {
         })
     }
 
-    fn execute(&self, state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         // First input ignored (the constant "part" to extract)
         let input = &input.arrays()[1];

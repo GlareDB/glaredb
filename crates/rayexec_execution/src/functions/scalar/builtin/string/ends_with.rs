@@ -62,7 +62,7 @@ impl ScalarFunction for EndsWith {
         })
     }
 
-    fn execute(&self, state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let strings = &input.arrays()[0];
         let suffix = &input.arrays()[1];

@@ -45,7 +45,7 @@ impl ScalarFunction for Ascii {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 

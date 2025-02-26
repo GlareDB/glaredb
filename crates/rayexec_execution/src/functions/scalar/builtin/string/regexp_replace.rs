@@ -81,7 +81,7 @@ impl ScalarFunction for RegexpReplace {
         })
     }
 
-    fn execute(&self, state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
         match (state.pattern.as_ref(), state.replacement.as_ref()) {

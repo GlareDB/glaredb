@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
-use super::aggregate::{AggregateFunction, PlannedAggregateFunction};
+use super::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
 use super::copy::{CopyToArgs, CopyToFunction};
 use super::table::{PlannedTableFunction, TableFunction};
 use crate::arrays::scalar::ScalarValue;
@@ -13,7 +13,7 @@ use crate::proto::DatabaseProtoConv;
 
 pub const FUNCTION_LOOKUP_CATALOG: &str = "glare_catalog";
 
-impl DatabaseProtoConv for Box<dyn AggregateFunction> {
+impl DatabaseProtoConv for Box<dyn AggregateFunction2> {
     type ProtoType = rayexec_proto::generated::functions::AggregateFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
@@ -36,7 +36,7 @@ impl DatabaseProtoConv for Box<dyn AggregateFunction> {
     }
 }
 
-impl DatabaseProtoConv for PlannedAggregateFunction {
+impl DatabaseProtoConv for PlannedAggregateFunction2 {
     type ProtoType = rayexec_proto::generated::functions::PlannedAggregateFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {

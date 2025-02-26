@@ -6,7 +6,7 @@ use rayexec_proto::ProtoConv;
 
 use super::DatabaseContext;
 use crate::arrays::field::Field;
-use crate::functions::aggregate::AggregateFunction;
+use crate::functions::aggregate::AggregateFunction2;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::table::TableFunction;
@@ -187,7 +187,7 @@ impl DatabaseProtoConv for ScalarFunctionEntry {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct AggregateFunctionEntry {
-    pub function: Box<dyn AggregateFunction>,
+    pub function: Box<dyn AggregateFunction2>,
 }
 
 impl DatabaseProtoConv for AggregateFunctionEntry {

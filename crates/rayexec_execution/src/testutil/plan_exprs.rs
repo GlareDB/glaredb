@@ -4,7 +4,7 @@ use crate::arrays::datatype::DataType;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
 use crate::expr::physical::{PhysicalAggregateExpression, PhysicalScalarExpression};
 use crate::expr::{self, Expression};
-use crate::functions::aggregate::AggregateFunction;
+use crate::functions::aggregate::AggregateFunction2;
 use crate::logical::binder::table_list::{TableList, TableRef};
 
 /// Wrapper for generating physical scalar expressions.
@@ -38,7 +38,7 @@ pub fn plan_scalars<'a>(
 
 #[derive(Debug, Clone, Copy)]
 pub struct TestAggregate {
-    pub function: &'static dyn AggregateFunction,
+    pub function: &'static dyn AggregateFunction2,
     pub columns: &'static [usize],
 }
 

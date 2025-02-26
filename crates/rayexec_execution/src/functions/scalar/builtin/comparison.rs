@@ -464,7 +464,7 @@ where
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let left = &input.arrays()[0];
         let right = &input.arrays()[1];

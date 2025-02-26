@@ -47,7 +47,7 @@ impl ScalarFunction for Repeat {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let strings = &input.arrays()[0];
         let counts = &input.arrays()[1];

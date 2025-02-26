@@ -1,4 +1,5 @@
 pub mod aggregate;
+pub mod bind_state;
 pub mod candidate;
 pub mod copy;
 pub mod documentation;
@@ -14,7 +15,6 @@ use std::fmt::Display;
 use candidate::CandidateSignature;
 use documentation::Documentation;
 use fmtutil::IntoDisplayableSlice;
-use implicit::{implicit_cast_score, NO_CAST_SCORE};
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::datatype::{DataType, DataTypeId};

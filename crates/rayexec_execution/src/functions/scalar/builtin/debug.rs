@@ -28,10 +28,7 @@ impl ScalarFunction for ScalarNotImplemented {
         )))
     }
 
-    fn execute(&self, _state: &Self::State, _input: &Batch, _output: &mut Array) -> Result<()> {
-        Err(RayexecError::new(format!(
-            "Scalar function '{}' not yet implemnted",
-            self.name
-        )))
+    fn execute(_state: &Self::State, _input: &Batch, _output: &mut Array) -> Result<()> {
+        Err(RayexecError::new("Scalar function not implemented"))
     }
 }

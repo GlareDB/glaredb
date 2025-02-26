@@ -64,7 +64,7 @@ impl ScalarFunction for BothTrimOp {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         trim::<Self>(input.selection(), input.arrays(), output)
     }
 }
@@ -113,7 +113,7 @@ impl ScalarFunction for LeftTrimOp {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         trim::<Self>(input.selection(), input.arrays(), output)
     }
 }
@@ -162,7 +162,7 @@ impl ScalarFunction for RightTrimOp {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         trim::<Self>(input.selection(), input.arrays(), output)
     }
 }

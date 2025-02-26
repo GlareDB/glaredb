@@ -31,7 +31,7 @@ use crate::arrays::executor::PutBuffer;
 use crate::buffer::buffer_manager::BufferManager;
 use crate::expr::Expression;
 use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
-use crate::functions::aggregate::{AggregateFunction, PlannedAggregateFunction};
+use crate::functions::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -65,12 +65,12 @@ impl FunctionInfo for Min {
     }
 }
 
-impl AggregateFunction for Min {
+impl AggregateFunction2 for Min {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction> {
+    ) -> Result<PlannedAggregateFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
 
         let datatype = inputs[0].datatype()?;
@@ -101,7 +101,7 @@ impl AggregateFunction for Min {
             other => not_implemented!("max for type {other:?}"),
         };
 
-        Ok(PlannedAggregateFunction {
+        Ok(PlannedAggregateFunction2 {
             function: Box::new(*self),
             return_type: datatype,
             inputs,
@@ -141,12 +141,12 @@ impl FunctionInfo for Max {
     }
 }
 
-impl AggregateFunction for Max {
+impl AggregateFunction2 for Max {
     fn plan(
         &self,
         table_list: &TableList,
         inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction> {
+    ) -> Result<PlannedAggregateFunction2> {
         plan_check_num_args(self, &inputs, 1)?;
 
         let datatype = inputs[0].datatype()?;
@@ -177,7 +177,7 @@ impl AggregateFunction for Max {
             other => not_implemented!("max for type {other:?}"),
         };
 
-        Ok(PlannedAggregateFunction {
+        Ok(PlannedAggregateFunction2 {
             function: Box::new(*self),
             return_type: datatype,
             inputs,

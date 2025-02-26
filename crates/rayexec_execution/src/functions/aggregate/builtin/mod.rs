@@ -14,9 +14,9 @@ pub mod sum;
 
 use std::sync::LazyLock;
 
-use super::AggregateFunction;
+use super::AggregateFunction2;
 
-pub static BUILTIN_AGGREGATE_FUNCTIONS: LazyLock<Vec<Box<dyn AggregateFunction>>> =
+pub static BUILTIN_AGGREGATE_FUNCTIONS: LazyLock<Vec<Box<dyn AggregateFunction2>>> =
     LazyLock::new(|| {
         vec![
             Box::new(sum::Sum),

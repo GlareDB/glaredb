@@ -21,7 +21,7 @@ use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
 use crate::expr::{self, AsScalarFunctionSet, Expression};
-use crate::functions::aggregate::AggregateFunction;
+use crate::functions::aggregate::AggregateFunction2;
 use crate::functions::candidate::CastType;
 use crate::functions::scalar::builtin::datetime::{DatePart, FUNCTION_SET_DATE_PART};
 use crate::functions::scalar::builtin::is::{
@@ -1202,7 +1202,7 @@ impl<'a> BaseExpressionBinder<'a> {
     fn apply_casts_for_aggregate_function(
         &self,
         bind_context: &BindContext,
-        agg: &dyn AggregateFunction,
+        agg: &dyn AggregateFunction2,
         inputs: Vec<Expression>,
     ) -> Result<Vec<Expression>> {
         let input_datatypes = inputs

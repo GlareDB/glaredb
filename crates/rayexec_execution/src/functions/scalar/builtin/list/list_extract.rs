@@ -95,7 +95,7 @@ impl ScalarFunction for ListExtract {
         })
     }
 
-    fn execute(&self, state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
         list_extract(input, sel, output, state.index)

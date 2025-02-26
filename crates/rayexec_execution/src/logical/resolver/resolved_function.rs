@@ -1,7 +1,7 @@
 use rayexec_error::{OptionExt, Result};
 
 use crate::database::DatabaseContext;
-use crate::functions::aggregate::AggregateFunction;
+use crate::functions::aggregate::AggregateFunction2;
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::proto::DatabaseProtoConv;
 
@@ -36,7 +36,7 @@ impl SpecialBuiltinFunction {
 #[derive(Debug, Clone)]
 pub enum ResolvedFunction {
     Scalar(ScalarFunctionSet),
-    Aggregate(Box<dyn AggregateFunction>),
+    Aggregate(Box<dyn AggregateFunction2>),
     Special(SpecialBuiltinFunction),
 }
 

@@ -10,7 +10,7 @@ use crate::expr::negate_expr::NegateOperator;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::{self, Expression};
 use crate::functions::aggregate::builtin::count::Count;
-use crate::functions::aggregate::AggregateFunction;
+use crate::functions::aggregate::AggregateFunction2;
 use crate::logical::binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef};
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_join::{

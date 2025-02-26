@@ -65,7 +65,7 @@ impl<const NEGATE: bool> ScalarFunction for IsNull<NEGATE> {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
@@ -177,7 +177,7 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunction for IsBool<NOT, BOOL> {
         })
     }
 
-    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let input = &input.arrays()[0];
 

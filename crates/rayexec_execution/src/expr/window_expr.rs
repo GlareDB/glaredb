@@ -6,7 +6,7 @@ use rayexec_error::Result;
 use super::Expression;
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::aggregate::PlannedAggregateFunction;
+use crate::functions::aggregate::PlannedAggregateFunction2;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 
@@ -63,7 +63,7 @@ impl WindowFrameBound {
 pub struct WindowExpr {
     /// The aggregate function.
     // TODO: May need to adjust to allow for window-only functions.
-    pub agg: PlannedAggregateFunction,
+    pub agg: PlannedAggregateFunction2,
     /// How to partition the input to the function.
     pub partition_by: Vec<Expression>,
     /// How the input is ordered within a partition.
