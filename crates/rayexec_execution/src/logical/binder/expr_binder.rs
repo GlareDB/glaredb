@@ -23,10 +23,8 @@ use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusio
 use crate::expr::{self, AsScalarFunctionSet, Expression};
 use crate::functions::aggregate::AggregateFunction;
 use crate::functions::candidate::CastType;
-use crate::functions::function_set::{FunctionInfo, FunctionSet};
 use crate::functions::scalar::builtin::datetime::{DatePart, FUNCTION_SET_DATE_PART};
 use crate::functions::scalar::builtin::is::{
-    self,
     FUNCTION_SET_IS_FALSE,
     FUNCTION_SET_IS_NOT_FALSE,
     FUNCTION_SET_IS_NOT_NULL,
@@ -44,7 +42,6 @@ use crate::functions::scalar::builtin::string::{
     FUNCTION_SET_STARTS_WITH,
     FUNCTION_SET_SUBSTRING,
 };
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction2};
 use crate::functions::table::TableFunction;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::binder::bind_query::QueryBinder;

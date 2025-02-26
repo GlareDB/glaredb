@@ -181,6 +181,7 @@ mod tests {
 
     #[test]
     fn creates_without_error() {
+        // This will ensure we don't have duplicate names for functions.
         new_system_catalog(&DataSourceRegistry::default()).unwrap();
     }
 }

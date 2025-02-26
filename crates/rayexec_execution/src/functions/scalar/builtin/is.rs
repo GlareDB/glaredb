@@ -146,7 +146,7 @@ pub const FUNCTION_SET_IS_FALSE: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_IS_NOT_FALSE: ScalarFunctionSet = ScalarFunctionSet {
-    name: "is_false",
+    name: "is_not_false",
     aliases: &[],
     doc: Some(&Documentation {
         category: Category::General,

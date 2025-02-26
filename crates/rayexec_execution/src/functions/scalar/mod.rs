@@ -4,15 +4,13 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use dyn_clone::DynClone;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use super::{FunctionInfo, Signature};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
-use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionVolatility {
@@ -23,6 +21,12 @@ pub enum FunctionVolatility {
     Consistent,
 }
 
+/// A scalar function that has an associated bind state.
+///
+/// # Safety
+///
+/// The bind state must be the result of a `bind` call from the raw scalar
+/// function on this struct.
 #[derive(Debug, Clone)]
 pub struct PlannedScalarFunction {
     /// Name of this function.
@@ -129,7 +133,11 @@ pub struct BindState<S> {
 
 /// State passed to functions during execute.
 ///
-/// Inner state is wrapped in an arc since we allow cloning functions (for now).
+/// Inner state is wrapped in an arc since we allow cloning functions as we
+/// allow cloning expressions.
+///
+/// The state passed during execute is not mutable, so if we end up with
+/// multiple function calls using the same state, that's fine.
 #[derive(Debug, Clone)]
 pub struct RawScalarFunctionState(Arc<StateInner>);
 
@@ -160,7 +168,6 @@ pub trait ScalarFunction: Debug + Sync + Send + Sized {
     ///
     /// This will only be called with expressions that match the signature this
     /// function was registered with.
-    // TODO: Try to remove table list.
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>>;
 
     /// Execute the function the input batch, writing the output for each row
@@ -211,105 +218,3 @@ trait ScalarFunctionVTable: ScalarFunction {
 }
 
 impl<F> ScalarFunctionVTable for F where F: ScalarFunction {}
-
-/// A generic scalar function that can specialize into a more specific function
-/// depending on input types.
-///
-/// Generic scalar functions must be cheaply cloneable.
-pub trait ScalarFunction2: FunctionInfo + Debug + Sync + Send + DynClone {
-    fn volatility(&self) -> FunctionVolatility {
-        FunctionVolatility::Consistent
-    }
-
-    /// Plan a scalar function based on expression inputs.
-    ///
-    /// This allows functions to check for constant expressions and generate a
-    /// function state for use throughout the entire query.
-    ///
-    /// The returned planned function will hold onto its logical inputs. These
-    /// inputs can be modified during optimization, but the datatype is
-    /// guaranteed to remain constant.
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2>;
-}
-
-impl Clone for Box<dyn ScalarFunction2> {
-    fn clone(&self) -> Self {
-        dyn_clone::clone_box(&**self)
-    }
-}
-
-impl PartialEq<dyn ScalarFunction2> for Box<dyn ScalarFunction2 + '_> {
-    fn eq(&self, other: &dyn ScalarFunction2) -> bool {
-        self.as_ref() == other
-    }
-}
-
-impl PartialEq for dyn ScalarFunction2 + '_ {
-    fn eq(&self, other: &dyn ScalarFunction2) -> bool {
-        self.name() == other.name() && self.signatures() == other.signatures()
-    }
-}
-
-impl Eq for dyn ScalarFunction2 {}
-
-/// Represents a function that knows its inputs and the return type of its
-/// output.
-#[derive(Debug, Clone)]
-pub struct PlannedScalarFunction2 {
-    /// The function that produced this state.
-    ///
-    /// This is kept around for display user-readable names, as well as for
-    /// serialized/deserializing planned functions.
-    pub function: Box<dyn ScalarFunction2>,
-    /// Return type of the functions.
-    pub return_type: DataType,
-    /// Inputs to the functions.
-    pub inputs: Vec<Expression>,
-    /// The function implmentation.
-    pub function_impl: Box<dyn ScalarFunctionImpl>,
-}
-
-/// Assumes that a function with same inputs and return type is using the same
-/// function implementation.
-impl PartialEq for PlannedScalarFunction2 {
-    fn eq(&self, other: &Self) -> bool {
-        self.function == other.function
-            && self.return_type == other.return_type
-            && self.inputs == other.inputs
-    }
-}
-
-impl Eq for PlannedScalarFunction2 {}
-
-impl Hash for PlannedScalarFunction2 {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.function.name().hash(state);
-        self.return_type.hash(state);
-        self.inputs.hash(state);
-    }
-}
-
-// TODO: Function pointer?
-pub trait ScalarFunctionImpl: Debug + Sync + Send + DynClone {
-    /// Execute the function the input batch, writing the output for each row
-    /// into `output` at the same index.
-    ///
-    /// `output` has the following guarantees:
-    /// - Has at least the primary buffer capacity needed to write the results.
-    /// - All validities are initalized to 'valid'.
-    /// - Array data can be made mutable via `try_as_mut()`.
-    ///
-    /// The batch's `selection` method should be called to determine which rows
-    /// should be looked at during function eval.
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()>;
-}
-
-impl Clone for Box<dyn ScalarFunctionImpl> {
-    fn clone(&self) -> Self {
-        dyn_clone::clone_box(&**self)
-    }
-}

@@ -20,84 +20,91 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
-use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Negate;
-
-impl FunctionInfo for Negate {
-    fn name(&self) -> &'static str {
-        "negate"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const SIGS: &[Signature] = &[
+pub const FUNCTION_SET_NEGATE: ScalarFunctionSet = ScalarFunctionSet {
+    name: "negate",
+    aliases: &[],
+    doc: None,
+    functions: &[
+        RawScalarFunction::new(
             Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
+            &Negate::<PhysicalF16>::new(&DataType::Float16),
+        ),
+        RawScalarFunction::new(
             Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
+            &Negate::<PhysicalF32>::new(&DataType::Float32),
+        ),
+        RawScalarFunction::new(
             Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+            &Negate::<PhysicalF64>::new(&DataType::Float64),
+        ),
+        RawScalarFunction::new(
             Signature::new(&[DataTypeId::Int8], DataTypeId::Int8),
+            &Negate::<PhysicalI8>::new(&DataType::Int8),
+        ),
+        RawScalarFunction::new(
             Signature::new(&[DataTypeId::Int16], DataTypeId::Int16),
+            &Negate::<PhysicalI16>::new(&DataType::Int16),
+        ),
+        RawScalarFunction::new(
             Signature::new(&[DataTypeId::Int32], DataTypeId::Int32),
+            &Negate::<PhysicalI32>::new(&DataType::Int32),
+        ),
+        RawScalarFunction::new(
             Signature::new(&[DataTypeId::Int64], DataTypeId::Int64),
+            &Negate::<PhysicalI64>::new(&DataType::Int64),
+        ),
+        RawScalarFunction::new(
             Signature::new(&[DataTypeId::Int128], DataTypeId::Int128),
-            Signature::new(&[DataTypeId::Interval], DataTypeId::Interval),
-        ];
-        SIGS
-    }
-}
+            &Negate::<PhysicalI128>::new(&DataType::Int128),
+        ),
+    ],
+};
 
-impl ScalarFunction2 for Negate {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        let dt = inputs[0].datatype()?;
-
-        // TODO: Interval
-        let function_impl: Box<dyn ScalarFunctionImpl> = match dt.clone() {
-            DataType::Int8 => Box::new(NegateImpl::<PhysicalI8>::new()),
-            DataType::Int16 => Box::new(NegateImpl::<PhysicalI16>::new()),
-            DataType::Int32 => Box::new(NegateImpl::<PhysicalI32>::new()),
-            DataType::Int64 => Box::new(NegateImpl::<PhysicalI64>::new()),
-            DataType::Int128 => Box::new(NegateImpl::<PhysicalI128>::new()),
-            DataType::Float16 => Box::new(NegateImpl::<PhysicalF16>::new()),
-            DataType::Float32 => Box::new(NegateImpl::<PhysicalF32>::new()),
-            DataType::Float64 => Box::new(NegateImpl::<PhysicalF64>::new()),
-            other => return Err(invalid_input_types_error(self, &[other])),
-        };
-
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
-            return_type: dt,
-            inputs,
-            function_impl,
-        })
-    }
-}
+pub const FUNCTION_SET_NOT: ScalarFunctionSet = ScalarFunctionSet {
+    name: "not",
+    aliases: &[],
+    doc: None,
+    functions: &[RawScalarFunction::new(
+        Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
+        &Not,
+    )],
+};
 
 #[derive(Debug, Clone)]
-pub struct NegateImpl<S> {
+pub struct Negate<S> {
+    return_type: &'static DataType,
     _s: PhantomData<S>,
 }
 
-impl<S> NegateImpl<S> {
-    const fn new() -> Self {
-        NegateImpl { _s: PhantomData }
+impl<S> Negate<S> {
+    pub const fn new(return_type: &'static DataType) -> Self {
+        Negate {
+            return_type,
+            _s: PhantomData,
+        }
     }
 }
 
-impl<S> ScalarFunctionImpl for NegateImpl<S>
+impl<S> ScalarFunction for Negate<S>
 where
     S: MutableScalarStorage,
     S::StorageType: std::ops::Neg<Output = S::StorageType> + Copy,
 {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    type State = ();
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: self.return_type.clone(),
+            inputs,
+        })
+    }
+
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
         UnaryExecutor::execute::<S, S, _>(
@@ -112,53 +119,18 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Not;
 
-impl FunctionInfo for Not {
-    fn name(&self) -> &'static str {
-        "not"
+impl ScalarFunction for Not {
+    type State = ();
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Boolean,
+            inputs,
+        })
     }
 
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Boolean],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(&Documentation {
-                category: Category::General,
-                description: "Return the inverse bool of the input. Returns NULL if input is NULL.",
-                arguments: &["input"],
-                example: Some(Example {
-                    example: "not(true)",
-                    output: "false",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for Not {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype()? {
-            DataType::Boolean => Ok(PlannedScalarFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Boolean,
-                inputs,
-                function_impl: Box::new(NotImpl),
-            }),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NotImpl;
-
-impl ScalarFunctionImpl for NotImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
         UnaryExecutor::execute::<PhysicalBool, PhysicalBool, _>(

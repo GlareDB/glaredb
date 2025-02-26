@@ -11,9 +11,8 @@ use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
-use crate::logical::binder::table_list::TableList;
 
-pub const FUNTION_SET_LEFT_PAD: ScalarFunctionSet = ScalarFunctionSet {
+pub const FUNCTION_SET_LEFT_PAD: ScalarFunctionSet = ScalarFunctionSet {
     name: "lpad",
     aliases: &[],
     doc: Some(&Documentation {
@@ -94,7 +93,7 @@ impl ScalarFunction for LeftPad {
     }
 }
 
-pub const FUNTION_SET_RIGHT_PAD: ScalarFunctionSet = ScalarFunctionSet {
+pub const FUNCTION_SET_RIGHT_PAD: ScalarFunctionSet = ScalarFunctionSet {
     name: "rpad",
     aliases: &[],
     doc: Some(&Documentation {

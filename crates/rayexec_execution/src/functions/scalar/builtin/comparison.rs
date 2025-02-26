@@ -84,7 +84,7 @@ pub const FUNCTION_SET_LT: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_LT_EQ: ScalarFunctionSet = ScalarFunctionSet {
-    name: "<",
+    name: "<=",
     aliases: &[],
     doc: Some(&Documentation {
         category: Category::General,

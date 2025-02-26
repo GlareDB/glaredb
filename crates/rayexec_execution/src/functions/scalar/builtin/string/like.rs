@@ -10,9 +10,8 @@ use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
-use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction, ScalarFunctionImpl};
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
-use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
@@ -102,38 +101,6 @@ impl ScalarFunction for Like {
                 )
             }
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct LikeImpl;
-
-impl ScalarFunctionImpl for LikeImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
-        let sel = input.selection();
-        let strings = &input.arrays()[0];
-        let patterns = &input.arrays()[2];
-
-        let mut s_buf = String::new();
-
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
-            strings,
-            sel,
-            patterns,
-            sel,
-            OutBuffer::from_array(output)?,
-            |s, pattern, buf| {
-                match like_pattern_to_regex(&mut s_buf, pattern, Some('\\')) {
-                    Ok(pat) => {
-                        let b = pat.is_match(s);
-                        buf.put(&b);
-                    }
-                    Err(_) => {
-                        // TODO: Do something
-                    }
-                }
-            },
-        )
     }
 }
 
