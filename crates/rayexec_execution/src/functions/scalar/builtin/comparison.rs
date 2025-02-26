@@ -1,8 +1,7 @@
-use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_error::{not_implemented, Result};
+use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{
     PhysicalBinary,
@@ -29,439 +28,105 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::arrays::executor::OutBuffer;
-use crate::expr::cast_expr::CastExpr;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 
-// TODOs:
-//
-// - Normalize scales for decimals for comparisons (will be needed elsewhere too).
-// - Normalize intervals for comparisons
+// TODO: Decimal casts.
+// TODO: Nested comparisons.
+// TODO: Null coerced functions. Operators are there, just need to wrap.
 
-const fn generate_comparison_sigs(doc: &'static Documentation) -> [Signature; 21] {
-    [
-        Signature {
-            positional_args: &[DataTypeId::Boolean, DataTypeId::Boolean],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Int8, DataTypeId::Int8],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Int16, DataTypeId::Int16],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Int32, DataTypeId::Int32],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Int64, DataTypeId::Int64],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Int128, DataTypeId::Int128],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::UInt8, DataTypeId::UInt8],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::UInt16, DataTypeId::UInt16],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::UInt32, DataTypeId::UInt32],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::UInt64, DataTypeId::UInt64],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::UInt128, DataTypeId::UInt128],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Float16, DataTypeId::Float16],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Float32, DataTypeId::Float32],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Float64, DataTypeId::Float64],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Decimal64, DataTypeId::Decimal64],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Decimal128, DataTypeId::Decimal128],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Timestamp, DataTypeId::Timestamp],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Date32, DataTypeId::Date32],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::Binary, DataTypeId::Binary],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-        Signature {
-            positional_args: &[DataTypeId::List, DataTypeId::List],
-            variadic_arg: None,
-            return_type: DataTypeId::Boolean,
-            doc: Some(doc),
-        },
-    ]
-}
+pub const FUNCTION_SET_EQ: ScalarFunctionSet = ScalarFunctionSet {
+    name: "=",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Check if two values are equal. Returns NULL if either argument is NULL.",
+        arguments: &["a", "b"],
+        example: Some(Example {
+            example: "a = b",
+            output: "true",
+        }),
+    }),
+    functions: &generate_functions::<EqOperation>(),
+};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Eq;
+pub const FUNCTION_SET_NEQ: ScalarFunctionSet = ScalarFunctionSet {
+    name: "!=",
+    aliases: &["<>"],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Check if two values are not equal. Returns NULL if either argument is NULL.",
+        arguments: &["a", "b"],
+        example: Some(Example {
+            example: "a != b",
+            output: "false",
+        }),
+    }),
+    functions: &generate_functions::<NotEqOperation>(),
+};
 
-impl FunctionInfo for Eq {
-    fn name(&self) -> &'static str {
-        "="
-    }
+pub const FUNCTION_SET_LT: ScalarFunctionSet = ScalarFunctionSet {
+    name: "<",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Check if the left value is less than the right. Returns NULL if either argument is NULL.",
+        arguments: &["a", "b"],
+        example: Some(Example {
+            example: "a < b",
+            output: "false",
+        }),
+    }),
+    functions: &generate_functions::<LtOperation>(),
+};
 
-    fn signatures(&self) -> &[Signature] {
-        const DOC: Documentation = Documentation {
-            category: Category::General,
-            description: "Check if two values are equal. Returns NULL if either argument is NULL.",
-            arguments: &["a", "b"],
-            example: Some(Example {
-                example: "a = b",
-                output: "true",
-            }),
-        };
+pub const FUNCTION_SET_LT_EQ: ScalarFunctionSet = ScalarFunctionSet {
+    name: "<",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Check if the left value is less than or equal to the right. Returns NULL if either argument is NULL.",
+        arguments: &["a", "b"],
+        example: Some(Example {
+            example: "a <= b",
+            output: "false",
+        }),
+    }),
+    functions: &generate_functions::<LtEqOperation>(),
+};
 
-        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
+pub const FUNCTION_SET_GT: ScalarFunctionSet = ScalarFunctionSet {
+    name: ">",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Check if the left value is greater than the right. Returns NULL if either argument is NULL.",
+        arguments: &["a", "b"],
+        example: Some(Example {
+            example: "a > b",
+            output: "false",
+        }),
+    }),
+    functions: &generate_functions::<GtOperation>(),
+};
 
-        SIGS
-    }
-}
-
-impl ScalarFunction2 for Eq {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        new_planned_comparison_function::<_, EqOperation>(*self, inputs, table_list)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Neq;
-
-impl FunctionInfo for Neq {
-    fn name(&self) -> &'static str {
-        "<>"
-    }
-
-    fn aliases(&self) -> &'static [&'static str] {
-        &["!="]
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const DOC: Documentation = Documentation {
-            category: Category::General,
-            description:
-                "Check if two values are not equal. Returns NULL if either argument is NULL.",
-            arguments: &["a", "b"],
-            example: Some(Example {
-                example: "a != b",
-                output: "false",
-            }),
-        };
-
-        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
-
-        SIGS
-    }
-}
-
-impl ScalarFunction2 for Neq {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        new_planned_comparison_function::<_, NotEqOperation>(*self, inputs, table_list)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Lt;
-
-impl FunctionInfo for Lt {
-    fn name(&self) -> &'static str {
-        "<"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const DOC: Documentation = Documentation {
-            category: Category::General,
-            description:
-                "Check if the left argument is less than the right. Returns NULL if either argument is NULL.",
-            arguments: &["a", "b"],
-            example: Some(Example {
-                example: "a < b",
-                output: "false",
-            }),
-        };
-
-        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
-
-        SIGS
-    }
-}
-
-impl ScalarFunction2 for Lt {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        new_planned_comparison_function::<_, LtOperation>(*self, inputs, table_list)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LtEq;
-
-impl FunctionInfo for LtEq {
-    fn name(&self) -> &'static str {
-        "<="
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const DOC: Documentation = Documentation {
-            category: Category::General,
-            description:
-                "Check if the left argument is less than or equal to the right. Returns NULL if either argument is NULL.",
-            arguments: &["a", "b"],
-            example: Some(Example {
-                example: "a <= b",
-                output: "true",
-            }),
-        };
-
-        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
-
-        SIGS
-    }
-}
-
-impl ScalarFunction2 for LtEq {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        new_planned_comparison_function::<_, LtEqOperation>(*self, inputs, table_list)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Gt;
-
-impl FunctionInfo for Gt {
-    fn name(&self) -> &'static str {
-        ">"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const DOC: Documentation = Documentation {
-            category: Category::General,
-            description:
-                "Check if the left argument is greater than the right. Returns NULL if either argument is NULL.",
-            arguments: &["a", "b"],
-            example: Some(Example {
-                example: "a > b",
-                output: "false",
-            }),
-        };
-
-        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
-
-        SIGS
-    }
-}
-
-impl ScalarFunction2 for Gt {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        new_planned_comparison_function::<_, GtOperation>(*self, inputs, table_list)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GtEq;
-
-impl FunctionInfo for GtEq {
-    fn name(&self) -> &'static str {
-        ">="
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const DOC: Documentation = Documentation {
-            category: Category::General,
-            description:
-                "Check if the left argument is greater than or equal to the right. Returns NULL if either argument is NULL.",
-            arguments: &["a", "b"],
-            example: Some(Example {
-                example: "a >= b",
-                output: "true",
-            }),
-        };
-
-        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
-
-        SIGS
-    }
-}
-
-impl ScalarFunction2 for GtEq {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        new_planned_comparison_function::<_, GtEqOperation>(*self, inputs, table_list)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsDistinctFrom;
-
-impl FunctionInfo for IsDistinctFrom {
-    fn name(&self) -> &'static str {
-        "is_distinct_from"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const DOC: Documentation = Documentation {
-            category: Category::General,
-            description:
-                "Check if left and right are not equal. Treats NULL as a value instead of unknown.",
-            arguments: &["a", "b"],
-            example: Some(Example {
-                example: "a IS DISTINCT FROM b",
-                output: "true",
-            }),
-        };
-
-        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
-
-        SIGS
-    }
-}
-
-impl ScalarFunction2 for IsDistinctFrom {
-    fn plan(
-        &self,
-        _table_list: &TableList,
-        _inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        not_implemented!("IS DISTINCT FROM scalar function")
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsNotDistinctFrom;
-
-impl FunctionInfo for IsNotDistinctFrom {
-    fn name(&self) -> &'static str {
-        "is_not_distinct_from"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const DOC: Documentation = Documentation {
-            category: Category::General,
-            description:
-                "Check if left and right are equal. Treats NULL as a value instead of unknown.",
-            arguments: &["a", "b"],
-            example: Some(Example {
-                example: "a IS NOT DISTINCT FROM b",
-                output: "true",
-            }),
-        };
-
-        const SIGS: &[Signature] = &generate_comparison_sigs(&DOC);
-
-        SIGS
-    }
-}
-
-impl ScalarFunction2 for IsNotDistinctFrom {
-    fn plan(
-        &self,
-        _table_list: &TableList,
-        _inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        not_implemented!("IS NOT DISTINCT FROM scalar function")
-    }
-}
+pub const FUNCTION_SET_GT_EQ: ScalarFunctionSet = ScalarFunctionSet {
+    name: ">=",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Check if the left value is greater than or equal to the right. Returns NULL if either argument is NULL.",
+        arguments: &["a", "b"],
+        example: Some(Example {
+            example: "a >= b",
+            output: "false",
+        }),
+    }),
+    functions: &generate_functions::<GtEqOperation>(),
+};
 
 /// Describes a comparison operation between a left and right element and takes
 /// into account if either value is valid.
@@ -613,134 +278,155 @@ impl ComparisonOperation for GtEqOperation {
     }
 }
 
-/// Create new planned scalar function for some comparison operation.
-///
-/// This will normalize input expressions as required.
-fn new_planned_comparison_function<F, O>(
-    func: F,
-    mut inputs: Vec<Expression>,
-    table_list: &TableList,
-) -> Result<PlannedScalarFunction2>
+const fn generate_functions<O>() -> [RawScalarFunction; 22]
 where
-    F: ScalarFunction2 + 'static,
     O: ComparisonOperation,
 {
-    plan_check_num_args(&func, &inputs, 2)?;
-
-    let function_impl: Box<dyn ScalarFunctionImpl> =
-        match (inputs[0].datatype()?, inputs[1].datatype()?) {
-            (DataType::Boolean, DataType::Boolean) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalBool>::new())
-            }
-            (DataType::Int8, DataType::Int8) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalI8>::new())
-            }
-            (DataType::Int16, DataType::Int16) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalI16>::new())
-            }
-            (DataType::Int32, DataType::Int32) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalI32>::new())
-            }
-            (DataType::Int64, DataType::Int64) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalI64>::new())
-            }
-            (DataType::Int128, DataType::Int128) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalI128>::new())
-            }
-            (DataType::UInt8, DataType::UInt8) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalU8>::new())
-            }
-            (DataType::UInt16, DataType::UInt16) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalU16>::new())
-            }
-            (DataType::UInt32, DataType::UInt32) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalU32>::new())
-            }
-            (DataType::UInt64, DataType::UInt64) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalU64>::new())
-            }
-            (DataType::UInt128, DataType::UInt128) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalU128>::new())
-            }
-            (DataType::Float16, DataType::Float16) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalF16>::new())
-            }
-            (DataType::Float32, DataType::Float32) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalF32>::new())
-            }
-            (DataType::Float64, DataType::Float64) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalF64>::new())
-            }
-            (DataType::Decimal64(left), DataType::Decimal64(right)) => {
-                // Normalize decimals.
-                match left.scale.cmp(&right.scale) {
-                    Ordering::Less => {
-                        // Scale up left.
-                        inputs[0] = Expression::Cast(CastExpr {
-                            to: DataType::Decimal64(right),
-                            expr: Box::new(inputs[0].clone()),
-                        })
-                    }
-                    Ordering::Greater => {
-                        // Scale up right.
-                        inputs[1] = Expression::Cast(CastExpr {
-                            to: DataType::Decimal64(left),
-                            expr: Box::new(inputs[1].clone()),
-                        })
-                    }
-                    Ordering::Equal => (), // Nothing to do
-                }
-                Box::new(UnnestedComparisonImpl::<O, PhysicalI64>::new())
-            }
-            (DataType::Decimal128(left), DataType::Decimal128(right)) => {
-                // Normalize decimals.
-                match left.scale.cmp(&right.scale) {
-                    Ordering::Less => {
-                        // Scale up left.
-                        inputs[0] = Expression::Cast(CastExpr {
-                            to: DataType::Decimal128(right),
-                            expr: Box::new(inputs[0].clone()),
-                        })
-                    }
-                    Ordering::Greater => {
-                        // Scale up right.
-                        inputs[1] = Expression::Cast(CastExpr {
-                            to: DataType::Decimal128(left),
-                            expr: Box::new(inputs[1].clone()),
-                        })
-                    }
-                    Ordering::Equal => (), // Nothing to do
-                }
-                Box::new(UnnestedComparisonImpl::<O, PhysicalI128>::new())
-            }
-            (DataType::Timestamp(_), DataType::Timestamp(_)) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalBool>::new())
-            }
-            (DataType::Interval, DataType::Interval) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalInterval>::new())
-            }
-            (DataType::Date32, DataType::Date32) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalI32>::new())
-            }
-            (DataType::Date64, DataType::Date64) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalI64>::new())
-            }
-            (DataType::Utf8, DataType::Utf8) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalUtf8>::new())
-            }
-            (DataType::Binary, DataType::Binary) => {
-                Box::new(UnnestedComparisonImpl::<O, PhysicalBinary>::new())
-            }
-
-            (a, b) => return Err(invalid_input_types_error(&func, &[a, b])),
-        };
-
-    Ok(PlannedScalarFunction2 {
-        function: Box::new(func),
-        return_type: DataType::Boolean,
-        inputs,
-        function_impl,
-    })
+    [
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::Boolean, DataTypeId::Boolean],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalBool>::new_static(),
+        ),
+        // Ints
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Boolean),
+            UnnestedComparisonImpl::<O, PhysicalI8>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Boolean),
+            UnnestedComparisonImpl::<O, PhysicalI16>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Boolean),
+            UnnestedComparisonImpl::<O, PhysicalI32>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Boolean),
+            UnnestedComparisonImpl::<O, PhysicalI64>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::Int128, DataTypeId::Int128],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalI128>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::Boolean),
+            UnnestedComparisonImpl::<O, PhysicalU8>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::UInt16, DataTypeId::UInt16],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalU16>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::UInt32, DataTypeId::UInt32],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalU32>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::UInt64, DataTypeId::UInt64],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalU64>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::UInt128, DataTypeId::UInt128],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalU128>::new_static(),
+        ),
+        // Floats
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::Float16, DataTypeId::Float16],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalF16>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::Float32, DataTypeId::Float32],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalF32>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::Float64, DataTypeId::Float64],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalF64>::new_static(),
+        ),
+        // Date/times
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::Date32, DataTypeId::Date32],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalI32>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::Date64, DataTypeId::Date64],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalI64>::new_static(),
+        ),
+        // TODO: Probably scale
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::Timestamp, DataTypeId::Timestamp],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalI64>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::Interval, DataTypeId::Interval],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalInterval>::new_static(),
+        ),
+        // Decimals
+        // TODO: Definitely scale
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::Decimal64, DataTypeId::Decimal64],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalI64>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::Decimal128, DataTypeId::Decimal128],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalI128>::new_static(),
+        ),
+        // Varlen
+        RawScalarFunction::new(
+            Signature::new(
+                &[DataTypeId::Binary, DataTypeId::Binary],
+                DataTypeId::Boolean,
+            ),
+            UnnestedComparisonImpl::<O, PhysicalBinary>::new_static(),
+        ),
+        RawScalarFunction::new(
+            Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Boolean),
+            UnnestedComparisonImpl::<O, PhysicalUtf8>::new_static(),
+        ),
+    ]
 }
 
 #[derive(Debug, Clone)]
@@ -754,21 +440,31 @@ where
     O: ComparisonOperation,
     S: ScalarStorage,
 {
-    const fn new() -> Self {
-        UnnestedComparisonImpl {
+    pub const fn new_static() -> &'static Self {
+        &UnnestedComparisonImpl {
             _op: PhantomData,
             _s: PhantomData,
         }
     }
 }
 
-impl<O, S> ScalarFunctionImpl for UnnestedComparisonImpl<O, S>
+impl<O, S> ScalarFunction for UnnestedComparisonImpl<O, S>
 where
     O: ComparisonOperation,
     S: ScalarStorage,
     S::StorageType: PartialEq + PartialOrd,
 {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    type State = ();
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Boolean,
+            inputs,
+        })
+    }
+
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         let left = &input.arrays()[0];
         let right = &input.arrays()[1];

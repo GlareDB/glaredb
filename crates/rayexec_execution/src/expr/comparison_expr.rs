@@ -3,8 +3,14 @@ use std::fmt;
 use super::{AsScalarFunctionSet, Expression};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::function_set::ScalarFunctionSet;
-use crate::functions::scalar::builtin::comparison;
-use crate::functions::scalar::ScalarFunction2;
+use crate::functions::scalar::builtin::comparison::{
+    FUNCTION_SET_EQ,
+    FUNCTION_SET_GT,
+    FUNCTION_SET_GT_EQ,
+    FUNCTION_SET_LT,
+    FUNCTION_SET_LT_EQ,
+    FUNCTION_SET_NEQ,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ComparisonOperator {
@@ -48,7 +54,16 @@ impl ComparisonOperator {
 
 impl AsScalarFunctionSet for ComparisonOperator {
     fn as_scalar_function_set(&self) -> &ScalarFunctionSet {
-        unimplemented!()
+        match self {
+            ComparisonOperator::Eq => &FUNCTION_SET_EQ,
+            ComparisonOperator::NotEq => &FUNCTION_SET_NEQ,
+            ComparisonOperator::Lt => &FUNCTION_SET_LT,
+            ComparisonOperator::LtEq => &FUNCTION_SET_LT_EQ,
+            ComparisonOperator::Gt => &FUNCTION_SET_GT,
+            ComparisonOperator::GtEq => &FUNCTION_SET_GT_EQ,
+            ComparisonOperator::IsDistinctFrom => unimplemented!(),
+            ComparisonOperator::IsNotDistinctFrom => unimplemented!(),
+        }
     }
 }
 
