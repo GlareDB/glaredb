@@ -11,65 +11,71 @@ use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor, UniformExec
 use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction2, ScalarFunction2, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct And;
-
-impl FunctionInfo for And {
-    fn name(&self) -> &'static str {
-        "and"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
+pub const FUNCTION_SET_AND: ScalarFunctionSet = ScalarFunctionSet {
+    name: "and",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Boolean and all inputs.",
+        arguments: &["var_args"],
+        example: Some(Example {
+            example: "and(true, false, true)",
+            output: "false",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Boolean),
             return_type: DataTypeId::Boolean,
-            doc: Some(&Documentation {
-                category: Category::General,
-                description: "Boolean and all inputs.",
-                arguments: &["var_args"],
-                example: Some(Example {
-                    example: "and(true, false, true)",
-                    output: "false",
-                }),
-            }),
-        }]
-    }
-}
+            doc: None,
+        },
+        &And,
+    )],
+};
 
-impl ScalarFunction2 for And {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        let datatypes = inputs
-            .iter()
-            .map(|input| input.datatype())
-            .collect::<Result<Vec<_>>>()?;
-
-        if !datatypes.iter().all(|dt| dt == &DataType::Boolean) {
-            return Err(invalid_input_types_error(self, &datatypes));
-        }
-
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
-            return_type: DataType::Boolean,
-            inputs,
-            function_impl: Box::new(AndImpl),
-        })
-    }
-}
+pub const FUNCTION_SET_OR: ScalarFunctionSet = ScalarFunctionSet {
+    name: "or",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::General,
+        description: "Boolean or all inputs.",
+        arguments: &["var_args"],
+        example: Some(Example {
+            example: "or(true, false, true)",
+            output: "true",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        Signature {
+            positional_args: &[],
+            variadic_arg: Some(DataTypeId::Boolean),
+            return_type: DataTypeId::Boolean,
+            doc: None,
+        },
+        &Or,
+    )],
+};
 
 #[derive(Debug, Clone)]
-pub struct AndImpl;
+pub struct And;
 
-impl ScalarFunctionImpl for AndImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+impl ScalarFunction for And {
+    type State = ();
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Boolean,
+            inputs,
+        })
+    }
+
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
         match input.arrays().len() {
@@ -114,61 +120,21 @@ impl ScalarFunctionImpl for AndImpl {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Or;
 
-impl FunctionInfo for Or {
-    fn name(&self) -> &'static str {
-        "or"
-    }
+impl ScalarFunction for Or {
+    type State = ();
 
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[],
-            variadic_arg: Some(DataTypeId::Boolean),
-            return_type: DataTypeId::Boolean,
-            doc: Some(&Documentation {
-                category: Category::General,
-                description: "Boolean or all inputs.",
-                arguments: &["var_args"],
-                example: Some(Example {
-                    example: "or(true, false, true)",
-                    output: "true",
-                }),
-            }),
-        }]
-    }
-}
-
-impl ScalarFunction2 for Or {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction2> {
-        let datatypes = inputs
-            .iter()
-            .map(|input| input.datatype())
-            .collect::<Result<Vec<_>>>()?;
-
-        if !datatypes.iter().all(|dt| dt == &DataType::Boolean) {
-            return Err(invalid_input_types_error(self, &datatypes));
-        }
-
-        Ok(PlannedScalarFunction2 {
-            function: Box::new(*self),
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
             return_type: DataType::Boolean,
             inputs,
-            function_impl: Box::new(OrImpl),
         })
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct OrImpl;
-
-impl ScalarFunctionImpl for OrImpl {
-    fn execute(&self, input: &Batch, output: &mut Array) -> Result<()> {
+    fn execute(&self, _state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
 
         match input.arrays().len() {

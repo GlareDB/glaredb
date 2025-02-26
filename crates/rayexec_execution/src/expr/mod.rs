@@ -45,7 +45,7 @@ use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::functions::function_set::{FunctionInfo, FunctionSet, ScalarFunctionSet};
 use crate::functions::scalar::{FunctionVolatility, PlannedScalarFunction};
 use crate::functions::CastType;
-use crate::logical::binder::table_list::{TableList, TableRef};
+use crate::logical::binder::table_list::TableRef;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
@@ -753,8 +753,8 @@ mod tests {
             column((0, 0), DataType::Utf8).into(),
             column((0, 1), DataType::Int32).into(),
             or([
-                column((1, 4), DataType::Int8),
-                column((1, 2), DataType::Int8),
+                column((1, 4), DataType::Boolean),
+                column((1, 2), DataType::Boolean),
             ])
             .unwrap()
             .into(),
