@@ -11,19 +11,18 @@ use crate::expr::aggregate_expr::AggregateExpr;
 use crate::expr::arith_expr::ArithOperator;
 use crate::expr::case_expr::{CaseExpr, WhenThen};
 use crate::expr::cast_expr::CastExpr;
-use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
-use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use crate::expr::comparison_expr::ComparisonOperator;
+use crate::expr::conjunction_expr::ConjunctionOperator;
 use crate::expr::grouping_set_expr::GroupingSetExpr;
 use crate::expr::literal_expr::LiteralExpr;
-use crate::expr::negate_expr::{NegateExpr, NegateOperator};
+use crate::expr::negate_expr::NegateOperator;
 use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
-use crate::expr::{self, bind_aggregate_function, AsScalarFunctionSet, Expression};
-use crate::functions::aggregate::AggregateFunction2;
+use crate::expr::{self, bind_aggregate_function, Expression};
 use crate::functions::candidate::CastType;
-use crate::functions::scalar::builtin::datetime::{DatePart, FUNCTION_SET_DATE_PART};
+use crate::functions::scalar::builtin::datetime::FUNCTION_SET_DATE_PART;
 use crate::functions::scalar::builtin::is::{
     FUNCTION_SET_IS_FALSE,
     FUNCTION_SET_IS_NOT_FALSE,
@@ -238,8 +237,6 @@ impl<'a> BaseExpressionBinder<'a> {
                         ..recur
                     },
                 )?;
-
-                let table_list = bind_context.get_table_list();
 
                 Ok(match op {
                     ast::BinaryOperator::NotEq => {
@@ -682,7 +679,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     ComparisonOperator::Gt
                 };
 
-                let right = expr::compare(low_op, expr, high)?;
+                let right = expr::compare(high_op, expr, high)?;
 
                 let conj_op = if !negated {
                     ConjunctionOperator::And
@@ -1191,55 +1188,6 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                 }
             }
-        }
-    }
-
-    // TODO: Reduce dupliation with the scalar one.
-    fn apply_casts_for_aggregate_function(
-        &self,
-        bind_context: &BindContext,
-        agg: &dyn AggregateFunction2,
-        inputs: Vec<Expression>,
-    ) -> Result<Vec<Expression>> {
-        let input_datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype())
-            .collect::<Result<Vec<_>>>()?;
-
-        if agg.exact_signature(&input_datatypes).is_some() {
-            // Exact
-            Ok(inputs)
-        } else {
-            // Try to find candidates that we can cast to.
-            let mut candidates = agg.candidate(&input_datatypes);
-
-            if candidates.is_empty() {
-                return Err(RayexecError::new(format!(
-                    "Invalid inputs to '{}': {}",
-                    agg.name(),
-                    input_datatypes.display_with_brackets(),
-                )));
-            }
-
-            // TODO: Maybe more sophisticated candidate selection.
-            let candidate = candidates.swap_remove(0);
-
-            // Apply casts where needed.
-            let inputs = inputs
-                .into_iter()
-                .zip(candidate.casts)
-                .map(|(input, cast_to)| {
-                    Ok(match cast_to {
-                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
-                            to: DataType::try_default_datatype(to)?,
-                            expr: Box::new(input),
-                        }),
-                        CastType::NoCastNeeded => input,
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?;
-
-            Ok(inputs)
         }
     }
 
