@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use rayexec_error::{not_implemented, Result};
 
@@ -24,15 +25,23 @@ use crate::arrays::array::physical_type::{
     PhysicalU8,
     PhysicalUntypedNull,
     PhysicalUtf8,
+    ScalarStorage,
 };
 use crate::arrays::datatype::DataTypeId;
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::buffer::buffer_manager::BufferManager;
 use crate::expr::Expression;
+use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
-use crate::functions::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
+use crate::functions::aggregate::{
+    AggregateFunction2,
+    PlannedAggregateFunction2,
+    RawAggregateFunction,
+};
+use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
+use crate::functions::function_set::AggregateFunctionSet;
 use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
 
@@ -118,73 +127,120 @@ where
     AggregateFunctionImpl::new::<UnaryStateLogic<MinStatePrimitive<S::StorageType>, S, S>>(None)
 }
 
+pub const FUNCTION_SET_MAX: AggregateFunctionSet = AggregateFunctionSet {
+    name: "max",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Return the maximum non-NULL value seen from input.",
+        arguments: &["input"],
+        example: None,
+    }),
+    functions: &[RawAggregateFunction::new(
+        &Signature::new(&[DataTypeId::Int8], DataTypeId::Int8),
+        &SimpleUnaryAggregate::new(&MaxPrimitive::<PhysicalI8>::new()),
+    )],
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Max;
+pub struct MaxPrimitive<S> {
+    _s: PhantomData<S>,
+}
 
-impl FunctionInfo for Max {
-    fn name(&self) -> &'static str {
-        "max"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Any],
-            variadic_arg: None,
-            return_type: DataTypeId::Any,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Return the maximum non-NULL value seen from input.",
-                arguments: &["input"],
-                example: None,
-            }),
-        }]
+impl<S> MaxPrimitive<S> {
+    pub const fn new() -> Self {
+        MaxPrimitive { _s: PhantomData }
     }
 }
 
-impl AggregateFunction2 for Max {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
+impl<S> UnaryAggregate for MaxPrimitive<S>
+where
+    S: MutableScalarStorage,
+    S::StorageType: PartialOrd + Default + Copy + Sized,
+{
+    type Input = S;
+    type Output = S;
 
-        let datatype = inputs[0].datatype()?;
+    type BindState = ();
+    type AggregateState = MaxStatePrimitive<S::StorageType>;
 
-        let function_impl = match datatype.physical_type() {
-            PhysicalType::UntypedNull => create_primitive_max_impl::<PhysicalUntypedNull>(),
-            PhysicalType::Boolean => create_primitive_max_impl::<PhysicalBool>(),
-            PhysicalType::Int8 => create_primitive_max_impl::<PhysicalI8>(),
-            PhysicalType::Int16 => create_primitive_max_impl::<PhysicalI16>(),
-            PhysicalType::Int32 => create_primitive_max_impl::<PhysicalI32>(),
-            PhysicalType::Int64 => create_primitive_max_impl::<PhysicalI64>(),
-            PhysicalType::Int128 => create_primitive_max_impl::<PhysicalI128>(),
-            PhysicalType::UInt8 => create_primitive_max_impl::<PhysicalU8>(),
-            PhysicalType::UInt16 => create_primitive_max_impl::<PhysicalU16>(),
-            PhysicalType::UInt32 => create_primitive_max_impl::<PhysicalU32>(),
-            PhysicalType::UInt64 => create_primitive_max_impl::<PhysicalU64>(),
-            PhysicalType::UInt128 => create_primitive_max_impl::<PhysicalU128>(),
-            PhysicalType::Float16 => create_primitive_max_impl::<PhysicalF16>(),
-            PhysicalType::Float32 => create_primitive_max_impl::<PhysicalF32>(),
-            PhysicalType::Float64 => create_primitive_max_impl::<PhysicalF64>(),
-            PhysicalType::Interval => create_primitive_max_impl::<PhysicalInterval>(),
-            PhysicalType::Utf8 => AggregateFunctionImpl::new::<
-                UnaryStateLogic<MaxStateString, PhysicalUtf8, PhysicalUtf8>,
-            >(None),
-            PhysicalType::Binary => AggregateFunctionImpl::new::<
-                UnaryStateLogic<MaxStateBinary, PhysicalBinary, PhysicalBinary>,
-            >(None),
-            other => not_implemented!("max for type {other:?}"),
-        };
-
-        Ok(PlannedAggregateFunction2 {
-            function: Box::new(*self),
-            return_type: datatype,
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: inputs[0].datatype()?,
             inputs,
-            function_impl,
         })
     }
+
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+        Default::default()
+    }
 }
+
+// impl FunctionInfo for Max {
+//     fn name(&self) -> &'static str {
+//         "max"
+//     }
+
+//     fn signatures(&self) -> &[Signature] {
+//         &[Signature {
+//             positional_args: &[DataTypeId::Any],
+//             variadic_arg: None,
+//             return_type: DataTypeId::Any,
+//             doc: Some(&Documentation {
+//                 category: Category::Aggregate,
+//                 description: "Return the maximum non-NULL value seen from input.",
+//                 arguments: &["input"],
+//                 example: None,
+//             }),
+//         }]
+//     }
+// }
+
+// impl AggregateFunction2 for Max {
+//     fn plan(
+//         &self,
+//         table_list: &TableList,
+//         inputs: Vec<Expression>,
+//     ) -> Result<PlannedAggregateFunction2> {
+//         plan_check_num_args(self, &inputs, 1)?;
+
+//         let datatype = inputs[0].datatype()?;
+
+//         let function_impl = match datatype.physical_type() {
+//             PhysicalType::UntypedNull => create_primitive_max_impl::<PhysicalUntypedNull>(),
+//             PhysicalType::Boolean => create_primitive_max_impl::<PhysicalBool>(),
+//             PhysicalType::Int8 => create_primitive_max_impl::<PhysicalI8>(),
+//             PhysicalType::Int16 => create_primitive_max_impl::<PhysicalI16>(),
+//             PhysicalType::Int32 => create_primitive_max_impl::<PhysicalI32>(),
+//             PhysicalType::Int64 => create_primitive_max_impl::<PhysicalI64>(),
+//             PhysicalType::Int128 => create_primitive_max_impl::<PhysicalI128>(),
+//             PhysicalType::UInt8 => create_primitive_max_impl::<PhysicalU8>(),
+//             PhysicalType::UInt16 => create_primitive_max_impl::<PhysicalU16>(),
+//             PhysicalType::UInt32 => create_primitive_max_impl::<PhysicalU32>(),
+//             PhysicalType::UInt64 => create_primitive_max_impl::<PhysicalU64>(),
+//             PhysicalType::UInt128 => create_primitive_max_impl::<PhysicalU128>(),
+//             PhysicalType::Float16 => create_primitive_max_impl::<PhysicalF16>(),
+//             PhysicalType::Float32 => create_primitive_max_impl::<PhysicalF32>(),
+//             PhysicalType::Float64 => create_primitive_max_impl::<PhysicalF64>(),
+//             PhysicalType::Interval => create_primitive_max_impl::<PhysicalInterval>(),
+//             PhysicalType::Utf8 => AggregateFunctionImpl::new::<
+//                 UnaryStateLogic<MaxStateString, PhysicalUtf8, PhysicalUtf8>,
+//             >(None),
+//             PhysicalType::Binary => AggregateFunctionImpl::new::<
+//                 UnaryStateLogic<MaxStateBinary, PhysicalBinary, PhysicalBinary>,
+//             >(None),
+//             other => not_implemented!("max for type {other:?}"),
+//         };
+
+//         Ok(PlannedAggregateFunction2 {
+//             function: Box::new(*self),
+//             return_type: datatype,
+//             inputs,
+//             function_impl,
+//         })
+//     }
+// }
 
 fn create_primitive_max_impl<S>() -> AggregateFunctionImpl
 where

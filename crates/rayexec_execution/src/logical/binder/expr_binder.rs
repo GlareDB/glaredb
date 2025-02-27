@@ -20,7 +20,7 @@ use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
-use crate::expr::{self, AsScalarFunctionSet, Expression};
+use crate::expr::{self, bind_aggregate_function, AsScalarFunctionSet, Expression};
 use crate::functions::aggregate::AggregateFunction2;
 use crate::functions::candidate::CastType;
 use crate::functions::scalar::builtin::datetime::{DatePart, FUNCTION_SET_DATE_PART};
@@ -1099,11 +1099,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
             (ResolvedFunction::Aggregate(agg), _) => {
-                let inputs =
-                    self.apply_casts_for_aggregate_function(bind_context, agg.as_ref(), inputs)?;
-
-                let agg = agg.plan(bind_context.get_table_list(), inputs)?;
-
+                let agg = bind_aggregate_function(&agg, inputs)?;
                 match &func.over {
                     Some(over) => {
                         // Window

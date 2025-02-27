@@ -5,13 +5,12 @@ use rayexec_error::Result;
 use super::Expression;
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::aggregate::PlannedAggregateFunction2;
-use crate::logical::binder::bind_context::BindContext;
+use crate::functions::aggregate::PlannedAggregateFunction;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AggregateExpr {
     /// The function.
-    pub agg: PlannedAggregateFunction2,
+    pub agg: PlannedAggregateFunction,
     /// Optional filter to the aggregate.
     pub filter: Option<Box<Expression>>,
     /// If the inputs should be deduplicated.
@@ -19,8 +18,8 @@ pub struct AggregateExpr {
 }
 
 impl AggregateExpr {
-    pub fn datatype(&self, _bind_context: &BindContext) -> Result<DataType> {
-        Ok(self.agg.return_type.clone())
+    pub fn datatype(&self) -> Result<DataType> {
+        Ok(self.agg.state.return_type.clone())
     }
 }
 
@@ -30,9 +29,10 @@ impl ContextDisplay for AggregateExpr {
         mode: ContextDisplayMode,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "{}", self.agg.function.name())?;
+        write!(f, "{}", self.agg.name)?;
         let inputs = self
             .agg
+            .state
             .inputs
             .iter()
             .map(|e| ContextDisplayWrapper::with_mode(e, mode).to_string())

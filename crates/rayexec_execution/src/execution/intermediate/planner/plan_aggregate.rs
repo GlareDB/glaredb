@@ -22,62 +22,62 @@ impl IntermediatePipelineBuildState<'_> {
         let input_refs = input.get_output_table_refs(self.bind_context);
         self.walk(materializations, id_gen, input)?;
 
-        let mut phys_aggs = Vec::new();
+        // let mut phys_aggs = Vec::new();
 
         // Extract agg expressions, place in their own pre-projection.
-        let mut preproject_exprs = Vec::new();
-        for agg_expr in agg.node.aggregates {
-            let start_col_index = preproject_exprs.len(); // Relative offset for preproject inputs.
-            let agg = match agg_expr {
-                Expression::Aggregate(agg) => agg,
-                other => {
-                    return Err(RayexecError::new(format!(
-                        "Expected aggregate, got: {other}"
-                    )))
-                }
-            };
+        // let mut preproject_exprs = Vec::new();
+        // for agg_expr in agg.node.aggregates {
+        //     let start_col_index = preproject_exprs.len(); // Relative offset for preproject inputs.
+        //     let agg = match agg_expr {
+        //         Expression::Aggregate(agg) => agg,
+        //         other => {
+        //             return Err(RayexecError::new(format!(
+        //                 "Expected aggregate, got: {other}"
+        //             )))
+        //         }
+        //     };
 
-            let mut agg_columns = Vec::with_capacity(agg.agg.inputs.len());
+        //     let mut agg_columns = Vec::with_capacity(agg.agg.inputs.len());
 
-            for (rel_idx, arg) in agg.agg.inputs.iter().enumerate() {
-                let scalar = self
-                    .expr_planner
-                    .plan_scalar(&input_refs, arg)
-                    .context("Failed to plan expressions for aggregate pre-projection")?;
+        //     for (rel_idx, arg) in agg.agg.inputs.iter().enumerate() {
+        //         let scalar = self
+        //             .expr_planner
+        //             .plan_scalar(&input_refs, arg)
+        //             .context("Failed to plan expressions for aggregate pre-projection")?;
 
-                let datatype = scalar.datatype();
-                preproject_exprs.push(scalar);
+        //         let datatype = scalar.datatype();
+        //         preproject_exprs.push(scalar);
 
-                agg_columns.push(PhysicalColumnExpr {
-                    idx: rel_idx + start_col_index,
-                    datatype,
-                });
-            }
+        //         agg_columns.push(PhysicalColumnExpr {
+        //             idx: rel_idx + start_col_index,
+        //             datatype,
+        //         });
+        //     }
 
-            let phys_agg = PhysicalAggregateExpression {
-                function: agg.agg,
-                columns: agg_columns,
-                is_distinct: agg.distinct,
-            };
+        //     let phys_agg = PhysicalAggregateExpression {
+        //         function: agg.agg,
+        //         columns: agg_columns,
+        //         is_distinct: agg.distinct,
+        //     };
 
-            phys_aggs.push(phys_agg);
-        }
+        //     phys_aggs.push(phys_agg);
+        // }
 
-        // Place group by expressions in pre-projection as well.
-        for group_expr in agg.node.group_exprs {
-            let scalar = self
-                .expr_planner
-                .plan_scalar(&input_refs, &group_expr)
-                .context("Failed to plan expressions for group by pre-projection")?;
+        // // Place group by expressions in pre-projection as well.
+        // for group_expr in agg.node.group_exprs {
+        //     let scalar = self
+        //         .expr_planner
+        //         .plan_scalar(&input_refs, &group_expr)
+        //         .context("Failed to plan expressions for group by pre-projection")?;
 
-            preproject_exprs.push(scalar);
-        }
+        //     preproject_exprs.push(scalar);
+        // }
 
-        self.push_intermediate_operator(
-            PhysicalOperator::Project(PhysicalProject::new(preproject_exprs)),
-            location,
-            id_gen,
-        )?;
+        // self.push_intermediate_operator(
+        //     PhysicalOperator::Project(PhysicalProject::new(preproject_exprs)),
+        //     location,
+        //     id_gen,
+        // )?;
 
         unimplemented!()
         // match agg.node.grouping_sets {

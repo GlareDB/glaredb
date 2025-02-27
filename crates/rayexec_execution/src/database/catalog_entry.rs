@@ -6,9 +6,8 @@ use rayexec_proto::ProtoConv;
 
 use super::DatabaseContext;
 use crate::arrays::field::Field;
-use crate::functions::aggregate::AggregateFunction2;
 use crate::functions::copy::CopyToFunction;
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, ScalarFunctionSet};
 use crate::functions::table::TableFunction;
 use crate::proto::DatabaseProtoConv;
 
@@ -185,27 +184,29 @@ impl DatabaseProtoConv for ScalarFunctionEntry {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct AggregateFunctionEntry {
-    pub function: Box<dyn AggregateFunction2>,
+    pub function: AggregateFunctionSet,
 }
 
 impl DatabaseProtoConv for AggregateFunctionEntry {
     type ProtoType = rayexec_proto::generated::catalog::AggregateFunctionEntry;
 
     fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            function: Some(self.function.to_proto_ctx(context)?),
-        })
+        unimplemented!()
+        // Ok(Self::ProtoType {
+        //     function: Some(self.function.to_proto_ctx(context)?),
+        // })
     }
 
     fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            function: DatabaseProtoConv::from_proto_ctx(
-                proto.function.required("function")?,
-                context,
-            )?,
-        })
+        unimplemented!()
+        // Ok(Self {
+        //     function: DatabaseProtoConv::from_proto_ctx(
+        //         proto.function.required("function")?,
+        //         context,
+        //     )?,
+        // })
     }
 }
 

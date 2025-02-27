@@ -1,3 +1,6 @@
+//! Helper traits for implementing unary/binary aggregates that don't need
+//! custom update, combine, or finalize logic.
+
 use std::fmt::Debug;
 
 use rayexec_error::{RayexecError, Result};
@@ -5,7 +8,11 @@ use rayexec_error::{RayexecError, Result};
 use super::AggregateFunction;
 use crate::arrays::array::physical_type::{MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::Array;
-use crate::arrays::executor::aggregate::{AggregateState, UnaryNonNullUpdater};
+use crate::arrays::executor::aggregate::{
+    AggregateState,
+    BinaryNonNullUpdater,
+    UnaryNonNullUpdater,
+};
 use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::bind_state::BindState;
@@ -22,7 +29,6 @@ pub trait UnaryAggregate: Debug + Sync + Send + Sized + 'static {
     >;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>>;
-
     fn new_aggregate_state(state: &Self::BindState) -> Self::AggregateState;
 }
 
@@ -90,6 +96,104 @@ where
         output: &mut Array,
     ) -> Result<()> {
         let buffer = &mut <U::Output>::get_addressable_mut(&mut output.data)?;
+        let validity = &mut output.validity;
+
+        for (idx, state) in states.iter_mut().enumerate() {
+            state.finalize(PutBuffer::new(idx, buffer, validity))?;
+        }
+
+        Ok(())
+    }
+}
+
+pub trait BinaryAggregate: Debug + Sync + Send + Sized + 'static {
+    type Input1: ScalarStorage;
+    type Input2: ScalarStorage;
+    type Output: MutableScalarStorage;
+
+    type BindState: Sync + Send;
+
+    type AggregateState: for<'a> AggregateState<
+        (
+            &'a <Self::Input1 as ScalarStorage>::StorageType,
+            &'a <Self::Input2 as ScalarStorage>::StorageType,
+        ),
+        <Self::Output as ScalarStorage>::StorageType,
+    >;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>>;
+    fn new_aggregate_state(state: &Self::BindState) -> Self::AggregateState;
+}
+
+#[derive(Debug)]
+pub struct SimpleBinaryAggregate<B: BinaryAggregate> {
+    binary: &'static B,
+}
+
+impl<B> SimpleBinaryAggregate<B>
+where
+    B: BinaryAggregate,
+{
+    pub const fn new(binary: &'static B) -> Self {
+        SimpleBinaryAggregate { binary }
+    }
+}
+
+impl<B> AggregateFunction for SimpleBinaryAggregate<B>
+where
+    B: BinaryAggregate,
+{
+    type State = B::BindState;
+    type AggregateState = B::AggregateState;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        self.binary.bind(inputs)
+    }
+
+    fn new_aggregate_state(state: &Self::State) -> Self::AggregateState {
+        B::new_aggregate_state(state)
+    }
+
+    fn update(
+        _state: &Self::State,
+        inputs: &[Array],
+        num_rows: usize,
+        states: &mut [*mut Self::AggregateState],
+    ) -> Result<()> {
+        BinaryNonNullUpdater::update::<B::Input1, B::Input2, _, _>(
+            &inputs[0],
+            &inputs[1],
+            0..num_rows,
+            states,
+        )
+    }
+
+    fn combine(
+        _state: &Self::State,
+        src: &mut [&mut Self::AggregateState],
+        dest: &mut [&mut Self::AggregateState],
+    ) -> Result<()> {
+        if src.len() != dest.len() {
+            return Err(RayexecError::new(
+                "Source and destination have different number of states",
+            )
+            .with_field("source", src.len())
+            .with_field("dest", dest.len()));
+        }
+
+        for (src, dest) in src.iter_mut().zip(dest) {
+            dest.merge(src)?;
+        }
+
+        Ok(())
+    }
+
+    fn finalize(
+        _state: &Self::State,
+        states: &mut [&mut Self::AggregateState],
+        output: &mut Array,
+    ) -> Result<()> {
+        let buffer = &mut <B::Output>::get_addressable_mut(&mut output.data)?;
         let validity = &mut output.validity;
 
         for (idx, state) in states.iter_mut().enumerate() {

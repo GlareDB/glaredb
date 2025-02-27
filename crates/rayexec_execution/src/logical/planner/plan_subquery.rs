@@ -8,9 +8,8 @@ use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::negate_expr::NegateOperator;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
-use crate::expr::{self, Expression};
-use crate::functions::aggregate::builtin::count::Count;
-use crate::functions::aggregate::AggregateFunction2;
+use crate::expr::{self, bind_aggregate_function, Expression};
+use crate::functions::aggregate::builtin::count::FUNCTION_SET_COUNT;
 use crate::logical::binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef};
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_join::{
@@ -461,8 +460,8 @@ impl SubqueryPlanner {
                         node: LogicalAggregate {
                             aggregates_table: agg_table,
                             aggregates: vec![Expression::Aggregate(AggregateExpr {
-                                agg: Count.plan(
-                                    bind_context.get_table_list(),
+                                agg: bind_aggregate_function(
+                                    &FUNCTION_SET_COUNT,
                                     vec![Expression::Column(subquery_column)],
                                 )?,
                                 distinct: false,

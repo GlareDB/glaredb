@@ -3,9 +3,8 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
 use crate::arrays::field::Field;
-use crate::functions::aggregate::AggregateFunction2;
 use crate::functions::copy::CopyToFunction;
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, ScalarFunctionSet};
 use crate::functions::table::TableFunction;
 
 /// Behavior on create conflict.
@@ -15,12 +14,10 @@ pub enum OnConflict {
     ///
     /// CREATE IF NOT EXIST
     Ignore,
-
     /// Replace the original entry.
     ///
     /// CREATE OR REPLACE
     Replace,
-
     /// Error on conflict.
     #[default]
     Error,
@@ -125,10 +122,10 @@ pub struct CreateScalarFunctionInfo {
     pub on_conflict: OnConflict,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct CreateAggregateFunctionInfo {
     pub name: String,
-    pub implementation: Box<dyn AggregateFunction2>,
+    pub implementation: AggregateFunctionSet,
     pub on_conflict: OnConflict,
 }
 

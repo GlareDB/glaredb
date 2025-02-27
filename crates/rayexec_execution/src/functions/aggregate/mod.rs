@@ -75,6 +75,16 @@ impl PartialEq for PlannedAggregateFunction {
     }
 }
 
+impl Eq for PlannedAggregateFunction {}
+
+impl Hash for PlannedAggregateFunction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.state.return_type.hash(state);
+        self.state.inputs.hash(state);
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct RawAggregateFunction {
     function: *const (),

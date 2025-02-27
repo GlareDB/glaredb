@@ -15,6 +15,9 @@ pub mod sum;
 use std::sync::LazyLock;
 
 use super::AggregateFunction2;
+use crate::functions::function_set::AggregateFunctionSet;
+
+pub const BUILTIN_AGGREGATE_FUNCTION_SETS: &[AggregateFunctionSet] = &[];
 
 pub static BUILTIN_AGGREGATE_FUNCTIONS: LazyLock<Vec<Box<dyn AggregateFunction2>>> =
     LazyLock::new(|| {

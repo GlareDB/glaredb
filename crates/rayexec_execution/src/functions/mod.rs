@@ -57,9 +57,9 @@ pub struct NamedArgument {
 }
 
 impl Signature {
-    pub const fn new(input: &'static [DataTypeId], return_type: DataTypeId) -> Self {
+    pub const fn new(inputs: &'static [DataTypeId], return_type: DataTypeId) -> Self {
         Signature {
-            positional_args: input,
+            positional_args: inputs,
             variadic_arg: None,
             return_type,
             doc: None,

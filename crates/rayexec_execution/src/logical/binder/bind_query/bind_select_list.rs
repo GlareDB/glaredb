@@ -164,7 +164,7 @@ impl<'a> SelectListBinder<'a> {
             Expression::Aggregate(agg) => {
                 // Replace the aggregate in the projections list with a column
                 // reference that points to the extracted aggregate.
-                let datatype = agg.datatype(bind_context)?;
+                let datatype = agg.datatype()?;
                 let col_idx = bind_context.push_column_for_table(
                     aggregates_table,
                     "__generated_agg_ref",
@@ -230,7 +230,7 @@ impl<'a> SelectListBinder<'a> {
         if let Expression::Window(window) = expression {
             // Replace the window in the projections list with a column
             // reference that points to the extracted aggregate.
-            let datatype = window.datatype(bind_context)?;
+            let datatype = window.datatype()?;
             let col_idx = bind_context.push_column_for_table(
                 windows_table,
                 "__generated_window_ref",

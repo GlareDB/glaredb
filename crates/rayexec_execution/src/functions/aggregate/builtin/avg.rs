@@ -28,7 +28,7 @@ pub const FUNCTION_SET_AVG: AggregateFunctionSet = AggregateFunctionSet {
     aliases: &[],
     doc: Some(&Documentation {
         category: Category::Aggregate,
-        description: "Return the average value from the inputs.",
+        description: "Return the average value from the input column.",
         arguments: &["input"],
         example: None,
     }),

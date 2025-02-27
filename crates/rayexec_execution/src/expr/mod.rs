@@ -42,8 +42,14 @@ use window_expr::WindowExpr;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
+use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::candidate::CastType;
-use crate::functions::function_set::{FunctionInfo, FunctionSet, ScalarFunctionSet};
+use crate::functions::function_set::{
+    AggregateFunctionSet,
+    FunctionInfo,
+    FunctionSet,
+    ScalarFunctionSet,
+};
 use crate::functions::scalar::{FunctionVolatility, PlannedScalarFunction};
 use crate::logical::binder::table_list::TableRef;
 
@@ -83,7 +89,7 @@ impl Expression {
     /// column expression.
     pub fn datatype(&self) -> Result<DataType> {
         Ok(match self {
-            Self::Aggregate(expr) => expr.agg.return_type.clone(),
+            Self::Aggregate(expr) => expr.datatype()?,
             Self::Arith(expr) => expr.return_type.clone(),
             Self::Between(_) => DataType::Boolean,
             Self::Case(expr) => expr.datatype.clone(),
@@ -96,7 +102,7 @@ impl Expression {
             Self::Negate(expr) => expr.datatype()?,
             Self::ScalarFunction(expr) => expr.function.state.return_type.clone(),
             Self::Subquery(expr) => expr.return_type.clone(),
-            Self::Window(window) => window.agg.return_type.clone(),
+            Self::Window(window) => window.datatype()?,
             Self::Unnest(expr) => expr.datatype()?,
             Self::GroupingSet(expr) => expr.datatype(),
         })
@@ -108,7 +114,7 @@ impl Expression {
     {
         match self {
             Self::Aggregate(agg) => {
-                for expr in &mut agg.agg.inputs {
+                for expr in &mut agg.agg.state.inputs {
                     func(expr)?;
                 }
                 if let Some(filter) = agg.filter.as_mut() {
@@ -156,7 +162,7 @@ impl Expression {
             }
             Self::Subquery(_) => (),
             Self::Window(window) => {
-                for input in &mut window.agg.inputs {
+                for input in &mut window.agg.state.inputs {
                     func(input)?;
                 }
                 for partition in &mut window.partition_by {
@@ -182,7 +188,7 @@ impl Expression {
     {
         match self {
             Self::Aggregate(agg) => {
-                for expr in &agg.agg.inputs {
+                for expr in &agg.agg.state.inputs {
                     func(expr)?;
                 }
                 if let Some(filter) = agg.filter.as_ref() {
@@ -230,7 +236,7 @@ impl Expression {
             }
             Self::Subquery(_) => (),
             Self::Window(window) => {
-                for input in &window.agg.inputs {
+                for input in &window.agg.state.inputs {
                     func(input)?;
                 }
                 for partition in &window.partition_by {
@@ -652,6 +658,32 @@ pub trait AsScalarFunctionSet {
     /// comparision, etc operators to apply appropriate casts to the input
     /// expressions.
     fn as_scalar_function_set(&self) -> &ScalarFunctionSet;
+}
+
+/// Binds an scalar function with the given inputs.
+///
+/// This will cast the inputs as needed.
+pub fn bind_aggregate_function(
+    function: &AggregateFunctionSet,
+    inputs: Vec<Expression>,
+) -> Result<PlannedAggregateFunction> {
+    let (func, inputs) = bind_function_signature(function, inputs)?;
+    let bind_state = func.call_bind(inputs)?;
+
+    Ok(PlannedAggregateFunction {
+        name: function.name,
+        raw: func,
+        state: bind_state,
+    })
+}
+
+pub fn scalar_function(
+    function: &ScalarFunctionSet,
+    inputs: Vec<Expression>,
+) -> Result<ScalarFunctionExpr> {
+    Ok(ScalarFunctionExpr {
+        function: bind_scalar_function(function, inputs)?,
+    })
 }
 
 /// Binds a scalar function with the given inputs.

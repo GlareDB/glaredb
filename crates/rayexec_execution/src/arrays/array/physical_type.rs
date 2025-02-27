@@ -218,7 +218,7 @@ pub trait ScalarStorage: Debug + Default + Sync + Send + Clone + Copy + 'static 
     /// The logical type being stored that can be accessed.
     ///
     /// For primitive buffers, this will be the same as the primary buffer type.
-    type StorageType: Sync + Send + ?Sized;
+    type StorageType: Debug + Sync + Send + ?Sized;
 
     /// The type of the addressable storage.
     type Addressable<'a>: Addressable<'a, T = Self::StorageType>;

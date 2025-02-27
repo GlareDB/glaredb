@@ -1,8 +1,7 @@
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::Result;
 
 use crate::database::DatabaseContext;
-use crate::functions::aggregate::AggregateFunction2;
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, ScalarFunctionSet};
 use crate::proto::DatabaseProtoConv;
 
 /// "Builtin" functions that require special handling.
@@ -36,7 +35,7 @@ impl SpecialBuiltinFunction {
 #[derive(Debug, Clone)]
 pub enum ResolvedFunction {
     Scalar(ScalarFunctionSet),
-    Aggregate(Box<dyn AggregateFunction2>),
+    Aggregate(AggregateFunctionSet),
     Special(SpecialBuiltinFunction),
 }
 
@@ -44,7 +43,7 @@ impl ResolvedFunction {
     pub fn name(&self) -> &str {
         match self {
             Self::Scalar(f) => f.name,
-            Self::Aggregate(f) => f.name(),
+            Self::Aggregate(f) => f.name,
             Self::Special(f) => f.name(),
         }
     }

@@ -12,7 +12,10 @@ use crate::database::create::{
     OnConflict,
 };
 use crate::datasource::DataSourceRegistry;
-use crate::functions::aggregate::builtin::BUILTIN_AGGREGATE_FUNCTIONS;
+use crate::functions::aggregate::builtin::{
+    BUILTIN_AGGREGATE_FUNCTIONS,
+    BUILTIN_AGGREGATE_FUNCTION_SETS,
+};
 use crate::functions::scalar::builtin::BUILTIN_SCALAR_FUNCTION_SETS;
 use crate::functions::table::builtin::BUILTIN_TABLE_FUNCTIONS;
 
@@ -73,17 +76,17 @@ pub fn new_system_catalog(registry: &DataSourceRegistry) -> Result<MemoryCatalog
     }
 
     // Add builtin aggregates.
-    for func in BUILTIN_AGGREGATE_FUNCTIONS.iter() {
+    for func in BUILTIN_AGGREGATE_FUNCTION_SETS.iter() {
         builtin.create_aggregate_function(
             tx,
             &CreateAggregateFunctionInfo {
-                name: func.name().to_string(),
+                name: func.name.to_string(),
                 implementation: func.clone(),
                 on_conflict: OnConflict::Error,
             },
         )?;
 
-        for alias in func.aliases() {
+        for alias in func.aliases {
             builtin.create_aggregate_function(
                 tx,
                 &CreateAggregateFunctionInfo {

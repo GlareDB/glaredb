@@ -522,7 +522,7 @@ impl SimilarEntry {
 mod tests {
     use super::*;
     use crate::database::create::CreateAggregateFunctionInfo;
-    use crate::functions::aggregate::builtin::sum::Sum;
+    use crate::functions::aggregate::builtin::sum::{Sum, FUNCTION_SET_SUM};
 
     fn create_test_catalog() -> MemoryCatalog {
         let catalog = MemoryCatalog::default();
@@ -549,7 +549,7 @@ mod tests {
                 &CatalogTx {},
                 &CreateAggregateFunctionInfo {
                     name: "sum".to_string(),
-                    implementation: Box::new(Sum),
+                    implementation: FUNCTION_SET_SUM,
                     on_conflict: OnConflict::Error,
                 },
             )

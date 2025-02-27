@@ -12,8 +12,21 @@ use crate::expr::Expression;
 use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
 use crate::functions::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
 use crate::functions::documentation::{Category, Documentation};
+use crate::functions::function_set::AggregateFunctionSet;
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
+
+pub const FUNCTION_SET_SUM: AggregateFunctionSet = AggregateFunctionSet {
+    name: "sum",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Compute the sum of all non-NULL inputs.",
+        arguments: &["inputs"],
+        example: None,
+    }),
+    functions: &[],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sum;
