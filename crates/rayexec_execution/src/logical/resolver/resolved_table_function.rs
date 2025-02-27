@@ -6,7 +6,7 @@ use rayexec_proto::ProtoConv;
 
 use crate::arrays::scalar::ScalarValue;
 use crate::database::DatabaseContext;
-use crate::functions::table::{PlannedTableFunction, TableFunction};
+use crate::functions::table::{PlannedTableFunction2, TableFunction2};
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,11 +19,11 @@ pub struct ConstantFunctionArgs {
 pub enum ResolvedTableFunctionReference {
     /// Scan table functions can be fully resolved as their arguments are
     /// constant.
-    Scan(PlannedTableFunction),
+    Scan(PlannedTableFunction2),
     /// We have a function that's an in/out funciton, but we need to wait until
     /// we're in the binding phase before planning this as it requires knowledge
     /// of its inputs.
-    InOut(Box<dyn TableFunction>),
+    InOut(Box<dyn TableFunction2>),
 }
 
 impl ResolvedTableFunctionReference {

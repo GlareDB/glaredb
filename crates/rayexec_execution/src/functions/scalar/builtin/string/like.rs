@@ -38,7 +38,7 @@ pub struct LikeState {
     constant: Option<Regex>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Like;
 
 impl ScalarFunction for Like {

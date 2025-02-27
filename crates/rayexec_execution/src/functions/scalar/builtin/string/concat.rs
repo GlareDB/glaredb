@@ -11,7 +11,6 @@ use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
-use crate::logical::binder::table_list::TableList;
 
 // TODO: Currently '||' aliases to this, however there should be two separate
 // concat functions. One that should return null on any null arguments (||), and
@@ -39,7 +38,7 @@ pub const FUNCTION_SET_CONCAT: ScalarFunctionSet = ScalarFunctionSet {
     )],
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct StringConcat;
 
 impl ScalarFunction for StringConcat {

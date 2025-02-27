@@ -17,7 +17,7 @@ use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::bind_state::BindState;
 
-pub trait UnaryAggregate: Debug + Sync + Send + Sized + 'static {
+pub trait UnaryAggregate: Debug + Copy + Sync + Send + Sized + 'static {
     type Input: ScalarStorage;
     type Output: MutableScalarStorage;
 
@@ -33,7 +33,7 @@ pub trait UnaryAggregate: Debug + Sync + Send + Sized + 'static {
     fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct SimpleUnaryAggregate<U: UnaryAggregate> {
     unary: &'static U,
 }
@@ -112,7 +112,7 @@ where
     }
 }
 
-pub trait BinaryAggregate: Debug + Sync + Send + Sized + 'static {
+pub trait BinaryAggregate: Debug + Copy + Sync + Send + Sized + 'static {
     type Input1: ScalarStorage;
     type Input2: ScalarStorage;
     type Output: MutableScalarStorage;
@@ -132,7 +132,7 @@ pub trait BinaryAggregate: Debug + Sync + Send + Sized + 'static {
     fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct SimpleBinaryAggregate<B: BinaryAggregate> {
     binary: &'static B,
 }

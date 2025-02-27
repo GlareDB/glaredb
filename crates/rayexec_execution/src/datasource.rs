@@ -8,7 +8,7 @@ use regex::Regex;
 
 use crate::arrays::scalar::ScalarValue;
 use crate::functions::copy::CopyToFunction;
-use crate::functions::table::TableFunction;
+use crate::functions::table::TableFunction2;
 use crate::runtime::Runtime;
 use crate::storage::catalog_storage::CatalogStorage;
 use crate::storage::memory::MemoryTableStorage;
@@ -78,7 +78,7 @@ pub trait DataSource: Sync + Send + Debug {
     ///
     /// Note that these functions should be stateless, as they are registered
     /// into the system catalog at startup.
-    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction2>> {
         Vec::new()
     }
 
@@ -138,7 +138,7 @@ pub struct FileHandler {
     pub regex: Regex,
 
     /// Table function to use to read the file.
-    pub table_func: Box<dyn TableFunction>,
+    pub table_func: Box<dyn TableFunction2>,
 
     /// Optional copy to function for writing out files.
     pub copy_to: Option<Box<dyn CopyToFunction>>,
@@ -248,7 +248,7 @@ impl DataSource for MemoryDataSource {
         })
     }
 
-    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction2>> {
         Vec::new()
     }
 }

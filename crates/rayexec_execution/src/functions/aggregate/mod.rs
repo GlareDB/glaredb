@@ -7,7 +7,7 @@ use std::hash::Hash;
 use rayexec_error::Result;
 
 use super::bind_state::{BindState, RawBindState, RawBindStateInner};
-use super::{FunctionInfo, Signature};
+use super::Signature;
 use crate::arrays::array::Array;
 use crate::expr::Expression;
 
@@ -141,7 +141,7 @@ pub struct RawAggregateFunctionVTable {
 }
 
 // TODO: State naming.
-pub trait AggregateFunction: Debug + Sync + Send + Sized {
+pub trait AggregateFunction: Debug + Copy + Sync + Send + Sized {
     /// Bind state passed to update, combine, and finalize functions.
     type BindState: Sync + Send;
 

@@ -11,7 +11,6 @@ use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
-use crate::logical::binder::table_list::TableList;
 
 pub const FUNCTION_SET_SUBSTRING: ScalarFunctionSet = ScalarFunctionSet {
     name: "substring",
@@ -39,7 +38,7 @@ pub const FUNCTION_SET_SUBSTRING: ScalarFunctionSet = ScalarFunctionSet {
     ],
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct SubstringFrom;
 
 impl ScalarFunction for SubstringFrom {
@@ -67,7 +66,7 @@ impl ScalarFunction for SubstringFrom {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct SubstringFromTo;
 
 impl ScalarFunction for SubstringFromTo {

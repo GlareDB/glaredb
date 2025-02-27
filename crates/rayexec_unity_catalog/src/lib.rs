@@ -18,7 +18,7 @@ use rayexec_execution::datasource::{
     DataSourceBuilder,
     DataSourceConnection,
 };
-use rayexec_execution::functions::table::TableFunction;
+use rayexec_execution::functions::table::TableFunction2;
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::memory::MemoryTableStorage;
 
@@ -52,7 +52,7 @@ impl<R: Runtime> DataSource for UnityCatalogDataSource<R> {
         })
     }
 
-    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction2>> {
         vec![
             // `unity_list_schemas`
             Box::new(UnityObjects::<_, ListSchemasOperation>::new(

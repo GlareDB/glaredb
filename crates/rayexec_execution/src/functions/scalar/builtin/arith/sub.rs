@@ -119,7 +119,7 @@ pub const FUNCTION_SET_SUB: ScalarFunctionSet = ScalarFunctionSet {
     ],
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Sub<S> {
     return_type: &'static DataType,
     _s: PhantomData<S>,

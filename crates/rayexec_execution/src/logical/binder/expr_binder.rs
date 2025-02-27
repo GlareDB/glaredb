@@ -41,7 +41,7 @@ use crate::functions::scalar::builtin::string::{
     FUNCTION_SET_STARTS_WITH,
     FUNCTION_SET_SUBSTRING,
 };
-use crate::functions::table::TableFunction;
+use crate::functions::table::TableFunction2;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -1198,7 +1198,7 @@ impl<'a> BaseExpressionBinder<'a> {
     pub(crate) fn apply_casts_for_table_function(
         &self,
         bind_context: &BindContext,
-        table: &dyn TableFunction,
+        table: &dyn TableFunction2,
         inputs: Vec<Expression>,
     ) -> Result<Vec<Expression>> {
         let input_datatypes = inputs

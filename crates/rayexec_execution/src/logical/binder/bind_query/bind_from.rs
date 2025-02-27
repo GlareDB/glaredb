@@ -10,7 +10,7 @@ use crate::database::catalog_entry::CatalogEntry;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::{self, Expression};
-use crate::functions::table::{PlannedTableFunction, TableFunctionPlanner};
+use crate::functions::table::{PlannedTableFunction2, TableFunctionPlanner2};
 use crate::logical::binder::bind_context::{
     BindContext,
     BindScopeRef,
@@ -72,7 +72,7 @@ impl Eq for BoundBaseTable {}
 pub struct BoundTableFunction {
     pub table_ref: TableRef,
     pub location: LocationRequirement,
-    pub function: PlannedTableFunction,
+    pub function: PlannedTableFunction2,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -474,10 +474,10 @@ impl<'a> FromBinder<'a> {
                 )?;
 
                 match inout.planner() {
-                    TableFunctionPlanner::InOut(planner) => {
+                    TableFunctionPlanner2::InOut(planner) => {
                         planner.plan(bind_context.get_table_list(), positional, named)?
                     }
-                    TableFunctionPlanner::Scan(_) => {
+                    TableFunctionPlanner2::Scan(_) => {
                         return Err(RayexecError::new(
                             "Expected in/out planner, got scan planner",
                         ))

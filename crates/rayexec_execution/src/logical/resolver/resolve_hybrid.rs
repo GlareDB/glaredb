@@ -11,7 +11,7 @@ use crate::database::catalog::CatalogTx;
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{Database, DatabaseContext};
 use crate::datasource::{DataSourceRegistry, FileHandlers};
-use crate::functions::table::TableFunctionPlanner;
+use crate::functions::table::TableFunctionPlanner2;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::{ResolveConfig, ResolveMode};
 
@@ -199,10 +199,10 @@ impl<'a> HybridResolver<'a> {
                     .require_resolve_table_function(&unresolved.reference)?;
 
                 let resolved = match function.planner() {
-                    TableFunctionPlanner::InOut(_) => {
+                    TableFunctionPlanner2::InOut(_) => {
                         ResolvedTableFunctionReference::InOut(function)
                     }
-                    TableFunctionPlanner::Scan(planner) => {
+                    TableFunctionPlanner2::Scan(planner) => {
                         let planned = planner
                             .plan(
                                 self.resolver.context,

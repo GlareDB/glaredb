@@ -43,7 +43,7 @@ use crate::database::DatabaseContext;
 use crate::datasource::FileHandlers;
 use crate::functions::copy::CopyToArgs;
 use crate::functions::proto::FUNCTION_LOOKUP_CATALOG;
-use crate::functions::table::TableFunctionPlanner;
+use crate::functions::table::TableFunctionPlanner2;
 use crate::logical::operator::LocationRequirement;
 
 /// An AST statement with references bound to data inside of the `resolve_context`.
@@ -959,10 +959,10 @@ impl<'a> Resolver<'a> {
                         // Having an in/out function here would be weird, but
                         // might as well handle it.
                         let resolved = match handler.table_func.planner() {
-                            TableFunctionPlanner::InOut(_) => {
+                            TableFunctionPlanner2::InOut(_) => {
                                 ResolvedTableFunctionReference::InOut(handler.table_func.clone())
                             }
-                            TableFunctionPlanner::Scan(planner) => {
+                            TableFunctionPlanner2::Scan(planner) => {
                                 let planned = planner
                                     .plan(self.context, vec![path.into()], HashMap::new())
                                     .await?;
@@ -1004,10 +1004,10 @@ impl<'a> Resolver<'a> {
                             .require_resolve_table_function(&reference)?;
 
                         let resolved = match function.planner() {
-                            TableFunctionPlanner::InOut(_) => {
+                            TableFunctionPlanner2::InOut(_) => {
                                 ResolvedTableFunctionReference::InOut(function)
                             }
-                            TableFunctionPlanner::Scan(planner) => {
+                            TableFunctionPlanner2::Scan(planner) => {
                                 // Requires constants.
                                 let binder = ConstantBinder::new(resolve_context);
                                 let constant_args = binder.bind_constant_function_args(&args)?;
@@ -1033,10 +1033,10 @@ impl<'a> Resolver<'a> {
                             Some(function) => {
                                 // TODO: Duplicated
                                 let resolved = match function.planner() {
-                                    TableFunctionPlanner::InOut(_) => {
+                                    TableFunctionPlanner2::InOut(_) => {
                                         ResolvedTableFunctionReference::InOut(function)
                                     }
-                                    TableFunctionPlanner::Scan(planner) => {
+                                    TableFunctionPlanner2::Scan(planner) => {
                                         let binder = ConstantBinder::new(resolve_context);
                                         let constant_args =
                                             binder.bind_constant_function_args(&args)?;

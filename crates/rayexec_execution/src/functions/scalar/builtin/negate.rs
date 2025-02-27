@@ -74,7 +74,7 @@ pub const FUNCTION_SET_NOT: ScalarFunctionSet = ScalarFunctionSet {
     )],
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Negate<S> {
     return_type: &'static DataType,
     _s: PhantomData<S>,

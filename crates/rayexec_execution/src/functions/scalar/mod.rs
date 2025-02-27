@@ -108,7 +108,7 @@ impl RawScalarFunction {
     }
 }
 
-pub trait ScalarFunction: Debug + Sync + Send + Sized {
+pub trait ScalarFunction: Copy + Debug + Sync + Send + Sized {
     const VOLATILITY: FunctionVolatility = FunctionVolatility::Consistent;
 
     /// State that gets passed to the function during execute.

@@ -10,11 +10,11 @@ use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::expr;
 use rayexec_execution::functions::table::{
     try_location_and_access_config_from_args,
-    PlannedTableFunction,
-    ScanPlanner,
-    TableFunction,
-    TableFunctionImpl,
-    TableFunctionPlanner,
+    PlannedTableFunction2,
+    ScanPlanner2,
+    TableFunction2,
+    TableFunctionImpl2,
+    TableFunctionPlanner2,
 };
 use rayexec_execution::functions::{FunctionInfo, Signature};
 use rayexec_execution::logical::statistics::StatisticsValue;
@@ -49,19 +49,19 @@ impl<R: Runtime> FunctionInfo for ReadParquet<R> {
     }
 }
 
-impl<R: Runtime> TableFunction for ReadParquet<R> {
-    fn planner(&self) -> TableFunctionPlanner {
-        TableFunctionPlanner::Scan(self)
+impl<R: Runtime> TableFunction2 for ReadParquet<R> {
+    fn planner(&self) -> TableFunctionPlanner2 {
+        TableFunctionPlanner2::Scan(self)
     }
 }
 
-impl<R: Runtime> ScanPlanner for ReadParquet<R> {
+impl<R: Runtime> ScanPlanner2 for ReadParquet<R> {
     fn plan<'a>(
         &self,
         context: &'a DatabaseContext,
         positional_inputs: Vec<ScalarValue>,
         named_inputs: HashMap<String, ScalarValue>,
-    ) -> BoxFuture<'a, Result<PlannedTableFunction>> {
+    ) -> BoxFuture<'a, Result<PlannedTableFunction2>> {
         Self::plan_inner(self.clone(), context, positional_inputs, named_inputs).boxed()
     }
 }
@@ -72,7 +72,7 @@ impl<R: Runtime> ReadParquet<R> {
         _context: &DatabaseContext,
         positional_inputs: Vec<ScalarValue>,
         named_inputs: HashMap<String, ScalarValue>,
-    ) -> Result<PlannedTableFunction> {
+    ) -> Result<PlannedTableFunction2> {
         let (location, conf) =
             try_location_and_access_config_from_args(&self, &positional_inputs, &named_inputs)?;
 

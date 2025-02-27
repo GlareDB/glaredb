@@ -15,7 +15,7 @@ use crate::database::catalog_entry::{CatalogEntry, CatalogEntryType};
 use crate::database::create::{CreateSchemaInfo, CreateTableInfo, OnConflict};
 use crate::database::memory_catalog::MemorySchema;
 use crate::database::{Database, DatabaseContext};
-use crate::functions::table::TableFunction;
+use crate::functions::table::TableFunction2;
 
 pub fn create_user_facing_resolve_err(
     tx: &CatalogTx,
@@ -83,7 +83,7 @@ impl<'a> NormalResolver<'a> {
     pub fn resolve_table_function(
         &self,
         reference: &ast::ObjectReference,
-    ) -> Result<Option<Box<dyn TableFunction>>> {
+    ) -> Result<Option<Box<dyn TableFunction2>>> {
         // TODO: Search path.
         let [catalog, schema, name] = match reference.0.len() {
             1 => [
@@ -129,7 +129,7 @@ impl<'a> NormalResolver<'a> {
     pub fn require_resolve_table_function(
         &self,
         reference: &ast::ObjectReference,
-    ) -> Result<Box<dyn TableFunction>> {
+    ) -> Result<Box<dyn TableFunction2>> {
         self.resolve_table_function(reference)?.ok_or_else(|| {
             RayexecError::new(format!(
                 "Missing table function for reference '{}'",

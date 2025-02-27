@@ -14,11 +14,11 @@ use crate::expr::{self, Expression};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{TableInOutFunction, TableInOutPartitionState};
 use crate::functions::table::{
-    InOutPlanner,
-    PlannedTableFunction,
-    TableFunction,
-    TableFunctionImpl,
-    TableFunctionPlanner,
+    InOutPlanner2,
+    PlannedTableFunction2,
+    TableFunction2,
+    TableFunctionImpl2,
+    TableFunctionPlanner2,
 };
 use crate::functions::{
     invalid_input_types_error,
@@ -65,22 +65,22 @@ impl FunctionInfo for GenerateSeries {
     }
 }
 
-impl TableFunction for GenerateSeries {
-    fn planner(&self) -> TableFunctionPlanner {
-        TableFunctionPlanner::InOut(&GenerateSeriesInOutPlanner)
+impl TableFunction2 for GenerateSeries {
+    fn planner(&self) -> TableFunctionPlanner2 {
+        TableFunctionPlanner2::InOut(&GenerateSeriesInOutPlanner)
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct GenerateSeriesInOutPlanner;
 
-impl InOutPlanner for GenerateSeriesInOutPlanner {
+impl InOutPlanner2 for GenerateSeriesInOutPlanner {
     fn plan(
         &self,
         table_list: &TableList,
         mut positional_inputs: Vec<Expression>,
         named_inputs: HashMap<String, ScalarValue>,
-    ) -> Result<PlannedTableFunction> {
+    ) -> Result<PlannedTableFunction2> {
         plan_check_num_args_one_of(&GenerateSeries, &positional_inputs, [2, 3])?;
         if !named_inputs.is_empty() {
             return Err(RayexecError::new(format!(
@@ -105,11 +105,11 @@ impl InOutPlanner for GenerateSeriesInOutPlanner {
             positional_inputs.push(expr::lit(1_i64).into())
         }
 
-        Ok(PlannedTableFunction {
+        Ok(PlannedTableFunction2 {
             function: Box::new(GenerateSeries),
             positional: positional_inputs,
             named: named_inputs,
-            function_impl: TableFunctionImpl::InOut(Box::new(GenerateSeriesInOutImpl)),
+            function_impl: TableFunctionImpl2::InOut(Box::new(GenerateSeriesInOutImpl)),
             cardinality: StatisticsValue::Unknown,
             schema: Schema::new([Field::new("generate_series", DataType::Int64, false)]),
         })

@@ -5,7 +5,7 @@ mod read_iceberg;
 mod table;
 
 use rayexec_execution::datasource::{DataSource, DataSourceBuilder, FileHandler};
-use rayexec_execution::functions::table::TableFunction;
+use rayexec_execution::functions::table::TableFunction2;
 use rayexec_execution::runtime::Runtime;
 use read_iceberg::ReadIceberg;
 
@@ -21,7 +21,7 @@ impl<R: Runtime> DataSourceBuilder<R> for IcebergDataSource<R> {
 }
 
 impl<R: Runtime> DataSource for IcebergDataSource<R> {
-    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction2>> {
         vec![Box::new(ReadIceberg {
             runtime: self.runtime.clone(),
         })]

@@ -12,11 +12,11 @@ use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{TableInOutFunction, TableInOutPartitionState};
 use crate::functions::table::{
-    InOutPlanner,
-    PlannedTableFunction,
-    TableFunction,
-    TableFunctionImpl,
-    TableFunctionPlanner,
+    InOutPlanner2,
+    PlannedTableFunction2,
+    TableFunction2,
+    TableFunctionImpl2,
+    TableFunctionPlanner2,
 };
 use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
 use crate::logical::binder::table_list::TableList;
@@ -55,19 +55,19 @@ impl FunctionInfo for Unnest {
     }
 }
 
-impl TableFunction for Unnest {
-    fn planner(&self) -> TableFunctionPlanner {
-        TableFunctionPlanner::InOut(self)
+impl TableFunction2 for Unnest {
+    fn planner(&self) -> TableFunctionPlanner2 {
+        TableFunctionPlanner2::InOut(self)
     }
 }
 
-impl InOutPlanner for Unnest {
+impl InOutPlanner2 for Unnest {
     fn plan(
         &self,
         table_list: &TableList,
         positional_inputs: Vec<Expression>,
         named_inputs: HashMap<String, ScalarValue>,
-    ) -> Result<PlannedTableFunction> {
+    ) -> Result<PlannedTableFunction2> {
         plan_check_num_args(self, &positional_inputs, 1)?;
         if !named_inputs.is_empty() {
             return Err(RayexecError::new(
@@ -85,11 +85,11 @@ impl InOutPlanner for Unnest {
 
         let schema = Schema::new([Field::new("unnest", return_type, true)]);
 
-        Ok(PlannedTableFunction {
+        Ok(PlannedTableFunction2 {
             function: Box::new(*self),
             positional: positional_inputs,
             named: named_inputs,
-            function_impl: TableFunctionImpl::InOut(Box::new(UnnestInOutImpl)),
+            function_impl: TableFunctionImpl2::InOut(Box::new(UnnestInOutImpl)),
             cardinality: StatisticsValue::Unknown,
             schema,
         })

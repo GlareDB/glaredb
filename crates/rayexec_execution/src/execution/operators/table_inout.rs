@@ -18,7 +18,7 @@ use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
-use crate::functions::table::{inout, PlannedTableFunction, TableFunctionImpl};
+use crate::functions::table::{inout, PlannedTableFunction2, TableFunctionImpl2};
 
 #[derive(Debug)]
 pub struct TableInOutPartitionState {
@@ -42,7 +42,7 @@ pub struct TableInOutPartitionState {
 #[derive(Debug)]
 pub struct PhysicalTableInOut {
     /// The table function.
-    pub function: PlannedTableFunction,
+    pub function: PlannedTableFunction2,
     /// Data types for the input into this operator.
     pub input_types: Vec<DataType>,
     /// Column expressions for columns that should be projected out of this
@@ -66,7 +66,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         partitions: usize,
     ) -> Result<UnaryInputStates> {
         let states = match &self.function.function_impl {
-            TableFunctionImpl::InOut(inout) => inout.create_states(partitions)?,
+            TableFunctionImpl2::InOut(inout) => inout.create_states(partitions)?,
             _ => {
                 return Err(RayexecError::new(format!(
                     "'{}' is not a table in/out function",
@@ -201,13 +201,13 @@ mod tests {
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
     use crate::expr::Expression;
     use crate::functions::table::builtin::series::GenerateSeriesInOutPlanner;
-    use crate::functions::table::InOutPlanner;
+    use crate::functions::table::InOutPlanner2;
     use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::assert_batches_eq;
     use crate::testutil::database_context::test_database_context;
     use crate::testutil::operator::OperatorWrapper;
 
-    fn plan_generate_series() -> PlannedTableFunction {
+    fn plan_generate_series() -> PlannedTableFunction2 {
         let mut table_list = TableList::empty();
         let table_ref = table_list
             .push_table(

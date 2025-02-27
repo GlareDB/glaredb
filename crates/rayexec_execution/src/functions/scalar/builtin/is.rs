@@ -51,7 +51,7 @@ pub const FUNCTION_SET_IS_NOT_NULL: ScalarFunctionSet = ScalarFunctionSet {
     )],
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct IsNull<const NEGATE: bool>;
 
 impl<const NEGATE: bool> ScalarFunction for IsNull<NEGATE> {

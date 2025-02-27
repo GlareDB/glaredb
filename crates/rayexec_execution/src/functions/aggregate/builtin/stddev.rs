@@ -109,7 +109,7 @@ where
     }
 }
 
-pub trait VarianceFinalize: Sync + Send + Debug + Default + 'static {
+pub trait VarianceFinalize: Sync + Send + Copy + Debug + Default + 'static {
     fn finalize(count: i64, mean: f64, m2: f64) -> Option<f64>;
 }
 

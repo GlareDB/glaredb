@@ -10,7 +10,7 @@ mod schema;
 use copy_to::ParquetCopyToFunction;
 use functions::read_parquet::ReadParquet;
 use rayexec_execution::datasource::{DataSource, DataSourceBuilder, DataSourceCopyTo, FileHandler};
-use rayexec_execution::functions::table::TableFunction;
+use rayexec_execution::functions::table::TableFunction2;
 use rayexec_execution::runtime::Runtime;
 use regex::{Regex, RegexBuilder};
 
@@ -35,7 +35,7 @@ impl<R> ParquetDataSource<R> {
 }
 
 impl<R: Runtime> DataSource for ParquetDataSource<R> {
-    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction2>> {
         vec![Box::new(ReadParquet {
             runtime: self.runtime.clone(),
         })]

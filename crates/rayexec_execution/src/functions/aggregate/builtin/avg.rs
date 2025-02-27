@@ -53,7 +53,7 @@ pub const FUNCTION_SET_AVG: AggregateFunctionSet = AggregateFunctionSet {
     ],
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Avg<S, T> {
     _s: PhantomData<S>,
     _t: PhantomData<T>,
@@ -98,7 +98,7 @@ pub struct AvgDecimalBindState {
     scale: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct AvgDecimal<D> {
     _d: PhantomData<D>,
 }

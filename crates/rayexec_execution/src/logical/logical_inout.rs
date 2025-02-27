@@ -5,7 +5,7 @@ use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
-use crate::functions::table::PlannedTableFunction;
+use crate::functions::table::PlannedTableFunction2;
 
 /// A table function that accepts inputs and produces outputs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,7 +13,7 @@ pub struct LogicalInOut {
     /// Table ref for referencing the output of this function.
     pub function_table_ref: TableRef,
     /// The table function.
-    pub function: PlannedTableFunction,
+    pub function: PlannedTableFunction2,
     /// Table ref for referencing the projected expressions.
     ///
     /// This only gets set during subquery decorrelation to project the original

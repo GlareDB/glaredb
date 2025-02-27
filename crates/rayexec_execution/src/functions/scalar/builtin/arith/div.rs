@@ -130,7 +130,7 @@ pub const FUNCTION_SET_DIV: ScalarFunctionSet = ScalarFunctionSet {
     ],
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Div<S> {
     return_type: &'static DataType,
     _s: PhantomData<S>,
@@ -177,7 +177,7 @@ where
 }
 
 /// Current implementation just casts both side to float64.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct DivDecimal;
 
 impl ScalarFunction for DivDecimal {

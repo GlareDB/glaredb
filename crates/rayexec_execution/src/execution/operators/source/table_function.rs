@@ -14,7 +14,7 @@ use crate::execution::operators::{
     UnaryInputStates,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::functions::table::{PlannedTableFunction, TableFunctionImpl};
+use crate::functions::table::{PlannedTableFunction2, TableFunctionImpl2};
 
 #[derive(Debug)]
 pub struct TableFunctionPartitionState {
@@ -24,7 +24,7 @@ pub struct TableFunctionPartitionState {
 #[derive(Debug)]
 pub struct PhysicalTableFunction {
     pub(crate) projections: Projections,
-    pub(crate) table_function: PlannedTableFunction,
+    pub(crate) table_function: PlannedTableFunction2,
 }
 
 impl ExecutableOperator for PhysicalTableFunction {
@@ -37,7 +37,7 @@ impl ExecutableOperator for PhysicalTableFunction {
         partitions: usize,
     ) -> Result<Self::States> {
         let mut scan = match &self.table_function.function_impl {
-            TableFunctionImpl::Scan(scan) => scan.lock(),
+            TableFunctionImpl2::Scan(scan) => scan.lock(),
             _ => {
                 return Err(RayexecError::new(format!(
                     "Table function '{}' not a scan function",

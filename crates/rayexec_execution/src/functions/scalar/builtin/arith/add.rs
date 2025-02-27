@@ -139,7 +139,7 @@ pub const FUNCTION_SET_ADD: ScalarFunctionSet = ScalarFunctionSet {
     ],
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Add<S> {
     return_type: &'static DataType,
     _s: PhantomData<S>,
@@ -185,7 +185,7 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct AddDecimal<D> {
     _d: PhantomData<D>,
 }

@@ -8,9 +8,9 @@ use series::GenerateSeries;
 use system::{ListDatabases, ListFunctions, ListSchemas, ListTables};
 use unnest::Unnest;
 
-use super::TableFunction;
+use super::TableFunction2;
 
-pub static BUILTIN_TABLE_FUNCTIONS: LazyLock<Vec<Box<dyn TableFunction>>> = LazyLock::new(|| {
+pub static BUILTIN_TABLE_FUNCTIONS: LazyLock<Vec<Box<dyn TableFunction2>>> = LazyLock::new(|| {
     vec![
         Box::new(GenerateSeries),
         Box::new(Unnest),

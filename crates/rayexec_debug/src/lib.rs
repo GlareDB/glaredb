@@ -11,7 +11,7 @@ use rayexec_execution::arrays::scalar::ScalarValue;
 use rayexec_execution::database::catalog_entry::TableEntry;
 use rayexec_execution::database::memory_catalog::MemoryCatalog;
 use rayexec_execution::datasource::{DataSource, DataSourceConnection, DataSourceCopyTo};
-use rayexec_execution::functions::table::TableFunction;
+use rayexec_execution::functions::table::TableFunction2;
 use rayexec_execution::storage::catalog_storage::CatalogStorage;
 use table_storage::{DebugTableStorage, TablePreload};
 
@@ -90,7 +90,7 @@ impl DataSource for DebugDataSource {
         }]
     }
 
-    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction2>> {
         Vec::new()
     }
 }

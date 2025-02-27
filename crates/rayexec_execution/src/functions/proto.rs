@@ -4,7 +4,7 @@ use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
 use super::copy::{CopyToArgs, CopyToFunction};
-use super::table::{PlannedTableFunction, TableFunction};
+use super::table::{PlannedTableFunction2, TableFunction2};
 use crate::arrays::scalar::ScalarValue;
 use crate::database::catalog::CatalogTx;
 use crate::database::DatabaseContext;
@@ -12,7 +12,7 @@ use crate::proto::DatabaseProtoConv;
 
 pub const FUNCTION_LOOKUP_CATALOG: &str = "glare_catalog";
 
-impl DatabaseProtoConv for Box<dyn TableFunction> {
+impl DatabaseProtoConv for Box<dyn TableFunction2> {
     type ProtoType = rayexec_proto::generated::functions::TableFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
@@ -35,7 +35,7 @@ impl DatabaseProtoConv for Box<dyn TableFunction> {
     }
 }
 
-impl DatabaseProtoConv for PlannedTableFunction {
+impl DatabaseProtoConv for PlannedTableFunction2 {
     type ProtoType = rayexec_proto::generated::functions::PlannedTableFunction;
 
     fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {

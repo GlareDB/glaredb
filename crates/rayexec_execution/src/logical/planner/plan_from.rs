@@ -7,7 +7,7 @@ use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::{self, Expression};
-use crate::functions::table::TableFunctionImpl;
+use crate::functions::table::TableFunctionImpl2;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin};
 use crate::logical::binder::table_list::TableList;
@@ -75,7 +75,7 @@ impl FromPlanner {
                 }
 
                 match &func.function.function_impl {
-                    TableFunctionImpl::Scan(_) => {
+                    TableFunctionImpl2::Scan(_) => {
                         let projection = (0..types.len()).collect();
 
                         let source = ScanSource::TableFunction {
@@ -98,7 +98,7 @@ impl FromPlanner {
                             estimated_cardinality,
                         }))
                     }
-                    TableFunctionImpl::InOut(_) => {
+                    TableFunctionImpl2::InOut(_) => {
                         let cardinality = func.function.cardinality;
 
                         // In/out always requires one input. Initialize its

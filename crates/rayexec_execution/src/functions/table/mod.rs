@@ -17,6 +17,7 @@ use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
 
+use super::bind_state::{RawBindStateInner, RawTableFunctionBindState};
 use super::FunctionInfo;
 use crate::arrays::field::Schema;
 use crate::arrays::scalar::ScalarValue;
@@ -26,6 +27,18 @@ use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
 use crate::logical::statistics::StatisticsValue;
 
+#[derive(Debug)]
+pub struct TableFunctionInput {
+    pub positional: Vec<Expression>,
+    pub named: HashMap<String, Expression>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PlannedTableFunction {
+    pub(crate) name: &'static str,
+    pub(crate) state: RawTableFunctionBindState,
+}
+
 /// A generic table function provides a way to dispatch to a more specialized
 /// table functions.
 ///
@@ -34,51 +47,51 @@ use crate::logical::statistics::StatisticsValue;
 /// object store, etc.
 ///
 /// The specialized variant should be determined by function argument inputs.
-pub trait TableFunction: FunctionInfo + Debug + Sync + Send + DynClone {
+pub trait TableFunction2: FunctionInfo + Debug + Sync + Send + DynClone {
     /// Return a planner that will produce a planned table function.
-    fn planner(&self) -> TableFunctionPlanner;
+    fn planner(&self) -> TableFunctionPlanner2;
 }
 
-impl Clone for Box<dyn TableFunction> {
+impl Clone for Box<dyn TableFunction2> {
     fn clone(&self) -> Self {
         dyn_clone::clone_box(&**self)
     }
 }
 
-impl PartialEq<dyn TableFunction> for Box<dyn TableFunction + '_> {
-    fn eq(&self, other: &dyn TableFunction) -> bool {
+impl PartialEq<dyn TableFunction2> for Box<dyn TableFunction2 + '_> {
+    fn eq(&self, other: &dyn TableFunction2) -> bool {
         self.as_ref() == other
     }
 }
 
-impl PartialEq for dyn TableFunction + '_ {
-    fn eq(&self, other: &dyn TableFunction) -> bool {
+impl PartialEq for dyn TableFunction2 + '_ {
+    fn eq(&self, other: &dyn TableFunction2) -> bool {
         self.name() == other.name()
     }
 }
 
-impl Eq for dyn TableFunction {}
+impl Eq for dyn TableFunction2 {}
 
 /// The types of table function planners supported.
 #[derive(Debug)]
-pub enum TableFunctionPlanner<'a> {
+pub enum TableFunctionPlanner2<'a> {
     /// Produces a table function that accept inputs and produce outputs.
-    InOut(&'a dyn InOutPlanner),
+    InOut(&'a dyn InOutPlanner2),
     /// Produces a table function that acts as just a scan.
-    Scan(&'a dyn ScanPlanner),
+    Scan(&'a dyn ScanPlanner2),
 }
 
-pub trait InOutPlanner: Debug {
+pub trait InOutPlanner2: Debug {
     /// Plans an in/out function with possibly dynamic positional inputs.
     fn plan(
         &self,
         table_list: &TableList,
         positional_inputs: Vec<Expression>,
         named_inputs: HashMap<String, ScalarValue>,
-    ) -> Result<PlannedTableFunction>;
+    ) -> Result<PlannedTableFunction2>;
 }
 
-pub trait ScanPlanner: Debug {
+pub trait ScanPlanner2: Debug {
     /// Plans an table scan function.
     ///
     /// This only accepts constant arguments as it's meant to be used when
@@ -89,13 +102,13 @@ pub trait ScanPlanner: Debug {
         context: &'a DatabaseContext,
         positional: Vec<ScalarValue>,
         named: HashMap<String, ScalarValue>,
-    ) -> BoxFuture<'a, Result<PlannedTableFunction>>;
+    ) -> BoxFuture<'a, Result<PlannedTableFunction2>>;
 }
 
 #[derive(Debug, Clone)]
-pub struct PlannedTableFunction {
+pub struct PlannedTableFunction2 {
     /// The function that did the planning.
-    pub function: Box<dyn TableFunction>,
+    pub function: Box<dyn TableFunction2>,
     /// Unnamed positional arguments.
     pub positional: Vec<Expression>,
     /// Named arguments.
@@ -104,14 +117,14 @@ pub struct PlannedTableFunction {
     ///
     /// The variant used here should match the variant of the planner that
     /// `function` returns from its `planner` method.
-    pub function_impl: TableFunctionImpl,
+    pub function_impl: TableFunctionImpl2,
     /// Output cardinality of the function.
     pub cardinality: StatisticsValue<usize>,
     /// Output schema of the function.
     pub schema: Schema,
 }
 
-impl PartialEq for PlannedTableFunction {
+impl PartialEq for PlannedTableFunction2 {
     fn eq(&self, other: &Self) -> bool {
         self.function == other.function
             && self.positional == other.positional
@@ -120,10 +133,10 @@ impl PartialEq for PlannedTableFunction {
     }
 }
 
-impl Eq for PlannedTableFunction {}
+impl Eq for PlannedTableFunction2 {}
 
 #[derive(Debug, Clone)]
-pub enum TableFunctionImpl {
+pub enum TableFunctionImpl2 {
     /// Table function that produces a table as its output.
     // TODO: Try to remove the Arc+Mutex.
     //
@@ -141,12 +154,12 @@ pub enum TableFunctionImpl {
     InOut(Box<dyn TableInOutFunction>),
 }
 
-impl TableFunctionImpl {
+impl TableFunctionImpl2 {
     pub fn new_scan<S>(source: S) -> Self
     where
         S: SourceOperation,
     {
-        TableFunctionImpl::Scan(Arc::new(Mutex::new(source)))
+        TableFunctionImpl2::Scan(Arc::new(Mutex::new(source)))
     }
 }
 
@@ -154,7 +167,7 @@ impl TableFunctionImpl {
 // TODO: Secrets provider that we pass in allowing us to get creds from some
 // secrets store.
 pub fn try_location_and_access_config_from_args(
-    func: &impl TableFunction,
+    func: &impl TableFunction2,
     positional: &[ScalarValue],
     named: &HashMap<String, ScalarValue>,
 ) -> Result<(FileLocation, AccessConfig)> {
@@ -199,7 +212,7 @@ pub fn try_location_and_access_config_from_args(
 }
 
 pub fn try_get_named<'a>(
-    func: &impl TableFunction,
+    func: &impl TableFunction2,
     name: &str,
     named: &'a HashMap<String, ScalarValue>,
 ) -> Result<&'a ScalarValue> {
@@ -212,7 +225,7 @@ pub fn try_get_named<'a>(
 }
 
 pub fn try_get_positional<'a>(
-    func: &impl TableFunction,
+    func: &impl TableFunction2,
     pos: usize,
     positional: &'a [ScalarValue],
 ) -> Result<&'a ScalarValue> {

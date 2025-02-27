@@ -61,7 +61,7 @@ pub const FUNCTION_SET_OR: ScalarFunctionSet = ScalarFunctionSet {
     )],
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct And;
 
 impl ScalarFunction for And {

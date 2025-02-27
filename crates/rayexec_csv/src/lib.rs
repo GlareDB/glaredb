@@ -10,7 +10,7 @@ mod read_csv;
 
 use copy_to::CsvCopyToFunction;
 use rayexec_execution::datasource::{DataSource, DataSourceBuilder, DataSourceCopyTo, FileHandler};
-use rayexec_execution::functions::table::TableFunction;
+use rayexec_execution::functions::table::TableFunction2;
 use rayexec_execution::runtime::Runtime;
 use read_csv::ReadCsv;
 use regex::RegexBuilder;
@@ -27,7 +27,7 @@ impl<R: Runtime> DataSourceBuilder<R> for CsvDataSource<R> {
 }
 
 impl<R: Runtime> DataSource for CsvDataSource<R> {
-    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction>> {
+    fn initialize_table_functions(&self) -> Vec<Box<dyn TableFunction2>> {
         vec![Box::new(ReadCsv {
             runtime: self.runtime.clone(),
         })]

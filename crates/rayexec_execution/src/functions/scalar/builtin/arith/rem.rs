@@ -28,7 +28,6 @@ use crate::expr::Expression;
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
-use crate::logical::binder::table_list::TableList;
 
 pub const FUNCTION_SET_REM: ScalarFunctionSet = ScalarFunctionSet {
     name: "%",
@@ -114,7 +113,7 @@ pub const FUNCTION_SET_REM: ScalarFunctionSet = ScalarFunctionSet {
     ],
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Rem<S> {
     return_type: &'static DataType,
     _s: PhantomData<S>,

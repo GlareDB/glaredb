@@ -8,7 +8,7 @@ use super::DatabaseContext;
 use crate::arrays::field::Field;
 use crate::functions::copy::CopyToFunction;
 use crate::functions::function_set::{AggregateFunctionSet, ScalarFunctionSet};
-use crate::functions::table::TableFunction;
+use crate::functions::table::TableFunction2;
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -212,7 +212,7 @@ impl DatabaseProtoConv for AggregateFunctionEntry {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct TableFunctionEntry {
-    pub function: Box<dyn TableFunction>,
+    pub function: Box<dyn TableFunction2>,
 }
 
 impl DatabaseProtoConv for TableFunctionEntry {

@@ -14,10 +14,10 @@ use crate::arrays::scalar::ScalarValue;
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, DatabaseContext};
 use crate::functions::table::{
-    PlannedTableFunction,
-    ScanPlanner,
-    TableFunction,
-    TableFunctionPlanner,
+    PlannedTableFunction2,
+    ScanPlanner2,
+    TableFunction2,
+    TableFunctionPlanner2,
 };
 use crate::functions::{FunctionInfo, Signature};
 use crate::storage::table_storage::{
@@ -376,9 +376,9 @@ impl<F: SystemFunctionImpl> FunctionInfo for SystemFunction<F> {
     }
 }
 
-impl<F: SystemFunctionImpl> TableFunction for SystemFunction<F> {
-    fn planner(&self) -> TableFunctionPlanner {
-        TableFunctionPlanner::Scan(&SystemFunctionPlanner::<F> { _f: PhantomData })
+impl<F: SystemFunctionImpl> TableFunction2 for SystemFunction<F> {
+    fn planner(&self) -> TableFunctionPlanner2 {
+        TableFunctionPlanner2::Scan(&SystemFunctionPlanner::<F> { _f: PhantomData })
     }
 }
 
@@ -387,7 +387,7 @@ pub struct SystemFunctionPlanner<F: SystemFunctionImpl> {
     _f: PhantomData<F>,
 }
 
-impl<F> ScanPlanner for SystemFunctionPlanner<F>
+impl<F> ScanPlanner2 for SystemFunctionPlanner<F>
 where
     F: SystemFunctionImpl,
 {
@@ -396,7 +396,7 @@ where
         context: &'a DatabaseContext,
         positional_inputs: Vec<ScalarValue>,
         named_inputs: HashMap<String, ScalarValue>,
-    ) -> BoxFuture<'a, Result<PlannedTableFunction>> {
+    ) -> BoxFuture<'a, Result<PlannedTableFunction2>> {
         // let databases = context
         //     .iter_databases()
         //     .map(|(name, database)| {

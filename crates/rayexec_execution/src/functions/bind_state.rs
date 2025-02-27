@@ -4,6 +4,17 @@ use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
 
 #[derive(Debug, Clone)]
+pub struct RawTableFunctionBindState {
+    pub state: RawBindStateInner,
+}
+
+/// Bind state for a table function.
+#[derive(Debug)]
+pub struct TableFunctionBindState<S> {
+    pub state: S,
+}
+
+#[derive(Debug, Clone)]
 pub struct RawBindState {
     pub state: RawBindStateInner,
     pub return_type: DataType,
@@ -16,7 +27,8 @@ impl RawBindState {
     }
 }
 
-/// Bind state for a function. Paramterized on the function state.
+/// Bind state for a a scalar or aggregate function. Paramterized on the
+/// function state.
 #[derive(Debug)]
 pub struct BindState<S> {
     pub state: S,

@@ -163,7 +163,7 @@ pub const FUNCTION_SET_MUL: ScalarFunctionSet = ScalarFunctionSet {
     ],
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Mul<S> {
     return_type: &'static DataType,
     _s: PhantomData<S>,
@@ -209,7 +209,7 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct MulDecimal<D> {
     _d: PhantomData<D>,
 }
@@ -264,7 +264,7 @@ where
 }
 
 /// Multiply interval with integer (rhs).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct MulInterval<Rhs, const LHS_RHS_FLIPPED: bool> {
     _rhs: PhantomData<Rhs>,
 }

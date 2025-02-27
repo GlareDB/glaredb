@@ -480,7 +480,7 @@ where
     ]
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 struct UnnestedComparisonImpl<O: ComparisonOperation, S: ScalarStorage> {
     _op: PhantomData<O>,
     _s: PhantomData<S>,
