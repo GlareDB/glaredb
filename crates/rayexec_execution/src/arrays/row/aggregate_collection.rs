@@ -124,9 +124,6 @@ impl AggregateCollection {
 
         // Initialize aggregate states.
         for (offset, agg) in self.layout.iter_offsets_and_aggregates() {
-            let func = &agg.function.function_impl;
-            let extra = func.extra_deref();
-
             for row_ptr in &state.block_append.row_pointers {
                 // SAFETY: Construction of this collection should have asserted
                 // that the function impls correspond to the aggregate layout.
@@ -135,7 +132,7 @@ impl AggregateCollection {
                 // well-aligned for each aggregate's state.
                 unsafe {
                     let state_ptr = row_ptr.byte_add(offset);
-                    (func.init_fn)(extra, state_ptr);
+                    agg.function.call_new_aggregate_state(state_ptr)
                 }
             }
         }
@@ -204,24 +201,28 @@ mod tests {
 
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::functions::aggregate::builtin::sum;
+    use crate::expr::physical::PhysicalAggregateExpression;
+    use crate::expr::{self, bind_aggregate_function};
+    use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::testutil::arrays::assert_arrays_eq;
-    use crate::testutil::exprs::{plan_aggregate, TestAggregate};
 
     #[test]
     fn append_groups_finalize_no_update() {
         // Create two groups, then finalize both groups. No updates, so the
         // results should be the "empty" value for the agg.
 
-        // [group, sum input]
-        let inputs = [DataType::Utf8, DataType::Int64];
-        let aggs = [plan_aggregate(
-            TestAggregate {
-                function: &sum::Sum,
-                columns: &[1],
-            },
-            inputs,
+        // GROUP     (col0): Utf8
+        // AGG_INPUT (col1): Int64
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+        let aggs = [PhysicalAggregateExpression::new(
+            sum_agg,
+            [(1, DataType::Int64)],
         )];
+
         let layout = AggregateLayout::new([DataType::Utf8], aggs);
 
         let mut collection = AggregateCollection::new(layout, 16);
@@ -258,15 +259,18 @@ mod tests {
     fn append_groups_finalize_with_update() {
         // Same as above, but we do an update to the aggregate.
 
-        // [group, sum input]
-        let inputs = [DataType::Utf8, DataType::Int64];
-        let aggs = [plan_aggregate(
-            TestAggregate {
-                function: &sum::Sum,
-                columns: &[1],
-            },
-            inputs,
+        // GROUP     (col0): Utf8
+        // AGG_INPUT (col1): Int64
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+        let aggs = [PhysicalAggregateExpression::new(
+            sum_agg,
+            [(1, DataType::Int64)],
         )];
+
         let layout = AggregateLayout::new([DataType::Utf8], aggs);
 
         let mut collection = AggregateCollection::new(layout, 16);

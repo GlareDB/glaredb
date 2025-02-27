@@ -591,9 +591,10 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::functions::aggregate::builtin::sum;
+    use crate::expr::physical::PhysicalAggregateExpression;
+    use crate::expr::{self, bind_aggregate_function};
+    use crate::functions::aggregate::builtin::sum::{self, FUNCTION_SET_SUM};
     use crate::testutil::arrays::{assert_arrays_eq, assert_batches_eq, generate_batch};
-    use crate::testutil::exprs::{plan_aggregates, TestAggregate};
 
     /// Helper to get the groups and results from a hash table.
     fn get_groups_and_results(table: &AggregateHashTable) -> (Batch, Batch) {
@@ -604,7 +605,7 @@ mod tests {
                 .layout
                 .aggregates
                 .iter()
-                .map(|agg| agg.function.return_type.clone()),
+                .map(|agg| agg.function.state.return_type.clone()),
             cap,
         )
         .unwrap();
@@ -630,17 +631,21 @@ mod tests {
     }
 
     #[test]
-    fn single_insert_single_agg_multiple_groups() {
-        let layout = AggregateLayout::new(
-            [DataType::Utf8, DataType::UInt64],
-            plan_aggregates(
-                [TestAggregate {
-                    function: &sum::Sum,
-                    columns: &[1],
-                }],
-                [DataType::Utf8, DataType::Int64],
-            ),
-        );
+    fn single_insert_single_agg_multiple_group_vals() {
+        // GROUP     (col0): Utf8
+        // GROUP     (hash): UInt64
+        // AGG_INPUT (col1): Int64
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+        let aggs = [PhysicalAggregateExpression::new(
+            sum_agg,
+            [(1, DataType::Int64)],
+        )];
+
+        let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
 
         let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
@@ -661,17 +666,21 @@ mod tests {
     }
 
     #[test]
-    fn multiple_inserts_single_agg_multiple_groups() {
-        let layout = AggregateLayout::new(
-            [DataType::Utf8, DataType::UInt64],
-            plan_aggregates(
-                [TestAggregate {
-                    function: &sum::Sum,
-                    columns: &[1],
-                }],
-                [DataType::Utf8, DataType::Int64],
-            ),
-        );
+    fn multiple_inserts_single_agg_multiple_group_vals() {
+        // GROUP     (col0): Utf8
+        // GROUP     (hash): UInt64
+        // AGG_INPUT (col1): Int64
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+        let aggs = [PhysicalAggregateExpression::new(
+            sum_agg,
+            [(1, DataType::Int64)],
+        )];
+
+        let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
 
         let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
@@ -697,16 +706,20 @@ mod tests {
 
     #[test]
     fn insert_with_hash_collision() {
-        let layout = AggregateLayout::new(
-            [DataType::Utf8, DataType::UInt64],
-            plan_aggregates(
-                [TestAggregate {
-                    function: &sum::Sum,
-                    columns: &[1],
-                }],
-                [DataType::Utf8, DataType::Int64],
-            ),
-        );
+        // GROUP     (col0): Utf8
+        // GROUP     (hash): UInt64
+        // AGG_INPUT (col1): Int64
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+        let aggs = [PhysicalAggregateExpression::new(
+            sum_agg,
+            [(1, DataType::Int64)],
+        )];
+
+        let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
 
         let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
@@ -730,16 +743,20 @@ mod tests {
 
     #[test]
     fn merge_tables() {
-        let layout = AggregateLayout::new(
-            [DataType::Utf8, DataType::UInt64],
-            plan_aggregates(
-                [TestAggregate {
-                    function: &sum::Sum,
-                    columns: &[1],
-                }],
-                [DataType::Utf8, DataType::Int64],
-            ),
-        );
+        // GROUP     (col0): Utf8
+        // GROUP     (hash): UInt64
+        // AGG_INPUT (col1): Int64
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+        let aggs = [PhysicalAggregateExpression::new(
+            sum_agg,
+            [(1, DataType::Int64)],
+        )];
+
+        let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
 
         let mut t1 = AggregateHashTable::try_new(layout.clone(), 16).unwrap();
         let mut s1 = t1.init_insert_state();

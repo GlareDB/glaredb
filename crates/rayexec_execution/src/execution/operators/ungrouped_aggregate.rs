@@ -85,15 +85,13 @@ impl PhysicalUngroupedAggregate {
         )?;
 
         for (agg_idx, agg) in self.layout.aggregates.iter().enumerate() {
-            let extra = agg.function.function_impl.extra_deref();
             // SAFETY: Buffer allocated according to the layout width and
             // alignement. The state pointer should be correctly aligned.
             unsafe {
                 let state_ptr = values
                     .as_mut_ptr()
                     .byte_add(self.layout.aggregate_offsets[agg_idx]);
-
-                (agg.function.function_impl.init_fn)(extra, state_ptr)
+                agg.function.call_new_aggregate_state(state_ptr);
             }
         }
 
@@ -287,22 +285,23 @@ mod tests {
     use super::*;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
-    use crate::functions::aggregate::builtin::{minmax, sum};
+    use crate::expr::{self, bind_aggregate_function};
+    use crate::functions::aggregate::builtin::minmax::FUNCTION_SET_MIN;
+    use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
-    use crate::testutil::exprs::{plan_aggregate, plan_aggregates, TestAggregate};
     use crate::testutil::operator::OperatorWrapper;
 
     #[test]
     fn single_aggregate_single_partition() {
         // SUM(col0)
 
-        let agg = plan_aggregate(
-            TestAggregate {
-                function: &sum::Sum,
-                columns: &[0],
-            },
-            [DataType::Int64],
-        );
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 0), DataType::Int64).into()],
+        )
+        .unwrap();
+        let agg = PhysicalAggregateExpression::new(sum_agg, [(0, DataType::Int64)]);
+
         let mut operator = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
 
         let mut states = operator.create_unary_states(1024, 1);
@@ -327,13 +326,13 @@ mod tests {
     fn single_aggregate_two_partitions() {
         // SUM(col0) with two partitions
 
-        let agg = plan_aggregate(
-            TestAggregate {
-                function: &sum::Sum,
-                columns: &[0],
-            },
-            [DataType::Int64],
-        );
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 0), DataType::Int64).into()],
+        )
+        .unwrap();
+        let agg = PhysicalAggregateExpression::new(sum_agg, [(0, DataType::Int64)]);
+
         let mut operator = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
 
         let mut states = operator.create_unary_states(1024, 2);
@@ -369,19 +368,21 @@ mod tests {
     fn two_aggregates_single_partition() {
         // SUM(col1), MIN(col0)
 
-        let aggs = plan_aggregates(
-            [
-                TestAggregate {
-                    function: &sum::Sum,
-                    columns: &[1],
-                },
-                TestAggregate {
-                    function: &minmax::Min,
-                    columns: &[0],
-                },
-            ],
-            [DataType::Int64, DataType::Int64],
-        );
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+        let min_agg = bind_aggregate_function(
+            &FUNCTION_SET_MIN,
+            vec![expr::column((0, 0), DataType::Int64).into()],
+        )
+        .unwrap();
+
+        let aggs = [
+            PhysicalAggregateExpression::new(sum_agg, [(1, DataType::Int64)]),
+            PhysicalAggregateExpression::new(min_agg, [(0, DataType::Int64)]),
+        ];
 
         let mut operator = OperatorWrapper::new(PhysicalUngroupedAggregate::new(aggs));
 

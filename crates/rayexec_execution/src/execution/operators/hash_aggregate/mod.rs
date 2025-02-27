@@ -322,32 +322,35 @@ mod tests {
     use super::*;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
-    use crate::functions::aggregate::builtin::sum;
+    use crate::expr::{self, bind_aggregate_function};
+    use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
-    use crate::testutil::exprs::{plan_aggregates, TestAggregate};
     use crate::testutil::operator::OperatorWrapper;
 
     #[test]
     fn hash_aggregate_single_partition() {
         // SUM(col0) GROUP BY (col1)
 
-        let inputs = [DataType::Int64, DataType::Utf8];
+        // AGG_INPUT (col0): Int64
+        // GROUP     (col1): Utf8
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 0), DataType::Int64).into()],
+        )
+        .unwrap();
+
+        let aggs = Aggregates {
+            groups: vec![(1, DataType::Utf8).into()],
+            grouping_functions: Vec::new(),
+            aggregates: vec![PhysicalAggregateExpression::new(
+                sum_agg,
+                [(0, DataType::Int64)],
+            )],
+        };
+
         let mut operator = OperatorWrapper::new(PhysicalHashAggregate {
             grouping_sets: vec![[0].into_iter().collect()],
-            aggregates: Aggregates {
-                groups: vec![PhysicalColumnExpr {
-                    idx: 1,
-                    datatype: inputs[1].clone(),
-                }],
-                grouping_functions: Vec::new(),
-                aggregates: plan_aggregates(
-                    [TestAggregate {
-                        function: &sum::Sum,
-                        columns: &[0],
-                    }],
-                    inputs,
-                ),
-            },
+            aggregates: aggs,
         });
 
         let mut states = operator.create_unary_states(16, 1);

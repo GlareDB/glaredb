@@ -22,7 +22,7 @@ use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
-use crate::functions::aggregate::PlannedAggregateFunction2;
+use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
@@ -149,7 +149,7 @@ impl DatabaseProtoConv for PhysicalScalarExpression {
 #[derive(Debug, Clone)]
 pub struct PhysicalAggregateExpression {
     /// The function we'll be calling to produce the aggregate states.
-    pub function: PlannedAggregateFunction2,
+    pub function: PlannedAggregateFunction,
     /// Column expressions we're aggregating on.
     pub columns: Vec<PhysicalColumnExpr>,
     /// If inputs are distinct.
@@ -158,6 +158,17 @@ pub struct PhysicalAggregateExpression {
 }
 
 impl PhysicalAggregateExpression {
+    pub fn new<C>(function: PlannedAggregateFunction, columns: impl IntoIterator<Item = C>) -> Self
+    where
+        C: Into<PhysicalColumnExpr>,
+    {
+        PhysicalAggregateExpression {
+            function,
+            columns: columns.into_iter().map(|c| c.into()).collect(),
+            is_distinct: false,
+        }
+    }
+
     pub fn contains_column_idx(&self, column: usize) -> bool {
         self.columns.iter().any(|expr| expr.idx == column)
     }

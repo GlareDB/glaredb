@@ -1,20 +1,22 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::ops::AddAssign;
 
 use num_traits::CheckedAdd;
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64, PhysicalI128, PhysicalI64};
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64, PhysicalI64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
-use crate::functions::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
+use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
+use crate::functions::aggregate::RawAggregateFunction;
+use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::AggregateFunctionSet;
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::Signature;
 
 pub const FUNCTION_SET_SUM: AggregateFunctionSet = AggregateFunctionSet {
     name: "sum",
@@ -25,98 +27,103 @@ pub const FUNCTION_SET_SUM: AggregateFunctionSet = AggregateFunctionSet {
         arguments: &["inputs"],
         example: None,
     }),
-    functions: &[],
+    functions: &[
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+            &SimpleUnaryAggregate::new(&SumF64),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Int64], DataTypeId::Int64), // TODO: Return should be big num
+            &SimpleUnaryAggregate::new(&SumI64),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Decimal64], DataTypeId::Decimal64),
+            &SimpleUnaryAggregate::new(&SumDecimal::<Decimal64Type>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Decimal128], DataTypeId::Decimal128),
+            &SimpleUnaryAggregate::new(&SumDecimal::<Decimal128Type>::new()),
+        ),
+    ],
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Sum;
+#[derive(Debug, Clone, Copy)]
+pub struct SumI64;
 
-impl FunctionInfo for Sum {
-    fn name(&self) -> &'static str {
-        "sum"
+impl UnaryAggregate for SumI64 {
+    type Input = PhysicalI64;
+    type Output = PhysicalI64;
+
+    type BindState = ();
+    type AggregateState = SumStateCheckedAdd<i64>;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Int64,
+            inputs,
+        })
     }
 
-    fn signatures(&self) -> &[Signature] {
-        const DOC: &Documentation = &Documentation {
-            category: Category::Aggregate,
-            description: "Compute the sum of all non-NULL inputs.",
-            arguments: &["inputs"],
-            example: None,
-        };
-
-        &[
-            Signature {
-                positional_args: &[DataTypeId::Float64],
-                variadic_arg: None,
-                return_type: DataTypeId::Float64,
-                doc: Some(DOC),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Int64],
-                variadic_arg: None,
-                return_type: DataTypeId::Int64, // TODO: Should be big num
-                doc: Some(DOC),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Decimal64],
-                variadic_arg: None,
-                return_type: DataTypeId::Decimal64,
-                doc: Some(DOC),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Decimal128],
-                variadic_arg: None,
-                return_type: DataTypeId::Decimal128,
-                doc: Some(DOC),
-            },
-        ]
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+        Default::default()
     }
 }
 
-impl AggregateFunction2 for Sum {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
+#[derive(Debug, Clone, Copy)]
+pub struct SumF64;
 
-        let (function_impl, return_type) = match inputs[0].datatype()? {
-            DataType::Int64 => {
-                let function_impl = AggregateFunctionImpl::new::<
-                    UnaryStateLogic<SumStateCheckedAdd<i64>, PhysicalI64, PhysicalI64>,
-                >(None);
-                (function_impl, DataType::Int64)
-            }
-            DataType::Float64 => {
-                let function_impl = AggregateFunctionImpl::new::<
-                    UnaryStateLogic<SumStateAdd<f64>, PhysicalF64, PhysicalF64>,
-                >(None);
-                (function_impl, DataType::Int64)
-            }
-            DataType::Decimal64(m) => {
-                let datatype = DataType::Decimal64(m);
-                let function_impl = AggregateFunctionImpl::new::<
-                    UnaryStateLogic<SumStateCheckedAdd<i64>, PhysicalI64, PhysicalI64>,
-                >(None);
-                (function_impl, datatype)
-            }
-            DataType::Decimal128(m) => {
-                let datatype = DataType::Decimal128(m);
-                let function_impl = AggregateFunctionImpl::new::<
-                    UnaryStateLogic<SumStateCheckedAdd<i128>, PhysicalI128, PhysicalI128>,
-                >(None);
-                (function_impl, datatype)
-            }
-            other => return Err(invalid_input_types_error(self, &[other])),
-        };
+impl UnaryAggregate for SumF64 {
+    type Input = PhysicalF64;
+    type Output = PhysicalF64;
 
-        Ok(PlannedAggregateFunction2 {
-            function: Box::new(*self),
-            return_type,
+    type BindState = ();
+    type AggregateState = SumStateAdd<f64>;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Float64,
             inputs,
-            function_impl,
         })
+    }
+
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+        Default::default()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SumDecimal<D> {
+    _d: PhantomData<D>,
+}
+
+impl<D> SumDecimal<D> {
+    pub const fn new() -> Self {
+        SumDecimal { _d: PhantomData }
+    }
+}
+
+impl<D> UnaryAggregate for SumDecimal<D>
+where
+    D: DecimalType,
+{
+    type Input = D::Storage;
+    type Output = D::Storage;
+
+    type BindState = ();
+    type AggregateState = SumStateCheckedAdd<D::Primitive>;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: inputs[0].datatype()?,
+            inputs,
+        })
+    }
+
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+        Default::default()
     }
 }
 

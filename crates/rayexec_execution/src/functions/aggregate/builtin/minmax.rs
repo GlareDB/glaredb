@@ -51,6 +51,18 @@ use crate::logical::binder::table_list::TableList;
 // If we change the state from just being a val+bool, those tests may need
 // updating.
 
+pub const FUNCTION_SET_MIN: AggregateFunctionSet = AggregateFunctionSet {
+    name: "min",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Return the minimum non-NULL value seen from input.",
+        arguments: &["input"],
+        example: None,
+    }),
+    functions: &[], // TODO
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Min;
 

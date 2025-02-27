@@ -51,7 +51,7 @@ impl AggregateLayout {
 
         let base_align: usize = aggregates
             .iter()
-            .map(|agg| agg.function.function_impl.state_align)
+            .map(|agg| agg.function.aggregate_state_info().align)
             .max()
             .unwrap_or(1);
 
@@ -62,7 +62,8 @@ impl AggregateLayout {
 
         for agg in &aggregates {
             aggregate_offsets.push(offset);
-            offset += agg.function.function_impl.state_size;
+            let info = agg.function.aggregate_state_info();
+            offset += info.size;
             // TODO: Could be more efficient here and align to the aggregate
             // itself.
             offset = align_len(offset, base_align);
@@ -130,13 +131,15 @@ impl AggregateLayout {
             let rel_offset = offset - prev_offset;
             for row_ptr in group_ptrs.iter_mut() {
                 *row_ptr = row_ptr.byte_add(rel_offset);
-                debug_assert_eq!(0, row_ptr.addr() % agg.function.function_impl.state_align);
+                debug_assert_eq!(
+                    0,
+                    row_ptr.addr() % agg.function.aggregate_state_info().align
+                );
             }
             prev_offset = offset; // To get the next offset relative to this pointer on the next iteration.
 
             // Update states.
-            let extra = agg.function.function_impl.extra_deref();
-            (agg.function.function_impl.update_fn)(extra, agg_inputs, num_rows, group_ptrs)?;
+            agg.function.call_update(agg_inputs, num_rows, group_ptrs)?;
 
             // Next aggregate starts with the remaining inputs.
             inputs = remaining_inputs;
@@ -172,17 +175,22 @@ impl AggregateLayout {
             // Move both sets of pointers to the right state.
             for row_ptr in src_ptrs.iter_mut() {
                 *row_ptr = row_ptr.byte_add(rel_offset);
-                debug_assert_eq!(0, row_ptr.addr() % agg.function.function_impl.state_align);
+                debug_assert_eq!(
+                    0,
+                    row_ptr.addr() % agg.function.aggregate_state_info().align
+                );
             }
             for row_ptr in dest_ptrs.iter_mut() {
                 *row_ptr = row_ptr.byte_add(rel_offset);
-                debug_assert_eq!(0, row_ptr.addr() % agg.function.function_impl.state_align);
+                debug_assert_eq!(
+                    0,
+                    row_ptr.addr() % agg.function.aggregate_state_info().align
+                );
             }
             prev_offset = offset;
 
             // Combine states.
-            let extra = agg.function.function_impl.extra_deref();
-            (agg.function.function_impl.combine_fn)(extra, src_ptrs, dest_ptrs)?;
+            agg.function.call_combine(src_ptrs, dest_ptrs)?;
         }
 
         Ok(())
@@ -217,13 +225,16 @@ impl AggregateLayout {
             let rel_offset = offset - prev_offset;
             for row_ptr in group_ptrs.iter_mut() {
                 *row_ptr = row_ptr.byte_add(rel_offset);
-                debug_assert_eq!(0, row_ptr.addr() % agg.function.function_impl.state_align);
+                debug_assert_eq!(
+                    0,
+                    row_ptr.addr() % agg.function.aggregate_state_info().align
+                );
             }
             prev_offset = offset;
 
             // Finalize states.
-            let extra = agg.function.function_impl.extra_deref();
-            (agg.function.function_impl.finalize_fn)(extra, group_ptrs, output.borrow_mut())?;
+            agg.function
+                .call_finalize(group_ptrs, output.borrow_mut())?;
         }
 
         Ok(())
@@ -239,8 +250,8 @@ const fn align_len(curr_len: usize, alignment: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::functions::aggregate::builtin::minmax;
-    use crate::testutil::exprs::{plan_aggregates, TestAggregate};
+    use crate::expr::{self, bind_aggregate_function};
+    use crate::functions::aggregate::builtin::minmax::{self, FUNCTION_SET_MAX, FUNCTION_SET_MIN};
 
     #[test]
     fn align_len_sanity() {
@@ -276,30 +287,33 @@ mod tests {
 
     #[test]
     fn new_no_groups() {
-        unimplemented!();
-        // let aggs = plan_aggregates(
-        //     [
-        //         TestAggregate {
-        //             function: &minmax::Min,
-        //             columns: &[0],
-        //         },
-        //         TestAggregate {
-        //             function: &minmax::Max,
-        //             columns: &[1],
-        //         },
-        //     ],
-        //     [DataType::Int32, DataType::Int32],
-        // );
+        // MIN_INPUT (col0): Int32
+        // MAX_INPUT (col1): Int32
+        let min_agg = bind_aggregate_function(
+            &FUNCTION_SET_MIN,
+            vec![expr::column((0, 0), DataType::Int32).into()],
+        )
+        .unwrap();
+        let max_agg = bind_aggregate_function(
+            &FUNCTION_SET_MAX,
+            vec![expr::column((0, 1), DataType::Int32).into()],
+        )
+        .unwrap();
 
-        // let layout = AggregateLayout::new([], aggs);
+        let aggs = [
+            PhysicalAggregateExpression::new(min_agg, [(0, DataType::Int32)]),
+            PhysicalAggregateExpression::new(max_agg, [(1, DataType::Int32)]),
+        ];
 
-        // // Min/max (i32)
-        // // Align: 4
-        // // Size:  5 (val + bool)
+        let layout = AggregateLayout::new([], aggs);
 
-        // assert_eq!(4, layout.base_align);
-        // assert_eq!(0, layout.aggregate_offsets[0]);
-        // assert_eq!(8, layout.aggregate_offsets[1]); // Offset aligned to 4
-        // assert_eq!(16, layout.row_width);
+        // Min/max (i32)
+        // Align: 4
+        // Size:  5 (val + bool)
+
+        assert_eq!(4, layout.base_align);
+        assert_eq!(0, layout.aggregate_offsets[0]);
+        assert_eq!(8, layout.aggregate_offsets[1]); // Offset aligned to 4
+        assert_eq!(16, layout.row_width);
     }
 }

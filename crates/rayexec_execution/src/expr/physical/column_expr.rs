@@ -18,7 +18,17 @@ pub struct PhysicalColumnExpr {
     pub datatype: DataType,
 }
 
+impl From<(usize, DataType)> for PhysicalColumnExpr {
+    fn from((idx, datatype): (usize, DataType)) -> Self {
+        Self::new(idx, datatype)
+    }
+}
+
 impl PhysicalColumnExpr {
+    pub(crate) fn new(idx: usize, datatype: DataType) -> Self {
+        PhysicalColumnExpr { idx, datatype }
+    }
+
     pub(crate) fn create_state(&self, _batch_size: usize) -> Result<ExpressionState> {
         Ok(ExpressionState::empty())
     }

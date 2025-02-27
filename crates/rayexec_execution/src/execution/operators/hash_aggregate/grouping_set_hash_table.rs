@@ -251,7 +251,7 @@ impl GroupingSetHashTable {
                         .layout
                         .aggregates
                         .iter()
-                        .map(|agg| agg.function.return_type.clone());
+                        .map(|agg| agg.function.state.return_type.clone());
 
                     let scan_states = (0..self.partitions)
                         .map(|idx| {
@@ -405,26 +405,28 @@ impl GroupingSetHashTable {
 mod tests {
     use super::*;
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
-    use crate::functions::aggregate::builtin::sum;
+    use crate::expr::physical::PhysicalAggregateExpression;
+    use crate::expr::{self, bind_aggregate_function};
+    use crate::functions::aggregate::builtin::sum::{self, FUNCTION_SET_SUM};
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
-    use crate::testutil::exprs::{plan_aggregates, TestAggregate};
 
     #[test]
     fn single_insert_merge_scan() {
-        let inputs = [DataType::Utf8, DataType::Int64];
+        // GROUP     (col0): Utf8
+        // AGG_INPUT (col1): Int64
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+
         let aggs = Aggregates {
-            groups: vec![PhysicalColumnExpr {
-                idx: 0,
-                datatype: inputs[0].clone(),
-            }],
+            groups: vec![(0, DataType::Utf8).into()],
             grouping_functions: Vec::new(),
-            aggregates: plan_aggregates(
-                [TestAggregate {
-                    function: &sum::Sum,
-                    columns: &[1],
-                }],
-                inputs,
-            ),
+            aggregates: vec![PhysicalAggregateExpression::new(
+                sum_agg,
+                [(1, DataType::Int64)],
+            )],
         };
 
         let grouping_set: BTreeSet<usize> = [0].into();
@@ -452,26 +454,22 @@ mod tests {
         // Two grouping columns, but hash table has grouping set only
         // referencing the last grouping column.
 
-        let inputs = [DataType::Utf8, DataType::Int64, DataType::Utf8];
+        // GROUP_0     (col0): Utf8
+        // AGG_INPUT   (col1): Int64
+        // GROUP_1     (col2): Utf8
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+
         let aggs = Aggregates {
-            groups: vec![
-                PhysicalColumnExpr {
-                    idx: 0,
-                    datatype: inputs[0].clone(),
-                },
-                PhysicalColumnExpr {
-                    idx: 2,
-                    datatype: inputs[2].clone(),
-                },
-            ],
+            groups: vec![(0, DataType::Utf8).into(), (2, DataType::Utf8).into()],
             grouping_functions: Vec::new(),
-            aggregates: plan_aggregates(
-                [TestAggregate {
-                    function: &sum::Sum,
-                    columns: &[1],
-                }],
-                inputs,
-            ),
+            aggregates: vec![PhysicalAggregateExpression::new(
+                sum_agg,
+                [(1, DataType::Int64)],
+            )],
         };
 
         let grouping_set: BTreeSet<usize> = [1].into(); // '1' relative to groups (real column index of 2)
