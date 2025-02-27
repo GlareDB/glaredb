@@ -121,7 +121,7 @@ impl AggregateFunction for Count {
         }
 
         for (src, dest) in src.iter_mut().zip(dest) {
-            dest.merge(src)?;
+            dest.merge(&(), src)?;
         }
 
         Ok(())
@@ -136,7 +136,7 @@ impl AggregateFunction for Count {
         let validity = &mut output.validity;
 
         for (idx, state) in states.iter_mut().enumerate() {
-            state.finalize(PutBuffer::new(idx, buffer, validity))?;
+            state.finalize(&(), PutBuffer::new(idx, buffer, validity))?;
         }
 
         Ok(())
@@ -149,17 +149,19 @@ pub struct CountNonNullState {
 }
 
 impl AggregateState<&(), i64> for CountNonNullState {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         self.count += other.count;
         Ok(())
     }
 
-    fn update(&mut self, _input: &()) -> Result<()> {
+    fn update(&mut self, _state: &(), _input: &()) -> Result<()> {
         self.count += 1;
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = i64>,
     {

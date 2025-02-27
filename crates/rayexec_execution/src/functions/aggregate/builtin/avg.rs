@@ -156,19 +156,21 @@ impl<I> AggregateState<&I, f64> for AvgStateDecimal<I>
 where
     I: Into<i128> + Copy + Debug + Sync + Send,
 {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = AvgDecimalBindState;
+
+    fn merge(&mut self, _state: &Self::BindState, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
         Ok(())
     }
 
-    fn update(&mut self, &input: &I) -> Result<()> {
+    fn update(&mut self, _state: &Self::BindState, &input: &I) -> Result<()> {
         self.sum += input.into();
         self.count += 1;
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &Self::BindState, output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = f64>,
     {
@@ -196,19 +198,21 @@ where
     I: Into<T> + Copy + Default + Debug + Sync + Send,
     T: AsPrimitive<f64> + AddAssign + Debug + Default + Sync + Send,
 {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, state: &(), other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
         Ok(())
     }
 
-    fn update(&mut self, &input: &I) -> Result<()> {
+    fn update(&mut self, state: &(), &input: &I) -> Result<()> {
         self.sum += input.into();
         self.count += 1;
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = f64>,
     {

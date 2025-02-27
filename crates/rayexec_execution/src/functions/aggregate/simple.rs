@@ -26,6 +26,7 @@ pub trait UnaryAggregate: Debug + Sync + Send + Sized + 'static {
     type GroupState: for<'a> AggregateState<
         &'a <Self::Input as ScalarStorage>::StorageType,
         <Self::Output as ScalarStorage>::StorageType,
+        BindState = Self::BindState,
     >;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>>;
@@ -62,16 +63,21 @@ where
     }
 
     fn update(
-        _state: &Self::BindState,
+        bind_state: &Self::BindState,
         inputs: &[Array],
         num_rows: usize,
         states: &mut [*mut Self::GroupState],
     ) -> Result<()> {
-        UnaryNonNullUpdater::update::<U::Input, _, _>(&inputs[0], 0..num_rows, states)
+        UnaryNonNullUpdater::update::<U::Input, _, _, _>(
+            &inputs[0],
+            0..num_rows,
+            bind_state,
+            states,
+        )
     }
 
     fn combine(
-        _state: &Self::BindState,
+        bind_state: &Self::BindState,
         src: &mut [&mut Self::GroupState],
         dest: &mut [&mut Self::GroupState],
     ) -> Result<()> {
@@ -84,14 +90,14 @@ where
         }
 
         for (src, dest) in src.iter_mut().zip(dest) {
-            dest.merge(src)?;
+            dest.merge(bind_state, src)?;
         }
 
         Ok(())
     }
 
     fn finalize(
-        _state: &Self::BindState,
+        bind_state: &Self::BindState,
         states: &mut [&mut Self::GroupState],
         output: &mut Array,
     ) -> Result<()> {
@@ -99,7 +105,7 @@ where
         let validity = &mut output.validity;
 
         for (idx, state) in states.iter_mut().enumerate() {
-            state.finalize(PutBuffer::new(idx, buffer, validity))?;
+            state.finalize(bind_state, PutBuffer::new(idx, buffer, validity))?;
         }
 
         Ok(())
@@ -119,6 +125,7 @@ pub trait BinaryAggregate: Debug + Sync + Send + Sized + 'static {
             &'a <Self::Input2 as ScalarStorage>::StorageType,
         ),
         <Self::Output as ScalarStorage>::StorageType,
+        BindState = Self::BindState,
     >;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>>;
@@ -155,21 +162,22 @@ where
     }
 
     fn update(
-        _state: &Self::BindState,
+        bind_state: &Self::BindState,
         inputs: &[Array],
         num_rows: usize,
         states: &mut [*mut Self::GroupState],
     ) -> Result<()> {
-        BinaryNonNullUpdater::update::<B::Input1, B::Input2, _, _>(
+        BinaryNonNullUpdater::update::<B::Input1, B::Input2, _, _, _>(
             &inputs[0],
             &inputs[1],
             0..num_rows,
+            bind_state,
             states,
         )
     }
 
     fn combine(
-        _state: &Self::BindState,
+        bind_state: &Self::BindState,
         src: &mut [&mut Self::GroupState],
         dest: &mut [&mut Self::GroupState],
     ) -> Result<()> {
@@ -182,14 +190,14 @@ where
         }
 
         for (src, dest) in src.iter_mut().zip(dest) {
-            dest.merge(src)?;
+            dest.merge(bind_state, src)?;
         }
 
         Ok(())
     }
 
     fn finalize(
-        _state: &Self::BindState,
+        bind_state: &Self::BindState,
         states: &mut [&mut Self::GroupState],
         output: &mut Array,
     ) -> Result<()> {
@@ -197,7 +205,7 @@ where
         let validity = &mut output.validity;
 
         for (idx, state) in states.iter_mut().enumerate() {
-            state.finalize(PutBuffer::new(idx, buffer, validity))?;
+            state.finalize(bind_state, PutBuffer::new(idx, buffer, validity))?;
         }
 
         Ok(())

@@ -10,15 +10,16 @@ use crate::arrays::array::Array;
 pub struct UnaryNonNullUpdater;
 
 impl UnaryNonNullUpdater {
-    pub fn update<S, State, Output>(
+    pub fn update<S, State, BindState, Output>(
         array: &Array,
         selection: impl IntoExactSizeIterator<Item = usize>,
+        bind_state: &BindState,
         states: &mut [*mut State],
     ) -> Result<()>
     where
         S: ScalarStorage,
         Output: ?Sized,
-        for<'a> State: AggregateState<&'a S::StorageType, Output>,
+        for<'a> State: AggregateState<&'a S::StorageType, Output, BindState = BindState>,
     {
         let selection = selection.into_exact_size_iter();
         if selection.len() != states.len() {
@@ -31,7 +32,9 @@ impl UnaryNonNullUpdater {
 
         if array.should_flatten_for_execution() {
             let flat = array.flatten()?;
-            return Self::update_flat::<S, State, Output>(flat, selection, states);
+            return Self::update_flat::<S, State, BindState, Output>(
+                flat, selection, bind_state, states,
+            );
         }
 
         let input = S::get_addressable(&array.data)?;
@@ -41,7 +44,7 @@ impl UnaryNonNullUpdater {
             for (state_idx, input_idx) in selection.enumerate() {
                 let val = input.get(input_idx).unwrap();
                 let state = unsafe { &mut *states[state_idx] };
-                state.update(val)?;
+                state.update(bind_state, val)?;
             }
         } else {
             for (state_idx, input_idx) in selection.enumerate() {
@@ -51,22 +54,23 @@ impl UnaryNonNullUpdater {
 
                 let val = input.get(input_idx).unwrap();
                 let state = unsafe { &mut *states[state_idx] };
-                state.update(val)?;
+                state.update(bind_state, val)?;
             }
         }
 
         Ok(())
     }
 
-    fn update_flat<S, State, Output>(
+    fn update_flat<S, State, BindState, Output>(
         array: FlattenedArray<'_>,
         selection: impl IntoExactSizeIterator<Item = usize>,
+        bind_state: &BindState,
         states: &mut [*mut State],
     ) -> Result<()>
     where
         S: ScalarStorage,
         Output: ?Sized,
-        for<'b> State: AggregateState<&'b S::StorageType, Output>,
+        for<'b> State: AggregateState<&'b S::StorageType, Output, BindState = BindState>,
     {
         let input = S::get_addressable(array.array_buffer)?;
         let validity = &array.validity;
@@ -77,7 +81,7 @@ impl UnaryNonNullUpdater {
 
                 let val = input.get(selected_idx).unwrap();
                 let state = unsafe { &mut *states[state_idx] };
-                state.update(val)?;
+                state.update(bind_state, val)?;
             }
         } else {
             for (state_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
@@ -88,7 +92,7 @@ impl UnaryNonNullUpdater {
                 let selected_idx = array.selection.get(input_idx).unwrap();
                 let val = input.get(selected_idx).unwrap();
                 let state = unsafe { &mut *states[state_idx] };
-                state.update(val)?;
+                state.update(bind_state, val)?;
             }
         }
 
@@ -103,7 +107,7 @@ mod tests {
     use super::*;
     use crate::arrays::array::physical_type::{AddressableMut, PhysicalI32, PhysicalUtf8};
     use crate::arrays::executor::PutBuffer;
-    use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
+    use crate::buffer::buffer_manager::NopBufferManager;
 
     #[derive(Debug, Default)]
     struct TestSumState {
@@ -111,17 +115,19 @@ mod tests {
     }
 
     impl AggregateState<&i32, i32> for TestSumState {
-        fn merge(&mut self, other: &mut Self) -> Result<()> {
+        type BindState = ();
+
+        fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
             self.val += other.val;
             Ok(())
         }
 
-        fn update(&mut self, &input: &i32) -> Result<()> {
+        fn update(&mut self, _state: &(), &input: &i32) -> Result<()> {
             self.val += input;
             Ok(())
         }
 
-        fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+        fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
         where
             M: AddressableMut<T = i32>,
         {
@@ -138,7 +144,7 @@ mod tests {
 
         let array = Array::try_from_iter([1, 2, 3, 4, 5]).unwrap();
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(&array, [0, 1, 2, 4], &mut states)
+        UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(&array, [0, 1, 2, 4], &(), &mut states)
             .unwrap();
 
         assert_eq!(11, state.val);
@@ -156,9 +162,10 @@ mod tests {
             .select(&NopBufferManager, [0, 4, 4, 4, 4, 1, 1])
             .unwrap();
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
+        UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(
             &array,
             [0, 1, 2, 4], // Select from the resulting dictionary.
+            &(),
             &mut states,
         )
         .unwrap();
@@ -178,9 +185,10 @@ mod tests {
             .select(&NopBufferManager, [0, 4, 4, 4, 4, 1, 1])
             .unwrap();
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
+        UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(
             &array,
             [0, 1, 2, 4], // Select from the resulting dictionary.
+            &(),
             &mut states,
         )
         .unwrap();
@@ -196,9 +204,10 @@ mod tests {
 
         let array = Array::new_constant(&NopBufferManager, &3.into(), 5).unwrap();
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
+        UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(
             &array,
             [0, 1, 2, 4], // Select from the resulting dictionary.
+            &(),
             &mut states,
         )
         .unwrap();
@@ -214,7 +223,7 @@ mod tests {
 
         let array = Array::try_from_iter([None, Some(2), Some(3), Some(4), Some(5)]).unwrap();
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(&array, [0, 1, 2, 4], &mut states)
+        UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(&array, [0, 1, 2, 4], &(), &mut states)
             .unwrap();
 
         assert_eq!(10, state.val);
@@ -231,9 +240,10 @@ mod tests {
 
         let array = Array::try_from_iter([1, 2, 3, 4, 5]).unwrap();
 
-        UnaryNonNullUpdater::update::<PhysicalI32, _, _>(
+        UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(
             &array,
             [0, 1, 2, 4, 0, 3, 3],
+            &(),
             &mut states,
         )
         .unwrap();
@@ -242,23 +252,38 @@ mod tests {
         assert_eq!(5, state2.val);
     }
 
+    #[derive(Debug)]
+    struct TestStringAggBindState {
+        sep: String,
+    }
+
     #[derive(Debug, Default)]
     struct TestStringAgg {
         val: String,
     }
 
     impl AggregateState<&str, str> for TestStringAgg {
-        fn merge(&mut self, other: &mut Self) -> Result<()> {
+        type BindState = TestStringAggBindState;
+
+        fn merge(&mut self, state: &TestStringAggBindState, other: &mut Self) -> Result<()> {
+            // Lazy, will prefix with the separator.
+            self.val.push_str(&state.sep);
             self.val.push_str(&other.val);
             Ok(())
         }
 
-        fn update(&mut self, input: &str) -> Result<()> {
+        fn update(&mut self, state: &TestStringAggBindState, input: &str) -> Result<()> {
+            // Lazy, will prefix with the separator.
+            self.val.push_str(&state.sep);
             self.val.push_str(input);
             Ok(())
         }
 
-        fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+        fn finalize<M>(
+            &mut self,
+            _state: &TestStringAggBindState,
+            output: PutBuffer<M>,
+        ) -> Result<()>
         where
             M: AddressableMut<T = str>,
         {
@@ -276,8 +301,16 @@ mod tests {
 
         let array = Array::try_from_iter(["aa", "bbb", "cccc"]).unwrap();
 
-        UnaryNonNullUpdater::update::<PhysicalUtf8, _, _>(&array, [0, 1, 2], &mut states).unwrap();
+        UnaryNonNullUpdater::update::<PhysicalUtf8, _, _, _>(
+            &array,
+            [0, 1, 2],
+            &TestStringAggBindState {
+                sep: ",".to_string(),
+            },
+            &mut states,
+        )
+        .unwrap();
 
-        assert_eq!("aabbbcccc", &state.val);
+        assert_eq!(",aa,bbb,cccc", &state.val);
     }
 }

@@ -17,40 +17,16 @@ use crate::arrays::array::physical_type::AddressableMut;
 /// An example state for SUM would be a struct that takes a running sum from
 /// values provided in `update`.
 pub trait AggregateState<Input, Output: ?Sized>: Debug + Sync + Send {
+    type BindState: Sync + Send;
+
     /// Merge other state into this state.
-    fn merge(&mut self, other: &mut Self) -> Result<()>;
+    fn merge(&mut self, state: &Self::BindState, other: &mut Self) -> Result<()>;
 
     /// Update this state with some input.
-    fn update(&mut self, input: Input) -> Result<()>;
+    fn update(&mut self, state: &Self::BindState, input: Input) -> Result<()>;
 
     /// Produce a single value from the state and write it to the buffer.
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, state: &Self::BindState, output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = Output>;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct StateCombiner;
-
-impl StateCombiner {
-    /// Combine states, merging states from `consume` into `targets`.
-    ///
-    /// `mapping` provides (from, to) mappings between `consume` and `targets`.
-    pub fn combine<State, Input, Output>(
-        consume: &mut [State],
-        mapping: impl IntoIterator<Item = (usize, usize)>,
-        targets: &mut [State],
-    ) -> Result<()>
-    where
-        State: AggregateState<Input, Output>,
-        Output: ?Sized,
-    {
-        for (from, to) in mapping {
-            let consume = &mut consume[from];
-            let target = &mut targets[to];
-            target.merge(consume)?;
-        }
-
-        Ok(())
-    }
 }

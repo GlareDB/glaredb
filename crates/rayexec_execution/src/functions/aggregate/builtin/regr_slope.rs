@@ -65,19 +65,21 @@ pub struct RegrSlopeState {
 }
 
 impl AggregateState<(&f64, &f64), f64> for RegrSlopeState {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
-        self.cov.merge(&mut other.cov)?;
-        self.var.merge(&mut other.var)?;
+    type BindState = ();
+
+    fn merge(&mut self, state: &(), other: &mut Self) -> Result<()> {
+        self.cov.merge(state, &mut other.cov)?;
+        self.var.merge(state, &mut other.var)?;
         Ok(())
     }
 
-    fn update(&mut self, input: (&f64, &f64)) -> Result<()> {
-        self.cov.update(input)?;
-        self.var.update(input.1)?; // Update with 'x'
+    fn update(&mut self, state: &(), input: (&f64, &f64)) -> Result<()> {
+        self.cov.update(state, input)?;
+        self.var.update(state, input.1)?; // Update with 'x'
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = f64>,
     {

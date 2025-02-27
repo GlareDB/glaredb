@@ -76,17 +76,19 @@ impl<S> AggregateState<(&S::StorageType, &S::StorageType), i64> for RegrCountSta
 where
     S: ScalarStorage,
 {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         self.count += other.count;
         Ok(())
     }
 
-    fn update(&mut self, _input: (&S::StorageType, &S::StorageType)) -> Result<()> {
+    fn update(&mut self, _state: &(), _input: (&S::StorageType, &S::StorageType)) -> Result<()> {
         self.count += 1;
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = i64>,
     {

@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use rayexec_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 
-use super::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
 use super::copy::{CopyToArgs, CopyToFunction};
 use super::table::{PlannedTableFunction, TableFunction};
 use crate::arrays::scalar::ScalarValue;

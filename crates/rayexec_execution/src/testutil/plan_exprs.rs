@@ -5,7 +5,6 @@ use crate::expr::aggregate_expr::AggregateExpr;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
 use crate::expr::physical::{PhysicalAggregateExpression, PhysicalScalarExpression};
 use crate::expr::{self, Expression};
-use crate::functions::aggregate::AggregateFunction2;
 use crate::functions::function_set::AggregateFunctionSet;
 use crate::logical::binder::table_list::{TableList, TableRef};
 

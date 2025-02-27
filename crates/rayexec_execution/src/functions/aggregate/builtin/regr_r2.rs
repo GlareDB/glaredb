@@ -63,17 +63,19 @@ pub struct RegrR2State {
 }
 
 impl AggregateState<(&f64, &f64), f64> for RegrR2State {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
-        self.corr.merge(&mut other.corr)?;
+    type BindState = ();
+
+    fn merge(&mut self, state: &(), other: &mut Self) -> Result<()> {
+        self.corr.merge(state, &mut other.corr)?;
         Ok(())
     }
 
-    fn update(&mut self, input: (&f64, &f64)) -> Result<()> {
-        self.corr.update(input)?;
+    fn update(&mut self, state: &(), input: (&f64, &f64)) -> Result<()> {
+        self.corr.update(state, input)?;
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = f64>,
     {

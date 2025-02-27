@@ -401,7 +401,9 @@ impl<T> AggregateState<&T, T> for MaxStatePrimitive<T>
 where
     T: Debug + Sync + Send + PartialOrd + Copy,
 {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         if !self.valid {
             self.valid = other.valid;
             std::mem::swap(&mut self.max, &mut other.max);
@@ -415,7 +417,7 @@ where
         Ok(())
     }
 
-    fn update(&mut self, input: &T) -> Result<()> {
+    fn update(&mut self, _state: &(), input: &T) -> Result<()> {
         if !self.valid {
             self.valid = true;
             self.max = *input;
@@ -429,7 +431,7 @@ where
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = T>,
     {
@@ -450,7 +452,9 @@ pub struct MaxStateBinary {
 }
 
 impl AggregateState<&[u8], [u8]> for MaxStateBinary {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         if !self.valid {
             self.valid = other.valid;
             std::mem::swap(&mut self.max, &mut other.max);
@@ -464,7 +468,7 @@ impl AggregateState<&[u8], [u8]> for MaxStateBinary {
         Ok(())
     }
 
-    fn update(&mut self, input: &[u8]) -> Result<()> {
+    fn update(&mut self, _state: &(), input: &[u8]) -> Result<()> {
         if !self.valid {
             self.valid = true;
             self.max = input.to_vec();
@@ -478,7 +482,7 @@ impl AggregateState<&[u8], [u8]> for MaxStateBinary {
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = [u8]>,
     {
@@ -502,7 +506,9 @@ impl<T> AggregateState<&T, T> for MinStatePrimitive<T>
 where
     T: Debug + Sync + Send + PartialOrd + Copy,
 {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         if !self.valid {
             self.valid = other.valid;
             std::mem::swap(&mut self.min, &mut other.min);
@@ -516,7 +522,7 @@ where
         Ok(())
     }
 
-    fn update(&mut self, input: &T) -> Result<()> {
+    fn update(&mut self, _state: &(), input: &T) -> Result<()> {
         if !self.valid {
             self.valid = true;
             self.min = *input;
@@ -530,7 +536,7 @@ where
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = T>,
     {
@@ -551,7 +557,9 @@ pub struct MinStateBinary {
 }
 
 impl AggregateState<&[u8], [u8]> for MinStateBinary {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         if !self.valid {
             self.valid = other.valid;
             std::mem::swap(&mut self.min, &mut other.min);
@@ -565,7 +573,7 @@ impl AggregateState<&[u8], [u8]> for MinStateBinary {
         Ok(())
     }
 
-    fn update(&mut self, input: &[u8]) -> Result<()> {
+    fn update(&mut self, _state: &(), input: &[u8]) -> Result<()> {
         if !self.valid {
             self.valid = true;
             self.min = input.to_vec();
@@ -579,7 +587,7 @@ impl AggregateState<&[u8], [u8]> for MinStateBinary {
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = [u8]>,
     {

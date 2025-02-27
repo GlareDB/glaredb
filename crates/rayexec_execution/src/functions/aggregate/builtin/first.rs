@@ -208,21 +208,23 @@ impl<T> AggregateState<&T, T> for FirstPrimitiveState<T>
 where
     T: Debug + Default + Copy + Sync + Send,
 {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         if self.value.is_none() {
             std::mem::swap(&mut self.value, &mut other.value);
         }
         Ok(())
     }
 
-    fn update(&mut self, &input: &T) -> Result<()> {
+    fn update(&mut self, _state: &(), &input: &T) -> Result<()> {
         if self.value.is_none() {
             self.value = Some(input);
         }
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = T>,
     {
@@ -240,21 +242,23 @@ pub struct FirstBinaryState {
 }
 
 impl AggregateState<&[u8], [u8]> for FirstBinaryState {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         if self.value.is_none() {
             std::mem::swap(&mut self.value, &mut other.value);
         }
         Ok(())
     }
 
-    fn update(&mut self, input: &[u8]) -> Result<()> {
+    fn update(&mut self, _state: &(), input: &[u8]) -> Result<()> {
         if self.value.is_none() {
             self.value = Some(input.to_vec());
         }
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = [u8]>,
     {

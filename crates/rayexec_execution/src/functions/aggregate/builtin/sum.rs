@@ -137,19 +137,21 @@ impl<T> AggregateState<&T, T> for SumStateCheckedAdd<T>
 where
     T: CheckedAdd + Default + Debug + Copy + Sync + Send,
 {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         self.sum = self.sum.checked_add(&other.sum).unwrap_or_default(); // TODO
         self.valid = self.valid || other.valid;
         Ok(())
     }
 
-    fn update(&mut self, input: &T) -> Result<()> {
+    fn update(&mut self, _state: &(), input: &T) -> Result<()> {
         self.sum = self.sum.checked_add(input).unwrap_or_default(); // TODO
         self.valid = true;
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = T>,
     {
@@ -172,19 +174,21 @@ impl<T> AggregateState<&T, T> for SumStateAdd<T>
 where
     T: AddAssign + Default + Debug + Copy + Sync + Send,
 {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.valid = self.valid || other.valid;
         Ok(())
     }
 
-    fn update(&mut self, &input: &T) -> Result<()> {
+    fn update(&mut self, _state: &(), &input: &T) -> Result<()> {
         self.sum += input;
         self.valid = true;
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = T>,
     {

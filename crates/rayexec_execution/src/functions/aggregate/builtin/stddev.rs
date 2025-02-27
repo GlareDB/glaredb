@@ -196,7 +196,9 @@ impl<F> AggregateState<&f64, f64> for VarianceState<F>
 where
     F: VarianceFinalize,
 {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         if self.count == 0 {
             std::mem::swap(self, other);
             return Ok(());
@@ -216,7 +218,7 @@ where
         Ok(())
     }
 
-    fn update(&mut self, &input: &f64) -> Result<()> {
+    fn update(&mut self, _state: &(), &input: &f64) -> Result<()> {
         self.count += 1;
         let delta = input - self.mean;
         self.mean += delta / self.count as f64;
@@ -226,7 +228,7 @@ where
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = f64>,
     {

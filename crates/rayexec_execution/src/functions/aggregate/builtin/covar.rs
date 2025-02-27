@@ -149,7 +149,9 @@ impl<F> AggregateState<(&f64, &f64), f64> for CovarState<F>
 where
     F: CovarFinalize,
 {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         if self.count == 0 {
             std::mem::swap(self, other);
             return Ok(());
@@ -178,7 +180,7 @@ where
     }
 
     // Note that 'y' comes first, covariance functions are call like `COVAR_SAMP(y, x)`.
-    fn update(&mut self, (&y, &x): (&f64, &f64)) -> Result<()> {
+    fn update(&mut self, _state: &(), (&y, &x): (&f64, &f64)) -> Result<()> {
         self.count += 1;
         let n = self.count as f64;
 
@@ -197,7 +199,7 @@ where
         Ok(())
     }
 
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = f64>,
     {
