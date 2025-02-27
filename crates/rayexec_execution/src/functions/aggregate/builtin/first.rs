@@ -1,6 +1,7 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
-use rayexec_error::{not_implemented, Result};
+use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{
     AddressableMut,
@@ -16,101 +17,186 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalType,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
-    PhysicalUntypedNull,
-    PhysicalUtf8,
 };
 use crate::arrays::datatype::DataTypeId;
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
-use crate::buffer::buffer_manager::BufferManager;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
-use crate::functions::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
+use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
+use crate::functions::aggregate::RawAggregateFunction;
+use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::{plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::Signature;
+
+pub const FUNCTION_SET_FIRST: AggregateFunctionSet = AggregateFunctionSet {
+    name: "first",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Return the first non-NULL value.",
+        arguments: &["input"],
+        example: None,
+    }),
+    // TODO: Do I care that this is long?
+    functions: &[
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalBool>::new()),
+        ),
+        // Ints
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Int8], DataTypeId::Int8),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalI8>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Int16], DataTypeId::Int16),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalI16>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Int32], DataTypeId::Int32),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalI32>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Int64], DataTypeId::Int64),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalI64>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Int128], DataTypeId::Int128),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalI128>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::UInt8], DataTypeId::UInt8),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalU8>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::UInt16], DataTypeId::UInt16),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalU16>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::UInt32], DataTypeId::UInt32),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalU32>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::UInt64], DataTypeId::UInt64),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalU64>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::UInt128], DataTypeId::UInt128),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalU128>::new()),
+        ),
+        // Floats
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalF16>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalF32>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalF64>::new()),
+        ),
+        // Decimal
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Decimal64], DataTypeId::Decimal64),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalI64>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Decimal128], DataTypeId::Decimal128),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalI128>::new()),
+        ),
+        // Date/time
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Date32], DataTypeId::Date32),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalI32>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Date64], DataTypeId::Date64),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalI64>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Timestamp], DataTypeId::Timestamp),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalI64>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Interval], DataTypeId::Interval),
+            &SimpleUnaryAggregate::new(&FirstPrimitive::<PhysicalInterval>::new()),
+        ),
+        // String/binary
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
+            &SimpleUnaryAggregate::new(&FirstBinary),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Binary], DataTypeId::Binary),
+            &SimpleUnaryAggregate::new(&FirstBinary),
+        ),
+    ],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct First;
+pub struct FirstPrimitive<S> {
+    _s: PhantomData<S>,
+}
 
-impl FunctionInfo for First {
-    fn name(&self) -> &'static str {
-        "first"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Any],
-            variadic_arg: None,
-            return_type: DataTypeId::Any,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Return the first non-NULL value.",
-                arguments: &["input"],
-                example: None,
-            }),
-        }]
+impl<S> FirstPrimitive<S> {
+    pub const fn new() -> Self {
+        FirstPrimitive { _s: PhantomData }
     }
 }
 
-impl AggregateFunction2 for First {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        let datatype = inputs[0].datatype()?;
-
-        let function_impl = match datatype.physical_type() {
-            PhysicalType::UntypedNull => create_primitive_impl::<PhysicalUntypedNull>(),
-            PhysicalType::Boolean => create_primitive_impl::<PhysicalBool>(),
-            PhysicalType::Int8 => create_primitive_impl::<PhysicalI8>(),
-            PhysicalType::Int16 => create_primitive_impl::<PhysicalI16>(),
-            PhysicalType::Int32 => create_primitive_impl::<PhysicalI32>(),
-            PhysicalType::Int64 => create_primitive_impl::<PhysicalI64>(),
-            PhysicalType::Int128 => create_primitive_impl::<PhysicalI128>(),
-            PhysicalType::UInt8 => create_primitive_impl::<PhysicalU8>(),
-            PhysicalType::UInt16 => create_primitive_impl::<PhysicalU16>(),
-            PhysicalType::UInt32 => create_primitive_impl::<PhysicalU32>(),
-            PhysicalType::UInt64 => create_primitive_impl::<PhysicalU64>(),
-            PhysicalType::UInt128 => create_primitive_impl::<PhysicalU128>(),
-            PhysicalType::Float16 => create_primitive_impl::<PhysicalF16>(),
-            PhysicalType::Float32 => create_primitive_impl::<PhysicalF32>(),
-            PhysicalType::Float64 => create_primitive_impl::<PhysicalF64>(),
-            PhysicalType::Interval => create_primitive_impl::<PhysicalInterval>(),
-            PhysicalType::Utf8 => AggregateFunctionImpl::new::<
-                UnaryStateLogic<FirstStringState, PhysicalUtf8, PhysicalUtf8>,
-            >(None),
-            PhysicalType::Binary => AggregateFunctionImpl::new::<
-                UnaryStateLogic<FirstBinaryState, PhysicalBinary, PhysicalBinary>,
-            >(None),
-
-            other => not_implemented!("FIRST for physical type: {other}"),
-        };
-
-        Ok(PlannedAggregateFunction2 {
-            function: Box::new(*self),
-            return_type: datatype,
-            inputs,
-            function_impl,
-        })
-    }
-}
-
-fn create_primitive_impl<S>() -> AggregateFunctionImpl
+impl<S> UnaryAggregate for FirstPrimitive<S>
 where
     S: MutableScalarStorage,
-    S::StorageType: Copy + Sized + Default + Debug,
+    S::StorageType: Default + Copy,
 {
-    AggregateFunctionImpl::new::<UnaryStateLogic<FirstPrimitiveState<S::StorageType>, S, S>>(None)
+    type Input = S;
+    type Output = S;
+
+    type BindState = ();
+    type GroupState = FirstPrimitiveState<S::StorageType>;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: inputs[0].datatype()?,
+            inputs,
+        })
+    }
+
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
+        Default::default()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FirstBinary;
+
+impl UnaryAggregate for FirstBinary {
+    type Input = PhysicalBinary;
+    type Output = PhysicalBinary;
+
+    type BindState = ();
+    type GroupState = FirstBinaryState;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: inputs[0].datatype()?,
+            inputs,
+        })
+    }
+
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
+        FirstBinaryState::default()
+    }
 }
 
 #[derive(Debug, Default)]
@@ -171,38 +257,6 @@ impl AggregateState<&[u8], [u8]> for FirstBinaryState {
     fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = [u8]>,
-    {
-        match &self.value {
-            Some(val) => output.put(val),
-            None => output.put_null(),
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct FirstStringState {
-    value: Option<String>,
-}
-
-impl AggregateState<&str, str> for FirstStringState {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
-        if self.value.is_none() {
-            std::mem::swap(&mut self.value, &mut other.value);
-        }
-        Ok(())
-    }
-
-    fn update(&mut self, input: &str) -> Result<()> {
-        if self.value.is_none() {
-            self.value = Some(input.to_string());
-        }
-        Ok(())
-    }
-
-    fn finalize<M>(&mut self, output: PutBuffer<M>) -> Result<()>
-    where
-        M: AddressableMut<T = str>,
     {
         match &self.value {
             Some(val) => output.put(val),

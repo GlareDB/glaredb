@@ -7,195 +7,105 @@ use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
-use crate::buffer::buffer_manager::BufferManager;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{AggregateFunctionImpl, UnaryStateLogic};
-use crate::functions::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
+use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
+use crate::functions::aggregate::RawAggregateFunction;
+use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::Signature;
+
+pub const FUNCTION_SET_STDDEV_POP: AggregateFunctionSet = AggregateFunctionSet {
+    name: "stddev_pop",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Compute the population standard deviation.",
+        arguments: &["inputs"],
+        example: None,
+    }),
+    functions: &[RawAggregateFunction::new(
+        &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+        &SimpleUnaryAggregate::new(&Variance::<StddevPopFinalize>::new()),
+    )],
+};
+
+pub const FUNCTION_SET_STDDEV_SAMP: AggregateFunctionSet = AggregateFunctionSet {
+    name: "stddev_samp",
+    aliases: &["stddev"],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Compute the sample standard deviation.",
+        arguments: &["inputs"],
+        example: None,
+    }),
+    functions: &[RawAggregateFunction::new(
+        &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+        &SimpleUnaryAggregate::new(&Variance::<StddevSampFinalize>::new()),
+    )],
+};
+
+pub const FUNCTION_SET_VAR_POP: AggregateFunctionSet = AggregateFunctionSet {
+    name: "var_pop",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Compute the population variance.",
+        arguments: &["inputs"],
+        example: None,
+    }),
+    functions: &[RawAggregateFunction::new(
+        &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+        &SimpleUnaryAggregate::new(&Variance::<VariancePopFinalize>::new()),
+    )],
+};
+
+pub const FUNCTION_SET_VAR_SAMP: AggregateFunctionSet = AggregateFunctionSet {
+    name: "var_samp",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Compute the sample variance.",
+        arguments: &["inputs"],
+        example: None,
+    }),
+    functions: &[RawAggregateFunction::new(
+        &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+        &SimpleUnaryAggregate::new(&Variance::<VarianceSampFinalize>::new()),
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StddevPop;
+pub struct Variance<F> {
+    _f: PhantomData<F>,
+}
 
-impl FunctionInfo for StddevPop {
-    fn name(&self) -> &'static str {
-        "stddev_pop"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Float64],
-            variadic_arg: None,
-            return_type: DataTypeId::Float64,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Compute the population standard deviation.",
-                arguments: &["inputs"],
-                example: None,
-            }),
-        }]
+impl<F> Variance<F> {
+    pub const fn new() -> Self {
+        Variance { _f: PhantomData }
     }
 }
 
-impl AggregateFunction2 for StddevPop {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
+impl<F> UnaryAggregate for Variance<F>
+where
+    F: VarianceFinalize,
+{
+    type Input = PhysicalF64;
+    type Output = PhysicalF64;
 
-        match inputs[0].datatype()? {
-            DataType::Float64 => Ok(PlannedAggregateFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Float64,
-                inputs,
-                function_impl: AggregateFunctionImpl::new::<
-                    UnaryStateLogic<VarianceState<StddevPopFinalize>, PhysicalF64, PhysicalF64>,
-                >(None),
-            }),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
-    }
-}
+    type BindState = ();
+    type GroupState = VarianceState<F>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StddevSamp;
-
-impl FunctionInfo for StddevSamp {
-    fn name(&self) -> &'static str {
-        "stddev_samp"
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Float64,
+            inputs,
+        })
     }
 
-    fn aliases(&self) -> &'static [&'static str] {
-        &["stddev"]
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Float64],
-            variadic_arg: None,
-            return_type: DataTypeId::Float64,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Compute the sample standard deviation.",
-                arguments: &["inputs"],
-                example: None,
-            }),
-        }]
-    }
-}
-
-impl AggregateFunction2 for StddevSamp {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        match inputs[0].datatype()? {
-            DataType::Float64 => Ok(PlannedAggregateFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Float64,
-                inputs,
-                function_impl: AggregateFunctionImpl::new::<
-                    UnaryStateLogic<VarianceState<StddevSampFinalize>, PhysicalF64, PhysicalF64>,
-                >(None),
-            }),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct VarPop;
-
-impl FunctionInfo for VarPop {
-    fn name(&self) -> &'static str {
-        "var_pop"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Float64],
-            variadic_arg: None,
-            return_type: DataTypeId::Float64,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Compute the population variance.",
-                arguments: &["inputs"],
-                example: None,
-            }),
-        }]
-    }
-}
-
-impl AggregateFunction2 for VarPop {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        match inputs[0].datatype()? {
-            DataType::Float64 => Ok(PlannedAggregateFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Float64,
-                inputs,
-                function_impl: AggregateFunctionImpl::new::<
-                    UnaryStateLogic<VarianceState<VariancePopFinalize>, PhysicalF64, PhysicalF64>,
-                >(None),
-            }),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct VarSamp;
-
-impl FunctionInfo for VarSamp {
-    fn name(&self) -> &'static str {
-        "var_samp"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Float64],
-            variadic_arg: None,
-            return_type: DataTypeId::Float64,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Compute the sample variance.",
-                arguments: &["inputs"],
-                example: None,
-            }),
-        }]
-    }
-}
-
-impl AggregateFunction2 for VarSamp {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction2> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        match inputs[0].datatype()? {
-            DataType::Float64 => Ok(PlannedAggregateFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Float64,
-                inputs,
-                function_impl: AggregateFunctionImpl::new::<
-                    UnaryStateLogic<VarianceState<VarianceSampFinalize>, PhysicalF64, PhysicalF64>,
-                >(None),
-            }),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
+        Default::default()
     }
 }
 

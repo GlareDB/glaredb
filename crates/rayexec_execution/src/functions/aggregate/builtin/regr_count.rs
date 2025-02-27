@@ -13,59 +13,52 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{AggregateFunctionImpl, BinaryStateLogic};
-use crate::functions::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
+use crate::functions::aggregate::simple::{BinaryAggregate, SimpleBinaryAggregate};
+use crate::functions::aggregate::RawAggregateFunction;
+use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::Signature;
+
+pub const FUNCTION_SET_REGR_COUNT: AggregateFunctionSet = AggregateFunctionSet {
+    name: "regr_count",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Compute the count where both inputs are not NULL.",
+        arguments: &["y", "x"],
+        example: None,
+    }),
+    functions: &[RawAggregateFunction::new(
+        &Signature::new(
+            &[DataTypeId::Float64, DataTypeId::Float64],
+            DataTypeId::Int64,
+        ),
+        &SimpleBinaryAggregate::new(&RegrCount),
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegrCount;
 
-impl FunctionInfo for RegrCount {
-    fn name(&self) -> &'static str {
-        "regr_count"
+impl BinaryAggregate for RegrCount {
+    type Input1 = PhysicalF64;
+    type Input2 = PhysicalF64;
+    type Output = PhysicalI64;
+
+    type BindState = ();
+    type GroupState = RegrCountState<PhysicalF64>;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Float64,
+            inputs,
+        })
     }
 
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Float64, DataTypeId::Float64],
-            variadic_arg: None,
-            return_type: DataTypeId::Int64,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Compute the count where both inputs are not NULL.",
-                arguments: &["y", "x"],
-                example: None,
-            }),
-        }]
-    }
-}
-
-impl AggregateFunction2 for RegrCount {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction2> {
-        plan_check_num_args(self, &inputs, 2)?;
-
-        match (inputs[0].datatype()?, inputs[1].datatype()?) {
-            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Float64,
-                inputs,
-                function_impl: AggregateFunctionImpl::new::<
-                    BinaryStateLogic<
-                        RegrCountState<PhysicalF64>,
-                        PhysicalF64,
-                        PhysicalF64,
-                        PhysicalI64,
-                    >,
-                >(None),
-            }),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
-        }
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
+        Default::default()
     }
 }
 

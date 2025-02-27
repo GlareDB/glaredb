@@ -7,6 +7,7 @@ use std::hash::Hash;
 
 use dyn_clone::DynClone;
 use rayexec_error::Result;
+use simple::{SimpleUnaryAggregate, UnaryAggregate};
 use states::AggregateFunctionImpl;
 
 use super::bind_state::{BindState, RawBindState, RawBindStateInner};

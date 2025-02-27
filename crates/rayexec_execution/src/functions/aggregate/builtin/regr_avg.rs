@@ -7,56 +7,71 @@ use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
-use crate::buffer::buffer_manager::BufferManager;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{AggregateFunctionImpl, BinaryStateLogic};
-use crate::functions::aggregate::{AggregateFunction2, PlannedAggregateFunction2};
+use crate::functions::aggregate::simple::{BinaryAggregate, SimpleBinaryAggregate};
+use crate::functions::aggregate::RawAggregateFunction;
+use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::Signature;
+
+pub const FUNCTION_SET_REGR_AVG_Y: AggregateFunctionSet = AggregateFunctionSet {
+    name: "regr_avgy",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Compute the average of the dependent variable ('y').",
+        arguments: &["y", "x"],
+        example: None,
+    }),
+    functions: &[RawAggregateFunction::new(
+        &Signature::new(
+            &[DataTypeId::Float64, DataTypeId::Float64],
+            DataTypeId::Float64,
+        ),
+        &SimpleBinaryAggregate::new(&RegrAvgY),
+    )],
+};
+
+pub const FUNCTION_SET_REGR_AVG_X: AggregateFunctionSet = AggregateFunctionSet {
+    name: "regr_avgx",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Compute the average of the independent variable ('x').",
+        arguments: &["y", "x"],
+        example: None,
+    }),
+    functions: &[RawAggregateFunction::new(
+        &Signature::new(
+            &[DataTypeId::Float64, DataTypeId::Float64],
+            DataTypeId::Float64,
+        ),
+        &SimpleBinaryAggregate::new(&RegrAvgX),
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegrAvgY;
 
-impl FunctionInfo for RegrAvgY {
-    fn name(&self) -> &'static str {
-        "regr_avgy"
+impl BinaryAggregate for RegrAvgY {
+    type Input1 = PhysicalF64;
+    type Input2 = PhysicalF64;
+    type Output = PhysicalF64;
+
+    type BindState = ();
+    type GroupState = RegrAvgState<Self>;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Float64,
+            inputs,
+        })
     }
 
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Float64, DataTypeId::Float64],
-            variadic_arg: None,
-            return_type: DataTypeId::Float64,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Compute the average of the dependent variable ('y').",
-                arguments: &["y", "x"],
-                example: None,
-            }),
-        }]
-    }
-}
-
-impl AggregateFunction2 for RegrAvgY {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction2> {
-        plan_check_num_args(self, &inputs, 2)?;
-
-        match (inputs[0].datatype()?, inputs[1].datatype()?) {
-            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Float64,
-                inputs,
-                function_impl: AggregateFunctionImpl::new::<
-                    BinaryStateLogic<RegrAvgState<Self>, PhysicalF64, PhysicalF64, PhysicalF64>,
-                >(None),
-            }),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
-        }
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
+        Default::default()
     }
 }
 
@@ -70,45 +85,24 @@ impl RegrAvgInput for RegrAvgY {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegrAvgX;
 
-impl FunctionInfo for RegrAvgX {
-    fn name(&self) -> &'static str {
-        "regr_avgx"
+impl BinaryAggregate for RegrAvgX {
+    type Input1 = PhysicalF64;
+    type Input2 = PhysicalF64;
+    type Output = PhysicalF64;
+
+    type BindState = ();
+    type GroupState = RegrAvgState<Self>;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Float64,
+            inputs,
+        })
     }
 
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Float64, DataTypeId::Float64],
-            variadic_arg: None,
-            return_type: DataTypeId::Float64,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Compute the average of the independent variable ('x').",
-                arguments: &["y", "x"],
-                example: None,
-            }),
-        }]
-    }
-}
-
-impl AggregateFunction2 for RegrAvgX {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction2> {
-        plan_check_num_args(self, &inputs, 2)?;
-
-        match (inputs[0].datatype()?, inputs[1].datatype()?) {
-            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction2 {
-                function: Box::new(*self),
-                return_type: DataType::Float64,
-                inputs,
-                function_impl: AggregateFunctionImpl::new::<
-                    BinaryStateLogic<RegrAvgState<Self>, PhysicalF64, PhysicalF64, PhysicalF64>,
-                >(None),
-            }),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
-        }
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
+        Default::default()
     }
 }
 
