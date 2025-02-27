@@ -55,7 +55,7 @@ impl UnaryAggregate for SumI64 {
     type Output = PhysicalI64;
 
     type BindState = ();
-    type AggregateState = SumStateCheckedAdd<i64>;
+    type GroupState = SumStateCheckedAdd<i64>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -65,7 +65,7 @@ impl UnaryAggregate for SumI64 {
         })
     }
 
-    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         Default::default()
     }
 }
@@ -78,7 +78,7 @@ impl UnaryAggregate for SumF64 {
     type Output = PhysicalF64;
 
     type BindState = ();
-    type AggregateState = SumStateAdd<f64>;
+    type GroupState = SumStateAdd<f64>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -88,7 +88,7 @@ impl UnaryAggregate for SumF64 {
         })
     }
 
-    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         Default::default()
     }
 }
@@ -112,7 +112,7 @@ where
     type Output = D::Storage;
 
     type BindState = ();
-    type AggregateState = SumStateCheckedAdd<D::Primitive>;
+    type GroupState = SumStateCheckedAdd<D::Primitive>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -122,7 +122,7 @@ where
         })
     }
 
-    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         Default::default()
     }
 }

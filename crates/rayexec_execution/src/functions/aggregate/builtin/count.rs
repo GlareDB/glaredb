@@ -164,7 +164,7 @@ where
     type Output = PhysicalI64;
 
     type BindState = ();
-    type AggregateState = CountNonNullState<S>;
+    type GroupState = CountNonNullState<S>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -174,7 +174,7 @@ where
         })
     }
 
-    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         CountNonNullState::default()
     }
 }

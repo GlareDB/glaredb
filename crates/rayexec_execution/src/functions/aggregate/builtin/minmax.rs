@@ -166,7 +166,7 @@ where
     type Output = S;
 
     type BindState = ();
-    type AggregateState = MinStatePrimitive<S::StorageType>;
+    type GroupState = MinStatePrimitive<S::StorageType>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -176,7 +176,7 @@ where
         })
     }
 
-    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         Default::default()
     }
 }
@@ -189,7 +189,7 @@ impl UnaryAggregate for MinBinary {
     type Output = PhysicalBinary;
 
     type BindState = ();
-    type AggregateState = MinStateBinary;
+    type GroupState = MinStateBinary;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -199,7 +199,7 @@ impl UnaryAggregate for MinBinary {
         })
     }
 
-    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         MinStateBinary::default()
     }
 }
@@ -353,7 +353,7 @@ where
     type Output = S;
 
     type BindState = ();
-    type AggregateState = MaxStatePrimitive<S::StorageType>;
+    type GroupState = MaxStatePrimitive<S::StorageType>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -363,7 +363,7 @@ where
         })
     }
 
-    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         Default::default()
     }
 }
@@ -376,7 +376,7 @@ impl UnaryAggregate for MaxBinary {
     type Output = PhysicalBinary;
 
     type BindState = ();
-    type AggregateState = MaxStateBinary;
+    type GroupState = MaxStateBinary;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -386,7 +386,7 @@ impl UnaryAggregate for MaxBinary {
         })
     }
 
-    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         MaxStateBinary::default()
     }
 }

@@ -107,8 +107,8 @@ impl RawAggregateFunction {
             function,
             signature: sig,
             vtable: F::VTABLE,
-            state_size: std::mem::size_of::<F::AggregateState>(),
-            state_align: std::mem::align_of::<F::AggregateState>(),
+            state_size: std::mem::size_of::<F::GroupState>(),
+            state_align: std::mem::align_of::<F::GroupState>(),
         }
     }
 
@@ -148,19 +148,19 @@ pub struct RawAggregateFunctionVTable {
 // TODO: State naming.
 pub trait AggregateFunction: Debug + Sync + Send + Sized {
     /// Bind state passed to update, combine, and finalize functions.
-    type State: Sync + Send;
+    type BindState: Sync + Send;
 
-    /// The type of the aggregate values that get updated.
-    type AggregateState: Sync + Send;
+    /// The type for aggregate values for a single group.
+    type GroupState: Sync + Send;
 
-    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>>;
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>>;
 
     /// Compute the return type from the expression inputs and return a function
     /// state.
     ///
     /// This will only be called with expressions that match the signature this
     /// function was registered with.
-    fn new_aggregate_state(state: &Self::State) -> Self::AggregateState;
+    fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState;
 
     /// Update states using rows from `inputs`.
     ///
@@ -171,23 +171,23 @@ pub trait AggregateFunction: Debug + Sync + Send + Sized {
     /// Implementations must ensure there only exists a single reference per
     /// state at a time.
     fn update(
-        state: &Self::State,
+        state: &Self::BindState,
         inputs: &[Array],
         num_rows: usize,
-        states: &mut [*mut Self::AggregateState],
+        states: &mut [*mut Self::GroupState],
     ) -> Result<()>;
 
     /// Combine states from `src` into `dest`.
     fn combine(
-        state: &Self::State,
-        src: &mut [&mut Self::AggregateState],
-        dest: &mut [&mut Self::AggregateState],
+        state: &Self::BindState,
+        src: &mut [&mut Self::GroupState],
+        dest: &mut [&mut Self::GroupState],
     ) -> Result<()>;
 
     /// Finalize `states`, writing the final output to the output array.
     fn finalize(
-        state: &Self::State,
-        states: &mut [&mut Self::AggregateState],
+        state: &Self::BindState,
+        states: &mut [&mut Self::GroupState],
         output: &mut Array,
     ) -> Result<()>;
 }
@@ -209,32 +209,32 @@ trait AggregateFunctionVTable: AggregateFunction {
             })
         },
         new_aggregate_state_fn: |state: *const (), out_ptr: *mut u8| {
-            let state = unsafe { state.cast::<Self::State>().as_ref().unwrap() };
+            let state = unsafe { state.cast::<Self::BindState>().as_ref().unwrap() };
             let agg_state = Self::new_aggregate_state(state);
-            unsafe { out_ptr.cast::<Self::AggregateState>().write(agg_state) };
+            unsafe { out_ptr.cast::<Self::GroupState>().write(agg_state) };
         },
         update_fn: |state: *const (), inputs: &[Array], num_rows: usize, states: &mut [*mut u8]| {
-            let state = unsafe { state.cast::<Self::State>().as_ref().unwrap() };
-            let agg_states: &mut [*mut Self::AggregateState] = unsafe {
+            let state = unsafe { state.cast::<Self::BindState>().as_ref().unwrap() };
+            let agg_states: &mut [*mut Self::GroupState] = unsafe {
                 std::slice::from_raw_parts_mut(
-                    states.as_mut_ptr() as *mut *mut Self::AggregateState,
+                    states.as_mut_ptr() as *mut *mut Self::GroupState,
                     states.len(),
                 )
             };
             Self::update(state, inputs, num_rows, agg_states)
         },
         combine_fn: |state: *const (), src_ptrs: &mut [*mut u8], dest_ptrs: &mut [*mut u8]| {
-            let state = unsafe { state.cast::<Self::State>().as_ref().unwrap() };
-            let src: &mut [&mut Self::AggregateState] = unsafe {
+            let state = unsafe { state.cast::<Self::BindState>().as_ref().unwrap() };
+            let src: &mut [&mut Self::GroupState] = unsafe {
                 std::slice::from_raw_parts_mut(
-                    src_ptrs.as_mut_ptr() as *mut &mut Self::AggregateState,
+                    src_ptrs.as_mut_ptr() as *mut &mut Self::GroupState,
                     src_ptrs.len(),
                 )
             };
 
-            let dest: &mut [&mut Self::AggregateState] = unsafe {
+            let dest: &mut [&mut Self::GroupState] = unsafe {
                 std::slice::from_raw_parts_mut(
-                    dest_ptrs.as_mut_ptr() as *mut &mut Self::AggregateState,
+                    dest_ptrs.as_mut_ptr() as *mut &mut Self::GroupState,
                     dest_ptrs.len(),
                 )
             };
@@ -251,10 +251,10 @@ trait AggregateFunctionVTable: AggregateFunction {
             Ok(())
         },
         finalize_fn: |state: *const (), states: &mut [*mut u8], output: &mut Array| {
-            let state = unsafe { state.cast::<Self::State>().as_ref().unwrap() };
-            let typed_states: &mut [&mut Self::AggregateState] = unsafe {
+            let state = unsafe { state.cast::<Self::BindState>().as_ref().unwrap() };
+            let typed_states: &mut [&mut Self::GroupState] = unsafe {
                 std::slice::from_raw_parts_mut(
-                    states.as_mut_ptr() as *mut &mut Self::AggregateState,
+                    states.as_mut_ptr() as *mut &mut Self::GroupState,
                     states.len(),
                 )
             };

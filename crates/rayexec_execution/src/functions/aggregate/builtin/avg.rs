@@ -78,7 +78,7 @@ where
     type Output = PhysicalF64;
 
     type BindState = ();
-    type AggregateState = AvgStateF64<S::StorageType, T>;
+    type GroupState = AvgStateF64<S::StorageType, T>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -88,7 +88,7 @@ where
         })
     }
 
-    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         Default::default()
     }
 }
@@ -118,7 +118,7 @@ where
     type Output = PhysicalF64;
 
     type BindState = AvgDecimalBindState;
-    type AggregateState = AvgStateDecimal<D::Primitive>;
+    type GroupState = AvgStateDecimal<D::Primitive>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         let datatype = inputs[0].datatype()?;
@@ -133,7 +133,7 @@ where
         })
     }
 
-    fn new_aggregate_state(state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState {
         AvgStateDecimal::<D::Primitive> {
             scale: state.scale,
             sum: 0,

@@ -42,7 +42,7 @@ impl BinaryAggregate for CovarPop {
     type Output = PhysicalF64;
 
     type BindState = ();
-    type AggregateState = CovarState<CovarPopFinalize>;
+    type GroupState = CovarState<CovarPopFinalize>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -52,7 +52,7 @@ impl BinaryAggregate for CovarPop {
         })
     }
 
-    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         Default::default()
     }
 }
@@ -84,7 +84,7 @@ impl BinaryAggregate for CovarSamp {
     type Output = PhysicalF64;
 
     type BindState = ();
-    type AggregateState = CovarState<CovarSampFinalize>;
+    type GroupState = CovarState<CovarSampFinalize>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -94,7 +94,7 @@ impl BinaryAggregate for CovarSamp {
         })
     }
 
-    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         Default::default()
     }
 }

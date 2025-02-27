@@ -43,7 +43,7 @@ impl BinaryAggregate for Corr {
     type Output = PhysicalF64;
 
     type BindState = ();
-    type AggregateState = CorrelationState;
+    type GroupState = CorrelationState;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -53,7 +53,7 @@ impl BinaryAggregate for Corr {
         })
     }
 
-    fn new_aggregate_state(_state: &Self::BindState) -> Self::AggregateState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         CorrelationState::default()
     }
 }

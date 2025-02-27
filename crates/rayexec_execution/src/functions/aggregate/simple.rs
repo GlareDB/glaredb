@@ -23,13 +23,13 @@ pub trait UnaryAggregate: Debug + Sync + Send + Sized + 'static {
 
     type BindState: Sync + Send;
 
-    type AggregateState: for<'a> AggregateState<
+    type GroupState: for<'a> AggregateState<
         &'a <Self::Input as ScalarStorage>::StorageType,
         <Self::Output as ScalarStorage>::StorageType,
     >;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>>;
-    fn new_aggregate_state(state: &Self::BindState) -> Self::AggregateState;
+    fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState;
 }
 
 #[derive(Debug)]
@@ -50,30 +50,30 @@ impl<U> AggregateFunction for SimpleUnaryAggregate<U>
 where
     U: UnaryAggregate,
 {
-    type State = U::BindState;
-    type AggregateState = U::AggregateState;
+    type BindState = U::BindState;
+    type GroupState = U::GroupState;
 
-    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         self.unary.bind(inputs)
     }
 
-    fn new_aggregate_state(state: &Self::State) -> Self::AggregateState {
+    fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState {
         U::new_aggregate_state(state)
     }
 
     fn update(
-        _state: &Self::State,
+        _state: &Self::BindState,
         inputs: &[Array],
         num_rows: usize,
-        states: &mut [*mut Self::AggregateState],
+        states: &mut [*mut Self::GroupState],
     ) -> Result<()> {
         UnaryNonNullUpdater::update::<U::Input, _, _>(&inputs[0], 0..num_rows, states)
     }
 
     fn combine(
-        _state: &Self::State,
-        src: &mut [&mut Self::AggregateState],
-        dest: &mut [&mut Self::AggregateState],
+        _state: &Self::BindState,
+        src: &mut [&mut Self::GroupState],
+        dest: &mut [&mut Self::GroupState],
     ) -> Result<()> {
         if src.len() != dest.len() {
             return Err(RayexecError::new(
@@ -91,8 +91,8 @@ where
     }
 
     fn finalize(
-        _state: &Self::State,
-        states: &mut [&mut Self::AggregateState],
+        _state: &Self::BindState,
+        states: &mut [&mut Self::GroupState],
         output: &mut Array,
     ) -> Result<()> {
         let buffer = &mut <U::Output>::get_addressable_mut(&mut output.data)?;
@@ -113,7 +113,7 @@ pub trait BinaryAggregate: Debug + Sync + Send + Sized + 'static {
 
     type BindState: Sync + Send;
 
-    type AggregateState: for<'a> AggregateState<
+    type GroupState: for<'a> AggregateState<
         (
             &'a <Self::Input1 as ScalarStorage>::StorageType,
             &'a <Self::Input2 as ScalarStorage>::StorageType,
@@ -122,7 +122,7 @@ pub trait BinaryAggregate: Debug + Sync + Send + Sized + 'static {
     >;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>>;
-    fn new_aggregate_state(state: &Self::BindState) -> Self::AggregateState;
+    fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState;
 }
 
 #[derive(Debug)]
@@ -143,22 +143,22 @@ impl<B> AggregateFunction for SimpleBinaryAggregate<B>
 where
     B: BinaryAggregate,
 {
-    type State = B::BindState;
-    type AggregateState = B::AggregateState;
+    type BindState = B::BindState;
+    type GroupState = B::GroupState;
 
-    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         self.binary.bind(inputs)
     }
 
-    fn new_aggregate_state(state: &Self::State) -> Self::AggregateState {
+    fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState {
         B::new_aggregate_state(state)
     }
 
     fn update(
-        _state: &Self::State,
+        _state: &Self::BindState,
         inputs: &[Array],
         num_rows: usize,
-        states: &mut [*mut Self::AggregateState],
+        states: &mut [*mut Self::GroupState],
     ) -> Result<()> {
         BinaryNonNullUpdater::update::<B::Input1, B::Input2, _, _>(
             &inputs[0],
@@ -169,9 +169,9 @@ where
     }
 
     fn combine(
-        _state: &Self::State,
-        src: &mut [&mut Self::AggregateState],
-        dest: &mut [&mut Self::AggregateState],
+        _state: &Self::BindState,
+        src: &mut [&mut Self::GroupState],
+        dest: &mut [&mut Self::GroupState],
     ) -> Result<()> {
         if src.len() != dest.len() {
             return Err(RayexecError::new(
@@ -189,8 +189,8 @@ where
     }
 
     fn finalize(
-        _state: &Self::State,
-        states: &mut [&mut Self::AggregateState],
+        _state: &Self::BindState,
+        states: &mut [&mut Self::GroupState],
         output: &mut Array,
     ) -> Result<()> {
         let buffer = &mut <B::Output>::get_addressable_mut(&mut output.data)?;
