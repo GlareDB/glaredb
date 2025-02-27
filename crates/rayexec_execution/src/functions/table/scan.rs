@@ -1,9 +1,32 @@
 use std::fmt::Debug;
+use std::future::Future;
 use std::task::Context;
 
 use rayexec_error::Result;
 
+use super::TableFunctionInput;
 use crate::arrays::batch::Batch;
+use crate::database::DatabaseContext;
+use crate::functions::bind_state::TableFunctionBindState;
+use crate::storage::table_storage::Projections;
+
+pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
+    type BindState: Sync + Send;
+    type PartitionScan: PartitionScan;
+
+    fn bind(
+        &self,
+        db_context: &DatabaseContext,
+        input: TableFunctionInput,
+    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + '_;
+
+    fn create_partition_scans(
+        state: &Self::BindState,
+        projectsion: &Projections,
+        batch_size: usize,
+        partitions: usize,
+    ) -> Result<Self::PartitionScan>;
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PollPull {
@@ -41,6 +64,7 @@ impl RawPartitionScan {
     where
         S: PartitionScan,
     {
+        // TODO: Box
         let ptr = (&mut scan as *mut S).cast();
         std::mem::forget(scan); // We'll handle dropping manually.
         RawPartitionScan {

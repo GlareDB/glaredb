@@ -288,6 +288,103 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperatorType {
+    Unary,
+    LeftTerminating,
+    Materializing,
+}
+
+pub trait UnaryOperator: Sync + Send + Debug + Explainable {
+    type PartitionState: Sync + Send;
+    type OperatorState: Sync + Send;
+
+    fn poll_execute(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut Self::PartitionState,
+        operator_state: &Self::OperatorState,
+        inout: ExecuteInOutState,
+    ) -> Result<PollExecute>;
+
+    fn poll_finalize(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut Self::PartitionState,
+        operator_state: &Self::OperatorState,
+    ) -> Result<PollFinalize>;
+}
+
+pub trait LeftTerminatingOperator: Sync + Send + Debug + Explainable {
+    type LeftPartitionState: Sync + Send;
+    type RightPartitionState: Sync + Send;
+    type OperatorState: Sync + Send;
+
+    fn poll_push_left(
+        cx: &mut Context,
+        partition_state: &mut Self::LeftPartitionState,
+        operator_state: &Self::OperatorState,
+        input: &mut Batch,
+    ) -> Result<PollExecute>;
+
+    fn poll_finalize_left(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut Self::LeftPartitionState,
+        operator_state: &Self::OperatorState,
+    ) -> Result<PollFinalize>;
+
+    fn poll_execute(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut Self::RightPartitionState,
+        operator_state: &Self::OperatorState,
+        inout: ExecuteInOutState,
+    ) -> Result<PollExecute>;
+
+    fn poll_finalize(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut Self::RightPartitionState,
+        operator_state: &Self::OperatorState,
+    ) -> Result<PollFinalize>;
+}
+
+pub trait MaterializingOperator: Sync + Send + Debug + Explainable {
+    type PushPartitionState: Sync + Send;
+    type PullPartitionState: Sync + Send;
+    type OperatorState: Sync + Send;
+
+    fn poll_push(
+        cx: &mut Context,
+        partition_state: &mut Self::PushPartitionState,
+        operator_state: &Self::OperatorState,
+        input: &mut Batch,
+    ) -> Result<PollExecute>;
+
+    fn poll_finalize_push(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut Self::PushPartitionState,
+        operator_state: &Self::OperatorState,
+    ) -> Result<PollFinalize>;
+
+    fn poll_pull(
+        cx: &mut Context,
+        partition_state: &mut Self::PullPartitionState,
+        operator_state: &Self::OperatorState,
+        output: &mut Batch,
+    ) -> Result<PollExecute>;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RawOperatorVTable {}
+
+#[derive(Debug)]
+pub struct RawOperator {
+    vtable: &'static RawOperatorVTable,
+}
+
 // 144 bytes
 #[derive(Debug)]
 pub enum PhysicalOperator {
@@ -463,89 +560,5 @@ impl Explainable for PhysicalOperator {
             Self::Drop(op) => op.explain_entry(conf),
             Self::Empty(op) => op.explain_entry(conf),
         }
-    }
-}
-
-impl DatabaseProtoConv for PhysicalOperator {
-    type ProtoType = rayexec_proto::generated::execution::PhysicalOperator;
-
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::execution::physical_operator::Value;
-
-        let value = match self {
-            Self::CreateSchema(op) => Value::CreateSchema(op.to_proto_ctx(context)?),
-            Self::CreateTable(op) => Value::CreateTable(op.to_proto_ctx(context)?),
-            Self::Drop(op) => Value::Drop(op.to_proto_ctx(context)?),
-            Self::Empty(op) => Value::Empty(op.to_proto_ctx(context)?),
-            // Self::Filter(op) => Value::Filter(op.to_proto_ctx(context)?),
-            // Self::Project(op) => Value::Project(op.to_proto_ctx(context)?),
-            Self::Insert(op) => Value::Insert(op.to_proto_ctx(context)?),
-            Self::Limit(op) => Value::Limit(op.to_proto_ctx(context)?),
-            // Self::UngroupedAggregate(op) => Value::UngroupedAggregate(op.to_proto_ctx(context)?),
-            Self::Union(op) => Value::Union(op.to_proto_ctx(context)?),
-            Self::Values(op) => Value::Values(op.to_proto_ctx(context)?),
-            // Self::TableFunction(op) => Value::TableFunction(op.to_proto_ctx(context)?),
-            // Self::NestedLoopJoin(op) => Value::NlJoin(op.to_proto_ctx(context)?),
-            Self::CopyTo(op) => Value::CopyTo(op.to_proto_ctx(context)?),
-            // Self::LocalSort(op) => Value::LocalSort(op.to_proto_ctx(context)?),
-            // Self::MergeSorted(op) => Value::MergeSorted(op.to_proto_ctx(context)?),
-            other => not_implemented!("to proto: {other:?}"),
-        };
-
-        Ok(Self::ProtoType { value: Some(value) })
-    }
-
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        use rayexec_proto::generated::execution::physical_operator::Value;
-
-        Ok(match proto.value.required("value")? {
-            Value::CreateSchema(op) => {
-                PhysicalOperator::CreateSchema(PhysicalCreateSchema::from_proto_ctx(op, context)?)
-            }
-            Value::CreateTable(op) => {
-                PhysicalOperator::CreateTable(PhysicalCreateTable::from_proto_ctx(op, context)?)
-            }
-            Value::Drop(op) => PhysicalOperator::Drop(PhysicalDrop::from_proto_ctx(op, context)?),
-            Value::Empty(op) => {
-                PhysicalOperator::Empty(PhysicalEmpty::from_proto_ctx(op, context)?)
-            }
-            // Value::Filter(op) => {
-            //     PhysicalOperator::Filter(PhysicalFilter::from_proto_ctx(op, context)?)
-            // }
-            // Value::Project(op) => {
-            //     PhysicalOperator::Project(PhysicalProject::from_proto_ctx(op, context)?)
-            // }
-            Value::Insert(op) => {
-                PhysicalOperator::Insert(PhysicalInsert::from_proto_ctx(op, context)?)
-            }
-            Value::Limit(op) => {
-                PhysicalOperator::Limit(PhysicalLimit::from_proto_ctx(op, context)?)
-            }
-            // Value::UngroupedAggregate(op) => PhysicalOperator::UngroupedAggregate(
-            //     PhysicalUngroupedAggregate::from_proto_ctx(op, context)?,
-            // ),
-            Value::Union(op) => {
-                PhysicalOperator::Union(PhysicalUnion::from_proto_ctx(op, context)?)
-            }
-            Value::Values(op) => {
-                PhysicalOperator::Values(PhysicalValues::from_proto_ctx(op, context)?)
-            }
-            // Value::TableFunction(op) => {
-            //     PhysicalOperator::TableFunction(PhysicalTableFunction::from_proto_ctx(op, context)?)
-            // }
-            // Value::NlJoin(op) => PhysicalOperator::NestedLoopJoin(
-            //     PhysicalNestedLoopJoin::from_proto_ctx(op, context)?,
-            // ),
-            Value::CopyTo(op) => {
-                PhysicalOperator::CopyTo(PhysicalCopyTo::from_proto_ctx(op, context)?)
-            }
-            // Value::LocalSort(op) => {
-            //     PhysicalOperator::LocalSort(PhysicalScatterSort::from_proto_ctx(op, context)?)
-            // }
-            // Value::MergeSorted(op) => {
-            //     PhysicalOperator::MergeSorted(PhysicalGatherSort::from_proto_ctx(op, context)?)
-            // }
-            _ => unimplemented!(),
-        })
     }
 }

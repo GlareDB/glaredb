@@ -6,6 +6,8 @@ pub mod scan;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use dyn_clone::DynClone;
@@ -16,9 +18,10 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
+use scan::TableScanFunction;
 
 use super::bind_state::{RawBindStateInner, RawTableFunctionBindState};
-use super::FunctionInfo;
+use super::{FunctionInfo, Signature};
 use crate::arrays::field::Schema;
 use crate::arrays::scalar::ScalarValue;
 use crate::database::DatabaseContext;
@@ -37,6 +40,112 @@ pub struct TableFunctionInput {
 pub struct PlannedTableFunction {
     pub(crate) name: &'static str,
     pub(crate) state: RawTableFunctionBindState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TableFunctionType {
+    Scan,
+    InOut,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RawTableFunction {
+    function: *const (),
+    signature: &'static Signature,
+    vtable: &'static RawTableFunctionVTable,
+    function_type: TableFunctionType,
+}
+
+unsafe impl Send for RawTableFunction {}
+unsafe impl Sync for RawTableFunction {}
+
+impl RawTableFunction {
+    pub const fn new<F>(sig: &'static Signature, function: &'static F) -> Self
+    where
+        F: TableFunctionVTable,
+    {
+        let function = (function as *const F).cast();
+        RawTableFunction {
+            function,
+            signature: sig,
+            vtable: F::VTABLE,
+            function_type: F::FUNCTION_TYPE,
+        }
+    }
+
+    pub async fn call_scan_bind(
+        &self,
+        db_context: &DatabaseContext,
+        input: TableFunctionInput,
+    ) -> Result<RawTableFunctionBindState> {
+        // SAFETY: The pointer we pass to the bind fn is the pointer we get from
+        // the static reference we use to construct this object.
+        //
+        // Errors on constructing the future if this isn't a scan function. The
+        // future itself also yields a result.
+        let fut = unsafe { (self.vtable.scan_bind_fn)(self.function, db_context, input)? };
+        fut.await
+    }
+
+    pub fn function_type(&self) -> TableFunctionType {
+        self.function_type
+    }
+
+    pub fn signature(&self) -> &Signature {
+        self.signature
+    }
+}
+
+type ScanBindFut<'a> = Pin<Box<dyn Future<Output = Result<RawTableFunctionBindState>> + 'a>>;
+
+#[derive(Debug, Clone, Copy)]
+pub struct RawTableFunctionVTable {
+    /// Async bind function for table scans.
+    scan_bind_fn: unsafe fn(
+        function: *const (),
+        db_context: &DatabaseContext,
+        input: TableFunctionInput,
+    ) -> Result<ScanBindFut>,
+
+    /// Bind function for inout functions.
+    inout_bind_fn: unsafe fn(
+        function: *const (),
+        input: TableFunctionInput,
+    ) -> Result<RawTableFunctionBindState>,
+}
+
+pub trait TableFunctionVTable: private::Sealed {
+    const FUNCTION_TYPE: TableFunctionType;
+    const VTABLE: &'static RawTableFunctionVTable;
+}
+
+mod private {
+    pub trait Sealed {}
+    impl<F> Sealed for F where F: super::TableScanFunction {}
+}
+
+impl<F> TableFunctionVTable for F
+where
+    F: TableScanFunction,
+{
+    const FUNCTION_TYPE: TableFunctionType = TableFunctionType::Scan;
+
+    const VTABLE: &'static RawTableFunctionVTable = &RawTableFunctionVTable {
+        scan_bind_fn: |function: *const (),
+                       db_context: &DatabaseContext,
+                       input: TableFunctionInput| {
+            let function = unsafe { function.cast::<Self>().as_ref().unwrap() };
+            let fut = function.bind(db_context, input);
+            Ok(Box::pin(async {
+                let state = fut.await?;
+                let raw = RawBindStateInner::from_state(state.state);
+                Ok(RawTableFunctionBindState { state: raw })
+            }))
+        },
+        inout_bind_fn: |_function: *const (), _input: TableFunctionInput| {
+            Err(RayexecError::new("Not a table In/Out function"))
+        },
+    };
 }
 
 /// A generic table function provides a way to dispatch to a more specialized
