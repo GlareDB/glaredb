@@ -6,10 +6,11 @@ use std::hash::Hash;
 
 use rayexec_error::Result;
 
-use super::bind_state::{BindState, RawBindState, RawBindStateInner};
+use super::bind_state::{BindState, RawBindState};
 use super::Signature;
 use crate::arrays::array::Array;
 use crate::expr::Expression;
+use crate::ptr::raw_clone_ptr::RawClonePtr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AggregateStateInfo {
@@ -195,7 +196,7 @@ trait AggregateFunctionVTable: AggregateFunction {
         bind_fn: |function: *const (), inputs: Vec<Expression>| -> Result<RawBindState> {
             let function = unsafe { function.cast::<Self>().as_ref().unwrap() };
             let state = function.bind(inputs)?;
-            let raw = RawBindStateInner::from_state(state.state);
+            let raw = RawClonePtr::new(state.state);
 
             Ok(RawBindState {
                 state: raw,

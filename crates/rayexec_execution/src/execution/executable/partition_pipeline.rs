@@ -16,7 +16,10 @@ use crate::execution::operators::{
     PhysicalOperator,
     PollExecute,
     PollFinalize,
+    RawOperatorVTable,
 };
+use crate::ptr::raw_clone_ptr::RawClonePtr;
+use crate::ptr::raw_ptr::RawPtr;
 use crate::runtime::time::RuntimeInstant;
 
 /// Information about a partition pipeline.
@@ -94,6 +97,13 @@ impl ExecutablePartitionPipeline {
         }
     }
 }
+
+// #[derive(Debug)]
+// pub struct RawOperatorWithStates {
+//     pub(crate) operator: RawOperator,
+//     pub(crate) operator_state: RawClonePtr,
+//     pub(crate) partition_states: Vec<RawPtr>,
+// }
 
 #[derive(Debug)]
 pub struct OperatorWithState {

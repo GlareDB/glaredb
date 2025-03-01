@@ -77,6 +77,7 @@ use crate::database::DatabaseContext;
 use crate::engine::result::ResultSink;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
+use crate::ptr::raw_clone_ptr::RawClonePtr;
 
 // TODO: Remove in favor of passing in batch size when creating states.
 pub const DEFAULT_TARGET_BATCH_SIZE: usize = 4096;
@@ -289,75 +290,73 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExecutionProperties {
+    /// Batch size, in rows, that were working with.
+    pub batch_size: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperatorType {
-    Unary,
-    LeftTerminating,
-    Materializing,
+    Execute,
+    PushExecute,
 }
 
-pub trait UnaryOperator: Sync + Send + Debug + Explainable {
-    type PartitionState: Sync + Send;
+pub trait ExecuteOperator: Sync + Send + Debug + Explainable {
+    type PartitionExecuteState: Sync + Send;
     type OperatorState: Sync + Send;
+
+    fn create_operator_state(
+        &self,
+        context: &DatabaseContext,
+        props: ExecutionProperties,
+    ) -> Result<Self::OperatorState>;
+
+    fn create_partition_state(
+        &self,
+        operator_state: &Self::OperatorState,
+    ) -> Result<Self::PartitionExecuteState>;
 
     fn poll_execute(
         &self,
         cx: &mut Context,
-        partition_state: &mut Self::PartitionState,
+        partition_state: &mut Self::PartitionExecuteState,
         operator_state: &Self::OperatorState,
         inout: ExecuteInOutState,
     ) -> Result<PollExecute>;
 
-    fn poll_finalize(
+    fn poll_finalize_execute(
         &self,
         cx: &mut Context,
-        partition_state: &mut Self::PartitionState,
+        partition_state: &mut Self::PartitionExecuteState,
         operator_state: &Self::OperatorState,
     ) -> Result<PollFinalize>;
 }
 
-pub trait LeftTerminatingOperator: Sync + Send + Debug + Explainable {
-    type LeftPartitionState: Sync + Send;
-    type RightPartitionState: Sync + Send;
+pub trait PushExecuteOperator: Sync + Send + Debug + Explainable {
+    type PartitionPushState: Sync + Send;
+    type PartitionExecuteState: Sync + Send;
     type OperatorState: Sync + Send;
 
-    fn poll_push_left(
-        cx: &mut Context,
-        partition_state: &mut Self::LeftPartitionState,
-        operator_state: &Self::OperatorState,
-        input: &mut Batch,
-    ) -> Result<PollExecute>;
-
-    fn poll_finalize_left(
+    fn create_operator_state(
         &self,
-        cx: &mut Context,
-        partition_state: &mut Self::LeftPartitionState,
-        operator_state: &Self::OperatorState,
-    ) -> Result<PollFinalize>;
+        context: &DatabaseContext,
+        props: ExecutionProperties,
+    ) -> Result<Self::OperatorState>;
 
-    fn poll_execute(
+    fn create_partition_execute_state(
         &self,
-        cx: &mut Context,
-        partition_state: &mut Self::RightPartitionState,
         operator_state: &Self::OperatorState,
-        inout: ExecuteInOutState,
-    ) -> Result<PollExecute>;
+    ) -> Result<Self::PartitionExecuteState>;
 
-    fn poll_finalize(
+    fn create_partition_push_state(
         &self,
-        cx: &mut Context,
-        partition_state: &mut Self::RightPartitionState,
         operator_state: &Self::OperatorState,
-    ) -> Result<PollFinalize>;
-}
-
-pub trait MaterializingOperator: Sync + Send + Debug + Explainable {
-    type PushPartitionState: Sync + Send;
-    type PullPartitionState: Sync + Send;
-    type OperatorState: Sync + Send;
+    ) -> Result<Self::PartitionPushState>;
 
     fn poll_push(
+        &self,
         cx: &mut Context,
-        partition_state: &mut Self::PushPartitionState,
+        partition_state: &mut Self::PartitionPushState,
         operator_state: &Self::OperatorState,
         input: &mut Batch,
     ) -> Result<PollExecute>;
@@ -365,24 +364,78 @@ pub trait MaterializingOperator: Sync + Send + Debug + Explainable {
     fn poll_finalize_push(
         &self,
         cx: &mut Context,
-        partition_state: &mut Self::PushPartitionState,
+        partition_state: &mut Self::PartitionPushState,
         operator_state: &Self::OperatorState,
     ) -> Result<PollFinalize>;
 
-    fn poll_pull(
+    fn poll_execute(
+        &self,
         cx: &mut Context,
-        partition_state: &mut Self::PullPartitionState,
+        partition_state: &mut Self::PartitionExecuteState,
         operator_state: &Self::OperatorState,
-        output: &mut Batch,
+        inout: ExecuteInOutState,
     ) -> Result<PollExecute>;
+
+    fn poll_finalize_execute(
+        &self,
+        cx: &mut Context,
+        partition_state: &mut Self::PartitionExecuteState,
+        operator_state: &Self::OperatorState,
+    ) -> Result<PollFinalize>;
+}
+
+#[derive(Debug, Clone)]
+pub struct PlannedOperator {
+    /// The underlying operator.
+    pub(crate) operator: RawClonePtr,
+    /// The operator vtable.
+    pub(crate) vtable: &'static RawOperatorVTable,
+    pub(crate) operator_type: OperatorType,
+}
+
+impl PlannedOperator {
+    pub fn call_explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        unsafe { (self.vtable.explain_fn)(self.operator.get(), conf) }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct RawOperatorVTable {}
+pub(crate) struct RawOperatorVTable {
+    output_types_fn: unsafe fn(operator: *const ()) -> Vec<DataType>,
 
-#[derive(Debug)]
-pub struct RawOperator {
-    vtable: &'static RawOperatorVTable,
+    poll_push_fn: unsafe fn(
+        operator: *const (),
+        cx: &mut Context,
+        partition_state: *mut (),
+        operator_state: *const (),
+        input: &mut Batch,
+    ) -> Result<PollExecute>,
+
+    poll_execute_fn: unsafe fn(
+        operator: *const (),
+        cx: &mut Context,
+        partition_state: *mut (),
+        operator_state: *const (),
+        inout: ExecuteInOutState,
+    ) -> Result<PollExecute>,
+
+    explain_fn: unsafe fn(operator: *const (), conf: ExplainConfig) -> ExplainEntry,
+}
+
+pub(crate) trait OperatorVTable {
+    const VTABLE: &'static RawOperatorVTable;
+}
+
+impl<O> OperatorVTable for O
+where
+    O: ExecuteOperator,
+{
+    const VTABLE: &'static RawOperatorVTable = &RawOperatorVTable {
+        output_types_fn: |operator| unimplemented!(),
+        poll_push_fn: |operator, cx, partition_state, operator_state, input| unimplemented!(),
+        poll_execute_fn: |operator, cx, partition_state, operator_state, inout| unimplemented!(),
+        explain_fn: |operator, conf| unimplemented!(),
+    };
 }
 
 // 144 bytes

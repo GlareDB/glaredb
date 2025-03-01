@@ -122,39 +122,40 @@ impl<'a> ExecutablePipelinePlanner<'a> {
         let mut operators = Vec::with_capacity(pipeline.operators.len());
 
         for mut operator in pipeline.operators {
-            let states = operator.create_states(
-                self.context,
-                self.config.batch_size,
-                self.config.partitions,
-            )?;
+            unimplemented!()
+            // let states = operator.create_states(
+            //     self.context,
+            //     self.config.batch_size,
+            //     self.config.partitions,
+            // )?;
 
-            let stage1 = match states {
-                PartitionAndOperatorStates::UnaryInput(states) => {
-                    OperatorStage1::UnaryInput(UnaryInputOperator {
-                        operator: Arc::new(operator),
-                        operator_state: Arc::new(states.operator_state),
-                        partition_states: states.partition_states,
-                    })
-                }
-                PartitionAndOperatorStates::BinaryInput(states) => {
-                    OperatorStage1::BinaryInput(BinaryInputOperator {
-                        operator: Arc::new(operator),
-                        operator_state: Arc::new(states.operator_state),
-                        passthrough_states: states.inout_states,
-                        sink_states: Some(states.sink_states),
-                    })
-                }
-                PartitionAndOperatorStates::Materialization(states) => {
-                    OperatorStage1::MaterializedOuput(MaterializedOutputOperator {
-                        operator: Arc::new(operator),
-                        operator_state: Arc::new(states.operator_state),
-                        input_states: states.input_states,
-                        output_states: states.output_states,
-                    })
-                }
-            };
+            // let stage1 = match states {
+            //     PartitionAndOperatorStates::UnaryInput(states) => {
+            //         OperatorStage1::UnaryInput(UnaryInputOperator {
+            //             operator: Arc::new(operator),
+            //             operator_state: Arc::new(states.operator_state),
+            //             partition_states: states.partition_states,
+            //         })
+            //     }
+            //     PartitionAndOperatorStates::BinaryInput(states) => {
+            //         OperatorStage1::BinaryInput(BinaryInputOperator {
+            //             operator: Arc::new(operator),
+            //             operator_state: Arc::new(states.operator_state),
+            //             passthrough_states: states.inout_states,
+            //             sink_states: Some(states.sink_states),
+            //         })
+            //     }
+            //     PartitionAndOperatorStates::Materialization(states) => {
+            //         OperatorStage1::MaterializedOuput(MaterializedOutputOperator {
+            //             operator: Arc::new(operator),
+            //             operator_state: Arc::new(states.operator_state),
+            //             input_states: states.input_states,
+            //             output_states: states.output_states,
+            //         })
+            //     }
+            // };
 
-            operators.push(stage1);
+            // operators.push(stage1);
         }
 
         Ok(PipelineStage1 {
@@ -452,84 +453,84 @@ mod tests {
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
     use crate::testutil::database_context::test_database_context;
 
-    #[test]
-    fn plan_single_pipeline() {
-        let pipeline = IntermediatePipeline {
-            id: IntermediatePipelineId(0),
-            source: PipelineSource::InPipeline,
-            sink: PipelineSink::InPipeline,
-            operators: vec![
-                PhysicalOperator::Project(PhysicalProject::new([PhysicalLiteralExpr::new(1)])),
-                PhysicalOperator::Project(PhysicalProject::new([PhysicalLiteralExpr::new("a")])),
-            ],
-        };
+    // #[test]
+    // fn plan_single_pipeline() {
+    //     let pipeline = IntermediatePipeline {
+    //         id: IntermediatePipelineId(0),
+    //         source: PipelineSource::InPipeline,
+    //         sink: PipelineSink::InPipeline,
+    //         operators: vec![
+    //             PhysicalOperator::Project(PhysicalProject::new([PhysicalLiteralExpr::new(1)])),
+    //             PhysicalOperator::Project(PhysicalProject::new([PhysicalLiteralExpr::new("a")])),
+    //         ],
+    //     };
 
-        let context = test_database_context();
-        let mut planner = ExecutablePipelinePlanner::new(
-            &context,
-            ExecutablePlanConfig {
-                partitions: 4,
-                batch_size: 1024,
-            },
-        );
+    //     let context = test_database_context();
+    //     let mut planner = ExecutablePipelinePlanner::new(
+    //         &context,
+    //         ExecutablePlanConfig {
+    //             partitions: 4,
+    //             batch_size: 1024,
+    //         },
+    //     );
 
-        let executable = planner.plan_pipelines([pipeline]).unwrap();
-        assert_eq!(1, executable.len());
+    //     let executable = planner.plan_pipelines([pipeline]).unwrap();
+    //     assert_eq!(1, executable.len());
 
-        assert_eq!(4, executable[0].partitions.len());
-    }
+    //     assert_eq!(4, executable[0].partitions.len());
+    // }
 
-    #[test]
-    fn plan_union_two_pipelines() {
-        let pipelines = [
-            IntermediatePipeline {
-                id: IntermediatePipelineId(0),
-                source: PipelineSource::InPipeline,
-                sink: PipelineSink::InPipeline,
-                operators: vec![
-                    PhysicalOperator::Values(PhysicalValues::new(vec![vec![
-                        PhysicalLiteralExpr::new("cat").into(),
-                    ]])),
-                    PhysicalOperator::Union(PhysicalUnion::new([DataType::Utf8])),
-                    PhysicalOperator::Project(PhysicalProject::new([PhysicalLiteralExpr::new(
-                        "a",
-                    )])),
-                ],
-            },
-            IntermediatePipeline {
-                id: IntermediatePipelineId(1),
-                source: PipelineSource::InPipeline,
-                sink: PipelineSink::OtherPipeline {
-                    id: IntermediatePipelineId(0),
-                    operator_idx: 1, // Union operator in pipeline 0
-                },
-                operators: vec![PhysicalOperator::Values(PhysicalValues::new(vec![vec![
-                    PhysicalLiteralExpr::new("dog").into(),
-                ]]))],
-            },
-        ];
+    // #[test]
+    // fn plan_union_two_pipelines() {
+    //     let pipelines = [
+    //         IntermediatePipeline {
+    //             id: IntermediatePipelineId(0),
+    //             source: PipelineSource::InPipeline,
+    //             sink: PipelineSink::InPipeline,
+    //             operators: vec![
+    //                 PhysicalOperator::Values(PhysicalValues::new(vec![vec![
+    //                     PhysicalLiteralExpr::new("cat").into(),
+    //                 ]])),
+    //                 PhysicalOperator::Union(PhysicalUnion::new([DataType::Utf8])),
+    //                 PhysicalOperator::Project(PhysicalProject::new([PhysicalLiteralExpr::new(
+    //                     "a",
+    //                 )])),
+    //             ],
+    //         },
+    //         IntermediatePipeline {
+    //             id: IntermediatePipelineId(1),
+    //             source: PipelineSource::InPipeline,
+    //             sink: PipelineSink::OtherPipeline {
+    //                 id: IntermediatePipelineId(0),
+    //                 operator_idx: 1, // Union operator in pipeline 0
+    //             },
+    //             operators: vec![PhysicalOperator::Values(PhysicalValues::new(vec![vec![
+    //                 PhysicalLiteralExpr::new("dog").into(),
+    //             ]]))],
+    //         },
+    //     ];
 
-        let context = test_database_context();
-        let mut planner = ExecutablePipelinePlanner::new(
-            &context,
-            ExecutablePlanConfig {
-                partitions: 4,
-                batch_size: 1024,
-            },
-        );
+    //     let context = test_database_context();
+    //     let mut planner = ExecutablePipelinePlanner::new(
+    //         &context,
+    //         ExecutablePlanConfig {
+    //             partitions: 4,
+    //             batch_size: 1024,
+    //         },
+    //     );
 
-        let executable = planner.plan_pipelines(pipelines).unwrap();
-        assert_eq!(2, executable.len());
+    //     let executable = planner.plan_pipelines(pipelines).unwrap();
+    //     assert_eq!(2, executable.len());
 
-        // Pipeline 1 will now have the union as its last operator.
-        let pipeline1 = executable
-            .iter()
-            .find(|ex| ex.pipeline_id == IntermediatePipelineId(1))
-            .unwrap();
-        assert_eq!(2, pipeline1.partitions[0].operators.len());
-        match executable[1].partitions[0].operators[1].physical.as_ref() {
-            PhysicalOperator::Union(_) => (),
-            other => panic!("expected union operator, got other: {other:?}"),
-        }
-    }
+    //     // Pipeline 1 will now have the union as its last operator.
+    //     let pipeline1 = executable
+    //         .iter()
+    //         .find(|ex| ex.pipeline_id == IntermediatePipelineId(1))
+    //         .unwrap();
+    //     assert_eq!(2, pipeline1.partitions[0].operators.len());
+    //     match executable[1].partitions[0].operators[1].physical.as_ref() {
+    //         PhysicalOperator::Union(_) => (),
+    //         other => panic!("expected union operator, got other: {other:?}"),
+    //     }
+    // }
 }

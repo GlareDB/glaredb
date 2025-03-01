@@ -20,7 +20,7 @@ use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
 use scan::TableScanFunction;
 
-use super::bind_state::{RawBindStateInner, RawTableFunctionBindState};
+use super::bind_state::RawTableFunctionBindState;
 use super::{FunctionInfo, Signature};
 use crate::arrays::field::Schema;
 use crate::arrays::scalar::ScalarValue;
@@ -29,6 +29,7 @@ use crate::execution::operators::source::operation::SourceOperation;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
 use crate::logical::statistics::StatisticsValue;
+use crate::ptr::raw_clone_ptr::RawClonePtr;
 
 #[derive(Debug)]
 pub struct TableFunctionInput {
@@ -138,7 +139,7 @@ where
             let fut = function.bind(db_context, input);
             Ok(Box::pin(async {
                 let state = fut.await?;
-                let raw = RawBindStateInner::from_state(state.state);
+                let raw = RawClonePtr::new(state.state);
                 Ok(RawTableFunctionBindState { state: raw })
             }))
         },

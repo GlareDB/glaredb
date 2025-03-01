@@ -207,7 +207,7 @@ impl ExplainNode {
             .operators
             .iter()
             .map(|op| ExplainNode {
-                entry: op.explain_entry(config),
+                entry: op.call_explain_entry(config),
                 children: Vec::new(),
             })
             .collect();

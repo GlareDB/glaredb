@@ -1,7 +1,6 @@
 use std::fmt;
 
-
-use crate::execution::operators::PhysicalOperator;
+use crate::execution::operators::{PhysicalOperator, PlannedOperator};
 
 /// ID of a single intermediate pipeline.
 ///
@@ -45,5 +44,5 @@ pub struct IntermediatePipeline {
     pub(crate) id: IntermediatePipelineId,
     pub(crate) source: PipelineSource,
     pub(crate) sink: PipelineSink,
-    pub(crate) operators: Vec<PhysicalOperator>,
+    pub(crate) operators: Vec<PlannedOperator>,
 }
