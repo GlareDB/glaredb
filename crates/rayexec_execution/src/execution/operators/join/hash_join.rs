@@ -10,7 +10,7 @@ use crate::database::DatabaseContext;
 use crate::execution::operators::{
     BinaryInputStates,
     ExecutableOperator,
-    ExecuteInOutState,
+    ExecuteInOut,
     OperatorState,
     PartitionState,
     PollExecute,
@@ -59,7 +59,7 @@ impl ExecutableOperator for PhysicalHashJoin {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        inout: ExecuteInOut,
     ) -> Result<PollExecute> {
         unimplemented!()
     }

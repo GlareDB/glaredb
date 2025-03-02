@@ -8,7 +8,7 @@ use crate::arrays::row::row_layout::RowLayout;
 
 /// Scan state for scanning a sorted run.
 #[derive(Debug)]
-pub struct SortedRunScanState {
+pub struct SortedSegmentScanState {
     block_idx: usize,
     row_idx: usize,
     block_scan: BlockScanState,
@@ -16,7 +16,7 @@ pub struct SortedRunScanState {
 
 /// Contains multiple blocks that have been totally sorted.
 #[derive(Debug)]
-pub struct SortedRun {
+pub struct SortedSegment {
     pub(crate) keys: Vec<Block>,
     pub(crate) heap_keys: Vec<Block>,
     pub(crate) heap_keys_heap: Vec<Block>,
@@ -24,10 +24,10 @@ pub struct SortedRun {
     pub(crate) data_heap: Vec<Block>,
 }
 
-impl SortedRun {
+impl SortedSegment {
     /// Create a new sorted run from a sorted block.
     pub fn from_sorted_block(block: SortedBlock) -> Self {
-        SortedRun {
+        SortedSegment {
             keys: vec![block.keys],
             heap_keys: vec![block.heap_keys],
             heap_keys_heap: block.heap_keys_heap,
@@ -36,8 +36,8 @@ impl SortedRun {
         }
     }
 
-    pub fn init_scan_state(&self) -> SortedRunScanState {
-        SortedRunScanState {
+    pub fn init_scan_state(&self) -> SortedSegmentScanState {
+        SortedSegmentScanState {
             block_idx: 0,
             row_idx: 0,
             block_scan: BlockScanState::empty(),
@@ -50,7 +50,7 @@ impl SortedRun {
     /// of the run.
     pub fn scan_data(
         &self,
-        state: &mut SortedRunScanState,
+        state: &mut SortedSegmentScanState,
         data_layout: &RowLayout,
         output: &mut Batch,
     ) -> Result<usize> {
@@ -112,7 +112,7 @@ mod tests {
         let batch = generate_batch!([2, 4, 1, 3], ["b", "d", "a", "c"]);
         let block = TestSortedRowBlock::from_batch(&batch, [0]);
 
-        let run = SortedRun::from_sorted_block(block.sorted_block);
+        let run = SortedSegment::from_sorted_block(block.sorted_block);
         let mut state = run.init_scan_state();
 
         let mut out = Batch::new([DataType::Int32, DataType::Utf8], 4).unwrap();
@@ -130,7 +130,7 @@ mod tests {
         let batch = generate_batch!([2, 4, 1, 3], ["b", "d", "a", "c"]);
         let block = TestSortedRowBlock::from_batch(&batch, [0]);
 
-        let run = SortedRun::from_sorted_block(block.sorted_block);
+        let run = SortedSegment::from_sorted_block(block.sorted_block);
         let mut state = run.init_scan_state();
 
         let mut out = Batch::new([DataType::Int32, DataType::Utf8], 3).unwrap();

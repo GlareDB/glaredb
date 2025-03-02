@@ -1,33 +1,33 @@
-
 use rayexec_error::{Result, ResultExt};
 
-use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use super::{Materializations, OperatorPlanState};
 use crate::execution::operators::project::PhysicalProject;
-use crate::execution::operators::PhysicalOperator;
+use crate::execution::operators::{PhysicalOperator, PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, Node};
 
-impl IntermediatePipelineBuildState<'_> {
+impl OperatorPlanState<'_> {
     pub fn plan_project(
         &mut self,
-        id_gen: &mut PipelineIdGen,
-        materializations: &mut Materializations,
         mut project: Node<LogicalProject>,
-    ) -> Result<()> {
-        let location = project.location;
+    ) -> Result<PlannedOperatorWithChildren> {
+        let _location = project.location;
 
         let input = project.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs(self.bind_context);
-        self.walk(materializations, id_gen, input)?;
+        let input = self.plan(input)?;
 
         let projections = self
             .expr_planner
             .plan_scalars(&input_refs, &project.node.projections)
             .context("Failed to plan expressions for projection")?;
 
-        let operator = PhysicalOperator::Project(PhysicalProject::new(projections));
-        self.push_intermediate_operator(operator, location, id_gen)?;
+        let operator = PhysicalProject::new(projections);
+        let planned = PlannedOperator::new_execute(operator);
 
-        Ok(())
+        Ok(PlannedOperatorWithChildren {
+            operator: planned,
+            children: vec![input],
+        })
     }
 }

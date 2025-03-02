@@ -9,7 +9,6 @@ use rayexec_execution::arrays::array::Array;
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::field::Schema;
 use rayexec_execution::arrays::format::pretty::table::PrettyTable;
-use rayexec_execution::arrays::row::ScalarRow;
 use rayexec_execution::engine::profiler::PlanningProfileData;
 use rayexec_execution::engine::result::ExecutionResult;
 use rayexec_execution::execution::executable::profiler::ExecutionProfileData;

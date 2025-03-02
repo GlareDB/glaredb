@@ -11,13 +11,12 @@ use super::result::{new_results_sinks, ExecutionResult, ResultErrorSink, ResultS
 use super::verifier::QueryVerifier;
 use super::DataSourceRegistry;
 use crate::arrays::field::{Field, Schema};
-use crate::config::execution::IntermediatePlanConfig;
+use crate::config::execution::OperatorPlanConfig;
 use crate::config::session::SessionConfig;
 use crate::database::catalog::CatalogTx;
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, Database, DatabaseContext};
 use crate::execution::executable::pipeline::ExecutablePipeline;
-use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
 use crate::hybrid::client::HybridClient;
 use crate::logical::binder::bind_statement::StatementBinder;
 use crate::logical::logical_attach::LogicalAttachDatabase;
@@ -357,58 +356,58 @@ where
                         }),
                 );
 
-                let query_id = Uuid::new_v4();
-                let planner = IntermediatePipelinePlanner::new(
-                    IntermediatePlanConfig {
-                        allow_nested_loop_join: self.config.allow_nested_loop_join,
-                    },
-                    query_id,
-                );
+                // let query_id = Uuid::new_v4();
+                // let planner = IntermediatePipelinePlanner::new(
+                //     IntermediatePlanConfig {
+                //         allow_nested_loop_join: self.config.allow_nested_loop_join,
+                //     },
+                //     query_id,
+                // );
 
-                let pipelines = match logical {
-                    LogicalOperator::AttachDatabase(attach) => {
-                        self.handle_attach_database(attach).await?;
-                        planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
-                    }
-                    LogicalOperator::DetachDatabase(detach) => {
-                        let empty = planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?; // Here to avoid lifetime issues.
-                        self.context.detach_database(&detach.as_ref().name)?;
-                        empty
-                    }
-                    LogicalOperator::SetVar(set_var) => {
-                        // TODO: Do we want this logic to exist here?
-                        //
-                        // SET seems fine, but what happens with things like wanting to
-                        // update the catalog? Possibly an "external resources context"
-                        // that has clients/etc for everything that the session can look
-                        // at to update its local state?
-                        //
-                        // We could have an implementation for the local session, and a
-                        // separate implementation used for nodes taking part in
-                        // distributed execution.
-                        self.config
-                            .set_from_scalar(&set_var.node.name, set_var.node.value)?;
-                        planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
-                    }
-                    LogicalOperator::ResetVar(reset) => {
-                        // Same TODO as above.
-                        match &reset.as_ref().var {
-                            VariableOrAll::Variable(v) => {
-                                self.config.reset(v, &self.executor, &self.runtime)?
-                            }
-                            VariableOrAll::All => {
-                                self.config.reset_all(&self.executor, &self.runtime)
-                            }
-                        }
-                        planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
-                    }
-                    root => {
-                        let timer = Timer::<R::Instant>::start();
-                        let pipelines = planner.plan_pipelines(root, bind_context)?;
-                        profile.plan_intermediate_step = Some(timer.stop());
-                        pipelines
-                    }
-                };
+                // let pipelines = match logical {
+                //     LogicalOperator::AttachDatabase(attach) => {
+                //         self.handle_attach_database(attach).await?;
+                //         planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
+                //     }
+                //     LogicalOperator::DetachDatabase(detach) => {
+                //         let empty = planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?; // Here to avoid lifetime issues.
+                //         self.context.detach_database(&detach.as_ref().name)?;
+                //         empty
+                //     }
+                //     LogicalOperator::SetVar(set_var) => {
+                //         // TODO: Do we want this logic to exist here?
+                //         //
+                //         // SET seems fine, but what happens with things like wanting to
+                //         // update the catalog? Possibly an "external resources context"
+                //         // that has clients/etc for everything that the session can look
+                //         // at to update its local state?
+                //         //
+                //         // We could have an implementation for the local session, and a
+                //         // separate implementation used for nodes taking part in
+                //         // distributed execution.
+                //         self.config
+                //             .set_from_scalar(&set_var.node.name, set_var.node.value)?;
+                //         planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
+                //     }
+                //     LogicalOperator::ResetVar(reset) => {
+                //         // Same TODO as above.
+                //         match &reset.as_ref().var {
+                //             VariableOrAll::Variable(v) => {
+                //                 self.config.reset(v, &self.executor, &self.runtime)?
+                //             }
+                //             VariableOrAll::All => {
+                //                 self.config.reset_all(&self.executor, &self.runtime)
+                //             }
+                //         }
+                //         planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
+                //     }
+                //     root => {
+                //         let timer = Timer::<R::Instant>::start();
+                //         let pipelines = planner.plan_pipelines(root, bind_context)?;
+                //         profile.plan_intermediate_step = Some(timer.stop());
+                //         pipelines
+                //     }
+                // };
 
                 // if !pipelines.remote.is_empty() {
                 //     return Err(RayexecError::new(

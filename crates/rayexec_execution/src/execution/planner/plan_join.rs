@@ -1,6 +1,6 @@
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
-use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use super::{Materializations, OperatorPlanState};
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{self, Expression};
@@ -13,17 +13,15 @@ use crate::logical::logical_join::{
 };
 use crate::logical::operator::{self, LocationRequirement, LogicalNode, Node};
 
-impl IntermediatePipelineBuildState<'_> {
+impl OperatorPlanState<'_> {
     pub fn plan_magic_join(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         join: Node<LogicalMagicJoin>,
     ) -> Result<()> {
         // Planning is no different from a comparison join. Materialization
         // scans will be planned appropriately as we get there.
         self.plan_comparison_join(
-            id_gen,
             materializations,
             Node {
                 node: LogicalComparisonJoin {
@@ -39,7 +37,6 @@ impl IntermediatePipelineBuildState<'_> {
 
     pub fn plan_comparison_join(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         mut join: Node<LogicalComparisonJoin>,
     ) -> Result<()> {
@@ -80,13 +77,12 @@ impl IntermediatePipelineBuildState<'_> {
 
             // Build up all inputs on the right (probe) side. This is going to
             // continue with the the current pipeline.
-            self.walk(materializations, id_gen, right)?;
+            self.walk(materializations, right)?;
 
             // Build up the left (build) side in a separate pipeline. This will feed
             // into the currently pipeline at the join operator.
-            let mut left_state =
-                IntermediatePipelineBuildState::new(self.config, self.bind_context);
-            left_state.walk(materializations, id_gen, left)?;
+            let mut left_state = OperatorPlanState::new(self.config, self.bind_context);
+            left_state.walk(materializations, left)?;
 
             unimplemented!();
             // // Take any completed pipelines from the left side and put them in our
@@ -151,7 +147,6 @@ impl IntermediatePipelineBuildState<'_> {
             };
 
             self.push_nl_join(
-                id_gen,
                 materializations,
                 location,
                 left,
@@ -166,7 +161,6 @@ impl IntermediatePipelineBuildState<'_> {
 
     pub fn plan_arbitrary_join(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         mut join: Node<LogicalArbitraryJoin>,
     ) -> Result<()> {
@@ -193,7 +187,6 @@ impl IntermediatePipelineBuildState<'_> {
         let [left, right] = join.take_two_children_exact()?;
 
         self.push_nl_join(
-            id_gen,
             materializations,
             location,
             left,
@@ -205,7 +198,6 @@ impl IntermediatePipelineBuildState<'_> {
 
     pub fn plan_cross_join(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         mut join: Node<LogicalCrossJoin>,
     ) -> Result<()> {
@@ -213,7 +205,6 @@ impl IntermediatePipelineBuildState<'_> {
         let [left, right] = join.take_two_children_exact()?;
 
         self.push_nl_join(
-            id_gen,
             materializations,
             location,
             left,
@@ -228,10 +219,8 @@ impl IntermediatePipelineBuildState<'_> {
     /// This will create a complete pipeline for the left side of the join
     /// (build), right right side (probe) will be pushed onto the current
     /// pipeline.
-    #[allow(clippy::too_many_arguments)]
     fn push_nl_join(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         location: LocationRequirement,
         left: operator::LogicalOperator,
@@ -242,12 +231,12 @@ impl IntermediatePipelineBuildState<'_> {
         self.config.check_nested_loop_join_allowed()?;
 
         // Continue to build up all the inputs into the right side.
-        self.walk(materializations, id_gen, right)?;
+        self.walk(materializations, right)?;
 
         // Create a completely independent pipeline (or pipelines) for left
         // side.
-        let mut left_state = IntermediatePipelineBuildState::new(self.config, self.bind_context);
-        left_state.walk(materializations, id_gen, left)?;
+        let mut left_state = OperatorPlanState::new(self.config, self.bind_context);
+        left_state.walk(materializations, left)?;
 
         // Take completed pipelines from the left and merge them into this
         // state's completed set of pipelines.

@@ -4,7 +4,7 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::{
     ExecutableOperator,
-    ExecuteInOutState,
+    ExecuteInOut,
     OperatorState,
     PartitionState,
     PollExecute,
@@ -98,7 +98,7 @@ impl ExecutableOperator for PhysicalTableInOut {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        inout: ExecuteInOut,
     ) -> Result<PollExecute> {
         let state = match partition_state {
             PartitionState::TableInOut(state) => state,
@@ -136,7 +136,7 @@ impl ExecutableOperator for PhysicalTableInOut {
             // Call table func with an input batch containing only a single row.
             let poll = state.function_state.poll_execute(
                 cx,
-                ExecuteInOutState {
+                ExecuteInOut {
                     input: Some(&mut state.row_batch),
                     output: Some(output),
                 },
@@ -205,7 +205,7 @@ mod tests {
     use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::assert_batches_eq;
     use crate::testutil::database_context::test_database_context;
-    use crate::testutil::operator::OperatorWrapper;
+    use crate::testutil::operator::OperatorWrapper2;
 
     fn plan_generate_series() -> PlannedTableFunction2 {
         let mut table_list = TableList::empty();
@@ -250,7 +250,7 @@ mod tests {
 
     #[test]
     fn inout_no_input_project() {
-        let mut wrapper = OperatorWrapper::new(PhysicalTableInOut {
+        let mut wrapper = OperatorWrapper2::new(PhysicalTableInOut {
             function: plan_generate_series(),
             input_types: vec![DataType::Int64; 3],
             projected_inputs: Vec::new(),
@@ -275,7 +275,7 @@ mod tests {
             .poll_execute(
                 &mut states.partition_states[0],
                 &states.operator_state,
-                ExecuteInOutState {
+                ExecuteInOut {
                     input: Some(&mut input),
                     output: Some(&mut output),
                 },
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn inout_with_input_project() {
-        let mut wrapper = OperatorWrapper::new(PhysicalTableInOut {
+        let mut wrapper = OperatorWrapper2::new(PhysicalTableInOut {
             function: plan_generate_series(),
             input_types: vec![DataType::Int64; 3],
             projected_inputs: vec![
@@ -326,7 +326,7 @@ mod tests {
             .poll_execute(
                 &mut states.partition_states[0],
                 &states.operator_state,
-                ExecuteInOutState {
+                ExecuteInOut {
                     input: Some(&mut input),
                     output: Some(&mut output),
                 },
@@ -346,7 +346,7 @@ mod tests {
             .poll_execute(
                 &mut states.partition_states[0],
                 &states.operator_state,
-                ExecuteInOutState {
+                ExecuteInOut {
                     input: Some(&mut input),
                     output: Some(&mut output),
                 },

@@ -9,7 +9,7 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::{
     ExecutableOperator,
-    ExecuteInOutState,
+    ExecuteInOut,
     OperatorState,
     PartitionState,
     PollExecute,
@@ -122,7 +122,7 @@ impl<S: SinkOperation> ExecutableOperator for PhysicalSink<S> {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        inout: ExecuteInOut,
     ) -> Result<PollExecute> {
         let state = match partition_state {
             PartitionState::Sink(state) => state,
@@ -235,11 +235,11 @@ mod tests {
     use crate::arrays::datatype::DataType;
     use crate::testutil::arrays::assert_batches_eq;
     use crate::testutil::database_context::test_database_context;
-    use crate::testutil::operator::{CollectingSinkOperation, OperatorWrapper};
+    use crate::testutil::operator::{CollectingSinkOperation, OperatorWrapper2};
 
     #[test]
     fn sink_single_partition() {
-        let mut wrapper = OperatorWrapper::new(PhysicalSink {
+        let mut wrapper = OperatorWrapper2::new(PhysicalSink {
             sink: CollectingSinkOperation,
         });
         let mut states = wrapper
@@ -253,7 +253,7 @@ mod tests {
                 .poll_execute(
                     &mut states.partition_states[0],
                     &states.operator_state,
-                    ExecuteInOutState {
+                    ExecuteInOut {
                         input: Some(&mut Batch::empty_with_num_rows(row_count)),
                         output: None,
                     },
@@ -273,7 +273,7 @@ mod tests {
             .poll_execute(
                 &mut states.partition_states[0],
                 &states.operator_state,
-                ExecuteInOutState {
+                ExecuteInOut {
                     input: None,
                     output: Some(&mut output),
                 },
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn sink_multiple_partitions() {
-        let mut wrapper = OperatorWrapper::new(PhysicalSink {
+        let mut wrapper = OperatorWrapper2::new(PhysicalSink {
             sink: CollectingSinkOperation,
         });
         let mut states = wrapper
@@ -303,7 +303,7 @@ mod tests {
                 .poll_execute(
                     &mut states.partition_states[part],
                     &states.operator_state,
-                    ExecuteInOutState {
+                    ExecuteInOut {
                         input: Some(&mut Batch::empty_with_num_rows(row_count)),
                         output: None,
                     },
@@ -333,7 +333,7 @@ mod tests {
             .poll_execute(
                 &mut states.partition_states[3],
                 &states.operator_state,
-                ExecuteInOutState {
+                ExecuteInOut {
                     input: None,
                     output: Some(&mut output),
                 },

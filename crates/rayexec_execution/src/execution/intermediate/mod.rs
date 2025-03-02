@@ -9,4 +9,4 @@
 //! parallelism until we actually want to execute the pipelines.
 
 pub mod pipeline;
-pub mod planner;
+// pub mod planner;

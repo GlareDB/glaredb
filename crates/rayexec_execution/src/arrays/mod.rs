@@ -2,6 +2,7 @@ pub mod array;
 pub mod batch;
 pub mod bitmap;
 pub mod cache;
+pub mod collection;
 pub mod columnar_collection;
 pub mod compute;
 pub mod datatype;

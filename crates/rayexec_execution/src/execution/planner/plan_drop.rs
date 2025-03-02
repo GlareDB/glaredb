@@ -1,14 +1,13 @@
-
 use rayexec_error::{RayexecError, Result};
 
-use super::{IntermediatePipelineBuildState, PipelineIdGen};
+use super::OperatorPlanState;
 use crate::execution::operators::drop::PhysicalDrop;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_drop::LogicalDrop;
 use crate::logical::operator::Node;
 
-impl IntermediatePipelineBuildState<'_> {
-    pub fn plan_drop(&mut self, id_gen: &mut PipelineIdGen, drop: Node<LogicalDrop>) -> Result<()> {
+impl OperatorPlanState<'_> {
+    pub fn plan_drop(&mut self, drop: Node<LogicalDrop>) -> Result<()> {
         let location = drop.location;
 
         if self.in_progress.is_some() {

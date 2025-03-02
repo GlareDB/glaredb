@@ -145,7 +145,7 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        inout: super::ExecuteInOutState,
+        inout: super::ExecuteInOut,
     ) -> Result<PollExecute> {
         let state = match partition_state {
             PartitionState::UngroupedAggregate(state) => state,
@@ -289,7 +289,7 @@ mod tests {
     use crate::functions::aggregate::builtin::minmax::FUNCTION_SET_MIN;
     use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
-    use crate::testutil::operator::OperatorWrapper;
+    use crate::testutil::operator::OperatorWrapper2;
 
     #[test]
     fn single_aggregate_single_partition() {
@@ -302,7 +302,7 @@ mod tests {
         .unwrap();
         let agg = PhysicalAggregateExpression::new(sum_agg, [(0, DataType::Int64)]);
 
-        let mut operator = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
+        let mut operator = OperatorWrapper2::new(PhysicalUngroupedAggregate::new(vec![agg]));
 
         let mut states = operator.create_unary_states(1024, 1);
 
@@ -333,7 +333,7 @@ mod tests {
         .unwrap();
         let agg = PhysicalAggregateExpression::new(sum_agg, [(0, DataType::Int64)]);
 
-        let mut operator = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
+        let mut operator = OperatorWrapper2::new(PhysicalUngroupedAggregate::new(vec![agg]));
 
         let mut states = operator.create_unary_states(1024, 2);
 
@@ -384,7 +384,7 @@ mod tests {
             PhysicalAggregateExpression::new(min_agg, [(0, DataType::Int64)]),
         ];
 
-        let mut operator = OperatorWrapper::new(PhysicalUngroupedAggregate::new(aggs));
+        let mut operator = OperatorWrapper2::new(PhysicalUngroupedAggregate::new(aggs));
 
         let mut states = operator.create_unary_states(1024, 1);
 

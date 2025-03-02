@@ -5,12 +5,11 @@ use rayexec_error::{RayexecError, Result};
 use uuid::Uuid;
 
 use crate::arrays::field::{Field, Schema};
-use crate::config::execution::IntermediatePlanConfig;
+use crate::config::execution::OperatorPlanConfig;
 use crate::config::session::SessionConfig;
 use crate::database::catalog::CatalogTx;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
-use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
 use crate::hybrid::buffer::ServerStreamBuffers;
 use crate::hybrid::client::HybridPlanResponse;
 use crate::logical::binder::bind_statement::StatementBinder;
@@ -125,10 +124,10 @@ where
                 }),
         );
 
-        let query_id = Uuid::new_v4();
-        let planner = IntermediatePipelinePlanner::new(IntermediatePlanConfig::default(), query_id);
+        // let query_id = Uuid::new_v4();
+        // let planner = IntermediatePipelinePlanner::new(IntermediatePlanConfig::default(), query_id);
 
-        let pipelines = planner.plan_pipelines(logical, bind_context)?;
+        // let pipelines = planner.plan_pipelines(logical, bind_context)?;
 
         // if !pipelines.materializations.is_empty() {
         //     not_implemented!("materializations with hybrid exec")

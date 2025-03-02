@@ -1,13 +1,12 @@
 use rayexec_error::{not_implemented, Result};
 
-use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use super::{Materializations, OperatorPlanState};
 use crate::logical::logical_setop::{LogicalSetop, SetOpKind};
 use crate::logical::operator::Node;
 
-impl IntermediatePipelineBuildState<'_> {
+impl OperatorPlanState<'_> {
     pub fn plan_set_operation(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         mut setop: Node<LogicalSetop>,
     ) -> Result<()> {
@@ -18,12 +17,11 @@ impl IntermediatePipelineBuildState<'_> {
         let bottom = right;
 
         // Continue building left/top.
-        self.walk(materializations, id_gen, top)?;
+        self.walk(materializations, top)?;
 
         // Create new pipelines for bottom.
-        let mut bottom_builder =
-            IntermediatePipelineBuildState::new(self.config, self.bind_context);
-        bottom_builder.walk(materializations, id_gen, bottom)?;
+        let mut bottom_builder = OperatorPlanState::new(self.config, self.bind_context);
+        bottom_builder.walk(materializations, bottom)?;
         unimplemented!();
         // self.local_group
         //     .merge_from_other(&mut bottom_builder.local_group);

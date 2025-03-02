@@ -1,13 +1,13 @@
 use rayexec_error::{RayexecError, Result};
 
-use super::{IntermediatePipelineBuildState, PipelineIdGen};
+use super::OperatorPlanState;
 use crate::logical::logical_scan::LogicalScan;
 use crate::logical::operator::Node;
 use crate::storage::table_storage::Projections;
 
-impl IntermediatePipelineBuildState<'_> {
+impl OperatorPlanState<'_> {
     #[allow(deprecated)]
-    pub fn plan_scan(&mut self, id_gen: &mut PipelineIdGen, scan: Node<LogicalScan>) -> Result<()> {
+    pub fn plan_scan(&mut self, scan: Node<LogicalScan>) -> Result<()> {
         let location = scan.location;
 
         if self.in_progress.is_some() {

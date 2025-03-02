@@ -4,22 +4,18 @@ use std::task::{Context, Poll};
 use rayexec_error::Result;
 use tracing::trace;
 
-use super::stack::{ExecutionStack, StackEffectHandler};
 use crate::arrays::batch::Batch;
-use crate::execution::executable::stack::StackControlFlow;
+use crate::execution::execution_stack::{Effects, ExecutionStack, StackControlFlow};
 use crate::execution::intermediate::pipeline::IntermediatePipelineId;
 use crate::execution::operators::{
     ExecutableOperator,
-    ExecuteInOutState,
+    ExecuteInOut,
     OperatorState,
     PartitionState,
     PhysicalOperator,
     PollExecute,
     PollFinalize,
-    RawOperatorVTable,
 };
-use crate::ptr::raw_clone_ptr::RawClonePtr;
-use crate::ptr::raw_ptr::RawPtr;
 use crate::runtime::time::RuntimeInstant;
 
 /// Information about a partition pipeline.
@@ -126,16 +122,16 @@ struct OperatorStackEffects<'a, 'b> {
     operators: &'a mut [OperatorWithState],
 }
 
-impl<'a, 'b> StackEffectHandler for OperatorStackEffects<'a, 'b> {
+impl<'a, 'b> Effects for OperatorStackEffects<'a, 'b> {
     fn handle_execute(&mut self, op_idx: usize) -> Result<PollExecute> {
         let (operator, child) = get_operator_and_child_mut(op_idx, self.operators);
 
         let inout = match child {
-            Some(child) => ExecuteInOutState {
+            Some(child) => ExecuteInOut {
                 input: child.output_buffer.as_mut(),
                 output: operator.output_buffer.as_mut(),
             },
-            None => ExecuteInOutState {
+            None => ExecuteInOut {
                 input: None,
                 output: operator.output_buffer.as_mut(),
             },

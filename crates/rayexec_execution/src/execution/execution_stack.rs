@@ -49,12 +49,14 @@ pub struct ExecutionStack {
 }
 
 impl ExecutionStack {
-    pub fn try_new(num_operators: usize) -> Result<Self> {
-        if num_operators == 0 {
-            return Err(RayexecError::new(
-                "Cannot create execution stack for zero operators",
-            ));
-        }
+    /// Create a new stack for the given number of operators.
+    ///
+    /// The number of operators should include all operators in the pipeline,
+    /// including the source, sink, and all intermediate operators.
+    ///
+    /// Panics if number of operators is zero.
+    pub fn new(num_operators: usize) -> Self {
+        assert_ne!(0, num_operators);
 
         // Initialize stack with single instruction to execute the first operator.
         let mut instructions = Vec::with_capacity(num_operators);
@@ -63,10 +65,10 @@ impl ExecutionStack {
             is_pipeline_start: true,
         });
 
-        Ok(ExecutionStack {
+        ExecutionStack {
             num_operators,
             instructions,
-        })
+        }
     }
 
     /// Pops the next instruction in the stack, calling the appropriate method
@@ -164,6 +166,13 @@ impl ExecutionStack {
                 }
             }
             Instruction::FinalizeOperator { operator_idx } => {
+                // Finalizing an operator only applies to "finishing pushing" on
+                // either the push side or execute side of the operator.
+                //
+                // Operators at index 0 are source operators, so attempting to
+                // finalize them doesn't make sense.
+                assert_ne!(0, operator_idx, "attempted to finalize operator at index 0");
+
                 let poll = effects.handle_finalize(operator_idx)?;
                 match poll {
                     PollFinalize::Finalized => {
@@ -253,7 +262,7 @@ mod tests {
 
     #[test]
     fn stack_execution_resets() {
-        let mut stack = ExecutionStack::try_new(3).unwrap();
+        let mut stack = ExecutionStack::new(3);
 
         let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Ready));
         assert_eq!(out, StackControlFlow::Continue);
@@ -274,7 +283,7 @@ mod tests {
 
     #[test]
     fn stack_execution_pending() {
-        let mut stack = ExecutionStack::try_new(2).unwrap();
+        let mut stack = ExecutionStack::new(2);
 
         let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Ready));
         assert_eq!(out, StackControlFlow::Continue);
@@ -289,7 +298,7 @@ mod tests {
 
     #[test]
     fn stack_execution_needs_more() {
-        let mut stack = ExecutionStack::try_new(2).unwrap();
+        let mut stack = ExecutionStack::new(2);
 
         let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Ready));
         assert_eq!(out, StackControlFlow::Continue);
@@ -307,7 +316,7 @@ mod tests {
 
     #[test]
     fn stack_execution_has_more() {
-        let mut stack = ExecutionStack::try_new(3).unwrap();
+        let mut stack = ExecutionStack::new(3);
 
         let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Ready));
         assert_eq!(out, StackControlFlow::Continue);
@@ -334,7 +343,7 @@ mod tests {
 
     #[test]
     fn stack_execution_has_more_then_needs_more() {
-        let mut stack = ExecutionStack::try_new(3).unwrap();
+        let mut stack = ExecutionStack::new(3);
 
         let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Ready));
         assert_eq!(out, StackControlFlow::Continue);
@@ -358,7 +367,7 @@ mod tests {
 
     #[test]
     fn stack_execution_exhaust_first_finalize_last() {
-        let mut stack = ExecutionStack::try_new(2).unwrap();
+        let mut stack = ExecutionStack::new(2);
 
         let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Ready));
         assert_eq!(out, StackControlFlow::Continue);
@@ -383,7 +392,7 @@ mod tests {
 
     #[test]
     fn stack_execution_exhaust_first_finalize_second_then_last() {
-        let mut stack = ExecutionStack::try_new(3).unwrap();
+        let mut stack = ExecutionStack::new(3);
 
         let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Ready));
         assert_eq!(out, StackControlFlow::Continue);
@@ -420,7 +429,7 @@ mod tests {
 
     #[test]
     fn stack_execution_exhaust_first_needs_drain_second() {
-        let mut stack = ExecutionStack::try_new(3).unwrap();
+        let mut stack = ExecutionStack::new(3);
 
         let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Ready));
         assert_eq!(out, StackControlFlow::Continue);
@@ -477,7 +486,7 @@ mod tests {
         // Test that we can handle `poll_execute` returning `HasMore` from
         // multiple operators (e.g. nested joins).
 
-        let mut stack = ExecutionStack::try_new(4).unwrap();
+        let mut stack = ExecutionStack::new(4);
 
         let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Ready));
         assert_eq!(out, StackControlFlow::Continue);
@@ -515,7 +524,7 @@ mod tests {
 
     #[test]
     fn stack_execution_propagate_finalize_through_many() {
-        let mut stack = ExecutionStack::try_new(4).unwrap();
+        let mut stack = ExecutionStack::new(4);
 
         let out = pop_next(&mut stack, TestEffects::execute(0, PollExecute::Exhausted));
         assert_eq!(out, StackControlFlow::Continue);

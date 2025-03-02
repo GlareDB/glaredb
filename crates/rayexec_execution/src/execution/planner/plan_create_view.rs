@@ -1,19 +1,14 @@
-
 use rayexec_error::{RayexecError, Result};
 
-use super::{IntermediatePipelineBuildState, PipelineIdGen};
+use super::OperatorPlanState;
 use crate::database::create::CreateViewInfo;
 use crate::execution::operators::create_view::PhysicalCreateView;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_create::LogicalCreateView;
 use crate::logical::operator::Node;
 
-impl IntermediatePipelineBuildState<'_> {
-    pub fn plan_create_view(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        create: Node<LogicalCreateView>,
-    ) -> Result<()> {
+impl OperatorPlanState<'_> {
+    pub fn plan_create_view(&mut self, create: Node<LogicalCreateView>) -> Result<()> {
         if self.in_progress.is_some() {
             return Err(RayexecError::new("Expected in progress to be None"));
         }

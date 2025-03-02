@@ -13,7 +13,7 @@ use crate::execution::operators::materialize::column_collection::ColumnCollectio
 use crate::execution::operators::{
     BinaryInputStates,
     ExecutableOperator,
-    ExecuteInOutState,
+    ExecuteInOut,
     OperatorState,
     PartitionState,
     PollExecute,
@@ -145,7 +145,7 @@ impl ExecutableOperator for PhysicalNestedLoopJoin {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        inout: ExecuteInOut,
     ) -> Result<PollExecute> {
         match partition_state {
             PartitionState::NestedLoopJoinBuild(_state) => match operator_state {
@@ -341,11 +341,11 @@ mod tests {
     use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
     use crate::testutil::exprs::plan_scalar;
-    use crate::testutil::operator::OperatorWrapper;
+    use crate::testutil::operator::OperatorWrapper2;
 
     #[test]
     fn cross_join_single_build_batch_single_partition() {
-        let mut operator = OperatorWrapper::new(PhysicalNestedLoopJoin::new(
+        let mut operator = OperatorWrapper2::new(PhysicalNestedLoopJoin::new(
             JoinType::Inner,
             [DataType::Utf8],
             [DataType::Int32],
@@ -403,7 +403,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let mut operator = OperatorWrapper::new(PhysicalNestedLoopJoin::new(
+        let mut operator = OperatorWrapper2::new(PhysicalNestedLoopJoin::new(
             JoinType::Inner,
             [DataType::Int32, DataType::Utf8],
             [DataType::Utf8],

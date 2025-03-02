@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 
 use super::sort_layout::SortLayout;
-use super::sorted_run::SortedRun;
+use super::sorted_segment::SortedSegment;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::row_layout::RowLayout;
 use crate::buffer::buffer_manager::BufferManager;
@@ -33,7 +33,7 @@ struct ScanState {
 }
 
 impl ScanState {
-    fn reset_for_run(&mut self, key_layout: &SortLayout, run: &SortedRun) {
+    fn reset_for_run(&mut self, key_layout: &SortLayout, run: &SortedSegment) {
         self.block_idx = 0;
         self.row_idx = 0;
         self.remaining = run
@@ -88,9 +88,9 @@ where
     pub fn merge(
         &self,
         state: &mut BinaryMergeState,
-        mut left: SortedRun,
-        right: SortedRun,
-    ) -> Result<SortedRun> {
+        mut left: SortedSegment,
+        right: SortedSegment,
+    ) -> Result<SortedSegment> {
         state.left_scan.reset_for_run(self.key_layout, &left);
         state.right_scan.reset_for_run(self.key_layout, &right);
 
@@ -170,7 +170,7 @@ where
         left.heap_keys_heap.extend(right.heap_keys_heap);
         left.data_heap.extend(right.data_heap);
 
-        Ok(SortedRun {
+        Ok(SortedSegment {
             keys: merged_keys,
             heap_keys: merged_heap_keys,
             data: merged_data,
@@ -186,8 +186,8 @@ where
     /// right were exhausted.
     fn find_merge_side(
         &self,
-        left: &SortedRun,
-        right: &SortedRun,
+        left: &SortedSegment,
+        right: &SortedSegment,
         mut left_scan: ScanState,
         mut right_scan: ScanState,
         scan_sides: &mut [ScanSide],
@@ -281,14 +281,14 @@ where
 
     fn merge_keys(
         &self,
-        left: &SortedRun,
-        right: &SortedRun,
+        left: &SortedSegment,
+        right: &SortedSegment,
         left_scan: ScanState,
         right_scan: ScanState,
         scan_count: usize,
         scan_sides: &[ScanSide],
     ) -> Result<(Block, ScanState, ScanState)> {
-        fn block_fn(sorted_run: &SortedRun, block_idx: usize) -> &Block {
+        fn block_fn(sorted_run: &SortedSegment, block_idx: usize) -> &Block {
             &sorted_run.keys[block_idx]
         }
 
@@ -307,14 +307,14 @@ where
 
     fn merge_heap_keys(
         &self,
-        left: &SortedRun,
-        right: &SortedRun,
+        left: &SortedSegment,
+        right: &SortedSegment,
         left_scan: ScanState,
         right_scan: ScanState,
         scan_count: usize,
         scan_sides: &[ScanSide],
     ) -> Result<(Block, ScanState, ScanState)> {
-        fn block_fn(sorted_run: &SortedRun, block_idx: usize) -> &Block {
+        fn block_fn(sorted_run: &SortedSegment, block_idx: usize) -> &Block {
             &sorted_run.heap_keys[block_idx]
         }
 
@@ -333,14 +333,14 @@ where
 
     fn merge_data(
         &self,
-        left: &SortedRun,
-        right: &SortedRun,
+        left: &SortedSegment,
+        right: &SortedSegment,
         left_scan: ScanState,
         right_scan: ScanState,
         scan_count: usize,
         scan_sides: &[ScanSide],
     ) -> Result<(Block, ScanState, ScanState)> {
-        fn block_fn(sorted_run: &SortedRun, block_idx: usize) -> &Block {
+        fn block_fn(sorted_run: &SortedSegment, block_idx: usize) -> &Block {
             &sorted_run.data[block_idx]
         }
 
@@ -365,9 +365,9 @@ where
     fn merge_fixed_size_blocks(
         manager: &B,
         row_width: usize,
-        left: &SortedRun,
-        right: &SortedRun,
-        block_fn: impl Fn(&SortedRun, usize) -> &Block,
+        left: &SortedSegment,
+        right: &SortedSegment,
+        block_fn: impl Fn(&SortedSegment, usize) -> &Block,
         mut left_scan: ScanState,
         mut right_scan: ScanState,
         scan_count: usize,
@@ -463,9 +463,9 @@ where
 
     fn bulk_copy(
         row_width: usize,
-        src: &SortedRun,
+        src: &SortedSegment,
         mut src_scan: ScanState,
-        block_fn: impl Fn(&SortedRun, usize) -> &Block,
+        block_fn: impl Fn(&SortedSegment, usize) -> &Block,
         out: &mut Block,
         curr_count: usize,
         mut rem_rows: usize,
@@ -526,8 +526,8 @@ mod tests {
         let left_block = TestSortedRowBlock::from_batch(&left, left_keys);
         let right_block = TestSortedRowBlock::from_batch(&right, right_keys);
 
-        let left_run = SortedRun::from_sorted_block(left_block.sorted_block);
-        let right_run = SortedRun::from_sorted_block(right_block.sorted_block);
+        let left_run = SortedSegment::from_sorted_block(left_block.sorted_block);
+        let right_run = SortedSegment::from_sorted_block(right_block.sorted_block);
 
         let merger = BinaryMerger::new(
             &NopBufferManager,

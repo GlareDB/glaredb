@@ -1,18 +1,13 @@
-
 use rayexec_error::{RayexecError, Result};
 
-use super::{IntermediatePipelineBuildState, PipelineIdGen};
+use super::OperatorPlanState;
 use crate::execution::operators::empty::PhysicalEmpty;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_empty::LogicalEmpty;
 use crate::logical::operator::Node;
 
-impl IntermediatePipelineBuildState<'_> {
-    pub fn plan_empty(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        empty: Node<LogicalEmpty>,
-    ) -> Result<()> {
+impl OperatorPlanState<'_> {
+    pub fn plan_empty(&mut self, empty: Node<LogicalEmpty>) -> Result<()> {
         // "Empty" is a source of data by virtue of emitting a batch consisting
         // of no columns and 1 row.
         //

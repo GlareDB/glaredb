@@ -2,22 +2,21 @@ use std::collections::BTreeSet;
 
 use rayexec_error::Result;
 
-use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use super::{Materializations, OperatorPlanState};
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_distinct::LogicalDistinct;
 use crate::logical::operator::{LogicalNode, Node};
 
-impl IntermediatePipelineBuildState<'_> {
+impl OperatorPlanState<'_> {
     pub fn plan_distinct(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         mut distinct: Node<LogicalDistinct>,
     ) -> Result<()> {
         let input = distinct.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs(self.bind_context);
-        self.walk(materializations, id_gen, input)?;
+        self.walk(materializations, input)?;
 
         // Create group expressions from the distinct.
         let group_types = distinct
@@ -33,7 +32,6 @@ impl IntermediatePipelineBuildState<'_> {
         self.push_intermediate_operator(
             PhysicalOperator::Project(PhysicalProject::new(group_exprs)),
             distinct.location,
-            id_gen,
         )?;
 
         let grouping_sets: Vec<BTreeSet<usize>> = vec![(0..group_types.len()).collect()];

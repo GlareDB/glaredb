@@ -15,6 +15,7 @@ pub mod join;
 pub mod limit;
 pub mod materialize;
 pub mod project;
+pub mod results;
 pub mod sink;
 pub mod sort;
 pub mod source;
@@ -47,7 +48,7 @@ use join::nested_loop_join::{
 };
 use limit::PhysicalLimit;
 use project::{PhysicalProject, ProjectPartitionState};
-use rayexec_error::{not_implemented, OptionExt, Result};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use sink::operation::SinkOperation;
 use sink::{PhysicalSink, SinkOperatorState, SinkPartitionState};
 use sort::{SortOperatorState, SortPartitionState};
@@ -71,6 +72,7 @@ use window::PhysicalWindow;
 use self::hash_aggregate::{HashAggregateOperatorState, HashAggregatePartitionState};
 use self::limit::LimitPartitionState;
 use self::values::ValuesPartitionState;
+use super::pipeline::{ExecutablePipeline, ExecutablePipelineGraph};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
@@ -78,6 +80,7 @@ use crate::engine::result::ResultSink;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 use crate::ptr::raw_clone_ptr::RawClonePtr;
+use crate::ptr::raw_ptr::RawPtr;
 
 // TODO: Remove in favor of passing in batch size when creating states.
 pub const DEFAULT_TARGET_BATCH_SIZE: usize = 4096;
@@ -159,6 +162,44 @@ pub enum PollExecute {
     Exhausted,
 }
 
+/// Output of a pull operator.
+///
+/// Subset of `PollExecute`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollPull {
+    Pending,
+    HasMore,
+    Exhausted,
+}
+
+impl PollPull {
+    pub const fn as_poll_execute(self) -> PollExecute {
+        match self {
+            Self::Pending => PollExecute::Pending,
+            Self::HasMore => PollExecute::HasMore,
+            Self::Exhausted => PollExecute::Exhausted,
+        }
+    }
+}
+
+/// Output of a push operator.
+///
+/// Subset of `PollExecute`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollPush {
+    Pending,
+    NeedsMore,
+}
+
+impl PollPush {
+    pub const fn as_poll_execute(self) -> PollExecute {
+        match self {
+            Self::Pending => PollExecute::Pending,
+            Self::NeedsMore => PollExecute::NeedsMore,
+        }
+    }
+}
+
 /// Poll result for operator finalization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PollFinalize {
@@ -176,7 +217,7 @@ pub enum PollFinalize {
 }
 
 #[derive(Debug)]
-pub struct ExecuteInOutState<'a> {
+pub struct ExecuteInOut<'a> {
     /// Input batch being pushed to the operator.
     ///
     /// May be None for operators that are only producing output.
@@ -270,7 +311,7 @@ pub trait ExecutableOperator: Sync + Send + Debug + Explainable {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        inout: ExecuteInOut,
     ) -> Result<PollExecute> {
         unimplemented!()
     }
@@ -298,11 +339,22 @@ pub struct ExecutionProperties {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperatorType {
     Execute,
+    Pull,
+    Push,
     PushExecute,
 }
 
-pub trait ExecuteOperator: Sync + Send + Debug + Explainable {
-    type PartitionExecuteState: Sync + Send;
+impl OperatorType {
+    pub const fn children_requirement(&self) -> usize {
+        match self {
+            Self::Execute | Self::Push => 1,
+            Self::Pull => 0,
+            Self::PushExecute => 2,
+        }
+    }
+}
+
+pub trait BaseOperator: Sync + Send + Debug + Explainable {
     type OperatorState: Sync + Send;
 
     fn create_operator_state(
@@ -311,77 +363,164 @@ pub trait ExecuteOperator: Sync + Send + Debug + Explainable {
         props: ExecutionProperties,
     ) -> Result<Self::OperatorState>;
 
-    fn create_partition_state(
+    fn output_types(&self) -> &[DataType];
+
+    fn build_pipeline(
+        operator: PlannedOperatorWithChildren,
+        db_context: &DatabaseContext,
+        props: ExecutionProperties,
+        graph: &mut ExecutablePipelineGraph,
+        current: &mut ExecutablePipeline,
+    ) -> Result<()> {
+        let children = &operator.children;
+        if children.len() != operator.as_ref().operator_type.children_requirement() {
+            return Err(RayexecError::new("Unexpected number of children"));
+        }
+
+        match operator.as_ref().operator_type {
+            OperatorType::Execute | OperatorType::Push => {
+                // Plan child operator.
+                children[0]
+                    .as_ref()
+                    .call_build_pipeline(db_context, props, graph, current)?;
+
+                // Push self onto pipeline.
+                let state = operator
+                    .as_ref()
+                    .call_create_operator_state(db_context, props)?;
+                current.push_operator_and_state(operator.operator, state);
+
+                Ok(())
+            }
+            OperatorType::Pull => {
+                // No children, just push self.
+                let state = operator
+                    .as_ref()
+                    .call_create_operator_state(db_context, props)?;
+                current.push_operator_and_state(operator.operator, state);
+
+                Ok(())
+            }
+            OperatorType::PushExecute => {
+                // Create new pipeline for left/push child.
+                let mut left_pipeline = ExecutablePipeline::new();
+                children[0].as_ref().call_build_pipeline(
+                    db_context,
+                    props,
+                    graph,
+                    &mut left_pipeline,
+                )?;
+
+                // Now build up the right/execute child using the current
+                // pipeline.
+                children[0]
+                    .as_ref()
+                    .call_build_pipeline(db_context, props, graph, current)?;
+
+                // Push operator and state to both pipelines.
+                let state = operator
+                    .as_ref()
+                    .call_create_operator_state(db_context, props)?;
+                left_pipeline.push_operator_and_state(operator.as_ref().clone(), state.clone());
+                current.push_operator_and_state(operator.as_ref().clone(), state.clone());
+
+                // Left pipeline finished, push to query graph.
+                graph.push_pipeline(left_pipeline);
+
+                Ok(())
+            }
+        }
+    }
+}
+
+pub trait ExecuteOperator: BaseOperator {
+    type PartitionExecuteState: Sync + Send;
+
+    fn create_partition_execute_states(
         &self,
         operator_state: &Self::OperatorState,
-    ) -> Result<Self::PartitionExecuteState>;
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<Self::PartitionExecuteState>>;
 
     fn poll_execute(
         &self,
         cx: &mut Context,
-        partition_state: &mut Self::PartitionExecuteState,
+        state: &mut Self::PartitionExecuteState,
         operator_state: &Self::OperatorState,
-        inout: ExecuteInOutState,
+        input: &mut Batch,
+        output: &mut Batch,
     ) -> Result<PollExecute>;
 
     fn poll_finalize_execute(
         &self,
         cx: &mut Context,
-        partition_state: &mut Self::PartitionExecuteState,
+        state: &mut Self::PartitionExecuteState,
         operator_state: &Self::OperatorState,
     ) -> Result<PollFinalize>;
 }
 
-pub trait PushExecuteOperator: Sync + Send + Debug + Explainable {
-    type PartitionPushState: Sync + Send;
-    type PartitionExecuteState: Sync + Send;
-    type OperatorState: Sync + Send;
+pub trait PullOperator: BaseOperator {
+    type PartitionPullState: Sync + Send;
 
-    fn create_operator_state(
+    fn create_partition_pull_states(
         &self,
-        context: &DatabaseContext,
+        operator_state: &Self::OperatorState,
         props: ExecutionProperties,
-    ) -> Result<Self::OperatorState>;
+        partitions: usize,
+    ) -> Result<Vec<Self::PartitionPullState>>;
 
-    fn create_partition_execute_state(
+    fn poll_pull(
+        &self,
+        cx: &mut Context,
+        state: &mut Self::PartitionPullState,
+        operator_state: &Self::OperatorState,
+        output: &mut Batch,
+    ) -> Result<PollPull>;
+}
+
+pub trait PushOperator: BaseOperator {
+    type PartitionPushState: Sync + Send;
+
+    fn create_partition_push_states(
         &self,
         operator_state: &Self::OperatorState,
-    ) -> Result<Self::PartitionExecuteState>;
-
-    fn create_partition_push_state(
-        &self,
-        operator_state: &Self::OperatorState,
-    ) -> Result<Self::PartitionPushState>;
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<Self::PartitionPushState>>;
 
     fn poll_push(
         &self,
         cx: &mut Context,
-        partition_state: &mut Self::PartitionPushState,
+        state: &mut Self::PartitionPushState,
         operator_state: &Self::OperatorState,
         input: &mut Batch,
-    ) -> Result<PollExecute>;
+    ) -> Result<PollPush>;
 
     fn poll_finalize_push(
         &self,
         cx: &mut Context,
-        partition_state: &mut Self::PartitionPushState,
+        state: &mut Self::PartitionPushState,
         operator_state: &Self::OperatorState,
     ) -> Result<PollFinalize>;
+}
 
-    fn poll_execute(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut Self::PartitionExecuteState,
-        operator_state: &Self::OperatorState,
-        inout: ExecuteInOutState,
-    ) -> Result<PollExecute>;
+#[derive(Debug, Clone)]
+pub struct RawOperatorState(RawClonePtr);
 
-    fn poll_finalize_execute(
-        &self,
-        cx: &mut Context,
-        partition_state: &mut Self::PartitionExecuteState,
-        operator_state: &Self::OperatorState,
-    ) -> Result<PollFinalize>;
+#[derive(Debug)]
+pub struct RawPartitionState(RawPtr);
+
+#[derive(Debug, Clone)]
+pub struct PlannedOperatorWithChildren {
+    pub operator: PlannedOperator,
+    pub children: Vec<PlannedOperatorWithChildren>,
+}
+
+impl AsRef<PlannedOperator> for PlannedOperatorWithChildren {
+    fn as_ref(&self) -> &PlannedOperator {
+        &self.operator
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -394,6 +533,131 @@ pub struct PlannedOperator {
 }
 
 impl PlannedOperator {
+    pub fn new_execute<O>(op: O) -> Self
+    where
+        O: ExecuteOperator,
+    {
+        unimplemented!()
+    }
+
+    pub fn new_push<O>(op: O) -> Self
+    where
+        O: PushOperator,
+    {
+        unimplemented!()
+    }
+
+    pub fn new_push_execute<O>(op: O) -> Self
+    where
+        O: PushOperator + ExecuteOperator,
+    {
+        unimplemented!()
+    }
+
+    pub fn new_pull<O>(op: O) -> Self
+    where
+        O: PullOperator,
+    {
+        unimplemented!()
+    }
+
+    pub fn call_create_operator_state(
+        &self,
+        context: &DatabaseContext,
+        props: ExecutionProperties,
+    ) -> Result<RawOperatorState> {
+        unimplemented!()
+    }
+
+    pub fn call_output_types(&self) -> &[DataType] {
+        unimplemented!()
+    }
+
+    pub fn call_create_partition_execute_states(
+        &self,
+        op_state: &RawOperatorState,
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<RawPartitionState>> {
+        unimplemented!()
+    }
+
+    pub fn call_create_partition_push_states(
+        &self,
+        op_state: &RawOperatorState,
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<RawPartitionState>> {
+        unimplemented!()
+    }
+
+    pub fn call_create_partition_pull_states(
+        &self,
+        op_state: &RawOperatorState,
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<RawPartitionState>> {
+        unimplemented!()
+    }
+
+    pub fn call_poll_pull(
+        &self,
+        cx: &mut Context,
+        op_state: &RawOperatorState,
+        partition_state: &mut RawPartitionState,
+        output: &mut Batch,
+    ) -> Result<PollPull> {
+        unimplemented!()
+    }
+
+    pub fn call_poll_push(
+        &self,
+        cx: &mut Context,
+        op_state: &RawOperatorState,
+        partition_state: &mut RawPartitionState,
+        input: &mut Batch,
+    ) -> Result<PollPush> {
+        unimplemented!()
+    }
+
+    pub fn call_poll_execute(
+        &self,
+        cx: &mut Context,
+        op_state: &RawOperatorState,
+        partition_state: &mut RawPartitionState,
+        inout: ExecuteInOut,
+    ) -> Result<PollExecute> {
+        unimplemented!()
+    }
+
+    pub fn call_poll_finalize_push(
+        &self,
+        cx: &mut Context,
+        op_state: &RawOperatorState,
+        partition_state: &mut RawPartitionState,
+    ) -> Result<PollFinalize> {
+        unimplemented!()
+    }
+
+    pub fn call_poll_finalize_execute(
+        &self,
+        cx: &mut Context,
+        op_state: &RawOperatorState,
+        partition_state: &mut RawPartitionState,
+    ) -> Result<PollFinalize> {
+        unimplemented!()
+    }
+
+    pub fn call_build_pipeline(
+        &self,
+        db_context: &DatabaseContext,
+        props: ExecutionProperties,
+        graph: &mut ExecutablePipelineGraph,
+        current: &mut ExecutablePipeline,
+    ) -> Result<()> {
+        unimplemented!()
+    }
+
     pub fn call_explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         unsafe { (self.vtable.explain_fn)(self.operator.get(), conf) }
     }
@@ -416,7 +680,7 @@ pub(crate) struct RawOperatorVTable {
         cx: &mut Context,
         partition_state: *mut (),
         operator_state: *const (),
-        inout: ExecuteInOutState,
+        inout: ExecuteInOut,
     ) -> Result<PollExecute>,
 
     explain_fn: unsafe fn(operator: *const (), conf: ExplainConfig) -> ExplainEntry,
@@ -474,34 +738,7 @@ impl ExecutableOperator for PhysicalOperator {
     type States = PartitionAndOperatorStates;
 
     fn output_types(&self) -> &[DataType] {
-        match self {
-            Self::HashAggregate(op) => op.output_types(),
-            Self::UngroupedAggregate(op) => op.output_types(),
-            Self::Window(op) => op.output_types(),
-            Self::NestedLoopJoin(op) => op.output_types(),
-            // Self::HashJoin(op) => op.output_types(),
-            Self::Values(op) => op.output_types(),
-            Self::ResultSink(op) => op.output_types(),
-            Self::DynSink(op) => op.output_types(),
-            // Self::MaterializedSink(op) => op.output_types(),
-            // Self::MaterializedSource(op) => op.output_types(),
-            // Self::MergeSorted(op) => op.output_types(),
-            // Self::LocalSort(op) => op.output_types(),
-            Self::Limit(op) => op.output_types(),
-            Self::Union(op) => op.output_types(),
-            Self::Filter(op) => op.output_types(),
-            Self::Project(op) => op.output_types(),
-            Self::Unnest(op) => op.output_types(),
-            Self::TableFunction(op) => op.output_types(),
-            Self::TableInOut(op) => op.output_types(),
-            Self::Insert(op) => op.output_types(),
-            Self::CopyTo(op) => op.output_types(),
-            Self::CreateTable(op) => op.output_types(),
-            Self::CreateSchema(op) => op.output_types(),
-            Self::CreateView(op) => op.output_types(),
-            Self::Drop(op) => op.output_types(),
-            Self::Empty(op) => op.output_types(),
-        }
+        unimplemented!()
     }
 
     fn create_states(
@@ -510,40 +747,7 @@ impl ExecutableOperator for PhysicalOperator {
         batch_size: usize,
         partitions: usize,
     ) -> Result<PartitionAndOperatorStates> {
-        let states = match self {
-            Self::HashAggregate(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::UngroupedAggregate(op) => {
-                op.create_states(context, batch_size, partitions)?.into()
-            }
-            Self::Window(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::NestedLoopJoin(op) => op.create_states(context, batch_size, partitions)?.into(),
-            // Self::HashJoin(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::Values(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::ResultSink(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::DynSink(op) => op.create_states(context, batch_size, partitions)?.into(),
-            // Self::MaterializedSink(op) => op.create_states(context, batch_size, partitions)?.into(),
-            // Self::MaterializedSource(op) => {
-            //     op.create_states(context, batch_size, partitions)?.into()
-            // }
-            // Self::MergeSorted(op) => op.create_states(context, batch_size, partitions)?.into(),
-            // Self::LocalSort(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::Limit(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::Union(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::Filter(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::Project(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::Unnest(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::TableFunction(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::TableInOut(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::Insert(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::CopyTo(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::CreateTable(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::CreateSchema(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::CreateView(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::Drop(op) => op.create_states(context, batch_size, partitions)?.into(),
-            Self::Empty(op) => op.create_states(context, batch_size, partitions)?.into(),
-        };
-
-        Ok(states)
+        unimplemented!()
     }
 
     fn poll_finalize(
@@ -552,66 +756,12 @@ impl ExecutableOperator for PhysicalOperator {
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
     ) -> Result<PollFinalize> {
-        match self {
-            Self::HashAggregate(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::UngroupedAggregate(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::Window(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::NestedLoopJoin(op) => op.poll_finalize(cx, partition_state, operator_state),
-            // Self::HashJoin(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::Values(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::ResultSink(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::DynSink(op) => op.poll_finalize(cx, partition_state, operator_state),
-            // Self::MaterializedSink(op) => op.poll_finalize(cx, partition_state, operator_state),
-            // Self::MaterializedSource(op) => op.poll_finalize(cx, partition_state, operator_state),
-            // Self::MergeSorted(op) => op.poll_finalize(cx, partition_state, operator_state),
-            // Self::LocalSort(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::Limit(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::Union(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::Filter(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::Project(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::Unnest(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::TableFunction(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::TableInOut(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::Insert(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::CopyTo(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::CreateTable(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::CreateSchema(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::CreateView(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::Drop(op) => op.poll_finalize(cx, partition_state, operator_state),
-            Self::Empty(op) => op.poll_finalize(cx, partition_state, operator_state),
-        }
+        unimplemented!()
     }
 }
 
 impl Explainable for PhysicalOperator {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        match self {
-            Self::HashAggregate(op) => op.explain_entry(conf),
-            Self::UngroupedAggregate(op) => op.explain_entry(conf),
-            Self::Window(op) => op.explain_entry(conf),
-            Self::NestedLoopJoin(op) => op.explain_entry(conf),
-            // Self::HashJoin(op) => op.explain_entry(conf),
-            Self::Values(op) => op.explain_entry(conf),
-            Self::ResultSink(op) => op.explain_entry(conf),
-            Self::DynSink(op) => op.explain_entry(conf),
-            // Self::MaterializedSink(op) => op.explain_entry(conf),
-            // Self::MaterializedSource(op) => op.explain_entry(conf),
-            // Self::MergeSorted(op) => op.explain_entry(conf),
-            // Self::LocalSort(op) => op.explain_entry(conf),
-            Self::Limit(op) => op.explain_entry(conf),
-            Self::Union(op) => op.explain_entry(conf),
-            Self::Filter(op) => op.explain_entry(conf),
-            Self::Project(op) => op.explain_entry(conf),
-            Self::Unnest(op) => op.explain_entry(conf),
-            Self::TableFunction(op) => op.explain_entry(conf),
-            Self::TableInOut(op) => op.explain_entry(conf),
-            Self::Insert(op) => op.explain_entry(conf),
-            Self::CopyTo(op) => op.explain_entry(conf),
-            Self::CreateTable(op) => op.explain_entry(conf),
-            Self::CreateSchema(op) => op.explain_entry(conf),
-            Self::CreateView(op) => op.explain_entry(conf),
-            Self::Drop(op) => op.explain_entry(conf),
-            Self::Empty(op) => op.explain_entry(conf),
-        }
+        unimplemented!()
     }
 }

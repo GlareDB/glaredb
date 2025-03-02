@@ -1,7 +1,6 @@
-
 use rayexec_error::{RayexecError, Result};
 
-use super::{IntermediatePipelineBuildState, PipelineIdGen};
+use super::OperatorPlanState;
 use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::PhysicalOperator;
 use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
@@ -9,12 +8,8 @@ use crate::expr::physical::PhysicalScalarExpression;
 use crate::logical::logical_describe::LogicalDescribe;
 use crate::logical::operator::Node;
 
-impl IntermediatePipelineBuildState<'_> {
-    pub fn plan_describe(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        describe: Node<LogicalDescribe>,
-    ) -> Result<()> {
+impl OperatorPlanState<'_> {
+    pub fn plan_describe(&mut self, describe: Node<LogicalDescribe>) -> Result<()> {
         let location = describe.location;
 
         if self.in_progress.is_some() {

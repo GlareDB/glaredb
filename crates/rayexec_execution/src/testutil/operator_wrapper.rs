@@ -10,13 +10,19 @@ use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
 use crate::datasource::DataSourceRegistry;
 use crate::execution::operators::{
+    BaseOperator,
     BinaryInputStates,
     ExecutableOperator,
-    ExecuteInOutState,
+    ExecuteInOut,
+    ExecuteOperator,
     OperatorState,
     PartitionState,
     PollExecute,
     PollFinalize,
+    PollPull,
+    PollPush,
+    PullOperator,
+    PushOperator,
     UnaryInputStates,
 };
 
@@ -42,18 +48,103 @@ impl Wake for CountingWaker {
 /// plate.
 ///
 /// All `poll_` helper method currently shared the same counting waker.
-#[derive(Debug)]
-pub struct OperatorWrapper<O: ExecutableOperator> {
+pub struct OperatorWrapper<O: BaseOperator> {
     pub waker: Arc<CountingWaker>,
     pub operator: O,
 }
 
 impl<O> OperatorWrapper<O>
 where
-    O: ExecutableOperator,
+    O: BaseOperator,
 {
     pub fn new(operator: O) -> Self {
         OperatorWrapper {
+            waker: Arc::new(CountingWaker::default()),
+            operator,
+        }
+    }
+}
+
+impl<O> OperatorWrapper<O>
+where
+    O: ExecuteOperator,
+{
+    #[track_caller]
+    pub fn poll_execute(
+        &self,
+        state: &mut O::PartitionExecuteState,
+        operator_state: &O::OperatorState,
+        input: &mut Batch,
+        output: &mut Batch,
+    ) -> Result<PollExecute> {
+        let waker = Waker::from(self.waker.clone());
+        let mut cx = Context::from_waker(&waker);
+        self.operator
+            .poll_execute(&mut cx, state, operator_state, input, output)
+    }
+
+    #[track_caller]
+    pub fn poll_finalize_execute(
+        &self,
+        state: &mut O::PartitionExecuteState,
+        operator_state: &O::OperatorState,
+    ) -> Result<PollFinalize> {
+        let waker = Waker::from(self.waker.clone());
+        let mut cx = Context::from_waker(&waker);
+        self.operator
+            .poll_finalize_execute(&mut cx, state, operator_state)
+    }
+}
+
+impl<O> OperatorWrapper<O>
+where
+    O: PullOperator,
+{
+    #[track_caller]
+    pub fn poll_pull(
+        &self,
+        state: &mut O::PartitionPullState,
+        operator_state: &O::OperatorState,
+        output: &mut Batch,
+    ) -> Result<PollPull> {
+        let waker = Waker::from(self.waker.clone());
+        let mut cx = Context::from_waker(&waker);
+        self.operator
+            .poll_pull(&mut cx, state, operator_state, output)
+    }
+}
+
+impl<O> OperatorWrapper<O>
+where
+    O: PushOperator,
+{
+    #[track_caller]
+    pub fn poll_push(
+        &self,
+        cx: &mut Context,
+        state: &mut O::PartitionPushState,
+        operator_state: &O::OperatorState,
+        input: &mut Batch,
+    ) -> Result<PollPush> {
+        let waker = Waker::from(self.waker.clone());
+        let mut cx = Context::from_waker(&waker);
+        self.operator
+            .poll_push(&mut cx, state, operator_state, input)
+    }
+}
+
+#[derive(Debug)]
+pub struct OperatorWrapper2<O: ExecutableOperator> {
+    pub waker: Arc<CountingWaker>,
+    pub operator: O,
+}
+
+impl<O> OperatorWrapper2<O>
+where
+    O: ExecutableOperator,
+{
+    pub fn new(operator: O) -> Self {
+        OperatorWrapper2 {
             waker: Arc::new(CountingWaker::default()),
             operator,
         }
@@ -64,7 +155,7 @@ where
         &self,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        inout: ExecuteInOut,
     ) -> Result<PollExecute> {
         let waker = Waker::from(self.waker.clone());
         let mut cx = Context::from_waker(&waker);
@@ -86,7 +177,7 @@ where
 }
 
 /// Methods for operators that accept a single input.
-impl<O> OperatorWrapper<O>
+impl<O> OperatorWrapper2<O>
 where
     O: ExecutableOperator<States = UnaryInputStates>,
 {
@@ -114,7 +205,7 @@ where
         self.poll_execute(
             &mut states.partition_states[partition],
             &states.operator_state,
-            ExecuteInOutState {
+            ExecuteInOut {
                 input: Some(input),
                 output: Some(output),
             },
@@ -132,7 +223,7 @@ where
         self.poll_execute(
             &mut states.partition_states[partition],
             &states.operator_state,
-            ExecuteInOutState {
+            ExecuteInOut {
                 input: None,
                 output: Some(output),
             },
@@ -151,7 +242,7 @@ where
 }
 
 /// Methods for operators that accept two inputs.
-impl<O> OperatorWrapper<O>
+impl<O> OperatorWrapper2<O>
 where
     O: ExecutableOperator<States = BinaryInputStates>,
 {
@@ -180,7 +271,7 @@ where
         self.poll_execute(
             &mut states.sink_states[partition],
             &states.operator_state,
-            ExecuteInOutState {
+            ExecuteInOut {
                 input: Some(input),
                 output: None,
             },
@@ -201,7 +292,7 @@ where
         self.poll_execute(
             &mut states.inout_states[partition],
             &states.operator_state,
-            ExecuteInOutState {
+            ExecuteInOut {
                 input: Some(input),
                 output: Some(output),
             },

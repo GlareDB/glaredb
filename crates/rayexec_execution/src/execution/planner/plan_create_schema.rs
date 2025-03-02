@@ -1,19 +1,14 @@
-
 use rayexec_error::{RayexecError, Result};
 
-use super::{IntermediatePipelineBuildState, PipelineIdGen};
+use super::OperatorPlanState;
 use crate::database::create::CreateSchemaInfo;
 use crate::execution::operators::create_schema::PhysicalCreateSchema;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_create::LogicalCreateSchema;
 use crate::logical::operator::Node;
 
-impl IntermediatePipelineBuildState<'_> {
-    pub fn plan_create_schema(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        create: Node<LogicalCreateSchema>,
-    ) -> Result<()> {
+impl OperatorPlanState<'_> {
+    pub fn plan_create_schema(&mut self, create: Node<LogicalCreateSchema>) -> Result<()> {
         let location = create.location;
 
         if self.in_progress.is_some() {

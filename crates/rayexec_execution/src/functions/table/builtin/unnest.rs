@@ -7,7 +7,7 @@ use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::ScalarValue;
-use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize};
+use crate::execution::operators::{ExecuteInOut, PollExecute, PollFinalize};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{TableInOutFunction, TableInOutPartitionState};
@@ -148,7 +148,7 @@ pub struct UnnestInOutPartitionState {
 }
 
 impl TableInOutPartitionState for UnnestInOutPartitionState {
-    fn poll_execute(&mut self, cx: &mut Context, inout: ExecuteInOutState) -> Result<PollExecute> {
+    fn poll_execute(&mut self, cx: &mut Context, inout: ExecuteInOut) -> Result<PollExecute> {
         unimplemented!()
     }
 

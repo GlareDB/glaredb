@@ -6,7 +6,7 @@ use rayexec_error::{OptionExt, Result};
 use super::{
     BinaryInputStates,
     ExecutableOperator,
-    ExecuteInOutState,
+    ExecuteInOut,
     OperatorState,
     PartitionState,
     PollExecute,
@@ -125,7 +125,7 @@ impl ExecutableOperator for PhysicalUnion {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        inout: ExecuteInOut,
     ) -> Result<PollExecute> {
         match partition_state {
             PartitionState::UnionPulling(state) => {
@@ -262,11 +262,11 @@ mod tests {
     use crate::arrays::datatype::DataType;
     use crate::testutil::arrays::assert_batches_eq;
     use crate::testutil::database_context::test_database_context;
-    use crate::testutil::operator::OperatorWrapper;
+    use crate::testutil::operator::OperatorWrapper2;
 
     #[test]
     fn union_simple() {
-        let mut operator = OperatorWrapper::new(PhysicalUnion {
+        let mut operator = OperatorWrapper2::new(PhysicalUnion {
             output_types: vec![DataType::Int32],
         });
         let mut states = operator
@@ -283,7 +283,7 @@ mod tests {
             .poll_execute(
                 &mut states.inout_states[0],
                 &states.operator_state,
-                ExecuteInOutState {
+                ExecuteInOut {
                     input: Some(&mut top_input),
                     output: Some(&mut out),
                 },
@@ -306,7 +306,7 @@ mod tests {
             .poll_execute(
                 &mut states.sink_states[0],
                 &states.operator_state,
-                ExecuteInOutState {
+                ExecuteInOut {
                     input: Some(&mut bottom_input),
                     output: None,
                 },
@@ -319,7 +319,7 @@ mod tests {
             .poll_execute(
                 &mut states.inout_states[0],
                 &states.operator_state,
-                ExecuteInOutState {
+                ExecuteInOut {
                     input: None,
                     output: Some(&mut out),
                 },
@@ -341,7 +341,7 @@ mod tests {
             .poll_execute(
                 &mut states.inout_states[0],
                 &states.operator_state,
-                ExecuteInOutState {
+                ExecuteInOut {
                     input: None,
                     output: Some(&mut out),
                 },

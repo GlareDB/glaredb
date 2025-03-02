@@ -1,13 +1,12 @@
 use rayexec_error::Result;
 
-use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use super::{Materializations, OperatorPlanState};
 use crate::logical::logical_materialization::LogicalMaterializationScan;
 use crate::logical::operator::Node;
 
-impl IntermediatePipelineBuildState<'_> {
+impl OperatorPlanState<'_> {
     pub fn plan_materialize_scan(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         scan: Node<LogicalMaterializationScan>,
     ) -> Result<()> {

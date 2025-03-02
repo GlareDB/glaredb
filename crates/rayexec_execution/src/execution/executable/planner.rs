@@ -11,7 +11,7 @@ use crate::execution::executable::partition_pipeline::{
     OperatorWithState,
     PartitionPipelineInfo,
 };
-use crate::execution::executable::stack::ExecutionStack;
+use crate::execution::execution_stack::ExecutionStack;
 use crate::execution::intermediate::pipeline::{
     IntermediatePipeline,
     IntermediatePipelineId,
@@ -336,7 +336,7 @@ impl<'a> ExecutablePipelinePlanner<'a> {
                         pipeline: pipeline.id,
                         partition: partition_idx,
                     },
-                    stack: ExecutionStack::try_new(pipeline.operators.len())?,
+                    stack: ExecutionStack::new(pipeline.operators.len()),
                     operators: Vec::with_capacity(pipeline.operators.len()),
                 })
             })

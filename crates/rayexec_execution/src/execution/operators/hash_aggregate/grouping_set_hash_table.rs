@@ -52,6 +52,7 @@ pub enum GroupingSetOperatorState {
 
 #[derive(Debug)]
 pub struct HashTableBuildingOperatorState {
+    partitions: usize,
     /// Remaining inputs we're waiting on to finish.
     remaining: usize,
     /// The global hash table.
@@ -80,18 +81,11 @@ pub struct GroupingSetHashTable {
     /// Computed group values representing the null bitmask for eaching GROUPING
     /// function.
     grouping_values: Vec<u64>,
-    /// Number of partitions writing to and reading from this hash table.
-    partitions: usize,
     batch_size: usize,
 }
 
 impl GroupingSetHashTable {
-    pub fn new(
-        aggs: &Aggregates,
-        grouping_set: BTreeSet<usize>,
-        batch_size: usize,
-        partitions: usize,
-    ) -> Self {
+    pub fn new(aggs: &Aggregates, grouping_set: BTreeSet<usize>, batch_size: usize) -> Self {
         let grouping_values: Vec<_> = aggs
             .grouping_functions
             .iter()
@@ -112,24 +106,25 @@ impl GroupingSetHashTable {
             grouping_set,
             groups: aggs.groups.clone(),
             grouping_values,
-            partitions,
             batch_size,
         }
     }
 
     pub fn init_states(
         &self,
+        partitions: usize,
     ) -> Result<(
         GroupingSetOperatorState,
         Vec<GroupingSetBuildPartitionState>,
     )> {
         let agg_hash_table = AggregateHashTable::try_new(self.layout.clone(), self.batch_size)?;
         let op_state = GroupingSetOperatorState::Building(HashTableBuildingOperatorState {
-            remaining: self.partitions,
+            partitions,
+            remaining: partitions,
             hash_table: agg_hash_table,
         });
 
-        let build_states = (0..self.partitions)
+        let build_states = (0..partitions)
             .map(|_| {
                 // Note that this includes only the groups in the grouping set.
                 let groups = Batch::new(self.group_types_no_hash_iter(), self.batch_size)?;
@@ -230,6 +225,8 @@ impl GroupingSetHashTable {
 
         match &mut *op_state {
             GroupingSetOperatorState::Building(building) => {
+                let partitions = building.partitions;
+
                 building
                     .hash_table
                     .merge_from(&mut state.insert_state, &mut state.hash_table)?;
@@ -253,7 +250,7 @@ impl GroupingSetHashTable {
                         .iter()
                         .map(|agg| agg.function.state.return_type.clone());
 
-                    let scan_states = (0..self.partitions)
+                    let scan_states = (0..partitions)
                         .map(|idx| {
                             let groups =
                                 Batch::new(self.group_types_no_hash_iter(), self.batch_size)?;
@@ -263,7 +260,7 @@ impl GroupingSetHashTable {
                             // to scan.
                             let row_scan_state = RowScanState::new_partial_scan(
                                 (0..table.data.num_row_blocks())
-                                    .filter(|block_idx| block_idx % self.partitions == idx),
+                                    .filter(|block_idx| block_idx % partitions == idx),
                             );
 
                             Ok(GroupingSetScanPartitionState {
@@ -429,8 +426,8 @@ mod tests {
         };
 
         let grouping_set: BTreeSet<usize> = [0].into();
-        let table = GroupingSetHashTable::new(&aggs, grouping_set, 16, 1);
-        let (mut op_state, mut build_states) = table.init_states().unwrap();
+        let table = GroupingSetHashTable::new(&aggs, grouping_set, 16);
+        let (mut op_state, mut build_states) = table.init_states(1).unwrap();
         assert_eq!(1, build_states.len());
 
         let mut input = generate_batch!(["a", "b", "c", "a"], [1_i64, 2, 3, 4]);
@@ -472,8 +469,8 @@ mod tests {
         };
 
         let grouping_set: BTreeSet<usize> = [1].into(); // '1' relative to groups (real column index of 2)
-        let table = GroupingSetHashTable::new(&aggs, grouping_set, 16, 1);
-        let (mut op_state, mut build_states) = table.init_states().unwrap();
+        let table = GroupingSetHashTable::new(&aggs, grouping_set, 16);
+        let (mut op_state, mut build_states) = table.init_states(1).unwrap();
         assert_eq!(1, build_states.len());
 
         let mut input = generate_batch!(

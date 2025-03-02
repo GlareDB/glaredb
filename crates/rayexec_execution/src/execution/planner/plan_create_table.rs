@@ -1,14 +1,12 @@
-
 use rayexec_error::{RayexecError, Result};
 
-use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use super::{Materializations, OperatorPlanState};
 use crate::logical::logical_create::LogicalCreateTable;
 use crate::logical::operator::Node;
 
-impl IntermediatePipelineBuildState<'_> {
+impl OperatorPlanState<'_> {
     pub fn plan_create_table(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         mut create: Node<LogicalCreateTable>,
     ) -> Result<()> {

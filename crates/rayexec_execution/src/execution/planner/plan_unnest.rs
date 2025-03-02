@@ -1,16 +1,14 @@
-
 use rayexec_error::{Result, ResultExt};
 
-use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use super::{Materializations, OperatorPlanState};
 use crate::execution::operators::unnest::PhysicalUnnest;
 use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_unnest::LogicalUnnest;
 use crate::logical::operator::{LogicalNode, Node};
 
-impl IntermediatePipelineBuildState<'_> {
+impl OperatorPlanState<'_> {
     pub fn plan_unnest(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         mut unnest: Node<LogicalUnnest>,
     ) -> Result<()> {
@@ -18,7 +16,7 @@ impl IntermediatePipelineBuildState<'_> {
 
         let input = unnest.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs(self.bind_context);
-        self.walk(materializations, id_gen, input)?;
+        self.walk(materializations, input)?;
 
         let project_expressions = self
             .expr_planner
@@ -34,7 +32,7 @@ impl IntermediatePipelineBuildState<'_> {
             project_expressions,
             unnest_expressions,
         });
-        self.push_intermediate_operator(operator, location, id_gen)?;
+        self.push_intermediate_operator(operator, location)?;
 
         Ok(())
     }

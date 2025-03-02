@@ -7,7 +7,7 @@ use rayexec_error::{OptionExt, RayexecError, Result};
 
 use super::{
     ExecutableOperator,
-    ExecuteInOutState,
+    ExecuteInOut,
     OperatorState,
     PartitionState,
     PollExecute,
@@ -19,7 +19,7 @@ use crate::arrays::datatype::DataType;
 use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::sort::partial_sort::{PartialSortedRowCollection, SortedRowAppendState};
 use crate::arrays::sort::sort_layout::{SortColumn, SortLayout};
-use crate::arrays::sort::sorted_run::{SortedRun, SortedRunScanState};
+use crate::arrays::sort::sorted_segment::{SortedSegment, SortedSegmentScanState};
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::evaluator::ExpressionEvaluator;
@@ -59,8 +59,8 @@ pub struct SortMergingState {
 
 #[derive(Debug)]
 pub struct SortDrainingState {
-    scan_state: SortedRunScanState,
-    sorted_run: SortedRun,
+    scan_state: SortedSegmentScanState,
+    sorted_run: SortedSegment,
 }
 
 #[derive(Debug)]
@@ -138,7 +138,7 @@ impl ExecutableOperator for PhysicalSort {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        inout: ExecuteInOut,
     ) -> Result<PollExecute> {
         let state = match partition_state {
             PartitionState::Sort(state) => state,

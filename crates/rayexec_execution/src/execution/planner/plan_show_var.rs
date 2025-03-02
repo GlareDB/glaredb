@@ -1,16 +1,11 @@
-
 use rayexec_error::{RayexecError, Result};
 
-use super::{IntermediatePipelineBuildState, PipelineIdGen};
+use super::OperatorPlanState;
 use crate::logical::logical_set::LogicalShowVar;
 use crate::logical::operator::Node;
 
-impl IntermediatePipelineBuildState<'_> {
-    pub fn plan_show_var(
-        &mut self,
-        id_gen: &mut PipelineIdGen,
-        show: Node<LogicalShowVar>,
-    ) -> Result<()> {
+impl OperatorPlanState<'_> {
+    pub fn plan_show_var(&mut self, show: Node<LogicalShowVar>) -> Result<()> {
         let location = show.location;
         let show = show.into_inner();
 

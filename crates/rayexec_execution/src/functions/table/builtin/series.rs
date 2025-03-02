@@ -9,7 +9,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::field::{Field, Schema};
 use crate::arrays::scalar::ScalarValue;
-use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize};
+use crate::execution::operators::{ExecuteInOut, PollExecute, PollFinalize};
 use crate::expr::{self, Expression};
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::table::inout::{TableInOutFunction, TableInOutPartitionState};
@@ -224,7 +224,7 @@ pub struct GenerateSeriesInOutPartitionState {
 }
 
 impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
-    fn poll_execute(&mut self, _cx: &mut Context, inout: ExecuteInOutState) -> Result<PollExecute> {
+    fn poll_execute(&mut self, _cx: &mut Context, inout: ExecuteInOut) -> Result<PollExecute> {
         let output = &mut inout.output.required("output batch required")?;
         let input = inout.input.required("input batch required")?;
 
@@ -300,7 +300,7 @@ mod tests {
                 .unwrap();
 
         let poll = state
-            .poll_execute(ExecuteInOutState {
+            .poll_execute(ExecuteInOut {
                 input: Some(&mut input),
                 output: Some(&mut output),
             })
@@ -312,7 +312,7 @@ mod tests {
         assert_batches_eq(&expected, &output);
 
         let poll = state
-            .poll_execute(ExecuteInOutState {
+            .poll_execute(ExecuteInOut {
                 input: Some(&mut input),
                 output: Some(&mut output),
             })
@@ -345,7 +345,7 @@ mod tests {
                 .unwrap();
 
         let poll = state
-            .poll_execute(ExecuteInOutState {
+            .poll_execute(ExecuteInOut {
                 input: Some(&mut input),
                 output: Some(&mut output),
             })
@@ -356,7 +356,7 @@ mod tests {
         assert_batches_eq(&expected, &output);
 
         let poll = state
-            .poll_execute(ExecuteInOutState {
+            .poll_execute(ExecuteInOut {
                 input: Some(&mut input),
                 output: Some(&mut output),
             })
@@ -367,7 +367,7 @@ mod tests {
         assert_batches_eq(&expected, &output);
 
         let poll = state
-            .poll_execute(ExecuteInOutState {
+            .poll_execute(ExecuteInOut {
                 input: Some(&mut input),
                 output: Some(&mut output),
             })
@@ -399,7 +399,7 @@ mod tests {
                 .unwrap();
 
         let poll = state
-            .poll_execute(ExecuteInOutState {
+            .poll_execute(ExecuteInOut {
                 input: Some(&mut input),
                 output: Some(&mut output),
             })
@@ -411,7 +411,7 @@ mod tests {
         assert_batches_eq(&expected, &output);
 
         let poll = state
-            .poll_execute(ExecuteInOutState {
+            .poll_execute(ExecuteInOut {
                 input: Some(&mut input),
                 output: Some(&mut output),
             })
@@ -422,7 +422,7 @@ mod tests {
         assert_batches_eq(&expected, &output);
 
         let poll = state
-            .poll_execute(ExecuteInOutState {
+            .poll_execute(ExecuteInOut {
                 input: Some(&mut input),
                 output: Some(&mut output),
             })
@@ -451,7 +451,7 @@ mod tests {
         let mut out = Batch::new([DataType::Int32], 1024).unwrap();
 
         let _ = state
-            .poll_execute(ExecuteInOutState {
+            .poll_execute(ExecuteInOut {
                 input: Some(&mut input),
                 output: Some(&mut out),
             })
@@ -479,7 +479,7 @@ mod tests {
         let mut out = Batch::new([DataType::Int32], 1024).unwrap();
 
         let _ = state
-            .poll_execute(ExecuteInOutState {
+            .poll_execute(ExecuteInOut {
                 input: Some(&mut input),
                 output: Some(&mut out),
             })

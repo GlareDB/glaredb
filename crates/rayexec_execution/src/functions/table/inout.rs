@@ -5,7 +5,7 @@ use dyn_clone::DynClone;
 use rayexec_error::Result;
 
 use crate::arrays::batch::Batch;
-use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize};
+use crate::execution::operators::{ExecuteInOut, PollExecute, PollFinalize};
 
 pub trait TableInOutFunction: Debug + Sync + Send + DynClone {
     fn create_states(
@@ -22,7 +22,7 @@ pub enum InOutPollPull {
 }
 
 pub trait TableInOutPartitionState: Debug + Sync + Send {
-    fn poll_execute(&mut self, cx: &mut Context, inout: ExecuteInOutState) -> Result<PollExecute>;
+    fn poll_execute(&mut self, cx: &mut Context, inout: ExecuteInOut) -> Result<PollExecute>;
 
     fn poll_finalize(&mut self, cx: &mut Context) -> Result<PollFinalize>;
 }
@@ -44,7 +44,7 @@ pub(crate) mod testutil {
     use rayexec_error::Result;
 
     use super::TableInOutPartitionState;
-    use crate::execution::operators::{ExecuteInOutState, PollExecute, PollFinalize};
+    use crate::execution::operators::{ExecuteInOut, PollExecute, PollFinalize};
     use crate::testutil::operator::CountingWaker;
 
     #[derive(Debug)]
@@ -61,7 +61,7 @@ pub(crate) mod testutil {
             }
         }
 
-        pub fn poll_execute(&mut self, inout: ExecuteInOutState) -> Result<PollExecute> {
+        pub fn poll_execute(&mut self, inout: ExecuteInOut) -> Result<PollExecute> {
             let waker = Waker::from(self.waker.clone());
             let mut cx = Context::from_waker(&waker);
             self.state.poll_execute(&mut cx, inout)

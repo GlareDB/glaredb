@@ -4,7 +4,7 @@ use rayexec_error::{OptionExt, Result};
 
 use super::{
     ExecutableOperator,
-    ExecuteInOutState,
+    ExecuteInOut,
     OperatorState,
     PartitionState,
     PollExecute,
@@ -73,7 +73,7 @@ impl ExecutableOperator for PhysicalLimit {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        inout: ExecuteInOut,
     ) -> Result<PollExecute> {
         let state = match partition_state {
             PartitionState::Limit(state) => state,
@@ -170,11 +170,11 @@ mod tests {
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
-    use crate::testutil::operator::OperatorWrapper;
+    use crate::testutil::operator::OperatorWrapper2;
 
     #[test]
     fn limit_no_offset_simple() {
-        let mut wrapper = OperatorWrapper::new(PhysicalLimit::new(5, None));
+        let mut wrapper = OperatorWrapper2::new(PhysicalLimit::new(5, None));
         let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e", "f"], [1, 2, 3, 4, 5, 6]);
@@ -189,7 +189,7 @@ mod tests {
 
     #[test]
     fn limit_no_offset_multiple_batches() {
-        let mut wrapper = OperatorWrapper::new(PhysicalLimit::new(8, None));
+        let mut wrapper = OperatorWrapper2::new(PhysicalLimit::new(8, None));
         let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e"], [1, 2, 3, 4, 5],);
@@ -211,7 +211,7 @@ mod tests {
 
     #[test]
     fn limit_with_offset_single_batch() {
-        let mut wrapper = OperatorWrapper::new(PhysicalLimit::new(2, Some(1)));
+        let mut wrapper = OperatorWrapper2::new(PhysicalLimit::new(2, Some(1)));
         let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e", "f"], [1, 2, 3, 4, 5, 6],);
@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn limit_with_offset_discard_first_batch() {
-        let mut wrapper = OperatorWrapper::new(PhysicalLimit::new(2, Some(6)));
+        let mut wrapper = OperatorWrapper2::new(PhysicalLimit::new(2, Some(6)));
         let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e"], [1, 2, 3, 4, 5],);

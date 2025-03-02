@@ -1,16 +1,9 @@
 use std::task::Context;
 
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::Result;
 
-use super::{
-    ExecutableOperator,
-    ExecuteInOutState,
-    OperatorState,
-    PartitionState,
-    PollExecute,
-    PollFinalize,
-    UnaryInputStates,
-};
+use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -43,59 +36,62 @@ pub struct ProjectPartitionState {
     evaluator: ExpressionEvaluator,
 }
 
-impl ExecutableOperator for PhysicalProject {
-    type States = UnaryInputStates;
+impl BaseOperator for PhysicalProject {
+    type OperatorState = ();
 
-    fn create_states(
-        &mut self,
+    fn create_operator_state(
+        &self,
         _context: &DatabaseContext,
-        batch_size: usize,
-        partitions: usize,
-    ) -> Result<UnaryInputStates> {
-        let partition_states = (0..partitions)
-            .map(|_| {
-                Ok(PartitionState::Project(ProjectPartitionState {
-                    evaluator: ExpressionEvaluator::try_new(self.projections.clone(), batch_size)?,
-                }))
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        Ok(UnaryInputStates {
-            operator_state: OperatorState::None,
-            partition_states,
-        })
+        _props: ExecutionProperties,
+    ) -> Result<Self::OperatorState> {
+        Ok(())
     }
 
     fn output_types(&self) -> &[DataType] {
         &self.output_types
     }
+}
+
+impl ExecuteOperator for PhysicalProject {
+    type PartitionExecuteState = ProjectPartitionState;
+
+    fn create_partition_execute_states(
+        &self,
+        _operator_state: &Self::OperatorState,
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<Self::PartitionExecuteState>> {
+        (0..partitions)
+            .map(|_| {
+                Ok(ProjectPartitionState {
+                    evaluator: ExpressionEvaluator::try_new(
+                        self.projections.clone(),
+                        props.batch_size,
+                    )?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()
+    }
 
     fn poll_execute(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        state: &mut Self::PartitionExecuteState,
+        _operator_state: &Self::OperatorState,
+        input: &mut Batch,
+        output: &mut Batch,
     ) -> Result<PollExecute> {
-        let state = match partition_state {
-            PartitionState::Project(state) => state,
-            other => panic!("invalid state: {other:?}"),
-        };
-
-        let input = inout.input.required("batch input")?;
-        let output = inout.output.required("batch output")?;
-
         let sel = input.selection();
         state.evaluator.eval_batch(input, sel, output)?;
 
         Ok(PollExecute::Ready)
     }
 
-    fn poll_finalize(
+    fn poll_finalize_execute(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _state: &mut Self::PartitionExecuteState,
+        _operator_state: &Self::OperatorState,
     ) -> Result<PollFinalize> {
         Ok(PollFinalize::Finalized)
     }
@@ -109,86 +105,64 @@ impl Explainable for PhysicalProject {
 
 #[cfg(test)]
 mod tests {
-
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
-    use crate::arrays::array::Array;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
-    use crate::expr::physical::column_expr::PhysicalColumnExpr;
-    use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
+    use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::assert_batches_eq;
     use crate::testutil::database_context::test_database_context;
+    use crate::testutil::exprs::plan_scalars;
     use crate::testutil::operator::OperatorWrapper;
+    use crate::{expr, generate_batch};
 
     #[test]
     fn project_simple() {
-        let projections = vec![
-            PhysicalScalarExpression::Column(PhysicalColumnExpr {
-                datatype: DataType::Int32,
-                idx: 1,
-            }),
-            PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                literal: "lit".into(),
-            }),
-        ];
-
-        let mut operator = PhysicalProject::new(projections);
-        let mut states = operator
-            .create_states(&test_database_context(), 4, 1)
+        let mut list = TableList::empty();
+        let t0 = list
+            .push_table(None, [DataType::Boolean, DataType::Int32], ["c1", "c2"])
             .unwrap();
 
-        let wrapper = OperatorWrapper::new(operator);
+        let projections = plan_scalars(
+            &list,
+            [
+                &expr::column((t0, 1), DataType::Int32).into(),
+                &expr::lit("lit").into(),
+            ],
+        );
+
+        let props = ExecutionProperties { batch_size: 16 };
+        let wrapper = OperatorWrapper::new(PhysicalProject::new(projections));
+        let op_state = wrapper
+            .operator
+            .create_operator_state(&test_database_context(), props)
+            .unwrap();
+        let mut states = wrapper
+            .operator
+            .create_partition_execute_states(&op_state, props, 1)
+            .unwrap();
 
         let mut out = Batch::new([DataType::Int32, DataType::Utf8], 4).unwrap();
+        let mut in1 = generate_batch!([true, false, true, true], [8, 9, 7, 6]);
 
-        let mut in1 = Batch::from_arrays([
-            Array::try_from_iter([true, false, true, true]).unwrap(),
-            Array::try_from_iter([8, 9, 7, 6]).unwrap(),
-        ])
-        .unwrap();
-
-        wrapper
-            .poll_execute(
-                &mut states.partition_states[0],
-                &states.operator_state,
-                ExecuteInOutState {
-                    input: Some(&mut in1),
-                    output: Some(&mut out),
-                },
-            )
+        let poll = wrapper
+            .poll_execute(&mut states[0], &op_state, &mut in1, &mut out)
             .unwrap();
+        assert_eq!(PollExecute::Ready, poll);
 
-        let expected1 = Batch::from_arrays([
-            Array::try_from_iter([8, 9, 7, 6]).unwrap(),
-            Array::try_from_iter(["lit", "lit", "lit", "lit"]).unwrap(),
-        ])
-        .unwrap();
-        assert_batches_eq(&expected1, &out);
+        let expected = generate_batch!([8, 9, 7, 6], ["lit", "lit", "lit", "lit"]);
+        assert_batches_eq(&expected, &out);
 
-        let mut in2 = Batch::from_arrays([
-            Array::try_from_iter([true, false, true, true]).unwrap(),
-            Array::try_from_iter([Some(4), Some(5), None, Some(7)]).unwrap(),
-        ])
-        .unwrap();
+        let mut in2 = generate_batch!([true, false, true, true], [Some(4), Some(5), None, Some(7)]);
 
-        wrapper
-            .poll_execute(
-                &mut states.partition_states[0],
-                &states.operator_state,
-                ExecuteInOutState {
-                    input: Some(&mut in2),
-                    output: Some(&mut out),
-                },
-            )
+        let poll = wrapper
+            .poll_execute(&mut states[0], &op_state, &mut in2, &mut out)
             .unwrap();
+        assert_eq!(PollExecute::Ready, poll);
 
-        let expected2 = Batch::from_arrays([
-            Array::try_from_iter([Some(4), Some(5), None, Some(7)]).unwrap(),
-            Array::try_from_iter(["lit", "lit", "lit", "lit"]).unwrap(),
-        ])
-        .unwrap();
-        assert_batches_eq(&expected2, &out);
+        let expected = generate_batch!(
+            [Some(4), Some(5), None, Some(7)],
+            ["lit", "lit", "lit", "lit"]
+        );
+        assert_batches_eq(&expected, &out);
     }
 }

@@ -1,14 +1,12 @@
-
 use rayexec_error::Result;
 
-use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use super::{Materializations, OperatorPlanState};
 use crate::logical::logical_order::LogicalOrder;
 use crate::logical::operator::{LogicalNode, Node};
 
-impl IntermediatePipelineBuildState<'_> {
+impl OperatorPlanState<'_> {
     pub fn plan_sort(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         mut order: Node<LogicalOrder>,
     ) -> Result<()> {
@@ -16,7 +14,7 @@ impl IntermediatePipelineBuildState<'_> {
 
         let input = order.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs(self.bind_context);
-        self.walk(materializations, id_gen, input)?;
+        self.walk(materializations, input)?;
 
         let exprs = self
             .expr_planner

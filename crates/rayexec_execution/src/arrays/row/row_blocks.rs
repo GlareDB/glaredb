@@ -41,6 +41,7 @@ pub struct BlockAppendState {
 
 // SAFETY: The `Vec<*mut u8>` is just a buffer for storing row pointers.
 unsafe impl Send for BlockAppendState {}
+unsafe impl Sync for BlockAppendState {}
 
 impl BlockAppendState {
     pub fn clear(&mut self) {

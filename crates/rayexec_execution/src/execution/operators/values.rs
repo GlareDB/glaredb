@@ -4,7 +4,7 @@ use rayexec_error::{OptionExt, Result};
 
 use super::{
     ExecutableOperator,
-    ExecuteInOutState,
+    ExecuteInOut,
     OperatorState,
     PartitionState,
     PollExecute,
@@ -86,7 +86,7 @@ impl ExecutableOperator for PhysicalValues {
         _cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        inout: ExecuteInOut,
     ) -> Result<PollExecute> {
         let state = match partition_state {
             PartitionState::Values(state) => state,
@@ -205,7 +205,7 @@ mod tests {
     use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
     use crate::testutil::exprs::plan_scalar;
-    use crate::testutil::operator::OperatorWrapper;
+    use crate::testutil::operator::OperatorWrapper2;
 
     #[test]
     fn values_literal() {
@@ -222,7 +222,7 @@ mod tests {
             ],
         ];
 
-        let mut wrapper = OperatorWrapper::new(PhysicalValues::new(expr_rows));
+        let mut wrapper = OperatorWrapper2::new(PhysicalValues::new(expr_rows));
         let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
@@ -258,7 +258,7 @@ mod tests {
             ],
         ];
 
-        let mut wrapper = OperatorWrapper::new(PhysicalValues::new(expr_rows));
+        let mut wrapper = OperatorWrapper2::new(PhysicalValues::new(expr_rows));
         let mut states = wrapper.create_unary_states(1024, 1);
 
         let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();

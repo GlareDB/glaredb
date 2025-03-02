@@ -1,6 +1,6 @@
 use rayexec_error::{Result, ResultExt};
 
-use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use super::{Materializations, OperatorPlanState};
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::table_inout::PhysicalTableInOut;
 use crate::execution::operators::PhysicalOperator;
@@ -8,16 +8,15 @@ use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::logical::logical_inout::LogicalInOut;
 use crate::logical::operator::{LogicalNode, Node};
 
-impl IntermediatePipelineBuildState<'_> {
+impl OperatorPlanState<'_> {
     pub fn plan_inout(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         mut inout: Node<LogicalInOut>,
     ) -> Result<()> {
         let input = inout.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs(self.bind_context);
-        self.walk(materializations, id_gen, input)?;
+        self.walk(materializations, input)?;
 
         let function_inputs = self
             .expr_planner
@@ -52,7 +51,6 @@ impl IntermediatePipelineBuildState<'_> {
         self.push_intermediate_operator(
             PhysicalOperator::Project(PhysicalProject::new(projections)),
             inout.location,
-            id_gen,
         )?;
 
         // Push inout
@@ -63,7 +61,6 @@ impl IntermediatePipelineBuildState<'_> {
                 projected_inputs,
             }),
             inout.location,
-            id_gen,
         )?;
 
         Ok(())

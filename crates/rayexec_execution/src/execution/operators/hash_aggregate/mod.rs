@@ -12,11 +12,12 @@ use grouping_set_hash_table::{
     GroupingSetScanPartitionState,
 };
 use parking_lot::Mutex;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 
-use super::{ExecuteInOutState, PollExecute, PollFinalize, UnaryInputStates};
+use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
+use crate::arrays::batch::Batch;
+use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
-use crate::execution::operators::{ExecutableOperator, OperatorState, PartitionState};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::expr::physical::PhysicalAggregateExpression;
@@ -84,52 +85,89 @@ pub struct PhysicalHashAggregate {
     pub(crate) grouping_sets: Vec<BTreeSet<usize>>,
     /// Aggregates we're working on.
     pub(crate) aggregates: Aggregates,
+    pub(crate) output_types: Vec<DataType>,
 }
 
-impl ExecutableOperator for PhysicalHashAggregate {
-    type States = UnaryInputStates;
+impl PhysicalHashAggregate {
+    pub fn new(aggregates: Aggregates, grouping_sets: Vec<BTreeSet<usize>>) -> Self {
+        let mut output_types = Vec::new();
 
-    fn create_states(
-        &mut self,
+        for group in &aggregates.groups {
+            output_types.push(group.datatype.clone());
+        }
+        for agg in &aggregates.aggregates {
+            output_types.push(agg.function.state.return_type.clone());
+        }
+        for _ in 0..aggregates.grouping_functions.len() {
+            output_types.push(DataType::UInt64);
+        }
+
+        PhysicalHashAggregate {
+            grouping_sets,
+            aggregates,
+            output_types,
+        }
+    }
+}
+
+impl BaseOperator for PhysicalHashAggregate {
+    type OperatorState = HashAggregateOperatorState;
+
+    fn create_operator_state(
+        &self,
         _context: &DatabaseContext,
-        batch_size: usize,
-        partitions: usize,
-    ) -> Result<UnaryInputStates> {
+        props: ExecutionProperties,
+    ) -> Result<Self::OperatorState> {
         // Table per grouping set.
         let tables: Vec<_> = self
             .grouping_sets
             .iter()
             .map(|grouping_set| {
-                GroupingSetHashTable::new(
-                    &self.aggregates,
-                    grouping_set.clone(),
-                    batch_size,
-                    partitions,
-                )
+                GroupingSetHashTable::new(&self.aggregates, grouping_set.clone(), props.batch_size)
             })
             .collect();
 
+        let inner = HashAggregateOperatoreStateInner {
+            scan_ready: false,
+            table_states: Vec::with_capacity(tables.len()), // Populated below when we get the partition states.
+            wakers: Vec::new(), // Set to correct size when we get the partition states.
+        };
+
+        Ok(HashAggregateOperatorState {
+            tables,
+            inner: Mutex::new(inner),
+        })
+    }
+
+    fn output_types(&self) -> &[DataType] {
+        &self.output_types
+    }
+}
+
+impl ExecuteOperator for PhysicalHashAggregate {
+    type PartitionExecuteState = HashAggregatePartitionState;
+
+    fn create_partition_execute_states(
+        &self,
+        operator_state: &Self::OperatorState,
+        _props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<Self::PartitionExecuteState>> {
         let mut partition_states: Vec<_> = (0..partitions)
             .map(|idx| {
                 HashAggregateBuildingPartitionState {
                     partition_idx: idx,
-                    states: Vec::with_capacity(tables.len()), // Populated below
+                    states: Vec::with_capacity(operator_state.tables.len()), // Populated below
                 }
             })
             .collect();
 
-        let mut inner = HashAggregateOperatoreStateInner {
-            scan_ready: false,
-            table_states: Vec::with_capacity(tables.len()), // Populated below.
-            wakers: (0..partitions).map(|_| None).collect(),
-        };
-
-        for table in &tables {
-            let (table_op_state, table_partition_states) = table.init_states()?;
+        let inner = &mut operator_state.inner.lock();
+        for table in &operator_state.tables {
+            let (table_op_state, table_partition_states) = table.init_states(partitions)?;
             inner.table_states.push(table_op_state);
 
             debug_assert_eq!(partition_states.len(), table_partition_states.len());
-
             for (partition_state, table_state) in
                 partition_states.iter_mut().zip(table_partition_states)
             {
@@ -137,60 +175,40 @@ impl ExecutableOperator for PhysicalHashAggregate {
             }
         }
 
+        // Resize partition waker vec.
+        inner.wakers.resize(partitions, None);
+
         let partition_states = partition_states
             .into_iter()
-            .map(|state| {
-                PartitionState::HashAggregate(HashAggregatePartitionState::Building(state))
-            })
+            .map(HashAggregatePartitionState::Building)
             .collect();
 
-        let operator_state = OperatorState::HashAggregate(HashAggregateOperatorState {
-            tables,
-            inner: Mutex::new(inner),
-        });
-
-        Ok(UnaryInputStates {
-            operator_state,
-            partition_states,
-        })
+        Ok(partition_states)
     }
 
     fn poll_execute(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        state: &mut Self::PartitionExecuteState,
+        operator_state: &Self::OperatorState,
+        input: &mut Batch,
+        output: &mut Batch,
     ) -> Result<PollExecute> {
-        let state = match partition_state {
-            PartitionState::HashAggregate(state) => state,
-            other => panic!("invalid partition state: {other:?}"),
-        };
-
-        let op_state = match operator_state {
-            OperatorState::HashAggregate(state) => state,
-            other => panic!("invalid operator state: {other:?}"),
-        };
-
         match state {
             HashAggregatePartitionState::Building(building) => {
-                let input = inout.input.required("input batch required")?;
-
-                debug_assert_eq!(building.states.len(), op_state.tables.len());
+                debug_assert_eq!(building.states.len(), operator_state.tables.len());
 
                 // Insert input into each grouping set table.
-                for (table, state) in op_state.tables.iter().zip(&mut building.states) {
+                for (table, state) in operator_state.tables.iter().zip(&mut building.states) {
                     table.insert(state, input)?;
                 }
 
                 Ok(PollExecute::NeedsMore)
             }
             HashAggregatePartitionState::Scanning(scanning) => {
-                let output = inout.output.required("output batch required")?;
-
                 if scanning.needs_populate {
                     // Get states from operator state.
-                    let mut shared_state = op_state.inner.lock();
+                    let mut shared_state = operator_state.inner.lock();
                     if !shared_state.scan_ready {
                         // Come back later.
                         shared_state.wakers[scanning.partition_idx] = Some(cx.waker().clone());
@@ -198,8 +216,8 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     }
 
                     // All tables ready, take a scan state for each.
-                    debug_assert_eq!(op_state.tables.len(), shared_state.table_states.len());
-                    for (idx, (table, table_state)) in op_state
+                    debug_assert_eq!(operator_state.tables.len(), shared_state.table_states.len());
+                    for (idx, (table, table_state)) in operator_state
                         .tables
                         .iter()
                         .zip(&mut shared_state.table_states)
@@ -224,7 +242,7 @@ impl ExecutableOperator for PhysicalHashAggregate {
                         }
                     };
 
-                    let table = &op_state.tables[table_idx];
+                    let table = &operator_state.tables[table_idx];
 
                     table.scan(&mut scan_state, output)?;
                     if output.num_rows == 0 {
@@ -242,22 +260,12 @@ impl ExecutableOperator for PhysicalHashAggregate {
         }
     }
 
-    fn poll_finalize(
+    fn poll_finalize_execute(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        state: &mut Self::PartitionExecuteState,
+        operator_state: &Self::OperatorState,
     ) -> Result<PollFinalize> {
-        let state = match partition_state {
-            PartitionState::HashAggregate(state) => state,
-            other => panic!("invalid partition state: {other:?}"),
-        };
-
-        let op_state = match operator_state {
-            OperatorState::HashAggregate(state) => state,
-            other => panic!("invalid operator state: {other:?}"),
-        };
-
         match state {
             HashAggregatePartitionState::Building(building) => {
                 let partition_idx = building.partition_idx;
@@ -278,10 +286,10 @@ impl ExecutableOperator for PhysicalHashAggregate {
                     HashAggregatePartitionState::Scanning(_) => unreachable!(),
                 };
 
-                let mut shared_state = op_state.inner.lock();
+                let mut shared_state = operator_state.inner.lock();
 
-                for table_idx in 0..op_state.tables.len() {
-                    let scan_ready = op_state.tables[table_idx].merge(
+                for table_idx in 0..operator_state.tables.len() {
+                    let scan_ready = operator_state.tables[table_idx].merge(
                         &mut shared_state.table_states[table_idx],
                         &mut partition_state.states[table_idx],
                     )?;
@@ -325,6 +333,7 @@ mod tests {
     use crate::expr::{self, bind_aggregate_function};
     use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
+    use crate::testutil::database_context::test_database_context;
     use crate::testutil::operator::OperatorWrapper;
 
     #[test]
@@ -348,32 +357,48 @@ mod tests {
             )],
         };
 
-        let mut operator = OperatorWrapper::new(PhysicalHashAggregate {
-            grouping_sets: vec![[0].into_iter().collect()],
-            aggregates: aggs,
-        });
+        let wrapper = OperatorWrapper::new(PhysicalHashAggregate::new(
+            aggs,
+            vec![[0].into_iter().collect()],
+        ));
 
-        let mut states = operator.create_unary_states(16, 1);
+        let props = ExecutionProperties { batch_size: 16 };
+        let op_state = wrapper
+            .operator
+            .create_operator_state(&test_database_context(), props)
+            .unwrap();
+        let mut states = wrapper
+            .operator
+            .create_partition_execute_states(&op_state, props, 1)
+            .unwrap();
 
-        let mut output = Batch::new([DataType::Utf8, DataType::Int64], 16).unwrap();
+        let mut output = Batch::new(wrapper.operator.output_types.clone(), 16).unwrap();
         let mut input = generate_batch!(
             [1_i64, 2, 3, 4],
             ["group_a", "group_b", "group_a", "group_c"],
         );
 
-        let poll = operator.unary_execute_inout(&mut states, 0, &mut input, &mut output);
+        let poll = wrapper
+            .poll_execute(&mut states[0], &op_state, &mut input, &mut output)
+            .unwrap();
         assert_eq!(PollExecute::NeedsMore, poll);
 
-        let poll = operator.unary_finalize(&mut states, 0);
+        let poll = wrapper
+            .poll_finalize_execute(&mut states[0], &op_state)
+            .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
 
-        let poll = operator.unary_execute_out(&mut states, 0, &mut output);
+        let poll = wrapper
+            .poll_execute(&mut states[0], &op_state, &mut input, &mut output)
+            .unwrap();
         assert_eq!(PollExecute::HasMore, poll);
 
         let expected = generate_batch!(["group_a", "group_b", "group_c",], [4_i64, 2, 4],);
         assert_batches_eq(&expected, &output);
 
-        let poll = operator.unary_execute_out(&mut states, 0, &mut output);
+        let poll = wrapper
+            .poll_execute(&mut states[0], &op_state, &mut input, &mut output)
+            .unwrap();
         assert_eq!(PollExecute::Exhausted, poll);
         assert_eq!(0, output.num_rows);
     }

@@ -2,20 +2,20 @@ use rayexec_error::{RayexecError, Result};
 
 /// Configuration for intermediate pipeline planning.
 #[derive(Debug, Clone)]
-pub struct IntermediatePlanConfig {
+pub struct OperatorPlanConfig {
     /// If we should allow nested loop join.
     pub allow_nested_loop_join: bool,
 }
 
-impl Default for IntermediatePlanConfig {
+impl Default for OperatorPlanConfig {
     fn default() -> Self {
-        IntermediatePlanConfig {
+        OperatorPlanConfig {
             allow_nested_loop_join: true,
         }
     }
 }
 
-impl IntermediatePlanConfig {
+impl OperatorPlanConfig {
     pub fn check_nested_loop_join_allowed(&self) -> Result<()> {
         if !self.allow_nested_loop_join {
             return Err(RayexecError::new("Nested loop join not allowed"));

@@ -1,17 +1,15 @@
-
 use rayexec_error::{not_implemented, RayexecError, Result};
 
-use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use super::{Materializations, OperatorPlanState};
 use crate::explain::context_display::ContextDisplayMode;
 use crate::explain::explainable::ExplainConfig;
 use crate::explain::formatter::ExplainFormatter;
 use crate::logical::logical_explain::LogicalExplain;
 use crate::logical::operator::Node;
 
-impl IntermediatePipelineBuildState<'_> {
+impl OperatorPlanState<'_> {
     pub fn plan_explain(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         mut explain: Node<LogicalExplain>,
     ) -> Result<()> {
@@ -33,32 +31,32 @@ impl IntermediatePipelineBuildState<'_> {
         // Done in a closure so that we can at least output the logical plans is
         // physical planning errors. This is entirely for dev purposes right now
         // and I expect the conditional will be removed at some point.
-        let plan = || {
-            planner.walk(materializations, id_gen, input)?;
-            planner.finish(id_gen)?;
-            Ok::<_, RayexecError>(())
-        };
-        let plan_result = plan();
+        // let plan = || {
+        //     planner.walk(materializations, input)?;
+        //     planner.finish()?;
+        //     Ok::<_, RayexecError>(())
+        // };
+        // let plan_result = plan();
 
-        let formatter = ExplainFormatter::new(
-            self.bind_context,
-            ExplainConfig {
-                context_mode: ContextDisplayMode::Enriched(self.bind_context),
-                verbose: explain.node.verbose,
-            },
-            explain.node.format,
-        );
+        // let formatter = ExplainFormatter::new(
+        //     self.bind_context,
+        //     ExplainConfig {
+        //         context_mode: ContextDisplayMode::Enriched(self.bind_context),
+        //         verbose: explain.node.verbose,
+        //     },
+        //     explain.node.format,
+        // );
 
-        let mut type_strings = Vec::new();
-        let mut plan_strings = Vec::new();
+        // let mut type_strings = Vec::new();
+        // let mut plan_strings = Vec::new();
 
-        type_strings.push("unoptimized".to_string());
-        plan_strings.push(formatter.format_logical_plan(&explain.node.logical_unoptimized)?);
+        // type_strings.push("unoptimized".to_string());
+        // plan_strings.push(formatter.format_logical_plan(&explain.node.logical_unoptimized)?);
 
-        if let Some(optimized) = explain.node.logical_optimized {
-            type_strings.push("optimized".to_string());
-            plan_strings.push(formatter.format_logical_plan(&optimized)?);
-        }
+        // if let Some(optimized) = explain.node.logical_optimized {
+        //     type_strings.push("optimized".to_string());
+        //     plan_strings.push(formatter.format_logical_plan(&optimized)?);
+        // }
 
         // match plan_result {
         //     Ok(_) => {

@@ -6,7 +6,7 @@ use super::operation::{self, PartitionSource, Projections};
 use crate::database::DatabaseContext;
 use crate::execution::operators::{
     ExecutableOperator,
-    ExecuteInOutState,
+    ExecuteInOut,
     OperatorState,
     PartitionState,
     PollExecute,
@@ -64,7 +64,7 @@ impl ExecutableOperator for PhysicalTableFunction {
         cx: &mut Context,
         partition_state: &mut PartitionState,
         _operator_state: &OperatorState,
-        inout: ExecuteInOutState,
+        inout: ExecuteInOut,
     ) -> Result<PollExecute> {
         let state = match partition_state {
             PartitionState::TableFunction(state) => state,

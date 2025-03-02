@@ -1,6 +1,6 @@
 use rayexec_error::{RayexecError, Result, ResultExt};
 
-use super::{IntermediatePipelineBuildState, Materializations, PipelineIdGen};
+use super::{Materializations, OperatorPlanState};
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::PhysicalOperator;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
@@ -9,10 +9,9 @@ use crate::expr::Expression;
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::operator::{LogicalNode, Node};
 
-impl IntermediatePipelineBuildState<'_> {
+impl OperatorPlanState<'_> {
     pub fn plan_aggregate(
         &mut self,
-        id_gen: &mut PipelineIdGen,
         materializations: &mut Materializations,
         mut agg: Node<LogicalAggregate>,
     ) -> Result<()> {
@@ -20,7 +19,7 @@ impl IntermediatePipelineBuildState<'_> {
 
         let input = agg.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs(self.bind_context);
-        self.walk(materializations, id_gen, input)?;
+        self.walk(materializations, input)?;
 
         // let mut phys_aggs = Vec::new();
 
