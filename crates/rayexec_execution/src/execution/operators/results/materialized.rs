@@ -3,7 +3,6 @@ use std::task::Context;
 
 use rayexec_error::Result;
 
-use super::{BaseOperator, ExecutionProperties, PollFinalize, PollPush, PushOperator};
 use crate::arrays::batch::Batch;
 use crate::arrays::collection::concurrent::{
     ColumnCollectionAppendState,
@@ -11,32 +10,39 @@ use crate::arrays::collection::concurrent::{
 };
 use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
+use crate::execution::operators::{
+    BaseOperator,
+    ExecutionProperties,
+    PollFinalize,
+    PollPush,
+    PushOperator,
+};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug)]
-pub struct ResultsOperatorState {
+pub struct MaterializedResultsOperatorState {
     collection: Arc<ConcurrentColumnCollection>,
 }
 
 #[derive(Debug)]
-pub struct ResultsPartitionState {
+pub struct MaterializedResultsPartitionState {
     append_state: ColumnCollectionAppendState,
 }
 
 #[derive(Debug)]
-pub struct PhysicalResults {
+pub struct PhysicalMaterializedResults {
     pub(crate) collection: Arc<ConcurrentColumnCollection>,
 }
 
-impl BaseOperator for PhysicalResults {
-    type OperatorState = ResultsOperatorState;
+impl BaseOperator for PhysicalMaterializedResults {
+    type OperatorState = MaterializedResultsOperatorState;
 
     fn create_operator_state(
         &self,
         _context: &DatabaseContext,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
-        Ok(ResultsOperatorState {
+        Ok(MaterializedResultsOperatorState {
             collection: self.collection.clone(),
         })
     }
@@ -46,8 +52,8 @@ impl BaseOperator for PhysicalResults {
     }
 }
 
-impl PushOperator for PhysicalResults {
-    type PartitionPushState = ResultsPartitionState;
+impl PushOperator for PhysicalMaterializedResults {
+    type PartitionPushState = MaterializedResultsPartitionState;
 
     fn create_partition_push_states(
         &self,
@@ -56,7 +62,7 @@ impl PushOperator for PhysicalResults {
         partitions: usize,
     ) -> Result<Vec<Self::PartitionPushState>> {
         let states = (0..partitions)
-            .map(|_| ResultsPartitionState {
+            .map(|_| MaterializedResultsPartitionState {
                 append_state: operator_state.collection.init_append_state(),
             })
             .collect();
@@ -90,8 +96,8 @@ impl PushOperator for PhysicalResults {
     }
 }
 
-impl Explainable for PhysicalResults {
+impl Explainable for PhysicalMaterializedResults {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Results")
+        ExplainEntry::new("MaterializedResults")
     }
 }

@@ -121,7 +121,6 @@ where
     #[track_caller]
     pub fn poll_push(
         &self,
-        cx: &mut Context,
         state: &mut O::PartitionPushState,
         operator_state: &O::OperatorState,
         input: &mut Batch,
