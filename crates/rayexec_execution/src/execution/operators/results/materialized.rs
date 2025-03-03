@@ -73,8 +73,8 @@ impl PushOperator for PhysicalMaterializedResults {
     fn poll_push(
         &self,
         _cx: &mut Context,
-        state: &mut Self::PartitionPushState,
         operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionPushState,
         input: &mut Batch,
     ) -> Result<PollPush> {
         operator_state
@@ -87,8 +87,8 @@ impl PushOperator for PhysicalMaterializedResults {
     fn poll_finalize_push(
         &self,
         _cx: &mut Context,
-        state: &mut Self::PartitionPushState,
         operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionPushState,
     ) -> Result<PollFinalize> {
         operator_state.collection.flush(&mut state.append_state)?;
 

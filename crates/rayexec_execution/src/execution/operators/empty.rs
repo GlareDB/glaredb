@@ -45,8 +45,8 @@ impl PullOperator for PhysicalEmpty {
     fn poll_pull(
         &self,
         _cx: &mut Context,
-        _state: &mut Self::PartitionPullState,
         _operator_state: &Self::OperatorState,
+        _state: &mut Self::PartitionPullState,
         output: &mut Batch,
     ) -> Result<PollPull> {
         output.set_num_rows(1)?;

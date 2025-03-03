@@ -124,13 +124,14 @@ impl<'a, 'b> Effects for OperatorEffects<'a, 'b> {
 
         // Otherwise just an intermediate operator in the pipeline. Use the
         // previous operator's output batch as this operator's input.
-        let inout = get_execute_inout(op_idx, self.buffers);
+        let (input, output) = get_execute_inout(op_idx, self.buffers);
 
         self.operators[op_idx].call_poll_execute(
             self.cx,
             &self.operator_states[op_idx],
             &mut self.partition_states[op_idx],
-            inout,
+            input,
+            output,
         )
     }
 
@@ -159,7 +160,7 @@ impl<'a, 'b> Effects for OperatorEffects<'a, 'b> {
     }
 }
 
-fn get_execute_inout(op_idx: usize, batches: &mut [Batch]) -> ExecuteInOut {
+fn get_execute_inout(op_idx: usize, batches: &mut [Batch]) -> (&mut Batch, &mut Batch) {
     assert!(op_idx != 0);
     assert!(op_idx < batches.len());
 
@@ -170,8 +171,5 @@ fn get_execute_inout(op_idx: usize, batches: &mut [Batch]) -> ExecuteInOut {
     let child = &mut before[child_idx];
     let op = &mut after[0]; // `op_idx` is the first element in `after`
 
-    ExecuteInOut {
-        input: Some(child),
-        output: Some(op),
-    }
+    (child, op)
 }

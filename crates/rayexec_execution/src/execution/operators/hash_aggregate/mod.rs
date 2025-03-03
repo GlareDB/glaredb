@@ -189,8 +189,8 @@ impl ExecuteOperator for PhysicalHashAggregate {
     fn poll_execute(
         &self,
         cx: &mut Context,
-        state: &mut Self::PartitionExecuteState,
         operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionExecuteState,
         input: &mut Batch,
         output: &mut Batch,
     ) -> Result<PollExecute> {
@@ -263,8 +263,8 @@ impl ExecuteOperator for PhysicalHashAggregate {
     fn poll_finalize_execute(
         &self,
         _cx: &mut Context,
-        state: &mut Self::PartitionExecuteState,
         operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionExecuteState,
     ) -> Result<PollFinalize> {
         match state {
             HashAggregatePartitionState::Building(building) => {
@@ -379,17 +379,17 @@ mod tests {
         );
 
         let poll = wrapper
-            .poll_execute(&mut states[0], &op_state, &mut input, &mut output)
+            .poll_execute(&op_state, &mut states[0], &mut input, &mut output)
             .unwrap();
         assert_eq!(PollExecute::NeedsMore, poll);
 
         let poll = wrapper
-            .poll_finalize_execute(&mut states[0], &op_state)
+            .poll_finalize_execute(&op_state, &mut states[0])
             .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
 
         let poll = wrapper
-            .poll_execute(&mut states[0], &op_state, &mut input, &mut output)
+            .poll_execute(&op_state, &mut states[0], &mut input, &mut output)
             .unwrap();
         assert_eq!(PollExecute::HasMore, poll);
 
@@ -397,7 +397,7 @@ mod tests {
         assert_batches_eq(&expected, &output);
 
         let poll = wrapper
-            .poll_execute(&mut states[0], &op_state, &mut input, &mut output)
+            .poll_execute(&op_state, &mut states[0], &mut input, &mut output)
             .unwrap();
         assert_eq!(PollExecute::Exhausted, poll);
         assert_eq!(0, output.num_rows);

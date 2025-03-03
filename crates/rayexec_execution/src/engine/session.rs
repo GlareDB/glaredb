@@ -11,15 +11,20 @@ use super::query_result::{Output, QueryResult};
 use super::verifier::QueryVerifier;
 use super::DataSourceRegistry;
 use crate::arrays::field::{Field, Schema};
+use crate::config::execution::OperatorPlanConfig;
 use crate::config::session::SessionConfig;
 use crate::database::catalog::CatalogTx;
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, Database, DatabaseContext};
 use crate::execution::executable::pipeline::ExecutablePipeline;
-use crate::execution::operators::results::streaming::{ResultSink, ResultStream};
+use crate::execution::operators::results::streaming::{PhysicalStreamingResults, ResultStream};
+use crate::execution::operators::{ExecutionProperties, PushOperator};
+use crate::execution::pipeline::ExecutablePipelineGraph;
+use crate::execution::planner::{OperatorPlanner, QueryGraph};
 use crate::hybrid::client::HybridClient;
 use crate::logical::binder::bind_statement::StatementBinder;
 use crate::logical::logical_attach::LogicalAttachDatabase;
+use crate::logical::logical_set::VariableOrAll;
 use crate::logical::operator::{LogicalOperator, Node};
 use crate::logical::planner::plan_statement::StatementPlanner;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -58,26 +63,19 @@ pub struct Session<P: PipelineExecutor, R: Runtime> {
     /// Context containg everything in the "database" that's visible to this
     /// session.
     context: DatabaseContext,
-
     /// Variables for this session.
     config: SessionConfig,
-
     /// Reference configured data source implementations.
     registry: Arc<DataSourceRegistry>,
-
     /// Runtime for accessing external resources like the filesystem or http
     /// clients.
     runtime: R,
-
     /// Pipeline executor.
     executor: P,
-
     /// Prepared statements.
     prepared: HashMap<String, PreparedStatement>,
-
     /// Portals for statements ready to be executed.
     portals: HashMap<String, ExecutablePortal>,
-
     /// Client for hybrid execution if enabled.
     hybrid_client: Option<Arc<HybridClient<R::HttpClient>>>,
 }
@@ -103,8 +101,7 @@ enum ExecutionMode {
 struct IntermediatePortal {
     query_id: Uuid,
     execution_mode: ExecutionMode,
-    // intermediate_pipelines: IntermediatePipelineGroup,
-    // intermediate_materializations: IntermediateMaterializationGroup,
+    query_graph: QueryGraph,
     output_schema: Schema,
 }
 
@@ -121,7 +118,7 @@ struct ExecutablePortal {
     /// execution.
     execution_mode: ExecutionMode,
     /// Pipelines we'll be executing on this node.
-    executable_pipelines: Vec<ExecutablePipeline>,
+    executable_graph: ExecutablePipelineGraph,
     /// Output schema of the query.
     output_schema: Schema,
     /// Output result stream.
@@ -242,59 +239,59 @@ where
         .await?;
         profile.resolve_step = Some(timer.stop());
 
+        let stream = ResultStream::new();
+
         let intermediate_portal = self
-            .plan_intermediate(resolved_stmt, resolve_context, resolve_mode, &mut profile)
+            .plan_intermediate(
+                resolved_stmt,
+                resolve_context,
+                resolve_mode,
+                &mut profile,
+                PhysicalStreamingResults::new(stream.sink()),
+            )
             .await?;
 
-        let stream = ResultStream::new();
-        let sink = stream.sink();
-
-        // let mut planner = ExecutablePipelinePlanner::<R>::new(
-        //     &self.context,
-        //     ExecutablePlanConfig {
-        //         partitions: self.config.partitions as usize,
-        //     },
-        //     PlanLocationState::Client {
-        //         output_sink: Some(sink),
-        //         hybrid_client: self.hybrid_client.as_ref(),
-        //     },
-        // );
-
         let timer = Timer::<R::Instant>::start();
-        unimplemented!()
-        // let pipelines = planner.plan_from_intermediate(
-        //     intermediate_portal.intermediate_pipelines,
-        //     intermediate_portal.intermediate_materializations,
-        // )?;
-        // profile.plan_executable_step = Some(timer.stop());
+        let pipeline_graph = ExecutablePipelineGraph::plan_from_graph(
+            &self.context,
+            ExecutionProperties {
+                batch_size: self.config.batch_size as usize,
+            },
+            intermediate_portal.query_graph,
+        )?;
+        profile.plan_executable_step = Some(timer.stop());
 
-        // self.portals.insert(
-        //     portal_name.into(),
-        //     ExecutablePortal {
-        //         query_id: intermediate_portal.query_id,
-        //         execution_mode: intermediate_portal.execution_mode,
-        //         executable_pipelines: pipelines,
-        //         output_schema: intermediate_portal.output_schema,
-        //         result_stream: stream,
-        //         error_sink: errors,
-        //         profile,
-        //         verifier,
-        //     },
-        // );
-        // Ok(())
+        self.portals.insert(
+            portal_name.into(),
+            ExecutablePortal {
+                query_id: intermediate_portal.query_id,
+                execution_mode: intermediate_portal.execution_mode,
+                executable_graph: pipeline_graph,
+                output_schema: intermediate_portal.output_schema,
+                result_stream: stream,
+                profile,
+                verifier,
+            },
+        );
+
+        Ok(())
     }
 
     /// Plans the intermediate pipelines from a resolved statement.
     ///
     /// If the resolve context indicates that not all objects were resolved,
     /// we'll call out to the remote side to complete planning.
-    async fn plan_intermediate(
+    async fn plan_intermediate<O>(
         &mut self,
         stmt: ResolvedStatement,
         resolve_context: ResolveContext,
         resolve_mode: ResolveMode,
         profile: &mut PlanningProfileData,
-    ) -> Result<IntermediatePortal> {
+        sink: O,
+    ) -> Result<IntermediatePortal>
+    where
+        O: PushOperator,
+    {
         match resolve_mode {
             ResolveMode::Hybrid if resolve_context.any_unresolved() => {
                 // Hybrid planning, send to remote to complete planning.
@@ -354,73 +351,65 @@ where
                         }),
                 );
 
-                // let query_id = Uuid::new_v4();
-                // let planner = IntermediatePipelinePlanner::new(
-                //     IntermediatePlanConfig {
-                //         allow_nested_loop_join: self.config.allow_nested_loop_join,
-                //     },
-                //     query_id,
-                // );
+                let query_id = Uuid::new_v4();
+                let planner = OperatorPlanner::new(
+                    OperatorPlanConfig {
+                        allow_nested_loop_join: self.config.allow_nested_loop_join,
+                    },
+                    query_id,
+                );
 
-                // let pipelines = match logical {
-                //     LogicalOperator::AttachDatabase(attach) => {
-                //         self.handle_attach_database(attach).await?;
-                //         planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
-                //     }
-                //     LogicalOperator::DetachDatabase(detach) => {
-                //         let empty = planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?; // Here to avoid lifetime issues.
-                //         self.context.detach_database(&detach.as_ref().name)?;
-                //         empty
-                //     }
-                //     LogicalOperator::SetVar(set_var) => {
-                //         // TODO: Do we want this logic to exist here?
-                //         //
-                //         // SET seems fine, but what happens with things like wanting to
-                //         // update the catalog? Possibly an "external resources context"
-                //         // that has clients/etc for everything that the session can look
-                //         // at to update its local state?
-                //         //
-                //         // We could have an implementation for the local session, and a
-                //         // separate implementation used for nodes taking part in
-                //         // distributed execution.
-                //         self.config
-                //             .set_from_scalar(&set_var.node.name, set_var.node.value)?;
-                //         planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
-                //     }
-                //     LogicalOperator::ResetVar(reset) => {
-                //         // Same TODO as above.
-                //         match &reset.as_ref().var {
-                //             VariableOrAll::Variable(v) => {
-                //                 self.config.reset(v, &self.executor, &self.runtime)?
-                //             }
-                //             VariableOrAll::All => {
-                //                 self.config.reset_all(&self.executor, &self.runtime)
-                //             }
-                //         }
-                //         planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
-                //     }
-                //     root => {
-                //         let timer = Timer::<R::Instant>::start();
-                //         let pipelines = planner.plan_pipelines(root, bind_context)?;
-                //         profile.plan_intermediate_step = Some(timer.stop());
-                //         pipelines
-                //     }
-                // };
+                let query_graph = match logical {
+                    LogicalOperator::AttachDatabase(attach) => {
+                        self.handle_attach_database(attach).await?;
+                        planner.plan(LogicalOperator::EMPTY, bind_context, sink)?
+                    }
+                    LogicalOperator::DetachDatabase(detach) => {
+                        let empty = planner.plan(LogicalOperator::EMPTY, bind_context, sink)?; // Here to avoid lifetime issues.
+                        self.context.detach_database(&detach.as_ref().name)?;
+                        empty
+                    }
+                    LogicalOperator::SetVar(set_var) => {
+                        // TODO: Do we want this logic to exist here?
+                        //
+                        // SET seems fine, but what happens with things like wanting to
+                        // update the catalog? Possibly an "external resources context"
+                        // that has clients/etc for everything that the session can look
+                        // at to update its local state?
+                        //
+                        // We could have an implementation for the local session, and a
+                        // separate implementation used for nodes taking part in
+                        // distributed execution.
+                        self.config
+                            .set_from_scalar(&set_var.node.name, set_var.node.value)?;
+                        planner.plan(LogicalOperator::EMPTY, bind_context, sink)?
+                    }
+                    LogicalOperator::ResetVar(reset) => {
+                        // Same TODO as above.
+                        match &reset.as_ref().var {
+                            VariableOrAll::Variable(v) => {
+                                self.config.reset(v, &self.executor, &self.runtime)?
+                            }
+                            VariableOrAll::All => {
+                                self.config.reset_all(&self.executor, &self.runtime)
+                            }
+                        }
+                        planner.plan(LogicalOperator::EMPTY, bind_context, sink)?
+                    }
+                    root => {
+                        let timer = Timer::<R::Instant>::start();
+                        let pipelines = planner.plan(root, bind_context, sink)?;
+                        profile.plan_intermediate_step = Some(timer.stop());
+                        pipelines
+                    }
+                };
 
-                // if !pipelines.remote.is_empty() {
-                //     return Err(RayexecError::new(
-                //         "Remote pipelines should not have been planned",
-                //     ));
-                // }
-
-                unimplemented!()
-                // Ok(IntermediatePortal {
-                //     query_id,
-                //     execution_mode: ExecutionMode::LocalOnly,
-                //     intermediate_pipelines: pipelines.local,
-                //     intermediate_materializations: pipelines.materializations,
-                //     output_schema: schema,
-                // })
+                Ok(IntermediatePortal {
+                    query_id,
+                    execution_mode: ExecutionMode::LocalOnly,
+                    query_graph,
+                    output_schema: schema,
+                })
             }
         }
     }
@@ -441,10 +430,10 @@ where
             hybrid_client.remote_execute(portal.query_id).await?;
         }
 
-        let handle = self.executor.spawn_pipelines(
-            portal.executable_pipelines,
-            Arc::new(portal.result_stream.error_sink()),
-        );
+        // let handle = self.executor.spawn_pipelines(
+        //     portal.executable_pipelines,
+        //     Arc::new(portal.result_stream.error_sink()),
+        // );
 
         unimplemented!()
         // let query_result = QueryResult {

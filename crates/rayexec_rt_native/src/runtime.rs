@@ -1,9 +1,8 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
-use rayexec_execution::execution::executable::partition_pipeline::ExecutablePartitionPipeline;
-use rayexec_execution::execution::executable::pipeline::ExecutablePipeline;
+use rayexec_error::{Result, ResultExt};
+use rayexec_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use rayexec_execution::io::access::AccessConfig;
 use rayexec_execution::io::file::FileOpener;
 use rayexec_execution::runtime::handle::QueryHandle;
@@ -14,8 +13,6 @@ use rayexec_execution::runtime::{
     Runtime,
     TokioHandlerProvider,
 };
-use rayexec_io::exp::FileSource;
-use rayexec_io::http::HttpFile;
 
 use crate::filesystem::LocalFile;
 use crate::http::TokioWrappedHttpClient;
@@ -58,15 +55,10 @@ impl<S: Scheduler + 'static> PipelineExecutor for NativeExecutor<S> {
 
     fn spawn_pipelines(
         &self,
-        pipelines: Vec<ExecutablePipeline>,
+        pipelines: Vec<ExecutablePartitionPipeline>,
         errors: Arc<dyn ErrorSink>,
     ) -> Box<dyn QueryHandle> {
-        let handle = self.0.spawn_pipelines(
-            pipelines
-                .into_iter()
-                .flat_map(|pipeline| pipeline.into_partition_pipeline_iter()),
-            errors,
-        );
+        let handle = self.0.spawn_pipelines(pipelines, errors);
         Box::new(handle)
     }
 }

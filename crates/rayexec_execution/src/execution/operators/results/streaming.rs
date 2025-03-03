@@ -197,8 +197,8 @@ impl PushOperator for PhysicalStreamingResults {
     fn poll_push(
         &self,
         cx: &mut Context,
-        state: &mut Self::PartitionPushState,
         operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionPushState,
         input: &mut Batch,
     ) -> Result<PollPush> {
         let mut inner = operator_state.sink.inner.lock();
@@ -226,8 +226,8 @@ impl PushOperator for PhysicalStreamingResults {
     fn poll_finalize_push(
         &self,
         _cx: &mut Context,
-        _state: &mut Self::PartitionPushState,
         operator_state: &Self::OperatorState,
+        _state: &mut Self::PartitionPushState,
     ) -> Result<PollFinalize> {
         let mut inner = operator_state.sink.inner.lock();
         inner.remaining_inputs -= 1;
@@ -274,7 +274,7 @@ mod tests {
 
         let mut input = generate_batch!([1, 2, 3, 4]);
         let poll = wrapper
-            .poll_push(&mut states[0], &op_state, &mut input)
+            .poll_push(&op_state, &mut states[0], &mut input)
             .unwrap();
         assert_eq!(PollPush::NeedsMore, poll);
 
@@ -315,7 +315,7 @@ mod tests {
         // Now push.
         let mut input = generate_batch!([1, 2, 3, 4]);
         let poll = wrapper
-            .poll_push(&mut states[0], &op_state, &mut input)
+            .poll_push(&op_state, &mut states[0], &mut input)
             .unwrap();
         assert_eq!(PollPush::NeedsMore, poll);
 

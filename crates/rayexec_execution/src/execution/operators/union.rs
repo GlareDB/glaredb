@@ -281,8 +281,8 @@ mod tests {
 
         let poll = operator
             .poll_execute(
-                &mut states.inout_states[0],
                 &states.operator_state,
+                &mut states.inout_states[0],
                 ExecuteInOut {
                     input: Some(&mut top_input),
                     output: Some(&mut out),
@@ -295,7 +295,7 @@ mod tests {
         assert_batches_eq(&expected, &out);
 
         let poll = operator
-            .poll_finalize(&mut states.inout_states[0], &states.operator_state)
+            .poll_finalize(&states.operator_state, &mut states.inout_states[0])
             .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
 
@@ -304,8 +304,8 @@ mod tests {
 
         let poll = operator
             .poll_execute(
-                &mut states.sink_states[0],
                 &states.operator_state,
+                &mut states.sink_states[0],
                 ExecuteInOut {
                     input: Some(&mut bottom_input),
                     output: None,
@@ -317,8 +317,8 @@ mod tests {
         // Pulling side should now be able to get the batch.
         let poll = operator
             .poll_execute(
-                &mut states.inout_states[0],
                 &states.operator_state,
+                &mut states.inout_states[0],
                 ExecuteInOut {
                     input: None,
                     output: Some(&mut out),
@@ -332,15 +332,15 @@ mod tests {
 
         // Finalize buffering side.
         let poll = operator
-            .poll_finalize(&mut states.sink_states[0], &states.operator_state)
+            .poll_finalize(&states.operator_state, &mut states.sink_states[0])
             .unwrap();
         assert_eq!(PollFinalize::Finalized, poll);
 
         // Pulling side should exhaust now.
         let poll = operator
             .poll_execute(
-                &mut states.inout_states[0],
                 &states.operator_state,
+                &mut states.inout_states[0],
                 ExecuteInOut {
                     input: None,
                     output: Some(&mut out),

@@ -72,27 +72,27 @@ where
     #[track_caller]
     pub fn poll_execute(
         &self,
-        state: &mut O::PartitionExecuteState,
         operator_state: &O::OperatorState,
+        state: &mut O::PartitionExecuteState,
         input: &mut Batch,
         output: &mut Batch,
     ) -> Result<PollExecute> {
         let waker = Waker::from(self.waker.clone());
         let mut cx = Context::from_waker(&waker);
         self.operator
-            .poll_execute(&mut cx, state, operator_state, input, output)
+            .poll_execute(&mut cx, operator_state, state, input, output)
     }
 
     #[track_caller]
     pub fn poll_finalize_execute(
         &self,
-        state: &mut O::PartitionExecuteState,
         operator_state: &O::OperatorState,
+        state: &mut O::PartitionExecuteState,
     ) -> Result<PollFinalize> {
         let waker = Waker::from(self.waker.clone());
         let mut cx = Context::from_waker(&waker);
         self.operator
-            .poll_finalize_execute(&mut cx, state, operator_state)
+            .poll_finalize_execute(&mut cx, operator_state, state)
     }
 }
 
@@ -103,14 +103,14 @@ where
     #[track_caller]
     pub fn poll_pull(
         &self,
-        state: &mut O::PartitionPullState,
         operator_state: &O::OperatorState,
+        state: &mut O::PartitionPullState,
         output: &mut Batch,
     ) -> Result<PollPull> {
         let waker = Waker::from(self.waker.clone());
         let mut cx = Context::from_waker(&waker);
         self.operator
-            .poll_pull(&mut cx, state, operator_state, output)
+            .poll_pull(&mut cx, operator_state, state, output)
     }
 }
 
@@ -121,14 +121,14 @@ where
     #[track_caller]
     pub fn poll_push(
         &self,
-        state: &mut O::PartitionPushState,
         operator_state: &O::OperatorState,
+        state: &mut O::PartitionPushState,
         input: &mut Batch,
     ) -> Result<PollPush> {
         let waker = Waker::from(self.waker.clone());
         let mut cx = Context::from_waker(&waker);
         self.operator
-            .poll_push(&mut cx, state, operator_state, input)
+            .poll_push(&mut cx, operator_state, state, input)
     }
 }
 
@@ -152,8 +152,8 @@ where
     #[track_caller]
     pub fn poll_execute(
         &self,
-        partition_state: &mut PartitionState,
         operator_state: &OperatorState,
+        partition_state: &mut PartitionState,
         inout: ExecuteInOut,
     ) -> Result<PollExecute> {
         let waker = Waker::from(self.waker.clone());
@@ -165,8 +165,8 @@ where
     #[track_caller]
     pub fn poll_finalize(
         &self,
-        partition_state: &mut PartitionState,
         operator_state: &OperatorState,
+        partition_state: &mut PartitionState,
     ) -> Result<PollFinalize> {
         let waker = Waker::from(self.waker.clone());
         let mut cx = Context::from_waker(&waker);
@@ -202,8 +202,8 @@ where
         output: &mut Batch,
     ) -> PollExecute {
         self.poll_execute(
-            &mut states.partition_states[partition],
             &states.operator_state,
+            &mut states.partition_states[partition],
             ExecuteInOut {
                 input: Some(input),
                 output: Some(output),
@@ -220,8 +220,8 @@ where
         output: &mut Batch,
     ) -> PollExecute {
         self.poll_execute(
-            &mut states.partition_states[partition],
             &states.operator_state,
+            &mut states.partition_states[partition],
             ExecuteInOut {
                 input: None,
                 output: Some(output),
@@ -233,8 +233,8 @@ where
     #[track_caller]
     pub fn unary_finalize(&self, states: &mut UnaryInputStates, partition: usize) -> PollFinalize {
         self.poll_finalize(
-            &mut states.partition_states[partition],
             &states.operator_state,
+            &mut states.partition_states[partition],
         )
         .unwrap()
     }
@@ -268,8 +268,8 @@ where
         input: &mut Batch,
     ) -> PollExecute {
         self.poll_execute(
-            &mut states.sink_states[partition],
             &states.operator_state,
+            &mut states.sink_states[partition],
             ExecuteInOut {
                 input: Some(input),
                 output: None,
@@ -289,8 +289,8 @@ where
         output: &mut Batch,
     ) -> PollExecute {
         self.poll_execute(
-            &mut states.inout_states[partition],
             &states.operator_state,
+            &mut states.inout_states[partition],
             ExecuteInOut {
                 input: Some(input),
                 output: Some(output),
@@ -306,7 +306,7 @@ where
         states: &mut BinaryInputStates,
         partition: usize,
     ) -> PollFinalize {
-        self.poll_finalize(&mut states.sink_states[partition], &states.operator_state)
+        self.poll_finalize(&states.operator_state, &mut states.sink_states[partition])
             .unwrap()
     }
 
@@ -317,7 +317,7 @@ where
         states: &mut BinaryInputStates,
         partition: usize,
     ) -> PollFinalize {
-        self.poll_finalize(&mut states.inout_states[partition], &states.operator_state)
+        self.poll_finalize(&states.operator_state, &mut states.inout_states[partition])
             .unwrap()
     }
 }

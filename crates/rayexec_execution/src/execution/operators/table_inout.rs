@@ -273,8 +273,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut states.partition_states[0],
                 &states.operator_state,
+                &mut states.partition_states[0],
                 ExecuteInOut {
                     input: Some(&mut input),
                     output: Some(&mut output),
@@ -324,8 +324,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut states.partition_states[0],
                 &states.operator_state,
+                &mut states.partition_states[0],
                 ExecuteInOut {
                     input: Some(&mut input),
                     output: Some(&mut output),
@@ -344,8 +344,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut states.partition_states[0],
                 &states.operator_state,
+                &mut states.partition_states[0],
                 ExecuteInOut {
                     input: Some(&mut input),
                     output: Some(&mut output),

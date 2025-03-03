@@ -166,7 +166,11 @@ impl<'a> OperatorPlanState<'a> {
     }
 
     fn plan(&mut self, plan: LogicalOperator) -> Result<PlannedOperatorWithChildren> {
-        unimplemented!()
+        match plan {
+            LogicalOperator::Project(node) => self.plan_project(node),
+            LogicalOperator::Empty(node) => self.plan_empty(node),
+            other => unimplemented!("other: {other:?}"),
+        }
     }
 
     /// Recursively walk the plan, building up intermediate pipelines.

@@ -9,7 +9,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
 use time::RuntimeInstant;
 
-use crate::execution::executable::pipeline::ExecutablePipeline;
+use crate::execution::partition_pipeline::ExecutablePartitionPipeline;
 use crate::io::file::FileOpener;
 
 /// How pipelines get executed on a single node.
@@ -36,7 +36,7 @@ pub trait PipelineExecutor: Debug + Sync + Send + Clone {
     /// This must not block.
     fn spawn_pipelines(
         &self,
-        pipelines: Vec<ExecutablePipeline>,
+        pipelines: Vec<ExecutablePartitionPipeline>,
         errors: Arc<dyn ErrorSink>,
     ) -> Box<dyn QueryHandle>;
 }

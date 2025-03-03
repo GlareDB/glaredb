@@ -1,10 +1,10 @@
-use std::fmt;
-
 use rayexec_error::{RayexecError, Result};
 
 use super::operators::{ExecutionProperties, PlannedOperator, RawOperatorState};
 use super::partition_pipeline::ExecutablePartitionPipeline;
+use super::planner::QueryGraph;
 use crate::arrays::batch::Batch;
+use crate::database::DatabaseContext;
 use crate::execution::execution_stack::ExecutionStack;
 
 #[derive(Debug)]
@@ -13,8 +13,42 @@ pub struct ExecutablePipelineGraph {
 }
 
 impl ExecutablePipelineGraph {
+    pub fn plan_from_graph(
+        db_context: &DatabaseContext,
+        props: ExecutionProperties,
+        query_graph: QueryGraph,
+    ) -> Result<Self> {
+        let mut pipeline_graph = ExecutablePipelineGraph {
+            pipelines: Vec::new(),
+        };
+
+        let mut current = ExecutablePipeline::new();
+
+        // TODO: Materializations.
+
+        let root = query_graph.root;
+        root.build_pipeline(db_context, props, &mut pipeline_graph, &mut current)?;
+
+        Ok(pipeline_graph)
+    }
+
     pub fn push_pipeline(&mut self, pipeline: ExecutablePipeline) {
         self.pipelines.push(pipeline);
+    }
+
+    pub fn create_partition_pipelines(
+        &self,
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<ExecutablePartitionPipeline>> {
+        let mut final_pipelines = Vec::new();
+
+        for pipeline in &self.pipelines {
+            let partition_pipelines = pipeline.create_partition_pipelines(props, partitions)?;
+            final_pipelines.extend(partition_pipelines);
+        }
+
+        Ok(final_pipelines)
     }
 }
 

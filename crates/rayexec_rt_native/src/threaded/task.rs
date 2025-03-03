@@ -3,7 +3,7 @@ use std::task::{Context, Poll, Wake, Waker};
 
 use parking_lot::Mutex;
 use rayexec_error::RayexecError;
-use rayexec_execution::execution::executable::partition_pipeline::ExecutablePartitionPipeline;
+use rayexec_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use rayexec_execution::runtime::ErrorSink;
 use rayon::ThreadPool;
 
@@ -15,10 +15,8 @@ pub(crate) struct TaskState {
     /// The partition pipeline we're operating on alongside a boolean for if the
     /// query's been canceled.
     pub(crate) pipeline: Mutex<PipelineState>,
-
     /// Error sink for any errors that occur during execution.
     pub(crate) errors: Arc<dyn ErrorSink>,
-
     /// The threadpool to execute on.
     pub(crate) pool: Arc<ThreadPool>,
 }
@@ -55,31 +53,23 @@ impl PartitionPipelineTask {
         .into();
 
         let mut cx = Context::from_waker(&waker);
-        loop {
-            match pipeline_state
-                .pipeline
-                .poll_execute::<NativeInstant>(&mut cx)
-            {
-                Poll::Ready(Some(Ok(()))) => {
-                    // Pushing through the pipeline was successful. Continue the
-                    // loop to try to get as much work done as possible.
-                    continue;
-                }
-                Poll::Ready(Some(Err(e))) => {
-                    self.state.errors.set_error(e);
-                    return;
-                }
-                Poll::Pending => {
-                    // Exit the loop. Waker was already stored in the pending
-                    // sink/source, we'll be woken back up when there's more
-                    // this operator chain can start executing.
-                    return;
-                }
-                Poll::Ready(None) => {
-                    // Exit the loop, nothing else for us to do. Waker is not
-                    // stored, and we will not executed again.
-                    return;
-                }
+        match pipeline_state
+            .pipeline
+            .poll_execute::<NativeInstant>(&mut cx)
+        {
+            Poll::Ready(Ok(())) => {
+                // Pushing through the pipeline was successful.
+                return;
+            }
+            Poll::Ready(Err(e)) => {
+                self.state.errors.set_error(e);
+                return;
+            }
+            Poll::Pending => {
+                // Exit the loop. Waker was already stored in the pending
+                // sink/source, we'll be woken back up when there's more
+                // this operator chain can start executing.
+                return;
             }
         }
     }

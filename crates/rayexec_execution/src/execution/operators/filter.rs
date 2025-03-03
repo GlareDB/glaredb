@@ -62,8 +62,8 @@ impl ExecuteOperator for PhysicalFilter {
     fn poll_execute(
         &self,
         _cx: &mut Context,
-        state: &mut Self::PartitionExecuteState,
         _operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionExecuteState,
         input: &mut Batch,
         output: &mut Batch,
     ) -> Result<PollExecute> {
@@ -82,8 +82,8 @@ impl ExecuteOperator for PhysicalFilter {
     fn poll_finalize_execute(
         &self,
         _cx: &mut Context,
-        _state: &mut Self::PartitionExecuteState,
         _operator_state: &Self::OperatorState,
+        _state: &mut Self::PartitionExecuteState,
     ) -> Result<PollFinalize> {
         Ok(PollFinalize::Finalized)
     }
@@ -125,7 +125,7 @@ mod tests {
         let mut in1 = generate_batch!([true, false, true, true], [8, 9, 7, 6]);
 
         let poll = wrapper
-            .poll_execute(&mut states[0], &(), &mut in1, &mut out)
+            .poll_execute(&(), &mut states[0], &mut in1, &mut out)
             .unwrap();
         assert_eq!(PollExecute::Ready, poll);
 
@@ -135,7 +135,7 @@ mod tests {
         let mut in2 = generate_batch!([true, false, false, false], [4, 3, 2, 1]);
 
         let poll = wrapper
-            .poll_execute(&mut states[0], &(), &mut in2, &mut out)
+            .poll_execute(&(), &mut states[0], &mut in2, &mut out)
             .unwrap();
         assert_eq!(PollExecute::Ready, poll);
 

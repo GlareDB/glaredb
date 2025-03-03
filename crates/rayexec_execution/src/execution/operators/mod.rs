@@ -29,6 +29,7 @@ pub mod window;
 pub(crate) mod util;
 
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::task::Context;
 
 use copy_to::PhysicalCopyTo;
@@ -366,63 +367,51 @@ pub trait BaseOperator: Sync + Send + Debug + Explainable {
     fn output_types(&self) -> &[DataType];
 
     fn build_pipeline(
-        operator: PlannedOperatorWithChildren,
+        operator: &PlannedOperator,
+        children: &[PlannedOperatorWithChildren],
         db_context: &DatabaseContext,
         props: ExecutionProperties,
         graph: &mut ExecutablePipelineGraph,
         current: &mut ExecutablePipeline,
     ) -> Result<()> {
-        let children = &operator.children;
-        if children.len() != operator.as_ref().operator_type.children_requirement() {
+        if children.len() != operator.operator_type.children_requirement() {
             return Err(RayexecError::new("Unexpected number of children"));
         }
 
-        match operator.as_ref().operator_type {
+        match operator.operator_type {
             OperatorType::Execute | OperatorType::Push => {
                 // Plan child operator.
-                children[0]
-                    .as_ref()
-                    .call_build_pipeline(db_context, props, graph, current)?;
+                let child = &children[0];
+                child.build_pipeline(db_context, props, graph, current)?;
 
                 // Push self onto pipeline.
-                let state = operator
-                    .as_ref()
-                    .call_create_operator_state(db_context, props)?;
-                current.push_operator_and_state(operator.operator, state);
+                let state = operator.call_create_operator_state(db_context, props)?;
+                current.push_operator_and_state(operator.clone(), state);
 
                 Ok(())
             }
             OperatorType::Pull => {
                 // No children, just push self.
-                let state = operator
-                    .as_ref()
-                    .call_create_operator_state(db_context, props)?;
-                current.push_operator_and_state(operator.operator, state);
+                let state = operator.call_create_operator_state(db_context, props)?;
+                current.push_operator_and_state(operator.clone(), state);
 
                 Ok(())
             }
             OperatorType::PushExecute => {
                 // Create new pipeline for left/push child.
                 let mut left_pipeline = ExecutablePipeline::new();
-                children[0].as_ref().call_build_pipeline(
-                    db_context,
-                    props,
-                    graph,
-                    &mut left_pipeline,
-                )?;
+                let left_child = &children[0];
+                left_child.build_pipeline(db_context, props, graph, &mut left_pipeline)?;
 
                 // Now build up the right/execute child using the current
                 // pipeline.
-                children[0]
-                    .as_ref()
-                    .call_build_pipeline(db_context, props, graph, current)?;
+                let right_child = &children[1];
+                right_child.build_pipeline(db_context, props, graph, current)?;
 
                 // Push operator and state to both pipelines.
-                let state = operator
-                    .as_ref()
-                    .call_create_operator_state(db_context, props)?;
-                left_pipeline.push_operator_and_state(operator.as_ref().clone(), state.clone());
-                current.push_operator_and_state(operator.as_ref().clone(), state.clone());
+                let state = operator.call_create_operator_state(db_context, props)?;
+                left_pipeline.push_operator_and_state(operator.clone(), state.clone());
+                current.push_operator_and_state(operator.clone(), state.clone());
 
                 // Left pipeline finished, push to query graph.
                 graph.push_pipeline(left_pipeline);
@@ -446,8 +435,8 @@ pub trait ExecuteOperator: BaseOperator {
     fn poll_execute(
         &self,
         cx: &mut Context,
-        state: &mut Self::PartitionExecuteState,
         operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionExecuteState,
         input: &mut Batch,
         output: &mut Batch,
     ) -> Result<PollExecute>;
@@ -455,8 +444,8 @@ pub trait ExecuteOperator: BaseOperator {
     fn poll_finalize_execute(
         &self,
         cx: &mut Context,
-        state: &mut Self::PartitionExecuteState,
         operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionExecuteState,
     ) -> Result<PollFinalize>;
 }
 
@@ -473,8 +462,8 @@ pub trait PullOperator: BaseOperator {
     fn poll_pull(
         &self,
         cx: &mut Context,
-        state: &mut Self::PartitionPullState,
         operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionPullState,
         output: &mut Batch,
     ) -> Result<PollPull>;
 }
@@ -492,16 +481,16 @@ pub trait PushOperator: BaseOperator {
     fn poll_push(
         &self,
         cx: &mut Context,
-        state: &mut Self::PartitionPushState,
         operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionPushState,
         input: &mut Batch,
     ) -> Result<PollPush>;
 
     fn poll_finalize_push(
         &self,
         cx: &mut Context,
-        state: &mut Self::PartitionPushState,
         operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionPushState,
     ) -> Result<PollFinalize>;
 }
 
@@ -517,9 +506,16 @@ pub struct PlannedOperatorWithChildren {
     pub children: Vec<PlannedOperatorWithChildren>,
 }
 
-impl AsRef<PlannedOperator> for PlannedOperatorWithChildren {
-    fn as_ref(&self) -> &PlannedOperator {
-        &self.operator
+impl PlannedOperatorWithChildren {
+    pub fn build_pipeline(
+        &self,
+        db_context: &DatabaseContext,
+        props: ExecutionProperties,
+        graph: &mut ExecutablePipelineGraph,
+        current: &mut ExecutablePipeline,
+    ) -> Result<()> {
+        self.operator
+            .call_build_pipeline(&self.children, db_context, props, graph, current)
     }
 }
 
@@ -537,28 +533,44 @@ impl PlannedOperator {
     where
         O: ExecuteOperator,
     {
-        unimplemented!()
+        PlannedOperator {
+            operator: RawClonePtr::new(op),
+            vtable: ExecuteOperatorVTable::<O>::VTABLE,
+            operator_type: ExecuteOperatorVTable::<O>::OPERATOR_TYPE,
+        }
     }
 
     pub fn new_push<O>(op: O) -> Self
     where
         O: PushOperator,
     {
-        unimplemented!()
+        PlannedOperator {
+            operator: RawClonePtr::new(op),
+            vtable: PushOperatorVTable::<O>::VTABLE,
+            operator_type: PushOperatorVTable::<O>::OPERATOR_TYPE,
+        }
     }
 
     pub fn new_push_execute<O>(op: O) -> Self
     where
         O: PushOperator + ExecuteOperator,
     {
-        unimplemented!()
+        PlannedOperator {
+            operator: RawClonePtr::new(op),
+            vtable: PushExecuteOperatorVTable::<O>::VTABLE,
+            operator_type: PushExecuteOperatorVTable::<O>::OPERATOR_TYPE,
+        }
     }
 
     pub fn new_pull<O>(op: O) -> Self
     where
         O: PullOperator,
     {
-        unimplemented!()
+        PlannedOperator {
+            operator: RawClonePtr::new(op),
+            vtable: PullOperatorVTable::<O>::VTABLE,
+            operator_type: PullOperatorVTable::<O>::OPERATOR_TYPE,
+        }
     }
 
     pub fn call_create_operator_state(
@@ -566,11 +578,11 @@ impl PlannedOperator {
         context: &DatabaseContext,
         props: ExecutionProperties,
     ) -> Result<RawOperatorState> {
-        unimplemented!()
+        unsafe { (self.vtable.create_operator_state_fn)(self.operator.get(), context, props) }
     }
 
-    pub fn call_output_types(&self) -> &[DataType] {
-        unimplemented!()
+    pub fn call_output_types(&self) -> Vec<DataType> {
+        unsafe { (self.vtable.output_types_fn)(self.operator.get()) }
     }
 
     pub fn call_create_partition_execute_states(
@@ -579,7 +591,14 @@ impl PlannedOperator {
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<RawPartitionState>> {
-        unimplemented!()
+        unsafe {
+            (self.vtable.create_partition_execute_states_fn)(
+                self.operator.get(),
+                op_state.0.get(),
+                props,
+                partitions,
+            )
+        }
     }
 
     pub fn call_create_partition_push_states(
@@ -588,7 +607,14 @@ impl PlannedOperator {
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<RawPartitionState>> {
-        unimplemented!()
+        unsafe {
+            (self.vtable.create_partition_push_states_fn)(
+                self.operator.get(),
+                op_state.0.get(),
+                props,
+                partitions,
+            )
+        }
     }
 
     pub fn call_create_partition_pull_states(
@@ -597,7 +623,14 @@ impl PlannedOperator {
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<RawPartitionState>> {
-        unimplemented!()
+        unsafe {
+            (self.vtable.create_partition_pull_states_fn)(
+                self.operator.get(),
+                op_state.0.get(),
+                props,
+                partitions,
+            )
+        }
     }
 
     pub fn call_poll_pull(
@@ -607,7 +640,15 @@ impl PlannedOperator {
         partition_state: &mut RawPartitionState,
         output: &mut Batch,
     ) -> Result<PollPull> {
-        unimplemented!()
+        unsafe {
+            (self.vtable.poll_pull_fn)(
+                self.operator.get(),
+                cx,
+                op_state.0.get(),
+                partition_state.0.get_mut(),
+                output,
+            )
+        }
     }
 
     pub fn call_poll_push(
@@ -617,7 +658,15 @@ impl PlannedOperator {
         partition_state: &mut RawPartitionState,
         input: &mut Batch,
     ) -> Result<PollPush> {
-        unimplemented!()
+        unsafe {
+            (self.vtable.poll_push_fn)(
+                self.operator.get(),
+                cx,
+                op_state.0.get(),
+                partition_state.0.get_mut(),
+                input,
+            )
+        }
     }
 
     pub fn call_poll_execute(
@@ -625,9 +674,19 @@ impl PlannedOperator {
         cx: &mut Context,
         op_state: &RawOperatorState,
         partition_state: &mut RawPartitionState,
-        inout: ExecuteInOut,
+        input: &mut Batch,
+        output: &mut Batch,
     ) -> Result<PollExecute> {
-        unimplemented!()
+        unsafe {
+            (self.vtable.poll_execute_fn)(
+                self.operator.get(),
+                cx,
+                op_state.0.get(),
+                partition_state.0.get_mut(),
+                input,
+                output,
+            )
+        }
     }
 
     pub fn call_poll_finalize_push(
@@ -636,7 +695,14 @@ impl PlannedOperator {
         op_state: &RawOperatorState,
         partition_state: &mut RawPartitionState,
     ) -> Result<PollFinalize> {
-        unimplemented!()
+        unsafe {
+            (self.vtable.poll_finalize_push_fn)(
+                self.operator.get(),
+                cx,
+                op_state.0.get(),
+                partition_state.0.get_mut(),
+            )
+        }
     }
 
     pub fn call_poll_finalize_execute(
@@ -645,17 +711,27 @@ impl PlannedOperator {
         op_state: &RawOperatorState,
         partition_state: &mut RawPartitionState,
     ) -> Result<PollFinalize> {
-        unimplemented!()
+        unsafe {
+            (self.vtable.poll_finalize_execute_fn)(
+                self.operator.get(),
+                cx,
+                op_state.0.get(),
+                partition_state.0.get_mut(),
+            )
+        }
     }
 
     pub fn call_build_pipeline(
         &self,
+        children: &[PlannedOperatorWithChildren],
         db_context: &DatabaseContext,
         props: ExecutionProperties,
         graph: &mut ExecutablePipelineGraph,
         current: &mut ExecutablePipeline,
     ) -> Result<()> {
-        unimplemented!()
+        unsafe {
+            (self.vtable.build_pipeline_fn)(self, children, db_context, props, graph, current)
+        }
     }
 
     pub fn call_explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
@@ -665,40 +741,457 @@ impl PlannedOperator {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawOperatorVTable {
+    create_operator_state_fn: unsafe fn(
+        operator: *const (),
+        context: &DatabaseContext,
+        props: ExecutionProperties,
+    ) -> Result<RawOperatorState>,
+
     output_types_fn: unsafe fn(operator: *const ()) -> Vec<DataType>,
+
+    build_pipeline_fn: unsafe fn(
+        operator: &PlannedOperator,
+        children: &[PlannedOperatorWithChildren],
+        db_context: &DatabaseContext,
+        props: ExecutionProperties,
+        graph: &mut ExecutablePipelineGraph,
+        current: &mut ExecutablePipeline,
+    ) -> Result<()>,
+
+    create_partition_execute_states_fn: unsafe fn(
+        operator: *const (),
+        operator_state: *const (),
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<RawPartitionState>>,
+
+    create_partition_pull_states_fn: unsafe fn(
+        operator: *const (),
+        operator_state: *const (),
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<RawPartitionState>>,
+
+    create_partition_push_states_fn: unsafe fn(
+        operator: *const (),
+        operator_state: *const (),
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<RawPartitionState>>,
 
     poll_push_fn: unsafe fn(
         operator: *const (),
         cx: &mut Context,
-        partition_state: *mut (),
         operator_state: *const (),
+        partition_state: *mut (),
         input: &mut Batch,
-    ) -> Result<PollExecute>,
+    ) -> Result<PollPush>,
 
     poll_execute_fn: unsafe fn(
         operator: *const (),
         cx: &mut Context,
-        partition_state: *mut (),
         operator_state: *const (),
-        inout: ExecuteInOut,
+        partition_state: *mut (),
+        input: &mut Batch,
+        output: &mut Batch,
     ) -> Result<PollExecute>,
+
+    poll_pull_fn: unsafe fn(
+        operator: *const (),
+        cx: &mut Context,
+        operator_state: *const (),
+        partition_state: *mut (),
+        ouput: &mut Batch,
+    ) -> Result<PollPull>,
+
+    poll_finalize_execute_fn: unsafe fn(
+        operator: *const (),
+        cx: &mut Context,
+        operator_state: *const (),
+        partition_state: *mut (),
+    ) -> Result<PollFinalize>,
+
+    poll_finalize_push_fn: unsafe fn(
+        operator: *const (),
+        cx: &mut Context,
+        operator_state: *const (),
+        partition_state: *mut (),
+    ) -> Result<PollFinalize>,
 
     explain_fn: unsafe fn(operator: *const (), conf: ExplainConfig) -> ExplainEntry,
 }
 
-pub(crate) trait OperatorVTable {
+/// Helper trait for creating the vtable for operators.
+trait OperatorVTable {
+    const OPERATOR_TYPE: OperatorType;
     const VTABLE: &'static RawOperatorVTable;
 }
 
-impl<O> OperatorVTable for O
+// TODO: Definitely a bit of repeated code, but currently pretty easy to see at
+// a glance what's going on.
+//
+// It may make sense to condense this down if necessary.
+
+struct ExecuteOperatorVTable<O: ExecuteOperator>(PhantomData<O>);
+
+impl<O> OperatorVTable for ExecuteOperatorVTable<O>
 where
     O: ExecuteOperator,
 {
+    const OPERATOR_TYPE: OperatorType = OperatorType::Execute;
+
     const VTABLE: &'static RawOperatorVTable = &RawOperatorVTable {
-        output_types_fn: |operator| unimplemented!(),
-        poll_push_fn: |operator, cx, partition_state, operator_state, input| unimplemented!(),
-        poll_execute_fn: |operator, cx, partition_state, operator_state, inout| unimplemented!(),
-        explain_fn: |operator, conf| unimplemented!(),
+        create_operator_state_fn: |operator, db_context, props| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = operator.create_operator_state(db_context, props)?;
+            Ok(RawOperatorState(RawClonePtr::new(state)))
+        },
+
+        output_types_fn: |operator| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            operator.output_types().to_vec()
+        },
+
+        build_pipeline_fn: |operator, children, db_context, props, graph, current| {
+            O::build_pipeline(operator, children, db_context, props, graph, current)
+        },
+
+        create_partition_execute_states_fn: |operator, op_state, props, partitions| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let op_state = unsafe {
+                op_state
+                    .cast::<<O as BaseOperator>::OperatorState>()
+                    .as_ref()
+                    .unwrap()
+            };
+            let states = operator.create_partition_execute_states(op_state, props, partitions)?;
+            Ok(states
+                .into_iter()
+                .map(|state| RawPartitionState(RawPtr::new(state)))
+                .collect())
+        },
+
+        create_partition_pull_states_fn: |operator, op_state, props, partitions| {
+            Err(RayexecError::new("Not a pull operator"))
+        },
+        create_partition_push_states_fn: |operator, op_state, props, partitions| {
+            Err(RayexecError::new("Not a push operator"))
+        },
+
+        poll_pull_fn: |operator, cx, partition_state, operator_state, output| {
+            Err(RayexecError::new("Not a pull operator"))
+        },
+        poll_push_fn: |operator, cx, partition_state, operator_state, input| {
+            Err(RayexecError::new("Not a push operator"))
+        },
+        poll_execute_fn: |operator, cx, op_state, partition_state, input, output| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = unsafe {
+                partition_state
+                    .cast::<<O as ExecuteOperator>::PartitionExecuteState>()
+                    .as_mut()
+                    .unwrap()
+            };
+            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            operator.poll_execute(cx, op_state, state, input, output)
+        },
+
+        poll_finalize_push_fn: |operator, cx, partition_state, operator_state| {
+            Err(RayexecError::new("Not a push operator"))
+        },
+        poll_finalize_execute_fn: |operator, cx, op_state, partition_state| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = unsafe {
+                partition_state
+                    .cast::<<O as ExecuteOperator>::PartitionExecuteState>()
+                    .as_mut()
+                    .unwrap()
+            };
+            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            operator.poll_finalize_execute(cx, op_state, state)
+        },
+
+        explain_fn: |operator, conf| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            operator.explain_entry(conf)
+        },
+    };
+}
+
+struct PushOperatorVTable<O: PushOperator>(PhantomData<O>);
+
+impl<O> OperatorVTable for PushOperatorVTable<O>
+where
+    O: PushOperator,
+{
+    const OPERATOR_TYPE: OperatorType = OperatorType::Push;
+
+    const VTABLE: &'static RawOperatorVTable = &RawOperatorVTable {
+        create_operator_state_fn: |operator, db_context, props| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = operator.create_operator_state(db_context, props)?;
+            Ok(RawOperatorState(RawClonePtr::new(state)))
+        },
+
+        output_types_fn: |operator| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            operator.output_types().to_vec()
+        },
+
+        build_pipeline_fn: |operator, children, db_context, props, graph, current| {
+            O::build_pipeline(operator, children, db_context, props, graph, current)
+        },
+
+        create_partition_execute_states_fn: |operator, op_state, props, partitions| {
+            Err(RayexecError::new("Not an execute operator"))
+        },
+
+        create_partition_pull_states_fn: |operator, op_state, props, partitions| {
+            Err(RayexecError::new("Not a pull operator"))
+        },
+        create_partition_push_states_fn: |operator, op_state, props, partitions| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let op_state = unsafe {
+                op_state
+                    .cast::<<O as BaseOperator>::OperatorState>()
+                    .as_ref()
+                    .unwrap()
+            };
+            let states = operator.create_partition_push_states(op_state, props, partitions)?;
+            Ok(states
+                .into_iter()
+                .map(|state| RawPartitionState(RawPtr::new(state)))
+                .collect())
+        },
+
+        poll_pull_fn: |operator, cx, partition_state, operator_state, output| {
+            Err(RayexecError::new("Not a pull operator"))
+        },
+        poll_push_fn: |operator, cx, op_state, partition_state, input| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = unsafe {
+                partition_state
+                    .cast::<<O as PushOperator>::PartitionPushState>()
+                    .as_mut()
+                    .unwrap()
+            };
+            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            operator.poll_push(cx, op_state, state, input)
+        },
+        poll_execute_fn: |operator, cx, partition_state, operator_state, input, output| {
+            Err(RayexecError::new("Not an execute operator"))
+        },
+
+        poll_finalize_push_fn: |operator, cx, op_state, partition_state| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = unsafe {
+                partition_state
+                    .cast::<<O as PushOperator>::PartitionPushState>()
+                    .as_mut()
+                    .unwrap()
+            };
+            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            operator.poll_finalize_push(cx, op_state, state)
+        },
+        poll_finalize_execute_fn: |operator, cx, partition_state, operator_state| {
+            Err(RayexecError::new("Not an execute operator"))
+        },
+
+        explain_fn: |operator, conf| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            operator.explain_entry(conf)
+        },
+    };
+}
+
+struct PushExecuteOperatorVTable<O: ExecuteOperator + PushOperator>(PhantomData<O>);
+
+impl<O> OperatorVTable for PushExecuteOperatorVTable<O>
+where
+    O: ExecuteOperator + PushOperator,
+{
+    const OPERATOR_TYPE: OperatorType = OperatorType::PushExecute;
+
+    const VTABLE: &'static RawOperatorVTable = &RawOperatorVTable {
+        create_operator_state_fn: |operator, db_context, props| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = operator.create_operator_state(db_context, props)?;
+            Ok(RawOperatorState(RawClonePtr::new(state)))
+        },
+
+        output_types_fn: |operator| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            operator.output_types().to_vec()
+        },
+
+        build_pipeline_fn: |operator, children, db_context, props, graph, current| {
+            O::build_pipeline(operator, children, db_context, props, graph, current)
+        },
+
+        create_partition_execute_states_fn: |operator, op_state, props, partitions| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let op_state = unsafe {
+                op_state
+                    .cast::<<O as BaseOperator>::OperatorState>()
+                    .as_ref()
+                    .unwrap()
+            };
+            let states = operator.create_partition_execute_states(op_state, props, partitions)?;
+            Ok(states
+                .into_iter()
+                .map(|state| RawPartitionState(RawPtr::new(state)))
+                .collect())
+        },
+
+        create_partition_pull_states_fn: |operator, op_state, props, partitions| {
+            Err(RayexecError::new("Not a pull operator"))
+        },
+        create_partition_push_states_fn: |operator, op_state, props, partitions| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let op_state = unsafe {
+                op_state
+                    .cast::<<O as BaseOperator>::OperatorState>()
+                    .as_ref()
+                    .unwrap()
+            };
+            let states = operator.create_partition_push_states(op_state, props, partitions)?;
+            Ok(states
+                .into_iter()
+                .map(|state| RawPartitionState(RawPtr::new(state)))
+                .collect())
+        },
+
+        poll_pull_fn: |operator, cx, partition_state, operator_state, output| {
+            Err(RayexecError::new("Not a pull operator"))
+        },
+        poll_push_fn: |operator, cx, op_state, partition_state, input| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = unsafe {
+                partition_state
+                    .cast::<<O as PushOperator>::PartitionPushState>()
+                    .as_mut()
+                    .unwrap()
+            };
+            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            operator.poll_push(cx, op_state, state, input)
+        },
+        poll_execute_fn: |operator, cx, op_state, partition_state, input, output| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = unsafe {
+                partition_state
+                    .cast::<<O as ExecuteOperator>::PartitionExecuteState>()
+                    .as_mut()
+                    .unwrap()
+            };
+            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            operator.poll_execute(cx, op_state, state, input, output)
+        },
+
+        poll_finalize_push_fn: |operator, cx, op_state, partition_state| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = unsafe {
+                partition_state
+                    .cast::<<O as PushOperator>::PartitionPushState>()
+                    .as_mut()
+                    .unwrap()
+            };
+            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            operator.poll_finalize_push(cx, op_state, state)
+        },
+        poll_finalize_execute_fn: |operator, cx, op_state, partition_state| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = unsafe {
+                partition_state
+                    .cast::<<O as ExecuteOperator>::PartitionExecuteState>()
+                    .as_mut()
+                    .unwrap()
+            };
+            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            operator.poll_finalize_execute(cx, op_state, state)
+        },
+
+        explain_fn: |operator, conf| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            operator.explain_entry(conf)
+        },
+    };
+}
+
+struct PullOperatorVTable<O: PullOperator>(PhantomData<O>);
+
+impl<O> OperatorVTable for PullOperatorVTable<O>
+where
+    O: PullOperator,
+{
+    const OPERATOR_TYPE: OperatorType = OperatorType::Pull;
+
+    const VTABLE: &'static RawOperatorVTable = &RawOperatorVTable {
+        create_operator_state_fn: |operator, db_context, props| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = operator.create_operator_state(db_context, props)?;
+            Ok(RawOperatorState(RawClonePtr::new(state)))
+        },
+
+        output_types_fn: |operator| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            operator.output_types().to_vec()
+        },
+
+        build_pipeline_fn: |operator, children, db_context, props, graph, current| {
+            O::build_pipeline(operator, children, db_context, props, graph, current)
+        },
+
+        create_partition_execute_states_fn: |operator, op_state, props, partitions| {
+            Err(RayexecError::new("Not an execute operator"))
+        },
+
+        create_partition_pull_states_fn: |operator, op_state, props, partitions| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let op_state = unsafe {
+                op_state
+                    .cast::<<O as BaseOperator>::OperatorState>()
+                    .as_ref()
+                    .unwrap()
+            };
+            let states = operator.create_partition_pull_states(op_state, props, partitions)?;
+            Ok(states
+                .into_iter()
+                .map(|state| RawPartitionState(RawPtr::new(state)))
+                .collect())
+        },
+        create_partition_push_states_fn: |operator, op_state, props, partitions| {
+            Err(RayexecError::new("Not a push operator"))
+        },
+
+        poll_pull_fn: |operator, cx, op_state, partition_state, output| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let state = unsafe {
+                partition_state
+                    .cast::<<O as PullOperator>::PartitionPullState>()
+                    .as_mut()
+                    .unwrap()
+            };
+            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            operator.poll_pull(cx, op_state, state, output)
+        },
+        poll_push_fn: |operator, cx, partition_state, operator_state, input| {
+            Err(RayexecError::new("Not a push operator"))
+        },
+        poll_execute_fn: |operator, cx, partition_state, operator_state, input, output| {
+            Err(RayexecError::new("Not an execute operator"))
+        },
+
+        poll_finalize_push_fn: |operator, cx, partition_state, operator_state| {
+            Err(RayexecError::new("Not a push operator"))
+        },
+        poll_finalize_execute_fn: |operator, cx, partition_state, operator_state| {
+            Err(RayexecError::new("Not an execute operator"))
+        },
+
+        explain_fn: |operator, conf| {
+            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            operator.explain_entry(conf)
+        },
     };
 }
 

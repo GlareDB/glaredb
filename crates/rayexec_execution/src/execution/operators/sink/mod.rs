@@ -251,8 +251,8 @@ mod tests {
         for row_count in row_counts {
             let poll = wrapper
                 .poll_execute(
-                    &mut states.partition_states[0],
                     &states.operator_state,
+                    &mut states.partition_states[0],
                     ExecuteInOut {
                         input: Some(&mut Batch::empty_with_num_rows(row_count)),
                         output: None,
@@ -263,7 +263,7 @@ mod tests {
         }
 
         let poll = wrapper
-            .poll_finalize(&mut states.partition_states[0], &states.operator_state)
+            .poll_finalize(&states.operator_state, &mut states.partition_states[0])
             .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
 
@@ -271,8 +271,8 @@ mod tests {
 
         let poll = wrapper
             .poll_execute(
-                &mut states.partition_states[0],
                 &states.operator_state,
+                &mut states.partition_states[0],
                 ExecuteInOut {
                     input: None,
                     output: Some(&mut output),
@@ -301,8 +301,8 @@ mod tests {
         for (part, row_count) in per_part_row_counts {
             let poll = wrapper
                 .poll_execute(
-                    &mut states.partition_states[part],
                     &states.operator_state,
+                    &mut states.partition_states[part],
                     ExecuteInOut {
                         input: Some(&mut Batch::empty_with_num_rows(row_count)),
                         output: None,
@@ -315,14 +315,14 @@ mod tests {
         // Finalize all partitions but last.
         for part in 0..3 {
             let poll = wrapper
-                .poll_finalize(&mut states.partition_states[part], &states.operator_state)
+                .poll_finalize(&states.operator_state, &mut states.partition_states[part])
                 .unwrap();
             assert_eq!(PollFinalize::Finalized, poll);
         }
 
         // Finalize last.
         let poll = wrapper
-            .poll_finalize(&mut states.partition_states[3], &states.operator_state)
+            .poll_finalize(&states.operator_state, &mut states.partition_states[3])
             .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
 
@@ -331,8 +331,8 @@ mod tests {
         // Poll with partition that finalized with NeedsDrain (3).
         let poll = wrapper
             .poll_execute(
-                &mut states.partition_states[3],
                 &states.operator_state,
+                &mut states.partition_states[3],
                 ExecuteInOut {
                     input: None,
                     output: Some(&mut output),
