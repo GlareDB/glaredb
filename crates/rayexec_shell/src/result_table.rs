@@ -1,3 +1,6 @@
+// TODO: Delete, not current in module tree, but there's still code here that
+// should be moved out.
+
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};

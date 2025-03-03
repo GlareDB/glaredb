@@ -204,7 +204,7 @@ impl WasmTaskState {
                     continue;
                 }
                 Poll::Ready(Some(Err(e))) => {
-                    self.errors.push_error(e);
+                    self.errors.set_error(e);
                     return;
                 }
                 Poll::Pending => {

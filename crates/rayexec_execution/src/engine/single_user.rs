@@ -1,15 +1,17 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use futures::lock::Mutex;
 use rayexec_error::{RayexecError, Result};
-use rayexec_execution::datasource::DataSourceRegistry;
-use rayexec_execution::engine::session::Session;
-use rayexec_execution::engine::Engine;
-use rayexec_execution::hybrid::client::{HybridClient, HybridConnectConfig};
-use rayexec_execution::runtime::{PipelineExecutor, Runtime};
 use rayexec_parser::parser;
 use rayexec_parser::statement::RawStatement;
-use tokio::sync::Mutex;
+
+use super::query_result::QueryResult;
+use super::session::Session;
+use super::Engine;
+use crate::datasource::DataSourceRegistry;
+use crate::hybrid::client::{HybridClient, HybridConnectConfig};
+use crate::runtime::{PipelineExecutor, Runtime};
 
 /// A wrapper around a session and an engine for when running the database in a
 /// local, single user mode (e.g. in the CLI or through wasm).
@@ -63,8 +65,9 @@ where
 pub struct SingleUserSession<P: PipelineExecutor, R: Runtime> {
     /// The underlying session.
     ///
-    /// Wrapped in a mutex since planning may alter session state. Needs a tokio
-    /// mutex since the lock is held across an await (for async binding).
+    /// Wrapped in a mutex since planning may alter session state. Needs a
+    /// async-aware mutex since the lock is held across an await (for async
+    /// binding).
     ///
     /// The lock should not be held during actual execution (reading of the
     /// result stream).
@@ -77,7 +80,7 @@ where
     R: Runtime,
 {
     /// Execute a single sql query.
-    pub async fn query(&self, sql: &str) -> Result<StreamingTable> {
+    pub async fn query(&self, sql: &str) -> Result<QueryResult> {
         let mut statements = parser::parse(sql)?;
         let statement = match statements.len() {
             1 => statements.pop().unwrap(),
@@ -126,7 +129,7 @@ where
     P: PipelineExecutor,
     R: Runtime,
 {
-    pub async fn execute(self) -> Result<StreamingTable> {
+    pub async fn execute(self) -> Result<QueryResult> {
         const UNNAMED: &str = "";
 
         let mut session = self.session.lock().await;
@@ -134,8 +137,6 @@ where
         session.prepare(UNNAMED, self.statement)?;
         session.bind(UNNAMED, UNNAMED).await?;
 
-        let result = session.execute(UNNAMED).await?;
-
-        Ok(StreamingTable { result })
+        session.execute(UNNAMED).await
     }
 }

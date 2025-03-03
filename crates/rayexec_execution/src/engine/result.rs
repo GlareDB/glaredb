@@ -132,7 +132,7 @@ pub struct ResultErrorSink {
 }
 
 impl ErrorSink for ResultErrorSink {
-    fn push_error(&self, error: RayexecError) {
+    fn set_error(&self, error: RayexecError) {
         warn!(%error, "query error");
 
         // First error wins.

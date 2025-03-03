@@ -339,7 +339,7 @@ pub struct SharedErrorSink {
 }
 
 impl ErrorSink for SharedErrorSink {
-    fn push_error(&self, error: RayexecError) {
+    fn set_error(&self, error: RayexecError) {
         let mut inner = self.inner.write();
         if inner.is_some() {
             // Prefer the existing error.

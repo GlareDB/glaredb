@@ -17,12 +17,13 @@ use crate::execution::operators::{
     PushOperator,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::ErrorSink;
 
 /// Streams result batches for a query.
 ///
 /// This produces a single stream from some number of partitions. The ordering
 /// of batches is not guaranteed.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ResultStream {
     inner: Arc<Mutex<ResultStreamInner>>,
 }
@@ -58,13 +59,15 @@ impl ResultStream {
         }
     }
 
-    /// Set the error for the stream.
-    pub fn set_error(&self, error: RayexecError) {
-        let mut inner = self.inner.lock();
-        inner.error = Some(error);
+    pub fn sink(&self) -> ResultSink {
+        ResultSink {
+            inner: self.inner.clone(),
+        }
+    }
 
-        if let Some(waker) = inner.pull_waker.take() {
-            waker.wake();
+    pub fn error_sink(&self) -> ResultErrorSink {
+        ResultErrorSink {
+            inner: self.inner.clone(),
         }
     }
 }
@@ -105,9 +108,31 @@ impl Stream for ResultStream {
     }
 }
 
+/// The sink side of the stream. Inner is accessed directly in the operator.
+#[derive(Debug, Clone)]
+pub struct ResultSink {
+    inner: Arc<Mutex<ResultStreamInner>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResultErrorSink {
+    inner: Arc<Mutex<ResultStreamInner>>,
+}
+
+impl ErrorSink for ResultErrorSink {
+    fn set_error(&self, error: RayexecError) {
+        let mut inner = self.inner.lock();
+        inner.error = Some(error);
+
+        if let Some(waker) = inner.pull_waker.take() {
+            waker.wake();
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct StreamingResultsOperatorState {
-    stream: ResultStream,
+    sink: ResultSink,
 }
 
 #[derive(Debug)]
@@ -117,12 +142,12 @@ pub struct StreamingResultsPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalStreamingResults {
-    pub(crate) stream: ResultStream,
+    pub(crate) sink: ResultSink,
 }
 
 impl PhysicalStreamingResults {
-    pub fn new(stream: ResultStream) -> Self {
-        PhysicalStreamingResults { stream }
+    pub fn new(sink: ResultSink) -> Self {
+        PhysicalStreamingResults { sink }
     }
 }
 
@@ -135,7 +160,7 @@ impl BaseOperator for PhysicalStreamingResults {
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(StreamingResultsOperatorState {
-            stream: self.stream.clone(),
+            sink: self.sink.clone(),
         })
     }
 
@@ -155,7 +180,10 @@ impl PushOperator for PhysicalStreamingResults {
         partitions: usize,
     ) -> Result<Vec<Self::PartitionPushState>> {
         // Resize wakers vec.
-        let mut inner = operator_state.stream.inner.lock();
+        //
+        // TODO: Should probably error if the existing size is 0 since that'd
+        // indicate we have multiple sinks for the same stream.
+        let mut inner = operator_state.sink.inner.lock();
         inner.push_wakers.resize(partitions, None);
         inner.remaining_inputs = partitions;
 
@@ -173,7 +201,7 @@ impl PushOperator for PhysicalStreamingResults {
         operator_state: &Self::OperatorState,
         input: &mut Batch,
     ) -> Result<PollPush> {
-        let mut inner = operator_state.stream.inner.lock();
+        let mut inner = operator_state.sink.inner.lock();
 
         if inner.buffered.is_some() {
             // Batch already being buffered, come back later.
@@ -201,7 +229,7 @@ impl PushOperator for PhysicalStreamingResults {
         _state: &mut Self::PartitionPushState,
         operator_state: &Self::OperatorState,
     ) -> Result<PollFinalize> {
-        let mut inner = operator_state.stream.inner.lock();
+        let mut inner = operator_state.sink.inner.lock();
         inner.remaining_inputs -= 1;
 
         if let Some(waker) = inner.pull_waker.take() {
@@ -232,7 +260,7 @@ mod tests {
     #[test]
     fn single_partition_stream() {
         let mut stream = ResultStream::new();
-        let wrapper = OperatorWrapper::new(PhysicalStreamingResults::new(stream.clone()));
+        let wrapper = OperatorWrapper::new(PhysicalStreamingResults::new(stream.sink()));
 
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper
@@ -263,7 +291,7 @@ mod tests {
     #[test]
     fn single_partition_push_wakes_pull() {
         let mut stream = ResultStream::new();
-        let wrapper = OperatorWrapper::new(PhysicalStreamingResults::new(stream.clone()));
+        let wrapper = OperatorWrapper::new(PhysicalStreamingResults::new(stream.sink()));
 
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper

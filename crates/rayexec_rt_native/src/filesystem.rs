@@ -1,11 +1,11 @@
 use std::fs::{self, File as StdFile};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::future::Future;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
-use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use rayexec_error::{Result, ResultExt};
-use rayexec_io::exp::{AsyncReadStream, FileSource};
+use rayexec_execution::io::file::{AsyncReadStream, FileSource};
 
 #[derive(Debug)]
 pub struct LocalFile {
@@ -37,25 +37,32 @@ impl LocalFile {
 }
 
 impl FileSource for LocalFile {
-    fn read(&mut self) -> Pin<Box<dyn AsyncReadStream>> {
-        Box::pin(LocalFileRead::Seeking {
+    type ReadStream = LocalFileRead;
+    type ReadRangeStream = LocalFileRead;
+
+    fn size(&self) -> impl Future<Output = Result<usize>> + Send {
+        async { Ok(self.len) }
+    }
+
+    fn read(&mut self) -> Self::ReadStream {
+        LocalFileRead::Seeking {
             file: self.file.try_clone().unwrap(),
             seek_to: 0,
             read_amount: self.len,
-        })
+        }
     }
 
-    fn read_range(&mut self, start: usize, len: usize) -> Pin<Box<dyn AsyncReadStream>> {
-        Box::pin(LocalFileRead::Seeking {
+    fn read_range(&mut self, start: usize, len: usize) -> Self::ReadRangeStream {
+        LocalFileRead::Seeking {
             file: self.file.try_clone().unwrap(),
             seek_to: start as u64,
             read_amount: len,
-        })
+        }
     }
 }
 
 #[derive(Debug)]
-enum LocalFileRead {
+pub enum LocalFileRead {
     Seeking {
         file: StdFile,
         seek_to: u64,
@@ -70,7 +77,7 @@ enum LocalFileRead {
 
 impl AsyncReadStream for LocalFileRead {
     fn poll_read(
-        mut self: Pin<&mut Self>,
+        self: &mut Self,
         _cx: &mut Context,
         mut buf: &mut [u8],
     ) -> Result<Poll<Option<usize>>> {

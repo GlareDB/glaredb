@@ -7,20 +7,19 @@ use rayexec_parser::statement::RawStatement;
 use uuid::Uuid;
 
 use super::profiler::PlanningProfileData;
-use super::result::{new_results_sinks, ExecutionResult, ResultErrorSink, ResultStream};
+use super::query_result::{Output, QueryResult};
 use super::verifier::QueryVerifier;
 use super::DataSourceRegistry;
 use crate::arrays::field::{Field, Schema};
-use crate::config::execution::OperatorPlanConfig;
 use crate::config::session::SessionConfig;
 use crate::database::catalog::CatalogTx;
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{AttachInfo, Database, DatabaseContext};
 use crate::execution::executable::pipeline::ExecutablePipeline;
+use crate::execution::operators::results::streaming::{ResultSink, ResultStream};
 use crate::hybrid::client::HybridClient;
 use crate::logical::binder::bind_statement::StatementBinder;
 use crate::logical::logical_attach::LogicalAttachDatabase;
-use crate::logical::logical_set::VariableOrAll;
 use crate::logical::operator::{LogicalOperator, Node};
 use crate::logical::planner::plan_statement::StatementPlanner;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -125,10 +124,8 @@ struct ExecutablePortal {
     executable_pipelines: Vec<ExecutablePipeline>,
     /// Output schema of the query.
     output_schema: Schema,
-    /// Where results will be sent to.
+    /// Output result stream.
     result_stream: ResultStream,
-    /// Where errors will be sent do.
-    error_sink: ResultErrorSink,
     /// Profile data we've collected during resolving/binding/planning.
     profile: PlanningProfileData,
     /// Optional verifier that we're carrying through planning.
@@ -172,7 +169,7 @@ where
     /// Execution result streams should be read in order.
     ///
     /// Uses the unnamed ("") keys for prepared statements and portals.
-    pub async fn simple(&mut self, sql: &str) -> Result<Vec<ExecutionResult>> {
+    pub async fn simple(&mut self, sql: &str) -> Result<Vec<QueryResult>> {
         let stmts = parser::parse(sql)?;
         let mut results = Vec::with_capacity(stmts.len());
 
@@ -249,7 +246,8 @@ where
             .plan_intermediate(resolved_stmt, resolve_context, resolve_mode, &mut profile)
             .await?;
 
-        let (stream, sink, errors) = new_results_sinks();
+        let stream = ResultStream::new();
+        let sink = stream.sink();
 
         // let mut planner = ExecutablePipelinePlanner::<R>::new(
         //     &self.context,
@@ -431,7 +429,7 @@ where
     ///
     /// This will go through the final phase of planning (producing executable
     /// pipelines) then spawn those on the executor.
-    pub async fn execute(&mut self, portal_name: &str) -> Result<ExecutionResult> {
+    pub async fn execute(&mut self, portal_name: &str) -> Result<QueryResult> {
         let portal = self
             .portals
             .remove(portal_name)
@@ -443,28 +441,35 @@ where
             hybrid_client.remote_execute(portal.query_id).await?;
         }
 
-        let handle = self
-            .executor
-            .spawn_pipelines(portal.executable_pipelines, Arc::new(portal.error_sink));
+        let handle = self.executor.spawn_pipelines(
+            portal.executable_pipelines,
+            Arc::new(portal.result_stream.error_sink()),
+        );
 
-        let exec_result = ExecutionResult {
-            planning_profile: portal.profile,
-            output_schema: portal.output_schema,
-            stream: portal.result_stream,
-            handle: handle.into(),
-        };
+        unimplemented!()
+        // let query_result = QueryResult {
+        //     output: Output::Stream(portal.result_stream),
+        //     output_schema
+        // }
 
-        match portal.verifier {
-            Some(verifier) => {
-                // TODO: Try to avoid the box pin here. `verify` should probably
-                // be split up into to functions, one for creating a stream from
-                // the session, the other for actually executing the stream and
-                // doing the checking.
-                let new_exec_result = Box::pin(verifier.verify(self, exec_result)).await?;
-                Ok(new_exec_result)
-            }
-            None => Ok(exec_result),
-        }
+        // let exec_result = ExecutionResult {
+        //     planning_profile: portal.profile,
+        //     output_schema: portal.output_schema,
+        //     stream: portal.result_stream,
+        //     handle: handle.into(),
+        // };
+
+        // match portal.verifier {
+        //     Some(verifier) => {
+        //         // TODO: Try to avoid the box pin here. `verify` should probably
+        //         // be split up into to functions, one for creating a stream from
+        //         // the session, the other for actually executing the stream and
+        //         // doing the checking.
+        //         let new_exec_result = Box::pin(verifier.verify(self, exec_result)).await?;
+        //         Ok(new_exec_result)
+        //     }
+        //     None => Ok(exec_result),
+        // }
     }
 
     async fn handle_attach_database(&mut self, attach: Node<LogicalAttachDatabase>) -> Result<()> {

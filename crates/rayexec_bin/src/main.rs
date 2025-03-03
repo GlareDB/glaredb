@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
@@ -7,13 +9,13 @@ use crossterm::event::{self, Event, KeyModifiers};
 // use rayexec_delta::DeltaDataSource;
 use rayexec_error::Result;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
+use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
+use rayexec_execution::shell::lineedit::KeyEvent;
+use rayexec_execution::shell::shell::{Shell, ShellSignal};
 // use rayexec_iceberg::IcebergDataSource;
 // use rayexec_parquet::ParquetDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-use rayexec_shell::lineedit::KeyEvent;
-use rayexec_shell::session::SingleUserEngine;
-use rayexec_shell::shell::{Shell, ShellSignal};
 // use rayexec_unity_catalog::UnityCatalogDataSource;
 
 #[derive(Parser)]
@@ -37,21 +39,42 @@ fn main() {
     let args = Arguments::parse();
     logutil::configure_global_logger(tracing::Level::ERROR, logutil::LogFormat::HumanReadable);
 
-    let executor = ThreadedNativeExecutor::try_new().unwrap();
-    let runtime = NativeRuntime::with_default_tokio().unwrap();
-    let tokio_handle = runtime
-        .tokio_handle()
-        .handle()
-        .expect("tokio to be configured");
+    // Nested result. Outer result for the panic, inner is execution result.
+    let result = std::panic::catch_unwind(|| {
+        let executor = ThreadedNativeExecutor::try_new().unwrap();
+        let runtime = NativeRuntime::with_default_tokio().unwrap();
+        let tokio_handle = runtime
+            .tokio_handle()
+            .handle()
+            .expect("tokio to be configured");
 
-    // Note we do an explicit clone here to avoid dropping the tokio runtime
-    // owned by the execution runtime inside the async context.
-    let runtime_clone = runtime.clone();
-    let result = tokio_handle.block_on(async move { inner(args, executor, runtime_clone).await });
+        // Note we do an explicit clone here to avoid dropping the tokio runtime
+        // owned by the execution runtime inside the async context.
+        let runtime_clone = runtime.clone();
 
-    if let Err(e) = result {
-        println!("ERROR: {e}");
-        std::process::exit(1);
+        tokio_handle.block_on(async move { inner(args, executor, runtime_clone).await })
+    });
+
+    // Reset terminal if needed.
+    if unsafe { RAW_MODE_SET } {
+        if let Err(err) = crossterm::terminal::disable_raw_mode() {
+            println!("Failed to disable raw mode: {err}")
+            // Continue on, still want to print out other errors if needed.
+        }
+    }
+
+    match result {
+        Ok(Err(err)) => {
+            // "Normal" error.
+            println!("ERROR: {err}");
+            std::process::exit(1);
+        }
+        Err(err) => {
+            // Panic error.
+            println!("PANIC: {err:?}");
+            std::process::exit(2);
+        }
+        Ok(Ok(())) => (),
     }
 }
 
@@ -73,6 +96,8 @@ fn from_crossterm_keycode(code: crossterm::event::KeyCode) -> KeyEvent {
         _ => KeyEvent::Unknown,
     }
 }
+
+static mut RAW_MODE_SET: bool = false;
 
 async fn inner(
     args: Arguments,
@@ -96,25 +121,26 @@ async fn inner(
         for path in args.files {
             let content = std::fs::read_to_string(path)?;
 
-            let pending_queries = engine.session().query_many(&content)?;
-            for pending in pending_queries {
-                let table = pending
-                    .execute()
-                    .await?
-                    .collect_with_execution_profile()
-                    .await?;
-                writeln!(stdout, "{}", table.pretty_table(cols as usize, None)?)?;
+            unimplemented!()
+            // let pending_queries = engine.session().query_many(&content)?;
+            // for pending in pending_queries {
+            //     let table = pending
+            //         .execute()
+            //         .await?
+            //         .collect_with_execution_profile()
+            //         .await?;
+            //     writeln!(stdout, "{}", table.pretty_table(cols as usize, None)?)?;
 
-                if args.dump_profile {
-                    writeln!(stdout, "---- PLANNING ----")?;
-                    writeln!(stdout, "{}", table.planning_profile_data().unwrap())?;
-                    writeln!(stdout, "---- EXECUTION ----")?;
-                    writeln!(stdout, "{}", table.execution_profile_data().unwrap())?;
-                }
+            //     if args.dump_profile {
+            //         writeln!(stdout, "---- PLANNING ----")?;
+            //         writeln!(stdout, "{}", table.planning_profile_data().unwrap())?;
+            //         writeln!(stdout, "---- EXECUTION ----")?;
+            //         writeln!(stdout, "{}", table.execution_profile_data().unwrap())?;
+            //     }
 
-                stdout.flush()?;
-            }
-            stdout.flush()?;
+            //     stdout.flush()?;
+            // }
+            // stdout.flush()?;
         }
 
         return Ok(());
@@ -122,21 +148,24 @@ async fn inner(
 
     if !args.queries.is_empty() {
         // Queries provided directly, run and print them, and exit.
-        for query in args.queries {
-            let pending_queries = engine.session().query_many(&query)?;
-            for pending in pending_queries {
-                let table = pending.execute().await?.collect().await?;
-                writeln!(stdout, "{}", table.pretty_table(cols as usize, None)?)?;
-            }
-            stdout.flush()?;
-        }
+        unimplemented!();
+        // for query in args.queries {
+        //     let pending_queries = engine.session().query_many(&query)?;
+        //     for pending in pending_queries {
+        //         let table = pending.execute().await?.collect().await?;
+        //         writeln!(stdout, "{}", table.pretty_table(cols as usize, None)?)?;
+        //     }
+        //     stdout.flush()?;
+        // }
 
         return Ok(());
     }
 
     // Otherwise continue on with interactive shell.
 
+    // Disabling raw mode will be handled outside of this function.
     crossterm::terminal::enable_raw_mode()?;
+    unsafe { RAW_MODE_SET = true };
 
     let shell = Shell::new(stdout);
     shell.set_cols(cols as usize);
@@ -170,8 +199,5 @@ async fn inner(
         Ok(())
     };
 
-    let result = inner_loop().await;
-    crossterm::terminal::disable_raw_mode()?;
-
-    result
+    inner_loop().await
 }

@@ -16,6 +16,8 @@ pub mod proto;
 pub mod runtime;
 pub mod storage;
 
+pub mod shell;
+
 pub mod testutil;
 
 pub(crate) mod ptr;

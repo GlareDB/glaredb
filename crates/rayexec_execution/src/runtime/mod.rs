@@ -6,11 +6,11 @@ use std::sync::Arc;
 
 use handle::QueryHandle;
 use rayexec_error::{RayexecError, Result};
-use rayexec_io::exp::FileProvider;
 use rayexec_io::http::HttpClient;
 use time::RuntimeInstant;
 
 use crate::execution::executable::pipeline::ExecutablePipeline;
+use crate::io::file::FileOpener;
 
 /// How pipelines get executed on a single node.
 ///
@@ -44,7 +44,7 @@ pub trait PipelineExecutor: Debug + Sync + Send + Clone {
 /// Runtime dependendencies.
 pub trait Runtime: Debug + Sync + Send + Clone + 'static {
     type HttpClient: HttpClient;
-    type FileProvider: FileProvider;
+    type FileProvider: FileOpener;
     type TokioHandle: TokioHandlerProvider;
     type Instant: RuntimeInstant; // TODO: Should this be on the runtime?
 
@@ -92,5 +92,5 @@ impl TokioHandlerProvider for OptionalTokioRuntime {
 
 pub trait ErrorSink: Debug + Sync + Send {
     /// Push an error.
-    fn push_error(&self, error: RayexecError);
+    fn set_error(&self, error: RayexecError);
 }

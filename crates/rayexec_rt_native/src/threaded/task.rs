@@ -45,7 +45,7 @@ impl PartitionPipelineTask {
         if pipeline_state.query_canceled {
             self.state
                 .errors
-                .push_error(RayexecError::new("Query canceled"));
+                .set_error(RayexecError::new("Query canceled"));
             return;
         }
 
@@ -66,7 +66,7 @@ impl PartitionPipelineTask {
                     continue;
                 }
                 Poll::Ready(Some(Err(e))) => {
-                    self.state.errors.push_error(e);
+                    self.state.errors.set_error(e);
                     return;
                 }
                 Poll::Pending => {

@@ -4,6 +4,8 @@ use std::sync::Arc;
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::execution::executable::partition_pipeline::ExecutablePartitionPipeline;
 use rayexec_execution::execution::executable::pipeline::ExecutablePipeline;
+use rayexec_execution::io::access::AccessConfig;
+use rayexec_execution::io::file::FileOpener;
 use rayexec_execution::runtime::handle::QueryHandle;
 use rayexec_execution::runtime::{
     ErrorSink,
@@ -12,12 +14,10 @@ use rayexec_execution::runtime::{
     Runtime,
     TokioHandlerProvider,
 };
-use rayexec_io::exp::{FileProvider2, FileSource};
+use rayexec_io::exp::FileSource;
 use rayexec_io::http::HttpFile;
-use rayexec_io::location::{AccessConfig, FileLocation};
-use rayexec_io::s3::{S3Client, S3Location};
-use rayexec_io::{FileProvider2, FileSink};
 
+use crate::filesystem::LocalFile;
 use crate::http::TokioWrappedHttpClient;
 use crate::threaded::ThreadedScheduler;
 use crate::time::NativeInstant;
@@ -129,22 +129,50 @@ pub struct NativeFileProvider {
     handle: Option<tokio::runtime::Handle>,
 }
 
-impl FileProvider2 for NativeFileProvider {
-    fn file_source(
-        &self,
-        location: FileLocation,
-        config: &AccessConfig,
-    ) -> Result<Box<dyn FileSource>> {
-        match (location, config, self.handle.as_ref()) {
-            (FileLocation::Url(url), AccessConfig::None, Some(handle)) => {
-                let client =
-                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone());
-                Ok(Box::new(HttpFile::new(client, url)))
-            }
-            _ => unimplemented!(),
-        }
+#[derive(Debug)]
+pub struct StubAccess {}
+
+impl AccessConfig for StubAccess {
+    fn from_options(
+        unnamed: &[rayexec_execution::arrays::scalar::ScalarValue],
+        named: &std::collections::HashMap<String, rayexec_execution::arrays::scalar::ScalarValue>,
+    ) -> Result<Self> {
+        unimplemented!()
     }
 }
+
+impl FileOpener for NativeFileProvider {
+    type AccessConfig = StubAccess;
+    type ReadFile = LocalFile;
+
+    fn list_prefix(
+        &self,
+        prefix: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<String>>> + Send {
+        async { Ok(Vec::new()) }
+    }
+
+    fn open_for_read(&self, conf: &Self::AccessConfig) -> Result<Self::ReadFile> {
+        unimplemented!()
+    }
+}
+
+// impl FileProvider for NativeFileProvider {
+//     fn file_source(
+//         &self,
+//         location: FileLocation,
+//         config: &AccessConfig,
+//     ) -> Result<Box<dyn FileSource>> {
+//         match (location, config, self.handle.as_ref()) {
+//             (FileLocation::Url(url), AccessConfig::None, Some(handle)) => {
+//                 let client =
+//                     TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone());
+//                 Ok(Box::new(HttpFile::new(client, url)))
+//             }
+//             _ => unimplemented!(),
+//         }
+//     }
+// }
 
 // impl FileProvider2 for NativeFileProvider {
 //     fn file_source(

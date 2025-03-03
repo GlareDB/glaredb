@@ -8,7 +8,6 @@ edition.workspace = true
 [dependencies]
 logutil = { path = '../logutil' }
 rayexec_error = { path = '../rayexec_error' }
-rayexec_shell = { path = '../rayexec_shell' }
 rayexec_execution = { path = '../rayexec_execution' }
 rayexec_rt_native = { path = '../rayexec_rt_native' }
 rayexec_bullet = { path = '../rayexec_bullet' }
