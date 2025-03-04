@@ -757,9 +757,9 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::array::selection::Selection;
     use crate::arrays::field::Field;
+    use crate::buffer::buffer_manager::NopBufferManager;
 
     #[test]
     fn test_truncate_string() {

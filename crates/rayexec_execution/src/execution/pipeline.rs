@@ -6,6 +6,7 @@ use super::planner::QueryGraph;
 use crate::arrays::batch::Batch;
 use crate::database::DatabaseContext;
 use crate::execution::execution_stack::ExecutionStack;
+use crate::explain::explainable::ExplainConfig;
 
 #[derive(Debug)]
 pub struct ExecutablePipelineGraph {
@@ -28,6 +29,8 @@ impl ExecutablePipelineGraph {
 
         let root = query_graph.root;
         root.build_pipeline(db_context, props, &mut pipeline_graph, &mut current)?;
+
+        pipeline_graph.push_pipeline(current);
 
         Ok(pipeline_graph)
     }
@@ -143,10 +146,7 @@ impl ExecutablePipeline {
         // Create batch buffers for all but the last operator.
         for pipeline in &mut pipelines {
             for operator in &self.operators[0..self.operators.len() - 1] {
-                let batch = Batch::new(
-                    operator.call_output_types().iter().cloned(),
-                    props.batch_size,
-                )?;
+                let batch = Batch::new(operator.call_output_types(), props.batch_size)?;
                 pipeline.buffers.push(batch);
             }
         }

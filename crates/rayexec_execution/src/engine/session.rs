@@ -21,6 +21,9 @@ use crate::execution::operators::results::streaming::{PhysicalStreamingResults, 
 use crate::execution::operators::{ExecutionProperties, PushOperator};
 use crate::execution::pipeline::ExecutablePipelineGraph;
 use crate::execution::planner::{OperatorPlanner, QueryGraph};
+use crate::explain::context_display::ContextDisplayMode;
+use crate::explain::explainable::{ExplainConfig, Explainable};
+use crate::explain::node::ExplainNode;
 use crate::hybrid::client::HybridClient;
 use crate::logical::binder::bind_statement::StatementBinder;
 use crate::logical::logical_attach::LogicalAttachDatabase;
@@ -337,7 +340,12 @@ where
                         .children
                         .first()
                         .ok_or_else(|| RayexecError::new("Missing explain child"))?;
-                    explain.node.logical_optimized = Some(Box::new(child.clone()));
+
+                    explain.node.logical_optimized = Some(ExplainNode::new_from_logical_plan(
+                        &bind_context,
+                        explain.node.verbose,
+                        child,
+                    ));
                 }
 
                 let schema = Schema::new(
@@ -430,35 +438,25 @@ where
             hybrid_client.remote_execute(portal.query_id).await?;
         }
 
-        // let handle = self.executor.spawn_pipelines(
-        //     portal.executable_pipelines,
-        //     Arc::new(portal.result_stream.error_sink()),
-        // );
+        let props = ExecutionProperties {
+            batch_size: self.config.batch_size as usize,
+        };
+        let partitions = self.config.partitions as usize;
+        let pipelines = portal
+            .executable_graph
+            .create_partition_pipelines(props, partitions)?;
 
-        unimplemented!()
-        // let query_result = QueryResult {
-        //     output: Output::Stream(portal.result_stream),
-        //     output_schema
-        // }
+        let handle = self
+            .executor
+            .spawn_pipelines(pipelines, Arc::new(portal.result_stream.error_sink()));
 
-        // let exec_result = ExecutionResult {
-        //     planning_profile: portal.profile,
-        //     output_schema: portal.output_schema,
-        //     stream: portal.result_stream,
-        //     handle: handle.into(),
-        // };
+        let output = Output::Stream(portal.result_stream);
 
-        // match portal.verifier {
-        //     Some(verifier) => {
-        //         // TODO: Try to avoid the box pin here. `verify` should probably
-        //         // be split up into to functions, one for creating a stream from
-        //         // the session, the other for actually executing the stream and
-        //         // doing the checking.
-        //         let new_exec_result = Box::pin(verifier.verify(self, exec_result)).await?;
-        //         Ok(new_exec_result)
-        //     }
-        //     None => Ok(exec_result),
-        // }
+        Ok(QueryResult {
+            handle,
+            output,
+            output_schema: portal.output_schema,
+        })
     }
 
     async fn handle_attach_database(&mut self, attach: Node<LogicalAttachDatabase>) -> Result<()> {

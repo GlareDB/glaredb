@@ -2,8 +2,9 @@ use rayexec_error::Result;
 
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
-use super::operator::{LogicalNode, LogicalOperator, Node};
+use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::node::ExplainNode;
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,8 +18,8 @@ pub struct LogicalExplain {
     pub analyze: bool,
     pub verbose: bool,
     pub format: ExplainFormat,
-    pub logical_unoptimized: Box<LogicalOperator>,
-    pub logical_optimized: Option<Box<LogicalOperator>>,
+    pub logical_unoptimized: ExplainNode,
+    pub logical_optimized: Option<ExplainNode>,
 }
 
 impl Explainable for LogicalExplain {

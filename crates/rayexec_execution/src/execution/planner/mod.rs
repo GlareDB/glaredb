@@ -168,6 +168,7 @@ impl<'a> OperatorPlanState<'a> {
     fn plan(&mut self, plan: LogicalOperator) -> Result<PlannedOperatorWithChildren> {
         match plan {
             LogicalOperator::Project(node) => self.plan_project(node),
+            LogicalOperator::Explain(node) => self.plan_explain(node),
             LogicalOperator::Empty(node) => self.plan_empty(node),
             other => unimplemented!("other: {other:?}"),
         }

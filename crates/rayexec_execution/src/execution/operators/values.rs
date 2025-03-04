@@ -3,8 +3,11 @@ use std::task::Context;
 use rayexec_error::{OptionExt, Result};
 
 use super::{
+    BaseOperator,
     ExecutableOperator,
     ExecuteInOut,
+    ExecuteOperator,
+    ExecutionProperties,
     OperatorState,
     PartitionState,
     PollExecute,
@@ -17,7 +20,6 @@ use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::PhysicalScalarExpression;
-use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
 pub struct ValuesPartitionState {
@@ -52,50 +54,50 @@ impl PhysicalValues {
     }
 }
 
-impl ExecutableOperator for PhysicalValues {
-    type States = UnaryInputStates;
+impl BaseOperator for PhysicalValues {
+    type OperatorState = ();
+
+    fn create_operator_state(
+        &self,
+        _context: &DatabaseContext,
+        _props: ExecutionProperties,
+    ) -> Result<Self::OperatorState> {
+        Ok(())
+    }
 
     fn output_types(&self) -> &[DataType] {
         &self.output_types
     }
+}
 
-    fn create_states(
-        &mut self,
-        _context: &DatabaseContext,
-        batch_size: usize,
+impl ExecuteOperator for PhysicalValues {
+    type PartitionExecuteState = ValuesPartitionState;
+
+    fn create_partition_execute_states(
+        &self,
+        _operator_state: &Self::OperatorState,
+        props: ExecutionProperties,
         partitions: usize,
-    ) -> Result<UnaryInputStates> {
-        let states = (0..partitions)
+    ) -> Result<Vec<Self::PartitionExecuteState>> {
+        (0..partitions)
             .map(|_| {
-                let out_buf = Batch::new(self.output_types.clone(), batch_size)?;
-                Ok(PartitionState::Values(ValuesPartitionState {
+                let out_buf = Batch::new(self.output_types.clone(), props.batch_size)?;
+                Ok(ValuesPartitionState {
                     row_idx: 0,
                     out_buf,
-                }))
+                })
             })
-            .collect::<Result<Vec<_>>>()?;
-
-        Ok(UnaryInputStates {
-            operator_state: OperatorState::None,
-            partition_states: states,
-        })
+            .collect::<Result<Vec<_>>>()
     }
 
     fn poll_execute(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        inout: ExecuteInOut,
+        _operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionExecuteState,
+        input: &mut Batch,
+        output: &mut Batch,
     ) -> Result<PollExecute> {
-        let state = match partition_state {
-            PartitionState::Values(state) => state,
-            other => panic!("invalid state: {other:?}"),
-        };
-
-        let input = inout.input.required("input batch required")?;
-        let output = inout.output.required("input batch required")?;
-
         output.set_num_rows(0)?;
 
         let capacity = output.write_capacity()?;
@@ -129,11 +131,11 @@ impl ExecutableOperator for PhysicalValues {
         }
     }
 
-    fn poll_finalize(
+    fn poll_finalize_execute(
         &self,
         _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _operator_state: &Self::OperatorState,
+        _state: &mut Self::PartitionExecuteState,
     ) -> Result<PollFinalize> {
         Ok(PollFinalize::Finalized)
     }
@@ -142,57 +144,6 @@ impl ExecutableOperator for PhysicalValues {
 impl Explainable for PhysicalValues {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Values")
-    }
-}
-
-impl DatabaseProtoConv for PhysicalValues {
-    type ProtoType = rayexec_proto::generated::execution::PhysicalValues;
-
-    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        unimplemented!()
-        // use rayexec_proto::generated::array::IpcStreamBatch;
-
-        // // TODO: Should empty values even be allowed? Is it allowed?
-        // let schema = match self.batches.first() {
-        //     Some(batch) => Schema::new(
-        //         batch
-        //             .columns()
-        //             .iter()
-        //             .map(|c| Field::new("", c.datatype().clone(), true)),
-        //     ),
-        //     None => {
-        //         return Ok(Self::ProtoType {
-        //             batches: Some(IpcStreamBatch { ipc: Vec::new() }),
-        //         })
-        //     }
-        // };
-
-        // let buf = Vec::new();
-        // let mut writer = StreamWriter::try_new(buf, &schema, IpcConfig {})?;
-
-        // for batch in &self.batches {
-        //     writer.write_batch(batch)?
-        // }
-
-        // let buf = writer.into_writer();
-
-        // Ok(Self::ProtoType {
-        //     batches: Some(IpcStreamBatch { ipc: buf }),
-        // })
-    }
-
-    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        unimplemented!()
-        // let ipc = proto.batches.required("batches")?.ipc;
-
-        // let mut reader = StreamReader::try_new(Cursor::new(ipc), IpcConfig {})?;
-
-        // let mut batches = Vec::new();
-        // while let Some(batch) = reader.try_next_batch()? {
-        //     batches.push(batch);
-        // }
-
-        // Ok(Self { batches })
     }
 }
 
@@ -205,7 +156,7 @@ mod tests {
     use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
     use crate::testutil::exprs::plan_scalar;
-    use crate::testutil::operator::OperatorWrapper2;
+    use crate::testutil::operator::{OperatorWrapper, OperatorWrapper2};
 
     #[test]
     fn values_literal() {
@@ -222,13 +173,19 @@ mod tests {
             ],
         ];
 
-        let mut wrapper = OperatorWrapper2::new(PhysicalValues::new(expr_rows));
-        let mut states = wrapper.create_unary_states(1024, 1);
+        let wrapper = OperatorWrapper::new(PhysicalValues::new(expr_rows));
+        let props = ExecutionProperties { batch_size: 16 };
+        let mut states = wrapper
+            .operator
+            .create_partition_execute_states(&(), props, 1)
+            .unwrap();
 
         let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
         let mut input = Batch::empty_with_num_rows(1);
 
-        let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
+        let poll = wrapper
+            .poll_execute(&(), &mut states[0], &mut input, &mut output)
+            .unwrap();
         assert_eq!(poll, PollExecute::Ready);
 
         let expected1 = generate_batch!(["a", "b"], [2, 3]);
@@ -258,13 +215,19 @@ mod tests {
             ],
         ];
 
-        let mut wrapper = OperatorWrapper2::new(PhysicalValues::new(expr_rows));
-        let mut states = wrapper.create_unary_states(1024, 1);
+        let wrapper = OperatorWrapper::new(PhysicalValues::new(expr_rows));
+        let props = ExecutionProperties { batch_size: 1024 };
+        let mut states = wrapper
+            .operator
+            .create_partition_execute_states(&(), props, 1)
+            .unwrap();
 
         let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
         let mut input = Batch::empty_with_num_rows(513);
 
-        let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
+        let poll = wrapper
+            .poll_execute(&(), &mut states[0], &mut input, &mut output)
+            .unwrap();
         assert_eq!(poll, PollExecute::HasMore);
 
         let expected1 = generate_batch!(
@@ -273,7 +236,9 @@ mod tests {
         );
         assert_batches_eq(&expected1, &output);
 
-        let poll = wrapper.unary_execute_inout(&mut states, 0, &mut input, &mut output);
+        let poll = wrapper
+            .poll_execute(&(), &mut states[0], &mut input, &mut output)
+            .unwrap();
         assert_eq!(poll, PollExecute::Ready);
 
         let expected2 = generate_batch!(

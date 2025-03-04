@@ -110,7 +110,8 @@ where
                 .children
                 .first()
                 .ok_or_else(|| RayexecError::new("Missing explain child"))?;
-            explain.node.logical_optimized = Some(Box::new(child.clone()));
+            unimplemented!()
+            // explain.node.logical_optimized = Some(Box::new(child.clone()));
         }
 
         let schema = Schema::new(

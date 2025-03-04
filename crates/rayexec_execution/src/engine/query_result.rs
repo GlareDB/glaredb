@@ -1,12 +1,14 @@
 use futures::TryStreamExt;
 use rayexec_error::Result;
 
-use super::result::ResultStream;
 use crate::arrays::batch::Batch;
 use crate::arrays::field::Schema;
+use crate::execution::operators::results::streaming::ResultStream;
+use crate::runtime::handle::QueryHandle;
 
 #[derive(Debug)]
 pub struct QueryResult {
+    pub handle: Box<dyn QueryHandle>,
     pub output_schema: Schema,
     pub output: Output,
 }

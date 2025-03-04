@@ -140,6 +140,7 @@ pub struct StreamingResultsPartitionState {
     partition_idx: usize,
 }
 
+/// Operator for producing non-empty batches on a stream.
 #[derive(Debug)]
 pub struct PhysicalStreamingResults {
     pub(crate) sink: ResultSink,
@@ -201,6 +202,10 @@ impl PushOperator for PhysicalStreamingResults {
         state: &mut Self::PartitionPushState,
         input: &mut Batch,
     ) -> Result<PollPush> {
+        if input.num_rows() == 0 {
+            return Ok(PollPush::NeedsMore);
+        }
+
         let mut inner = operator_state.sink.inner.lock();
 
         if inner.buffered.is_some() {

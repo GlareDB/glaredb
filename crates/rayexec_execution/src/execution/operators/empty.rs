@@ -9,8 +9,13 @@ use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::proto::DatabaseProtoConv;
 
-/// A dummy operator that produces a single batch containing no columns and a
-/// single row for each partition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmptyPartitionState {
+    Emit,
+    NoEmit,
+}
+
+/// A dummy operator that emits a single row across all partitions.
 #[derive(Debug)]
 pub struct PhysicalEmpty;
 
@@ -31,7 +36,7 @@ impl BaseOperator for PhysicalEmpty {
 }
 
 impl PullOperator for PhysicalEmpty {
-    type PartitionPullState = ();
+    type PartitionPullState = EmptyPartitionState;
 
     fn create_partition_pull_states(
         &self,
@@ -39,17 +44,25 @@ impl PullOperator for PhysicalEmpty {
         _props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionPullState>> {
-        Ok(vec![(); partitions])
+        debug_assert!(partitions >= 1);
+
+        let mut states = vec![EmptyPartitionState::Emit];
+        states.resize(partitions, EmptyPartitionState::NoEmit);
+
+        Ok(states)
     }
 
     fn poll_pull(
         &self,
         _cx: &mut Context,
         _operator_state: &Self::OperatorState,
-        _state: &mut Self::PartitionPullState,
+        state: &mut Self::PartitionPullState,
         output: &mut Batch,
     ) -> Result<PollPull> {
-        output.set_num_rows(1)?;
+        match state {
+            EmptyPartitionState::Emit => output.set_num_rows(1)?,
+            EmptyPartitionState::NoEmit => output.set_num_rows(0)?,
+        }
         Ok(PollPull::Exhausted)
     }
 }
