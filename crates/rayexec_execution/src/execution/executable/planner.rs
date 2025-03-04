@@ -451,7 +451,7 @@ mod tests {
     use crate::execution::operators::union::PhysicalUnion;
     use crate::execution::operators::values::PhysicalValues;
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
-    use crate::testutil::database_context::test_database_context;
+    use crate::testutil::database_context::test_db_context;
 
     // #[test]
     // fn plan_single_pipeline() {

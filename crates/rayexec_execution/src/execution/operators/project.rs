@@ -110,7 +110,7 @@ mod tests {
     use crate::arrays::datatype::DataType;
     use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::assert_batches_eq;
-    use crate::testutil::database_context::test_database_context;
+    use crate::testutil::database_context::test_db_context;
     use crate::testutil::exprs::plan_scalars;
     use crate::testutil::operator::OperatorWrapper;
     use crate::{expr, generate_batch};
@@ -134,7 +134,7 @@ mod tests {
         let wrapper = OperatorWrapper::new(PhysicalProject::new(projections));
         let op_state = wrapper
             .operator
-            .create_operator_state(&test_database_context(), props)
+            .create_operator_state(&test_db_context(), props)
             .unwrap();
         let mut states = wrapper
             .operator

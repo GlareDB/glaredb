@@ -172,6 +172,7 @@ impl<'a> OperatorPlanState<'a> {
             LogicalOperator::Explain(node) => self.plan_explain(node),
             LogicalOperator::ExpressionList(node) => self.plan_expression_list(node),
             LogicalOperator::Order(node) => self.plan_sort(node),
+            LogicalOperator::Aggregate(node) => self.plan_aggregate(node),
             LogicalOperator::Empty(node) => self.plan_empty(node),
             other => unimplemented!("other: {other:?}"),
         }

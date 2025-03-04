@@ -8,7 +8,7 @@ use crate::datasource::DataSourceRegistry;
 ///
 /// The context will have a system catalog, and a default (empty) data source
 /// registry.
-pub fn test_database_context() -> DatabaseContext {
+pub fn test_db_context() -> DatabaseContext {
     DatabaseContext::new(Arc::new(
         new_system_catalog(&DataSourceRegistry::default()).unwrap(),
     ))

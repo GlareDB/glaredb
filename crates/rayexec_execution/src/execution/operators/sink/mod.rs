@@ -234,7 +234,7 @@ mod tests {
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
     use crate::testutil::arrays::assert_batches_eq;
-    use crate::testutil::database_context::test_database_context;
+    use crate::testutil::database_context::test_db_context;
     use crate::testutil::operator::{CollectingSinkOperation, OperatorWrapper2};
 
     #[test]
@@ -244,7 +244,7 @@ mod tests {
         });
         let mut states = wrapper
             .operator
-            .create_states(&test_database_context(), 1024, 1)
+            .create_states(&test_db_context(), 1024, 1)
             .unwrap();
 
         let row_counts = [4, 5, 6];
@@ -293,7 +293,7 @@ mod tests {
         });
         let mut states = wrapper
             .operator
-            .create_states(&test_database_context(), 1024, 4)
+            .create_states(&test_db_context(), 1024, 4)
             .unwrap();
 
         // (partition, row_count) pairs

@@ -259,7 +259,7 @@ mod tests {
     use super::*;
     use crate::generate_batch;
     use crate::testutil::arrays::assert_batches_eq;
-    use crate::testutil::database_context::test_database_context;
+    use crate::testutil::database_context::test_db_context;
     use crate::testutil::operator::{CountingWaker, OperatorWrapper};
 
     #[test]
@@ -270,7 +270,7 @@ mod tests {
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper
             .operator
-            .create_operator_state(&test_database_context(), props)
+            .create_operator_state(&test_db_context(), props)
             .unwrap();
         let mut states = wrapper
             .operator
@@ -301,7 +301,7 @@ mod tests {
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper
             .operator
-            .create_operator_state(&test_database_context(), props)
+            .create_operator_state(&test_db_context(), props)
             .unwrap();
         let mut states = wrapper
             .operator

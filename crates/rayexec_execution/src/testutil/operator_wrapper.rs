@@ -4,7 +4,7 @@ use std::task::{Context, Wake, Waker};
 
 use rayexec_error::Result;
 
-use super::database_context::test_database_context;
+use super::database_context::test_db_context;
 use crate::arrays::batch::Batch;
 use crate::database::system::new_system_catalog;
 use crate::database::DatabaseContext;
@@ -189,7 +189,7 @@ where
         partitions: usize,
     ) -> UnaryInputStates {
         self.operator
-            .create_states(&test_database_context(), batch_size, partitions)
+            .create_states(&test_db_context(), batch_size, partitions)
             .unwrap()
     }
 
@@ -254,7 +254,7 @@ where
         partitions: usize,
     ) -> BinaryInputStates {
         self.operator
-            .create_states(&test_database_context(), batch_size, partitions)
+            .create_states(&test_db_context(), batch_size, partitions)
             .unwrap()
     }
 

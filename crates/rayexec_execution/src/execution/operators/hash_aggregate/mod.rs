@@ -333,7 +333,7 @@ mod tests {
     use crate::expr::{self, bind_aggregate_function};
     use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
-    use crate::testutil::database_context::test_database_context;
+    use crate::testutil::database_context::test_db_context;
     use crate::testutil::operator::OperatorWrapper;
 
     #[test]
@@ -365,7 +365,7 @@ mod tests {
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper
             .operator
-            .create_operator_state(&test_database_context(), props)
+            .create_operator_state(&test_db_context(), props)
             .unwrap();
         let mut states = wrapper
             .operator

@@ -200,19 +200,19 @@ where
 {
     type BindState = ();
 
-    fn merge(&mut self, state: &(), other: &mut Self) -> Result<()> {
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
         Ok(())
     }
 
-    fn update(&mut self, state: &(), &input: &I) -> Result<()> {
+    fn update(&mut self, _state: &(), &input: &I) -> Result<()> {
         self.sum += input.into();
         self.count += 1;
         Ok(())
     }
 
-    fn finalize<M>(&mut self, state: &(), output: PutBuffer<M>) -> Result<()>
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
         M: AddressableMut<T = f64>,
     {
@@ -221,7 +221,8 @@ where
             return Ok(());
         }
         let sum: f64 = self.sum.as_();
-        output.put(&sum);
+        let val = sum / self.count as f64;
+        output.put(&val);
 
         Ok(())
     }

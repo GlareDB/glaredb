@@ -261,7 +261,7 @@ mod tests {
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
     use crate::testutil::arrays::assert_batches_eq;
-    use crate::testutil::database_context::test_database_context;
+    use crate::testutil::database_context::test_db_context;
     use crate::testutil::operator::OperatorWrapper2;
 
     #[test]
@@ -271,7 +271,7 @@ mod tests {
         });
         let mut states = operator
             .operator
-            .create_states(&test_database_context(), 1024, 1)
+            .create_states(&test_db_context(), 1024, 1)
             .unwrap();
 
         let mut top_input =

@@ -79,7 +79,6 @@ use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
 use crate::engine::result::ResultSink;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::proto::DatabaseProtoConv;
 use crate::ptr::raw_clone_ptr::RawClonePtr;
 use crate::ptr::raw_ptr::RawPtr;
 

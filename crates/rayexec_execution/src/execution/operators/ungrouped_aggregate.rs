@@ -2,17 +2,11 @@ use std::fmt::Debug;
 use std::task::Context;
 
 use parking_lot::Mutex;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 
-use super::{
-    ExecutableOperator,
-    OperatorState,
-    PartitionState,
-    PollExecute,
-    PollFinalize,
-    UnaryInputStates,
-};
+use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;
+use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::buffer::buffer_manager::NopBufferManager;
 use crate::buffer::typed::AlignedBuffer;
@@ -43,6 +37,7 @@ pub enum UngroupedAggregatePartitionState {
 
 // SAFETY: The `Vec<*mut u8>` is just a buffer for storing row pointers.
 unsafe impl Send for UngroupedAggregatePartitionState {}
+unsafe impl Sync for UngroupedAggregatePartitionState {}
 
 #[derive(Debug)]
 pub struct UngroupedAggregateOperatorState {
@@ -66,6 +61,8 @@ pub struct PhysicalUngroupedAggregate {
     ///
     /// This will have no groups associated with it.
     layout: AggregateLayout,
+    /// Output types for the aggregates.
+    output_types: Vec<DataType>,
 }
 
 impl PhysicalUngroupedAggregate {
@@ -73,7 +70,16 @@ impl PhysicalUngroupedAggregate {
         let layout = AggregateLayout::new([], aggregates);
         debug_assert_eq!(0, layout.groups.row_width);
 
-        PhysicalUngroupedAggregate { layout }
+        let output_types: Vec<_> = layout
+            .aggregates
+            .iter()
+            .map(|agg| agg.function.state.return_type.clone())
+            .collect();
+
+        PhysicalUngroupedAggregate {
+            layout,
+            output_types,
+        }
     }
 
     /// Initalizes a new buffer for the aggregates in this operator.
@@ -99,15 +105,36 @@ impl PhysicalUngroupedAggregate {
     }
 }
 
-impl ExecutableOperator for PhysicalUngroupedAggregate {
-    type States = UnaryInputStates;
+impl BaseOperator for PhysicalUngroupedAggregate {
+    type OperatorState = UngroupedAggregateOperatorState;
 
-    fn create_states(
-        &mut self,
+    fn create_operator_state(
+        &self,
         _context: &DatabaseContext,
-        batch_size: usize,
+        _props: ExecutionProperties,
+    ) -> Result<Self::OperatorState> {
+        Ok(UngroupedAggregateOperatorState {
+            inner: Mutex::new(OperatorStateInner {
+                remaining: 0,
+                values: self.try_init_buffer()?,
+            }),
+        })
+    }
+
+    fn output_types(&self) -> &[DataType] {
+        &self.output_types
+    }
+}
+
+impl ExecuteOperator for PhysicalUngroupedAggregate {
+    type PartitionExecuteState = UngroupedAggregatePartitionState;
+
+    fn create_partition_execute_states(
+        &self,
+        operator_state: &Self::OperatorState,
+        props: ExecutionProperties,
         partitions: usize,
-    ) -> Result<Self::States> {
+    ) -> Result<Vec<Self::PartitionExecuteState>> {
         let agg_input_types: Vec<_> = self
             .layout
             .aggregates
@@ -115,51 +142,36 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
             .flat_map(|agg| agg.columns.iter().map(|col| col.datatype.clone()))
             .collect();
 
-        let partition_states = (0..partitions)
+        let states = (0..partitions)
             .map(|_| {
-                Ok(PartitionState::UngroupedAggregate(
-                    UngroupedAggregatePartitionState::Aggregating {
-                        values: self.try_init_buffer()?,
-                        ptr_buf: Vec::with_capacity(batch_size),
-                        agg_inputs: Batch::new(agg_input_types.clone(), 0)?,
-                    },
-                ))
+                Ok(UngroupedAggregatePartitionState::Aggregating {
+                    values: self.try_init_buffer()?,
+                    ptr_buf: Vec::with_capacity(props.batch_size),
+                    agg_inputs: Batch::new(agg_input_types.clone(), 0)?,
+                })
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let operator_state = OperatorState::UngroupedAggregate(UngroupedAggregateOperatorState {
-            inner: Mutex::new(OperatorStateInner {
-                remaining: partitions,
-                values: self.try_init_buffer()?,
-            }),
-        });
+        let mut inner = operator_state.inner.lock();
+        inner.remaining = partitions;
 
-        Ok(UnaryInputStates {
-            operator_state,
-            partition_states,
-        })
+        Ok(states)
     }
 
     fn poll_execute(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
-        inout: super::ExecuteInOut,
+        operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionExecuteState,
+        input: &mut Batch,
+        output: &mut Batch,
     ) -> Result<PollExecute> {
-        let state = match partition_state {
-            PartitionState::UngroupedAggregate(state) => state,
-            other => panic!("invalid partition state: {other:?}"),
-        };
-
         match state {
             UngroupedAggregatePartitionState::Aggregating {
                 values,
                 ptr_buf,
                 agg_inputs,
             } => {
-                let input = inout.input.required("input batch required")?;
-
                 // Get aggregate inputs.
                 for (dest_idx, src_idx) in self
                     .layout
@@ -188,20 +200,17 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 Ok(PollExecute::NeedsMore)
             }
             UngroupedAggregatePartitionState::Draining => {
-                let op_state = match operator_state {
-                    OperatorState::UngroupedAggregate(state) => state.inner.lock(),
-                    other => panic!("invalid operator state: {other:?}"),
-                };
-
-                let output = inout.output.required("output batch required")?;
                 output.reset_for_write()?;
+                let operator_state = operator_state.inner.lock();
 
                 // SAFETY: The aggregate values buffer should have been
                 // allocated according to this layout.
                 unsafe {
                     // Only finalizing a single state.
-                    self.layout
-                        .finalize_states(&mut [op_state.values.as_mut_ptr()], &mut output.arrays)?
+                    self.layout.finalize_states(
+                        &mut [operator_state.values.as_mut_ptr()],
+                        &mut output.arrays,
+                    )?
                 }
 
                 output.set_num_rows(1)?;
@@ -211,33 +220,21 @@ impl ExecutableOperator for PhysicalUngroupedAggregate {
                 Ok(PollExecute::Exhausted)
             }
             UngroupedAggregatePartitionState::Finished => {
-                let output = inout.output.required("output batch required")?;
                 output.set_num_rows(0)?;
-
                 Ok(PollExecute::Exhausted)
             }
         }
     }
 
-    fn poll_finalize(
+    fn poll_finalize_execute(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        operator_state: &OperatorState,
+        operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionExecuteState,
     ) -> Result<PollFinalize> {
-        let state = match partition_state {
-            PartitionState::UngroupedAggregate(state) => state,
-            other => panic!("invalid partition state: {other:?}"),
-        };
-
-        let op_state = match operator_state {
-            OperatorState::UngroupedAggregate(state) => state,
-            other => panic!("invalid operator state: {other:?}"),
-        };
-
         match state {
             UngroupedAggregatePartitionState::Aggregating { values, .. } => {
-                let mut op_state = op_state.inner.lock();
+                let mut op_state = operator_state.inner.lock();
 
                 let src_ptr = values.as_mut_ptr();
                 let dest_ptr = op_state.values.as_mut_ptr();
@@ -289,7 +286,8 @@ mod tests {
     use crate::functions::aggregate::builtin::minmax::FUNCTION_SET_MIN;
     use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
-    use crate::testutil::operator::OperatorWrapper2;
+    use crate::testutil::database_context::test_db_context;
+    use crate::testutil::operator::OperatorWrapper;
 
     #[test]
     fn single_aggregate_single_partition() {
@@ -302,20 +300,33 @@ mod tests {
         .unwrap();
         let agg = PhysicalAggregateExpression::new(sum_agg, [(0, DataType::Int64)]);
 
-        let mut operator = OperatorWrapper2::new(PhysicalUngroupedAggregate::new(vec![agg]));
-
-        let mut states = operator.create_unary_states(1024, 1);
+        let wrapper = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
+        let props = ExecutionProperties { batch_size: 16 };
+        let op_state = wrapper
+            .operator
+            .create_operator_state(&test_db_context(), props)
+            .unwrap();
+        let mut states = wrapper
+            .operator
+            .create_partition_execute_states(&op_state, props, 1)
+            .unwrap();
 
         let mut input = generate_batch!([1_i64, 2, 3, 4]);
         let mut output = Batch::new([DataType::Int64], 1024).unwrap();
 
-        let poll = operator.unary_execute_inout(&mut states, 0, &mut input, &mut output);
+        let poll = wrapper
+            .poll_execute(&op_state, &mut states[0], &mut input, &mut output)
+            .unwrap();
         assert_eq!(PollExecute::NeedsMore, poll);
 
-        let poll = operator.unary_finalize(&mut states, 0);
+        let poll = wrapper
+            .poll_finalize_execute(&op_state, &mut states[0])
+            .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
 
-        let poll = operator.unary_execute_out(&mut states, 0, &mut output);
+        let poll = wrapper
+            .poll_execute(&op_state, &mut states[0], &mut input, &mut output)
+            .unwrap();
         assert_eq!(PollExecute::Exhausted, poll);
 
         let expected = generate_batch!([10_i64]);
@@ -333,31 +344,50 @@ mod tests {
         .unwrap();
         let agg = PhysicalAggregateExpression::new(sum_agg, [(0, DataType::Int64)]);
 
-        let mut operator = OperatorWrapper2::new(PhysicalUngroupedAggregate::new(vec![agg]));
-
-        let mut states = operator.create_unary_states(1024, 2);
+        let wrapper = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
+        let props = ExecutionProperties { batch_size: 16 };
+        let op_state = wrapper
+            .operator
+            .create_operator_state(&test_db_context(), props)
+            .unwrap();
+        let mut states = wrapper
+            .operator
+            .create_partition_execute_states(&op_state, props, 2)
+            .unwrap();
 
         let mut output = Batch::new([DataType::Int64], 1024).unwrap();
 
         // Execute and exhaust first partition.
         let mut input = generate_batch!([1_i64, 2, 3, 4]);
 
-        let poll = operator.unary_execute_inout(&mut states, 0, &mut input, &mut output);
+        let poll = wrapper
+            .poll_execute(&op_state, &mut states[0], &mut input, &mut output)
+            .unwrap();
         assert_eq!(PollExecute::NeedsMore, poll);
-        let poll = operator.unary_finalize(&mut states, 0);
+        let poll = wrapper
+            .poll_finalize_execute(&op_state, &mut states[0])
+            .unwrap();
         assert_eq!(PollFinalize::Finalized, poll);
-        let poll = operator.unary_execute_out(&mut states, 0, &mut output);
+        let poll = wrapper
+            .poll_execute(&op_state, &mut states[0], &mut input, &mut output)
+            .unwrap();
         assert_eq!(PollExecute::Exhausted, poll);
         assert_eq!(0, output.num_rows());
 
         // Execute second partition, this will drain the final results.
         let mut input = generate_batch!([5_i64, 6, 7, 8]);
 
-        let poll = operator.unary_execute_inout(&mut states, 1, &mut input, &mut output);
+        let poll = wrapper
+            .poll_execute(&op_state, &mut states[1], &mut input, &mut output)
+            .unwrap();
         assert_eq!(PollExecute::NeedsMore, poll);
-        let poll = operator.unary_finalize(&mut states, 1);
+        let poll = wrapper
+            .poll_finalize_execute(&op_state, &mut states[1])
+            .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
-        let poll = operator.unary_execute_out(&mut states, 1, &mut output);
+        let poll = wrapper
+            .poll_execute(&op_state, &mut states[1], &mut input, &mut output)
+            .unwrap();
         assert_eq!(PollExecute::Exhausted, poll);
 
         let expected = generate_batch!([36_i64]);
@@ -384,20 +414,31 @@ mod tests {
             PhysicalAggregateExpression::new(min_agg, [(0, DataType::Int64)]),
         ];
 
-        let mut operator = OperatorWrapper2::new(PhysicalUngroupedAggregate::new(aggs));
-
-        let mut states = operator.create_unary_states(1024, 1);
+        let wrapper = OperatorWrapper::new(PhysicalUngroupedAggregate::new(aggs));
+        let props = ExecutionProperties { batch_size: 16 };
+        let op_state = wrapper
+            .operator
+            .create_operator_state(&test_db_context(), props)
+            .unwrap();
+        let mut states = wrapper
+            .operator
+            .create_partition_execute_states(&op_state, props, 1)
+            .unwrap();
 
         let mut input = generate_batch!([22_i64, 33, 11, 44], [1_i64, 2, 3, 4]);
         let mut output = Batch::new([DataType::Int64, DataType::Int64], 1024).unwrap();
 
-        let poll = operator.unary_execute_inout(&mut states, 0, &mut input, &mut output);
+        let poll = wrapper
+            .poll_execute(&op_state, &mut states[0], &mut input, &mut output)
+            .unwrap();
         assert_eq!(PollExecute::NeedsMore, poll);
-
-        let poll = operator.unary_finalize(&mut states, 0);
+        let poll = wrapper
+            .poll_finalize_execute(&op_state, &mut states[0])
+            .unwrap();
         assert_eq!(PollFinalize::NeedsDrain, poll);
-
-        let poll = operator.unary_execute_out(&mut states, 0, &mut output);
+        let poll = wrapper
+            .poll_execute(&op_state, &mut states[0], &mut input, &mut output)
+            .unwrap();
         assert_eq!(PollExecute::Exhausted, poll);
 
         let expected = generate_batch!([10_i64], [11_i64]);

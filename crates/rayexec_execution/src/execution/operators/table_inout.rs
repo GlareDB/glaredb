@@ -204,7 +204,7 @@ mod tests {
     use crate::functions::table::InOutPlanner2;
     use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::assert_batches_eq;
-    use crate::testutil::database_context::test_database_context;
+    use crate::testutil::database_context::test_db_context;
     use crate::testutil::operator::OperatorWrapper2;
 
     fn plan_generate_series() -> PlannedTableFunction2 {
@@ -258,7 +258,7 @@ mod tests {
 
         let mut states = wrapper
             .operator
-            .create_states(&test_database_context(), 1024, 1)
+            .create_states(&test_db_context(), 1024, 1)
             .unwrap();
 
         let mut output = Batch::new([DataType::Int64], 1024).unwrap();
@@ -308,7 +308,7 @@ mod tests {
 
         let mut states = wrapper
             .operator
-            .create_states(&test_database_context(), 1024, 1)
+            .create_states(&test_db_context(), 1024, 1)
             .unwrap();
 
         let mut output =
