@@ -1,4 +1,5 @@
 use tracing_subscriber::filter::EnvFilter;
+use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -8,7 +9,11 @@ pub enum LogFormat {
     Json,
 }
 
-pub fn configure_global_logger(default_level: tracing::Level, format: LogFormat) {
+/// Configures the global logger using the `tracing` library.
+pub fn configure_global_logger<W>(default_level: tracing::Level, format: LogFormat, writer: W)
+where
+    W: for<'a> MakeWriter<'a> + Send + Sync + 'static,
+{
     let env_filter = EnvFilter::builder()
         .with_default_directive(default_level.into())
         .from_env_lossy()
@@ -19,6 +24,7 @@ pub fn configure_global_logger(default_level: tracing::Level, format: LogFormat)
     match format {
         LogFormat::HumanReadable => {
             let subscriber = FmtSubscriber::builder()
+                .with_writer(writer)
                 .with_env_filter(env_filter)
                 .with_thread_ids(true)
                 .with_thread_names(true)

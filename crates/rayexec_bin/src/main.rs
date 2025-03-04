@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::io::{BufWriter, Write};
+use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 
@@ -12,6 +12,7 @@ use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, Memor
 use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
 use rayexec_execution::shell::lineedit::KeyEvent;
+use rayexec_execution::shell::raw::{OwnedRawTerminalWriter, RawTerminalWriter};
 use rayexec_execution::shell::shell::{Shell, ShellSignal};
 // use rayexec_iceberg::IcebergDataSource;
 // use rayexec_parquet::ParquetDataSource;
@@ -34,10 +35,38 @@ struct Arguments {
     queries: Vec<String>,
 }
 
+impl Arguments {
+    fn is_interactive(&self) -> bool {
+        self.files.is_empty() && self.queries.is_empty()
+    }
+}
+
 /// Simple binary for quickly running arbitrary queries.
 fn main() {
     let args = Arguments::parse();
-    logutil::configure_global_logger(tracing::Level::ERROR, logutil::LogFormat::HumanReadable);
+    if args.is_interactive() {
+        // Since interactive sets the terminal to raw mode, need to have a
+        // writer that can better handle that.
+        //
+        // TODO: Might make sense to just flip the raw/cooked mode only during
+        // line edits, and not for the duration of the shell. That would make
+        // `println!` work better.
+        //
+        // The choice to set raw mode once was mostly for xterm.js. Toggling the
+        // mode would need to be behind an abstraction.
+        let make_writer = || OwnedRawTerminalWriter::new(io::stderr());
+        logutil::configure_global_logger(
+            tracing::Level::TRACE,
+            logutil::LogFormat::HumanReadable,
+            make_writer,
+        );
+    } else {
+        logutil::configure_global_logger(
+            tracing::Level::TRACE,
+            logutil::LogFormat::HumanReadable,
+            io::stderr,
+        );
+    }
 
     // Nested result. Outer result for the panic, inner is execution result.
     let result = std::panic::catch_unwind(|| {

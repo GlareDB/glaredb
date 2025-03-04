@@ -1,3 +1,5 @@
+use std::io;
+
 use clap::{Parser, ValueEnum};
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
@@ -38,6 +40,7 @@ fn main() -> Result<()> {
             LogFormat::Json => logutil::LogFormat::Json,
             LogFormat::Pretty => logutil::LogFormat::HumanReadable,
         },
+        io::stderr,
     );
 
     let sched = ThreadedNativeExecutor::try_new()?;

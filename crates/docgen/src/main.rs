@@ -3,6 +3,8 @@ mod markdown_table;
 mod section;
 mod session;
 
+use std::io;
+
 use file::DocFile;
 use rayexec_csv::CsvDataSource;
 use rayexec_delta::DeltaDataSource;
@@ -27,7 +29,11 @@ const FILES: &[DocFile] = &[DocFile {
 }];
 
 fn main() -> Result<()> {
-    logutil::configure_global_logger(tracing::Level::INFO, logutil::LogFormat::HumanReadable);
+    logutil::configure_global_logger(
+        tracing::Level::INFO,
+        logutil::LogFormat::HumanReadable,
+        io::stderr,
+    );
 
     info!("starting docs gen");
 

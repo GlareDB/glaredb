@@ -5,6 +5,7 @@ use std::task::{Context, Poll, Waker};
 use futures::Stream;
 use parking_lot::Mutex;
 use rayexec_error::{RayexecError, Result};
+use tracing::trace;
 
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
@@ -205,6 +206,8 @@ impl PushOperator for PhysicalStreamingResults {
         if input.num_rows() == 0 {
             return Ok(PollPush::NeedsMore);
         }
+
+        trace!("hello");
 
         let mut inner = operator_state.sink.inner.lock();
 

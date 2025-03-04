@@ -1,3 +1,5 @@
+use std::io;
+
 use clap::{Parser, ValueEnum};
 use tracing::info;
 
@@ -30,7 +32,7 @@ impl From<LogFormat> for logutil::LogFormat {
 
 fn main() {
     let args = Arguments::parse();
-    logutil::configure_global_logger(tracing::Level::DEBUG, args.log_format.into());
+    logutil::configure_global_logger(tracing::Level::DEBUG, args.log_format.into(), io::stderr);
 
     info!("lakefront main")
 }
