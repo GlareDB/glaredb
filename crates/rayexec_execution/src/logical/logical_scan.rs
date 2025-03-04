@@ -25,9 +25,6 @@ pub enum ScanSource {
     TableFunction {
         function: PlannedTableFunction2,
     },
-    ExpressionList {
-        rows: Vec<Vec<Expression>>,
-    },
     View {
         catalog: String,
         schema: String,
@@ -52,7 +49,6 @@ impl PartialEq for ScanSource {
                 },
             ) => catalog_a == catalog_b && schema_a == schema_b && source_a.name == source_b.name,
             (Self::TableFunction { function: a }, Self::TableFunction { function: b }) => a == b,
-            (Self::ExpressionList { rows: a }, Self::ExpressionList { rows: b }) => a == b,
             (
                 Self::View {
                     catalog: catalog_a,
@@ -76,7 +72,6 @@ impl ScanSource {
         match self {
             Self::Table { .. } => StatisticsValue::Unknown,
             Self::TableFunction { function } => function.cardinality,
-            Self::ExpressionList { rows } => StatisticsValue::Exact(rows.len()),
             Self::View { .. } => StatisticsValue::Unknown,
         }
     }
@@ -133,9 +128,6 @@ impl Explainable for LogicalScan {
             ScanSource::TableFunction { function } => {
                 ent = ent.with_value("function_name", function.function.name())
             }
-            ScanSource::ExpressionList { rows } => {
-                ent = ent.with_value("num_rows", rows.len());
-            }
         }
 
         if conf.verbose {
@@ -157,13 +149,6 @@ impl LogicalNode for Node<LogicalScan> {
     where
         F: FnMut(&Expression) -> Result<()>,
     {
-        if let ScanSource::ExpressionList { rows } = &self.node.source {
-            for row in rows {
-                for expr in row {
-                    func(expr)?;
-                }
-            }
-        }
         Ok(())
     }
 
@@ -171,13 +156,6 @@ impl LogicalNode for Node<LogicalScan> {
     where
         F: FnMut(&mut Expression) -> Result<()>,
     {
-        if let ScanSource::ExpressionList { rows } = &mut self.node.source {
-            for row in rows {
-                for expr in row {
-                    func(expr)?;
-                }
-            }
-        }
         Ok(())
     }
 }

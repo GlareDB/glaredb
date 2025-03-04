@@ -8,6 +8,7 @@ mod plan_distinct;
 mod plan_drop;
 mod plan_empty;
 mod plan_explain;
+mod plan_expression_list;
 mod plan_filter;
 mod plan_inout;
 mod plan_insert;
@@ -169,6 +170,8 @@ impl<'a> OperatorPlanState<'a> {
         match plan {
             LogicalOperator::Project(node) => self.plan_project(node),
             LogicalOperator::Explain(node) => self.plan_explain(node),
+            LogicalOperator::ExpressionList(node) => self.plan_expression_list(node),
+            LogicalOperator::Order(node) => self.plan_sort(node),
             LogicalOperator::Empty(node) => self.plan_empty(node),
             other => unimplemented!("other: {other:?}"),
         }

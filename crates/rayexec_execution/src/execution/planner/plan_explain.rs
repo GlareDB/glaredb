@@ -5,6 +5,7 @@ use crate::execution::operators::empty::PhysicalEmpty;
 use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::explain::formatter::ExplainFormatter;
+use crate::explain::node::ExplainNode;
 use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::logical::logical_explain::LogicalExplain;
@@ -22,9 +23,9 @@ impl OperatorPlanState<'_> {
         }
 
         let input = explain.take_one_child_exact()?;
-
-        // TODO
-        let _plan = self.plan(input)?;
+        let plan = self.plan(input)?;
+        let plan_explain_node =
+            ExplainNode::new_from_planned_operators(explain.node.verbose, &plan);
 
         let formatter = ExplainFormatter::new(explain.node.format);
 
@@ -32,12 +33,14 @@ impl OperatorPlanState<'_> {
         // [PLAN_TYPE, PLAN_STRING]
         let mut rows: Vec<Vec<PhysicalScalarExpression>> = Vec::new();
 
+        // Unoptimized
         let unoptim = formatter.format(&explain.node.logical_unoptimized)?;
         rows.push(vec![
             PhysicalLiteralExpr::new("unoptimized").into(),
             PhysicalLiteralExpr::new(unoptim).into(),
         ]);
 
+        // Optimized
         if let Some(optim) = &explain.node.logical_optimized {
             let optim = formatter.format(optim)?;
             rows.push(vec![
@@ -45,6 +48,13 @@ impl OperatorPlanState<'_> {
                 PhysicalLiteralExpr::new(optim).into(),
             ]);
         }
+
+        // Physical
+        let phys = formatter.format(&plan_explain_node)?;
+        rows.push(vec![
+            PhysicalLiteralExpr::new("physical").into(),
+            PhysicalLiteralExpr::new(phys).into(),
+        ]);
 
         let values = PhysicalValues::new(rows);
 

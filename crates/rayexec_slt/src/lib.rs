@@ -1,6 +1,6 @@
 mod vars;
-use rayexec_shell::result_table::MaterializedResultTable;
-use rayexec_shell::session::SingleUserEngine;
+use rayexec_execution::arrays::format::pretty::table::PrettyTable;
+use rayexec_execution::engine::single_user::SingleUserEngine;
 pub use vars::*;
 
 mod convert;
@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use convert::{schema_to_types, table_to_rows};
+use convert::{batches_to_rows, schema_to_types};
 use libtest_mimic::{Arguments, Trial};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
@@ -199,7 +199,7 @@ impl TestSession {
         println!("---- EXPLAIN ----");
         println!("{sql}");
 
-        let table = match self
+        let mut query_res = match self
             .conf
             .engine
             .session()
@@ -213,13 +213,12 @@ impl TestSession {
             }
         };
 
-        let pretty = table
-            .collect()
-            .await
-            .unwrap()
-            .pretty_table(cols as usize, Some(200))
-            .unwrap();
-        println!("{pretty}");
+        let batches = query_res.output.collect().await.unwrap();
+        println!(
+            "{}",
+            PrettyTable::try_new(&query_res.output_schema, &batches, cols as usize, Some(200))
+                .unwrap()
+        );
     }
 
     async fn debug_set_partitions(&mut self) {
@@ -245,31 +244,31 @@ impl TestSession {
         self.debug_partitions_set = true;
     }
 
-    async fn debug_print_profile_data(&self, table: &MaterializedResultTable, sql: &str) {
-        if std::env::var(DEBUG_PRINT_PROFILE_DATA_VAR).is_err() {
-            // Not set.
-            return;
-        }
+    // async fn debug_print_profile_data(&self, table: &MaterializedResultTable, sql: &str) {
+    //     if std::env::var(DEBUG_PRINT_PROFILE_DATA_VAR).is_err() {
+    //         // Not set.
+    //         return;
+    //     }
 
-        println!("---- PROFILE ----");
-        println!("{sql}");
+    //     println!("---- PROFILE ----");
+    //     println!("{sql}");
 
-        println!("---- PLANNING ----");
-        match table.planning_profile_data() {
-            Some(data) => {
-                println!("{}", data);
-            }
-            None => println!("Planning profile data not available"),
-        }
+    //     println!("---- PLANNING ----");
+    //     match table.planning_profile_data() {
+    //         Some(data) => {
+    //             println!("{}", data);
+    //         }
+    //         None => println!("Planning profile data not available"),
+    //     }
 
-        println!("---- EXECUTION ----");
-        match table.execution_profile_data() {
-            Some(data) => {
-                println!("{data}");
-            }
-            None => println!("Execution profile data not available"),
-        }
-    }
+    //     println!("---- EXECUTION ----");
+    //     match table.execution_profile_data() {
+    //         Some(data) => {
+    //             println!("{data}");
+    //         }
+    //         None => println!("Execution profile data not available"),
+    //     }
+    // }
 
     async fn run_inner(
         &mut self,
@@ -289,7 +288,7 @@ impl TestSession {
         self.debug_explain(&sql_with_replacements).await;
         self.debug_set_partitions().await;
 
-        let table = self
+        let mut query_res = self
             .conf
             .engine
             .session()
@@ -298,26 +297,25 @@ impl TestSession {
 
         // Timeout for the entire query.
         let mut timeout = Box::pin(tokio::time::sleep(self.conf.query_timeout));
-        let handle = table.handle().clone();
 
         // Continually read from the stream, erroring if we exceed timeout.
         tokio::select! {
-            materialized = table.collect_with_execution_profile() => {
+            materialized = query_res.output.collect() => {
                 let materialized = materialized?;
-                self.debug_print_profile_data(&materialized, sql).await;
+                // self.debug_print_profile_data(&materialized, sql).await;
 
                 Ok(sqllogictest::DBOutput::Rows {
-                    types: schema_to_types(materialized.schema()),
-                    rows: table_to_rows(materialized)?,
+                    types: schema_to_types(&query_res.output_schema),
+                    rows: batches_to_rows(materialized)?,
                 })
             }
             _ = &mut timeout => {
                  // Timed out.
-                handle.cancel();
+                query_res.handle.cancel();
 
-                let prof_data = handle.generate_execution_profile_data().await.unwrap();
+                // let prof_data = handle.generate_execution_profile_data().await.unwrap();
                 Err(RayexecError::new(format!(
-                    "Variables\n{}\nQuery timed out\n---{prof_data}",
+                    "Variables\n{}\nQuery timed out\n---",
                     self.conf.vars
                 )))
             }

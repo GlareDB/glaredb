@@ -323,7 +323,7 @@ unsafe fn write_key_array(
         PhysicalType::Interval => {
             write_scalar::<PhysicalInterval>(layout, array_idx, array, row_pointers, num_rows)
         }
-        _ => unimplemented!(),
+        other => unimplemented!("other: {other}"),
     }
 }
 

@@ -2408,7 +2408,6 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_rt_native",
- "rayexec_shell",
  "sqllogictest",
  "tokio",
  "tracing",
@@ -3068,18 +3067,10 @@ dependencies = [
 name = "test_bin"
 version = "0.0.95"
 dependencies = [
- "rayexec_csv",
- "rayexec_debug",
- "rayexec_delta",
  "rayexec_error",
  "rayexec_execution",
- "rayexec_iceberg",
- "rayexec_parquet",
  "rayexec_rt_native",
- "rayexec_server",
- "rayexec_shell",
  "rayexec_slt",
- "rayexec_unity_catalog",
  "tokio",
 ]
 

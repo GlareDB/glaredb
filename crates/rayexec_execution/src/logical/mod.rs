@@ -53,6 +53,7 @@ pub mod logical_distinct;
 pub mod logical_drop;
 pub mod logical_empty;
 pub mod logical_explain;
+pub mod logical_expression_list;
 pub mod logical_filter;
 pub mod logical_inout;
 pub mod logical_insert;

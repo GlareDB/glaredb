@@ -1,19 +1,8 @@
 use std::task::Context;
 
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::Result;
 
-use super::{
-    BaseOperator,
-    ExecutableOperator,
-    ExecuteInOut,
-    ExecuteOperator,
-    ExecutionProperties,
-    OperatorState,
-    PartitionState,
-    PollExecute,
-    PollFinalize,
-    UnaryInputStates,
-};
+use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::database::DatabaseContext;
@@ -156,7 +145,7 @@ mod tests {
     use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
     use crate::testutil::exprs::plan_scalar;
-    use crate::testutil::operator::{OperatorWrapper, OperatorWrapper2};
+    use crate::testutil::operator::OperatorWrapper;
 
     #[test]
     fn values_literal() {

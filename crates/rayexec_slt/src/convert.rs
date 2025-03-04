@@ -1,12 +1,12 @@
 use rayexec_error::Result;
+use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::datatype::DataType;
 use rayexec_execution::arrays::field::Schema;
 use rayexec_execution::arrays::format::{FormatOptions, Formatter};
-use rayexec_shell::result_table::MaterializedResultTable;
 use sqllogictest::DefaultColumnType;
 
-/// Convert a materialized table to row strings.
-pub fn table_to_rows(table: MaterializedResultTable) -> Result<Vec<Vec<String>>> {
+/// Converts batches to rows.
+pub fn batches_to_rows(batches: Vec<Batch>) -> Result<Vec<Vec<String>>> {
     const OPTS: FormatOptions = FormatOptions {
         null: "NULL",
         empty_string: "(empty)",
@@ -15,15 +15,22 @@ pub fn table_to_rows(table: MaterializedResultTable) -> Result<Vec<Vec<String>>>
 
     let mut rows = Vec::new();
 
-    for row in table.iter_rows() {
-        let col_strings: Vec<_> = row
-            .iter()
-            .map(|col| formatter.format_scalar_value(col.clone()).to_string())
-            .collect();
+    for batch in batches {
+        for row_idx in 0..batch.num_rows() {
+            let col_strings = batch
+                .arrays()
+                .iter()
+                .map(|arr| {
+                    formatter
+                        .format_array_value(arr, row_idx)
+                        .map(|v| v.to_string())
+                })
+                .collect::<Result<Vec<_>>>()?;
 
-        match transform_multiline_cols_to_rows(&col_strings) {
-            Some(new_rows) => rows.extend(new_rows),
-            None => rows.push(col_strings),
+            match transform_multiline_cols_to_rows(&col_strings) {
+                Some(new_rows) => rows.extend(new_rows),
+                None => rows.push(col_strings),
+            }
         }
     }
 

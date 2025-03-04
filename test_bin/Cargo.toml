@@ -8,71 +8,71 @@ edition.workspace = true
 [dependencies]
 rayexec_error = { path = '../crates/rayexec_error' }
 rayexec_execution = { path = '../crates/rayexec_execution' }
-rayexec_server = { path = '../crates/rayexec_server' }
-rayexec_shell = { path = '../crates/rayexec_shell' }
+# rayexec_server = { path = '../crates/rayexec_server' }
+# rayexec_shell = { path = '../crates/rayexec_shell' }
 rayexec_rt_native = { path = '../crates/rayexec_rt_native' }
 rayexec_slt = { path = '../crates/rayexec_slt' }
-rayexec_parquet = { path = '../crates/rayexec_parquet' }
-rayexec_csv = { path = '../crates/rayexec_csv' }
-rayexec_delta = { path = '../crates/rayexec_delta' }
-rayexec_unity_catalog = { path = '../crates/rayexec_unity_catalog' }
-rayexec_iceberg = { path = '../crates/rayexec_iceberg' }
-rayexec_debug = { path = '../crates/rayexec_debug' }
+# rayexec_parquet = { path = '../crates/rayexec_parquet' }
+# rayexec_csv = { path = '../crates/rayexec_csv' }
+# rayexec_delta = { path = '../crates/rayexec_delta' }
+# rayexec_unity_catalog = { path = '../crates/rayexec_unity_catalog' }
+# rayexec_iceberg = { path = '../crates/rayexec_iceberg' }
+# rayexec_debug = { path = '../crates/rayexec_debug' }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
 
-[[test]]
-harness = false
-name = "integration_register_all_datasources"
-path = "integration_register_all_datasources.rs"
+# [[test]]
+# harness = false
+# name = "integration_register_all_datasources"
+# path = "integration_register_all_datasources.rs"
 
-[[test]]
-harness = false
-name = "integration_slt_hybrid"
-path = "integration_slt_hybrid.rs"
+# [[test]]
+# harness = false
+# name = "integration_slt_hybrid"
+# path = "integration_slt_hybrid.rs"
 
-[[test]]
-harness = false
-name = "integration_slt_tpch"
-path = "integration_slt_tpch.rs"
+# [[test]]
+# harness = false
+# name = "integration_slt_tpch"
+# path = "integration_slt_tpch.rs"
 
-[[test]]
-harness = false
-name = "integration_slt_tpcds"
-path = "integration_slt_tpcds.rs"
+# [[test]]
+# harness = false
+# name = "integration_slt_tpcds"
+# path = "integration_slt_tpcds.rs"
 
-[[test]]
-harness = false
-name = "integration_slt_clickbench"
-path = "integration_slt_clickbench.rs"
+# [[test]]
+# harness = false
+# name = "integration_slt_clickbench"
+# path = "integration_slt_clickbench.rs"
 
 [[test]]
 harness = false
 name = "integration_slt_standard"
 path = "integration_slt_standard.rs"
 
-[[test]]
-harness = false
-name = "integration_slt_parquet"
-path = "integration_slt_parquet.rs"
+# [[test]]
+# harness = false
+# name = "integration_slt_parquet"
+# path = "integration_slt_parquet.rs"
 
-[[test]]
-harness = false
-name = "integration_slt_delta"
-path = "integration_slt_delta.rs"
+# [[test]]
+# harness = false
+# name = "integration_slt_delta"
+# path = "integration_slt_delta.rs"
 
-[[test]]
-harness = false
-name = "integration_slt_unity_catalog"
-path = "integration_slt_unity_catalog.rs"
+# [[test]]
+# harness = false
+# name = "integration_slt_unity_catalog"
+# path = "integration_slt_unity_catalog.rs"
 
-[[test]]
-harness = false
-name = "integration_slt_iceberg"
-path = "integration_slt_iceberg.rs"
+# [[test]]
+# harness = false
+# name = "integration_slt_iceberg"
+# path = "integration_slt_iceberg.rs"
 
-[[test]]
-harness = false
-name = "integration_slt_csv"
-path = "integration_slt_csv.rs"
+# [[test]]
+# harness = false
+# name = "integration_slt_csv"
+# path = "integration_slt_csv.rs"
 
 

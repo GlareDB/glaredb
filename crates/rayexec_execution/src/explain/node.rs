@@ -57,6 +57,7 @@ impl ExplainNode {
             LogicalOperator::Filter(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Distinct(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Scan(n) => (n.explain_entry(config), &n.children),
+            LogicalOperator::ExpressionList(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Aggregate(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::SetOp(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Empty(n) => (n.explain_entry(config), &n.children),

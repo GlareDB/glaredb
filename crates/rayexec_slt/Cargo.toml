@@ -9,7 +9,6 @@ edition.workspace = true
 rayexec_error = { path = '../rayexec_error' }
 rayexec_execution = { path = '../rayexec_execution' }
 rayexec_rt_native = { path = '../rayexec_rt_native' }
-rayexec_shell = { path = '../rayexec_shell' }
 libtest-mimic = "0.7.3"
 sqllogictest = "0.20.4"
 env_logger = "0.11.6"

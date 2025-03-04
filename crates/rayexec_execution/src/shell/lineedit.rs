@@ -89,8 +89,13 @@ impl<W: io::Write> LineEditor<W> {
         }
     }
 
-    /// Get a mutable reference to the writer.
-    pub fn raw_writer(&mut self) -> RawTerminalWriter<W> {
+    /// Get a reference to the underlying writer.
+    pub fn writer(&mut self) -> &mut W {
+        &mut self.writer
+    }
+
+    /// Get a mutable reference to the raw mode writer.
+    pub fn raw_mode_writer(&mut self) -> RawTerminalWriter<W> {
         RawTerminalWriter::new(&mut self.writer)
     }
 

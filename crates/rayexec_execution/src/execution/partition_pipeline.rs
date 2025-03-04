@@ -12,7 +12,6 @@ use super::operators::{
 };
 use crate::arrays::batch::Batch;
 use crate::execution::execution_stack::StackControlFlow;
-use crate::execution::operators::ExecuteInOut;
 use crate::runtime::time::RuntimeInstant;
 
 #[derive(Debug)]
