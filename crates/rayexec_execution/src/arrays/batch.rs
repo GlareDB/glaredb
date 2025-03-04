@@ -185,19 +185,6 @@ impl Batch {
         }
     }
 
-    /// Sets a constant value for an array.
-    pub fn set_constant_value(&mut self, arr_idx: usize, val: BorrowedScalarValue) -> Result<()> {
-        let arr = &mut self.arrays[arr_idx];
-        let new_arr = Array::new_constant(&NopBufferManager, &val, self.num_rows)?;
-        let old = std::mem::replace(arr, new_arr);
-
-        if let Some(cache) = &mut self.cache {
-            cache.cached[arr_idx].maybe_cache(old.data);
-        }
-
-        Ok(())
-    }
-
     /// Try to clone an row from another batch into this batch.
     ///
     /// `num_rows` determines the how many times the row will be logically
@@ -466,16 +453,5 @@ mod tests {
 
         assert_batches_eq(&expected, &batch1);
         assert_batches_eq(&expected, &batch2);
-    }
-
-    #[test]
-    fn set_constant_val_simple() {
-        let mut batch = generate_batch!([1, 2, 3, 4], ["a", "b", "c", "d"]);
-        batch
-            .set_constant_value(1, BorrowedScalarValue::Utf8("dog".into()))
-            .unwrap();
-
-        let expected = generate_batch!([1, 2, 3, 4], ["dog", "dog", "dog", "dog"]);
-        assert_batches_eq(&expected, &batch);
     }
 }

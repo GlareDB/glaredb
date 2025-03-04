@@ -75,10 +75,15 @@ impl Explainable for LogicalAggregate {
 
 impl LogicalNode for Node<LogicalAggregate> {
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
-        let mut refs = vec![self.node.aggregates_table];
+        // Order of refs here need to match physical output ordering of the
+        // aggregate operators.
+        //
+        // Grouped aggregates: [GROUPS, AGG_RESULTS, GROUPING_FUNCS]
+        let mut refs = Vec::new();
         if let Some(group_table) = self.node.group_table {
             refs.push(group_table);
         }
+        refs.push(self.node.aggregates_table);
         if let Some(grouping_set_table) = self.node.grouping_functions_table {
             refs.push(grouping_set_table);
         }

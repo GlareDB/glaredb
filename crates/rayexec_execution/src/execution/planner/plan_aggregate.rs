@@ -1,6 +1,7 @@
 use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::OperatorPlanState;
+use crate::execution::operators::hash_aggregate::{Aggregates, PhysicalHashAggregate};
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::ungrouped_aggregate::PhysicalUngroupedAggregate;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
@@ -21,10 +22,28 @@ impl OperatorPlanState<'_> {
         let input_refs = input.get_output_table_refs(self.bind_context);
         let child = self.plan(input)?;
 
-        let mut phys_aggs = Vec::new();
-
-        // Extract agg expressions, place in their own pre-projection.
         let mut preproject_exprs = Vec::new();
+        // Place group by expressions in pre-projection and create column exprs
+        // referencing those groups.
+        let mut groups = Vec::new();
+        for group_expr in agg.node.group_exprs {
+            let scalar = self
+                .expr_planner
+                .plan_scalar(&input_refs, &group_expr)
+                .context("Failed to plan expressions for group by pre-projection")?;
+
+            let col_idx = preproject_exprs.len();
+            let col_expr = PhysicalColumnExpr {
+                idx: col_idx,
+                datatype: scalar.datatype(),
+            };
+
+            preproject_exprs.push(scalar);
+            groups.push(col_expr);
+        }
+
+        // Extract agg expression inputs as well, and place in pre-projection.
+        let mut phys_aggs = Vec::new();
         for agg_expr in agg.node.aggregates {
             let start_col_index = preproject_exprs.len(); // Relative offset for preproject inputs.
             let agg = match agg_expr {
@@ -62,15 +81,6 @@ impl OperatorPlanState<'_> {
             phys_aggs.push(phys_agg);
         }
 
-        // Place group by expressions in pre-projection as well.
-        for group_expr in agg.node.group_exprs {
-            let scalar = self
-                .expr_planner
-                .plan_scalar(&input_refs, &group_expr)
-                .context("Failed to plan expressions for group by pre-projection")?;
-            preproject_exprs.push(scalar);
-        }
-
         let child = PlannedOperatorWithChildren {
             operator: PlannedOperator::new_execute(PhysicalProject::new(preproject_exprs)),
             children: vec![child],
@@ -78,18 +88,23 @@ impl OperatorPlanState<'_> {
 
         match agg.node.grouping_sets {
             Some(grouping_sets) => {
-                unimplemented!()
-                // // If we're working with groups, push a hash aggregate operator.
-                // let operator = PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
-                //     phys_aggs,
-                //     grouping_sets,
-                //     agg.node.grouping_functions,
-                // ));
-                // self.push_intermediate_operator(operator, location, id_gen)?;
+                // If we're working with groups, push a hash aggregate operator.
+                let aggregates = Aggregates {
+                    groups,
+                    grouping_functions: agg.node.grouping_functions,
+                    aggregates: phys_aggs,
+                };
+                let operator = PhysicalHashAggregate::new(aggregates, grouping_sets);
+
+                Ok(PlannedOperatorWithChildren {
+                    operator: PlannedOperator::new_execute(operator),
+                    children: vec![child],
+                })
             }
             None => {
                 // Otherwise push an ungrouped aggregate operator.
                 let operator = PhysicalUngroupedAggregate::new(phys_aggs);
+
                 Ok(PlannedOperatorWithChildren {
                     operator: PlannedOperator::new_execute(operator),
                     children: vec![child],
