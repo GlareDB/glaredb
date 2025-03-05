@@ -1,6 +1,8 @@
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 use super::{Materializations, OperatorPlanState};
+use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
+use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{self, Expression};
@@ -16,30 +18,25 @@ use crate::logical::operator::{self, LocationRequirement, LogicalNode, Node};
 impl OperatorPlanState<'_> {
     pub fn plan_magic_join(
         &mut self,
-        materializations: &mut Materializations,
         join: Node<LogicalMagicJoin>,
-    ) -> Result<()> {
+    ) -> Result<PlannedOperatorWithChildren> {
         // Planning is no different from a comparison join. Materialization
         // scans will be planned appropriately as we get there.
-        self.plan_comparison_join(
-            materializations,
-            Node {
-                node: LogicalComparisonJoin {
-                    join_type: join.node.join_type,
-                    conditions: join.node.conditions,
-                },
-                location: join.location,
-                children: join.children,
-                estimated_cardinality: join.estimated_cardinality,
+        self.plan_comparison_join(Node {
+            node: LogicalComparisonJoin {
+                join_type: join.node.join_type,
+                conditions: join.node.conditions,
             },
-        )
+            location: join.location,
+            children: join.children,
+            estimated_cardinality: join.estimated_cardinality,
+        })
     }
 
     pub fn plan_comparison_join(
         &mut self,
-        materializations: &mut Materializations,
         mut join: Node<LogicalComparisonJoin>,
-    ) -> Result<()> {
+    ) -> Result<PlannedOperatorWithChildren> {
         let location = join.location;
 
         let equality_indices: Vec<_> = join
@@ -59,30 +56,30 @@ impl OperatorPlanState<'_> {
         if !equality_indices.is_empty() {
             // Use hash join
 
-            let [left, right] = join.take_two_children_exact()?;
-            let left_refs = left.get_output_table_refs(self.bind_context);
-            let right_refs = right.get_output_table_refs(self.bind_context);
+            // let [left, right] = join.take_two_children_exact()?;
+            // let left_refs = left.get_output_table_refs(self.bind_context);
+            // let right_refs = right.get_output_table_refs(self.bind_context);
 
-            let mut left_types = Vec::new();
-            for &table_ref in &left_refs {
-                let table = self.bind_context.get_table(table_ref)?;
-                left_types.extend(table.column_types.iter().cloned());
-            }
+            // let mut left_types = Vec::new();
+            // for &table_ref in &left_refs {
+            //     let table = self.bind_context.get_table(table_ref)?;
+            //     left_types.extend(table.column_types.iter().cloned());
+            // }
 
-            let mut right_types = Vec::new();
-            for &table_ref in &right_refs {
-                let table = self.bind_context.get_table(table_ref)?;
-                right_types.extend(table.column_types.iter().cloned());
-            }
+            // let mut right_types = Vec::new();
+            // for &table_ref in &right_refs {
+            //     let table = self.bind_context.get_table(table_ref)?;
+            //     right_types.extend(table.column_types.iter().cloned());
+            // }
 
-            // Build up all inputs on the right (probe) side. This is going to
-            // continue with the the current pipeline.
-            self.walk(materializations, right)?;
+            // // Build up all inputs on the right (probe) side. This is going to
+            // // continue with the the current pipeline.
+            // self.walk(materializations, right)?;
 
-            // Build up the left (build) side in a separate pipeline. This will feed
-            // into the currently pipeline at the join operator.
-            let mut left_state = OperatorPlanState::new(self.config, self.bind_context);
-            left_state.walk(materializations, left)?;
+            // // Build up the left (build) side in a separate pipeline. This will feed
+            // // into the currently pipeline at the join operator.
+            // let mut left_state = OperatorPlanState::new(self.config, self.bind_context);
+            // left_state.walk(materializations, left)?;
 
             unimplemented!();
             // // Take any completed pipelines from the left side and put them in our
@@ -146,24 +143,17 @@ impl OperatorPlanState<'_> {
                 Some(condition)
             };
 
-            self.push_nl_join(
-                materializations,
-                location,
-                left,
-                right,
-                condition,
-                join.node.join_type,
-            )?;
+            let op =
+                self.plan_nested_loop_join(location, left, right, condition, join.node.join_type)?;
 
-            Ok(())
+            Ok(op)
         }
     }
 
     pub fn plan_arbitrary_join(
         &mut self,
-        materializations: &mut Materializations,
         mut join: Node<LogicalArbitraryJoin>,
-    ) -> Result<()> {
+    ) -> Result<PlannedOperatorWithChildren> {
         let location = join.location;
         let filter = self
             .expr_planner
@@ -186,82 +176,42 @@ impl OperatorPlanState<'_> {
 
         let [left, right] = join.take_two_children_exact()?;
 
-        self.push_nl_join(
-            materializations,
-            location,
-            left,
-            right,
-            Some(filter),
-            join.node.join_type,
-        )
+        self.plan_nested_loop_join(location, left, right, Some(filter), join.node.join_type)
     }
 
     pub fn plan_cross_join(
         &mut self,
-        materializations: &mut Materializations,
         mut join: Node<LogicalCrossJoin>,
-    ) -> Result<()> {
+    ) -> Result<PlannedOperatorWithChildren> {
         let location = join.location;
         let [left, right] = join.take_two_children_exact()?;
 
-        self.push_nl_join(
-            materializations,
-            location,
-            left,
-            right,
-            None,
-            JoinType::Inner,
-        )
+        self.plan_nested_loop_join(location, left, right, None, JoinType::Inner)
     }
 
-    /// Push a nest loop join.
-    ///
-    /// This will create a complete pipeline for the left side of the join
-    /// (build), right right side (probe) will be pushed onto the current
-    /// pipeline.
-    fn push_nl_join(
+    fn plan_nested_loop_join(
         &mut self,
-        materializations: &mut Materializations,
-        location: LocationRequirement,
+        _location: LocationRequirement,
         left: operator::LogicalOperator,
         right: operator::LogicalOperator,
         filter: Option<PhysicalScalarExpression>,
         join_type: JoinType,
-    ) -> Result<()> {
+    ) -> Result<PlannedOperatorWithChildren> {
         self.config.check_nested_loop_join_allowed()?;
 
-        // Continue to build up all the inputs into the right side.
-        self.walk(materializations, right)?;
+        let left = self.plan(left)?;
+        let right = self.plan(right)?;
 
-        // Create a completely independent pipeline (or pipelines) for left
-        // side.
-        let mut left_state = OperatorPlanState::new(self.config, self.bind_context);
-        left_state.walk(materializations, left)?;
+        let join = PhysicalNestedLoopJoin::new(
+            join_type,
+            left.operator.call_output_types(),
+            right.operator.call_output_types(),
+            filter,
+        );
 
-        // Take completed pipelines from the left and merge them into this
-        // state's completed set of pipelines.
-        unimplemented!();
-        // self.local_group
-        //     .merge_from_other(&mut left_state.local_group);
-        // self.remote_group
-        //     .merge_from_other(&mut left_state.remote_group);
-
-        // Get the left in-progress pipeline. This will be one of the inputs
-        // into the current in-progress pipeline.
-        let left_pipeline = left_state.in_progress.take().ok_or_else(|| {
-            RayexecError::new("expected in-progress pipeline from left side of join")
-        })?;
-
-        // let operator =
-        //     PhysicalOperator::NestedLoopJoin(PhysicalNestedLoopJoin::new(filter, join_type));
-        // self.push_intermediate_operator(operator, location, id_gen)?;
-
-        // // Left pipeline will be input to this pipeline.
-        // self.push_as_child_pipeline(
-        //     left_pipeline,
-        //     PhysicalNestedLoopJoin::BUILD_SIDE_INPUT_INDEX,
-        // )?;
-
-        // Ok(())
+        Ok(PlannedOperatorWithChildren {
+            operator: PlannedOperator::new_push_execute(join),
+            children: vec![left, right],
+        })
     }
 }

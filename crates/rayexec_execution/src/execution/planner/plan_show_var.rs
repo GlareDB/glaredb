@@ -1,33 +1,29 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use super::OperatorPlanState;
+use crate::execution::operators::empty::PhysicalEmpty;
+use crate::execution::operators::values::PhysicalValues;
+use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
+use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
 use crate::logical::logical_set::LogicalShowVar;
 use crate::logical::operator::Node;
 
 impl OperatorPlanState<'_> {
-    pub fn plan_show_var(&mut self, show: Node<LogicalShowVar>) -> Result<()> {
-        let location = show.location;
+    pub fn plan_show_var(
+        &mut self,
+        show: Node<LogicalShowVar>,
+    ) -> Result<PlannedOperatorWithChildren> {
+        let _location = show.location;
         let show = show.into_inner();
 
-        if self.in_progress.is_some() {
-            return Err(RayexecError::new("Expected in progress to be None"));
-        }
+        let operator = PhysicalValues::new(vec![vec![PhysicalLiteralExpr::new(show.value).into()]]);
 
-        unimplemented!()
-        // let operator = IntermediateOperator {
-        //     operator: Arc::new(PhysicalOperator::Values(PhysicalValues::new(vec![
-        //         Batch::try_from_arrays([Array::from_iter([show.value.to_string().as_str()])])?,
-        //     ]))),
-        //     partitioning_requirement: Some(1),
-        // };
-
-        // self.in_progress = Some(InProgressPipeline {
-        //     id: id_gen.next_pipeline_id(),
-        //     operators: vec![operator],
-        //     location,
-        //     source: PipelineSource::InPipeline,
-        // });
-
-        // Ok(())
+        Ok(PlannedOperatorWithChildren {
+            operator: PlannedOperator::new_execute(operator),
+            children: vec![PlannedOperatorWithChildren {
+                operator: PlannedOperator::new_pull(PhysicalEmpty),
+                children: Vec::new(),
+            }],
+        })
     }
 }

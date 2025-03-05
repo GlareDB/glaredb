@@ -1,32 +1,37 @@
 use rayexec_error::{Result, ResultExt};
 
-use super::{Materializations, OperatorPlanState};
+use super::OperatorPlanState;
 use crate::execution::operators::filter::PhysicalFilter;
-use crate::execution::operators::PhysicalOperator;
+use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::operator::{LogicalNode, Node};
 
 impl OperatorPlanState<'_> {
     pub fn plan_filter(
         &mut self,
-        materializations: &mut Materializations,
         mut filter: Node<LogicalFilter>,
-    ) -> Result<()> {
-        let location = filter.location;
+    ) -> Result<PlannedOperatorWithChildren> {
+        let _location = filter.location;
 
         let input = filter.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs(self.bind_context);
-        self.walk(materializations, input)?;
 
-        // let predicate = self
-        //     .expr_planner
-        //     .plan_scalar(&input_refs, &filter.node.filter)
-        //     .context("Failed to plan expressions for filter")?;
+        let input = self.plan(input)?;
+        let datatypes = input.operator.call_output_types();
 
-        // let operator = PhysicalOperator::Filter(PhysicalFilter { predicate });
-        // self.push_intermediate_operator(operator, location, id_gen)?;
+        let predicate = self
+            .expr_planner
+            .plan_scalar(&input_refs, &filter.node.filter)
+            .context("Failed to plan expressions for filter")?;
 
-        // Ok(())
-        unimplemented!()
+        let operator = PhysicalFilter {
+            datatypes,
+            predicate,
+        };
+
+        Ok(PlannedOperatorWithChildren {
+            operator: PlannedOperator::new_execute(operator),
+            children: vec![input],
+        })
     }
 }

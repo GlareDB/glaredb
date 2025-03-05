@@ -51,7 +51,7 @@ impl ConcurrentColumnCollection {
 
     pub fn init_append_state(&self) -> ColumnCollectionAppendState {
         ColumnCollectionAppendState {
-            segment: ColumnCollectionSegment::new(),
+            segment: ColumnCollectionSegment::new(self.chunk_capacity),
         }
     }
 
@@ -76,12 +76,9 @@ impl ConcurrentColumnCollection {
         state: &mut ColumnCollectionAppendState,
         batch: &Batch,
     ) -> Result<()> {
-        state.segment.append_batch(
-            &NopBufferManager,
-            batch,
-            &self.datatypes,
-            self.chunk_capacity,
-        )?;
+        state
+            .segment
+            .append_batch(&NopBufferManager, batch, &self.datatypes)?;
 
         if state.segment.num_chunks() >= self.segment_size {
             self.flush(state)?;
@@ -90,15 +87,24 @@ impl ConcurrentColumnCollection {
         Ok(())
     }
 
+    /// Flushes any pending chunks in from the append state to the collection.
+    ///
+    /// The state may continue to be used.
     pub fn flush(&self, state: &mut ColumnCollectionAppendState) -> Result<()> {
-        let mut segment = std::mem::replace(&mut state.segment, ColumnCollectionSegment::new());
+        let mut segment = std::mem::replace(
+            &mut state.segment,
+            ColumnCollectionSegment::new(self.chunk_capacity),
+        );
         segment.finish_append();
-        if segment.num_chunks() == 0 {
+        // Ensure we don't add segments with zero total rows since we depend on
+        // zero being a marker value for when we're done scanning.
+        if segment.num_rows() == 0 {
             return Ok(());
         }
 
         let mut segments = self.segments.lock();
         segments.push(Arc::new(segment));
+
         Ok(())
     }
 

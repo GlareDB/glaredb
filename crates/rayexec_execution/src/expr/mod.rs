@@ -789,8 +789,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn add_i32_utf8_error() {
-        add(lit(4_i32), lit("8")).unwrap_err();
+    fn add_i32_utf8() {
+        // TODO: This should always pass. However we need to tweak the implicit
+        // cast rules to only implicitly cast string to other types if they're
+        // literal, and never do so otherwise.
+        add(lit(4_i32), lit("8")).unwrap();
     }
 
     #[test]

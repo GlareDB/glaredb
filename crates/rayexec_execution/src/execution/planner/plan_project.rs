@@ -1,8 +1,8 @@
 use rayexec_error::{Result, ResultExt};
 
-use super::{Materializations, OperatorPlanState};
+use super::OperatorPlanState;
 use crate::execution::operators::project::PhysicalProject;
-use crate::execution::operators::{PhysicalOperator, PlannedOperator, PlannedOperatorWithChildren};
+use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, Node};
 

@@ -7,28 +7,40 @@ use crate::buffer::buffer_manager::AsRawBufferManager;
 
 #[derive(Debug)]
 pub struct ColumnCollectionSegment {
+    chunk_capacity: usize,
     chunks: Vec<ColumnChunk>,
 }
 
 impl ColumnCollectionSegment {
-    pub fn new() -> Self {
-        ColumnCollectionSegment { chunks: Vec::new() }
+    /// Creates a new collection segment with all chunks having the given chunk
+    /// capacity.
+    pub fn new(chunk_capacity: usize) -> Self {
+        ColumnCollectionSegment {
+            chunk_capacity,
+            chunks: Vec::new(),
+        }
     }
 
     pub fn num_chunks(&self) -> usize {
         self.chunks.len()
     }
 
+    /// Get the total number of rows for this segment.
+    pub fn num_rows(&self) -> usize {
+        self.chunks.iter().map(|c| c.filled).sum()
+    }
+
+    /// Appends a batch to this segment.
+    // TODO: Bit weird having this accept datatypes.
     pub fn append_batch(
         &mut self,
         manager: &impl AsRawBufferManager,
         batch: &Batch,
         types: &[DataType],
-        chunk_capacity: usize,
     ) -> Result<()> {
         // Ensure we have at least one chunk to use.
         if self.chunks.is_empty() {
-            let chunk = ColumnChunk::try_new(manager, types, chunk_capacity)?;
+            let chunk = ColumnChunk::try_new(manager, types, self.chunk_capacity)?;
             self.chunks.push(chunk);
         }
 
@@ -49,7 +61,7 @@ impl ColumnCollectionSegment {
                 // for writing to.
                 chunk.make_all_shared();
 
-                let new_chunk = ColumnChunk::try_new(manager, types, chunk_capacity)?;
+                let new_chunk = ColumnChunk::try_new(manager, types, self.chunk_capacity)?;
                 self.chunks.push(new_chunk);
             }
         }
@@ -67,5 +79,44 @@ impl ColumnCollectionSegment {
 
     pub fn get_chunk(&self, chunk_idx: usize) -> Option<&ColumnChunk> {
         self.chunks.get(chunk_idx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::generate_batch;
+
+    #[test]
+    fn append_fits_in_single_chunk() {
+        let mut segment = ColumnCollectionSegment::new(4);
+
+        let input = generate_batch!([1, 2, 3, 4]);
+        segment
+            .append_batch(&NopBufferManager, &input, &[DataType::Int32])
+            .unwrap();
+
+        assert_eq!(1, segment.num_chunks());
+        assert_eq!(4, segment.get_chunk(0).unwrap().filled);
+        assert_eq!(4, segment.get_chunk(0).unwrap().capacity);
+    }
+
+    #[test]
+    fn append_requires_multiple_chunks() {
+        let mut segment = ColumnCollectionSegment::new(4);
+
+        let input = generate_batch!([1, 2, 3, 4, 5, 6]);
+        segment
+            .append_batch(&NopBufferManager, &input, &[DataType::Int32])
+            .unwrap();
+
+        assert_eq!(2, segment.num_chunks());
+
+        assert_eq!(4, segment.get_chunk(0).unwrap().filled);
+        assert_eq!(4, segment.get_chunk(0).unwrap().capacity);
+
+        assert_eq!(2, segment.get_chunk(1).unwrap().filled);
+        assert_eq!(4, segment.get_chunk(1).unwrap().capacity);
     }
 }

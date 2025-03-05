@@ -14,6 +14,7 @@ pub mod insert;
 pub mod join;
 pub mod limit;
 pub mod materialize;
+pub mod nested_loop_join;
 pub mod project;
 pub mod results;
 pub mod sink;

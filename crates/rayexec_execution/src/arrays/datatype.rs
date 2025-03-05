@@ -13,7 +13,6 @@ use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType}
 /// This is mostly used for determining the input and return types functions
 /// without needing to worry about extra type info (e.g. precision/scale for
 /// decimals).
-// TODO: "Table"
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DataTypeId {
     /// Any datatype.
@@ -24,6 +23,11 @@ pub enum DataTypeId {
     ///
     /// This is mostly useful for a saying a UDF can accept any type.
     Any,
+    /// Represents a "table".
+    ///
+    /// This is useful for table functions (as they produce tables). We can't
+    /// glean anything else from this type without additional binding.
+    Table,
     Null,
     Boolean,
     Int8,
@@ -55,6 +59,7 @@ impl fmt::Display for DataTypeId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Any => write!(f, "Any"),
+            Self::Table => write!(f, "Table"),
             Self::Null => write!(f, "Null"),
             Self::Boolean => write!(f, "Boolean"),
             Self::Int8 => write!(f, "Int8"),
@@ -302,6 +307,9 @@ impl DataType {
         Ok(match id {
             DataTypeId::Any => {
                 return Err(RayexecError::new("Cannot create a default Any datatype"))
+            }
+            DataTypeId::Table => {
+                return Err(RayexecError::new("Cannot create a default Table datatype"))
             }
             DataTypeId::Null => DataType::Null,
             DataTypeId::Boolean => DataType::Boolean,

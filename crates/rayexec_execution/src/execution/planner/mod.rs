@@ -169,12 +169,29 @@ impl<'a> OperatorPlanState<'a> {
     fn plan(&mut self, plan: LogicalOperator) -> Result<PlannedOperatorWithChildren> {
         match plan {
             LogicalOperator::Project(node) => self.plan_project(node),
+            LogicalOperator::Filter(node) => self.plan_filter(node),
             LogicalOperator::Explain(node) => self.plan_explain(node),
             LogicalOperator::ExpressionList(node) => self.plan_expression_list(node),
             LogicalOperator::Order(node) => self.plan_sort(node),
             LogicalOperator::Aggregate(node) => self.plan_aggregate(node),
+            LogicalOperator::Limit(node) => self.plan_limit(node),
+            LogicalOperator::MagicJoin(join) => self.plan_magic_join(join),
+            LogicalOperator::CrossJoin(join) => self.plan_cross_join(join),
+            LogicalOperator::ArbitraryJoin(join) => self.plan_arbitrary_join(join),
+            LogicalOperator::ComparisonJoin(join) => self.plan_comparison_join(join),
+            LogicalOperator::Describe(node) => self.plan_describe(node),
+            LogicalOperator::ShowVar(node) => self.plan_show_var(node),
             LogicalOperator::Empty(node) => self.plan_empty(node),
-            other => unimplemented!("other: {other:?}"),
+            LogicalOperator::SetVar(_) => {
+                Err(RayexecError::new("SET should be handled in the session"))
+            }
+            LogicalOperator::ResetVar(_) => {
+                Err(RayexecError::new("RESET should be handled in the session"))
+            }
+            LogicalOperator::DetachDatabase(_) | LogicalOperator::AttachDatabase(_) => Err(
+                RayexecError::new("ATTACH/DETACH should be handled in the session"),
+            ),
+            other => not_implemented!("logical plan to physical plan: {other:?}"),
         }
     }
 

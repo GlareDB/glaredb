@@ -130,6 +130,18 @@ where
         self.operator
             .poll_push(&mut cx, operator_state, state, input)
     }
+
+    #[track_caller]
+    pub fn poll_finalize_push(
+        &self,
+        operator_state: &O::OperatorState,
+        state: &mut O::PartitionPushState,
+    ) -> Result<PollFinalize> {
+        let waker = Waker::from(self.waker.clone());
+        let mut cx = Context::from_waker(&waker);
+        self.operator
+            .poll_finalize_push(&mut cx, operator_state, state)
+    }
 }
 
 #[derive(Debug)]

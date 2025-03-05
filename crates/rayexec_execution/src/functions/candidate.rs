@@ -1,4 +1,4 @@
-use super::implicit::{implicit_cast_score, NO_CAST_SCORE};
+use super::implicit::{implicit_cast_score, ImplicitCastConfig, NO_CAST_SCORE};
 use super::Signature;
 use crate::arrays::datatype::{DataType, DataTypeId};
 
@@ -46,6 +46,10 @@ impl CandidateSignature {
                 sig.positional_args,
                 sig.variadic_arg,
                 &mut buf,
+                ImplicitCastConfig {
+                    allow_from_utf8: true,
+                    allow_to_utf8: true,
+                },
             ) {
                 continue;
             }
@@ -75,6 +79,7 @@ impl CandidateSignature {
         want: &[DataTypeId],
         variadic: Option<DataTypeId>,
         buf: &mut Vec<CastType>,
+        conf: ImplicitCastConfig,
     ) -> bool {
         if have.len() != want.len() && variadic.is_none() {
             return false;
@@ -87,7 +92,7 @@ impl CandidateSignature {
                 continue;
             }
 
-            let score = implicit_cast_score(have, want, false);
+            let score = implicit_cast_score(have, want, conf);
             if let Some(score) = score {
                 buf.push(CastType::Cast { to: want, score });
                 continue;
@@ -102,7 +107,7 @@ impl CandidateSignature {
             Some(expected) if !remaining.is_empty() => {
                 let expected = if expected == DataTypeId::Any {
                     // Find a common data type to use in place of Any.
-                    match Self::best_datatype_for_variadic_any(remaining) {
+                    match Self::best_datatype_for_variadic_any(remaining, conf) {
                         Some(typ) => typ,
                         None => return false, // No common data type for all remaining args.
                     }
@@ -116,7 +121,7 @@ impl CandidateSignature {
                         continue;
                     }
 
-                    let score = implicit_cast_score(*have, expected, false);
+                    let score = implicit_cast_score(*have, expected, conf);
                     if let Some(score) = score {
                         buf.push(CastType::Cast {
                             to: expected,
@@ -149,7 +154,10 @@ impl CandidateSignature {
 
     /// Get the best common data type that we can cast to for the given inputs. Returns None
     /// if there isn't a common data type.
-    fn best_datatype_for_variadic_any(inputs: &[DataTypeId]) -> Option<DataTypeId> {
+    fn best_datatype_for_variadic_any(
+        inputs: &[DataTypeId],
+        conf: ImplicitCastConfig,
+    ) -> Option<DataTypeId> {
         let mut best_type = None;
         let mut best_total_score = 0;
 
@@ -165,7 +173,7 @@ impl CandidateSignature {
                     continue;
                 }
 
-                let score = implicit_cast_score(*input, *test_type, false);
+                let score = implicit_cast_score(*input, *test_type, conf);
                 match score {
                     Some(score) => total_score += score,
                     None => {
@@ -301,19 +309,29 @@ mod tests {
 
     #[test]
     fn best_datatype_for_ints_and_floats() {
+        let conf = ImplicitCastConfig {
+            allow_to_utf8: false,
+            allow_from_utf8: false,
+        };
+
         let inputs = &[DataTypeId::Int64, DataTypeId::Float64, DataTypeId::Int64];
-        let best = CandidateSignature::best_datatype_for_variadic_any(inputs);
+        let best = CandidateSignature::best_datatype_for_variadic_any(inputs, conf);
         assert_eq!(Some(DataTypeId::Float64), best);
     }
 
     #[test]
     fn best_datatype_for_floats() {
+        let conf = ImplicitCastConfig {
+            allow_to_utf8: false,
+            allow_from_utf8: false,
+        };
+
         let inputs = &[
             DataTypeId::Float64,
             DataTypeId::Float64,
             DataTypeId::Float64,
         ];
-        let best = CandidateSignature::best_datatype_for_variadic_any(inputs);
+        let best = CandidateSignature::best_datatype_for_variadic_any(inputs, conf);
         assert_eq!(Some(DataTypeId::Float64), best);
     }
 }

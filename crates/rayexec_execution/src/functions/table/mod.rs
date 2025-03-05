@@ -1,4 +1,5 @@
 pub mod builtin;
+pub mod execute;
 pub mod file_scan;
 pub mod inout;
 pub mod multi_file;
@@ -9,8 +10,10 @@ use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::task::Context;
 
 use dyn_clone::DynClone;
+use execute::TableExecuteFunction;
 use futures::future::BoxFuture;
 use inout::TableInOutFunction;
 use parking_lot::Mutex;
@@ -20,34 +23,57 @@ use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
 use scan::TableScanFunction;
 
-use super::bind_state::RawTableFunctionBindState;
 use super::{FunctionInfo, Signature};
+use crate::arrays::batch::Batch;
 use crate::arrays::field::Schema;
 use crate::arrays::scalar::ScalarValue;
 use crate::database::DatabaseContext;
-use crate::execution::operators::source::operation::SourceOperation;
+use crate::execution::operators::source::operation::{Projections, SourceOperation};
+use crate::execution::operators::{ExecutionProperties, PollExecute, PollFinalize, PollPull};
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
 use crate::logical::statistics::StatisticsValue;
 use crate::ptr::raw_clone_ptr::RawClonePtr;
+use crate::ptr::raw_ptr::RawPtr;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TableFunctionInput {
     pub positional: Vec<Expression>,
     pub named: HashMap<String, Expression>,
 }
 
 #[derive(Debug, Clone)]
+pub struct RawTableFunctionBindState {
+    pub state: RawClonePtr,
+    pub input: TableFunctionInput,
+    pub schema: Schema,
+}
+
+#[derive(Debug)]
+pub struct TableFunctionBindState<S> {
+    pub state: S,
+    pub input: TableFunctionInput,
+    pub schema: Schema,
+}
+
+#[derive(Debug, Clone)]
 pub struct PlannedTableFunction {
     pub(crate) name: &'static str,
-    pub(crate) state: RawTableFunctionBindState,
+    pub(crate) raw: RawTableFunction,
+    pub(crate) bind_state: RawTableFunctionBindState,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TableFunctionType {
     Scan,
-    InOut,
+    Execute,
 }
+
+#[derive(Debug, Clone)]
+pub struct RawTableOperatorState(RawClonePtr);
+
+#[derive(Debug)]
+pub struct RawTablePartitionState(RawPtr);
 
 #[derive(Debug, Clone, Copy)]
 pub struct RawTableFunction {
@@ -74,18 +100,16 @@ impl RawTableFunction {
         }
     }
 
-    pub async fn call_scan_bind(
+    pub async fn call_bind(
         &self,
         db_context: &DatabaseContext,
         input: TableFunctionInput,
     ) -> Result<RawTableFunctionBindState> {
         // SAFETY: The pointer we pass to the bind fn is the pointer we get from
         // the static reference we use to construct this object.
-        //
-        // Errors on constructing the future if this isn't a scan function. The
-        // future itself also yields a result.
-        let fut = unsafe { (self.vtable.scan_bind_fn)(self.function, db_context, input)? };
-        fut.await
+        unimplemented!()
+        // let fut = unsafe { (self.vtable.bind_fn)(self.function, db_context, input)? };
+        // fut.await
     }
 
     pub fn function_type(&self) -> TableFunctionType {
@@ -101,50 +125,144 @@ type ScanBindFut<'a> = Pin<Box<dyn Future<Output = Result<RawTableFunctionBindSt
 
 #[derive(Debug, Clone, Copy)]
 pub struct RawTableFunctionVTable {
-    /// Async bind function for table scans.
     scan_bind_fn: unsafe fn(
         function: *const (),
         db_context: &DatabaseContext,
         input: TableFunctionInput,
     ) -> Result<ScanBindFut>,
 
-    /// Bind function for inout functions.
-    inout_bind_fn: unsafe fn(
+    execute_bind_fn: unsafe fn(
         function: *const (),
         input: TableFunctionInput,
     ) -> Result<RawTableFunctionBindState>,
+
+    create_scan_partition_states_fn: unsafe fn(
+        bind_state: *const (),
+        projections: &Projections,
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<RawTablePartitionState>>,
+
+    create_execute_operator_state_fn: unsafe fn(
+        bind_state: *const (),
+        props: ExecutionProperties,
+    ) -> Result<RawTableOperatorState>,
+
+    create_execute_partition_states_fn: unsafe fn(
+        bind_state: *const (),
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<RawTablePartitionState>>,
+
+    poll_execute_fn: unsafe fn(
+        cx: &mut Context,
+        op_state: *const (),
+        partition_state: *mut (),
+        input: &mut Batch,
+        output: &mut Batch,
+    ) -> Result<PollExecute>,
+
+    poll_finalize_execute_fn: unsafe fn(
+        cx: &mut Context,
+        op_state: *const (),
+        partition_state: *mut (),
+    ) -> Result<PollFinalize>,
+
+    poll_pull_fn: unsafe fn(
+        cx: &mut Context,
+        op_state: *const (),
+        partition_state: *mut (),
+        output: &mut Batch,
+    ) -> Result<PollPull>,
 }
 
-pub trait TableFunctionVTable: private::Sealed {
+// TODO: Seal
+pub trait TableFunctionVTable {
     const FUNCTION_TYPE: TableFunctionType;
     const VTABLE: &'static RawTableFunctionVTable;
 }
 
-mod private {
-    pub trait Sealed {}
-    impl<F> Sealed for F where F: super::TableScanFunction {}
-}
-
 impl<F> TableFunctionVTable for F
 where
-    F: TableScanFunction,
+    F: TableExecuteFunction,
 {
-    const FUNCTION_TYPE: TableFunctionType = TableFunctionType::Scan;
+    const FUNCTION_TYPE: TableFunctionType = TableFunctionType::Execute;
 
     const VTABLE: &'static RawTableFunctionVTable = &RawTableFunctionVTable {
-        scan_bind_fn: |function: *const (),
-                       db_context: &DatabaseContext,
-                       input: TableFunctionInput| {
+        scan_bind_fn: |function, db_context, input| Err(RayexecError::new("Not a scan function")),
+        execute_bind_fn: |function, input| {
             let function = unsafe { function.cast::<Self>().as_ref().unwrap() };
-            let fut = function.bind(db_context, input);
-            Ok(Box::pin(async {
-                let state = fut.await?;
-                let raw = RawClonePtr::new(state.state);
-                Ok(RawTableFunctionBindState { state: raw })
-            }))
+            let state = function.bind(input)?;
+            let raw = RawClonePtr::new(state.state);
+
+            Ok(RawTableFunctionBindState {
+                state: raw,
+                input: state.input,
+                schema: state.schema,
+            })
         },
-        inout_bind_fn: |_function: *const (), _input: TableFunctionInput| {
-            Err(RayexecError::new("Not a table In/Out function"))
+        create_scan_partition_states_fn: |bind_state, projections, props, partitions| {
+            Err(RayexecError::new("Not a scan function"))
+        },
+        create_execute_operator_state_fn: |bind_state, props| {
+            let bind_state = unsafe {
+                bind_state
+                    .cast::<<Self as TableExecuteFunction>::BindState>()
+                    .as_ref()
+                    .unwrap()
+            };
+            let op_state = Self::create_execute_operator_state(bind_state, props)?;
+            Ok(RawTableOperatorState(RawClonePtr::new(op_state)))
+        },
+        create_execute_partition_states_fn: |bind_state, props, partitions| {
+            let bind_state = unsafe {
+                bind_state
+                    .cast::<<Self as TableExecuteFunction>::BindState>()
+                    .as_ref()
+                    .unwrap()
+            };
+            let states = Self::create_execute_partition_states(bind_state, props, partitions)?;
+            let states = states
+                .into_iter()
+                .map(|state| RawTablePartitionState(RawPtr::new(state)))
+                .collect();
+
+            Ok(states)
+        },
+
+        poll_execute_fn: |cx, op_state, partition_state, input, output| {
+            let op_state = unsafe {
+                op_state
+                    .cast::<<Self as TableExecuteFunction>::OperatorState>()
+                    .as_ref()
+                    .unwrap()
+            };
+            let partition_state = unsafe {
+                partition_state
+                    .cast::<<Self as TableExecuteFunction>::PartitionState>()
+                    .as_mut()
+                    .unwrap()
+            };
+            Self::poll_execute(cx, op_state, partition_state, input, output)
+        },
+        poll_finalize_execute_fn: |cx, op_state, partition_state| {
+            let op_state = unsafe {
+                op_state
+                    .cast::<<Self as TableExecuteFunction>::OperatorState>()
+                    .as_ref()
+                    .unwrap()
+            };
+            let partition_state = unsafe {
+                partition_state
+                    .cast::<<Self as TableExecuteFunction>::PartitionState>()
+                    .as_mut()
+                    .unwrap()
+            };
+            Self::poll_finalize_execute(cx, op_state, partition_state)
+        },
+
+        poll_pull_fn: |cx, op_state, partition_state, output| {
+            Err(RayexecError::new("Not a scan functions"))
         },
     };
 }

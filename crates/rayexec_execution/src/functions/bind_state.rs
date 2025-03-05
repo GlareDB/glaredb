@@ -3,17 +3,6 @@ use crate::expr::Expression;
 use crate::ptr::raw_clone_ptr::RawClonePtr;
 
 #[derive(Debug, Clone)]
-pub struct RawTableFunctionBindState {
-    pub state: RawClonePtr,
-}
-
-/// Bind state for a table function.
-#[derive(Debug)]
-pub struct TableFunctionBindState<S> {
-    pub state: S,
-}
-
-#[derive(Debug, Clone)]
 pub struct RawBindState {
     pub state: RawClonePtr,
     pub return_type: DataType,
