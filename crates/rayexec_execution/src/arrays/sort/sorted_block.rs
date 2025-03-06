@@ -59,13 +59,11 @@ impl SortedBlock {
             }
         }
 
+        let mut compare_offset = 0;
         let mut sort_width = 0;
         let mut first_sort = true;
         // Indicate if row at index 'i' is tied with row at index 'i+1'.
-        let tied_with_next = vec![true; num_rows - 1];
-
-        let mut sorted_keys = Block::try_new_reserve_none(manager, keys.reserved_bytes, None)?;
-        sorted_keys.reserved_bytes = keys.reserved_bytes;
+        let mut tied_with_next = vec![true; num_rows - 1];
 
         for col_idx in 0..key_layout.num_columns() {
             sort_width += key_layout.column_widths[col_idx];
@@ -78,39 +76,60 @@ impl SortedBlock {
             }
 
             if first_sort {
-                let mut sort_indices: Vec<_> = (0..num_rows).collect();
-                let keys_ptr = keys.as_ptr();
-
-                sort_indices.sort_unstable_by(|&a, &b| {
-                    let (a, b) = unsafe {
-                        let a_ptr = keys_ptr.byte_add(a * row_width);
-                        let b_ptr = keys_ptr.byte_add(b * row_width);
-
-                        // Note we're not producing a slice from the full row,
-                        // just the part that we want to compare.
-                        let a = std::slice::from_raw_parts(a_ptr, sort_width);
-                        let b = std::slice::from_raw_parts(b_ptr, sort_width);
-
-                        (a, b)
-                    };
-                    a.cmp(b)
-                });
-                first_sort = false;
-
-                // Apply first sort pass, writing to sorted keys block.
-                apply_sort_indices(&keys, &mut sorted_keys, sort_indices, row_width);
-
-                // All columns sorted and none require checking the heap, we're
-                // done after the first sort.
-                if col_idx == key_layout.num_columns() - 1
-                    && !key_layout.column_requires_heap(col_idx)
-                {
-                    break;
+                // First sort, start with sorting all rows in the block.
+                unsafe {
+                    sort_keys_in_place(
+                        manager,
+                        key_layout,
+                        &mut keys,
+                        0,
+                        num_rows,
+                        compare_offset,
+                        sort_width,
+                    )?;
                 }
+
+                first_sort = false;
             } else {
+                unsafe {
+                    sort_tied_keys_in_place(
+                        manager,
+                        key_layout,
+                        &mut keys,
+                        &tied_with_next,
+                        compare_offset,
+                        sort_width,
+                    )?;
+                }
             }
 
-            unimplemented!()
+            // All columns sorted and none require checking the heap, we're
+            // done after the first sort.
+            if col_idx == key_layout.num_columns() - 1 && !key_layout.column_requires_heap(col_idx)
+            {
+                break;
+            }
+
+            // Find subsequent rows that are tied with eachother.
+            unsafe {
+                fill_ties(
+                    key_layout,
+                    &keys,
+                    compare_offset,
+                    sort_width,
+                    &mut tied_with_next,
+                );
+            }
+
+            if tied_with_next.iter().all(|&v| v == false) {
+                // No ties, we're done.
+                break;
+            }
+
+            // TODO: Sort (non-inline) blobs
+
+            compare_offset += sort_width;
+            sort_width = 0;
         }
 
         // Reorder heap keys and data according to the sorted keys.
@@ -121,7 +140,7 @@ impl SortedBlock {
             Block::try_new_reserve_none(manager, heap_keys.reserved_bytes, None)?;
         if key_layout.any_requires_heap() {
             sorted_heap_keys.reserved_bytes = heap_keys.reserved_bytes;
-            let row_idx_iter = BlockRowIndexIter::new(&key_layout, &sorted_keys, num_rows);
+            let row_idx_iter = BlockRowIndexIter::new(&key_layout, &keys, num_rows);
             apply_sort_indices(
                 &heap_keys,
                 &mut sorted_heap_keys,
@@ -130,15 +149,16 @@ impl SortedBlock {
             );
         }
 
+        // Apply sort indices to the data blocks.
         let mut sorted_data = Block::try_new_reserve_none(manager, data.reserved_bytes, None)?;
         if data_layout.num_columns() > 0 {
             sorted_data.reserved_bytes = data.reserved_bytes;
-            let row_idx_iter = BlockRowIndexIter::new(&key_layout, &sorted_keys, num_rows);
+            let row_idx_iter = BlockRowIndexIter::new(&key_layout, &keys, num_rows);
             apply_sort_indices(&data, &mut sorted_data, row_idx_iter, data_layout.row_width);
         }
 
         Ok(Some(SortedBlock {
-            keys: sorted_keys,
+            keys,
             heap_keys: sorted_heap_keys,
             heap_keys_heap,
             data: sorted_data,
@@ -165,6 +185,132 @@ impl SortedBlock {
         state.prepare_block_scan(&self.data, data_layout.row_width, selection, true);
         Ok(())
     }
+}
+
+/// Compares subquent rows for tied values and writes the result to `ties`.
+///
+/// Skips rows that have been determined to not be tied.
+unsafe fn fill_ties(
+    layout: &SortLayout,
+    block: &Block,
+    compare_offset: usize,
+    compare_width: usize,
+    ties: &mut [bool],
+) {
+    let mut col_ptr = block.as_ptr();
+    col_ptr = col_ptr.byte_add(compare_offset);
+
+    // Note that `ties` is 1 less than the number of rows we're checking.
+    for idx in 0..ties.len() {
+        if !ties[idx] {
+            continue;
+        }
+
+        let a_ptr = col_ptr;
+        let b_ptr = a_ptr.byte_add(layout.row_width);
+
+        let a = std::slice::from_raw_parts(a_ptr, compare_width);
+        let b = std::slice::from_raw_parts(b_ptr, compare_width);
+
+        col_ptr = b_ptr;
+
+        ties[idx] = a == b
+    }
+}
+
+unsafe fn sort_tied_keys_in_place(
+    manager: &impl AsRawBufferManager,
+    layout: &SortLayout,
+    keys: &mut Block,
+    ties: &[bool],
+    compare_offset: usize,
+    compare_width: usize,
+) -> Result<()> {
+    let mut row_offset = 0;
+
+    while row_offset < ties.len() {
+        if !ties[row_offset] {
+            // Row not tied with the next.
+            row_offset += 1;
+            continue;
+        }
+
+        // Row is tied with the next. Find all contiguously tied rows.
+        let mut next_row_offset = row_offset + 1;
+        while next_row_offset < ties.len() {
+            if ties[row_offset] {
+                // Not tied with us, don't include in the sort.
+                break;
+            }
+            next_row_offset += 1;
+        }
+
+        let row_count = next_row_offset - row_offset + 1;
+
+        // Sort the subset.
+        sort_keys_in_place(
+            manager,
+            layout,
+            keys,
+            row_offset,
+            row_count,
+            compare_offset,
+            compare_width,
+        )?;
+
+        row_offset = next_row_offset
+    }
+
+    Ok(())
+}
+
+/// Sorts a contiguous slice of keys in the keys blocks.
+unsafe fn sort_keys_in_place(
+    manager: &impl AsRawBufferManager,
+    layout: &SortLayout,
+    keys: &mut Block,
+    row_offset: usize,
+    row_count: usize,
+    compare_offset: usize,
+    compare_width: usize,
+) -> Result<()> {
+    debug_assert!(layout.row_width >= compare_offset + compare_width);
+
+    let start_ptr = keys.as_mut_ptr().byte_add(row_offset * layout.row_width);
+
+    // Generate sorted indices for the subset of rows we're sorting.
+    let mut sort_indices: Vec<_> = (0..row_count).collect();
+    sort_indices.sort_unstable_by(|&a, &b| {
+        let (a, b) = unsafe {
+            let a_ptr = start_ptr.byte_add(a * layout.row_width + compare_offset);
+            let b_ptr = start_ptr.byte_add(b * layout.row_width + compare_offset);
+
+            // Note we're not producing a slice from the full row,
+            // just the part that we want to compare.
+            let a = std::slice::from_raw_parts(a_ptr, compare_width);
+            let b = std::slice::from_raw_parts(b_ptr, compare_width);
+
+            (a, b)
+        };
+        a.cmp(b)
+    });
+
+    // Copy rows into temp block in sort order.
+    let mut temp_keys = Block::try_new_reserve_none(manager, layout.buffer_size(row_count), None)?;
+    let mut temp_ptr = temp_keys.as_mut_ptr();
+
+    for sort_idx in sort_indices {
+        let src_ptr = start_ptr.byte_add(sort_idx * layout.row_width);
+        temp_ptr.copy_from_nonoverlapping(src_ptr, layout.row_width);
+
+        temp_ptr = temp_ptr.byte_add(layout.row_width);
+    }
+
+    // Now copy from the temp block back into the original keys block.
+    let temp_ptr = temp_keys.as_ptr();
+    start_ptr.copy_from_nonoverlapping(temp_ptr, layout.row_width * row_count);
+
+    Ok(())
 }
 
 fn apply_sort_indices(

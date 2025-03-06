@@ -21,7 +21,6 @@ use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
 use crate::expr::{self, bind_aggregate_function, Expression};
-use crate::functions::candidate::CastType;
 use crate::functions::scalar::builtin::datetime::FUNCTION_SET_DATE_PART;
 use crate::functions::scalar::builtin::is::{
     FUNCTION_SET_IS_FALSE,
@@ -41,7 +40,6 @@ use crate::functions::scalar::builtin::string::{
     FUNCTION_SET_STARTS_WITH,
     FUNCTION_SET_SUBSTRING,
 };
-use crate::functions::table::TableFunction2;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -1188,59 +1186,6 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                 }
             }
-        }
-    }
-
-    // TODO: Reduce duplication with scalar one.
-    //
-    // Upcasting to FunctionInfo would be cool.
-    // See: <https://github.com/rust-lang/rust/issues/65991>
-    pub(crate) fn apply_casts_for_table_function(
-        &self,
-        bind_context: &BindContext,
-        table: &dyn TableFunction2,
-        inputs: Vec<Expression>,
-    ) -> Result<Vec<Expression>> {
-        let input_datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype())
-            .collect::<Result<Vec<_>>>()?;
-
-        if table.exact_signature(&input_datatypes).is_some() {
-            // Exact
-            Ok(inputs)
-        } else {
-            // Try to find candidates that we can cast to.
-            let mut candidates = table.candidate(&input_datatypes);
-
-            if candidates.is_empty() {
-                // TODO: Better error.
-                return Err(RayexecError::new(format!(
-                    "Invalid inputs to '{}': {}",
-                    table.name(),
-                    input_datatypes.display_with_brackets(),
-                )));
-            }
-
-            // TODO: Maybe more sophisticated candidate selection.
-            let candidate = candidates.swap_remove(0);
-
-            // Apply casts where needed.
-            let inputs = inputs
-                .into_iter()
-                .zip(candidate.casts)
-                .map(|(input, cast_to)| {
-                    Ok(match cast_to {
-                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
-                            to: DataType::try_default_datatype(to)?,
-                            expr: Box::new(input),
-                        }),
-                        CastType::NoCastNeeded => input,
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?;
-
-            Ok(inputs)
         }
     }
 }

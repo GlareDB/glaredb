@@ -244,6 +244,7 @@ mod tests {
     use crate::arrays::datatype::DataType;
     use crate::arrays::row::block_scan::BlockScanState;
     use crate::arrays::sort::sort_layout::SortColumn;
+    use crate::generate_batch;
     use crate::testutil::arrays::assert_arrays_eq;
 
     /// Helper for asserting that key/data inputs sort correctly with the
@@ -339,6 +340,95 @@ mod tests {
         let keys = Array::try_from_iter([2, 3, 1]).unwrap();
         let expected = Array::try_from_iter([1, 2, 3]).unwrap();
 
+        assert_sort_as_expected(key_layout, data_layout, &[&keys], &[&keys], &[expected]);
+    }
+
+    #[test]
+    fn sort_two_keys_utf8_i32_with_ties() {
+        let key_layout = SortLayout::new([
+            SortColumn::new_asc_nulls_last(DataType::Utf8),
+            SortColumn::new_asc_nulls_last(DataType::Int32),
+        ]);
+        let data_layout = RowLayout::new([DataType::Utf8, DataType::Int32]);
+
+        let keys = generate_batch!(["a", "b", "b", "c"], [0, 1, 0, 0]);
+        let expected = generate_batch!(["a", "b", "b", "c"], [0, 0, 1, 0]);
+
+        assert_sort_as_expected(
+            key_layout,
+            data_layout,
+            &keys.arrays,
+            &keys.arrays,
+            &expected.arrays,
+        );
+    }
+
+    #[test]
+    fn sort_two_keys_utf8_i32_with_all_ties() {
+        let key_layout = SortLayout::new([
+            SortColumn::new_asc_nulls_last(DataType::Utf8),
+            SortColumn::new_asc_nulls_last(DataType::Int32),
+        ]);
+        let data_layout = RowLayout::new([DataType::Utf8, DataType::Int32]);
+
+        let keys = generate_batch!(["b", "b", "b", "b"], [3, 1, 2, 4]);
+        let expected = generate_batch!(["b", "b", "b", "b"], [1, 2, 3, 4]);
+
+        assert_sort_as_expected(
+            key_layout,
+            data_layout,
+            &keys.arrays,
+            &keys.arrays,
+            &expected.arrays,
+        );
+    }
+
+    #[test]
+    fn sort_three_keys_utf8_utf8_i32_with_layered_ties() {
+        let key_layout = SortLayout::new([
+            SortColumn::new_asc_nulls_last(DataType::Utf8),
+            SortColumn::new_asc_nulls_last(DataType::Utf8),
+            SortColumn::new_asc_nulls_last(DataType::Int32),
+        ]);
+        let data_layout = RowLayout::new([DataType::Utf8, DataType::Utf8, DataType::Int32]);
+
+        let keys = generate_batch!(["a", "a", "a", "a"], ["b", "c", "b", "c"], [3, 1, 2, 4]);
+        let expected = generate_batch!(["a", "a", "a", "a"], ["b", "b", "c", "c"], [2, 3, 1, 4]);
+
+        assert_sort_as_expected(
+            key_layout,
+            data_layout,
+            &keys.arrays,
+            &keys.arrays,
+            &expected.arrays,
+        );
+    }
+
+    #[test]
+    fn sort_single_key_utf8_all_inline() {
+        let key_layout = SortLayout::new([SortColumn {
+            desc: false,
+            nulls_first: false,
+            datatype: DataType::Utf8,
+        }]);
+        let data_layout = RowLayout::new([DataType::Utf8]);
+
+        let keys = Array::try_from_iter(["a", "c", "b"]).unwrap();
+        let expected = Array::try_from_iter(["a", "b", "c"]).unwrap();
+        assert_sort_as_expected(key_layout, data_layout, &[&keys], &[&keys], &[expected]);
+    }
+
+    #[test]
+    fn sort_single_key_utf8_all_inline_desc() {
+        let key_layout = SortLayout::new([SortColumn {
+            desc: true,
+            nulls_first: false,
+            datatype: DataType::Utf8,
+        }]);
+        let data_layout = RowLayout::new([DataType::Utf8]);
+
+        let keys = Array::try_from_iter(["a", "c", "b"]).unwrap();
+        let expected = Array::try_from_iter(["c", "b", "a"]).unwrap();
         assert_sort_as_expected(key_layout, data_layout, &[&keys], &[&keys], &[expected]);
     }
 

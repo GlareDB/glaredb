@@ -7,6 +7,7 @@ use rayexec_error::Result;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
+    PhysicalBinary,
     PhysicalBool,
     PhysicalF16,
     PhysicalF32,
@@ -53,6 +54,15 @@ pub struct SortColumn {
 }
 
 impl SortColumn {
+    /// Create a new column for a datatype that sorts ascending with nulls last.
+    pub fn new_asc_nulls_last(datatype: DataType) -> Self {
+        SortColumn {
+            desc: false,
+            nulls_first: false,
+            datatype,
+        }
+    }
+
     const fn invalid_byte(&self) -> u8 {
         if self.nulls_first {
             0
@@ -189,6 +199,10 @@ impl SortLayout {
         self.row_width * rows
     }
 
+    /// Writes key arrays to row pointers in state.
+    ///
+    /// For utf8/binary arrays, this will only write the prefix to the row
+    /// block.
     pub(crate) unsafe fn write_key_arrays<A>(
         &self,
         state: &mut BlockAppendState,
@@ -323,6 +337,9 @@ unsafe fn write_key_array(
         PhysicalType::Interval => {
             write_scalar::<PhysicalInterval>(layout, array_idx, array, row_pointers, num_rows)
         }
+        PhysicalType::Utf8 | PhysicalType::Binary => {
+            write_binary_prefix(layout, array_idx, array, row_pointers, num_rows)
+        }
         other => unimplemented!("other: {other}"),
     }
 }
@@ -363,6 +380,44 @@ where
         } else {
             col_buf[0] = invalid_b;
             null_val.encode(&mut col_buf[1..]);
+        }
+    }
+
+    Ok(())
+}
+
+unsafe fn write_binary_prefix(
+    layout: &SortLayout,
+    array_idx: usize,
+    array: FlattenedArray,
+    row_pointers: &[*mut u8],
+    num_rows: usize,
+) -> Result<()> {
+    debug_assert_eq!(num_rows, row_pointers.len());
+
+    let col = &layout.columns[array_idx];
+    let valid_b = col.valid_byte();
+    let invalid_b = col.invalid_byte();
+
+    let data = PhysicalBinary::get_addressable(array.array_buffer)?;
+    let validity = array.validity;
+
+    for row_idx in 0..num_rows {
+        let col_buf = layout.column_buffer_mut(row_pointers[row_idx], array_idx);
+
+        if validity.is_valid(row_idx) {
+            let sel_idx = array.selection.get(row_idx).unwrap();
+            col_buf[0] = valid_b;
+
+            let v = data.get(sel_idx).unwrap();
+            let prefix = StringPrefix::new_from_buf(v);
+
+            let val_buf = &mut col_buf[1..];
+            prefix.encode(val_buf);
+            col.invert_if_desc(val_buf);
+        } else {
+            col_buf[0] = invalid_b;
+            StringPrefix::EMPTY.encode(&mut col_buf[1..]);
         }
     }
 
@@ -478,6 +533,18 @@ impl StringPrefix {
         len: 0,
         prefix: [0; 12],
     };
+
+    fn new_from_buf(buf: &[u8]) -> Self {
+        let mut prefix = [0; 12];
+        let count = usize::min(buf.len(), 12);
+
+        (&mut prefix[0..count]).copy_from_slice(&buf[0..count]);
+
+        StringPrefix {
+            len: buf.len() as i32,
+            prefix,
+        }
+    }
 }
 
 impl ComparableEncode for StringPrefix {
