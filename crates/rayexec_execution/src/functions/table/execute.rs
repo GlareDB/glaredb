@@ -22,11 +22,13 @@ pub trait TableExecuteFunction: Debug + Copy + Send + Sync + 'static {
     ) -> Result<Self::OperatorState>;
 
     fn create_execute_partition_states(
-        bind_state: &Self::BindState,
+        op_state: &Self::OperatorState,
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionState>>;
 
+    /// Execute the table function on the input batch, placing results in the
+    /// output batch.
     fn poll_execute(
         cx: &mut Context,
         operator_state: &Self::OperatorState,

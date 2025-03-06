@@ -4,12 +4,12 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::expr_binder::RecursionContext;
-use crate::arrays::scalar::ScalarValue;
+use crate::expr::Expression;
+use crate::functions::table::TableFunctionInput;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::column_binder::ErroringColumnBinder;
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
 use crate::logical::resolver::resolve_context::ResolveContext;
-use crate::logical::resolver::resolved_table_function::ConstantFunctionArgs;
 use crate::logical::resolver::ResolvedMeta;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -25,7 +25,7 @@ impl<'a> ConstantBinder<'a> {
     }
 
     /// Try to bind an AST expression as a constant value.
-    pub fn bind_constant_expression(&self, expr: &ast::Expr<ResolvedMeta>) -> Result<ScalarValue> {
+    pub fn bind_constant_expression(&self, expr: &ast::Expr<ResolvedMeta>) -> Result<Expression> {
         // TODO: Probably want to check that we didn't bind a subquery.
         let mut bind_context = BindContext::new();
         let expr = BaseExpressionBinder::new(bind_context.root_scope_ref(), self.resolve_context)
@@ -40,15 +40,13 @@ impl<'a> ConstantBinder<'a> {
             },
         )?;
 
-        let val = ConstFold::rewrite(expr)?.try_into_scalar()?;
-
-        Ok(val)
+        ConstFold::rewrite(expr)
     }
 
     pub fn bind_constant_function_args(
         &self,
         args: &[ast::FunctionArg<ResolvedMeta>],
-    ) -> Result<ConstantFunctionArgs> {
+    ) -> Result<TableFunctionInput> {
         let mut positional = Vec::new();
         let mut named = HashMap::new();
 
@@ -65,13 +63,13 @@ impl<'a> ConstantBinder<'a> {
             }
         }
 
-        Ok(ConstantFunctionArgs { positional, named })
+        Ok(TableFunctionInput { positional, named })
     }
 
     fn bind_constant_function_arg_expr(
         &self,
         arg: &ast::FunctionArgExpr<ResolvedMeta>,
-    ) -> Result<ScalarValue> {
+    ) -> Result<Expression> {
         match arg {
             ast::FunctionArgExpr::Expr(expr) => self.bind_constant_expression(expr),
             ast::FunctionArgExpr::Wildcard => Err(RayexecError::new(

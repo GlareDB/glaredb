@@ -21,7 +21,6 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::s3::credentials::AwsCredentials;
 use rayexec_io::s3::S3Location;
-use scan::TableScanFunction;
 
 use super::{FunctionInfo, Signature};
 use crate::arrays::batch::Batch;
@@ -36,10 +35,22 @@ use crate::logical::statistics::StatisticsValue;
 use crate::ptr::raw_clone_ptr::RawClonePtr;
 use crate::ptr::raw_ptr::RawPtr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableFunctionInput {
     pub positional: Vec<Expression>,
     pub named: HashMap<String, Expression>,
+}
+
+impl TableFunctionInput {
+    pub fn all_unnamed<E>(exprs: impl IntoIterator<Item = E>) -> Self
+    where
+        E: Into<Expression>,
+    {
+        TableFunctionInput {
+            positional: exprs.into_iter().map(|e| e.into()).collect(),
+            named: HashMap::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +58,7 @@ pub struct RawTableFunctionBindState {
     pub state: RawClonePtr,
     pub input: TableFunctionInput,
     pub schema: Schema,
+    pub cardinality: StatisticsValue<usize>,
 }
 
 #[derive(Debug)]
@@ -54,6 +66,7 @@ pub struct TableFunctionBindState<S> {
     pub state: S,
     pub input: TableFunctionInput,
     pub schema: Schema,
+    pub cardinality: StatisticsValue<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -62,6 +75,18 @@ pub struct PlannedTableFunction {
     pub(crate) raw: RawTableFunction,
     pub(crate) bind_state: RawTableFunctionBindState,
 }
+
+/// Assumes that a function with same inputs and return type is using the same
+/// function implementation.
+impl PartialEq for PlannedTableFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.bind_state.schema == other.bind_state.schema
+            && self.bind_state.input == other.bind_state.input
+    }
+}
+
+impl Eq for PlannedTableFunction {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TableFunctionType {
@@ -100,16 +125,75 @@ impl RawTableFunction {
         }
     }
 
-    pub async fn call_bind(
+    pub async fn call_scan_bind(
         &self,
         db_context: &DatabaseContext,
         input: TableFunctionInput,
     ) -> Result<RawTableFunctionBindState> {
         // SAFETY: The pointer we pass to the bind fn is the pointer we get from
         // the static reference we use to construct this object.
-        unimplemented!()
-        // let fut = unsafe { (self.vtable.bind_fn)(self.function, db_context, input)? };
-        // fut.await
+        let fut = unsafe { (self.vtable.scan_bind_fn)(self.function, db_context, input)? };
+        fut.await
+    }
+
+    pub fn call_execute_bind(
+        &self,
+        input: TableFunctionInput,
+    ) -> Result<RawTableFunctionBindState> {
+        unsafe { (self.vtable.execute_bind_fn)(self.function, input) }
+    }
+
+    pub fn call_create_execute_operator_state(
+        &self,
+        bind_state: &RawTableFunctionBindState,
+        props: ExecutionProperties,
+    ) -> Result<RawTableOperatorState> {
+        unsafe { (self.vtable.create_execute_operator_state_fn)(bind_state.state.get(), props) }
+    }
+
+    pub fn call_create_execute_partition_states(
+        &self,
+        op_state: &RawTableOperatorState,
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<RawTablePartitionState>> {
+        unsafe {
+            (self.vtable.create_execute_partition_states_fn)(op_state.0.get(), props, partitions)
+        }
+    }
+
+    pub fn call_poll_execute(
+        &self,
+        cx: &mut Context,
+        op_state: &RawTableOperatorState,
+        partition_state: &mut RawTablePartitionState,
+        input: &mut Batch,
+        output: &mut Batch,
+    ) -> Result<PollExecute> {
+        unsafe {
+            (self.vtable.poll_execute_fn)(
+                cx,
+                op_state.0.get(),
+                partition_state.0.get_mut(),
+                input,
+                output,
+            )
+        }
+    }
+
+    pub fn call_poll_finalize_execute(
+        &self,
+        cx: &mut Context,
+        op_state: &RawTableOperatorState,
+        partition_state: &mut RawTablePartitionState,
+    ) -> Result<PollFinalize> {
+        unsafe {
+            (self.vtable.poll_finalize_execute_fn)(
+                cx,
+                op_state.0.get(),
+                partition_state.0.get_mut(),
+            )
+        }
     }
 
     pub fn function_type(&self) -> TableFunctionType {
@@ -121,7 +205,8 @@ impl RawTableFunction {
     }
 }
 
-type ScanBindFut<'a> = Pin<Box<dyn Future<Output = Result<RawTableFunctionBindState>> + 'a>>;
+type ScanBindFut<'a> =
+    Pin<Box<dyn Future<Output = Result<RawTableFunctionBindState>> + Sync + Send + 'a>>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct RawTableFunctionVTable {
@@ -149,7 +234,7 @@ pub struct RawTableFunctionVTable {
     ) -> Result<RawTableOperatorState>,
 
     create_execute_partition_states_fn: unsafe fn(
-        bind_state: *const (),
+        op_state: *const (),
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<RawTablePartitionState>>,
@@ -199,6 +284,7 @@ where
                 state: raw,
                 input: state.input,
                 schema: state.schema,
+                cardinality: state.cardinality,
             })
         },
         create_scan_partition_states_fn: |bind_state, projections, props, partitions| {
@@ -214,14 +300,14 @@ where
             let op_state = Self::create_execute_operator_state(bind_state, props)?;
             Ok(RawTableOperatorState(RawClonePtr::new(op_state)))
         },
-        create_execute_partition_states_fn: |bind_state, props, partitions| {
-            let bind_state = unsafe {
-                bind_state
-                    .cast::<<Self as TableExecuteFunction>::BindState>()
+        create_execute_partition_states_fn: |op_state, props, partitions| {
+            let op_state = unsafe {
+                op_state
+                    .cast::<<Self as TableExecuteFunction>::OperatorState>()
                     .as_ref()
                     .unwrap()
             };
-            let states = Self::create_execute_partition_states(bind_state, props, partitions)?;
+            let states = Self::create_execute_partition_states(op_state, props, partitions)?;
             let states = states
                 .into_iter()
                 .map(|state| RawTablePartitionState(RawPtr::new(state)))

@@ -14,6 +14,7 @@ use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::execute::TableExecuteFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::functions::Signature;
+use crate::logical::statistics::StatisticsValue;
 
 pub const FUNCTION_SET_GENERATE_SERIES: TableFunctionSet = TableFunctionSet {
     name: "generate_series",
@@ -140,6 +141,7 @@ impl TableExecuteFunction for GenerateSeriesI64 {
             state: (),
             input,
             schema: Schema::new([Field::new("generate_series", DataType::Int64, false)]),
+            cardinality: StatisticsValue::Unknown,
         })
     }
 
@@ -151,7 +153,7 @@ impl TableExecuteFunction for GenerateSeriesI64 {
     }
 
     fn create_execute_partition_states(
-        _state: &Self::BindState,
+        _op_state: &Self::OperatorState,
         _props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionState>> {

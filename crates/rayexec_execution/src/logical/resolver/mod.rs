@@ -11,7 +11,7 @@ pub mod resolved_table_function;
 use std::collections::HashMap;
 
 use expr_resolver::ExpressionResolver;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::ast::{self, ColumnDef, ObjectReference};
 use rayexec_parser::meta::{AstMeta, Raw};
@@ -41,9 +41,9 @@ use crate::database::catalog::CatalogTx;
 use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
 use crate::database::DatabaseContext;
 use crate::datasource::FileHandlers;
+use crate::expr;
 use crate::functions::copy::CopyToArgs;
 use crate::functions::proto::FUNCTION_LOOKUP_CATALOG;
-use crate::functions::table::TableFunctionPlanner2;
 use crate::logical::operator::LocationRequirement;
 
 /// An AST statement with references bound to data inside of the `resolve_context`.
@@ -943,43 +943,44 @@ impl<'a> Resolver<'a> {
             }),
             ast::FromNodeBody::File(ast::FromFilePath { path }) => {
                 match self.file_handlers.find_match(&path) {
-                    Some(handler) => {
+                    Some(_handler) => {
                         // "Rewrite" this into a function call.
 
                         // TODO: User-friendly alias here.
 
                         // This isn't really needed for the typical scan case,
                         // but I have no idea for in/out.
-                        let args = vec![ast::FunctionArg::Unnamed {
-                            arg: ast::FunctionArgExpr::Expr(ast::Expr::Literal(
-                                ast::Literal::SingleQuotedString(path.clone()),
-                            )),
-                        }];
+                        // let args = vec![ast::FunctionArg::Unnamed {
+                        //     arg: ast::FunctionArgExpr::Expr(ast::Expr::Literal(
+                        //         ast::Literal::SingleQuotedString(path.clone()),
+                        //     )),
+                        // }];
 
-                        // Having an in/out function here would be weird, but
-                        // might as well handle it.
-                        let resolved = match handler.table_func.planner() {
-                            TableFunctionPlanner2::InOut(_) => {
-                                ResolvedTableFunctionReference::InOut(handler.table_func.clone())
-                            }
-                            TableFunctionPlanner2::Scan(planner) => {
-                                let planned = planner
-                                    .plan(self.context, vec![path.into()], HashMap::new())
-                                    .await?;
+                        not_implemented!("file")
+                        // // Having an in/out function here would be weird, but
+                        // // might as well handle it.
+                        // let resolved = match handler.table_func.planner() {
+                        //     TableFunctionPlanner2::InOut(_) => {
+                        //         ResolvedTableFunctionReference::InOut(handler.table_func.clone())
+                        //     }
+                        //     TableFunctionPlanner2::Scan(planner) => {
+                        //         let planned = planner
+                        //             .plan(self.context, vec![path.into()], HashMap::new())
+                        //             .await?;
 
-                                ResolvedTableFunctionReference::Scan(planned)
-                            }
-                        };
+                        //         ResolvedTableFunctionReference::Scan(planned)
+                        //     }
+                        // };
 
-                        let resolve_idx = resolve_context
-                            .table_functions
-                            .push_resolved(resolved, LocationRequirement::ClientLocal);
+                        // let resolve_idx = resolve_context
+                        //     .table_functions
+                        //     .push_resolved(resolved, LocationRequirement::ClientLocal);
 
-                        ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                            lateral: false,
-                            reference: resolve_idx,
-                            args,
-                        })
+                        // ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                        //     lateral: false,
+                        //     reference: resolve_idx,
+                        //     args,
+                        // })
                     }
                     None => {
                         return Err(RayexecError::new(format!(
@@ -1003,28 +1004,27 @@ impl<'a> Resolver<'a> {
                         let function = NormalResolver::new(self.tx, self.context)
                             .require_resolve_table_function(&reference)?;
 
-                        let resolved = match function.planner() {
-                            TableFunctionPlanner2::InOut(_) => {
-                                ResolvedTableFunctionReference::InOut(function)
-                            }
-                            TableFunctionPlanner2::Scan(planner) => {
-                                // Requires constants.
-                                let binder = ConstantBinder::new(resolve_context);
-                                let constant_args = binder.bind_constant_function_args(&args)?;
+                        if function.is_scan_function() {
+                            let binder = ConstantBinder::new(resolve_context);
+                            let constant_args = binder.bind_constant_function_args(&args)?;
 
-                                let planned = planner
-                                    .plan(
-                                        self.context,
-                                        constant_args.positional,
-                                        constant_args.named,
-                                    )
-                                    .await?;
+                            let planned = expr::bind_table_scan_function(
+                                &function,
+                                self.context,
+                                constant_args,
+                            )
+                            .await?;
 
-                                ResolvedTableFunctionReference::Scan(planned)
-                            }
-                        };
-
-                        MaybeResolved::Resolved(resolved, LocationRequirement::ClientLocal)
+                            MaybeResolved::Resolved(
+                                ResolvedTableFunctionReference::Planned(planned),
+                                LocationRequirement::ClientLocal,
+                            )
+                        } else {
+                            MaybeResolved::Resolved(
+                                ResolvedTableFunctionReference::Delayed(function),
+                                LocationRequirement::ClientLocal,
+                            )
+                        }
                     }
                     ResolveMode::Hybrid => {
                         match NormalResolver::new(self.tx, self.context)
@@ -1032,28 +1032,28 @@ impl<'a> Resolver<'a> {
                         {
                             Some(function) => {
                                 // TODO: Duplicated
-                                let resolved = match function.planner() {
-                                    TableFunctionPlanner2::InOut(_) => {
-                                        ResolvedTableFunctionReference::InOut(function)
-                                    }
-                                    TableFunctionPlanner2::Scan(planner) => {
-                                        let binder = ConstantBinder::new(resolve_context);
-                                        let constant_args =
-                                            binder.bind_constant_function_args(&args)?;
+                                if function.is_scan_function() {
+                                    let binder = ConstantBinder::new(resolve_context);
+                                    let constant_args =
+                                        binder.bind_constant_function_args(&args)?;
 
-                                        let planned = planner
-                                            .plan(
-                                                self.context,
-                                                constant_args.positional,
-                                                constant_args.named,
-                                            )
-                                            .await?;
+                                    let planned = expr::bind_table_scan_function(
+                                        &function,
+                                        self.context,
+                                        constant_args,
+                                    )
+                                    .await?;
 
-                                        ResolvedTableFunctionReference::Scan(planned)
-                                    }
-                                };
-
-                                MaybeResolved::Resolved(resolved, LocationRequirement::ClientLocal)
+                                    MaybeResolved::Resolved(
+                                        ResolvedTableFunctionReference::Planned(planned),
+                                        LocationRequirement::ClientLocal,
+                                    )
+                                } else {
+                                    MaybeResolved::Resolved(
+                                        ResolvedTableFunctionReference::Delayed(function),
+                                        LocationRequirement::ClientLocal,
+                                    )
+                                }
                             }
                             None => {
                                 let binder = ConstantBinder::new(resolve_context);

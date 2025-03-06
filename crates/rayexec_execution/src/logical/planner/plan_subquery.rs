@@ -688,9 +688,10 @@ impl DependentJoinPushdown {
                     self.any_expression_has_correlation(order.node.exprs.iter().map(|e| &e.expr));
                 has_correlation |= self.find_correlations_in_children(&order.children)?;
             }
-            LogicalOperator::InOut(inout) => {
-                has_correlation =
-                    self.any_expression_has_correlation(&inout.node.function.positional);
+            LogicalOperator::TableExecute(inout) => {
+                has_correlation = self.any_expression_has_correlation(
+                    &inout.node.function.bind_state.input.positional,
+                );
                 has_correlation |= self.find_correlations_in_children(&inout.children)?;
             }
             _ => (),
@@ -844,9 +845,12 @@ impl DependentJoinPushdown {
 
                 Ok(())
             }
-            LogicalOperator::InOut(inout) => {
+            LogicalOperator::TableExecute(inout) => {
                 self.pushdown_children(bind_context, &mut inout.children)?;
-                self.rewrite_expressions(bind_context, &mut inout.node.function.positional)?;
+                self.rewrite_expressions(
+                    bind_context,
+                    &mut inout.node.function.bind_state.input.positional,
+                )?;
 
                 // Add projections table as needed.
                 let table_ref = match inout.node.projected_table_ref {

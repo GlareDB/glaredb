@@ -41,6 +41,7 @@ use window_expr::WindowExpr;
 
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
+use crate::database::DatabaseContext;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::candidate::CastType;
@@ -49,8 +50,15 @@ use crate::functions::function_set::{
     FunctionInfo,
     FunctionSet,
     ScalarFunctionSet,
+    TableFunctionSet,
 };
 use crate::functions::scalar::{FunctionVolatility, PlannedScalarFunction};
+use crate::functions::table::{
+    PlannedTableFunction,
+    RawTableFunction,
+    TableFunctionInput,
+    TableFunctionType,
+};
 use crate::logical::binder::table_list::TableRef;
 
 /// A logical expression.
@@ -684,6 +692,64 @@ pub fn scalar_function(
     Ok(ScalarFunctionExpr {
         function: bind_scalar_function(function, inputs)?,
     })
+}
+
+/// Binds a table execute function.
+///
+/// This will cast positional input arguments according to the signature.
+pub fn bind_table_execute_function(
+    function: &TableFunctionSet,
+    input: TableFunctionInput,
+) -> Result<PlannedTableFunction> {
+    let (func, input) = bind_table_function_signature(function, input)?;
+
+    if func.function_type() != TableFunctionType::Execute {
+        return Err(RayexecError::new(format!(
+            "'{}' does not accept table inputs",
+            function.name
+        )));
+    }
+
+    let bind_state = func.call_execute_bind(input)?;
+
+    Ok(PlannedTableFunction {
+        name: function.name,
+        raw: func,
+        bind_state,
+    })
+}
+
+pub async fn bind_table_scan_function(
+    function: &TableFunctionSet,
+    db_context: &DatabaseContext,
+    input: TableFunctionInput,
+) -> Result<PlannedTableFunction> {
+    let (func, input) = bind_table_function_signature(function, input)?;
+
+    if func.function_type() != TableFunctionType::Scan {
+        return Err(RayexecError::new(format!(
+            "'{}' is not a scan function",
+            function.name
+        )));
+    }
+
+    let bind_state = func.call_scan_bind(db_context, input).await?;
+
+    Ok(PlannedTableFunction {
+        name: function.name,
+        raw: func,
+        bind_state,
+    })
+}
+
+pub fn bind_table_function_signature(
+    function: &TableFunctionSet,
+    mut input: TableFunctionInput,
+) -> Result<(RawTableFunction, TableFunctionInput)> {
+    let (func, positional) = bind_function_signature(function, input.positional)?;
+    input.positional = positional;
+
+    Ok((func, input))
 }
 
 /// Binds a scalar function with the given inputs.

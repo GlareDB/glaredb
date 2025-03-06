@@ -16,7 +16,7 @@ use super::logical_empty::LogicalEmpty;
 use super::logical_explain::LogicalExplain;
 use super::logical_expression_list::LogicalExpressionList;
 use super::logical_filter::LogicalFilter;
-use super::logical_inout::LogicalInOut;
+use super::logical_inout::LogicalTableExecute;
 use super::logical_insert::LogicalInsert;
 use super::logical_join::{
     LogicalArbitraryJoin,
@@ -294,7 +294,7 @@ pub enum LogicalOperator {
     MagicJoin(Node<LogicalMagicJoin>),
     Unnest(Node<LogicalUnnest>),
     Window(Node<LogicalWindow>),
-    InOut(Node<LogicalInOut>),
+    TableExecute(Node<LogicalTableExecute>),
 }
 
 impl LogicalOperator {
@@ -393,7 +393,7 @@ impl LogicalOperator {
             Self::MagicJoin(n) => &n.children,
             Self::Unnest(n) => &n.children,
             Self::Window(n) => &n.children,
-            Self::InOut(n) => &n.children,
+            Self::TableExecute(n) => &n.children,
         }
     }
 
@@ -431,7 +431,7 @@ impl LogicalOperator {
             Self::MagicJoin(n) => &mut n.children,
             Self::Unnest(n) => &mut n.children,
             Self::Window(n) => &mut n.children,
-            Self::InOut(n) => &mut n.children,
+            Self::TableExecute(n) => &mut n.children,
         }
     }
 
@@ -473,7 +473,7 @@ impl LogicalOperator {
             LogicalOperator::MagicJoin(n) => n.estimated_cardinality,
             LogicalOperator::Unnest(n) => n.estimated_cardinality,
             LogicalOperator::Window(n) => n.estimated_cardinality,
-            LogicalOperator::InOut(n) => n.estimated_cardinality,
+            LogicalOperator::TableExecute(n) => n.estimated_cardinality,
         }
     }
 }
@@ -513,7 +513,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::MagicJoin(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::Unnest(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::Window(n) => n.get_output_table_refs(bind_context),
-            LogicalOperator::InOut(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::TableExecute(n) => n.get_output_table_refs(bind_context),
         }
     }
 
@@ -554,7 +554,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::MagicJoin(n) => n.for_each_expr(func),
             LogicalOperator::Unnest(n) => n.for_each_expr(func),
             LogicalOperator::Window(n) => n.for_each_expr(func),
-            LogicalOperator::InOut(n) => n.for_each_expr(func),
+            LogicalOperator::TableExecute(n) => n.for_each_expr(func),
         }
     }
 
@@ -595,7 +595,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::MagicJoin(n) => n.for_each_expr_mut(func),
             LogicalOperator::Unnest(n) => n.for_each_expr_mut(func),
             LogicalOperator::Window(n) => n.for_each_expr_mut(func),
-            LogicalOperator::InOut(n) => n.for_each_expr_mut(func),
+            LogicalOperator::TableExecute(n) => n.for_each_expr_mut(func),
         }
     }
 }

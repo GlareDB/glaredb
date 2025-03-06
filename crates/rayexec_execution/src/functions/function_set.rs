@@ -1,7 +1,7 @@
 use super::aggregate::RawAggregateFunction;
 use super::documentation::Documentation;
 use super::scalar::RawScalarFunction;
-use super::table::RawTableFunction;
+use super::table::{RawTableFunction, TableFunctionType};
 use super::{CandidateSignature, Signature};
 use crate::arrays::datatype::DataType;
 
@@ -53,6 +53,21 @@ where
     /// Get the function at the given index.
     pub fn get(&self, idx: usize) -> Option<&T> {
         self.functions.get(idx)
+    }
+}
+
+impl TableFunctionSet {
+    /// Checks if any function in the function set is a scan function.
+    ///
+    /// This is used when resolving table functions, since for scans, we allow
+    /// async binding. However async can only happen during the resolve step.
+    ///
+    /// This currently returns true if _any_ function is scan. We might need to
+    /// tighten up semantics around this.
+    pub fn is_scan_function(&self) -> bool {
+        self.functions
+            .iter()
+            .any(|func| func.function_type() == TableFunctionType::Scan)
     }
 }
 

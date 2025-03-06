@@ -7,13 +7,13 @@ use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::{self, Expression};
-use crate::functions::table::TableFunctionImpl2;
+use crate::functions::table::{TableFunctionImpl2, TableFunctionType};
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin};
 use crate::logical::binder::table_list::TableList;
 use crate::logical::logical_empty::LogicalEmpty;
 use crate::logical::logical_filter::LogicalFilter;
-use crate::logical::logical_inout::LogicalInOut;
+use crate::logical::logical_inout::LogicalTableExecute;
 use crate::logical::logical_join::{
     JoinType,
     LogicalArbitraryJoin,
@@ -74,39 +74,16 @@ impl FromPlanner {
                     names.extend(table.column_names.iter().cloned());
                 }
 
-                match &func.function.function_impl {
-                    TableFunctionImpl2::Scan(_) => {
-                        let projection = (0..types.len()).collect();
-
-                        let source = ScanSource::TableFunction {
-                            function: func.function,
-                        };
-                        let estimated_cardinality = source.cardinality();
-
-                        Ok(LogicalOperator::Scan(Node {
-                            node: LogicalScan {
-                                table_ref: func.table_ref,
-                                types,
-                                names,
-                                projection,
-                                did_prune_columns: false,
-                                scan_filters: Vec::new(),
-                                source,
-                            },
-                            location: func.location,
-                            children: Vec::new(),
-                            estimated_cardinality,
-                        }))
-                    }
-                    TableFunctionImpl2::InOut(_) => {
-                        let cardinality = func.function.cardinality;
+                match func.function.raw.function_type() {
+                    TableFunctionType::Execute => {
+                        let cardinality = func.function.bind_state.cardinality;
 
                         // In/out always requires one input. Initialize its
                         // input with an empty operator. Subquery planning will
                         // take care of the lateral binding and changing its
                         // child as needed.
-                        Ok(LogicalOperator::InOut(Node {
-                            node: LogicalInOut {
+                        Ok(LogicalOperator::TableExecute(Node {
+                            node: LogicalTableExecute {
                                 function_table_ref: func.table_ref,
                                 function: func.function,
                                 projected_table_ref: None,
@@ -116,6 +93,31 @@ impl FromPlanner {
                             children: vec![LogicalOperator::EMPTY],
                             estimated_cardinality: cardinality,
                         }))
+                    }
+                    TableFunctionType::Scan => {
+                        // let projection = (0..types.len()).collect();
+
+                        // let source = ScanSource::TableFunction {
+                        //     function: func.function,
+                        // };
+                        // let estimated_cardinality = source.cardinality();
+
+                        // Ok(LogicalOperator::Scan(Node {
+                        //     node: LogicalScan {
+                        //         table_ref: func.table_ref,
+                        //         types,
+                        //         names,
+                        //         projection,
+                        //         did_prune_columns: false,
+                        //         scan_filters: Vec::new(),
+                        //         source,
+                        //     },
+                        //     location: func.location,
+                        //     children: Vec::new(),
+                        //     estimated_cardinality,
+                        // }))
+
+                        unimplemented!()
                     }
                 }
             }

@@ -20,6 +20,7 @@ pub mod results;
 pub mod sink;
 pub mod sort;
 pub mod source;
+pub mod table_execute;
 pub mod table_inout;
 pub mod ungrouped_aggregate;
 pub mod union;

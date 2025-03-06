@@ -1,17 +1,15 @@
 use std::sync::Arc;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use tracing::debug;
 
 use super::resolve_context::MaybeResolved;
 use super::resolve_normal::NormalResolver;
-use super::resolved_table_function::ResolvedTableFunctionReference;
 use super::{ResolveContext, Resolver};
 use crate::database::catalog::CatalogTx;
 use crate::database::memory_catalog::MemoryCatalog;
 use crate::database::{Database, DatabaseContext};
 use crate::datasource::{DataSourceRegistry, FileHandlers};
-use crate::functions::table::TableFunctionPlanner2;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::{ResolveConfig, ResolveMode};
 
@@ -195,27 +193,28 @@ impl<'a> HybridResolver<'a> {
     ) -> Result<()> {
         for item in resolve_context.table_functions.inner.iter_mut() {
             if let MaybeResolved::Unresolved(unresolved) = item {
-                let function = NormalResolver::new(self.resolver.tx, self.resolver.context)
+                let _function = NormalResolver::new(self.resolver.tx, self.resolver.context)
                     .require_resolve_table_function(&unresolved.reference)?;
 
-                let resolved = match function.planner() {
-                    TableFunctionPlanner2::InOut(_) => {
-                        ResolvedTableFunctionReference::InOut(function)
-                    }
-                    TableFunctionPlanner2::Scan(planner) => {
-                        let planned = planner
-                            .plan(
-                                self.resolver.context,
-                                unresolved.args.positional.clone(),
-                                unresolved.args.named.clone(),
-                            )
-                            .await?;
+                not_implemented!("hybrid resolve table funcs")
+                // let resolved = match function.planner() {
+                //     TableFunctionPlanner2::InOut(_) => {
+                //         ResolvedTableFunctionReference::Execute(function)
+                //     }
+                //     TableFunctionPlanner2::Scan(planner) => {
+                //         let planned = planner
+                //             .plan(
+                //                 self.resolver.context,
+                //                 unresolved.args.positional.clone(),
+                //                 unresolved.args.named.clone(),
+                //             )
+                //             .await?;
 
-                        ResolvedTableFunctionReference::Scan(planned)
-                    }
-                };
+                //         ResolvedTableFunctionReference::Scan(planned)
+                //     }
+                // };
 
-                *item = MaybeResolved::Resolved(resolved, LocationRequirement::Remote)
+                // *item = MaybeResolved::Resolved(resolved, LocationRequirement::Remote)
             }
         }
 

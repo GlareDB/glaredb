@@ -14,7 +14,7 @@ use crate::database::create::{
 use crate::datasource::DataSourceRegistry;
 use crate::functions::aggregate::builtin::BUILTIN_AGGREGATE_FUNCTION_SETS;
 use crate::functions::scalar::builtin::BUILTIN_SCALAR_FUNCTION_SETS;
-use crate::functions::table::builtin::BUILTIN_TABLE_FUNCTIONS;
+use crate::functions::table::builtin::BUILTIN_TABLE_FUNCTION_SETS;
 
 /// Create a new system catalog with builtin functions.
 ///
@@ -96,17 +96,17 @@ pub fn new_system_catalog(registry: &DataSourceRegistry) -> Result<MemoryCatalog
     }
 
     // Add builtin table functions.
-    for func in BUILTIN_TABLE_FUNCTIONS.iter() {
+    for func in BUILTIN_TABLE_FUNCTION_SETS.iter() {
         builtin.create_table_function(
             tx,
             &CreateTableFunctionInfo {
-                name: func.name().to_string(),
+                name: func.name.to_string(),
                 implementation: func.clone(),
                 on_conflict: OnConflict::Error,
             },
         )?;
 
-        for alias in func.aliases() {
+        for alias in func.aliases {
             builtin.create_table_function(
                 tx,
                 &CreateTableFunctionInfo {
@@ -131,46 +131,46 @@ pub fn new_system_catalog(registry: &DataSourceRegistry) -> Result<MemoryCatalog
         )?;
     }
 
-    // Add data source functions.
-    for datasource in registry.iter() {
-        let table_funcs = datasource.initialize_table_functions();
+    // // Add data source functions.
+    // for datasource in registry.iter() {
+    //     let table_funcs = datasource.initialize_table_functions();
 
-        for func in table_funcs {
-            builtin.create_table_function(
-                tx,
-                &CreateTableFunctionInfo {
-                    name: func.name().to_string(),
-                    implementation: func.clone(),
-                    on_conflict: OnConflict::Error,
-                },
-            )?;
+    //     for func in table_funcs {
+    //         builtin.create_table_function(
+    //             tx,
+    //             &CreateTableFunctionInfo {
+    //                 name: func.name().to_string(),
+    //                 implementation: func.clone(),
+    //                 on_conflict: OnConflict::Error,
+    //             },
+    //         )?;
 
-            for alias in func.aliases() {
-                builtin.create_table_function(
-                    tx,
-                    &CreateTableFunctionInfo {
-                        name: alias.to_string(),
-                        implementation: func.clone(),
-                        on_conflict: OnConflict::Error,
-                    },
-                )?;
-            }
-        }
+    //         for alias in func.aliases() {
+    //             builtin.create_table_function(
+    //                 tx,
+    //                 &CreateTableFunctionInfo {
+    //                     name: alias.to_string(),
+    //                     implementation: func.clone(),
+    //                     on_conflict: OnConflict::Error,
+    //                 },
+    //             )?;
+    //         }
+    //     }
 
-        let copy_to_funcs = datasource.initialize_copy_to_functions();
+    //     let copy_to_funcs = datasource.initialize_copy_to_functions();
 
-        for func in copy_to_funcs {
-            builtin.create_copy_to_function(
-                tx,
-                &CreateCopyToFunctionInfo {
-                    name: func.copy_to.name().to_string(),
-                    format: func.format,
-                    implementation: func.copy_to,
-                    on_conflict: OnConflict::Error,
-                },
-            )?;
-        }
-    }
+    //     for func in copy_to_funcs {
+    //         builtin.create_copy_to_function(
+    //             tx,
+    //             &CreateCopyToFunctionInfo {
+    //                 name: func.copy_to.name().to_string(),
+    //                 format: func.format,
+    //                 implementation: func.copy_to,
+    //                 on_conflict: OnConflict::Error,
+    //             },
+    //         )?;
+    //     }
+    // }
 
     Ok(catalog)
 }

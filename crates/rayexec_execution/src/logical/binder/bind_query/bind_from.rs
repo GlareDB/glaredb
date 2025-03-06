@@ -7,10 +7,10 @@ use rayexec_parser::ast;
 use super::{BoundQuery, QueryBinder};
 use crate::arrays::datatype::DataType;
 use crate::database::catalog_entry::CatalogEntry;
-use crate::expr::column_expr::{ColumnExpr, ColumnReference};
+use crate::expr::column_expr::ColumnReference;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::{self, Expression};
-use crate::functions::table::{PlannedTableFunction2, TableFunctionPlanner2};
+use crate::functions::table::{PlannedTableFunction, TableFunctionInput};
 use crate::logical::binder::bind_context::{
     BindContext,
     BindScopeRef,
@@ -27,8 +27,6 @@ use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_table::ResolvedTableOrCteReference;
 use crate::logical::resolver::resolved_table_function::ResolvedTableFunctionReference;
 use crate::logical::resolver::{ResolvedMeta, ResolvedSubqueryOptions};
-use crate::optimizer::expr_rewrite::const_fold::ConstFold;
-use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundFrom {
@@ -72,7 +70,7 @@ impl Eq for BoundBaseTable {}
 pub struct BoundTableFunction {
     pub table_ref: TableRef,
     pub location: LocationRequirement,
-    pub function: PlannedTableFunction2,
+    pub function: PlannedTableFunction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -408,7 +406,7 @@ impl<'a> FromBinder<'a> {
             .try_get_bound(function.reference)?;
 
         let planned = match reference {
-            ResolvedTableFunctionReference::InOut(inout) => {
+            ResolvedTableFunctionReference::Delayed(resolved) => {
                 // Handle in/out function planning now. We have everything we
                 // need to plan its inputs.
                 let expr_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
@@ -441,50 +439,35 @@ impl<'a> FromBinder<'a> {
                                 ));
                             }
                         },
-                        ast::FunctionArg::Named { name, arg } => {
-                            match arg {
-                                ast::FunctionArgExpr::Expr(expr) => {
-                                    // Constants required.
-                                    let expr = expr_binder.bind_expression(
-                                        bind_context,
-                                        expr,
-                                        &mut DefaultColumnBinder,
-                                        recur,
-                                    )?;
+                        ast::FunctionArg::Named { name, arg } => match arg {
+                            ast::FunctionArgExpr::Expr(expr) => {
+                                let expr = expr_binder.bind_expression(
+                                    bind_context,
+                                    expr,
+                                    &mut DefaultColumnBinder,
+                                    recur,
+                                )?;
 
-                                    let val = ConstFold::rewrite(expr)?.try_into_scalar()?;
-                                    named.insert(name.as_normalized_string(), val);
-                                }
-                                ast::FunctionArgExpr::Wildcard => {
-                                    return Err(RayexecError::new(
-                                        "Cannot plan a function with '*' as an argument",
-                                    ));
-                                }
+                                named.insert(name.as_normalized_string(), expr);
                             }
-                        }
+                            ast::FunctionArgExpr::Wildcard => {
+                                return Err(RayexecError::new(
+                                    "Cannot plan a function with '*' as an argument",
+                                ));
+                            }
+                        },
                     }
                 }
 
-                // Note only positional input casts for now. Signatures don't
-                // have a notion of named arguments yet.
-                let positional = expr_binder.apply_casts_for_table_function(
-                    bind_context,
-                    inout.as_ref(),
-                    positional,
-                )?;
-
-                match inout.planner() {
-                    TableFunctionPlanner2::InOut(planner) => {
-                        planner.plan(bind_context.get_table_list(), positional, named)?
-                    }
-                    TableFunctionPlanner2::Scan(_) => {
-                        return Err(RayexecError::new(
-                            "Expected in/out planner, got scan planner",
-                        ))
-                    }
-                }
+                // TODO: This currently assumes that delayed binding indicates
+                // that this function is a table execute function (which is
+                // correct), but may change in the future.
+                expr::bind_table_execute_function(
+                    resolved,
+                    TableFunctionInput { positional, named },
+                )?
             }
-            ResolvedTableFunctionReference::Scan(planned) => planned.clone(),
+            ResolvedTableFunctionReference::Planned(planned) => planned.clone(),
         };
 
         // TODO: For table funcs that are reading files, it'd be nice to have
@@ -496,6 +479,7 @@ impl<'a> FromBinder<'a> {
         };
 
         let (names, types) = planned
+            .bind_state
             .schema
             .fields
             .iter()

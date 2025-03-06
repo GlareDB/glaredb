@@ -21,6 +21,7 @@ mod plan_scan;
 mod plan_set_operation;
 mod plan_show_var;
 mod plan_sort;
+mod plan_table_execute;
 mod plan_unnest;
 
 use rayexec_error::{not_implemented, RayexecError, Result};
@@ -179,6 +180,7 @@ impl<'a> OperatorPlanState<'a> {
             LogicalOperator::CrossJoin(join) => self.plan_cross_join(join),
             LogicalOperator::ArbitraryJoin(join) => self.plan_arbitrary_join(join),
             LogicalOperator::ComparisonJoin(join) => self.plan_comparison_join(join),
+            LogicalOperator::TableExecute(join) => self.plan_table_execute(join),
             LogicalOperator::Describe(node) => self.plan_describe(node),
             LogicalOperator::ShowVar(node) => self.plan_show_var(node),
             LogicalOperator::Empty(node) => self.plan_empty(node),

@@ -6,7 +6,8 @@ use rayexec_proto::ProtoConv;
 
 use crate::arrays::scalar::ScalarValue;
 use crate::database::DatabaseContext;
-use crate::functions::table::{PlannedTableFunction2, TableFunction2};
+use crate::functions::function_set::TableFunctionSet;
+use crate::functions::table::{PlannedTableFunction, TableFunctionInput};
 use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,22 +16,24 @@ pub struct ConstantFunctionArgs {
     pub named: HashMap<String, ScalarValue>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum ResolvedTableFunctionReference {
-    /// Scan table functions can be fully resolved as their arguments are
-    /// constant.
-    Scan(PlannedTableFunction2),
-    /// We have a function that's an in/out funciton, but we need to wait until
-    /// we're in the binding phase before planning this as it requires knowledge
-    /// of its inputs.
-    InOut(Box<dyn TableFunction2>),
+    /// Table function contains constant arguments so we were able to plan it
+    /// during the resolve step.
+    ///
+    /// It's currently requires that scan functions can be planned during
+    /// resolve, as scan functions have async bind functions.
+    Planned(PlannedTableFunction),
+    /// Table function contains non-constant arguments, so planning happens
+    /// after resolving.
+    Delayed(TableFunctionSet),
 }
 
 impl ResolvedTableFunctionReference {
     pub fn base_table_alias(&self) -> String {
         match self {
-            ResolvedTableFunctionReference::Scan(func) => func.function.name().to_string(),
-            ResolvedTableFunctionReference::InOut(func) => func.name().to_string(),
+            ResolvedTableFunctionReference::Planned(func) => func.name.to_string(),
+            ResolvedTableFunctionReference::Delayed(func) => func.name.to_string(),
         }
     }
 }
@@ -68,7 +71,7 @@ pub struct UnresolvedTableFunctionReference {
     // TODO: Optionally set this? There's a possibility that the remote side has
     // an in/out function that we don't know about, and so these args aren't
     // actually needed. Not urgent to figure out right now.
-    pub args: ConstantFunctionArgs,
+    pub args: TableFunctionInput,
 }
 
 impl ProtoConv for UnresolvedTableFunctionReference {
