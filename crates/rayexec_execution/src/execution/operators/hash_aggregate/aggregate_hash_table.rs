@@ -678,6 +678,52 @@ mod tests {
     }
 
     #[test]
+    fn num_group_values_greater_than_double_capacity() {
+        // Tests that we properly resize the pointer directory when input has
+        // more than twice as many unique group values than the current
+        // capacity.
+        //
+        // Previously we just doubled, but that may not be enough. This
+        // triggered an assertion failure since we were left with null pointers
+        // for the group pointers.
+
+        // GROUP     (col0): Int32
+        // GROUP     (hash): UInt64
+        // AGG_INPUT (col1): Int64
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+        let aggs = [PhysicalAggregateExpression::new(
+            sum_agg,
+            [(1, DataType::Int64)],
+        )];
+
+        let layout = AggregateLayout::new([DataType::Int32, DataType::UInt64], aggs);
+
+        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut state = table.init_insert_state();
+
+        let num_unique_groups = Directory::DEFAULT_CAPACITY * 2 + 1;
+
+        let groups = generate_batch!(0..num_unique_groups as i32);
+        // All inputs just have the same value.
+        let inputs = generate_batch!(std::iter::repeat(4_i64).take(num_unique_groups));
+
+        table.insert(&mut state, &groups, &inputs).unwrap();
+
+        let (out_groups, out_results) = get_groups_and_results(&table);
+
+        let expected_groups = Array::try_from_iter(0..num_unique_groups as i32).unwrap();
+        assert_arrays_eq(&expected_groups, &out_groups.arrays[0]);
+        // Skip second groups array, contains hashes.
+
+        let expected_results = generate_batch!(std::iter::repeat(4_i64).take(num_unique_groups));
+        assert_batches_eq(&expected_results, &out_results);
+    }
+
+    #[test]
     fn multiple_inserts_single_agg_multiple_group_vals() {
         // GROUP     (col0): Utf8
         // GROUP     (hash): UInt64
