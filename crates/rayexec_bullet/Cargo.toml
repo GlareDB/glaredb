@@ -12,7 +12,7 @@ half = { workspace = true }
 num = "0.4.3"
 csv-core = { version = "0.1.12", default-features = false } # Default features has libc dependency.
 chrono = "0.4.39"
-textwrap = { version = "0.16.1", default-features = false, features = ["unicode-width"] }
+textwrap = { version = "0.16.2", default-features = false, features = ["unicode-width"] }
 serde = { workspace = true }
 flatbuffers = "24.12.23"
 bytes = { workspace = true }
