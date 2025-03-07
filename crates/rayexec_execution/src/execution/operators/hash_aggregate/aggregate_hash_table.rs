@@ -141,7 +141,11 @@ impl AggregateHashTable {
             &mut state.row_ptrs,
         )?;
 
-        debug_assert!(!state.row_ptrs.iter().any(|ptr| ptr.is_null()));
+        debug_assert!(
+            !state.row_ptrs.iter().any(|ptr| ptr.is_null()),
+            "Null pointer at position: {}",
+            state.row_ptrs.iter().position(|ptr| ptr.is_null()).unwrap(),
+        );
 
         unsafe {
             self.layout.update_states(
@@ -178,7 +182,8 @@ impl AggregateHashTable {
         let hashes = &hashes[0..num_rows];
 
         if self.directory.needs_resize(num_rows) {
-            self.directory.resize(self.directory.capacity() * 2)?;
+            let new_cap = usize::max(self.directory.capacity() * 2, num_rows);
+            self.directory.resize(new_cap)?;
         }
 
         // Precompute offsets into the table.
@@ -267,6 +272,7 @@ impl AggregateHashTable {
                 )?;
 
                 let row_ptrs = append_state.row_pointers();
+                debug_assert!(!row_ptrs.iter().any(|p| p.is_null()));
                 debug_assert_eq!(new_groups.len(), row_ptrs.len());
 
                 // Update the entries with the new row pointers.
@@ -538,11 +544,12 @@ impl Directory {
         self.entries.capacity()
     }
 
-    fn resize(&mut self, new_capacity: usize) -> Result<()> {
+    /// Resizes the directory to at least `new_capacity`.
+    ///
+    /// This will ensure the new capacity of the directory is a power of two.
+    fn resize(&mut self, mut new_capacity: usize) -> Result<()> {
         if !is_power_of_2(new_capacity) {
-            return Err(RayexecError::new(
-                "Hash table capacity needs to be a power of two",
-            ));
+            new_capacity = new_capacity.next_power_of_two();
         }
         if new_capacity < self.entries.capacity() {
             return Err(RayexecError::new("Cannot reduce capacity of hash table")
@@ -583,7 +590,11 @@ impl Directory {
 
     /// Returns if the directory needs to be resized to accomadate new inputs.
     fn needs_resize(&self, num_inputs: usize) -> bool {
-        (num_inputs + self.num_occupied) as f64 / (self.capacity() * 2) as f64 >= Self::LOAD_FACTOR
+        (num_inputs + self.num_occupied) >= self.resize_threshold()
+    }
+
+    fn resize_threshold(&self) -> usize {
+        (self.capacity() as f64 * Self::LOAD_FACTOR) as usize
     }
 }
 
@@ -594,7 +605,7 @@ mod tests {
     use super::*;
     use crate::expr::physical::PhysicalAggregateExpression;
     use crate::expr::{self, bind_aggregate_function};
-    use crate::functions::aggregate::builtin::sum::{self, FUNCTION_SET_SUM};
+    use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::testutil::arrays::{assert_arrays_eq, assert_batches_eq, generate_batch};
 
     /// Helper to get the groups and results from a hash table.
@@ -702,6 +713,90 @@ mod tests {
         // Skip second groups array, contains hashes.
 
         let expected_results = generate_batch!([19_i64, 2, 9, 6]);
+        assert_batches_eq(&expected_results, &out_results);
+    }
+
+    #[test]
+    fn multiple_inserts_different_input_sizes() {
+        // Same as above, but send input has fewer rows than the first.
+
+        // GROUP     (col0): Utf8
+        // GROUP     (hash): UInt64
+        // AGG_INPUT (col1): Int64
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+        let aggs = [PhysicalAggregateExpression::new(
+            sum_agg,
+            [(1, DataType::Int64)],
+        )];
+
+        let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
+
+        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut state = table.init_insert_state();
+
+        let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
+        let inputs = generate_batch!([1_i64, 2, 3, 4]);
+        table.insert(&mut state, &groups, &inputs).unwrap();
+
+        let groups = generate_batch!(["group_c", "group_d"]);
+        let inputs = generate_batch!([5_i64, 6]);
+        table.insert(&mut state, &groups, &inputs).unwrap();
+
+        let (out_groups, out_results) = get_groups_and_results(&table);
+
+        let expected_groups =
+            Array::try_from_iter(["group_a", "group_b", "group_c", "group_d"]).unwrap();
+        assert_arrays_eq(&expected_groups, &out_groups.arrays[0]);
+        // Skip second groups array, contains hashes.
+
+        let expected_results = generate_batch!([4_i64, 2, 9, 6]);
+        assert_batches_eq(&expected_results, &out_results);
+    }
+
+    #[test]
+    fn multiple_inserts_unseen_groups() {
+        // Second inputs contains only unseen groups.
+
+        // GROUP     (col0): Utf8
+        // GROUP     (hash): UInt64
+        // AGG_INPUT (col1): Int64
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+        let aggs = [PhysicalAggregateExpression::new(
+            sum_agg,
+            [(1, DataType::Int64)],
+        )];
+
+        let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
+
+        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut state = table.init_insert_state();
+
+        let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
+        let inputs = generate_batch!([1_i64, 2, 3, 4]);
+        table.insert(&mut state, &groups, &inputs).unwrap();
+
+        let groups = generate_batch!(["group_d", "group_d", "group_e", "group_f"]);
+        let inputs = generate_batch!([5_i64, 6, 7, 8]);
+        table.insert(&mut state, &groups, &inputs).unwrap();
+
+        let (out_groups, out_results) = get_groups_and_results(&table);
+
+        let expected_groups = Array::try_from_iter([
+            "group_a", "group_b", "group_c", "group_d", "group_e", "group_f",
+        ])
+        .unwrap();
+        assert_arrays_eq(&expected_groups, &out_groups.arrays[0]);
+        // Skip second groups array, contains hashes.
+
+        let expected_results = generate_batch!([4_i64, 2, 4, 11, 7, 8]);
         assert_batches_eq(&expected_results, &out_results);
     }
 

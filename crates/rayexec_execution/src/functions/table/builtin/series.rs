@@ -90,14 +90,14 @@ impl SeriesParams {
         let mut out = PhysicalI64::get_addressable_mut(&mut out.data)?;
 
         let mut idx = 0;
-        if self.curr < self.stop && self.step > 0 {
+        if self.curr <= self.stop && self.step > 0 {
             // Going up.
             while self.curr <= self.stop && idx < out.len() {
                 out.put(idx, &self.curr);
                 self.curr += self.step;
                 idx += 1;
             }
-        } else if self.curr > self.stop && self.step < 0 {
+        } else if self.curr >= self.stop && self.step < 0 {
             // Going down.
             while self.curr >= self.stop && idx < out.len() {
                 out.put(idx, &self.curr);
@@ -291,6 +291,42 @@ mod tests {
         assert_eq!(PollExecute::HasMore, poll);
 
         let expected = generate_batch!([4_i64, 5]);
+        assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn generate_series_single_row_out_lacks_capacity_by_1() {
+        // Test off by one...
+        let mut state = GenerateSeriesI64PartitionState::default();
+
+        // generate_series(1, 5, 1)
+        let mut input = generate_batch!([1_i64], [5_i64], [1_i64]);
+
+        let mut output = Batch::new([DataType::Int64], 4).unwrap();
+        let poll = GenerateSeriesI64::poll_execute(
+            &mut noop_context(),
+            &(),
+            &mut state,
+            &mut input,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+
+        let expected = generate_batch!([1_i64, 2, 3, 4]);
+        assert_batches_eq(&expected, &output);
+
+        let poll = GenerateSeriesI64::poll_execute(
+            &mut noop_context(),
+            &(),
+            &mut state,
+            &mut input,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+
+        let expected = generate_batch!([5_i64]);
         assert_batches_eq(&expected, &output);
     }
 

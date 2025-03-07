@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 
 use super::builtin_views::BUILTIN_VIEWS;
-use super::create::{CreateCopyToFunctionInfo, CreateViewInfo};
+use super::create::CreateViewInfo;
 use super::memory_catalog::MemoryCatalog;
 use crate::database::catalog::CatalogTx;
 use crate::database::create::{

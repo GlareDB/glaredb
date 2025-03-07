@@ -344,6 +344,23 @@ mod tests {
     }
 
     #[test]
+    fn sort_single_key_utf8_lexical() {
+        let key_layout = SortLayout::new([SortColumn::new_asc_nulls_last(DataType::Utf8)]);
+        let data_layout = RowLayout::new([DataType::Utf8]);
+
+        let keys = generate_batch!(["1", "2", "10", "20"]);
+        let expected = generate_batch!(["1", "10", "2", "20"]);
+
+        assert_sort_as_expected(
+            key_layout,
+            data_layout,
+            &keys.arrays,
+            &keys.arrays,
+            &expected.arrays,
+        );
+    }
+
+    #[test]
     fn sort_two_keys_utf8_i32_with_ties() {
         let key_layout = SortLayout::new([
             SortColumn::new_asc_nulls_last(DataType::Utf8),

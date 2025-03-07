@@ -524,15 +524,11 @@ impl ComparableEncode for bool {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct StringPrefix {
-    len: i32,
     prefix: [u8; 12],
 }
 
 impl StringPrefix {
-    const EMPTY: Self = StringPrefix {
-        len: 0,
-        prefix: [0; 12],
-    };
+    const EMPTY: Self = StringPrefix { prefix: [0; 12] };
 
     fn new_from_buf(buf: &[u8]) -> Self {
         let mut prefix = [0; 12];
@@ -540,16 +536,12 @@ impl StringPrefix {
 
         (&mut prefix[0..count]).copy_from_slice(&buf[0..count]);
 
-        StringPrefix {
-            len: buf.len() as i32,
-            prefix,
-        }
+        StringPrefix { prefix }
     }
 }
 
 impl ComparableEncode for StringPrefix {
     fn encode(&self, buf: &mut [u8]) {
-        self.len.encode(&mut buf[0..4]);
-        buf[4..].copy_from_slice(&self.prefix);
+        buf.copy_from_slice(&self.prefix);
     }
 }

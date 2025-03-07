@@ -4,7 +4,6 @@ use rayexec_error::Result;
 
 use super::evaluator::{ExpressionEvaluator, ExpressionState};
 use super::PhysicalScalarExpression;
-use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::physical_type::PhysicalBool;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
@@ -49,11 +48,14 @@ impl PhysicalCaseExpr {
         // 3 arrays in the buffer, one 'boolean' for conditional evaluation, one
         // for the result if condition is true, and one for the 'else'. 'then'
         // and 'else' expressions should evaluate to the same type.
-        let buffer = Batch::from_arrays([
-            Array::new(&NopBufferManager, DataType::Boolean, batch_size)?,
-            Array::new(&NopBufferManager, self.else_expr.datatype(), batch_size)?,
-            Array::new(&NopBufferManager, self.else_expr.datatype(), batch_size)?,
-        ])?;
+        let buffer = Batch::new(
+            [
+                DataType::Boolean,
+                self.else_expr.datatype(),
+                self.else_expr.datatype(),
+            ],
+            batch_size,
+        )?;
 
         Ok(ExpressionState { buffer, inputs })
     }
@@ -69,7 +71,7 @@ impl PhysicalCaseExpr {
         sel: Selection,
         output: &mut Array,
     ) -> Result<()> {
-        let manager = &NopBufferManager;
+        state.reset_for_write()?;
 
         // Indices where 'when' evaluated to true and the 'then' expression
         // needs to be evaluated.
@@ -189,6 +191,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::datatype::DataType;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
     use crate::testutil::arrays::assert_arrays_eq;

@@ -11,7 +11,6 @@ use crate::arrays::batch::Batch;
 use crate::arrays::compute::cast::array::cast_array;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::DataType;
-use crate::buffer::buffer_manager::NopBufferManager;
 use crate::database::DatabaseContext;
 use crate::proto::DatabaseProtoConv;
 
@@ -24,11 +23,7 @@ pub struct PhysicalCastExpr {
 impl PhysicalCastExpr {
     pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
         let inputs = vec![self.expr.create_state(batch_size)?];
-        let buffer = Batch::from_arrays([Array::new(
-            &NopBufferManager,
-            self.expr.datatype(),
-            batch_size,
-        )?])?;
+        let buffer = Batch::new([self.expr.datatype()], batch_size)?;
 
         Ok(ExpressionState { buffer, inputs })
     }
@@ -44,6 +39,8 @@ impl PhysicalCastExpr {
         sel: Selection,
         output: &mut Array,
     ) -> Result<()> {
+        state.reset_for_write()?;
+
         // Eval child.
         let child_output = &mut state.buffer.arrays_mut()[0];
         ExpressionEvaluator::eval_expression(
@@ -101,6 +98,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
+    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
     use crate::testutil::arrays::assert_arrays_eq_sel;
 

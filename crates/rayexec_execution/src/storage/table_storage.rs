@@ -10,6 +10,7 @@ use crate::execution::operators::sink::operation::PartitionSink;
 
 /// Scan projections.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[deprecated]
 pub struct Projections {
     /// Column indices to project out of the scan.
     ///

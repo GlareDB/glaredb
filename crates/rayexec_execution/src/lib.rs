@@ -1,5 +1,6 @@
 pub mod arrays;
 pub mod buffer;
+pub mod catalog;
 pub mod config;
 pub mod database;
 pub mod datasource;

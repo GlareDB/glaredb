@@ -29,6 +29,18 @@ impl ExpressionState {
             inputs: Vec::new(),
         }
     }
+
+    pub(crate) fn reset_for_write(&mut self) -> Result<()> {
+        if self.buffer.cache.is_some() {
+            self.buffer.reset_for_write()?;
+        }
+
+        for input in &mut self.inputs {
+            input.reset_for_write()?
+        }
+
+        Ok(())
+    }
 }
 
 impl ExpressionEvaluator {

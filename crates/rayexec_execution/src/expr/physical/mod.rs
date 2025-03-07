@@ -84,19 +84,6 @@ impl PhysicalScalarExpression {
             Self::ScalarFunction(expr) => expr.datatype(),
         }
     }
-
-    // TODO: Remove, needs to happen after operator revamp.
-    #[deprecated]
-    pub fn eval(&self, batch: &Batch) -> Result<Array> {
-        unimplemented!("expr eval")
-        // match self {
-        //     Self::Case(e) => e.eval2(batch),
-        //     Self::Cast(e) => e.eval2(batch),
-        //     Self::Column(e) => e.eval2(batch),
-        //     Self::Literal(e) => e.eval2(batch),
-        //     Self::ScalarFunction(e) => e.eval2(batch),
-        // }
-    }
 }
 
 impl fmt::Display for PhysicalScalarExpression {

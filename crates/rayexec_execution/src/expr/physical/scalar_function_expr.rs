@@ -9,7 +9,6 @@ use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::buffer::buffer_manager::NopBufferManager;
 use crate::database::DatabaseContext;
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::proto::DatabaseProtoConv;
@@ -28,13 +27,7 @@ impl PhysicalScalarFunctionExpr {
             .map(|input| input.create_state(batch_size))
             .collect::<Result<Vec<_>>>()?;
 
-        let arrays = self
-            .inputs
-            .iter()
-            .map(|input| Array::new(&NopBufferManager, input.datatype(), batch_size))
-            .collect::<Result<Vec<_>>>()?;
-
-        let buffer = Batch::from_arrays(arrays)?;
+        let buffer = Batch::new(self.inputs.iter().map(|input| input.datatype()), batch_size)?;
 
         Ok(ExpressionState { buffer, inputs })
     }
@@ -50,6 +43,8 @@ impl PhysicalScalarFunctionExpr {
         sel: Selection,
         output: &mut Array,
     ) -> Result<()> {
+        state.reset_for_write()?;
+
         // Eval children.
         for (child_idx, array) in state.buffer.arrays_mut().iter_mut().enumerate() {
             let expr = &self.inputs[child_idx];
