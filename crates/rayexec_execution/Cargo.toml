@@ -14,7 +14,7 @@ fmtutil = { path = "../fmtutil" }
 # stackutil = { path = "../stackutil" } TODO: psm hash issues when compiling to wasm on macos
 
 ahash = { workspace = true }
-dyn-clone = "1.0.18"
+dyn-clone = "1.0.19"
 chrono = { workspace = true }
 futures = { workspace = true }
 hashbrown = { workspace = true, features = ["raw"] }
