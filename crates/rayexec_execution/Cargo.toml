@@ -30,7 +30,7 @@ regex = { workspace = true }
 url = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_bytes = "0.11.15"
+serde_bytes = "0.11.16"
 erased-serde = { workspace = true }
 rand = "0.8.5"
 uuid = { workspace = true }
