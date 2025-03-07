@@ -27,7 +27,7 @@ tracing = { version = "0.1.40", default-features = false }
 regex = "1.10.5"
 url = "2.5.1"
 serde = { version = "1.0.218", features = ["derive", "rc"] }
-erased-serde = "0.4.5"
+erased-serde = "0.4.6"
 serde_json = { version = "1.0", features = ["std"] }
 bytes = "1.10.0"
 uuid = { version = "1.12.1", features = ["v4"] }
