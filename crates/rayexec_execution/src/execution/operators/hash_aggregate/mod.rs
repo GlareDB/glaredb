@@ -17,7 +17,6 @@ use rayexec_error::{RayexecError, Result};
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::expr::physical::PhysicalAggregateExpression;
@@ -113,11 +112,7 @@ impl PhysicalHashAggregate {
 impl BaseOperator for PhysicalHashAggregate {
     type OperatorState = HashAggregateOperatorState;
 
-    fn create_operator_state(
-        &self,
-        _context: &DatabaseContext,
-        props: ExecutionProperties,
-    ) -> Result<Self::OperatorState> {
+    fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
         // Table per grouping set.
         let tables: Vec<_> = self
             .grouping_sets
@@ -333,7 +328,6 @@ mod tests {
     use crate::expr::{self, bind_aggregate_function};
     use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
-    use crate::testutil::database_context::test_db_context;
     use crate::testutil::operator::OperatorWrapper;
 
     #[test]
@@ -363,10 +357,7 @@ mod tests {
         ));
 
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let mut states = wrapper
             .operator
             .create_partition_execute_states(&op_state, props, 1)

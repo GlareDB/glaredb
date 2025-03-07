@@ -9,7 +9,6 @@ use crate::arrays::collection::concurrent::{
     ConcurrentColumnCollection,
 };
 use crate::arrays::datatype::DataType;
-use crate::database::DatabaseContext;
 use crate::execution::operators::{
     BaseOperator,
     ExecutionProperties,
@@ -37,11 +36,7 @@ pub struct PhysicalMaterializedResults {
 impl BaseOperator for PhysicalMaterializedResults {
     type OperatorState = MaterializedResultsOperatorState;
 
-    fn create_operator_state(
-        &self,
-        _context: &DatabaseContext,
-        _props: ExecutionProperties,
-    ) -> Result<Self::OperatorState> {
+    fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
         Ok(MaterializedResultsOperatorState {
             collection: self.collection.clone(),
         })

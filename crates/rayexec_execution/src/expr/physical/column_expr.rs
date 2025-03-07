@@ -9,8 +9,6 @@ use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
 use crate::arrays::datatype::DataType;
 use crate::buffer::buffer_manager::NopBufferManager;
-use crate::database::DatabaseContext;
-use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalColumnExpr {
@@ -60,24 +58,6 @@ impl PhysicalColumnExpr {
 impl fmt::Display for PhysicalColumnExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "@{}", self.idx)
-    }
-}
-
-impl DatabaseProtoConv for PhysicalColumnExpr {
-    type ProtoType = rayexec_proto::generated::physical_expr::PhysicalColumnExpr;
-
-    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        unimplemented!()
-        // Ok(Self::ProtoType {
-        //     idx: self.idx as u32,
-        // })
-    }
-
-    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        unimplemented!()
-        // Ok(Self {
-        //     idx: proto.idx as usize,
-        // })
     }
 }
 

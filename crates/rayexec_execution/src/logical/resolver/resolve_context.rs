@@ -1,11 +1,10 @@
 use std::fmt;
 
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast::{self};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use super::resolved_copy_to::ResolvedCopyTo;
 use super::resolved_cte::ResolvedCte;
 use super::resolved_function::ResolvedFunction;
 use super::resolved_table::{ResolvedTableOrCteReference, UnresolvedTableReference};
@@ -13,9 +12,7 @@ use super::resolved_table_function::{
     ResolvedTableFunctionReference,
     UnresolvedTableFunctionReference,
 };
-use crate::database::DatabaseContext;
 use crate::logical::operator::LocationRequirement;
-use crate::proto::DatabaseProtoConv;
 
 /// Context containing resolved database objects.
 #[derive(Debug, Clone, Default)]
@@ -33,15 +30,14 @@ pub struct ResolveContext {
     pub table_functions:
         ResolveList<ResolvedTableFunctionReference, UnresolvedTableFunctionReference>,
 
-    /// An optional COPY TO for the query.
-    ///
-    /// Currently this only supports a local COPY TO (the result needs to be
-    /// local, the inner query can be local or remote). Extending this to
-    /// support remote COPY TO should be straightforward, we just have to figure
-    /// out what the "unbound" variant should be since it's not directly
-    /// referenced by the user (maybe file format?).
-    pub copy_to: Option<ResolvedCopyTo>,
-
+    // /// An optional COPY TO for the query.
+    // ///
+    // /// Currently this only supports a local COPY TO (the result needs to be
+    // /// local, the inner query can be local or remote). Extending this to
+    // /// support remote COPY TO should be straightforward, we just have to figure
+    // /// out what the "unbound" variant should be since it's not directly
+    // /// referenced by the user (maybe file format?).
+    // pub copy_to: Option<ResolvedCopyTo>,
     /// How "deep" in the plan are we.
     ///
     /// Incremented everytime we dive into a subquery.
@@ -62,7 +58,6 @@ impl ResolveContext {
             tables: ResolveList::empty(),
             functions: ResolveList::empty(),
             table_functions: ResolveList::empty(),
-            copy_to: None,
             current_depth: 0,
             ctes: Vec::new(),
         }
@@ -120,49 +115,6 @@ impl ResolveContext {
     /// Push a CTE into bind data, returning a CTE reference.
     pub fn push_cte(&mut self, cte: ResolvedCte) {
         self.ctes.push(cte);
-    }
-}
-
-impl DatabaseProtoConv for ResolveContext {
-    type ProtoType = rayexec_proto::generated::resolver::ResolveContext;
-
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        if !self.ctes.is_empty() {
-            // More ast work needed.
-            not_implemented!("encode ctes in resolve context")
-        }
-
-        Ok(Self::ProtoType {
-            tables: Some(self.tables.to_proto_ctx(context)?),
-            functions: Some(self.functions.to_proto_ctx(context)?),
-            table_functions: Some(self.table_functions.to_proto_ctx(context)?),
-            copy_to: self
-                .copy_to
-                .as_ref()
-                .map(|c| c.to_proto_ctx(context))
-                .transpose()?,
-            current_depth: self.current_depth as u32,
-        })
-    }
-
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            tables: ResolveList::from_proto_ctx(proto.tables.required("tables")?, context)?,
-            functions: ResolveList::from_proto_ctx(
-                proto.functions.required("functions")?,
-                context,
-            )?,
-            table_functions: ResolveList::from_proto_ctx(
-                proto.table_functions.required("table_functions")?,
-                context,
-            )?,
-            copy_to: proto
-                .copy_to
-                .map(|c| DatabaseProtoConv::from_proto_ctx(c, context))
-                .transpose()?,
-            current_depth: proto.current_depth as usize,
-            ctes: Vec::new(),
-        })
     }
 }
 
@@ -238,170 +190,6 @@ impl<B, U> ResolveList<B, U> {
 impl<B, U> Default for ResolveList<B, U> {
     fn default() -> Self {
         Self { inner: Vec::new() }
-    }
-}
-
-impl DatabaseProtoConv for ResolveList<ResolvedTableOrCteReference, UnresolvedTableReference> {
-    type ProtoType = rayexec_proto::generated::resolver::TablesResolveList;
-
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::resolver::maybe_resolved_table::Value;
-        use rayexec_proto::generated::resolver::{
-            MaybeResolvedTable,
-            ResolvedTableOrCteReferenceWithLocation,
-        };
-
-        let mut tables = Vec::new();
-        for table in &self.inner {
-            let table = match table {
-                MaybeResolved::Resolved(bound, loc) => MaybeResolvedTable {
-                    value: Some(Value::Resolved(ResolvedTableOrCteReferenceWithLocation {
-                        bound: Some(bound.to_proto_ctx(context)?),
-                        location: loc.to_proto()? as i32,
-                    })),
-                },
-                MaybeResolved::Unresolved(unbound) => MaybeResolvedTable {
-                    value: Some(Value::Unresolved(unbound.to_proto()?)),
-                },
-            };
-            tables.push(table);
-        }
-
-        Ok(Self::ProtoType { tables })
-    }
-
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        use rayexec_proto::generated::resolver::maybe_resolved_table::Value;
-
-        let tables = proto
-            .tables
-            .into_iter()
-            .map(|t| match t.value.required("value")? {
-                Value::Resolved(bound) => {
-                    let location = LocationRequirement::from_proto(bound.location())?;
-                    let bound = ResolvedTableOrCteReference::from_proto_ctx(
-                        bound.bound.required("bound")?,
-                        context,
-                    )?;
-                    Ok(MaybeResolved::Resolved(bound, location))
-                }
-                Value::Unresolved(unbound) => {
-                    Ok(MaybeResolved::Unresolved(ProtoConv::from_proto(unbound)?))
-                }
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        Ok(Self { inner: tables })
-    }
-}
-
-impl DatabaseProtoConv for ResolveList<ResolvedFunction, ast::ObjectReference> {
-    type ProtoType = rayexec_proto::generated::resolver::FunctionsResolveList;
-
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::resolver::maybe_resolved_function::Value;
-        use rayexec_proto::generated::resolver::{
-            MaybeResolvedFunction,
-            ResolvedFunctionReferenceWithLocation,
-        };
-
-        let mut funcs = Vec::new();
-        for func in &self.inner {
-            let func = match func {
-                MaybeResolved::Resolved(bound, loc) => MaybeResolvedFunction {
-                    value: Some(Value::Resolved(ResolvedFunctionReferenceWithLocation {
-                        bound: Some(bound.to_proto_ctx(context)?),
-                        location: loc.to_proto()? as i32,
-                    })),
-                },
-                MaybeResolved::Unresolved(unbound) => MaybeResolvedFunction {
-                    value: Some(Value::Unresolved(unbound.to_proto()?)),
-                },
-            };
-            funcs.push(func);
-        }
-
-        Ok(Self::ProtoType { functions: funcs })
-    }
-
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        use rayexec_proto::generated::resolver::maybe_resolved_function::Value;
-
-        let funcs = proto
-            .functions
-            .into_iter()
-            .map(|f| match f.value.required("value")? {
-                Value::Resolved(bound) => {
-                    let location = LocationRequirement::from_proto(bound.location())?;
-                    let bound =
-                        ResolvedFunction::from_proto_ctx(bound.bound.required("bound")?, context)?;
-                    Ok(MaybeResolved::Resolved(bound, location))
-                }
-                Value::Unresolved(unbound) => Ok(MaybeResolved::Unresolved(
-                    ast::ObjectReference::from_proto(unbound)?,
-                )),
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        Ok(Self { inner: funcs })
-    }
-}
-
-impl DatabaseProtoConv
-    for ResolveList<ResolvedTableFunctionReference, UnresolvedTableFunctionReference>
-{
-    type ProtoType = rayexec_proto::generated::resolver::TableFunctionsResolveList;
-
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::resolver::maybe_resolved_table_function::Value;
-        use rayexec_proto::generated::resolver::{
-            MaybeResolvedTableFunction,
-            ResolvedTableFunctionReferenceWithLocation,
-        };
-
-        let mut funcs = Vec::new();
-        for func in &self.inner {
-            let func = match func {
-                MaybeResolved::Resolved(bound, loc) => MaybeResolvedTableFunction {
-                    value: Some(Value::Resolved(
-                        ResolvedTableFunctionReferenceWithLocation {
-                            bound: Some(bound.to_proto_ctx(context)?),
-                            location: loc.to_proto()? as i32,
-                        },
-                    )),
-                },
-                MaybeResolved::Unresolved(unbound) => MaybeResolvedTableFunction {
-                    value: Some(Value::Unresolved(unbound.to_proto()?)),
-                },
-            };
-            funcs.push(func);
-        }
-
-        Ok(Self::ProtoType { functions: funcs })
-    }
-
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        use rayexec_proto::generated::resolver::maybe_resolved_table_function::Value;
-
-        let funcs = proto
-            .functions
-            .into_iter()
-            .map(|f| match f.value.required("value")? {
-                Value::Resolved(bound) => {
-                    let location = LocationRequirement::from_proto(bound.location())?;
-                    let bound = ResolvedTableFunctionReference::from_proto_ctx(
-                        bound.bound.required("bound")?,
-                        context,
-                    )?;
-                    Ok(MaybeResolved::Resolved(bound, location))
-                }
-                Value::Unresolved(unbound) => Ok(MaybeResolved::Unresolved(
-                    UnresolvedTableFunctionReference::from_proto(unbound)?,
-                )),
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        Ok(Self { inner: funcs })
     }
 }
 

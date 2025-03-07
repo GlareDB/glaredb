@@ -1,5 +1,4 @@
 pub mod series;
-pub mod system;
 pub mod unnest;
 
 use series::FUNCTION_SET_GENERATE_SERIES;

@@ -1,10 +1,6 @@
-use std::collections::BTreeSet;
-
 use rayexec_error::Result;
 
 use super::{Materializations, OperatorPlanState};
-use crate::execution::operators::project::PhysicalProject;
-use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_distinct::LogicalDistinct;
 use crate::logical::operator::{LogicalNode, Node};
 
@@ -29,12 +25,12 @@ impl OperatorPlanState<'_> {
             .expr_planner
             .plan_scalars(&input_refs, &distinct.node.on)?;
 
-        self.push_intermediate_operator(
-            PhysicalOperator::Project(PhysicalProject::new(group_exprs)),
-            distinct.location,
-        )?;
+        // self.push_intermediate_operator(
+        //     PhysicalOperator::Project(PhysicalProject::new(group_exprs)),
+        //     distinct.location,
+        // )?;
 
-        let grouping_sets: Vec<BTreeSet<usize>> = vec![(0..group_types.len()).collect()];
+        // let grouping_sets: Vec<BTreeSet<usize>> = vec![(0..group_types.len()).collect()];
 
         unimplemented!()
         // self.push_intermediate_operator(

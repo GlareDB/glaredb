@@ -10,7 +10,6 @@ use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::buffer::buffer_manager::NopBufferManager;
 use crate::buffer::typed::AlignedBuffer;
-use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
 
@@ -108,11 +107,7 @@ impl PhysicalUngroupedAggregate {
 impl BaseOperator for PhysicalUngroupedAggregate {
     type OperatorState = UngroupedAggregateOperatorState;
 
-    fn create_operator_state(
-        &self,
-        _context: &DatabaseContext,
-        _props: ExecutionProperties,
-    ) -> Result<Self::OperatorState> {
+    fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
         Ok(UngroupedAggregateOperatorState {
             inner: Mutex::new(OperatorStateInner {
                 remaining: 0,
@@ -286,7 +281,6 @@ mod tests {
     use crate::functions::aggregate::builtin::minmax::FUNCTION_SET_MIN;
     use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
-    use crate::testutil::database_context::test_db_context;
     use crate::testutil::operator::OperatorWrapper;
 
     #[test]
@@ -302,10 +296,7 @@ mod tests {
 
         let wrapper = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let mut states = wrapper
             .operator
             .create_partition_execute_states(&op_state, props, 1)
@@ -346,10 +337,7 @@ mod tests {
 
         let wrapper = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let mut states = wrapper
             .operator
             .create_partition_execute_states(&op_state, props, 2)
@@ -416,10 +404,7 @@ mod tests {
 
         let wrapper = OperatorWrapper::new(PhysicalUngroupedAggregate::new(aggs));
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let mut states = wrapper
             .operator
             .create_partition_execute_states(&op_state, props, 1)

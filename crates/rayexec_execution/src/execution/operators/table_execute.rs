@@ -6,7 +6,6 @@ use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, Pol
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
 use crate::arrays::datatype::DataType;
-use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::functions::table::{
@@ -108,11 +107,7 @@ impl PhysicalTableExecute {
 impl BaseOperator for PhysicalTableExecute {
     type OperatorState = TableExecuteOperatorState;
 
-    fn create_operator_state(
-        &self,
-        _context: &DatabaseContext,
-        props: ExecutionProperties,
-    ) -> Result<Self::OperatorState> {
+    fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
         let op_state = self
             .function
             .raw
@@ -275,7 +270,6 @@ mod tests {
     use crate::functions::table::builtin::series::FUNCTION_SET_GENERATE_SERIES;
     use crate::functions::table::TableFunctionInput;
     use crate::testutil::arrays::assert_batches_eq;
-    use crate::testutil::database_context::test_db_context;
     use crate::testutil::operator::OperatorWrapper;
     use crate::{expr, generate_batch};
 
@@ -298,10 +292,7 @@ mod tests {
             [DataType::Int64, DataType::Int64, DataType::Int64],
         ));
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let mut states = wrapper
             .operator
             .create_partition_execute_states(&op_state, props, 1)
@@ -347,10 +338,7 @@ mod tests {
             [DataType::Int64, DataType::Int64, DataType::Int64],
         ));
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let mut states = wrapper
             .operator
             .create_partition_execute_states(&op_state, props, 1)
@@ -402,10 +390,7 @@ mod tests {
             ],
         ));
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let mut states = wrapper
             .operator
             .create_partition_execute_states(&op_state, props, 1)

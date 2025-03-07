@@ -2,18 +2,14 @@ pub mod arrays;
 pub mod buffer;
 pub mod catalog;
 pub mod config;
-pub mod database;
-pub mod datasource;
 pub mod engine;
 pub mod execution;
 pub mod explain;
 pub mod expr;
 pub mod functions;
-pub mod hybrid;
 pub mod io;
 pub mod logical;
 pub mod optimizer;
-pub mod proto;
 pub mod runtime;
 pub mod storage;
 

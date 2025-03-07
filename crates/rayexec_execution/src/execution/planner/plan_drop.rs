@@ -1,8 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
 use super::OperatorPlanState;
-use crate::execution::operators::drop::PhysicalDrop;
-use crate::execution::operators::PhysicalOperator;
 use crate::logical::logical_drop::LogicalDrop;
 use crate::logical::operator::Node;
 
@@ -14,7 +12,7 @@ impl OperatorPlanState<'_> {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        let operator = PhysicalOperator::Drop(PhysicalDrop::new(drop.node.catalog, drop.node.info));
+        // let operator = PhysicalOperator::Drop(PhysicalDrop::new(drop.node.catalog, drop.node.info));
 
         unimplemented!()
         // self.in_progress = Some(InProgressPipeline {

@@ -8,7 +8,8 @@ use super::resolve_normal::create_user_facing_resolve_err;
 use super::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
 use super::resolved_table_function::ConstantFunctionArgs;
 use super::{ResolveContext, ResolvedMeta, Resolver};
-use crate::database::catalog_entry::CatalogEntryType;
+use crate::catalog::entry::CatalogEntryType;
+use crate::catalog::{Catalog, Schema};
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
 use crate::logical::operator::LocationRequirement;
 
@@ -602,9 +603,9 @@ impl<'a> ExpressionResolver<'a> {
         let is_qualified = func.reference.0.len() > 1;
         if self.resolver.config.enable_function_chaining
             && is_qualified
-            && (!context.database_exists(&catalog)
+            && (!context.get_database(&catalog).is_some()
                 || context
-                    .get_database(&catalog)?
+                    .require_get_database(&catalog)?
                     .catalog
                     .get_schema(self.resolver.tx, &schema)?
                     .is_none())
@@ -649,7 +650,7 @@ impl<'a> ExpressionResolver<'a> {
         let args = Box::pin(self.resolve_function_args(func.args, resolve_context)).await?;
 
         let schema_ent = context
-            .get_database(&catalog)?
+            .require_get_database(&catalog)?
             .catalog
             .get_schema(self.resolver.tx, &schema)?
             .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;

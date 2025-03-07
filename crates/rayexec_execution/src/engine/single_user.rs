@@ -9,8 +9,6 @@ use rayexec_parser::statement::RawStatement;
 use super::query_result::QueryResult;
 use super::session::Session;
 use super::Engine;
-use crate::datasource::DataSourceRegistry;
-use crate::hybrid::client::{HybridClient, HybridConnectConfig};
 use crate::runtime::{PipelineExecutor, Runtime};
 
 /// A wrapper around a session and an engine for when running the database in a
@@ -28,8 +26,8 @@ where
     R: Runtime,
 {
     /// Create a new single user engine using the provided runtime and registry.
-    pub fn try_new(executor: P, runtime: R, registry: DataSourceRegistry) -> Result<Self> {
-        let engine = Engine::new_with_registry(executor, runtime.clone(), registry)?;
+    pub fn try_new(executor: P, runtime: R) -> Result<Self> {
+        let engine = Engine::new(executor, runtime.clone())?;
         let session = SingleUserSession {
             session: Arc::new(Mutex::new(engine.new_session()?)),
         };
@@ -43,18 +41,6 @@ where
 
     pub fn session(&self) -> &SingleUserSession<P, R> {
         &self.session
-    }
-
-    /// Connect to a remote server for hybrid execution.
-    pub async fn connect_hybrid(&self, connection_string: String) -> Result<()> {
-        let config = HybridConnectConfig::try_from_connection_string(&connection_string)?;
-        let client = self.runtime.http_client();
-        let hybrid = HybridClient::new(client, config);
-
-        hybrid.ping().await?;
-        self.session.session.lock().await.set_hybrid(hybrid);
-
-        Ok(())
     }
 }
 

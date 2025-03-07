@@ -4,7 +4,6 @@ use std::sync::Arc;
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::field::Field;
-use crate::functions::copy::CopyToFunction;
 use crate::functions::function_set::{AggregateFunctionSet, ScalarFunctionSet, TableFunctionSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,7 +48,6 @@ pub enum CatalogEntryInner {
     ScalarFunction(ScalarFunctionEntry),
     AggregateFunction(AggregateFunctionEntry),
     TableFunction(TableFunctionEntry),
-    CopyToFunction(CopyToFunctionEntry),
 }
 
 #[derive(Debug)]
@@ -66,18 +64,6 @@ pub struct AggregateFunctionEntry {
 pub struct TableFunctionEntry {
     /// The table function.
     pub function: TableFunctionSet,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct CopyToFunctionEntry {
-    /// COPY TO function implemenation.
-    pub function: Box<dyn CopyToFunction>,
-    /// The format this COPY TO is for.
-    ///
-    /// For example, this should be 'parquet' for the parquet COPY TO. This is
-    /// looked at when the user includes a `(FORMAT <format>)` option in the
-    /// statement.
-    pub format: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,7 +89,6 @@ impl CatalogEntry {
             CatalogEntryInner::ScalarFunction(_) => CatalogEntryType::ScalarFunction,
             CatalogEntryInner::AggregateFunction(_) => CatalogEntryType::AggregateFunction,
             CatalogEntryInner::TableFunction(_) => CatalogEntryType::TableFunction,
-            CatalogEntryInner::CopyToFunction(_) => CatalogEntryType::CopyToFunction,
         }
     }
 
@@ -139,13 +124,6 @@ impl CatalogEntry {
         match &self.entry {
             CatalogEntryInner::TableFunction(ent) => Ok(ent),
             _ => Err(RayexecError::new("Entry not a table function")),
-        }
-    }
-
-    pub fn try_as_copy_to_function_entry(&self) -> Result<&CopyToFunctionEntry> {
-        match &self.entry {
-            CatalogEntryInner::CopyToFunction(ent) => Ok(ent),
-            _ => Err(RayexecError::new("Entry not a copy to function")),
         }
     }
 }

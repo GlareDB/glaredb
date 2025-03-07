@@ -1,8 +1,4 @@
 mod plan_aggregate;
-mod plan_copy_to;
-mod plan_create_schema;
-mod plan_create_table;
-mod plan_create_view;
 mod plan_describe;
 mod plan_distinct;
 mod plan_drop;
@@ -10,8 +6,6 @@ mod plan_empty;
 mod plan_explain;
 mod plan_expression_list;
 mod plan_filter;
-mod plan_inout;
-mod plan_insert;
 mod plan_join;
 mod plan_limit;
 mod plan_magic_scan;
@@ -29,10 +23,10 @@ use uuid::Uuid;
 
 use super::operators::{PlannedOperatorWithChildren, PushOperator};
 use crate::config::execution::OperatorPlanConfig;
-use crate::execution::operators::{PhysicalOperator, PlannedOperator};
+use crate::execution::operators::PlannedOperator;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
 use crate::logical::binder::bind_context::BindContext;
-use crate::logical::operator::{self, LocationRequirement, LogicalOperator};
+use crate::logical::operator::{self, LogicalOperator};
 
 #[derive(Debug)]
 pub struct QueryGraph {
@@ -268,85 +262,5 @@ impl<'a> OperatorPlanState<'a> {
         self.in_progress
             .take()
             .ok_or_else(|| RayexecError::new("No in-progress pipeline to take"))
-    }
-
-    /// Pushes an intermedate operator onto the in-progress pipeline, erroring
-    /// if there is no in-progress pipeline.
-    ///
-    /// If the location requirement of the operator differs from the in-progress
-    /// pipeline, the in-progress pipeline will be finalized and a new
-    /// in-progress pipeline created.
-    fn push_intermediate_operator(
-        &mut self,
-        operator: PhysicalOperator,
-        location: LocationRequirement,
-    ) -> Result<()> {
-        unimplemented!()
-        // let current_location = &mut self
-        //     .in_progress
-        //     .as_mut()
-        //     .required("in-progress pipeline")?
-        //     .location;
-
-        // // TODO: Determine if we want to allow Any to get this far. This means
-        // // that either the optimizer didn't run, or the plan has no location
-        // // requirements (no dependencies on tables or files).
-        // if *current_location == LocationRequirement::Any {
-        //     *current_location = location;
-        // }
-
-        // // If we're pushing an operator for any location, just inherit the
-        // // location for the current pipeline.
-        // if location == LocationRequirement::Any {
-        //     location = *current_location
-        // }
-
-        // if *current_location == location {
-        //     // Same location, just push
-        //     let in_progress = self.in_progress_pipeline_mut()?;
-        //     in_progress.operators.push(operator);
-        // } else {
-        //     // // Different locations, finalize in-progress and start a new one.
-        //     // let in_progress = self.take_in_progress_pipeline()?;
-
-        //     // let stream_id = id_gen.new_stream_id();
-
-        //     // let new_in_progress = InProgressPipeline {
-        //     //     id: id_gen.next_pipeline_id(),
-        //     //     operators: vec![operator],
-        //     //     location,
-        //     //     source: PipelineSource::OtherGroup {
-        //     //         stream_id,
-        //     //         partitions: 1,
-        //     //     },
-        //     // };
-
-        //     unimplemented!()
-        //     // let finalized = IntermediatePipeline {
-        //     //     id: in_progress.id,
-        //     //     sink: PipelineSink::OtherGroup {
-        //     //         stream_id,
-        //     //         partitions: 1,
-        //     //     },
-        //     //     source: in_progress.source,
-        //     //     operators: in_progress.operators,
-        //     // };
-
-        //     // match in_progress.location {
-        //     //     LocationRequirement::ClientLocal => {
-        //     //         self.local_group.pipelines.insert(finalized.id, finalized);
-        //     //     }
-        //     //     LocationRequirement::Remote => {
-        //     //         self.remote_group.pipelines.insert(finalized.id, finalized);
-        //     //     }
-        //     //     LocationRequirement::Any => {
-        //     //         self.local_group.pipelines.insert(finalized.id, finalized);
-        //     //     }
-        //     // }
-
-        //     // self.in_progress = Some(new_in_progress)
-        // }
-
-        // Ok(())
     }
 }

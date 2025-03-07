@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
 
-use super::transaction::TransactionManager;
-use super::Catalog;
+use rayexec_error::{RayexecError, Result};
+
+use super::memory::MemoryCatalog;
 use crate::arrays::scalar::ScalarValue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,10 +24,32 @@ pub struct AttachInfo {
     pub options: HashMap<String, ScalarValue>,
 }
 
-pub trait Database: Debug + Sync + Send {
-    type TransactionManager: TransactionManager;
-    type Catalog: Catalog<CatalogTx = <Self::TransactionManager as TransactionManager>::Transaction>;
+#[derive(Debug)]
+pub struct Database {
+    pub(crate) mode: AccessMode,
+    // TODO: Allow other catalog types.
+    pub(crate) catalog: MemoryCatalog,
+    pub(crate) attach_info: Option<AttachInfo>,
 }
 
+/// Accessible catalogs for a session.
 #[derive(Debug)]
-pub struct DatabaseContext {}
+pub struct DatabaseContext {
+    databases: HashMap<String, Arc<Database>>,
+}
+
+impl DatabaseContext {
+    pub fn new(system_catalog: Arc<Database>) -> Result<Self> {
+        unimplemented!()
+    }
+
+    pub fn get_database(&self, name: &str) -> Option<&Arc<Database>> {
+        self.databases.get(name)
+    }
+
+    pub fn require_get_database(&self, name: &str) -> Result<&Arc<Database>> {
+        self.databases
+            .get(name)
+            .ok_or_else(|| RayexecError::new(format!("Missing catalog '{name}'")))
+    }
+}

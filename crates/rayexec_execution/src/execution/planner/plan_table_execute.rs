@@ -3,7 +3,7 @@ use rayexec_error::{Result, ResultExt};
 use super::OperatorPlanState;
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::table_execute::PhysicalTableExecute;
-use crate::execution::operators::{PhysicalOperator, PlannedOperator, PlannedOperatorWithChildren};
+use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::logical::logical_inout::LogicalTableExecute;
 use crate::logical::operator::{LogicalNode, Node};

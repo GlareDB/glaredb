@@ -3,11 +3,11 @@ use rayexec_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::database::drop::DropInfo;
+use crate::catalog::drop::DropInfo;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalDrop {
     pub catalog: String,
     pub info: DropInfo,

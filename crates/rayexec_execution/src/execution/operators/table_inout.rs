@@ -2,15 +2,7 @@ use std::task::Context;
 
 use rayexec_error::{OptionExt, RayexecError, Result};
 
-use super::{
-    ExecutableOperator,
-    ExecuteInOut,
-    OperatorState,
-    PartitionState,
-    PollExecute,
-    PollFinalize,
-    UnaryInputStates,
-};
+use super::{PartitionState, PollExecute, PollFinalize, UnaryInputStates};
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;

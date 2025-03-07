@@ -7,7 +7,6 @@ use super::operator::{LogicalNode, Node};
 use crate::arrays::field::Schema;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
-use crate::functions::copy::CopyToFunction;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalCopyTo {
@@ -17,7 +16,7 @@ pub struct LogicalCopyTo {
     /// (e.g. writing out a header in csv).
     pub source_schema: Schema,
     pub location: FileLocation,
-    pub copy_to: Box<dyn CopyToFunction>,
+    // pub copy_to: Box<dyn CopyToFunction>,
 }
 
 impl Explainable for LogicalCopyTo {

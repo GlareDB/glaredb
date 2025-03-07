@@ -41,7 +41,7 @@ use window_expr::WindowExpr;
 
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
-use crate::database::DatabaseContext;
+use crate::catalog::context::DatabaseContext;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::candidate::CastType;
@@ -721,7 +721,7 @@ pub fn bind_table_execute_function(
 
 pub async fn bind_table_scan_function(
     function: &TableFunctionSet,
-    db_context: &DatabaseContext,
+    context: &DatabaseContext,
     input: TableFunctionInput,
 ) -> Result<PlannedTableFunction> {
     let (func, input) = bind_table_function_signature(function, input)?;
@@ -733,7 +733,7 @@ pub async fn bind_table_scan_function(
         )));
     }
 
-    let bind_state = func.call_scan_bind(db_context, input).await?;
+    let bind_state = func.call_scan_bind(context, input).await?;
 
     Ok(PlannedTableFunction {
         name: function.name,

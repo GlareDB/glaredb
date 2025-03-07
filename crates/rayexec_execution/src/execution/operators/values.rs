@@ -5,7 +5,6 @@ use rayexec_error::Result;
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::PhysicalScalarExpression;
@@ -46,11 +45,7 @@ impl PhysicalValues {
 impl BaseOperator for PhysicalValues {
     type OperatorState = ();
 
-    fn create_operator_state(
-        &self,
-        _context: &DatabaseContext,
-        _props: ExecutionProperties,
-    ) -> Result<Self::OperatorState> {
+    fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
         Ok(())
     }
 

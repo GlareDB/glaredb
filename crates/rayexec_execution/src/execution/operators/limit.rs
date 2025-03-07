@@ -1,26 +1,13 @@
 use std::task::Context;
 
 use parking_lot::Mutex;
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::Result;
 
-use super::{
-    BaseOperator,
-    ExecutableOperator,
-    ExecuteInOut,
-    ExecuteOperator,
-    ExecutionProperties,
-    OperatorState,
-    PartitionState,
-    PollExecute,
-    PollFinalize,
-    UnaryInputStates,
-};
+use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug)]
 pub struct LimitOperatorState {
@@ -77,11 +64,7 @@ impl PhysicalLimit {
 impl BaseOperator for PhysicalLimit {
     type OperatorState = LimitOperatorState;
 
-    fn create_operator_state(
-        &self,
-        _context: &DatabaseContext,
-        _props: ExecutionProperties,
-    ) -> Result<Self::OperatorState> {
+    fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
         Ok(LimitOperatorState {
             inner: Mutex::new(StateInner {
                 remaining_count: self.limit,
@@ -176,98 +159,6 @@ impl ExecuteOperator for PhysicalLimit {
     }
 }
 
-impl ExecutableOperator for PhysicalLimit {
-    type States = UnaryInputStates;
-
-    fn create_states(
-        &mut self,
-        _context: &DatabaseContext,
-        _batch_size: usize,
-        partitions: usize,
-    ) -> Result<UnaryInputStates> {
-        let states = (0..partitions)
-            .map(|_| {
-                PartitionState::Limit(LimitPartitionState {
-                    remaining_count: self.limit,
-                    remaining_offset: self.offset.unwrap_or(0),
-                })
-            })
-            .collect();
-
-        Ok(UnaryInputStates {
-            operator_state: OperatorState::None,
-            partition_states: states,
-        })
-    }
-
-    fn poll_execute(
-        &self,
-        _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        inout: ExecuteInOut,
-    ) -> Result<PollExecute> {
-        let state = match partition_state {
-            PartitionState::Limit(state) => state,
-            other => panic!("invalid partition state: {other:?}"),
-        };
-
-        let input = inout.input.required("input batch required")?;
-        let output = inout.output.required("output batch required")?;
-
-        if state.remaining_offset > 0 {
-            // Offset greater than the number of rows in this batch. Discard the
-            // batch, and keep asking for more input.
-            if state.remaining_offset >= input.num_rows() {
-                state.remaining_offset -= input.num_rows();
-                return Ok(PollExecute::NeedsMore);
-            }
-
-            // Otherwise we have to slice the batch at the offset point.
-            let count = std::cmp::min(
-                input.num_rows() - state.remaining_offset,
-                state.remaining_count,
-            );
-
-            output.clone_from_other(input)?;
-            output.select(Selection::linear(state.remaining_offset, count))?;
-
-            state.remaining_offset = 0;
-            state.remaining_count -= output.num_rows();
-
-            if state.remaining_count == 0 {
-                Ok(PollExecute::Exhausted)
-            } else {
-                Ok(PollExecute::Ready)
-            }
-        } else if state.remaining_count < input.num_rows() {
-            // Remaining offset is 0, and input batch is has more rows than we
-            // need, just slice to the right size.
-            output.clone_from_other(input)?;
-            output.set_num_rows(state.remaining_count)?;
-            state.remaining_count = 0;
-
-            Ok(PollExecute::Exhausted)
-        } else {
-            // Remaing offset is 0, and input batch has more rows than our
-            // limit, so just use the batch as-is.
-            output.clone_from_other(input)?;
-            state.remaining_count -= output.num_rows();
-
-            Ok(PollExecute::Ready)
-        }
-    }
-
-    fn poll_finalize(
-        &self,
-        _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
-        Ok(PollFinalize::Finalized)
-    }
-}
-
 impl Explainable for PhysicalLimit {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         let mut ent = ExplainEntry::new("Limit").with_value("limit", self.limit);
@@ -284,8 +175,7 @@ mod tests {
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
-    use crate::testutil::database_context::test_db_context;
-    use crate::testutil::operator::{OperatorWrapper, OperatorWrapper2};
+    use crate::testutil::operator::OperatorWrapper;
 
     #[test]
     fn limit_no_offset_simple() {
@@ -295,10 +185,7 @@ mod tests {
             [DataType::Utf8, DataType::Int32],
         ));
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e", "f"], [1, 2, 3, 4, 5, 6]);
         let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
@@ -320,10 +207,7 @@ mod tests {
             [DataType::Utf8, DataType::Int32],
         ));
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e"], [1, 2, 3, 4, 5],);
         let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
@@ -354,10 +238,7 @@ mod tests {
             [DataType::Utf8, DataType::Int32],
         ));
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e", "f"], [1, 2, 3, 4, 5, 6],);
         let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
@@ -379,10 +260,7 @@ mod tests {
             [DataType::Utf8, DataType::Int32],
         ));
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e"], [1, 2, 3, 4, 5],);
         let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();

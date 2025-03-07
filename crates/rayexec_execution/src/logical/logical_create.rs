@@ -4,11 +4,11 @@ use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use crate::arrays::field::Field;
-use crate::database::create::OnConflict;
+use crate::catalog::create::OnConflict;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalCreateSchema {
     pub catalog: String,
     pub name: String,
@@ -41,7 +41,7 @@ impl LogicalNode for Node<LogicalCreateSchema> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalCreateTable {
     pub catalog: String,
     pub schema: String,

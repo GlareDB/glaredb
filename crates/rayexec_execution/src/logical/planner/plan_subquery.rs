@@ -975,9 +975,7 @@ impl DependentJoinPushdown {
             LogicalOperator::Scan(scan) => {
                 if matches!(
                     scan.node.source,
-                    ScanSource::Table { .. }
-                        | ScanSource::View { .. }
-                        | ScanSource::TableFunction { .. }
+                    ScanSource::Table { .. } | ScanSource::View { .. }
                 ) {
                     return Err(RayexecError::new(
                         "Unexpectedly reached scan node when pushing down dependent join",

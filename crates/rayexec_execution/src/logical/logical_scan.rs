@@ -8,10 +8,9 @@ use super::operator::{LogicalNode, Node};
 use super::scan_filter::ScanFilter;
 use super::statistics::StatisticsValue;
 use crate::arrays::datatype::DataType;
-use crate::database::catalog_entry::CatalogEntry;
+use crate::catalog::entry::CatalogEntry;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
-use crate::functions::table::PlannedTableFunction2;
 
 // TODO: Probably remove view from this.
 // Maybe just split it all up.
@@ -21,9 +20,6 @@ pub enum ScanSource {
         catalog: String,
         schema: String,
         source: Arc<CatalogEntry>,
-    },
-    TableFunction {
-        function: PlannedTableFunction2,
     },
     View {
         catalog: String,
@@ -48,7 +44,6 @@ impl PartialEq for ScanSource {
                     source: source_b,
                 },
             ) => catalog_a == catalog_b && schema_a == schema_b && source_a.name == source_b.name,
-            (Self::TableFunction { function: a }, Self::TableFunction { function: b }) => a == b,
             (
                 Self::View {
                     catalog: catalog_a,
@@ -71,7 +66,6 @@ impl ScanSource {
     pub fn cardinality(&self) -> StatisticsValue<usize> {
         match self {
             Self::Table { .. } => StatisticsValue::Unknown,
-            Self::TableFunction { function } => function.cardinality,
             Self::View { .. } => StatisticsValue::Unknown,
         }
     }
@@ -125,9 +119,6 @@ impl Explainable for LogicalScan {
                 schema,
                 source,
             } => ent = ent.with_value("source", format!("{catalog}.{schema}.{}", source.name)),
-            ScanSource::TableFunction { function } => {
-                ent = ent.with_value("function_name", function.function.name())
-            }
         }
 
         if conf.verbose {

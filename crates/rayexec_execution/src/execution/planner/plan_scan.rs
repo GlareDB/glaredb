@@ -3,7 +3,6 @@ use rayexec_error::{RayexecError, Result};
 use super::OperatorPlanState;
 use crate::logical::logical_scan::LogicalScan;
 use crate::logical::operator::Node;
-use crate::storage::table_storage::Projections;
 
 impl OperatorPlanState<'_> {
     #[allow(deprecated)]
@@ -14,14 +13,14 @@ impl OperatorPlanState<'_> {
             return Err(RayexecError::new("Expected in progress to be None"));
         }
 
-        // TODO: Split up scan source.
-        let projections = if scan.node.did_prune_columns {
-            Projections {
-                column_indices: Some(scan.node.projection),
-            }
-        } else {
-            Projections::all()
-        };
+        // // TODO: Split up scan source.
+        // let projections = if scan.node.did_prune_columns {
+        //     Projections {
+        //         column_indices: Some(scan.node.projection),
+        //     }
+        // } else {
+        //     Projections::all()
+        // };
 
         // let operator = match scan.node.source {
         //     ScanSource::Table {

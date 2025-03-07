@@ -6,7 +6,7 @@ use rayexec_parser::ast;
 
 use super::{BoundQuery, QueryBinder};
 use crate::arrays::datatype::DataType;
-use crate::database::catalog_entry::CatalogEntry;
+use crate::catalog::entry::CatalogEntry;
 use crate::expr::column_expr::ColumnReference;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::{self, Expression};

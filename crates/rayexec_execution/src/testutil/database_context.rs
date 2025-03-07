@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
-use crate::database::system::new_system_catalog;
-use crate::database::DatabaseContext;
-use crate::datasource::DataSourceRegistry;
+use crate::catalog::context::{AccessMode, Database, DatabaseContext};
+use crate::catalog::system::new_system_catalog;
 
 /// Create a test database context.
 ///
-/// The context will have a system catalog, and a default (empty) data source
-/// registry.
+/// The context will have a system catalog.
 pub fn test_db_context() -> DatabaseContext {
-    DatabaseContext::new(Arc::new(
-        new_system_catalog(&DataSourceRegistry::default()).unwrap(),
-    ))
+    DatabaseContext::new(Arc::new(Database {
+        mode: AccessMode::ReadOnly,
+        catalog: new_system_catalog().unwrap(),
+        attach_info: None,
+    }))
     .unwrap()
 }

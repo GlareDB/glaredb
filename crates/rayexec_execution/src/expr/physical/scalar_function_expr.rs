@@ -9,9 +9,7 @@ use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::database::DatabaseContext;
 use crate::functions::scalar::PlannedScalarFunction;
-use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalScalarFunctionExpr {
@@ -68,36 +66,5 @@ impl fmt::Display for PhysicalScalarFunctionExpr {
             self.function.name,
             self.inputs.display_as_list()
         )
-    }
-}
-
-impl DatabaseProtoConv for PhysicalScalarFunctionExpr {
-    type ProtoType = rayexec_proto::generated::physical_expr::PhysicalScalarFunctionExpr;
-
-    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        unimplemented!()
-        // Ok(Self::ProtoType {
-        //     function: Some(self.function.to_proto_ctx(context)?),
-        //     inputs: self
-        //         .inputs
-        //         .iter()
-        //         .map(|input| input.to_proto_ctx(context))
-        //         .collect::<Result<Vec<_>>>()?,
-        // })
-    }
-
-    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        unimplemented!()
-        // Ok(Self {
-        //     function: DatabaseProtoConv::from_proto_ctx(
-        //         proto.function.required("function")?,
-        //         context,
-        //     )?,
-        //     inputs: proto
-        //         .inputs
-        //         .into_iter()
-        //         .map(|input| DatabaseProtoConv::from_proto_ctx(input, context))
-        //         .collect::<Result<Vec<_>>>()?,
-        // })
     }
 }

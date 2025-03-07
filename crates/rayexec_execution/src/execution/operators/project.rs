@@ -5,7 +5,6 @@ use rayexec_error::Result;
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::PhysicalScalarExpression;
@@ -39,11 +38,7 @@ pub struct ProjectPartitionState {
 impl BaseOperator for PhysicalProject {
     type OperatorState = ();
 
-    fn create_operator_state(
-        &self,
-        _context: &DatabaseContext,
-        _props: ExecutionProperties,
-    ) -> Result<Self::OperatorState> {
+    fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
         Ok(())
     }
 
@@ -110,7 +105,6 @@ mod tests {
     use crate::arrays::datatype::DataType;
     use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::assert_batches_eq;
-    use crate::testutil::database_context::test_db_context;
     use crate::testutil::exprs::plan_scalars;
     use crate::testutil::operator::OperatorWrapper;
     use crate::{expr, generate_batch};
@@ -132,10 +126,7 @@ mod tests {
 
         let props = ExecutionProperties { batch_size: 16 };
         let wrapper = OperatorWrapper::new(PhysicalProject::new(projections));
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let mut states = wrapper
             .operator
             .create_partition_execute_states(&op_state, props, 1)

@@ -3,8 +3,8 @@ pub mod create;
 pub mod drop;
 pub mod entry;
 pub mod memory;
+pub mod storage_manager;
 pub mod system;
-pub mod transaction;
 
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -30,10 +30,10 @@ pub trait Catalog: Debug + Sync + Send {
         &self,
         tx: &Self::CatalogTx,
         create: &CreateSchemaInfo,
-    ) -> Result<Self::Schema>;
+    ) -> Result<Arc<Self::Schema>>;
 
     /// Get a schema in the catalog.
-    fn get_schema(&self, tx: &Self::CatalogTx, name: &str) -> Result<Option<Self::Schema>>;
+    fn get_schema(&self, tx: &Self::CatalogTx, name: &str) -> Result<Option<Arc<Self::Schema>>>;
 
     /// Drop an entry in the catalog.
     fn drop_entry(&self, tx: &Self::CatalogTx, drop: &DropInfo) -> Result<()>;

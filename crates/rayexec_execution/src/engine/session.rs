@@ -1,34 +1,26 @@
 use std::sync::Arc;
 
 use hashbrown::HashMap;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::parser;
 use rayexec_parser::statement::RawStatement;
 use uuid::Uuid;
 
 use super::profiler::PlanningProfileData;
 use super::query_result::{Output, QueryResult};
-use super::verifier::QueryVerifier;
-use super::DataSourceRegistry;
 use crate::arrays::field::{Field, Schema};
+use crate::catalog::context::DatabaseContext;
+use crate::catalog::memory::MemoryCatalogTx;
 use crate::config::execution::OperatorPlanConfig;
 use crate::config::session::SessionConfig;
-use crate::database::catalog::CatalogTx;
-use crate::database::memory_catalog::MemoryCatalog;
-use crate::database::{AttachInfo, Database, DatabaseContext};
-use crate::execution::executable::pipeline::ExecutablePipeline;
 use crate::execution::operators::results::streaming::{PhysicalStreamingResults, ResultStream};
 use crate::execution::operators::{ExecutionProperties, PushOperator};
 use crate::execution::pipeline::ExecutablePipelineGraph;
 use crate::execution::planner::{OperatorPlanner, QueryGraph};
-use crate::explain::context_display::ContextDisplayMode;
-use crate::explain::explainable::{ExplainConfig, Explainable};
 use crate::explain::node::ExplainNode;
-use crate::hybrid::client::HybridClient;
 use crate::logical::binder::bind_statement::StatementBinder;
-use crate::logical::logical_attach::LogicalAttachDatabase;
 use crate::logical::logical_set::VariableOrAll;
-use crate::logical::operator::{LogicalOperator, Node};
+use crate::logical::operator::LogicalOperator;
 use crate::logical::planner::plan_statement::StatementPlanner;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::{ResolveConfig, ResolveMode, ResolvedStatement, Resolver};
@@ -68,8 +60,6 @@ pub struct Session<P: PipelineExecutor, R: Runtime> {
     context: DatabaseContext,
     /// Variables for this session.
     config: SessionConfig,
-    /// Reference configured data source implementations.
-    registry: Arc<DataSourceRegistry>,
     /// Runtime for accessing external resources like the filesystem or http
     /// clients.
     runtime: R,
@@ -79,13 +69,11 @@ pub struct Session<P: PipelineExecutor, R: Runtime> {
     prepared: HashMap<String, PreparedStatement>,
     /// Portals for statements ready to be executed.
     portals: HashMap<String, ExecutablePortal>,
-    /// Client for hybrid execution if enabled.
-    hybrid_client: Option<Arc<HybridClient<R::HttpClient>>>,
 }
 
 #[derive(Debug)]
 struct PreparedStatement {
-    verifier: Option<QueryVerifier>,
+    verifier: Option<()>,
     statement: RawStatement,
 }
 
@@ -129,7 +117,7 @@ struct ExecutablePortal {
     /// Profile data we've collected during resolving/binding/planning.
     profile: PlanningProfileData,
     /// Optional verifier that we're carrying through planning.
-    verifier: Option<QueryVerifier>,
+    verifier: Option<()>,
 }
 
 impl<P, R> Session<P, R>
@@ -137,23 +125,16 @@ where
     P: PipelineExecutor,
     R: Runtime,
 {
-    pub fn new(
-        context: DatabaseContext,
-        executor: P,
-        runtime: R,
-        registry: Arc<DataSourceRegistry>,
-    ) -> Self {
+    pub fn new(context: DatabaseContext, executor: P, runtime: R) -> Self {
         let config = SessionConfig::new(&executor, &runtime);
 
         Session {
             context,
             runtime,
             executor,
-            registry,
             config,
             prepared: HashMap::new(),
             portals: HashMap::new(),
-            hybrid_client: None,
         }
     }
 
@@ -188,7 +169,7 @@ where
     // TODO: Typed parameters at some point.
     pub fn prepare(&mut self, prepared_name: impl Into<String>, stmt: RawStatement) -> Result<()> {
         let verifier = if self.config.verify_optimized_plan {
-            Some(QueryVerifier::new(stmt.clone()))
+            not_implemented!("Query verification")
         } else {
             None
         };
@@ -220,20 +201,15 @@ where
         let mut profile = PlanningProfileData::default();
 
         // TODO: Store tx state on session.
-        let tx = CatalogTx::new();
+        let tx = MemoryCatalogTx {};
 
-        let resolve_mode = if self.hybrid_client.is_some() {
-            ResolveMode::Hybrid
-        } else {
-            ResolveMode::Normal
-        };
+        let resolve_mode = ResolveMode::Normal;
 
         let timer = Timer::<R::Instant>::start();
         let (resolved_stmt, resolve_context) = Resolver::new(
             resolve_mode,
             &tx,
             &self.context,
-            self.registry.get_file_handlers(),
             ResolveConfig {
                 enable_function_chaining: self.config.enable_function_chaining,
             },
@@ -256,7 +232,6 @@ where
 
         let timer = Timer::<R::Instant>::start();
         let pipeline_graph = ExecutablePipelineGraph::plan_from_graph(
-            &self.context,
             ExecutionProperties {
                 batch_size: self.config.batch_size as usize,
             },
@@ -297,11 +272,11 @@ where
     {
         match resolve_mode {
             ResolveMode::Hybrid if resolve_context.any_unresolved() => {
-                // Hybrid planning, send to remote to complete planning.
-                let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
-                let resp = hybrid_client
-                    .remote_plan(stmt, resolve_context, &self.context)
-                    .await?;
+                // // Hybrid planning, send to remote to complete planning.
+                // let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
+                // let resp = hybrid_client
+                //     .remote_plan(stmt, resolve_context, &self.context)
+                //     .await?;
 
                 unimplemented!()
                 // Ok(IntermediatePortal {
@@ -369,13 +344,15 @@ where
 
                 let query_graph = match logical {
                     LogicalOperator::AttachDatabase(attach) => {
-                        self.handle_attach_database(attach).await?;
-                        planner.plan(LogicalOperator::EMPTY, bind_context, sink)?
+                        not_implemented!("Detach database")
+                        // self.handle_attach_database(attach).await?;
+                        // planner.plan(LogicalOperator::EMPTY, bind_context, sink)?
                     }
                     LogicalOperator::DetachDatabase(detach) => {
-                        let empty = planner.plan(LogicalOperator::EMPTY, bind_context, sink)?; // Here to avoid lifetime issues.
-                        self.context.detach_database(&detach.as_ref().name)?;
-                        empty
+                        not_implemented!("Detach database")
+                        // let empty = planner.plan(LogicalOperator::EMPTY, bind_context, sink)?; // Here to avoid lifetime issues.
+                        // self.context.detach_database(&detach.as_ref().name)?;
+                        // empty
                     }
                     LogicalOperator::SetVar(set_var) => {
                         // TODO: Do we want this logic to exist here?
@@ -433,9 +410,10 @@ where
             .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal_name}'")))?;
 
         if portal.execution_mode == ExecutionMode::Hybrid {
-            // Need to begin execution on the remote side.
-            let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
-            hybrid_client.remote_execute(portal.query_id).await?;
+            not_implemented!("Hybrid exec")
+            // // Need to begin execution on the remote side.
+            // let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
+            // hybrid_client.remote_execute(portal.query_id).await?;
         }
 
         let props = ExecutionProperties {
@@ -457,71 +435,5 @@ where
             output,
             output_schema: portal.output_schema,
         })
-    }
-
-    async fn handle_attach_database(&mut self, attach: Node<LogicalAttachDatabase>) -> Result<()> {
-        // TODO: This should always be client local. Is there a case where we
-        // want to have that not be the cases? What would the behavior be.
-        let attach = attach.into_inner();
-
-        let database = match self.registry.get_datasource(&attach.datasource) {
-            Some(datasource) => {
-                // We have data source implementation on the client. Try to
-                // connect locally.
-                let connection = datasource.connect(attach.options.clone()).await?;
-                let catalog = Arc::new(MemoryCatalog::default());
-                if let Some(catalog_storage) = connection.catalog_storage.as_ref() {
-                    catalog_storage.initial_load(&catalog).await?;
-                }
-
-                Database {
-                    catalog,
-                    catalog_storage: connection.catalog_storage,
-                    table_storage: Some(connection.table_storage),
-                    attach_info: Some(AttachInfo {
-                        datasource: attach.datasource.clone(),
-                        options: attach.options,
-                    }),
-                }
-            }
-            None => {
-                // We don't have a data source implementation on the client.
-                let _client = match &self.hybrid_client {
-                    Some(client) => client,
-                    None => {
-                        return Err(RayexecError::new(format!(
-                        "Hybrid execution not enabled. Cannot verify attaching a '{}' data source",
-                        attach.datasource,
-                    )))
-                    }
-                };
-
-                // TODO: Verify connection options using hybrid client.
-
-                // Having no catalog storage will result in resolving always
-                // kicking out to hybrid execution.
-                Database {
-                    catalog: Arc::new(MemoryCatalog::default()),
-                    catalog_storage: None,
-                    table_storage: None,
-                    attach_info: Some(AttachInfo {
-                        datasource: attach.datasource.clone(),
-                        options: attach.options,
-                    }),
-                }
-            }
-        };
-
-        self.context.attach_database(&attach.name, database)?;
-
-        Ok(())
-    }
-
-    pub fn set_hybrid(&mut self, client: HybridClient<R::HttpClient>) {
-        self.hybrid_client = Some(Arc::new(client));
-    }
-
-    pub fn unset_hybrid(&mut self) {
-        self.hybrid_client = None;
     }
 }

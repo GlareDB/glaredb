@@ -4,7 +4,7 @@ use rayexec_parser::ast;
 use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::BoundQuery;
 use crate::arrays::field::Field;
-use crate::database::create::OnConflict;
+use crate::catalog::create::OnConflict;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;

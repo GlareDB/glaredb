@@ -1,8 +1,6 @@
 pub mod expr_resolver;
 pub mod resolve_context;
-pub mod resolve_hybrid;
 pub mod resolve_normal;
-pub mod resolved_copy_to;
 pub mod resolved_cte;
 pub mod resolved_function;
 pub mod resolved_table;
@@ -11,7 +9,7 @@ pub mod resolved_table_function;
 use std::collections::HashMap;
 
 use expr_resolver::ExpressionResolver;
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::ast::{self, ColumnDef, ObjectReference};
 use rayexec_parser::meta::{AstMeta, Raw};
@@ -19,7 +17,6 @@ use rayexec_parser::parser;
 use rayexec_parser::statement::{RawStatement, Statement};
 use resolve_context::{ItemReference, MaybeResolved, ResolveContext, ResolveListIdx};
 use resolve_normal::{MaybeResolvedTable, NormalResolver};
-use resolved_copy_to::ResolvedCopyTo;
 use resolved_cte::ResolvedCte;
 use resolved_table::ResolvedTableOrCteReference;
 use resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference};
@@ -30,20 +27,11 @@ use super::binder::expr_binder::BaseExpressionBinder;
 use super::binder::table_list::TableAlias;
 use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
-use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
-use crate::database::builtin_views::{
-    BuiltinView,
-    SHOW_DATABASES_VIEW,
-    SHOW_SCHEMAS_VIEW,
-    SHOW_TABLES_VIEW,
-};
-use crate::database::catalog::CatalogTx;
-use crate::database::catalog_entry::{CatalogEntryInner, CatalogEntryType};
-use crate::database::DatabaseContext;
-use crate::datasource::FileHandlers;
+use crate::arrays::scalar::ScalarValue;
+use crate::catalog::context::DatabaseContext;
+use crate::catalog::entry::{CatalogEntryInner, CatalogEntryType};
+use crate::catalog::memory::MemoryCatalogTx;
 use crate::expr;
-use crate::functions::copy::CopyToArgs;
-use crate::functions::proto::FUNCTION_LOOKUP_CATALOG;
 use crate::logical::operator::LocationRequirement;
 
 /// An AST statement with references bound to data inside of the `resolve_context`.
@@ -65,7 +53,7 @@ impl AstMeta for ResolvedMeta {
     type SubqueryOptions = ResolvedSubqueryOptions;
     type DataType = DataType;
     type CopyToDestination = FileLocation;
-    type CopyToOptions = CopyToArgs;
+    type CopyToOptions = ();
     /// SHOW statements will be converted to views if need during the resolve
     /// step (e.g. for SHOW DATABASES). If we produce a resolved SHOW, it will
     /// always be pointing to a variable.
@@ -121,25 +109,22 @@ pub struct ResolveConfig {
 #[derive(Debug)]
 pub struct Resolver<'a> {
     pub resolve_mode: ResolveMode,
-    pub tx: &'a CatalogTx,
+    pub tx: &'a MemoryCatalogTx,
     pub context: &'a DatabaseContext,
-    pub file_handlers: &'a FileHandlers,
     pub config: ResolveConfig,
 }
 
 impl<'a> Resolver<'a> {
     pub fn new(
         resolve_mode: ResolveMode,
-        tx: &'a CatalogTx,
+        tx: &'a MemoryCatalogTx,
         context: &'a DatabaseContext,
-        file_handlers: &'a FileHandlers,
         config: ResolveConfig,
     ) -> Self {
         Resolver {
             resolve_mode,
             tx,
             context,
-            file_handlers,
             config,
         }
     }
@@ -225,45 +210,46 @@ impl<'a> Resolver<'a> {
         show: ast::Show<Raw>,
         resolve_context: &mut ResolveContext,
     ) -> Result<ResolvedStatement> {
-        let get_view_query = |view: BuiltinView| {
-            let mut stmts = parser::parse(view.view)?;
-            let stmt = match stmts.len() {
-                1 => stmts.pop().unwrap(),
-                other => {
-                    return Err(RayexecError::new(format!(
-                        "Expected 1 statement, got {other}"
-                    )))
-                }
-            };
+        unimplemented!()
+        // let get_view_query = |view: BuiltinView| {
+        //     let mut stmts = parser::parse(view.view)?;
+        //     let stmt = match stmts.len() {
+        //         1 => stmts.pop().unwrap(),
+        //         other => {
+        //             return Err(RayexecError::new(format!(
+        //                 "Expected 1 statement, got {other}"
+        //             )))
+        //         }
+        //     };
 
-            match stmt {
-                Statement::Query(q) => Ok(q),
-                other => Err(RayexecError::new(format!(
-                    "Expected query statement, got {other:?}"
-                ))),
-            }
-        };
+        //     match stmt {
+        //         Statement::Query(q) => Ok(q),
+        //         other => Err(RayexecError::new(format!(
+        //             "Expected query statement, got {other:?}"
+        //         ))),
+        //     }
+        // };
 
-        match show.reference {
-            ast::ShowReference::Variable(var) => Ok(Statement::Show(ast::Show {
-                reference: Self::reference_to_strings(var).into(),
-            })),
-            ast::ShowReference::Databases => {
-                let query = get_view_query(SHOW_DATABASES_VIEW)?;
-                let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
-                Ok(Statement::Query(query))
-            }
-            ast::ShowReference::Schemas => {
-                let query = get_view_query(SHOW_SCHEMAS_VIEW)?;
-                let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
-                Ok(Statement::Query(query))
-            }
-            ast::ShowReference::Tables => {
-                let query = get_view_query(SHOW_TABLES_VIEW)?;
-                let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
-                Ok(Statement::Query(query))
-            }
-        }
+        // match show.reference {
+        //     ast::ShowReference::Variable(var) => Ok(Statement::Show(ast::Show {
+        //         reference: Self::reference_to_strings(var).into(),
+        //     })),
+        //     ast::ShowReference::Databases => {
+        //         let query = get_view_query(SHOW_DATABASES_VIEW)?;
+        //         let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
+        //         Ok(Statement::Query(query))
+        //     }
+        //     ast::ShowReference::Schemas => {
+        //         let query = get_view_query(SHOW_SCHEMAS_VIEW)?;
+        //         let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
+        //         Ok(Statement::Query(query))
+        //     }
+        //     ast::ShowReference::Tables => {
+        //         let query = get_view_query(SHOW_TABLES_VIEW)?;
+        //         let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
+        //         Ok(Statement::Query(query))
+        //     }
+        // }
     }
 
     async fn resolve_attach(
@@ -363,61 +349,61 @@ impl<'a> Resolver<'a> {
             options.insert(key, val);
         }
 
-        let mut options = CopyToArgs { named: options };
+        not_implemented!("COPY TO")
+        // let mut options = CopyToArgs { named: options };
 
-        let target = match copy_to.target {
-            ast::CopyToTarget::File(file_name) => {
-                let func = match options.try_remove_format() {
-                    Some(BorrowedScalarValue::Utf8(format)) => {
-                        // User specified a format, lookup in system catalog.
-                        let ent = self
-                            .context
-                            .system_catalog()?
-                            .get_schema(self.tx, FUNCTION_LOOKUP_CATALOG)?
-                            .required("function lookup schema")?
-                            .get_copy_to_function_for_format(self.tx, &format)?;
+        // let target = match copy_to.target {
+        //     ast::CopyToTarget::File(file_name) => {
+        //         let func = match options.try_remove_format() {
+        //             Some(BorrowedScalarValue::Utf8(format)) => {
+        //                 not_implemented!("COPY TO")
+        //                 // // User specified a format, lookup in system catalog.
+        //                 // let ent = self
+        //                 //     .context
+        //                 //     .system_catalog()?
+        //                 //     .get_schema(self.tx, FUNCTION_LOOKUP_CATALOG)?
+        //                 //     .required("function lookup schema")?
+        //                 //     .get_copy_to_function_for_format(self.tx, &format)?;
 
-                        match ent {
-                            Some(ent) => ent.try_as_copy_to_function_entry()?.function.clone(),
-                            None => {
-                                return Err(RayexecError::new(format!(
-                                    "No registered COPY TO function for format '{format}'"
-                                )))
-                            }
-                        }
-                    }
-                    Some(other) => {
-                        return Err(RayexecError::new(format!(
-                            "Invalid format expression: {other}"
-                        )))
-                    }
-                    None => {
-                        // Infer from file name.
-                        let handler =
-                            self.file_handlers.find_match(&file_name).ok_or_else(|| {
-                                RayexecError::new(format!(
-                                    "No registered file handler for file '{file_name}'"
-                                ))
-                            })?;
-                        handler
-                            .copy_to
-                            .as_ref()
-                            .ok_or_else(|| RayexecError::new("No registered COPY TO function"))?
-                            .clone()
-                    }
-                };
+        //                 // match ent {
+        //                 //     Some(ent) => ent.try_as_copy_to_function_entry()?.function.clone(),
+        //                 //     None => {
+        //                 //         return Err(RayexecError::new(format!(
+        //                 //             "No registered COPY TO function for format '{format}'"
+        //                 //         )))
+        //                 //     }
+        //                 // }
+        //             }
+        //             Some(other) => {
+        //                 return Err(RayexecError::new(format!(
+        //                     "Invalid format expression: {other}"
+        //                 )))
+        //             }
+        //             None => {
+        //                 // Infer from file name.
+        //                 let handler =
+        //                     self.file_handlers.find_match(&file_name).ok_or_else(|| {
+        //                         RayexecError::new(format!(
+        //                             "No registered file handler for file '{file_name}'"
+        //                         ))
+        //                     })?;
+        //                 handler
+        //                     .copy_to
+        //                     .as_ref()
+        //                     .ok_or_else(|| RayexecError::new("No registered COPY TO function"))?
+        //                     .clone()
+        //             }
+        //         };
 
-                resolve_context.copy_to = Some(ResolvedCopyTo { func });
+        //         FileLocation::parse(&file_name)
+        //     }
+        // };
 
-                FileLocation::parse(&file_name)
-            }
-        };
-
-        Ok(ast::CopyTo {
-            source,
-            target,
-            options,
-        })
+        // Ok(ast::CopyTo {
+        //     source,
+        //     target,
+        //     options,
+        // })
     }
 
     async fn resolve_drop(
@@ -942,52 +928,53 @@ impl<'a> Resolver<'a> {
                 query: Box::pin(self.resolve_query(query, resolve_context)).await?,
             }),
             ast::FromNodeBody::File(ast::FromFilePath { path }) => {
-                match self.file_handlers.find_match(&path) {
-                    Some(_handler) => {
-                        // "Rewrite" this into a function call.
+                not_implemented!("infer from file path")
+                // match self.file_handlers.find_match(&path) {
+                //     Some(_handler) => {
+                //         // "Rewrite" this into a function call.
 
-                        // TODO: User-friendly alias here.
+                //         // TODO: User-friendly alias here.
 
-                        // This isn't really needed for the typical scan case,
-                        // but I have no idea for in/out.
-                        // let args = vec![ast::FunctionArg::Unnamed {
-                        //     arg: ast::FunctionArgExpr::Expr(ast::Expr::Literal(
-                        //         ast::Literal::SingleQuotedString(path.clone()),
-                        //     )),
-                        // }];
+                //         // This isn't really needed for the typical scan case,
+                //         // but I have no idea for in/out.
+                //         // let args = vec![ast::FunctionArg::Unnamed {
+                //         //     arg: ast::FunctionArgExpr::Expr(ast::Expr::Literal(
+                //         //         ast::Literal::SingleQuotedString(path.clone()),
+                //         //     )),
+                //         // }];
 
-                        not_implemented!("file")
-                        // // Having an in/out function here would be weird, but
-                        // // might as well handle it.
-                        // let resolved = match handler.table_func.planner() {
-                        //     TableFunctionPlanner2::InOut(_) => {
-                        //         ResolvedTableFunctionReference::InOut(handler.table_func.clone())
-                        //     }
-                        //     TableFunctionPlanner2::Scan(planner) => {
-                        //         let planned = planner
-                        //             .plan(self.context, vec![path.into()], HashMap::new())
-                        //             .await?;
+                //         not_implemented!("file")
+                //         // // Having an in/out function here would be weird, but
+                //         // // might as well handle it.
+                //         // let resolved = match handler.table_func.planner() {
+                //         //     TableFunctionPlanner2::InOut(_) => {
+                //         //         ResolvedTableFunctionReference::InOut(handler.table_func.clone())
+                //         //     }
+                //         //     TableFunctionPlanner2::Scan(planner) => {
+                //         //         let planned = planner
+                //         //             .plan(self.context, vec![path.into()], HashMap::new())
+                //         //             .await?;
 
-                        //         ResolvedTableFunctionReference::Scan(planned)
-                        //     }
-                        // };
+                //         //         ResolvedTableFunctionReference::Scan(planned)
+                //         //     }
+                //         // };
 
-                        // let resolve_idx = resolve_context
-                        //     .table_functions
-                        //     .push_resolved(resolved, LocationRequirement::ClientLocal);
+                //         // let resolve_idx = resolve_context
+                //         //     .table_functions
+                //         //     .push_resolved(resolved, LocationRequirement::ClientLocal);
 
-                        // ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                        //     lateral: false,
-                        //     reference: resolve_idx,
-                        //     args,
-                        // })
-                    }
-                    None => {
-                        return Err(RayexecError::new(format!(
-                            "No suitable file handlers found for '{path}'"
-                        )))
-                    }
-                }
+                //         // ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                //         //     lateral: false,
+                //         //     reference: resolve_idx,
+                //         //     args,
+                //         // })
+                //     }
+                //     None => {
+                //         return Err(RayexecError::new(format!(
+                //             "No suitable file handlers found for '{path}'"
+                //         )))
+                //     }
+                // }
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction {
                 lateral,

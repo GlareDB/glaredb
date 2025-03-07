@@ -7,7 +7,7 @@ use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::{self, Expression};
-use crate::functions::table::{TableFunctionImpl2, TableFunctionType};
+use crate::functions::table::TableFunctionType;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin};
 use crate::logical::binder::table_list::TableList;

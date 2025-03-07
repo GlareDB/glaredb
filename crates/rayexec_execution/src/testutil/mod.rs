@@ -24,13 +24,9 @@ mod row_blocks;
 
 /// Operator helpers.
 pub mod operator {
-    pub use super::batches_source::*;
-    pub use super::collecting_sink::*;
     pub use super::operator_wrapper::*;
 }
 
-mod batches_source;
-mod collecting_sink;
 mod operator_wrapper;
 
 /// Expression helpers.

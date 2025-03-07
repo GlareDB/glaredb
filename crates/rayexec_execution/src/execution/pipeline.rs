@@ -4,9 +4,7 @@ use super::operators::{ExecutionProperties, PlannedOperator, RawOperatorState};
 use super::partition_pipeline::ExecutablePartitionPipeline;
 use super::planner::QueryGraph;
 use crate::arrays::batch::Batch;
-use crate::database::DatabaseContext;
 use crate::execution::execution_stack::ExecutionStack;
-use crate::explain::explainable::ExplainConfig;
 
 #[derive(Debug)]
 pub struct ExecutablePipelineGraph {
@@ -14,11 +12,7 @@ pub struct ExecutablePipelineGraph {
 }
 
 impl ExecutablePipelineGraph {
-    pub fn plan_from_graph(
-        db_context: &DatabaseContext,
-        props: ExecutionProperties,
-        query_graph: QueryGraph,
-    ) -> Result<Self> {
+    pub fn plan_from_graph(props: ExecutionProperties, query_graph: QueryGraph) -> Result<Self> {
         let mut pipeline_graph = ExecutablePipelineGraph {
             pipelines: Vec::new(),
         };
@@ -28,7 +22,7 @@ impl ExecutablePipelineGraph {
         // TODO: Materializations.
 
         let root = query_graph.root;
-        root.build_pipeline(db_context, props, &mut pipeline_graph, &mut current)?;
+        root.build_pipeline(props, &mut pipeline_graph, &mut current)?;
 
         pipeline_graph.push_pipeline(current);
 

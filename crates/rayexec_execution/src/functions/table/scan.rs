@@ -6,9 +6,9 @@ use rayexec_error::Result;
 
 use super::{TableFunctionBindState, TableFunctionInput};
 use crate::arrays::batch::Batch;
-use crate::database::DatabaseContext;
+use crate::catalog::context::DatabaseContext;
 use crate::execution::operators::{ExecutionProperties, PollPull};
-use crate::storage::table_storage::Projections;
+use crate::storage::projections::Projections;
 
 /// Scan function that produces batches.
 pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {

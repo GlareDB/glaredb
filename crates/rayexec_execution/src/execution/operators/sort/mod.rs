@@ -12,7 +12,6 @@ use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::sort::partial_sort::{PartialSortedRowCollection, SortedRowAppendState};
 use crate::arrays::sort::sort_layout::{SortColumn, SortLayout};
 use crate::arrays::sort::sorted_segment::{SortedSegment, SortedSegmentScanState};
-use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::PhysicalSortExpression;
@@ -98,11 +97,7 @@ impl PhysicalSort {
 impl BaseOperator for PhysicalSort {
     type OperatorState = SortOperatorState;
 
-    fn create_operator_state(
-        &self,
-        _context: &DatabaseContext,
-        props: ExecutionProperties,
-    ) -> Result<Self::OperatorState> {
+    fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
         let key_layout = SortLayout::new(self.sort_exprs.iter().map(|sort_expr| SortColumn {
             desc: sort_expr.desc,
             nulls_first: sort_expr.nulls_first,
@@ -304,7 +299,6 @@ mod tests {
     use super::*;
     use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::assert_batches_eq;
-    use crate::testutil::database_context::test_db_context;
     use crate::testutil::exprs::plan_scalar;
     use crate::testutil::operator::OperatorWrapper;
     use crate::{expr, generate_batch};
@@ -323,10 +317,7 @@ mod tests {
             output_types.into_iter().collect(),
         ));
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let states = wrapper
             .operator
             .create_partition_execute_states(&op_state, props, num_partitions)

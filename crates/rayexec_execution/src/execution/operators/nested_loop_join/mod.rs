@@ -21,7 +21,6 @@ use crate::arrays::collection::concurrent::{
     ConcurrentColumnCollection,
 };
 use crate::arrays::datatype::DataType;
-use crate::database::DatabaseContext;
 use crate::execution::partition_wakers::PartitionWakers;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::selection_evaluator::SelectionEvaluator;
@@ -97,11 +96,7 @@ impl PhysicalNestedLoopJoin {
 impl BaseOperator for PhysicalNestedLoopJoin {
     type OperatorState = NestedLoopJoinOperatorState;
 
-    fn create_operator_state(
-        &self,
-        _context: &DatabaseContext,
-        props: ExecutionProperties,
-    ) -> Result<Self::OperatorState> {
+    fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
         let collection =
             ConcurrentColumnCollection::new(self.left_types.iter().cloned(), 16, props.batch_size);
 
@@ -284,7 +279,6 @@ mod tests {
     use super::*;
     use crate::generate_batch;
     use crate::testutil::arrays::assert_batches_eq;
-    use crate::testutil::database_context::test_db_context;
     use crate::testutil::operator::OperatorWrapper;
 
     #[test]
@@ -297,10 +291,7 @@ mod tests {
         ));
 
         let props = ExecutionProperties { batch_size: 16 };
-        let op_state = wrapper
-            .operator
-            .create_operator_state(&test_db_context(), props)
-            .unwrap();
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let mut push_states = wrapper
             .operator
             .create_partition_push_states(&op_state, props, 1)

@@ -271,7 +271,6 @@ dependencies = [
  "rayexec_iceberg",
  "rayexec_parquet",
  "rayexec_rt_native",
- "rayexec_server",
  "rayexec_shell",
 ]
 
@@ -708,7 +707,6 @@ dependencies = [
  "rayexec_iceberg",
  "rayexec_parquet",
  "rayexec_rt_native",
- "rayexec_server",
  "rayexec_shell",
  "rayexec_unity_catalog",
  "regex",
@@ -2357,28 +2355,6 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
-]
-
-[[package]]
-name = "rayexec_server"
-version = "0.0.95"
-dependencies = [
- "axum",
- "clap",
- "logutil",
- "rayexec_csv",
- "rayexec_delta",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_parquet",
- "rayexec_proto",
- "rayexec_rt_native",
- "rayexec_unity_catalog",
- "serde",
- "serde_json",
- "tokio",
- "tower-http",
- "tracing",
 ]
 
 [[package]]

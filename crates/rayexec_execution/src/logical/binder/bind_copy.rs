@@ -1,4 +1,4 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::ast;
 
@@ -7,7 +7,6 @@ use super::bind_query::bind_from::BoundFrom;
 use super::bind_query::BoundQuery;
 use crate::arrays::datatype::DataType;
 use crate::arrays::field::{Field, Schema};
-use crate::functions::copy::CopyToFunction;
 use crate::logical::binder::bind_query::bind_from::FromBinder;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -24,7 +23,7 @@ pub struct BoundCopyTo {
     pub source: BoundCopyToSource,
     pub source_schema: Schema,
     pub location: FileLocation,
-    pub copy_to: Box<dyn CopyToFunction>,
+    // pub copy_to: Box<dyn CopyToFunction>,
 }
 
 #[derive(Debug)]
@@ -83,18 +82,19 @@ impl<'a> CopyBinder<'a> {
             },
         ));
 
-        let resolved_copy_to = self
-            .resolve_context
-            .copy_to
-            .as_ref()
-            .ok_or_else(|| RayexecError::new("Missing COPY TO function"))?
-            .clone();
+        // let resolved_copy_to = self
+        //     .resolve_context
+        //     .copy_to
+        //     .as_ref()
+        //     .ok_or_else(|| RayexecError::new("Missing COPY TO function"))?
+        //     .clone();
 
-        Ok(BoundCopyTo {
-            source,
-            source_schema,
-            location: copy_to.target,
-            copy_to: resolved_copy_to.func,
-        })
+        not_implemented!("Bind COPY TO")
+        // Ok(BoundCopyTo {
+        //     source,
+        //     source_schema,
+        //     location: copy_to.target,
+        //     copy_to: resolved_copy_to.func,
+        // })
     }
 }

@@ -1,14 +1,7 @@
 use rayexec_error::{Result, ResultExt};
-use serde::{Deserialize, Serialize};
-use tracing::error;
 
-use super::explainable::{ExplainConfig, ExplainEntry};
-use crate::execution::intermediate::pipeline::IntermediatePipeline;
-use crate::explain::explainable::Explainable;
 use crate::explain::node::ExplainNode;
-use crate::logical::binder::bind_context::BindContext;
 use crate::logical::logical_explain::ExplainFormat;
-use crate::logical::operator::LogicalOperator;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ExplainChars {

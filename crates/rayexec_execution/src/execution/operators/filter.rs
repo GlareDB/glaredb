@@ -6,7 +6,6 @@ use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, Pol
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::database::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::selection_evaluator::SelectionEvaluator;
 use crate::expr::physical::PhysicalScalarExpression;
@@ -25,11 +24,7 @@ pub struct FilterPartitionState {
 impl BaseOperator for PhysicalFilter {
     type OperatorState = ();
 
-    fn create_operator_state(
-        &self,
-        _context: &DatabaseContext,
-        _props: ExecutionProperties,
-    ) -> Result<Self::OperatorState> {
+    fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
         Ok(())
     }
 

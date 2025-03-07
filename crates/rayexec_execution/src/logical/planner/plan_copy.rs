@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use rayexec_error::{not_implemented, Result};
 
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_copy::{BoundCopyTo, BoundCopyToSource};
@@ -24,15 +24,17 @@ impl CopyPlanner {
 
         // Currently only support copying to local.
 
-        Ok(LogicalOperator::CopyTo(Node {
-            node: LogicalCopyTo {
-                source_schema: copy_to.source_schema,
-                location: copy_to.location,
-                copy_to: copy_to.copy_to,
-            },
-            location: LocationRequirement::ClientLocal,
-            children: vec![source],
-            estimated_cardinality: StatisticsValue::Unknown,
-        }))
+        not_implemented!("Plan COPY TO")
+
+        // Ok(LogicalOperator::CopyTo(Node {
+        //     node: LogicalCopyTo {
+        //         source_schema: copy_to.source_schema,
+        //         location: copy_to.location,
+        //         copy_to: copy_to.copy_to,
+        //     },
+        //     location: LocationRequirement::ClientLocal,
+        //     children: vec![source],
+        //     estimated_cardinality: StatisticsValue::Unknown,
+        // }))
     }
 }

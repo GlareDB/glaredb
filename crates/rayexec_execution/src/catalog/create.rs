@@ -3,7 +3,6 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
 use crate::arrays::field::Field;
-use crate::functions::copy::CopyToFunction;
 use crate::functions::function_set::{AggregateFunctionSet, ScalarFunctionSet, TableFunctionSet};
 
 /// Behavior on create conflict.
@@ -86,13 +85,5 @@ pub struct CreateAggregateFunctionInfo {
 pub struct CreateTableFunctionInfo {
     pub name: String,
     pub implementation: TableFunctionSet,
-    pub on_conflict: OnConflict,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct CreateCopyToFunctionInfo {
-    pub name: String,
-    pub format: String,
-    pub implementation: Box<dyn CopyToFunction>,
     pub on_conflict: OnConflict,
 }

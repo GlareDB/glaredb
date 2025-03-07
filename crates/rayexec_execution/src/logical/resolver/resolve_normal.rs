@@ -10,16 +10,14 @@ use super::resolved_table::{
     UnresolvedTableReference,
 };
 use super::ResolveContext;
-use crate::database::catalog::CatalogTx;
-use crate::database::catalog_entry::{CatalogEntry, CatalogEntryType};
-use crate::database::create::{CreateSchemaInfo, CreateTableInfo, OnConflict};
-use crate::database::memory_catalog::MemorySchema;
-use crate::database::{Database, DatabaseContext};
+use crate::catalog::context::{Database, DatabaseContext};
+use crate::catalog::entry::{CatalogEntry, CatalogEntryType};
+use crate::catalog::memory::{MemoryCatalogTx, MemorySchema};
+use crate::catalog::{Catalog, Schema};
 use crate::functions::function_set::TableFunctionSet;
-use crate::functions::table::TableFunction2;
 
 pub fn create_user_facing_resolve_err(
-    tx: &CatalogTx,
+    tx: &MemoryCatalogTx,
     schema_ent: Option<&MemorySchema>,
     object_types: &[CatalogEntryType],
     name: &str,
@@ -48,7 +46,7 @@ pub fn create_user_facing_resolve_err(
     match similar {
         Some(similar) => RayexecError::new(format!(
             "Cannot resolve {} with name '{}', did you mean '{}'?",
-            formatted_object_types, name, similar.entry.name,
+            formatted_object_types, name, similar.name,
         )),
         None => RayexecError::new(format!(
             "Cannot resolve {} with name '{}'",
@@ -71,12 +69,12 @@ pub enum MaybeResolvedTable {
 // TODO: Search path
 #[derive(Debug)]
 pub struct NormalResolver<'a> {
-    pub tx: &'a CatalogTx,
+    pub tx: &'a MemoryCatalogTx,
     pub context: &'a DatabaseContext,
 }
 
 impl<'a> NormalResolver<'a> {
-    pub fn new(tx: &'a CatalogTx, context: &'a DatabaseContext) -> Self {
+    pub fn new(tx: &'a MemoryCatalogTx, context: &'a DatabaseContext) -> Self {
         NormalResolver { tx, context }
     }
 
@@ -112,7 +110,7 @@ impl<'a> NormalResolver<'a> {
 
         let schema_ent = match self
             .context
-            .get_database(&catalog)?
+            .require_get_database(&catalog)?
             .catalog
             .get_schema(self.tx, &schema)?
         {
@@ -178,7 +176,7 @@ impl<'a> NormalResolver<'a> {
             }
         };
 
-        let database = self.context.get_database(&catalog)?;
+        let database = self.context.require_get_database(&catalog)?;
 
         // Try reading from in-memory catalog first.
         if let Some(entry) = self.resolve_from_memory_catalog(database, &schema, &table)? {
@@ -191,76 +189,16 @@ impl<'a> NormalResolver<'a> {
             ));
         }
 
-        // If we don't have it, try loading from external catalog.
-        match database.catalog_storage.as_ref() {
-            Some(storage) => {
-                let ent = match storage.load_table(&schema, &table).await? {
-                    Some(ent) => ent,
-                    None => {
-                        return Ok(MaybeResolvedTable::UnresolvedWithCatalog(
-                            UnresolvedTableReference {
-                                catalog: catalog.to_string(),
-                                reference: reference.clone(),
-                                attach_info: database.attach_info.clone(),
-                            },
-                        ))
-                    }
-                };
-
-                // We may need to create a schema in memory as well if we've
-                // successfully loaded the table.
-                let schema_ent = match database.catalog.get_schema(self.tx, &schema)? {
-                    Some(schema) => schema,
-                    None => database.catalog.create_schema(
-                        self.tx,
-                        &CreateSchemaInfo {
-                            name: schema.clone(),
-                            on_conflict: OnConflict::Error,
-                        },
-                    )?,
-                };
-
-                schema_ent.create_table(
-                    self.tx,
-                    &CreateTableInfo {
-                        name: table.clone(),
-                        columns: ent.columns,
-                        on_conflict: OnConflict::Error,
-                    },
-                )?;
-            }
-            None => {
-                // Nothing to load from. Return None instead of an error to the
-                // remote side in hybrid execution to potentially load from
-                // external source.
-                return Ok(MaybeResolvedTable::UnresolvedWithCatalog(
-                    UnresolvedTableReference {
-                        catalog: catalog.to_string(),
-                        reference: reference.clone(),
-                        attach_info: database.attach_info.clone(),
-                    },
-                ));
-            }
-        }
-
-        // Read from catalog again.
-        if let Some(entry) = self.resolve_from_memory_catalog(database, &schema, &table)? {
-            Ok(MaybeResolvedTable::Resolved(
-                ResolvedTableOrCteReference::Table(ResolvedTableReference {
-                    catalog,
-                    schema,
-                    entry,
-                }),
-            ))
-        } else {
-            Ok(MaybeResolvedTable::UnresolvedWithCatalog(
-                UnresolvedTableReference {
-                    catalog: catalog.to_string(),
-                    reference: reference.clone(),
-                    attach_info: database.attach_info.clone(),
-                },
-            ))
-        }
+        // Nothing to load from. Return None instead of an error to the
+        // remote side in hybrid execution to potentially load from
+        // external source.
+        return Ok(MaybeResolvedTable::UnresolvedWithCatalog(
+            UnresolvedTableReference {
+                catalog: catalog.to_string(),
+                reference: reference.clone(),
+                attach_info: database.attach_info.clone(),
+            },
+        ));
     }
 
     fn resolve_from_memory_catalog(

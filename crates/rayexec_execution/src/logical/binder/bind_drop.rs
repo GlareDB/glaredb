@@ -2,7 +2,7 @@ use rayexec_error::{not_implemented, Result};
 use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
-use crate::database::drop::{DropInfo, DropObject};
+use crate::catalog::drop::{DropInfo, DropObject};
 use crate::logical::logical_drop::LogicalDrop;
 use crate::logical::operator::{LocationRequirement, Node};
 use crate::logical::resolver::ResolvedMeta;

@@ -1,11 +1,9 @@
 pub mod aggregate;
 pub mod bind_state;
 pub mod candidate;
-pub mod copy;
 pub mod documentation;
 pub mod function_set;
 pub mod implicit;
-pub mod proto;
 pub mod scalar;
 pub mod table;
 

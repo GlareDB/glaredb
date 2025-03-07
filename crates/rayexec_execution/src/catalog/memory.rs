@@ -29,7 +29,7 @@ use crate::catalog::entry::SchemaEntry;
 
 #[derive(Debug)]
 pub struct MemoryCatalog {
-    schemas: scc::HashIndex<String, MemorySchema>,
+    schemas: scc::HashIndex<String, Arc<MemorySchema>>,
 }
 
 impl MemoryCatalog {
@@ -48,8 +48,8 @@ impl Catalog for MemoryCatalog {
         &self,
         _tx: &Self::CatalogTx,
         create: &CreateSchemaInfo,
-    ) -> Result<Self::Schema> {
-        let inner = Arc::new(MemorySchemaInner {
+    ) -> Result<Arc<Self::Schema>> {
+        let schema = Arc::new(MemorySchema {
             _schema: Arc::new(CatalogEntry {
                 oid: 0,
                 name: create.name.clone(),
@@ -60,8 +60,6 @@ impl Catalog for MemoryCatalog {
             table_functions: CatalogMap::default(),
             functions: CatalogMap::default(),
         });
-
-        let schema = MemorySchema { inner };
 
         use scc::hash_index::Entry;
 
@@ -86,7 +84,7 @@ impl Catalog for MemoryCatalog {
         }
     }
 
-    fn get_schema(&self, _tx: &Self::CatalogTx, name: &str) -> Result<Option<Self::Schema>> {
+    fn get_schema(&self, _tx: &Self::CatalogTx, name: &str) -> Result<Option<Arc<Self::Schema>>> {
         let guard = Guard::new();
         Ok(self.schemas.peek(name, &guard).cloned())
     }
@@ -119,13 +117,8 @@ impl Catalog for MemoryCatalog {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct MemorySchema {
-    inner: Arc<MemorySchemaInner>,
-}
-
 #[derive(Debug)]
-struct MemorySchemaInner {
+pub struct MemorySchema {
     /// Catalog entry representing this schema.
     _schema: Arc<CatalogEntry>,
     /// All tables and views in the schema.
@@ -155,7 +148,7 @@ impl Schema for MemorySchema {
             child: None,
         };
 
-        Self::create_entry(tx, &self.inner.tables, table, create.on_conflict)
+        Self::create_entry(tx, &self.tables, table, create.on_conflict)
     }
 
     fn create_view(
@@ -173,7 +166,7 @@ impl Schema for MemorySchema {
             child: None,
         };
 
-        Self::create_entry(tx, &self.inner.tables, view, create.on_conflict)
+        Self::create_entry(tx, &self.tables, view, create.on_conflict)
     }
 
     fn create_scalar_function(
@@ -190,7 +183,7 @@ impl Schema for MemorySchema {
             child: None,
         };
 
-        Self::create_entry(tx, &self.inner.functions, ent, create.on_conflict)
+        Self::create_entry(tx, &self.functions, ent, create.on_conflict)
     }
 
     fn create_aggregate_function(
@@ -207,7 +200,7 @@ impl Schema for MemorySchema {
             child: None,
         };
 
-        Self::create_entry(tx, &self.inner.functions, ent, create.on_conflict)
+        Self::create_entry(tx, &self.functions, ent, create.on_conflict)
     }
 
     fn create_table_function(
@@ -224,7 +217,7 @@ impl Schema for MemorySchema {
             child: None,
         };
 
-        Self::create_entry(tx, &self.inner.table_functions, ent, create.on_conflict)
+        Self::create_entry(tx, &self.table_functions, ent, create.on_conflict)
     }
 
     fn get_table_or_view(
@@ -232,7 +225,7 @@ impl Schema for MemorySchema {
         tx: &Self::CatalogTx,
         name: &str,
     ) -> Result<Option<Arc<CatalogEntry>>> {
-        self.inner.tables.get_entry(tx, name)
+        self.tables.get_entry(tx, name)
     }
 
     fn get_table_function(
@@ -240,11 +233,11 @@ impl Schema for MemorySchema {
         tx: &Self::CatalogTx,
         name: &str,
     ) -> Result<Option<Arc<CatalogEntry>>> {
-        self.inner.table_functions.get_entry(tx, name)
+        self.table_functions.get_entry(tx, name)
     }
 
     fn get_function(&self, tx: &Self::CatalogTx, name: &str) -> Result<Option<Arc<CatalogEntry>>> {
-        self.inner.functions.get_entry(tx, name)
+        self.functions.get_entry(tx, name)
     }
 
     fn get_scalar_function(
@@ -252,7 +245,7 @@ impl Schema for MemorySchema {
         tx: &Self::CatalogTx,
         name: &str,
     ) -> Result<Option<Arc<CatalogEntry>>> {
-        let ent = self.inner.functions.get_entry(tx, name)?;
+        let ent = self.functions.get_entry(tx, name)?;
 
         let ent = ent.and_then(|ent| match &ent.entry {
             CatalogEntryInner::ScalarFunction(_) => Some(ent),
@@ -267,7 +260,7 @@ impl Schema for MemorySchema {
         tx: &Self::CatalogTx,
         name: &str,
     ) -> Result<Option<Arc<CatalogEntry>>> {
-        let ent = self.inner.functions.get_entry(tx, name)?;
+        let ent = self.functions.get_entry(tx, name)?;
         let ent = ent.and_then(|ent| match &ent.entry {
             CatalogEntryInner::AggregateFunction(_) => Some(ent),
             _ => None,
@@ -286,31 +279,27 @@ impl Schema for MemorySchema {
 
         for typ in entry_types {
             match typ {
-                CatalogEntryType::Table => {
-                    self.inner.tables.for_each_entry(tx, &mut |_, ent| {
-                        SimilarEntry::maybe_update(&mut similar, ent, name);
-                        Ok(())
-                    })?
-                }
+                CatalogEntryType::Table => self.tables.for_each_entry(tx, &mut |_, ent| {
+                    SimilarEntry::maybe_update(&mut similar, ent, name);
+                    Ok(())
+                })?,
                 CatalogEntryType::ScalarFunction => {
-                    self.inner.functions.for_each_entry(tx, &mut |_, ent| {
+                    self.functions.for_each_entry(tx, &mut |_, ent| {
                         SimilarEntry::maybe_update(&mut similar, ent, name);
                         Ok(())
                     })?
                 }
                 CatalogEntryType::AggregateFunction => {
-                    self.inner.functions.for_each_entry(tx, &mut |_, ent| {
+                    self.functions.for_each_entry(tx, &mut |_, ent| {
                         SimilarEntry::maybe_update(&mut similar, ent, name);
                         Ok(())
                     })?
                 }
                 CatalogEntryType::TableFunction => {
-                    self.inner
-                        .table_functions
-                        .for_each_entry(tx, &mut |_, ent| {
-                            SimilarEntry::maybe_update(&mut similar, ent, name);
-                            Ok(())
-                        })?
+                    self.table_functions.for_each_entry(tx, &mut |_, ent| {
+                        SimilarEntry::maybe_update(&mut similar, ent, name);
+                        Ok(())
+                    })?
                 }
                 _ => (),
             }
@@ -365,10 +354,10 @@ impl MemorySchema {
                 Err(RayexecError::new("Dropping functions not yet supported"))
             }
             DropObject::Table(name) => {
-                Self::drop_entry_inner(tx, &self.inner.tables, name, drop.if_exists, drop.cascade)
+                Self::drop_entry_inner(tx, &self.tables, name, drop.if_exists, drop.cascade)
             }
             DropObject::View(name) => {
-                Self::drop_entry_inner(tx, &self.inner.tables, name, drop.if_exists, drop.cascade)
+                Self::drop_entry_inner(tx, &self.tables, name, drop.if_exists, drop.cascade)
             }
             DropObject::Schema => Err(RayexecError::new("Cannot drop schema from inside schema")),
         }
