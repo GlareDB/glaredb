@@ -13,19 +13,18 @@ use super::ResolveContext;
 use crate::catalog::context::DatabaseContext;
 use crate::catalog::database::Database;
 use crate::catalog::entry::{CatalogEntry, CatalogEntryType};
-use crate::catalog::memory::{MemoryCatalogTx, MemorySchema};
+use crate::catalog::memory::MemorySchema;
 use crate::catalog::{Catalog, Schema};
 use crate::functions::function_set::TableFunctionSet;
 
 pub fn create_user_facing_resolve_err(
-    tx: &MemoryCatalogTx,
     schema_ent: Option<&MemorySchema>,
     object_types: &[CatalogEntryType],
     name: &str,
 ) -> RayexecError {
     // Find similar function to include in error message.
     let similar = match schema_ent {
-        Some(schema_ent) => match schema_ent.find_similar_entry(tx, object_types, name) {
+        Some(schema_ent) => match schema_ent.find_similar_entry(object_types, name) {
             Ok(maybe_similar) => maybe_similar,
             Err(e) => {
                 // Error shouldn't happen, but if it does, it shouldn't be user-facing.
@@ -70,13 +69,12 @@ pub enum MaybeResolvedTable {
 // TODO: Search path
 #[derive(Debug)]
 pub struct NormalResolver<'a> {
-    pub tx: &'a MemoryCatalogTx,
     pub context: &'a DatabaseContext,
 }
 
 impl<'a> NormalResolver<'a> {
-    pub fn new(tx: &'a MemoryCatalogTx, context: &'a DatabaseContext) -> Self {
-        NormalResolver { tx, context }
+    pub fn new(context: &'a DatabaseContext) -> Self {
+        NormalResolver { context }
     }
 
     /// Resolve a table function.
@@ -113,13 +111,13 @@ impl<'a> NormalResolver<'a> {
             .context
             .require_get_database(&catalog)?
             .catalog
-            .get_schema(self.tx, &schema)?
+            .get_schema(&schema)?
         {
             Some(ent) => ent,
             None => return Ok(None),
         };
 
-        if let Some(entry) = schema_ent.get_table_function(self.tx, &name)? {
+        if let Some(entry) = schema_ent.get_table_function(&name)? {
             Ok(Some(entry.try_as_table_function_entry()?.function.clone()))
         } else {
             Ok(None)
@@ -208,12 +206,12 @@ impl<'a> NormalResolver<'a> {
         schema: &str,
         table: &str,
     ) -> Result<Option<Arc<CatalogEntry>>> {
-        let schema_ent = match database.catalog.get_schema(self.tx, schema)? {
+        let schema_ent = match database.catalog.get_schema(schema)? {
             Some(ent) => ent,
             None => return Ok(None),
         };
 
-        schema_ent.get_table_or_view(self.tx, table)
+        schema_ent.get_table_or_view(table)
     }
 
     pub async fn require_resolve_table_or_cte(

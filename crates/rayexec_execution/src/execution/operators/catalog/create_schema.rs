@@ -6,7 +6,7 @@ use rayexec_error::Result;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::catalog::create::CreateSchemaInfo;
-use crate::catalog::memory::{MemoryCatalog, MemoryCatalogTx};
+use crate::catalog::memory::MemoryCatalog;
 use crate::catalog::Catalog;
 use crate::execution::operators::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -19,7 +19,6 @@ pub enum CreateSchemaPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalCreateSchema {
-    pub(crate) tx: MemoryCatalogTx,
     pub(crate) catalog: Arc<MemoryCatalog>,
     pub(crate) info: CreateSchemaInfo,
 }
@@ -60,7 +59,7 @@ impl PullOperator for PhysicalCreateSchema {
         output: &mut Batch,
     ) -> Result<PollPull> {
         if *state == CreateSchemaPartitionState::Create {
-            self.catalog.create_schema(&self.tx, &self.info)?;
+            self.catalog.create_schema(&self.info)?;
         }
         output.set_num_rows(0)?;
         Ok(PollPull::Exhausted)

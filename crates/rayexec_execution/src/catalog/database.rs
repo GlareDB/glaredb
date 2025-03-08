@@ -5,7 +5,7 @@ use std::sync::Arc;
 use rayexec_error::{RayexecError, Result};
 
 use super::create::{CreateSchemaInfo, CreateViewInfo};
-use super::memory::{MemoryCatalog, MemoryCatalogTx};
+use super::memory::MemoryCatalog;
 use super::CatalogPlanner;
 use crate::arrays::scalar::ScalarValue;
 use crate::execution::operators::PlannedOperator;
@@ -56,21 +56,16 @@ pub struct Database {
 impl Database {
     pub fn plan_create_view(
         &self,
-        tx: &MemoryCatalogTx, // TODO
         schema: &str,
         create: CreateViewInfo,
     ) -> Result<PlannedOperator> {
         self.check_can_write()?;
-        self.catalog.plan_create_view(&tx, schema, create)
+        self.catalog.plan_create_view(schema, create)
     }
 
-    pub fn plan_create_schema(
-        &self,
-        tx: &MemoryCatalogTx,
-        create: CreateSchemaInfo,
-    ) -> Result<PlannedOperator> {
+    pub fn plan_create_schema(&self, create: CreateSchemaInfo) -> Result<PlannedOperator> {
         self.check_can_write()?;
-        self.catalog.plan_create_schema(tx, create)
+        self.catalog.plan_create_schema(create)
     }
 
     fn check_can_write(&self) -> Result<()> {

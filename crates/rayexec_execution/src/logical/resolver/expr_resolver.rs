@@ -607,7 +607,7 @@ impl<'a> ExpressionResolver<'a> {
                 || context
                     .require_get_database(&catalog)?
                     .catalog
-                    .get_schema(self.resolver.tx, &schema)?
+                    .get_schema(&schema)?
                     .is_none())
         {
             let unqualified_name = func.reference.0.pop().unwrap(); // Length checked above.
@@ -652,7 +652,7 @@ impl<'a> ExpressionResolver<'a> {
         let schema_ent = context
             .require_get_database(&catalog)?
             .catalog
-            .get_schema(self.resolver.tx, &schema)?
+            .get_schema(&schema)?
             .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
 
         // Check if this is a special function.
@@ -671,7 +671,7 @@ impl<'a> ExpressionResolver<'a> {
         }
 
         // Now check scalars.
-        if let Some(scalar) = schema_ent.get_scalar_function(self.resolver.tx, &func_name)? {
+        if let Some(scalar) = schema_ent.get_scalar_function(&func_name)? {
             // TODO: Allow unresolved scalars?
             // TODO: This also assumes scalars (and aggs) are the same everywhere, which
             // they probably should be for now.
@@ -689,7 +689,7 @@ impl<'a> ExpressionResolver<'a> {
         }
 
         // Now check aggregates.
-        if let Some(aggregate) = schema_ent.get_aggregate_function(self.resolver.tx, &func_name)? {
+        if let Some(aggregate) = schema_ent.get_aggregate_function(&func_name)? {
             // TODO: Allow unresolved aggregates?
             let resolve_idx = resolve_context.functions.push_resolved(
                 ResolvedFunction::Aggregate(
@@ -710,7 +710,6 @@ impl<'a> ExpressionResolver<'a> {
         }
 
         Err(create_user_facing_resolve_err(
-            self.resolver.tx,
             Some(&schema_ent),
             &[
                 CatalogEntryType::ScalarFunction,

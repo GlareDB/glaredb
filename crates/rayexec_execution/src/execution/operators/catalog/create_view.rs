@@ -6,7 +6,7 @@ use rayexec_error::Result;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::catalog::create::CreateViewInfo;
-use crate::catalog::memory::{MemoryCatalogTx, MemorySchema};
+use crate::catalog::memory::MemorySchema;
 use crate::catalog::Schema;
 use crate::execution::operators::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -19,7 +19,6 @@ pub enum CreateViewPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalCreateView {
-    pub(crate) tx: MemoryCatalogTx,
     pub(crate) schema: Arc<MemorySchema>,
     pub(crate) info: CreateViewInfo,
 }
@@ -60,7 +59,7 @@ impl PullOperator for PhysicalCreateView {
         output: &mut Batch,
     ) -> Result<PollPull> {
         if *state == CreateViewPartitionState::Create {
-            self.schema.create_view(&self.tx, &self.info)?;
+            self.schema.create_view(&self.info)?;
         }
         output.set_num_rows(0)?;
         Ok(PollPull::Exhausted)

@@ -10,7 +10,6 @@ use super::profiler::PlanningProfileData;
 use super::query_result::{Output, QueryResult};
 use crate::arrays::field::{Field, Schema};
 use crate::catalog::context::DatabaseContext;
-use crate::catalog::memory::MemoryCatalogTx;
 use crate::config::execution::OperatorPlanConfig;
 use crate::config::session::SessionConfig;
 use crate::execution::operators::results::streaming::{PhysicalStreamingResults, ResultStream};
@@ -200,15 +199,11 @@ where
 
         let mut profile = PlanningProfileData::default();
 
-        // TODO: Store tx state on session.
-        let tx = MemoryCatalogTx {};
-
         let resolve_mode = ResolveMode::Normal;
 
         let timer = Timer::<R::Instant>::start();
         let (resolved_stmt, resolve_context) = Resolver::new(
             resolve_mode,
-            &tx,
             &self.context,
             ResolveConfig {
                 enable_function_chaining: self.config.enable_function_chaining,

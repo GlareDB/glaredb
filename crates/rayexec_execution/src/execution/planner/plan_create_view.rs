@@ -2,7 +2,6 @@ use rayexec_error::Result;
 
 use super::OperatorPlanState;
 use crate::catalog::create::CreateViewInfo;
-use crate::catalog::memory::MemoryCatalogTx;
 use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::logical_create::LogicalCreateView;
 use crate::logical::operator::Node;
@@ -21,8 +20,7 @@ impl OperatorPlanState<'_> {
             query_string: create.node.query_string,
         };
 
-        let tx = &MemoryCatalogTx {}; // TODO
-        let operator = db.plan_create_view(tx, &create.node.schema, info)?;
+        let operator = db.plan_create_view(&create.node.schema, info)?;
 
         Ok(PlannedOperatorWithChildren {
             operator,

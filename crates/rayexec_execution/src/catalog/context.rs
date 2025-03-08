@@ -7,7 +7,6 @@ use rayexec_error::{RayexecError, Result};
 use super::database::{AccessMode, Database};
 use super::memory::MemoryCatalog;
 use crate::catalog::create::{CreateSchemaInfo, OnConflict};
-use crate::catalog::memory::MemoryCatalogTx;
 use crate::catalog::Catalog;
 
 pub const SYSTEM_CATALOG: &str = "system";
@@ -31,13 +30,10 @@ impl DatabaseContext {
             attach_info: None,
         });
 
-        temp_db.catalog.create_schema(
-            &MemoryCatalogTx {},
-            &CreateSchemaInfo {
-                name: "temp".to_string(),
-                on_conflict: OnConflict::Error,
-            },
-        )?;
+        temp_db.catalog.create_schema(&CreateSchemaInfo {
+            name: "temp".to_string(),
+            on_conflict: OnConflict::Error,
+        })?;
 
         databases.insert(temp_db.name.clone(), temp_db);
 

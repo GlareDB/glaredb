@@ -2,7 +2,6 @@ use rayexec_error::Result;
 
 use super::OperatorPlanState;
 use crate::catalog::create::CreateSchemaInfo;
-use crate::catalog::memory::MemoryCatalogTx;
 use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::logical_create::LogicalCreateSchema;
 use crate::logical::operator::Node;
@@ -19,8 +18,7 @@ impl OperatorPlanState<'_> {
             on_conflict: create.node.on_conflict,
         };
 
-        let tx = &MemoryCatalogTx {}; // TODO
-        let operator = db.plan_create_schema(tx, info)?;
+        let operator = db.plan_create_schema(info)?;
 
         Ok(PlannedOperatorWithChildren {
             operator,

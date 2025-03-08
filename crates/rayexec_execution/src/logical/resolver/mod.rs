@@ -30,7 +30,6 @@ use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType}
 use crate::arrays::scalar::ScalarValue;
 use crate::catalog::context::DatabaseContext;
 use crate::catalog::entry::{CatalogEntryInner, CatalogEntryType};
-use crate::catalog::memory::MemoryCatalogTx;
 use crate::expr;
 use crate::logical::operator::LocationRequirement;
 
@@ -109,7 +108,6 @@ pub struct ResolveConfig {
 #[derive(Debug)]
 pub struct Resolver<'a> {
     pub resolve_mode: ResolveMode,
-    pub tx: &'a MemoryCatalogTx,
     pub context: &'a DatabaseContext,
     pub config: ResolveConfig,
 }
@@ -117,13 +115,11 @@ pub struct Resolver<'a> {
 impl<'a> Resolver<'a> {
     pub fn new(
         resolve_mode: ResolveMode,
-        tx: &'a MemoryCatalogTx,
         context: &'a DatabaseContext,
         config: ResolveConfig,
     ) -> Self {
         Resolver {
             resolve_mode,
-            tx,
             context,
             config,
         }
@@ -294,13 +290,13 @@ impl<'a> Resolver<'a> {
             ast::CopyToSource::Table(reference) => {
                 let table = match self.resolve_mode {
                     ResolveMode::Normal => {
-                        let table = NormalResolver::new(self.tx, self.context)
+                        let table = NormalResolver::new(self.context)
                             .require_resolve_table_or_cte(&reference, resolve_context)
                             .await?;
                         MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
                     }
                     ResolveMode::Hybrid => {
-                        let table = NormalResolver::new(self.tx, self.context)
+                        let table = NormalResolver::new(self.context)
                             .resolve_table_or_cte(&reference, resolve_context)
                             .await?;
 
@@ -542,13 +538,13 @@ impl<'a> Resolver<'a> {
     ) -> Result<ast::Insert<ResolvedMeta>> {
         let table = match self.resolve_mode {
             ResolveMode::Normal => {
-                let table = NormalResolver::new(self.tx, self.context)
+                let table = NormalResolver::new(self.context)
                     .require_resolve_table_or_cte(&insert.table, resolve_context)
                     .await?;
                 MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
             }
             ResolveMode::Hybrid => {
-                let table = NormalResolver::new(self.tx, self.context)
+                let table = NormalResolver::new(self.context)
                     .resolve_table_or_cte(&insert.table, resolve_context)
                     .await?;
 
@@ -838,13 +834,13 @@ impl<'a> Resolver<'a> {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 let table = match self.resolve_mode {
                     ResolveMode::Normal => {
-                        let table = NormalResolver::new(self.tx, self.context)
+                        let table = NormalResolver::new(self.context)
                             .require_resolve_table_or_cte(&reference, resolve_context)
                             .await?;
                         MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
                     }
                     ResolveMode::Hybrid => {
-                        let table = NormalResolver::new(self.tx, self.context)
+                        let table = NormalResolver::new(self.context)
                             .resolve_table_or_cte(&reference, resolve_context)
                             .await?;
 
@@ -988,7 +984,7 @@ impl<'a> Resolver<'a> {
 
                 let function = match self.resolve_mode {
                     ResolveMode::Normal => {
-                        let function = NormalResolver::new(self.tx, self.context)
+                        let function = NormalResolver::new(self.context)
                             .require_resolve_table_function(&reference)?;
 
                         if function.is_scan_function() {
@@ -1014,7 +1010,7 @@ impl<'a> Resolver<'a> {
                         }
                     }
                     ResolveMode::Hybrid => {
-                        match NormalResolver::new(self.tx, self.context)
+                        match NormalResolver::new(self.context)
                             .resolve_table_function(&reference)?
                         {
                             Some(function) => {
