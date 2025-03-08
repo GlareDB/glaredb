@@ -27,7 +27,7 @@ impl DatabaseContext {
         let temp_db = Arc::new(Database {
             name: TEMP_CATALOG.to_string(),
             mode: AccessMode::ReadWrite,
-            catalog: MemoryCatalog::empty(),
+            catalog: Arc::new(MemoryCatalog::empty()),
             attach_info: None,
         });
 
@@ -52,5 +52,9 @@ impl DatabaseContext {
         self.databases
             .get(name)
             .ok_or_else(|| RayexecError::new(format!("Missing catalog '{name}'")))
+    }
+
+    pub fn iter_databases<'a>(&'a self) -> impl Iterator<Item = &'a Arc<Database>> + 'a {
+        self.databases.values()
     }
 }

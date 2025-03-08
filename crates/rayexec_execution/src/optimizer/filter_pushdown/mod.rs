@@ -611,7 +611,6 @@ impl FilterPushdown {
         //
         // This will handle creating the join + filter if needed.
         FromPlanner.plan_join_from_conditions(
-            bind_context.get_table_list(),
             JoinType::Inner,
             conditions.comparisons,
             conditions.arbitrary,

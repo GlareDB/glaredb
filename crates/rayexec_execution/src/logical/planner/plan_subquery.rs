@@ -972,17 +972,10 @@ impl DependentJoinPushdown {
 
                 Ok(())
             }
-            LogicalOperator::Scan(scan) => {
-                if matches!(
-                    scan.node.source,
-                    ScanSource::Table { .. } | ScanSource::View { .. }
-                ) {
-                    return Err(RayexecError::new(
-                        "Unexpectedly reached scan node when pushing down dependent join",
-                    ));
-                }
-
-                not_implemented!("dependent join pushdown for VALUES")
+            LogicalOperator::Scan(_) => {
+                return Err(RayexecError::new(
+                    "Unexpectedly reached scan node when pushing down dependent join",
+                ));
             }
             other => not_implemented!("dependent join pushdown for node: {other:?}"),
         }

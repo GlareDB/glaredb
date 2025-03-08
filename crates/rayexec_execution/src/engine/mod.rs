@@ -29,7 +29,7 @@ where
         let system_catalog = Arc::new(Database {
             name: SYSTEM_CATALOG.to_string(),
             mode: AccessMode::ReadOnly,
-            catalog: new_system_catalog()?,
+            catalog: Arc::new(new_system_catalog()?),
             attach_info: None,
         });
 

@@ -27,9 +27,9 @@ pub const FUNCTION_SET_GENERATE_SERIES: TableFunctionSet = TableFunctionSet {
     }),
     functions: &[
         // generate_series(start, stop)
-        RawTableFunction::new(&Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Table), &GenerateSeriesI64),
+        RawTableFunction::new_execute(&Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Table), &GenerateSeriesI64),
         // generate_series(start, stop, step)
-        RawTableFunction::new(&Signature::new(&[DataTypeId::Int64, DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Table), &GenerateSeriesI64),
+        RawTableFunction::new_execute(&Signature::new(&[DataTypeId::Int64, DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Table), &GenerateSeriesI64),
     ],
 };
 

@@ -130,11 +130,19 @@ pub trait Schema: Debug + Sync + Send {
     ) -> Result<Option<Arc<CatalogEntry>>>;
 }
 
+// TODO: The Arc<Self> is a bit weird, but it's mostly for the
+// `plan_create_schema` to be able to clone the outer catalog.
 pub trait CatalogPlanner: Catalog {
     fn plan_create_view(
-        &self,
+        self: &Arc<Self>,
         tx: &Self::CatalogTx,
         schema: &str,
         create: CreateViewInfo,
+    ) -> Result<PlannedOperator>;
+
+    fn plan_create_schema(
+        self: &Arc<Self>,
+        tx: &Self::CatalogTx,
+        create: CreateSchemaInfo,
     ) -> Result<PlannedOperator>;
 }

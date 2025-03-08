@@ -1,4 +1,5 @@
 mod plan_aggregate;
+mod plan_create_schema;
 mod plan_create_view;
 mod plan_describe;
 mod plan_distinct;
@@ -177,6 +178,7 @@ impl<'a> OperatorPlanState<'a> {
             LogicalOperator::TableExecute(join) => self.plan_table_execute(join),
             LogicalOperator::Describe(node) => self.plan_describe(node),
             LogicalOperator::ShowVar(node) => self.plan_show_var(node),
+            LogicalOperator::Scan(node) => self.plan_scan(node),
             LogicalOperator::Empty(node) => self.plan_empty(node),
             LogicalOperator::SetVar(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))
@@ -188,6 +190,7 @@ impl<'a> OperatorPlanState<'a> {
                 RayexecError::new("ATTACH/DETACH should be handled in the session"),
             ),
             LogicalOperator::CreateView(node) => self.plan_create_view(node),
+            LogicalOperator::CreateSchema(node) => self.plan_create_schema(node),
             other => not_implemented!("logical plan to physical plan: {other:?}"),
         }
     }

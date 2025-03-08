@@ -24,7 +24,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
         &self,
         db_context: &DatabaseContext,
         input: TableFunctionInput,
-    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + '_;
+    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + Sync + Send + '_;
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
@@ -33,16 +33,15 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
     ) -> Result<Self::OperatorState>;
 
     fn create_pull_partition_states(
-        state: &Self::BindState,
+        op_state: &Self::OperatorState,
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionState>>;
 
     fn poll_pull(
-        &self,
         cx: &mut Context,
         op_state: &Self::OperatorState,
-        partition_state: &mut Self::PartitionState,
+        state: &mut Self::PartitionState,
         output: &mut Batch,
     ) -> Result<PollPull>;
 }

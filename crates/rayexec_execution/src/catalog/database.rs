@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
-use super::create::CreateViewInfo;
+use super::create::{CreateSchemaInfo, CreateViewInfo};
 use super::memory::{MemoryCatalog, MemoryCatalogTx};
 use super::CatalogPlanner;
 use crate::arrays::scalar::ScalarValue;
@@ -12,6 +14,21 @@ use crate::execution::operators::PlannedOperator;
 pub enum AccessMode {
     ReadWrite,
     ReadOnly,
+}
+
+impl AccessMode {
+    pub fn as_str(&self) -> &str {
+        match self {
+            AccessMode::ReadWrite => "ReadWrite",
+            AccessMode::ReadOnly => "ReadOnly",
+        }
+    }
+}
+
+impl fmt::Display for AccessMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,7 +49,7 @@ pub struct Database {
     // TODO: Allow other catalog types.
     //
     // This will be a common type for both 'Catalog' and 'CatalogPlanner'.
-    pub(crate) catalog: MemoryCatalog,
+    pub(crate) catalog: Arc<MemoryCatalog>,
     pub(crate) attach_info: Option<AttachInfo>,
 }
 
@@ -45,6 +62,15 @@ impl Database {
     ) -> Result<PlannedOperator> {
         self.check_can_write()?;
         self.catalog.plan_create_view(&tx, schema, create)
+    }
+
+    pub fn plan_create_schema(
+        &self,
+        tx: &MemoryCatalogTx,
+        create: CreateSchemaInfo,
+    ) -> Result<PlannedOperator> {
+        self.check_can_write()?;
+        self.catalog.plan_create_schema(tx, create)
     }
 
     fn check_can_write(&self) -> Result<()> {

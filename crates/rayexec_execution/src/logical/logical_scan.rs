@@ -11,62 +11,41 @@ use crate::arrays::datatype::DataType;
 use crate::catalog::entry::CatalogEntry;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
+use crate::functions::table::PlannedTableFunction;
 
-// TODO: Probably remove view from this.
-// Maybe just split it all up.
 #[derive(Debug, Clone)]
-pub enum ScanSource {
-    Table {
-        catalog: String,
-        schema: String,
-        source: Arc<CatalogEntry>,
-    },
-    View {
-        catalog: String,
-        schema: String,
-        source: Arc<CatalogEntry>,
-    },
+pub struct TableScanSource {
+    pub catalog: String,
+    pub schema: String,
+    pub source: Arc<CatalogEntry>,
 }
 
-// TODO: Remove...
-impl PartialEq for ScanSource {
+impl PartialEq for TableScanSource {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (
-                Self::Table {
-                    catalog: catalog_a,
-                    schema: schema_a,
-                    source: source_a,
-                },
-                Self::Table {
-                    catalog: catalog_b,
-                    schema: schema_b,
-                    source: source_b,
-                },
-            ) => catalog_a == catalog_b && schema_a == schema_b && source_a.name == source_b.name,
-            (
-                Self::View {
-                    catalog: catalog_a,
-                    schema: schema_a,
-                    source: source_a,
-                },
-                Self::View {
-                    catalog: catalog_b,
-                    schema: schema_b,
-                    source: source_b,
-                },
-            ) => catalog_a == catalog_b && schema_a == schema_b && source_a.name == source_b.name,
-
-            _ => false,
-        }
+        self.catalog == other.catalog
+            && self.schema == other.schema
+            && self.source.name == other.source.name
     }
+}
+
+impl Eq for TableScanSource {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableFunctionScanSource {
+    pub function: PlannedTableFunction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScanSource {
+    Table(TableScanSource),
+    Function(TableFunctionScanSource),
 }
 
 impl ScanSource {
     pub fn cardinality(&self) -> StatisticsValue<usize> {
         match self {
-            Self::Table { .. } => StatisticsValue::Unknown,
-            Self::View { .. } => StatisticsValue::Unknown,
+            Self::Table(_) => StatisticsValue::Unknown,
+            Self::Function(func) => func.function.bind_state.cardinality,
         }
     }
 }
@@ -84,10 +63,6 @@ pub struct LogicalScan {
     ///
     /// Ascending order.
     pub projection: Vec<usize>,
-    /// If we've pruned columns.
-    ///
-    /// If we did, that info will be passed into the data table.
-    pub did_prune_columns: bool,
     /// Scan filters that have been pushed down.
     ///
     /// This represents some number of filters logically ANDed together.
@@ -109,16 +84,15 @@ impl Explainable for LogicalScan {
             .with_values("column_types", &self.types);
 
         match &self.source {
-            ScanSource::Table {
-                catalog,
-                schema,
-                source,
+            ScanSource::Table(table) => {
+                ent = ent.with_value(
+                    "table",
+                    format!("{}.{}.{}", table.catalog, table.schema, table.source.name),
+                )
             }
-            | ScanSource::View {
-                catalog,
-                schema,
-                source,
-            } => ent = ent.with_value("source", format!("{catalog}.{schema}.{}", source.name)),
+            ScanSource::Function(func) => {
+                ent = ent.with_value("function", format!("{}", func.function.name))
+            }
         }
 
         if conf.verbose {
@@ -140,6 +114,12 @@ impl LogicalNode for Node<LogicalScan> {
     where
         F: FnMut(&Expression) -> Result<()>,
     {
+        if let ScanSource::Function(table_func) = &self.node.source {
+            // TODO: Named args?
+            for expr in &table_func.function.bind_state.input.positional {
+                func(expr)?
+            }
+        }
         Ok(())
     }
 
@@ -147,6 +127,12 @@ impl LogicalNode for Node<LogicalScan> {
     where
         F: FnMut(&mut Expression) -> Result<()>,
     {
+        if let ScanSource::Function(table_func) = &mut self.node.source {
+            // TODO: Named args?
+            for expr in &mut table_func.function.bind_state.input.positional {
+                func(expr)?
+            }
+        }
         Ok(())
     }
 }

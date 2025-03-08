@@ -10,7 +10,6 @@ use crate::expr::{self, Expression};
 use crate::functions::table::TableFunctionType;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin};
-use crate::logical::binder::table_list::TableList;
 use crate::logical::logical_empty::LogicalEmpty;
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_inout::LogicalTableExecute;
@@ -22,7 +21,12 @@ use crate::logical::logical_join::{
 };
 use crate::logical::logical_materialization::LogicalMaterializationScan;
 use crate::logical::logical_project::LogicalProject;
-use crate::logical::logical_scan::{LogicalScan, ScanSource};
+use crate::logical::logical_scan::{
+    LogicalScan,
+    ScanSource,
+    TableFunctionScanSource,
+    TableScanSource,
+};
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor;
@@ -43,11 +47,11 @@ impl FromPlanner {
 
                 let projection = (0..types.len()).collect();
 
-                let source = ScanSource::Table {
+                let source = ScanSource::Table(TableScanSource {
                     catalog: table.catalog,
                     schema: table.schema,
                     source: table.entry,
-                };
+                });
                 let estimated_cardinality = source.cardinality();
 
                 Ok(LogicalOperator::Scan(Node {
@@ -56,7 +60,6 @@ impl FromPlanner {
                         types,
                         names,
                         projection,
-                        did_prune_columns: false,
                         scan_filters: Vec::new(),
                         source,
                     },
@@ -95,29 +98,26 @@ impl FromPlanner {
                         }))
                     }
                     TableFunctionType::Scan => {
-                        // let projection = (0..types.len()).collect();
+                        let source = ScanSource::Function(TableFunctionScanSource {
+                            function: func.function,
+                        });
 
-                        // let source = ScanSource::TableFunction {
-                        //     function: func.function,
-                        // };
-                        // let estimated_cardinality = source.cardinality();
+                        let projection = (0..types.len()).collect();
+                        let estimated_cardinality = source.cardinality();
 
-                        // Ok(LogicalOperator::Scan(Node {
-                        //     node: LogicalScan {
-                        //         table_ref: func.table_ref,
-                        //         types,
-                        //         names,
-                        //         projection,
-                        //         did_prune_columns: false,
-                        //         scan_filters: Vec::new(),
-                        //         source,
-                        //     },
-                        //     location: func.location,
-                        //     children: Vec::new(),
-                        //     estimated_cardinality,
-                        // }))
-
-                        unimplemented!()
+                        Ok(LogicalOperator::Scan(Node {
+                            node: LogicalScan {
+                                table_ref: func.table_ref,
+                                types,
+                                names,
+                                projection,
+                                scan_filters: Vec::new(),
+                                source,
+                            },
+                            location: func.location,
+                            children: Vec::new(),
+                            estimated_cardinality,
+                        }))
                     }
                 }
             }
@@ -298,7 +298,6 @@ impl FromPlanner {
 
         // Normal join planning.
         self.plan_join_from_conditions(
-            bind_context.get_table_list(),
             join.join_type,
             extracted.comparisons,
             extracted.arbitrary,
@@ -309,7 +308,6 @@ impl FromPlanner {
 
     pub fn plan_join_from_conditions(
         &self,
-        table_list: &TableList,
         join_type: JoinType,
         comparisons: Vec<ComparisonExpr>,
         arbitrary: Vec<Expression>,

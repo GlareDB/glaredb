@@ -26,6 +26,7 @@ use super::entry::{
 };
 use super::{Catalog, CatalogPlanner, CatalogTx, Schema};
 use crate::catalog::entry::SchemaEntry;
+use crate::execution::operators::catalog::create_schema::PhysicalCreateSchema;
 use crate::execution::operators::catalog::create_view::PhysicalCreateView;
 use crate::execution::operators::PlannedOperator;
 
@@ -391,7 +392,7 @@ impl MemorySchema {
 
 impl CatalogPlanner for MemoryCatalog {
     fn plan_create_view(
-        &self,
+        self: &Arc<Self>,
         tx: &Self::CatalogTx,
         schema: &str,
         create: CreateViewInfo,
@@ -404,6 +405,18 @@ impl CatalogPlanner for MemoryCatalog {
         };
 
         Ok(PlannedOperator::new_pull(operator))
+    }
+
+    fn plan_create_schema(
+        self: &Arc<Self>,
+        _tx: &Self::CatalogTx,
+        create: CreateSchemaInfo,
+    ) -> Result<PlannedOperator> {
+        Ok(PlannedOperator::new_pull(PhysicalCreateSchema {
+            tx: MemoryCatalogTx {},
+            catalog: self.clone(),
+            info: create,
+        }))
     }
 }
 

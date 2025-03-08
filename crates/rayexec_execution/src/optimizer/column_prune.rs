@@ -519,7 +519,6 @@ impl PruneState {
                     }
 
                     // Update operator.
-                    scan.node.did_prune_columns = true;
                     scan.node.types = pruned_types;
                     scan.node.names = pruned_names;
                     scan.node.table_ref = new_ref;
