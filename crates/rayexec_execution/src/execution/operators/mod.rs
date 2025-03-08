@@ -1,5 +1,6 @@
 //! Implementations of physical operators in an execution pipeline.
 
+pub mod catalog;
 pub mod empty;
 pub mod filter;
 pub mod hash_aggregate;
@@ -25,6 +26,7 @@ use rayexec_error::{RayexecError, Result};
 use super::pipeline::{ExecutablePipeline, ExecutablePipelineGraph};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
+use crate::catalog::context::DatabaseContext;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::ptr::raw_clone_ptr::RawClonePtr;
 use crate::ptr::raw_ptr::RawPtr;

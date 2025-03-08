@@ -9,9 +9,9 @@ impl OperatorPlanState<'_> {
     pub fn plan_scan(&mut self, scan: Node<LogicalScan>) -> Result<()> {
         let location = scan.location;
 
-        if self.in_progress.is_some() {
-            return Err(RayexecError::new("Expected in progress to be None"));
-        }
+        // if self.in_progress.is_some() {
+        //     return Err(RayexecError::new("Expected in progress to be None"));
+        // }
 
         // // TODO: Split up scan source.
         // let projections = if scan.node.did_prune_columns {

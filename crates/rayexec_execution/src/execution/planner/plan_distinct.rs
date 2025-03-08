@@ -12,18 +12,18 @@ impl OperatorPlanState<'_> {
     ) -> Result<()> {
         let input = distinct.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs(self.bind_context);
-        self.walk(materializations, input)?;
+        // self.walk(materializations, input)?;
 
-        // Create group expressions from the distinct.
-        let group_types = distinct
-            .node
-            .on
-            .iter()
-            .map(|expr| expr.datatype())
-            .collect::<Result<Vec<_>>>()?;
-        let group_exprs = self
-            .expr_planner
-            .plan_scalars(&input_refs, &distinct.node.on)?;
+        // // Create group expressions from the distinct.
+        // let group_types = distinct
+        //     .node
+        //     .on
+        //     .iter()
+        //     .map(|expr| expr.datatype())
+        //     .collect::<Result<Vec<_>>>()?;
+        // let group_exprs = self
+        //     .expr_planner
+        //     .plan_scalars(&input_refs, &distinct.node.on)?;
 
         // self.push_intermediate_operator(
         //     PhysicalOperator::Project(PhysicalProject::new(group_exprs)),

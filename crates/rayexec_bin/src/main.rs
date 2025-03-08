@@ -1,7 +1,5 @@
-use std::cell::RefCell;
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
@@ -9,7 +7,6 @@ use crossterm::event::{self, Event, KeyModifiers};
 // use rayexec_delta::DeltaDataSource;
 use rayexec_error::Result;
 use rayexec_execution::arrays::format::pretty::table::PrettyTable;
-use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
 use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
 use rayexec_execution::shell::lineedit::KeyEvent;
@@ -112,14 +109,14 @@ async fn inner(
     executor: impl PipelineExecutor,
     runtime: impl Runtime,
 ) -> Result<()> {
-    let registry =
-        DataSourceRegistry::default().with_datasource("memory", Box::new(MemoryDataSource))?;
+    // let registry =
+    //     DataSourceRegistry::default().with_datasource("memory", Box::new(MemoryDataSource))?;
     // .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
     // .with_datasource("unity", UnityCatalogDataSource::initialize(runtime.clone()))?
     // .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
     // .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?
     // .with_datasource("iceberg", IcebergDataSource::initialize(runtime.clone()))?;
-    let engine = SingleUserEngine::try_new(executor, runtime, registry)?;
+    let engine = SingleUserEngine::try_new(executor, runtime)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
     let mut stdout = BufWriter::new(std::io::stdout());

@@ -1,5 +1,6 @@
 pub mod context;
 pub mod create;
+pub mod database;
 pub mod drop;
 pub mod entry;
 pub mod memory;
@@ -19,7 +20,11 @@ use create::{
 };
 use drop::DropInfo;
 use entry::{CatalogEntry, CatalogEntryType};
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
+
+use crate::execution::operators::PlannedOperator;
+
+pub trait CatalogTx: Debug {}
 
 pub trait Catalog: Debug + Sync + Send {
     type CatalogTx: CatalogTx;
@@ -33,7 +38,15 @@ pub trait Catalog: Debug + Sync + Send {
     ) -> Result<Arc<Self::Schema>>;
 
     /// Get a schema in the catalog.
+    ///
+    /// Returns Ok(None) if a schema with the given name doesn't exist.
     fn get_schema(&self, tx: &Self::CatalogTx, name: &str) -> Result<Option<Arc<Self::Schema>>>;
+
+    /// Get a schema, returning an error if it doesn't exist.
+    fn require_get_schema(&self, tx: &Self::CatalogTx, name: &str) -> Result<Arc<Self::Schema>> {
+        self.get_schema(tx, name)?
+            .ok_or_else(|| RayexecError::new("Missing schema '{name}'"))
+    }
 
     /// Drop an entry in the catalog.
     fn drop_entry(&self, tx: &Self::CatalogTx, drop: &DropInfo) -> Result<()>;
@@ -117,4 +130,11 @@ pub trait Schema: Debug + Sync + Send {
     ) -> Result<Option<Arc<CatalogEntry>>>;
 }
 
-pub trait CatalogTx: Debug {}
+pub trait CatalogPlanner: Catalog {
+    fn plan_create_view(
+        &self,
+        tx: &Self::CatalogTx,
+        schema: &str,
+        create: CreateViewInfo,
+    ) -> Result<PlannedOperator>;
+}

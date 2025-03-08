@@ -24,8 +24,10 @@ use super::entry::{
     TableFunctionEntry,
     ViewEntry,
 };
-use super::{Catalog, CatalogTx, Schema};
+use super::{Catalog, CatalogPlanner, CatalogTx, Schema};
 use crate::catalog::entry::SchemaEntry;
+use crate::execution::operators::catalog::create_view::PhysicalCreateView;
+use crate::execution::operators::PlannedOperator;
 
 #[derive(Debug)]
 pub struct MemoryCatalog {
@@ -384,6 +386,24 @@ impl MemorySchema {
             (None, true) => Ok(()),
             (None, false) => Err(RayexecError::new("Missing entry, cannot drop")),
         }
+    }
+}
+
+impl CatalogPlanner for MemoryCatalog {
+    fn plan_create_view(
+        &self,
+        tx: &Self::CatalogTx,
+        schema: &str,
+        create: CreateViewInfo,
+    ) -> Result<PlannedOperator> {
+        let schema = self.require_get_schema(tx, schema)?;
+        let operator = PhysicalCreateView {
+            tx: MemoryCatalogTx {}, // TODO
+            schema,
+            info: create,
+        };
+
+        Ok(PlannedOperator::new_pull(operator))
     }
 }
 

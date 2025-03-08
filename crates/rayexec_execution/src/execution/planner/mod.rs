@@ -1,4 +1,5 @@
 mod plan_aggregate;
+mod plan_create_view;
 mod plan_describe;
 mod plan_distinct;
 mod plan_drop;
@@ -22,6 +23,7 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 use uuid::Uuid;
 
 use super::operators::{PlannedOperatorWithChildren, PushOperator};
+use crate::catalog::context::DatabaseContext;
 use crate::config::execution::OperatorPlanConfig;
 use crate::execution::operators::PlannedOperator;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
@@ -49,6 +51,7 @@ impl OperatorPlanner {
     pub fn plan<O>(
         &self,
         root: operator::LogicalOperator,
+        db_context: &DatabaseContext,
         bind_context: BindContext,
         sink: O,
     ) -> Result<QueryGraph>
@@ -57,7 +60,7 @@ impl OperatorPlanner {
     {
         // TODO: Materializations....
 
-        let mut state = OperatorPlanState::new(&self.config, &bind_context);
+        let mut state = OperatorPlanState::new(&self.config, db_context, &bind_context);
         let root = state.plan(root)?;
 
         let planned_sink = PlannedOperator::new_push(sink);
@@ -94,13 +97,8 @@ struct InProgressPipeline {
 #[derive(Debug)]
 struct OperatorPlanState<'a> {
     config: &'a OperatorPlanConfig,
-    /// Pipeline we're working on, as well as the location for where it should
-    /// be executed.
-    in_progress: Option<InProgressPipeline>,
-    // /// Pipelines in the local group.
-    // local_group: IntermediatePipelineGroup,
-    // /// Pipelines in the remote group.
-    // remote_group: IntermediatePipelineGroup,
+    /// Session database context.
+    db_context: &'a DatabaseContext,
     /// Bind context used during logical planning.
     ///
     /// Used to generate physical expressions, and determined data types
@@ -113,14 +111,16 @@ struct OperatorPlanState<'a> {
 }
 
 impl<'a> OperatorPlanState<'a> {
-    fn new(config: &'a OperatorPlanConfig, bind_context: &'a BindContext) -> Self {
+    fn new(
+        config: &'a OperatorPlanConfig,
+        db_context: &'a DatabaseContext,
+        bind_context: &'a BindContext,
+    ) -> Self {
         let expr_planner = PhysicalExpressionPlanner::new(bind_context.get_table_list());
 
         OperatorPlanState {
             config,
-            in_progress: None,
-            // local_group: IntermediatePipelineGroup::default(),
-            // remote_group: IntermediatePipelineGroup::default(),
+            db_context,
             bind_context,
             expr_planner,
         }
@@ -187,6 +187,7 @@ impl<'a> OperatorPlanState<'a> {
             LogicalOperator::DetachDatabase(_) | LogicalOperator::AttachDatabase(_) => Err(
                 RayexecError::new("ATTACH/DETACH should be handled in the session"),
             ),
+            LogicalOperator::CreateView(node) => self.plan_create_view(node),
             other => not_implemented!("logical plan to physical plan: {other:?}"),
         }
     }
@@ -246,21 +247,5 @@ impl<'a> OperatorPlanState<'a> {
         //     ),
         //     other => not_implemented!("logical plan to pipeline: {other:?}"),
         // }
-    }
-
-    /// Get the current in-progress pipeline.
-    ///
-    /// Errors if there's no pipeline in-progress.
-    fn in_progress_pipeline_mut(&mut self) -> Result<&mut InProgressPipeline> {
-        match &mut self.in_progress {
-            Some(pipeline) => Ok(pipeline),
-            None => Err(RayexecError::new("No pipeline in-progress")),
-        }
-    }
-
-    fn take_in_progress_pipeline(&mut self) -> Result<InProgressPipeline> {
-        self.in_progress
-            .take()
-            .ok_or_else(|| RayexecError::new("No in-progress pipeline to take"))
     }
 }

@@ -8,9 +8,9 @@ impl OperatorPlanState<'_> {
     pub fn plan_drop(&mut self, drop: Node<LogicalDrop>) -> Result<()> {
         let location = drop.location;
 
-        if self.in_progress.is_some() {
-            return Err(RayexecError::new("Expected in progress to be None"));
-        }
+        // if self.in_progress.is_some() {
+        //     return Err(RayexecError::new("Expected in progress to be None"));
+        // }
 
         // let operator = PhysicalOperator::Drop(PhysicalDrop::new(drop.node.catalog, drop.node.info));
 

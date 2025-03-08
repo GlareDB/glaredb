@@ -5,7 +5,6 @@ use super::create::{
     CreateScalarFunctionInfo,
     CreateSchemaInfo,
     CreateTableFunctionInfo,
-    CreateViewInfo,
     OnConflict,
 };
 use super::memory::{MemoryCatalog, MemoryCatalogTx};

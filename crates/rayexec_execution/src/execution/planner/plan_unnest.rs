@@ -14,12 +14,12 @@ impl OperatorPlanState<'_> {
 
         let input = unnest.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs(self.bind_context);
-        self.walk(materializations, input)?;
+        // self.walk(materializations, input)?;
 
-        let project_expressions = self
-            .expr_planner
-            .plan_scalars(&input_refs, &unnest.node.project_expressions)
-            .context("Failed to plan project expressions for unnest")?;
+        // let project_expressions = self
+        //     .expr_planner
+        //     .plan_scalars(&input_refs, &unnest.node.project_expressions)
+        //     .context("Failed to plan project expressions for unnest")?;
 
         unimplemented!()
         // let unnest_expressions = self

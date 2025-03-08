@@ -98,7 +98,7 @@ impl BaseOperator for PhysicalNestedLoopJoin {
 
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
         let collection =
-            ConcurrentColumnCollection::new(self.left_types.iter().cloned(), 16, props.batch_size);
+            ConcurrentColumnCollection::new(self.left_types.iter().cloned(), 1, props.batch_size);
 
         let inner = StateInner {
             remaining_build_inputs: 0, // Set when creating push partition states.

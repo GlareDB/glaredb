@@ -10,7 +10,8 @@ use super::resolved_table::{
     UnresolvedTableReference,
 };
 use super::ResolveContext;
-use crate::catalog::context::{Database, DatabaseContext};
+use crate::catalog::context::DatabaseContext;
+use crate::catalog::database::Database;
 use crate::catalog::entry::{CatalogEntry, CatalogEntryType};
 use crate::catalog::memory::{MemoryCatalogTx, MemorySchema};
 use crate::catalog::{Catalog, Schema};

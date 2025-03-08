@@ -4,33 +4,14 @@ use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
+use super::database::{AccessMode, Database};
 use super::memory::MemoryCatalog;
-use crate::arrays::scalar::ScalarValue;
+use crate::catalog::create::{CreateSchemaInfo, OnConflict};
+use crate::catalog::memory::MemoryCatalogTx;
+use crate::catalog::Catalog;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AccessMode {
-    ReadWrite,
-    ReadOnly,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AttachInfo {
-    /// Name of the data source this attached database is for.
-    pub datasource: String,
-    /// Options used for connecting to the database.
-    ///
-    /// This includes things like connection strings, and other possibly
-    /// sensitive info.
-    pub options: HashMap<String, ScalarValue>,
-}
-
-#[derive(Debug)]
-pub struct Database {
-    pub(crate) mode: AccessMode,
-    // TODO: Allow other catalog types.
-    pub(crate) catalog: MemoryCatalog,
-    pub(crate) attach_info: Option<AttachInfo>,
-}
+pub const SYSTEM_CATALOG: &str = "system";
+pub const TEMP_CATALOG: &str = "temp";
 
 /// Accessible catalogs for a session.
 #[derive(Debug)]
@@ -40,7 +21,27 @@ pub struct DatabaseContext {
 
 impl DatabaseContext {
     pub fn new(system_catalog: Arc<Database>) -> Result<Self> {
-        unimplemented!()
+        let mut databases = HashMap::new();
+        databases.insert(system_catalog.name.clone(), system_catalog);
+
+        let temp_db = Arc::new(Database {
+            name: TEMP_CATALOG.to_string(),
+            mode: AccessMode::ReadWrite,
+            catalog: MemoryCatalog::empty(),
+            attach_info: None,
+        });
+
+        temp_db.catalog.create_schema(
+            &MemoryCatalogTx {},
+            &CreateSchemaInfo {
+                name: "temp".to_string(),
+                on_conflict: OnConflict::Error,
+            },
+        )?;
+
+        databases.insert(temp_db.name.clone(), temp_db);
+
+        Ok(DatabaseContext { databases })
     }
 
     pub fn get_database(&self, name: &str) -> Option<&Arc<Database>> {

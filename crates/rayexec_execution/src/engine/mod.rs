@@ -8,7 +8,8 @@ use std::sync::Arc;
 use rayexec_error::Result;
 use session::Session;
 
-use crate::catalog::context::{AccessMode, Database, DatabaseContext};
+use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
+use crate::catalog::database::{AccessMode, Database};
 use crate::catalog::system::new_system_catalog;
 use crate::runtime::{PipelineExecutor, Runtime};
 
@@ -26,6 +27,7 @@ where
 {
     pub fn new(executor: P, runtime: R) -> Result<Self> {
         let system_catalog = Arc::new(Database {
+            name: SYSTEM_CATALOG.to_string(),
             mode: AccessMode::ReadOnly,
             catalog: new_system_catalog()?,
             attach_info: None,

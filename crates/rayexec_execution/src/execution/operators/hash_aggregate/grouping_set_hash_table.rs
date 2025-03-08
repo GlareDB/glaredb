@@ -355,6 +355,7 @@ impl GroupingSetHashTable {
         debug_assert!(group_row_count <= capacity);
 
         // Finalize aggregate states.
+        state.results.reset_for_write()?;
         unsafe {
             self.layout.finalize_states(
                 state.scan_state.scanned_row_pointers_mut(),
