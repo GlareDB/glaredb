@@ -1,17 +1,19 @@
+use std::any::Any;
+use std::sync::Arc;
+
 use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
-use crate::ptr::raw_clone_ptr::RawClonePtr;
 
 #[derive(Debug, Clone)]
 pub struct RawBindState {
-    pub state: RawClonePtr,
+    pub state: Arc<dyn Any + Sync + Send>,
     pub return_type: DataType,
     pub inputs: Vec<Expression>,
 }
 
 impl RawBindState {
-    pub(crate) fn state_ptr(&self) -> *const () {
-        self.state.get()
+    pub(crate) fn state_as_any(&self) -> &dyn Any {
+        self.state.as_ref()
     }
 }
 

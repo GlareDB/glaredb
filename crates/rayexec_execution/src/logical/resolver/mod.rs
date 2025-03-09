@@ -19,7 +19,7 @@ use resolve_context::{ItemReference, MaybeResolved, ResolveContext, ResolveListI
 use resolve_normal::{MaybeResolvedTable, NormalResolver};
 use resolved_cte::ResolvedCte;
 use resolved_table::ResolvedTableOrCteReference;
-use resolved_table_function::{ResolvedTableFunctionReference, UnresolvedTableFunctionReference};
+use resolved_table_function::ResolvedTableFunctionReference;
 use serde::{Deserialize, Serialize};
 
 use super::binder::constant_binder::ConstantBinder;
@@ -29,8 +29,9 @@ use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampType
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::scalar::ScalarValue;
 use crate::catalog::context::DatabaseContext;
-use crate::catalog::entry::{CatalogEntryInner, CatalogEntryType};
+use crate::catalog::entry::CatalogEntryInner;
 use crate::expr;
+use crate::functions::table::TableFunctionInput;
 use crate::logical::operator::LocationRequirement;
 
 /// An AST statement with references bound to data inside of the `resolve_context`.
@@ -283,7 +284,7 @@ impl<'a> Resolver<'a> {
         copy_to: ast::CopyTo<Raw>,
         resolve_context: &mut ResolveContext,
     ) -> Result<ast::CopyTo<ResolvedMeta>> {
-        let source = match copy_to.source {
+        let _source = match copy_to.source {
             ast::CopyToSource::Query(query) => {
                 ast::CopyToSource::Query(self.resolve_query(query, resolve_context).await?)
             }
@@ -830,87 +831,106 @@ impl<'a> Resolver<'a> {
         from: ast::FromNode<Raw>,
         resolve_context: &mut ResolveContext,
     ) -> Result<ast::FromNode<ResolvedMeta>> {
+        // TODO: Very deeply nested... Also rustfmt seems to have trouble
+        // properly formatting this.
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
-                let table = match self.resolve_mode {
+                match self.resolve_mode {
                     ResolveMode::Normal => {
                         let table = NormalResolver::new(self.context)
                             .require_resolve_table_or_cte(&reference, resolve_context)
                             .await?;
-                        MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
-                    }
-                    ResolveMode::Hybrid => {
-                        let table = NormalResolver::new(self.context)
-                            .resolve_table_or_cte(&reference, resolve_context)
-                            .await?;
 
                         match table {
-                            MaybeResolvedTable::Resolved(table) => {
-                                MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
+                            ResolvedTableOrCteReference::Table(ent) => {
+                                match &ent.entry.entry {
+                                    CatalogEntryInner::View(view) => {
+                                        // Special case for view. If we resolved, then we'll go
+                                        // ahead and parse the sql and treat it as a subquery.
+
+                                        let mut statements = parser::parse(&view.query_sql)?;
+                                        let statement = match statements.len() {
+                                            1 => statements.pop().unwrap(),
+                                            other => return Err(RayexecError::new(
+                                                format!("Unexpected number of statements inside view body, expected 1, got {other}")
+                                            ))
+                                        };
+
+                                        let query = match statement {
+                                            Statement::Query(query) => {
+                                                // TODO: Detect a view referencing itself and error.
+                                                Box::pin(self.resolve_query(query, resolve_context))
+                                                    .await?
+                                            }
+                                            other => {
+                                                return Err(RayexecError::new(format!(
+                                                    "Unexpected statement type for view: {other:?}"
+                                                )))
+                                            }
+                                        };
+
+                                        // TODO: We may want to just include the database/schema
+                                        // on the alias too. Need to see what we're doing for
+                                        // tables and just do the same here.
+                                        ast::FromNodeBody::Subquery(ast::FromSubquery {
+                                            lateral: false,
+                                            options: ResolvedSubqueryOptions::View {
+                                                table_alias: TableAlias {
+                                                    database: None,
+                                                    schema: None,
+                                                    table: ent.entry.name.clone(),
+                                                },
+                                                column_aliases: view
+                                                    .column_aliases
+                                                    .clone()
+                                                    .unwrap_or_default(),
+                                            },
+                                            query,
+                                        })
+                                    }
+                                    CatalogEntryInner::Table(table) => {
+                                        // Base table, get the table scan
+                                        // function and use that.
+                                        //
+                                        // Arguments are (catalog, schema, table)
+                                        let inputs = TableFunctionInput {
+                                            positional: vec![
+                                                expr::lit(ent.catalog.clone()).into(),
+                                                expr::lit(ent.schema.clone()).into(),
+                                                expr::lit(ent.entry.name.clone()).into(),
+                                            ],
+                                            named: HashMap::new(),
+                                        };
+
+                                        let planned = expr::bind_table_scan_function(
+                                            &table.function,
+                                            self.context,
+                                            inputs,
+                                        )
+                                        .await?;
+
+                                        let resolve_idx = resolve_context
+                                            .table_functions
+                                            .push_maybe_resolved(MaybeResolved::Resolved(
+                                                ResolvedTableFunctionReference::Planned(planned),
+                                                LocationRequirement::ClientLocal,
+                                            ));
+
+                                        // TODO: Clean this up.
+                                        ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                                            lateral: false,
+                                            reference: resolve_idx,
+                                            args: Vec::new(),
+                                        })
+                                    }
+                                    _ => return Err(RayexecError::new("Unexpected catalog entry")),
+                                }
                             }
-                            MaybeResolvedTable::UnresolvedWithCatalog(unbound) => {
-                                MaybeResolved::Unresolved(unbound)
-                            }
-                            MaybeResolvedTable::Unresolved => {
-                                return Err(RayexecError::new(format!(
-                                    "Missing table or view for reference '{}'",
-                                    reference
-                                )))
-                            }
+                            _ => unimplemented!(),
                         }
                     }
-                };
-
-                match table {
-                    MaybeResolved::Resolved(ResolvedTableOrCteReference::Table(ent), _)
-                        if ent.entry.entry_type() == CatalogEntryType::View =>
-                    {
-                        // Special case for view. If we resolved, then we'll go
-                        // ahead and parse the sql and treat it as a subquery.
-                        let view = match &ent.entry.entry {
-                            CatalogEntryInner::View(v) => v,
-                            _ => unreachable!("entry type checked"),
-                        };
-                        let mut statements = parser::parse(&view.query_sql)?;
-                        let statement = match statements.len() {
-                            1 => statements.pop().unwrap(),
-                            other => return Err(RayexecError::new(
-                                format!("Unexpected number of statements inside view body, expected 1, got {other}")
-                            ))
-                        };
-
-                        let query = match statement {
-                            Statement::Query(query) => {
-                                // TODO: Detect a view referencing itself and error.
-                                Box::pin(self.resolve_query(query, resolve_context)).await?
-                            }
-                            other => {
-                                return Err(RayexecError::new(format!(
-                                    "Unexpected statement type for view: {other:?}"
-                                )))
-                            }
-                        };
-
-                        // TODO: We may want to just include the database/schema
-                        // on the alias too. Need to see what we're doing for
-                        // tables and just do the same here.
-                        ast::FromNodeBody::Subquery(ast::FromSubquery {
-                            lateral: false,
-                            options: ResolvedSubqueryOptions::View {
-                                table_alias: TableAlias {
-                                    database: None,
-                                    schema: None,
-                                    table: ent.entry.name.clone(),
-                                },
-                                column_aliases: view.column_aliases.clone().unwrap_or_default(),
-                            },
-                            query,
-                        })
-                    }
-                    _ => {
-                        // Normal case, just a table or CTE
-                        let idx = resolve_context.tables.push_maybe_resolved(table);
-                        ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference: idx })
+                    ResolveMode::Hybrid => {
+                        not_implemented!("resolve table hybrid")
                     }
                 }
             }
@@ -925,52 +945,6 @@ impl<'a> Resolver<'a> {
             }),
             ast::FromNodeBody::File(ast::FromFilePath { path }) => {
                 not_implemented!("infer from file path")
-                // match self.file_handlers.find_match(&path) {
-                //     Some(_handler) => {
-                //         // "Rewrite" this into a function call.
-
-                //         // TODO: User-friendly alias here.
-
-                //         // This isn't really needed for the typical scan case,
-                //         // but I have no idea for in/out.
-                //         // let args = vec![ast::FunctionArg::Unnamed {
-                //         //     arg: ast::FunctionArgExpr::Expr(ast::Expr::Literal(
-                //         //         ast::Literal::SingleQuotedString(path.clone()),
-                //         //     )),
-                //         // }];
-
-                //         not_implemented!("file")
-                //         // // Having an in/out function here would be weird, but
-                //         // // might as well handle it.
-                //         // let resolved = match handler.table_func.planner() {
-                //         //     TableFunctionPlanner2::InOut(_) => {
-                //         //         ResolvedTableFunctionReference::InOut(handler.table_func.clone())
-                //         //     }
-                //         //     TableFunctionPlanner2::Scan(planner) => {
-                //         //         let planned = planner
-                //         //             .plan(self.context, vec![path.into()], HashMap::new())
-                //         //             .await?;
-
-                //         //         ResolvedTableFunctionReference::Scan(planned)
-                //         //     }
-                //         // };
-
-                //         // let resolve_idx = resolve_context
-                //         //     .table_functions
-                //         //     .push_resolved(resolved, LocationRequirement::ClientLocal);
-
-                //         // ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                //         //     lateral: false,
-                //         //     reference: resolve_idx,
-                //         //     args,
-                //         // })
-                //     }
-                //     None => {
-                //         return Err(RayexecError::new(format!(
-                //             "No suitable file handlers found for '{path}'"
-                //         )))
-                //     }
-                // }
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction {
                 lateral,
@@ -1010,44 +984,7 @@ impl<'a> Resolver<'a> {
                         }
                     }
                     ResolveMode::Hybrid => {
-                        match NormalResolver::new(self.context)
-                            .resolve_table_function(&reference)?
-                        {
-                            Some(function) => {
-                                // TODO: Duplicated
-                                if function.is_scan_function() {
-                                    let binder = ConstantBinder::new(resolve_context);
-                                    let constant_args =
-                                        binder.bind_constant_function_args(&args)?;
-
-                                    let planned = expr::bind_table_scan_function(
-                                        &function,
-                                        self.context,
-                                        constant_args,
-                                    )
-                                    .await?;
-
-                                    MaybeResolved::Resolved(
-                                        ResolvedTableFunctionReference::Planned(planned),
-                                        LocationRequirement::ClientLocal,
-                                    )
-                                } else {
-                                    MaybeResolved::Resolved(
-                                        ResolvedTableFunctionReference::Delayed(function),
-                                        LocationRequirement::ClientLocal,
-                                    )
-                                }
-                            }
-                            None => {
-                                let binder = ConstantBinder::new(resolve_context);
-                                let constant_args = binder.bind_constant_function_args(&args)?;
-
-                                MaybeResolved::Unresolved(UnresolvedTableFunctionReference {
-                                    reference,
-                                    args: constant_args,
-                                })
-                            }
-                        }
+                        not_implemented!("resolve hybrid table func")
                     }
                 };
 

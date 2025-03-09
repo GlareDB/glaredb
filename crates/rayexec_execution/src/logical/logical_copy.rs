@@ -4,7 +4,7 @@ use rayexec_io::location::FileLocation;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::arrays::field::Schema;
+use crate::arrays::field::ColumnSchema;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -14,7 +14,7 @@ pub struct LogicalCopyTo {
     ///
     /// Stored on this operator since the copy to sinks may need field names
     /// (e.g. writing out a header in csv).
-    pub source_schema: Schema,
+    pub source_schema: ColumnSchema,
     pub location: FileLocation,
     // pub copy_to: Box<dyn CopyToFunction>,
 }

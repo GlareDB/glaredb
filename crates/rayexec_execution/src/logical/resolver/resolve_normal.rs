@@ -10,10 +10,11 @@ use super::resolved_table::{
     UnresolvedTableReference,
 };
 use super::ResolveContext;
-use crate::catalog::context::DatabaseContext;
+use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
 use crate::catalog::database::Database;
 use crate::catalog::entry::{CatalogEntry, CatalogEntryType};
 use crate::catalog::memory::MemorySchema;
+use crate::catalog::system::BUILTIN_SCHEMA;
 use crate::catalog::{Catalog, Schema};
 use crate::functions::function_set::TableFunctionSet;
 
@@ -85,14 +86,14 @@ impl<'a> NormalResolver<'a> {
         // TODO: Search path.
         let [catalog, schema, name] = match reference.0.len() {
             1 => [
-                "system".to_string(),
-                "glare_catalog".to_string(),
+                SYSTEM_CATALOG.to_string(),
+                BUILTIN_SCHEMA.to_string(),
                 reference.0[0].as_normalized_string(),
             ],
             2 => {
                 let name = reference.0[1].as_normalized_string();
                 let schema = reference.0[0].as_normalized_string();
-                ["system".to_string(), schema, name]
+                [SYSTEM_CATALOG.to_string(), schema, name]
             }
             3 => {
                 let name = reference.0[2].as_normalized_string();

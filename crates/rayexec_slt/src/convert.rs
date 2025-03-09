@@ -1,7 +1,7 @@
 use rayexec_error::Result;
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::datatype::DataType;
-use rayexec_execution::arrays::field::Schema;
+use rayexec_execution::arrays::field::ColumnSchema;
 use rayexec_execution::arrays::format::{FormatOptions, Formatter};
 use sqllogictest::DefaultColumnType;
 
@@ -37,7 +37,7 @@ pub fn batches_to_rows(batches: Vec<Batch>) -> Result<Vec<Vec<String>>> {
     Ok(rows)
 }
 
-pub fn schema_to_types(schema: &Schema) -> Vec<DefaultColumnType> {
+pub fn schema_to_types(schema: &ColumnSchema) -> Vec<DefaultColumnType> {
     let mut typs = Vec::new();
     for field in &schema.fields {
         let typ = match field.datatype {

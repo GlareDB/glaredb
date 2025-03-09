@@ -186,14 +186,14 @@ mod tests {
     use rayexec_execution::arrays::array::Array;
     use rayexec_execution::arrays::batch::Batch;
     use rayexec_execution::arrays::datatype::DataType;
-    use rayexec_execution::arrays::field::{Field, Schema};
+    use rayexec_execution::arrays::field::{ColumnSchema, Field};
 
     use super::*;
 
     #[test]
     fn format_cells() {
         let table = MaterializedResultTable::try_new(
-            Schema::new([Field::new("c1", DataType::Int32, true)]),
+            ColumnSchema::new([Field::new("c1", DataType::Int32, true)]),
             [
                 Batch::from_arrays([Array::from_iter([0, 1, 2, 3])]).unwrap(),
                 Batch::from_arrays([Array::from_iter([4, 5])]).unwrap(),

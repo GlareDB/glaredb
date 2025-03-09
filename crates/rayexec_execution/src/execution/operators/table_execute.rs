@@ -9,19 +9,19 @@ use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::functions::table::{
+    AnyTableOperatorState,
+    AnyTablePartitionState,
     PlannedTableFunction,
-    RawTableOperatorState,
-    RawTablePartitionState,
 };
 
 #[derive(Debug)]
 pub struct TableExecuteOperatorState {
-    function_op_state: RawTableOperatorState,
+    function_op_state: AnyTableOperatorState,
 }
 
 #[derive(Debug)]
 pub struct TableExecutePartitionState {
-    function_state: RawTablePartitionState,
+    function_state: AnyTablePartitionState,
     /// Batch for holding a single row from the input when we have additional
     /// projections.
     row_batch: Batch,

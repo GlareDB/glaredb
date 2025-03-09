@@ -4,7 +4,6 @@ pub mod database;
 pub mod drop;
 pub mod entry;
 pub mod memory;
-pub mod storage_manager;
 pub mod system;
 
 use std::fmt::Debug;
@@ -23,6 +22,7 @@ use entry::{CatalogEntry, CatalogEntryType};
 use rayexec_error::{RayexecError, Result};
 
 use crate::execution::operators::PlannedOperator;
+use crate::storage::storage_manager::{StorageManager, StorageTableId};
 
 pub trait Catalog: Debug + Sync + Send {
     type Schema: Schema;
@@ -38,16 +38,36 @@ pub trait Catalog: Debug + Sync + Send {
     /// Get a schema, returning an error if it doesn't exist.
     fn require_get_schema(&self, name: &str) -> Result<Arc<Self::Schema>> {
         self.get_schema(name)?
-            .ok_or_else(|| RayexecError::new("Missing schema '{name}'"))
+            .ok_or_else(|| RayexecError::new(format!("Missing schema '{name}'")))
     }
 
     /// Drop an entry in the catalog.
     fn drop_entry(&self, drop: &DropInfo) -> Result<()>;
+
+    fn plan_create_view(
+        self: &Arc<Self>,
+        schema: &str,
+        create: CreateViewInfo,
+    ) -> Result<PlannedOperator>;
+
+    fn plan_create_table(
+        self: &Arc<Self>,
+        storage: &Arc<StorageManager>,
+        schema: &str,
+        create: CreateTableInfo,
+    ) -> Result<PlannedOperator>;
+
+    fn plan_create_schema(self: &Arc<Self>, create: CreateSchemaInfo) -> Result<PlannedOperator>;
 }
 
 pub trait Schema: Debug + Sync + Send {
     /// Create a table in the schema.
-    fn create_table(&self, create: &CreateTableInfo) -> Result<Arc<CatalogEntry>>;
+    // TODO: Storage id should be opaque.
+    fn create_table(
+        &self,
+        create: &CreateTableInfo,
+        storage_id: StorageTableId,
+    ) -> Result<Arc<CatalogEntry>>;
 
     /// Create a view in the schema.
     fn create_view(&self, create: &CreateViewInfo) -> Result<Arc<CatalogEntry>>;
@@ -70,6 +90,16 @@ pub trait Schema: Debug + Sync + Send {
     /// Get a table or view in the schema.
     fn get_table_or_view(&self, name: &str) -> Result<Option<Arc<CatalogEntry>>>;
 
+    fn require_get_table(&self, name: &str) -> Result<Arc<CatalogEntry>> {
+        let ent = self
+            .get_table_or_view(name)?
+            .ok_or_else(|| RayexecError::new(format!("Missing table '{name}'")))?;
+        if ent.entry_type() != CatalogEntryType::Table {
+            return Err(RayexecError::new(format!("'{name}' is not a table")));
+        }
+        Ok(ent)
+    }
+
     /// Get a table function in the schema.
     fn get_table_function(&self, name: &str) -> Result<Option<Arc<CatalogEntry>>>;
 
@@ -88,16 +118,4 @@ pub trait Schema: Debug + Sync + Send {
         entry_types: &[CatalogEntryType],
         name: &str,
     ) -> Result<Option<Arc<CatalogEntry>>>;
-}
-
-// TODO: The Arc<Self> is a bit weird, but it's mostly for the
-// `plan_create_schema` to be able to clone the outer catalog.
-pub trait CatalogPlanner: Catalog {
-    fn plan_create_view(
-        self: &Arc<Self>,
-        schema: &str,
-        create: CreateViewInfo,
-    ) -> Result<PlannedOperator>;
-
-    fn plan_create_schema(self: &Arc<Self>, create: CreateSchemaInfo) -> Result<PlannedOperator>;
 }

@@ -1,5 +1,5 @@
 use rayexec_error::Result;
-use rayexec_execution::arrays::field::Schema;
+use rayexec_execution::arrays::field::ColumnSchema;
 use rayexec_execution::execution::operators::sink::operation::PartitionSink;
 use rayexec_execution::functions::copy::CopyToFunction;
 use rayexec_execution::runtime::Runtime;
@@ -18,7 +18,7 @@ impl<R: Runtime> CopyToFunction for CsvCopyToFunction<R> {
     // TODO: Access config
     fn create_sinks(
         &self,
-        _schema: Schema,
+        _schema: ColumnSchema,
         _location: FileLocation,
         _num_partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {

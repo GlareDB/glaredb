@@ -7,20 +7,20 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::functions::table::{
+    AnyTableOperatorState,
+    AnyTablePartitionState,
     PlannedTableFunction,
-    RawTableOperatorState,
-    RawTablePartitionState,
 };
 use crate::storage::projections::Projections;
 
 #[derive(Debug)]
 pub struct ScanOperatorState {
-    state: RawTableOperatorState,
+    state: AnyTableOperatorState,
 }
 
 #[derive(Debug)]
 pub struct ScanPartitionState {
-    state: RawTablePartitionState,
+    state: AnyTablePartitionState,
 }
 
 #[derive(Debug)]

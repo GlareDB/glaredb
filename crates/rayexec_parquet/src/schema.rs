@@ -17,24 +17,24 @@ use rayexec_execution::arrays::datatype::{
     TimeUnit,
     TimestampTypeMeta,
 };
-use rayexec_execution::arrays::field::{Field, Schema};
+use rayexec_execution::arrays::field::{ColumnSchema, Field};
 use rayexec_execution::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 
 /// Converts a parquet schema to a bullet schema.
 ///
 /// A lot of this logic was taken from the conversion to arrow in the upstream
 /// arrow-rs crate.
-pub fn from_parquet_schema(parquet_schema: &SchemaDescriptor) -> Result<Schema> {
+pub fn from_parquet_schema(parquet_schema: &SchemaDescriptor) -> Result<ColumnSchema> {
     match parquet_schema.root_schema() {
         Type::GroupType { fields, .. } => {
             let fields = convert_types_to_fields(fields)?;
-            Ok(Schema::new(fields))
+            Ok(ColumnSchema::new(fields))
         }
         Type::PrimitiveType { .. } => unreachable!("schema type is not primitive"),
     }
 }
 
-pub fn to_parquet_schema(schema: &Schema) -> Result<SchemaDescriptor> {
+pub fn to_parquet_schema(schema: &ColumnSchema) -> Result<SchemaDescriptor> {
     let types = schema
         .fields
         .iter()

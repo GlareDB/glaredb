@@ -4,6 +4,7 @@ use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 
 /// Scan projections.
+// TODO: Probably move.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Projections {
     /// Column indices to project out of the scan.

@@ -5,7 +5,7 @@ use futures::{StreamExt, TryStreamExt};
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
-use rayexec_execution::arrays::field::{Field, Schema};
+use rayexec_execution::arrays::field::{ColumnSchema, Field};
 use rayexec_execution::arrays::scalar::decimal::{Decimal128Type, DecimalType};
 use rayexec_execution::storage::table_storage::Projections;
 use rayexec_io::location::{AccessConfig, FileLocation};
@@ -37,7 +37,7 @@ pub struct Table {
 impl Table {
     pub async fn create(
         _root: FileLocation,
-        _schema: Schema,
+        _schema: ColumnSchema,
         _provider: Arc<dyn FileProvider2>,
         _conf: AccessConfig,
     ) -> Result<Self> {
@@ -126,7 +126,7 @@ impl Table {
         Ok(actions)
     }
 
-    pub fn table_schema(&self) -> Result<Schema> {
+    pub fn table_schema(&self) -> Result<ColumnSchema> {
         let schema = self.snapshot.schema()?;
         schema_from_struct_type(schema)
     }
@@ -166,7 +166,7 @@ impl Table {
 pub struct TableScan {
     root: FileLocation,
     /// Schema of the table as determined by the metadata action.
-    schema: Schema,
+    schema: ColumnSchema,
     /// Root column projections.
     projections: Projections,
     /// Paths to data files this scan should read one after another.
@@ -220,7 +220,7 @@ impl TableScan {
         conf: &AccessConfig,
         path: String,
         provider: &dyn FileProvider2,
-        schema: &Schema,
+        schema: &ColumnSchema,
         projections: Projections,
     ) -> Result<AsyncBatchReader<Box<dyn FileSource>>> {
         // TODO: Need to split path into segments.
@@ -246,13 +246,13 @@ impl TableScan {
 }
 
 /// Create a schema from a struct type representing the schema of a delta table.
-pub fn schema_from_struct_type(typ: StructType) -> Result<Schema> {
+pub fn schema_from_struct_type(typ: StructType) -> Result<ColumnSchema> {
     let fields = typ
         .fields
         .into_iter()
         .map(struct_field_to_field)
         .collect::<Result<Vec<_>>>()?;
-    Ok(Schema::new(fields))
+    Ok(ColumnSchema::new(fields))
 }
 
 fn struct_field_to_field(field: StructField) -> Result<Field> {

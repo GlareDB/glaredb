@@ -1,5 +1,6 @@
 mod plan_aggregate;
 mod plan_create_schema;
+mod plan_create_table;
 mod plan_create_view;
 mod plan_describe;
 mod plan_distinct;
@@ -191,6 +192,7 @@ impl<'a> OperatorPlanState<'a> {
             ),
             LogicalOperator::CreateView(node) => self.plan_create_view(node),
             LogicalOperator::CreateSchema(node) => self.plan_create_schema(node),
+            LogicalOperator::CreateTable(node) => self.plan_create_table(node),
             other => not_implemented!("logical plan to physical plan: {other:?}"),
         }
     }

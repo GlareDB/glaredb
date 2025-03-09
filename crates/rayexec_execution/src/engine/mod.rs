@@ -11,7 +11,9 @@ use session::Session;
 use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
 use crate::catalog::database::{AccessMode, Database};
 use crate::catalog::system::new_system_catalog;
+use crate::extension::Extension;
 use crate::runtime::{PipelineExecutor, Runtime};
+use crate::storage::storage_manager::StorageManager;
 
 #[derive(Debug)]
 pub struct Engine<P: PipelineExecutor, R: Runtime> {
@@ -30,6 +32,7 @@ where
             name: SYSTEM_CATALOG.to_string(),
             mode: AccessMode::ReadOnly,
             catalog: Arc::new(new_system_catalog()?),
+            storage: Arc::new(StorageManager::new()),
             attach_info: None,
         });
 
@@ -55,5 +58,12 @@ where
             self.executor.clone(),
             self.runtime.clone(),
         ))
+    }
+
+    pub fn register_extension<E>(&self, ext: E) -> Result<()>
+    where
+        E: Extension,
+    {
+        unimplemented!()
     }
 }

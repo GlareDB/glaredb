@@ -8,6 +8,7 @@ use super::database::{AccessMode, Database};
 use super::memory::MemoryCatalog;
 use crate::catalog::create::{CreateSchemaInfo, OnConflict};
 use crate::catalog::Catalog;
+use crate::storage::storage_manager::StorageManager;
 
 pub const SYSTEM_CATALOG: &str = "system";
 pub const TEMP_CATALOG: &str = "temp";
@@ -27,6 +28,7 @@ impl DatabaseContext {
             name: TEMP_CATALOG.to_string(),
             mode: AccessMode::ReadWrite,
             catalog: Arc::new(MemoryCatalog::empty()),
+            storage: Arc::new(StorageManager::new()),
             attach_info: None,
         });
 

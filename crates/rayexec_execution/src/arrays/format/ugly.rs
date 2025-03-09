@@ -3,7 +3,7 @@ use std::fmt::Write as _;
 use rayexec_error::Result;
 
 use crate::arrays::batch::Batch;
-use crate::arrays::field::Schema;
+use crate::arrays::field::ColumnSchema;
 use crate::arrays::format::{FormatOptions, Formatter};
 
 pub fn ugly_format_no_schema<'a, I>(batches: I) -> Result<String>
@@ -38,7 +38,7 @@ where
     Ok(buf)
 }
 
-pub fn ugly_format<'a, I>(schema: &Schema, batches: I) -> Result<String>
+pub fn ugly_format<'a, I>(schema: &ColumnSchema, batches: I) -> Result<String>
 where
     I: IntoIterator<Item = &'a Batch>,
 {

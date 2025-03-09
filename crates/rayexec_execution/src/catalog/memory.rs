@@ -24,11 +24,14 @@ use super::entry::{
     TableFunctionEntry,
     ViewEntry,
 };
-use super::{Catalog, CatalogPlanner, Schema};
+use super::{Catalog, Schema};
 use crate::catalog::entry::SchemaEntry;
 use crate::execution::operators::catalog::create_schema::PhysicalCreateSchema;
+use crate::execution::operators::catalog::create_table::PhysicalCreateTable;
 use crate::execution::operators::catalog::create_view::PhysicalCreateView;
 use crate::execution::operators::PlannedOperator;
+use crate::functions::table::builtin::memory_scan::FUNCTION_SET_MEMORY_SCAN;
+use crate::storage::storage_manager::{StorageManager, StorageTableId};
 
 #[derive(Debug)]
 pub struct MemoryCatalog {
@@ -49,7 +52,6 @@ impl Catalog for MemoryCatalog {
     fn create_schema(&self, create: &CreateSchemaInfo) -> Result<Arc<Self::Schema>> {
         let schema = Arc::new(MemorySchema {
             _schema: Arc::new(CatalogEntry {
-                oid: 0,
                 name: create.name.clone(),
                 entry: CatalogEntryInner::Schema(SchemaEntry {}),
                 child: None,
@@ -113,6 +115,43 @@ impl Catalog for MemoryCatalog {
 
         Ok(())
     }
+
+    fn plan_create_view(
+        self: &Arc<Self>,
+        schema: &str,
+        create: CreateViewInfo,
+    ) -> Result<PlannedOperator> {
+        let schema = self.require_get_schema(schema)?;
+        let operator = PhysicalCreateView {
+            schema,
+            info: create,
+        };
+
+        Ok(PlannedOperator::new_pull(operator))
+    }
+
+    fn plan_create_table(
+        self: &Arc<Self>,
+        storage: &Arc<StorageManager>,
+        schema: &str,
+        create: CreateTableInfo,
+    ) -> Result<PlannedOperator> {
+        let schema = self.require_get_schema(schema)?;
+        let operator = PhysicalCreateTable {
+            storage: storage.clone(),
+            schema,
+            info: create,
+        };
+
+        Ok(PlannedOperator::new_pull(operator))
+    }
+
+    fn plan_create_schema(self: &Arc<Self>, create: CreateSchemaInfo) -> Result<PlannedOperator> {
+        Ok(PlannedOperator::new_pull(PhysicalCreateSchema {
+            catalog: self.clone(),
+            info: create,
+        }))
+    }
 }
 
 #[derive(Debug)]
@@ -130,12 +169,17 @@ pub struct MemorySchema {
 }
 
 impl Schema for MemorySchema {
-    fn create_table(&self, create: &CreateTableInfo) -> Result<Arc<CatalogEntry>> {
+    fn create_table(
+        &self,
+        create: &CreateTableInfo,
+        storage_id: StorageTableId,
+    ) -> Result<Arc<CatalogEntry>> {
         let table = CatalogEntry {
-            oid: 0,
             name: create.name.clone(),
             entry: CatalogEntryInner::Table(TableEntry {
                 columns: create.columns.clone(),
+                function: FUNCTION_SET_MEMORY_SCAN,
+                storage_id,
             }),
             child: None,
         };
@@ -145,7 +189,6 @@ impl Schema for MemorySchema {
 
     fn create_view(&self, create: &CreateViewInfo) -> Result<Arc<CatalogEntry>> {
         let view = CatalogEntry {
-            oid: 0,
             name: create.name.clone(),
             entry: CatalogEntryInner::View(ViewEntry {
                 column_aliases: create.column_aliases.clone(),
@@ -162,7 +205,6 @@ impl Schema for MemorySchema {
         create: &CreateScalarFunctionInfo,
     ) -> Result<Arc<CatalogEntry>> {
         let ent = CatalogEntry {
-            oid: 0,
             name: create.name.clone(),
             entry: CatalogEntryInner::ScalarFunction(ScalarFunctionEntry {
                 function: create.implementation.clone(),
@@ -178,7 +220,6 @@ impl Schema for MemorySchema {
         create: &CreateAggregateFunctionInfo,
     ) -> Result<Arc<CatalogEntry>> {
         let ent = CatalogEntry {
-            oid: 0,
             name: create.name.clone(),
             entry: CatalogEntryInner::AggregateFunction(AggregateFunctionEntry {
                 function: create.implementation.clone(),
@@ -191,7 +232,6 @@ impl Schema for MemorySchema {
 
     fn create_table_function(&self, create: &CreateTableFunctionInfo) -> Result<Arc<CatalogEntry>> {
         let ent = CatalogEntry {
-            oid: 0,
             name: create.name.clone(),
             entry: CatalogEntryInner::TableFunction(TableFunctionEntry {
                 function: create.implementation.clone(),
@@ -347,29 +387,6 @@ impl MemorySchema {
             (None, true) => Ok(()),
             (None, false) => Err(RayexecError::new("Missing entry, cannot drop")),
         }
-    }
-}
-
-impl CatalogPlanner for MemoryCatalog {
-    fn plan_create_view(
-        self: &Arc<Self>,
-        schema: &str,
-        create: CreateViewInfo,
-    ) -> Result<PlannedOperator> {
-        let schema = self.require_get_schema(schema)?;
-        let operator = PhysicalCreateView {
-            schema,
-            info: create,
-        };
-
-        Ok(PlannedOperator::new_pull(operator))
-    }
-
-    fn plan_create_schema(self: &Arc<Self>, create: CreateSchemaInfo) -> Result<PlannedOperator> {
-        Ok(PlannedOperator::new_pull(PhysicalCreateSchema {
-            catalog: self.clone(),
-            info: create,
-        }))
     }
 }
 

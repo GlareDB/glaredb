@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::profiler::PlanningProfileData;
 use super::query_result::{Output, QueryResult};
-use crate::arrays::field::{Field, Schema};
+use crate::arrays::field::{ColumnSchema, Field};
 use crate::catalog::context::DatabaseContext;
 use crate::config::execution::OperatorPlanConfig;
 use crate::config::session::SessionConfig;
@@ -92,7 +92,7 @@ struct IntermediatePortal {
     query_id: Uuid,
     execution_mode: ExecutionMode,
     query_graph: QueryGraph,
-    output_schema: Schema,
+    output_schema: ColumnSchema,
 }
 
 /// Portal containing executable pipelines.
@@ -110,7 +110,7 @@ struct ExecutablePortal {
     /// Pipelines we'll be executing on this node.
     executable_graph: ExecutablePipelineGraph,
     /// Output schema of the query.
-    output_schema: Schema,
+    output_schema: ColumnSchema,
     /// Output result stream.
     result_stream: ResultStream,
     /// Profile data we've collected during resolving/binding/planning.
@@ -318,7 +318,7 @@ where
                     ));
                 }
 
-                let schema = Schema::new(
+                let schema = ColumnSchema::new(
                     bind_context
                         .iter_tables_in_scope(bind_context.root_scope_ref())?
                         .flat_map(|t| {

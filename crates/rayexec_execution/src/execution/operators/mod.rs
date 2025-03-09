@@ -18,8 +18,10 @@ pub mod values;
 
 pub(crate) mod util;
 
+use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::sync::Arc;
 use std::task::Context;
 
 use rayexec_error::{RayexecError, Result};
@@ -28,8 +30,6 @@ use super::pipeline::{ExecutablePipeline, ExecutablePipelineGraph};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::ptr::raw_clone_ptr::RawClonePtr;
-use crate::ptr::raw_ptr::RawPtr;
 
 /// Poll result for operator execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -139,7 +139,7 @@ impl OperatorType {
     }
 }
 
-pub trait BaseOperator: Sync + Send + Debug + Explainable {
+pub trait BaseOperator: Sync + Send + Debug + Explainable + 'static {
     type OperatorState: Sync + Send;
 
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState>;
@@ -274,10 +274,10 @@ pub trait PushOperator: BaseOperator {
 }
 
 #[derive(Debug, Clone)]
-pub struct RawOperatorState(RawClonePtr);
+pub struct AnyOperatorState(Arc<dyn Any + Sync + Send>);
 
 #[derive(Debug)]
-pub struct RawPartitionState(RawPtr);
+pub struct AnyPartitionState(Box<dyn Any + Sync + Send>);
 
 #[derive(Debug, Clone)]
 pub struct PlannedOperatorWithChildren {
@@ -300,7 +300,7 @@ impl PlannedOperatorWithChildren {
 #[derive(Debug, Clone)]
 pub struct PlannedOperator {
     /// The underlying operator.
-    pub(crate) operator: RawClonePtr,
+    pub(crate) operator: Arc<dyn Any + Sync + Send>,
     /// The operator vtable.
     pub(crate) vtable: &'static RawOperatorVTable,
     pub(crate) operator_type: OperatorType,
@@ -312,7 +312,7 @@ impl PlannedOperator {
         O: ExecuteOperator,
     {
         PlannedOperator {
-            operator: RawClonePtr::new(op),
+            operator: Arc::new(op),
             vtable: ExecuteOperatorVTable::<O>::VTABLE,
             operator_type: ExecuteOperatorVTable::<O>::OPERATOR_TYPE,
         }
@@ -323,7 +323,7 @@ impl PlannedOperator {
         O: PushOperator,
     {
         PlannedOperator {
-            operator: RawClonePtr::new(op),
+            operator: Arc::new(op),
             vtable: PushOperatorVTable::<O>::VTABLE,
             operator_type: PushOperatorVTable::<O>::OPERATOR_TYPE,
         }
@@ -334,7 +334,7 @@ impl PlannedOperator {
         O: PushOperator + ExecuteOperator,
     {
         PlannedOperator {
-            operator: RawClonePtr::new(op),
+            operator: Arc::new(op),
             vtable: PushExecuteOperatorVTable::<O>::VTABLE,
             operator_type: PushExecuteOperatorVTable::<O>::OPERATOR_TYPE,
         }
@@ -345,7 +345,7 @@ impl PlannedOperator {
         O: PullOperator,
     {
         PlannedOperator {
-            operator: RawClonePtr::new(op),
+            operator: Arc::new(op),
             vtable: PullOperatorVTable::<O>::VTABLE,
             operator_type: PullOperatorVTable::<O>::OPERATOR_TYPE,
         }
@@ -354,24 +354,24 @@ impl PlannedOperator {
     pub fn call_create_operator_state(
         &self,
         props: ExecutionProperties,
-    ) -> Result<RawOperatorState> {
-        unsafe { (self.vtable.create_operator_state_fn)(self.operator.get(), props) }
+    ) -> Result<AnyOperatorState> {
+        unsafe { (self.vtable.create_operator_state_fn)(self.operator.as_ref(), props) }
     }
 
     pub fn call_output_types(&self) -> Vec<DataType> {
-        unsafe { (self.vtable.output_types_fn)(self.operator.get()) }
+        unsafe { (self.vtable.output_types_fn)(self.operator.as_ref()) }
     }
 
     pub fn call_create_partition_execute_states(
         &self,
-        op_state: &RawOperatorState,
+        op_state: &AnyOperatorState,
         props: ExecutionProperties,
         partitions: usize,
-    ) -> Result<Vec<RawPartitionState>> {
+    ) -> Result<Vec<AnyPartitionState>> {
         unsafe {
             (self.vtable.create_partition_execute_states_fn)(
-                self.operator.get(),
-                op_state.0.get(),
+                self.operator.as_ref(),
+                op_state.0.as_ref(),
                 props,
                 partitions,
             )
@@ -380,14 +380,14 @@ impl PlannedOperator {
 
     pub fn call_create_partition_push_states(
         &self,
-        op_state: &RawOperatorState,
+        op_state: &AnyOperatorState,
         props: ExecutionProperties,
         partitions: usize,
-    ) -> Result<Vec<RawPartitionState>> {
+    ) -> Result<Vec<AnyPartitionState>> {
         unsafe {
             (self.vtable.create_partition_push_states_fn)(
-                self.operator.get(),
-                op_state.0.get(),
+                self.operator.as_ref(),
+                op_state.0.as_ref(),
                 props,
                 partitions,
             )
@@ -396,14 +396,14 @@ impl PlannedOperator {
 
     pub fn call_create_partition_pull_states(
         &self,
-        op_state: &RawOperatorState,
+        op_state: &AnyOperatorState,
         props: ExecutionProperties,
         partitions: usize,
-    ) -> Result<Vec<RawPartitionState>> {
+    ) -> Result<Vec<AnyPartitionState>> {
         unsafe {
             (self.vtable.create_partition_pull_states_fn)(
-                self.operator.get(),
-                op_state.0.get(),
+                self.operator.as_ref(),
+                op_state.0.as_ref(),
                 props,
                 partitions,
             )
@@ -413,16 +413,16 @@ impl PlannedOperator {
     pub fn call_poll_pull(
         &self,
         cx: &mut Context,
-        op_state: &RawOperatorState,
-        partition_state: &mut RawPartitionState,
+        op_state: &AnyOperatorState,
+        partition_state: &mut AnyPartitionState,
         output: &mut Batch,
     ) -> Result<PollPull> {
         unsafe {
             (self.vtable.poll_pull_fn)(
-                self.operator.get(),
+                self.operator.as_ref(),
                 cx,
-                op_state.0.get(),
-                partition_state.0.get_mut(),
+                op_state.0.as_ref(),
+                partition_state.0.as_mut(),
                 output,
             )
         }
@@ -431,16 +431,16 @@ impl PlannedOperator {
     pub fn call_poll_push(
         &self,
         cx: &mut Context,
-        op_state: &RawOperatorState,
-        partition_state: &mut RawPartitionState,
+        op_state: &AnyOperatorState,
+        partition_state: &mut AnyPartitionState,
         input: &mut Batch,
     ) -> Result<PollPush> {
         unsafe {
             (self.vtable.poll_push_fn)(
-                self.operator.get(),
+                self.operator.as_ref(),
                 cx,
-                op_state.0.get(),
-                partition_state.0.get_mut(),
+                op_state.0.as_ref(),
+                partition_state.0.as_mut(),
                 input,
             )
         }
@@ -449,17 +449,17 @@ impl PlannedOperator {
     pub fn call_poll_execute(
         &self,
         cx: &mut Context,
-        op_state: &RawOperatorState,
-        partition_state: &mut RawPartitionState,
+        op_state: &AnyOperatorState,
+        partition_state: &mut AnyPartitionState,
         input: &mut Batch,
         output: &mut Batch,
     ) -> Result<PollExecute> {
         unsafe {
             (self.vtable.poll_execute_fn)(
-                self.operator.get(),
+                self.operator.as_ref(),
                 cx,
-                op_state.0.get(),
-                partition_state.0.get_mut(),
+                op_state.0.as_ref(),
+                partition_state.0.as_mut(),
                 input,
                 output,
             )
@@ -469,15 +469,15 @@ impl PlannedOperator {
     pub fn call_poll_finalize_push(
         &self,
         cx: &mut Context,
-        op_state: &RawOperatorState,
-        partition_state: &mut RawPartitionState,
+        op_state: &AnyOperatorState,
+        partition_state: &mut AnyPartitionState,
     ) -> Result<PollFinalize> {
         unsafe {
             (self.vtable.poll_finalize_push_fn)(
-                self.operator.get(),
+                self.operator.as_ref(),
                 cx,
-                op_state.0.get(),
-                partition_state.0.get_mut(),
+                op_state.0.as_ref(),
+                partition_state.0.as_mut(),
             )
         }
     }
@@ -485,15 +485,15 @@ impl PlannedOperator {
     pub fn call_poll_finalize_execute(
         &self,
         cx: &mut Context,
-        op_state: &RawOperatorState,
-        partition_state: &mut RawPartitionState,
+        op_state: &AnyOperatorState,
+        partition_state: &mut AnyPartitionState,
     ) -> Result<PollFinalize> {
         unsafe {
             (self.vtable.poll_finalize_execute_fn)(
-                self.operator.get(),
+                self.operator.as_ref(),
                 cx,
-                op_state.0.get(),
-                partition_state.0.get_mut(),
+                op_state.0.as_ref(),
+                partition_state.0.as_mut(),
             )
         }
     }
@@ -509,16 +509,16 @@ impl PlannedOperator {
     }
 
     pub fn call_explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        unsafe { (self.vtable.explain_fn)(self.operator.get(), conf) }
+        unsafe { (self.vtable.explain_fn)(self.operator.as_ref(), conf) }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawOperatorVTable {
     create_operator_state_fn:
-        unsafe fn(operator: *const (), props: ExecutionProperties) -> Result<RawOperatorState>,
+        unsafe fn(operator: &dyn Any, props: ExecutionProperties) -> Result<AnyOperatorState>,
 
-    output_types_fn: unsafe fn(operator: *const ()) -> Vec<DataType>,
+    output_types_fn: unsafe fn(operator: &dyn Any) -> Vec<DataType>,
 
     build_pipeline_fn: unsafe fn(
         operator: &PlannedOperator,
@@ -529,66 +529,66 @@ pub(crate) struct RawOperatorVTable {
     ) -> Result<()>,
 
     create_partition_execute_states_fn: unsafe fn(
-        operator: *const (),
-        operator_state: *const (),
+        operator: &dyn Any,
+        operator_state: &dyn Any,
         props: ExecutionProperties,
         partitions: usize,
-    ) -> Result<Vec<RawPartitionState>>,
+    ) -> Result<Vec<AnyPartitionState>>,
 
     create_partition_pull_states_fn: unsafe fn(
-        operator: *const (),
-        operator_state: *const (),
+        operator: &dyn Any,
+        operator_state: &dyn Any,
         props: ExecutionProperties,
         partitions: usize,
-    ) -> Result<Vec<RawPartitionState>>,
+    ) -> Result<Vec<AnyPartitionState>>,
 
     create_partition_push_states_fn: unsafe fn(
-        operator: *const (),
-        operator_state: *const (),
+        operator: &dyn Any,
+        operator_state: &dyn Any,
         props: ExecutionProperties,
         partitions: usize,
-    ) -> Result<Vec<RawPartitionState>>,
+    ) -> Result<Vec<AnyPartitionState>>,
 
     poll_push_fn: unsafe fn(
-        operator: *const (),
+        operator: &dyn Any,
         cx: &mut Context,
-        operator_state: *const (),
-        partition_state: *mut (),
+        operator_state: &dyn Any,
+        partition_state: &mut dyn Any,
         input: &mut Batch,
     ) -> Result<PollPush>,
 
     poll_execute_fn: unsafe fn(
-        operator: *const (),
+        operator: &dyn Any,
         cx: &mut Context,
-        operator_state: *const (),
-        partition_state: *mut (),
+        operator_state: &dyn Any,
+        partition_state: &mut dyn Any,
         input: &mut Batch,
         output: &mut Batch,
     ) -> Result<PollExecute>,
 
     poll_pull_fn: unsafe fn(
-        operator: *const (),
+        operator: &dyn Any,
         cx: &mut Context,
-        operator_state: *const (),
-        partition_state: *mut (),
+        operator_state: &dyn Any,
+        partition_state: &mut dyn Any,
         ouput: &mut Batch,
     ) -> Result<PollPull>,
 
     poll_finalize_execute_fn: unsafe fn(
-        operator: *const (),
+        operator: &dyn Any,
         cx: &mut Context,
-        operator_state: *const (),
-        partition_state: *mut (),
+        operator_state: &dyn Any,
+        partition_state: &mut dyn Any,
     ) -> Result<PollFinalize>,
 
     poll_finalize_push_fn: unsafe fn(
-        operator: *const (),
+        operator: &dyn Any,
         cx: &mut Context,
-        operator_state: *const (),
-        partition_state: *mut (),
+        operator_state: &dyn Any,
+        partition_state: &mut dyn Any,
     ) -> Result<PollFinalize>,
 
-    explain_fn: unsafe fn(operator: *const (), conf: ExplainConfig) -> ExplainEntry,
+    explain_fn: unsafe fn(operator: &dyn Any, conf: ExplainConfig) -> ExplainEntry,
 }
 
 /// Helper trait for creating the vtable for operators.
@@ -612,13 +612,13 @@ where
 
     const VTABLE: &'static RawOperatorVTable = &RawOperatorVTable {
         create_operator_state_fn: |operator, props| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
             let state = operator.create_operator_state(props)?;
-            Ok(RawOperatorState(RawClonePtr::new(state)))
+            Ok(AnyOperatorState(Arc::new(state)))
         },
 
         output_types_fn: |operator| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
             operator.output_types().to_vec()
         },
 
@@ -627,17 +627,14 @@ where
         },
 
         create_partition_execute_states_fn: |operator, op_state, props, partitions| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let op_state = unsafe {
-                op_state
-                    .cast::<<O as BaseOperator>::OperatorState>()
-                    .as_ref()
-                    .unwrap()
-            };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
             let states = operator.create_partition_execute_states(op_state, props, partitions)?;
             Ok(states
                 .into_iter()
-                .map(|state| RawPartitionState(RawPtr::new(state)))
+                .map(|state| AnyPartitionState(Box::new(state)))
                 .collect())
         },
 
@@ -655,14 +652,13 @@ where
             Err(RayexecError::new("Not a push operator"))
         },
         poll_execute_fn: |operator, cx, op_state, partition_state, input, output| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let state = unsafe {
-                partition_state
-                    .cast::<<O as ExecuteOperator>::PartitionExecuteState>()
-                    .as_mut()
-                    .unwrap()
-            };
-            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = partition_state
+                .downcast_mut::<<O as ExecuteOperator>::PartitionExecuteState>()
+                .unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
             operator.poll_execute(cx, op_state, state, input, output)
         },
 
@@ -670,19 +666,18 @@ where
             Err(RayexecError::new("Not a push operator"))
         },
         poll_finalize_execute_fn: |operator, cx, op_state, partition_state| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let state = unsafe {
-                partition_state
-                    .cast::<<O as ExecuteOperator>::PartitionExecuteState>()
-                    .as_mut()
-                    .unwrap()
-            };
-            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = partition_state
+                .downcast_mut::<<O as ExecuteOperator>::PartitionExecuteState>()
+                .unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
             operator.poll_finalize_execute(cx, op_state, state)
         },
 
         explain_fn: |operator, conf| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
             operator.explain_entry(conf)
         },
     };
@@ -698,13 +693,13 @@ where
 
     const VTABLE: &'static RawOperatorVTable = &RawOperatorVTable {
         create_operator_state_fn: |operator, props| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
             let state = operator.create_operator_state(props)?;
-            Ok(RawOperatorState(RawClonePtr::new(state)))
+            Ok(AnyOperatorState(Arc::new(state)))
         },
 
         output_types_fn: |operator| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
             operator.output_types().to_vec()
         },
 
@@ -720,17 +715,14 @@ where
             Err(RayexecError::new("Not a pull operator"))
         },
         create_partition_push_states_fn: |operator, op_state, props, partitions| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let op_state = unsafe {
-                op_state
-                    .cast::<<O as BaseOperator>::OperatorState>()
-                    .as_ref()
-                    .unwrap()
-            };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
             let states = operator.create_partition_push_states(op_state, props, partitions)?;
             Ok(states
                 .into_iter()
-                .map(|state| RawPartitionState(RawPtr::new(state)))
+                .map(|state| AnyPartitionState(Box::new(state)))
                 .collect())
         },
 
@@ -738,14 +730,13 @@ where
             Err(RayexecError::new("Not a pull operator"))
         },
         poll_push_fn: |operator, cx, op_state, partition_state, input| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let state = unsafe {
-                partition_state
-                    .cast::<<O as PushOperator>::PartitionPushState>()
-                    .as_mut()
-                    .unwrap()
-            };
-            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = partition_state
+                .downcast_mut::<<O as PushOperator>::PartitionPushState>()
+                .unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
             operator.poll_push(cx, op_state, state, input)
         },
         poll_execute_fn: |operator, cx, partition_state, operator_state, input, output| {
@@ -753,14 +744,13 @@ where
         },
 
         poll_finalize_push_fn: |operator, cx, op_state, partition_state| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let state = unsafe {
-                partition_state
-                    .cast::<<O as PushOperator>::PartitionPushState>()
-                    .as_mut()
-                    .unwrap()
-            };
-            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = partition_state
+                .downcast_mut::<<O as PushOperator>::PartitionPushState>()
+                .unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
             operator.poll_finalize_push(cx, op_state, state)
         },
         poll_finalize_execute_fn: |operator, cx, partition_state, operator_state| {
@@ -768,7 +758,7 @@ where
         },
 
         explain_fn: |operator, conf| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
             operator.explain_entry(conf)
         },
     };
@@ -784,13 +774,13 @@ where
 
     const VTABLE: &'static RawOperatorVTable = &RawOperatorVTable {
         create_operator_state_fn: |operator, props| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
             let state = operator.create_operator_state(props)?;
-            Ok(RawOperatorState(RawClonePtr::new(state)))
+            Ok(AnyOperatorState(Arc::new(state)))
         },
 
         output_types_fn: |operator| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
             operator.output_types().to_vec()
         },
 
@@ -799,17 +789,14 @@ where
         },
 
         create_partition_execute_states_fn: |operator, op_state, props, partitions| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let op_state = unsafe {
-                op_state
-                    .cast::<<O as BaseOperator>::OperatorState>()
-                    .as_ref()
-                    .unwrap()
-            };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
             let states = operator.create_partition_execute_states(op_state, props, partitions)?;
             Ok(states
                 .into_iter()
-                .map(|state| RawPartitionState(RawPtr::new(state)))
+                .map(|state| AnyPartitionState(Box::new(state)))
                 .collect())
         },
 
@@ -817,17 +804,14 @@ where
             Err(RayexecError::new("Not a pull operator"))
         },
         create_partition_push_states_fn: |operator, op_state, props, partitions| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let op_state = unsafe {
-                op_state
-                    .cast::<<O as BaseOperator>::OperatorState>()
-                    .as_ref()
-                    .unwrap()
-            };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
             let states = operator.create_partition_push_states(op_state, props, partitions)?;
             Ok(states
                 .into_iter()
-                .map(|state| RawPartitionState(RawPtr::new(state)))
+                .map(|state| AnyPartitionState(Box::new(state)))
                 .collect())
         },
 
@@ -835,53 +819,52 @@ where
             Err(RayexecError::new("Not a pull operator"))
         },
         poll_push_fn: |operator, cx, op_state, partition_state, input| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let state = unsafe {
-                partition_state
-                    .cast::<<O as PushOperator>::PartitionPushState>()
-                    .as_mut()
-                    .unwrap()
-            };
-            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = partition_state
+                .downcast_mut::<<O as PushOperator>::PartitionPushState>()
+                .unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
+
             operator.poll_push(cx, op_state, state, input)
         },
         poll_execute_fn: |operator, cx, op_state, partition_state, input, output| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let state = unsafe {
-                partition_state
-                    .cast::<<O as ExecuteOperator>::PartitionExecuteState>()
-                    .as_mut()
-                    .unwrap()
-            };
-            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = partition_state
+                .downcast_mut::<<O as ExecuteOperator>::PartitionExecuteState>()
+                .unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
             operator.poll_execute(cx, op_state, state, input, output)
         },
 
         poll_finalize_push_fn: |operator, cx, op_state, partition_state| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let state = unsafe {
-                partition_state
-                    .cast::<<O as PushOperator>::PartitionPushState>()
-                    .as_mut()
-                    .unwrap()
-            };
-            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = partition_state
+                .downcast_mut::<<O as PushOperator>::PartitionPushState>()
+                .unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
+
             operator.poll_finalize_push(cx, op_state, state)
         },
         poll_finalize_execute_fn: |operator, cx, op_state, partition_state| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let state = unsafe {
-                partition_state
-                    .cast::<<O as ExecuteOperator>::PartitionExecuteState>()
-                    .as_mut()
-                    .unwrap()
-            };
-            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = partition_state
+                .downcast_mut::<<O as ExecuteOperator>::PartitionExecuteState>()
+                .unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
+
             operator.poll_finalize_execute(cx, op_state, state)
         },
 
         explain_fn: |operator, conf| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
             operator.explain_entry(conf)
         },
     };
@@ -897,13 +880,13 @@ where
 
     const VTABLE: &'static RawOperatorVTable = &RawOperatorVTable {
         create_operator_state_fn: |operator, props| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
             let state = operator.create_operator_state(props)?;
-            Ok(RawOperatorState(RawClonePtr::new(state)))
+            Ok(AnyOperatorState(Arc::new(state)))
         },
 
         output_types_fn: |operator| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
             operator.output_types().to_vec()
         },
 
@@ -916,17 +899,14 @@ where
         },
 
         create_partition_pull_states_fn: |operator, op_state, props, partitions| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let op_state = unsafe {
-                op_state
-                    .cast::<<O as BaseOperator>::OperatorState>()
-                    .as_ref()
-                    .unwrap()
-            };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
             let states = operator.create_partition_pull_states(op_state, props, partitions)?;
             Ok(states
                 .into_iter()
-                .map(|state| RawPartitionState(RawPtr::new(state)))
+                .map(|state| AnyPartitionState(Box::new(state)))
                 .collect())
         },
         create_partition_push_states_fn: |operator, op_state, props, partitions| {
@@ -934,14 +914,13 @@ where
         },
 
         poll_pull_fn: |operator, cx, op_state, partition_state, output| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
-            let state = unsafe {
-                partition_state
-                    .cast::<<O as PullOperator>::PartitionPullState>()
-                    .as_mut()
-                    .unwrap()
-            };
-            let op_state = unsafe { op_state.cast::<O::OperatorState>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = partition_state
+                .downcast_mut::<<O as PullOperator>::PartitionPullState>()
+                .unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
             operator.poll_pull(cx, op_state, state, output)
         },
         poll_push_fn: |operator, cx, partition_state, operator_state, input| {
@@ -959,7 +938,7 @@ where
         },
 
         explain_fn: |operator, conf| {
-            let operator = unsafe { operator.cast::<O>().as_ref().unwrap() };
+            let operator = operator.downcast_ref::<O>().unwrap();
             operator.explain_entry(conf)
         },
     };

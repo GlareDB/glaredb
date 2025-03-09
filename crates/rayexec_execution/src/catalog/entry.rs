@@ -5,6 +5,7 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::field::Field;
 use crate::functions::function_set::{AggregateFunctionSet, ScalarFunctionSet, TableFunctionSet};
+use crate::storage::storage_manager::StorageTableId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CatalogEntryType {
@@ -34,7 +35,6 @@ impl fmt::Display for CatalogEntryType {
 /// Describe a single entry in the catalog.
 #[derive(Debug)]
 pub struct CatalogEntry {
-    pub oid: u32,
     pub name: String,
     pub entry: CatalogEntryInner,
     pub child: Option<Arc<CatalogEntry>>,
@@ -66,9 +66,19 @@ pub struct TableFunctionEntry {
     pub function: TableFunctionSet,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct TableEntry {
+    /// Columns in this table.
     pub columns: Vec<Field>,
+    /// Scan function to use for reading the table.
+    ///
+    /// This should currently expect to accept 'catalog', 'schema', and 'table'
+    /// as string arguments.
+    pub function: TableFunctionSet,
+    /// Identifier for getting the data table from the storage manager.
+    // TODO: This should be opaque. Different storage managers should be able to
+    // different identifiers here.
+    pub storage_id: StorageTableId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

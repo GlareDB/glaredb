@@ -5,7 +5,7 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 use rayexec_error::Result;
 use rayexec_execution::arrays::batch::Batch;
-use rayexec_execution::arrays::field::Schema;
+use rayexec_execution::arrays::field::ColumnSchema;
 use rayexec_execution::runtime::Runtime;
 use rayexec_execution::storage::table_storage::{DataTable, DataTableScan, Projections};
 use rayexec_io::location::{AccessConfig, FileLocation};
@@ -18,7 +18,7 @@ use crate::metadata::Metadata;
 #[derive(Debug)]
 pub struct RowGroupPartitionedDataTable<R: Runtime> {
     pub metadata: Arc<Metadata>,
-    pub schema: Schema,
+    pub schema: ColumnSchema,
     pub location: FileLocation,
     pub conf: AccessConfig,
     pub runtime: R,

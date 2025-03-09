@@ -2,7 +2,6 @@ use std::path::Path;
 use std::time::Duration;
 
 use rayexec_error::Result;
-use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
 use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_slt::{ReplacementVars, RunConfig};
@@ -24,12 +23,7 @@ fn run_with_executor(executor: ThreadedNativeExecutor, tag: &str) -> Result<()> 
             let executor = executor.clone();
             let rt = rt.clone();
             async move {
-                let engine = SingleUserEngine::try_new(
-                    executor.clone(),
-                    rt.clone(),
-                    DataSourceRegistry::default()
-                        .with_datasource("memory", Box::new(MemoryDataSource))?,
-                )?;
+                let engine = SingleUserEngine::try_new(executor.clone(), rt.clone())?;
 
                 Ok(RunConfig {
                     engine,

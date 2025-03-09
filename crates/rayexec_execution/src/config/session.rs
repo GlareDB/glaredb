@@ -6,6 +6,8 @@ use rayexec_error::{RayexecError, Result};
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::runtime::{PipelineExecutor, Runtime};
 
+pub const DEFAULT_BATCH_SIZE: usize = 2048;
+
 /// Configuration for the session.
 #[derive(Debug)]
 pub struct SessionConfig {
@@ -29,7 +31,7 @@ impl SessionConfig {
             application_name: String::new(),
             allow_nested_loop_join: true,
             partitions: executor.default_partitions() as u64,
-            batch_size: 2048,
+            batch_size: DEFAULT_BATCH_SIZE as u64,
             verify_optimized_plan: false,
             enable_function_chaining: true,
         }

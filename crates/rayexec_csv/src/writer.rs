@@ -3,7 +3,7 @@ use std::io::Write as _;
 use csv::ByteRecord;
 use rayexec_error::{Result, ResultExt};
 use rayexec_execution::arrays::batch::Batch;
-use rayexec_execution::arrays::field::Schema;
+use rayexec_execution::arrays::field::ColumnSchema;
 use rayexec_execution::arrays::format::{FormatOptions, Formatter};
 
 use crate::dialect::DialectOptions;
@@ -11,7 +11,7 @@ use crate::dialect::DialectOptions;
 #[derive(Debug)]
 pub struct CsvEncoder {
     /// Schema of the batches we're writing. Used to write the header out.
-    schema: Schema,
+    schema: ColumnSchema,
 
     /// If we've already written the header.
     did_write_header: bool,
@@ -27,7 +27,7 @@ pub struct CsvEncoder {
 }
 
 impl CsvEncoder {
-    pub fn new(schema: Schema, dialect: DialectOptions) -> Self {
+    pub fn new(schema: ColumnSchema, dialect: DialectOptions) -> Self {
         let record = ByteRecord::with_capacity(1024, schema.fields.len());
         CsvEncoder {
             schema,

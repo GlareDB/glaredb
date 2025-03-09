@@ -8,7 +8,9 @@ use super::resolve_normal::create_user_facing_resolve_err;
 use super::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
 use super::resolved_table_function::ConstantFunctionArgs;
 use super::{ResolveContext, ResolvedMeta, Resolver};
+use crate::catalog::context::SYSTEM_CATALOG;
 use crate::catalog::entry::CatalogEntryType;
+use crate::catalog::system::BUILTIN_SCHEMA;
 use crate::catalog::{Catalog, Schema};
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
 use crate::logical::operator::LocationRequirement;
@@ -570,12 +572,12 @@ impl<'a> ExpressionResolver<'a> {
         let (catalog, schema, func_name) = match func.reference.0.len() {
             0 => return Err(RayexecError::new("Missing idents for function reference")), // Shouldn't happen.
             1 => (
-                "system".to_string(),
-                "glare_catalog".to_string(),
+                SYSTEM_CATALOG.to_string(),
+                BUILTIN_SCHEMA.to_string(),
                 func.reference.0[0].as_normalized_string(),
             ),
             2 => (
-                "system".to_string(),
+                SYSTEM_CATALOG.to_string(),
                 func.reference.0[0].as_normalized_string(),
                 func.reference.0[1].as_normalized_string(),
             ),

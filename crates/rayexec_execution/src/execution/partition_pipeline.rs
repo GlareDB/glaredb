@@ -4,11 +4,11 @@ use rayexec_error::Result;
 
 use super::execution_stack::{Effects, ExecutionStack};
 use super::operators::{
+    AnyOperatorState,
+    AnyPartitionState,
     PlannedOperator,
     PollExecute,
     PollFinalize,
-    RawOperatorState,
-    RawPartitionState,
 };
 use crate::arrays::batch::Batch;
 use crate::execution::execution_stack::StackControlFlow;
@@ -22,9 +22,9 @@ pub struct ExecutablePartitionPipeline {
     /// "sink" operator.
     pub(crate) operators: Vec<PlannedOperator>,
     /// States for each operator. Shared across all partitions.
-    pub(crate) operator_states: Vec<RawOperatorState>,
+    pub(crate) operator_states: Vec<AnyOperatorState>,
     /// Partition states for each operator.
-    pub(crate) partition_states: Vec<RawPartitionState>,
+    pub(crate) partition_states: Vec<AnyPartitionState>,
     /// Batch buffers for storing intermediate results.
     ///
     /// The 'i'th batch corresponds to the output of the 'i'th operator.
@@ -88,8 +88,8 @@ impl ExecutablePartitionPipeline {
 struct OperatorEffects<'a, 'b> {
     cx: &'a mut Context<'b>,
     operators: &'a [PlannedOperator],
-    operator_states: &'a [RawOperatorState],
-    partition_states: &'a mut [RawPartitionState],
+    operator_states: &'a [AnyOperatorState],
+    partition_states: &'a mut [AnyPartitionState],
     buffers: &'a mut [Batch],
 }
 

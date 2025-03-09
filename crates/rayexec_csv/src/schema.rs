@@ -6,14 +6,14 @@ use rayexec_execution::arrays::compute::cast::parse::{
     Parser,
 };
 use rayexec_execution::arrays::datatype::{DataType, TimeUnit, TimestampTypeMeta};
-use rayexec_execution::arrays::field::{Field, Schema};
+use rayexec_execution::arrays::field::{ColumnSchema, Field};
 
 use crate::decoder::ByteRecords;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CsvSchema {
     /// All fields in the the csv input.
-    pub schema: Schema,
+    pub schema: ColumnSchema,
     /// Whether or not the input has a header line.
     pub has_header: bool,
 }
@@ -21,7 +21,7 @@ pub struct CsvSchema {
 impl CsvSchema {
     /// Create a new schema using gnerated names.
     pub fn new_with_generated_names(types: impl IntoIterator<Item = DataType>) -> Self {
-        let schema = Schema::new(types.into_iter().enumerate().map(|(idx, typ)| Field {
+        let schema = ColumnSchema::new(types.into_iter().enumerate().map(|(idx, typ)| Field {
             name: format!("column{idx}"),
             datatype: typ,
             nullable: true,
@@ -95,7 +95,7 @@ impl CsvSchema {
         };
 
         Ok(CsvSchema {
-            schema: Schema::new(fields),
+            schema: ColumnSchema::new(fields),
             has_header,
         })
     }
@@ -199,7 +199,7 @@ x,y,z
         let schema = CsvSchema::infer_from_records(&records).unwrap();
         assert!(!schema.has_header);
 
-        let expected = Schema::new([
+        let expected = ColumnSchema::new([
             Field::new("column0", DataType::Utf8, true),
             Field::new("column1", DataType::Utf8, true),
             Field::new("column2", DataType::Utf8, true),
@@ -219,7 +219,7 @@ x,5.5,100
         let schema = CsvSchema::infer_from_records(&records).unwrap();
         assert!(!schema.has_header);
 
-        let expected = Schema::new([
+        let expected = ColumnSchema::new([
             Field::new("column0", DataType::Utf8, true),
             Field::new("column1", DataType::Float64, true),
             Field::new("column2", DataType::Int64, true),
@@ -240,7 +240,7 @@ x,5.5,100
         let schema = CsvSchema::infer_from_records(&records).unwrap();
         assert!(schema.has_header);
 
-        let expected = Schema::new([
+        let expected = ColumnSchema::new([
             Field::new("c1", DataType::Utf8, true),
             Field::new("c2", DataType::Float64, true),
             Field::new("c3", DataType::Int64, true),
@@ -261,7 +261,7 @@ x,NaN,100
         let schema = CsvSchema::infer_from_records(&records).unwrap();
         assert!(schema.has_header);
 
-        let expected = Schema::new([
+        let expected = ColumnSchema::new([
             Field::new("c1", DataType::Utf8, true),
             Field::new("c2", DataType::Float64, true),
             Field::new("c3", DataType::Int64, true),

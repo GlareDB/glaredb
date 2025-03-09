@@ -6,7 +6,7 @@ use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, 
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::field::{Field, Schema};
+use crate::arrays::field::{ColumnSchema, Field};
 use crate::execution::operators::{ExecutionProperties, PollExecute, PollFinalize};
 use crate::expr;
 use crate::functions::documentation::{Category, Documentation};
@@ -140,7 +140,7 @@ impl TableExecuteFunction for GenerateSeriesI64 {
         Ok(TableFunctionBindState {
             state: (),
             input,
-            schema: Schema::new([Field::new("generate_series", DataType::Int64, false)]),
+            schema: ColumnSchema::new([Field::new("generate_series", DataType::Int64, false)]),
             cardinality: StatisticsValue::Unknown,
         })
     }

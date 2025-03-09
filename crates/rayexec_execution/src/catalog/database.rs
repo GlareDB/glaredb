@@ -4,11 +4,12 @@ use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
 
-use super::create::{CreateSchemaInfo, CreateViewInfo};
+use super::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo};
 use super::memory::MemoryCatalog;
-use super::CatalogPlanner;
+use super::Catalog;
 use crate::arrays::scalar::ScalarValue;
 use crate::execution::operators::PlannedOperator;
+use crate::storage::storage_manager::StorageManager;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccessMode {
@@ -33,8 +34,6 @@ impl fmt::Display for AccessMode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AttachInfo {
-    /// Name of the data source this attached database is for.
-    pub datasource: String,
     /// Options used for connecting to the database.
     ///
     /// This includes things like connection strings, and other possibly
@@ -47,9 +46,9 @@ pub struct Database {
     pub(crate) name: String,
     pub(crate) mode: AccessMode,
     // TODO: Allow other catalog types.
-    //
-    // This will be a common type for both 'Catalog' and 'CatalogPlanner'.
     pub(crate) catalog: Arc<MemoryCatalog>,
+    // TODO: Allow other storage managers.
+    pub(crate) storage: Arc<StorageManager>,
     pub(crate) attach_info: Option<AttachInfo>,
 }
 
@@ -61,6 +60,16 @@ impl Database {
     ) -> Result<PlannedOperator> {
         self.check_can_write()?;
         self.catalog.plan_create_view(schema, create)
+    }
+
+    pub fn plan_create_table(
+        &self,
+        schema: &str,
+        create: CreateTableInfo,
+    ) -> Result<PlannedOperator> {
+        self.check_can_write()?;
+        self.catalog
+            .plan_create_table(&self.storage, schema, create)
     }
 
     pub fn plan_create_schema(&self, create: CreateSchemaInfo) -> Result<PlannedOperator> {

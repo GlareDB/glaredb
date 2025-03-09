@@ -2,7 +2,7 @@ use std::fmt;
 
 use rayexec_error::Result;
 use rayexec_execution::arrays::batch::Batch;
-use rayexec_execution::arrays::field::Schema;
+use rayexec_execution::arrays::field::ColumnSchema;
 use rayexec_execution::arrays::format::{FormatOptions, Formatter};
 
 const FORMATTER: Formatter = Formatter::new(FormatOptions {
@@ -12,7 +12,7 @@ const FORMATTER: Formatter = Formatter::new(FormatOptions {
 
 pub fn write_markdown_table<'a>(
     output: &mut dyn fmt::Write,
-    schema: &Schema,
+    schema: &ColumnSchema,
     batches: impl IntoIterator<Item = &'a Batch>,
 ) -> Result<()> {
     // 'field1 | field2 | field3'
@@ -68,7 +68,7 @@ mod tests {
         ])
         .unwrap();
 
-        let schema = Schema::new([
+        let schema = ColumnSchema::new([
             Field::new("Numbers", DataType::Int32, false),
             Field::new("Strings", DataType::Utf8, false),
         ]);

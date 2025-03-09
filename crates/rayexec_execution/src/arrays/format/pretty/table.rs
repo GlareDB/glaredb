@@ -11,7 +11,7 @@ use super::display::{table_width, Alignment, PrettyFooter, PrettyHeader, PrettyV
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::arrays::field::Schema;
+use crate::arrays::field::ColumnSchema;
 use crate::arrays::format::{FormatOptions, Formatter};
 
 /// How many values to use for the avg width calculation.
@@ -21,7 +21,7 @@ const NUM_VALS_FOR_AVG: usize = 30;
 const DEFAULT_MAX_ROWS: usize = 50;
 
 pub fn pretty_format_batches(
-    schema: &Schema,
+    schema: &ColumnSchema,
     batches: &[Batch],
     max_width: usize,
     max_rows: Option<usize>,
@@ -40,7 +40,7 @@ pub struct PrettyTable {
 impl PrettyTable {
     /// Try to create a new pretty-formatted table.
     pub fn try_new<B: Borrow<Batch>>(
-        schema: &Schema,
+        schema: &ColumnSchema,
         batches: &[B],
         max_width: usize,
         max_rows: Option<usize>,
@@ -815,7 +815,7 @@ mod tests {
 
     #[test]
     fn no_batches_with_no_columns() {
-        let schema = Schema::new([]);
+        let schema = ColumnSchema::new([]);
 
         let table = pretty_format_batches(&schema, &[], 80, None).unwrap();
 
@@ -832,7 +832,7 @@ mod tests {
 
     #[test]
     fn no_batches_with_columns() {
-        let schema = Schema::new([
+        let schema = ColumnSchema::new([
             Field::new("a", DataType::Int64, false),
             Field::new("b", DataType::Utf8, false),
         ]);
@@ -853,7 +853,7 @@ mod tests {
 
     #[test]
     fn simple_single_batch() {
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("a", DataType::Utf8, true),
             Field::new("b", DataType::Int32, true),
         ]);
@@ -884,7 +884,7 @@ mod tests {
 
     #[test]
     fn multiline_values() {
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("c1", DataType::Utf8, true),
             Field::new("c2", DataType::Int32, true),
             Field::new("c3", DataType::Utf8, true),
@@ -918,7 +918,7 @@ mod tests {
 
     #[test]
     fn multiple_small_batches() {
-        let schema = Schema::new([
+        let schema = ColumnSchema::new([
             Field::new("a", DataType::Utf8, true),
             Field::new("b", DataType::Int32, true),
         ]);
@@ -953,7 +953,7 @@ mod tests {
 
     #[test]
     fn multiple_small_batches_with_max_rows() {
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("a", DataType::Utf8, true),
             Field::new("b", DataType::Int32, true),
         ]);
@@ -998,7 +998,7 @@ mod tests {
 
     #[test]
     fn large_batch_with_max_rows() {
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("a", DataType::Utf8, true),
             Field::new("b", DataType::Int32, true),
         ]);
@@ -1035,7 +1035,7 @@ mod tests {
 
     #[test]
     fn large_batch_with_odd_max_rows() {
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("a", DataType::Utf8, true),
             Field::new("b", DataType::Int32, true),
         ]);
@@ -1071,7 +1071,7 @@ mod tests {
 
     #[test]
     fn multiple_small_batches_with_max_width_and_long_value() {
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("a", DataType::Utf8, true),
             Field::new("b", DataType::Int32, true),
             Field::new("c", DataType::Utf8, true),
@@ -1121,7 +1121,7 @@ mod tests {
 
     #[test]
     fn multiple_small_batches_with_max_width_and_long_value_first() {
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("a", DataType::Utf8, true),
             Field::new("b", DataType::Int32, true),
             Field::new("c", DataType::Utf8, true),
@@ -1166,7 +1166,7 @@ mod tests {
 
     #[test]
     fn multiple_small_batches_with_max_width_and_long_column_name() {
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("a", DataType::Utf8, true),
             Field::new("thisisasomewhatlongcolumn", DataType::Int32, true),
             Field::new("c", DataType::Utf8, true),
@@ -1208,7 +1208,7 @@ mod tests {
 
     #[test]
     fn multiple_small_batches_with_max_width_and_long_column_name_even_num_cols() {
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("a", DataType::Utf8, true),
             Field::new("thisisasomewhatlongcolumn", DataType::Int32, true),
             Field::new("c", DataType::Utf8, true),
@@ -1259,7 +1259,7 @@ mod tests {
             .map(|i| Field::new(i.to_string(), DataType::Int8, true))
             .collect();
 
-        let schema = Schema::new(fields);
+        let schema = ColumnSchema::new(fields);
 
         let table = pretty_format_batches(&schema, &[], 40, None).unwrap();
 
@@ -1285,7 +1285,7 @@ mod tests {
         // - max rows is 2
         // - first record of first batch and last record of last batch should be printed
 
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("a", DataType::Utf8, true),
             Field::new("b", DataType::Int32, true),
         ]);
@@ -1331,7 +1331,7 @@ mod tests {
 
     #[test]
     fn batch_with_selected_rows() {
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("a", DataType::Utf8, true),
             Field::new("b", DataType::Int32, true),
         ]);
@@ -1364,7 +1364,7 @@ mod tests {
 
     #[test]
     fn batch_with_selected_rows_exceeds_max_rows() {
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("a", DataType::Utf8, true),
             Field::new("b", DataType::Int32, true),
         ]);
@@ -1399,7 +1399,7 @@ mod tests {
 
     #[test]
     fn batch_with_constant_rows_exceeds_max_rows() {
-        let schema = Schema::new(vec![
+        let schema = ColumnSchema::new(vec![
             Field::new("a", DataType::Utf8, true),
             Field::new("b", DataType::Int32, true),
         ]);

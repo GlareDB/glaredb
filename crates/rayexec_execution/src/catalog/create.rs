@@ -1,6 +1,4 @@
 //! Various create messages/structs.
-use rayexec_error::{RayexecError, Result};
-use rayexec_proto::ProtoConv;
 
 use crate::arrays::field::Field;
 use crate::functions::function_set::{AggregateFunctionSet, ScalarFunctionSet, TableFunctionSet};
@@ -19,27 +17,6 @@ pub enum OnConflict {
     /// Error on conflict.
     #[default]
     Error,
-}
-
-impl ProtoConv for OnConflict {
-    type ProtoType = rayexec_proto::generated::execution::OnConflict;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(match self {
-            Self::Ignore => Self::ProtoType::Ignore,
-            Self::Replace => Self::ProtoType::Replace,
-            Self::Error => Self::ProtoType::Error,
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(match proto {
-            Self::ProtoType::InvalidOnConflict => return Err(RayexecError::new("invalid")),
-            Self::ProtoType::Ignore => Self::Ignore,
-            Self::ProtoType::Replace => Self::Replace,
-            Self::ProtoType::Error => Self::Error,
-        })
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -13,6 +13,8 @@ use crate::functions::aggregate::builtin::BUILTIN_AGGREGATE_FUNCTION_SETS;
 use crate::functions::scalar::builtin::BUILTIN_SCALAR_FUNCTION_SETS;
 use crate::functions::table::builtin::BUILTIN_TABLE_FUNCTION_SETS;
 
+pub const BUILTIN_SCHEMA: &str = "builtin";
+
 /// Create a new system catalog with builtin functions.
 ///
 /// The provided data source reigstry is used to initialize table functions for
@@ -21,7 +23,7 @@ pub fn new_system_catalog() -> Result<MemoryCatalog> {
     let catalog = MemoryCatalog::empty();
 
     let builtin = catalog.create_schema(&CreateSchemaInfo {
-        name: "glare_catalog".to_string(),
+        name: BUILTIN_SCHEMA.to_string(),
         on_conflict: OnConflict::Error,
     })?;
 

@@ -324,11 +324,11 @@ impl Batch {
     #[cfg(debug_assertions)]
     #[allow(unused)]
     pub fn debug_table(&self) -> super::format::pretty::table::PrettyTable {
-        use crate::arrays::field::{Field, Schema};
+        use crate::arrays::field::{ColumnSchema, Field};
         use crate::arrays::format::pretty::table::PrettyTable;
 
         let schema =
-            Schema::new(self.arrays.iter().enumerate().map(|(idx, array)| {
+            ColumnSchema::new(self.arrays.iter().enumerate().map(|(idx, array)| {
                 Field::new(format!("array{idx}"), array.datatype().clone(), true)
             }));
 

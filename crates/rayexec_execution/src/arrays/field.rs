@@ -46,24 +46,24 @@ impl ProtoConv for Field {
 ///
 /// Includes the names and nullability of each of the columns.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Schema {
+pub struct ColumnSchema {
     pub fields: Vec<Field>,
 }
 
-impl Schema {
+impl ColumnSchema {
     /// Create an empty schema.
     pub const fn empty() -> Self {
-        Schema { fields: Vec::new() }
+        ColumnSchema { fields: Vec::new() }
     }
 
     pub fn new(fields: impl IntoIterator<Item = Field>) -> Self {
-        Schema {
+        ColumnSchema {
             fields: fields.into_iter().collect(),
         }
     }
 
-    pub fn merge(self, other: Schema) -> Self {
-        Schema {
+    pub fn merge(self, other: ColumnSchema) -> Self {
+        ColumnSchema {
             fields: self.fields.into_iter().chain(other.fields).collect(),
         }
     }
@@ -95,7 +95,7 @@ impl Schema {
     }
 }
 
-impl ProtoConv for Schema {
+impl ProtoConv for ColumnSchema {
     type ProtoType = rayexec_proto::generated::schema::Schema;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {

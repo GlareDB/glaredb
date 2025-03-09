@@ -1,6 +1,6 @@
 use rayexec_error::{RayexecError, Result};
 
-use super::operators::{ExecutionProperties, PlannedOperator, RawOperatorState};
+use super::operators::{AnyOperatorState, ExecutionProperties, PlannedOperator};
 use super::partition_pipeline::ExecutablePartitionPipeline;
 use super::planner::QueryGraph;
 use crate::arrays::batch::Batch;
@@ -54,7 +54,7 @@ pub struct ExecutablePipeline {
     /// Operators just in this pipeline.
     pub(crate) operators: Vec<PlannedOperator>,
     /// States associated with the operators.
-    pub(crate) operator_states: Vec<RawOperatorState>,
+    pub(crate) operator_states: Vec<AnyOperatorState>,
 }
 
 impl ExecutablePipeline {
@@ -65,7 +65,7 @@ impl ExecutablePipeline {
         }
     }
 
-    pub fn push_operator_and_state(&mut self, operator: PlannedOperator, state: RawOperatorState) {
+    pub fn push_operator_and_state(&mut self, operator: PlannedOperator, state: AnyOperatorState) {
         self.operators.push(operator);
         self.operator_states.push(state);
     }

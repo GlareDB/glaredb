@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
 use crate::catalog::database::{AccessMode, Database};
 use crate::catalog::system::new_system_catalog;
+use crate::storage::storage_manager::StorageManager;
 
 /// Create a test database context.
 ///
@@ -12,6 +13,7 @@ pub fn test_db_context() -> DatabaseContext {
         name: SYSTEM_CATALOG.to_string(),
         mode: AccessMode::ReadOnly,
         catalog: Arc::new(new_system_catalog().unwrap()),
+        storage: Arc::new(StorageManager::new()),
         attach_info: None,
     }))
     .unwrap()

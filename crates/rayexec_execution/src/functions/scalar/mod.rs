@@ -1,7 +1,9 @@
 pub mod builtin;
 
+use std::any::Any;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::sync::Arc;
 
 use rayexec_error::Result;
 
@@ -10,7 +12,6 @@ use super::Signature;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::expr::Expression;
-use crate::ptr::raw_clone_ptr::RawClonePtr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionVolatility {
@@ -39,7 +40,7 @@ pub struct PlannedScalarFunction {
 
 impl PlannedScalarFunction {
     pub fn call_execute(&self, batch: &Batch, output: &mut Array) -> Result<()> {
-        unsafe { (self.raw.vtable.execute_fn)(self.state.state_ptr(), batch, output) }
+        unsafe { (self.raw.vtable.execute_fn)(self.state.state_as_any(), batch, output) }
     }
 }
 
@@ -68,7 +69,7 @@ pub struct RawScalarFunctionVTable {
     /// Create the function state and compute the return type.
     bind_fn: unsafe fn(function: *const (), inputs: Vec<Expression>) -> Result<RawBindState>,
     /// Execute the function. First argument is a pointer to the function state.
-    execute_fn: unsafe fn(state: *const (), input: &Batch, output: &mut Array) -> Result<()>,
+    execute_fn: unsafe fn(state: &dyn Any, input: &Batch, output: &mut Array) -> Result<()>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -109,7 +110,7 @@ impl RawScalarFunction {
     }
 }
 
-pub trait ScalarFunction: Copy + Debug + Sync + Send + Sized {
+pub trait ScalarFunction: Copy + Debug + Sync + Send + Sized + 'static {
     const VOLATILITY: FunctionVolatility = FunctionVolatility::Consistent;
 
     /// State that gets passed to the function during execute.
@@ -140,16 +141,15 @@ trait ScalarFunctionVTable: ScalarFunction {
         bind_fn: |function: *const (), inputs: Vec<Expression>| -> Result<RawBindState> {
             let function = unsafe { function.cast::<Self>().as_ref().unwrap() };
             let state = function.bind(inputs)?;
-            let raw = RawClonePtr::new(state.state);
 
             Ok(RawBindState {
-                state: raw,
+                state: Arc::new(state.state),
                 return_type: state.return_type,
                 inputs: state.inputs,
             })
         },
-        execute_fn: |state: *const (), input: &Batch, output: &mut Array| -> Result<()> {
-            let state = unsafe { state.cast::<Self::State>().as_ref().unwrap() };
+        execute_fn: |state: &dyn Any, input: &Batch, output: &mut Array| -> Result<()> {
+            let state = state.downcast_ref::<Self::State>().unwrap();
             Self::execute(state, input, output)
         },
     };

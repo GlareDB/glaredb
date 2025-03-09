@@ -10,7 +10,7 @@ use rayexec_error::Result;
 use rayexec_execution::arrays::array::Array;
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::datatype::{DataType, DataTypeId};
-use rayexec_execution::arrays::field::{Field, Schema};
+use rayexec_execution::arrays::field::{ColumnSchema, Field};
 use rayexec_execution::arrays::scalar::ScalarValue;
 use rayexec_execution::database::DatabaseContext;
 use rayexec_execution::expr;
@@ -50,7 +50,7 @@ pub trait UnityObjectsOperation<R: Runtime>:
     type StreamState: Debug + Send;
 
     /// Schema of the output batches.
-    fn schema() -> Schema;
+    fn schema() -> ColumnSchema;
 
     /// Create the connection state.
     fn create_connection_state(
@@ -99,8 +99,8 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListSchemasOperation {
     type ConnectionState = ListSchemasConnectionState<R>;
     type StreamState = ListSchemasStreamState;
 
-    fn schema() -> Schema {
-        Schema::new([
+    fn schema() -> ColumnSchema {
+        ColumnSchema::new([
             Field::new("name", DataType::Utf8, false),
             Field::new("catalog_name", DataType::Utf8, false),
             Field::new("comment", DataType::Utf8, true),
@@ -179,8 +179,8 @@ impl<R: Runtime> UnityObjectsOperation<R> for ListTablesOperation {
     type ConnectionState = ListTablesConnectionState<R>;
     type StreamState = ListTablesStreamState;
 
-    fn schema() -> Schema {
-        Schema::new([
+    fn schema() -> ColumnSchema {
+        ColumnSchema::new([
             Field::new("name", DataType::Utf8, false),
             Field::new("catalog_name", DataType::Utf8, false),
             Field::new("schema_name", DataType::Utf8, false),

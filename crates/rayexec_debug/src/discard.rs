@@ -1,7 +1,7 @@
 use futures::future::BoxFuture;
 use rayexec_error::Result;
 use rayexec_execution::arrays::batch::Batch;
-use rayexec_execution::arrays::field::Schema;
+use rayexec_execution::arrays::field::ColumnSchema;
 use rayexec_execution::execution::operators::sink::PartitionSink;
 use rayexec_execution::functions::copy::CopyToFunction;
 use rayexec_io::location::FileLocation;
@@ -17,7 +17,7 @@ impl CopyToFunction for DiscardCopyToFunction {
 
     fn create_sinks(
         &self,
-        _schema: Schema,
+        _schema: ColumnSchema,
         _location: FileLocation,
         num_partitions: usize,
     ) -> Result<Vec<Box<dyn PartitionSink>>> {

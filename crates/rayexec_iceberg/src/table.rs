@@ -6,7 +6,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::arrays::batch::Batch;
-use rayexec_execution::arrays::field::Schema;
+use rayexec_execution::arrays::field::ColumnSchema;
 use rayexec_execution::storage::table_storage::Projections;
 use rayexec_io::location::{AccessConfig, FileLocation};
 use rayexec_io::{FileProvider2, FileSource, FileSourceExt};
@@ -178,7 +178,7 @@ impl Table {
         Ok(scans)
     }
 
-    pub fn schema(&self) -> Result<Schema> {
+    pub fn schema(&self) -> Result<ColumnSchema> {
         let schema = self
             .metadata
             .schemas
@@ -261,7 +261,7 @@ pub struct TableScan {
     /// Relative path resolver.
     resolver: PathResolver,
     /// Output schema of the table.
-    schema: Schema,
+    schema: ColumnSchema,
     /// Column projections.
     projections: Projections,
     /// Files this scan is responsible for.
@@ -319,7 +319,7 @@ impl TableScan {
         location: FileLocation,
         conf: &AccessConfig,
         provider: &dyn FileProvider2,
-        schema: &Schema,
+        schema: &ColumnSchema,
         projections: Projections,
     ) -> Result<AsyncBatchReader<Box<dyn FileSource>>> {
         let mut source = provider.file_source(location, conf)?;

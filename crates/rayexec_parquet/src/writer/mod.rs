@@ -16,7 +16,7 @@ use rayexec_execution::arrays::array::physical_type::{PhysicalBinary, ScalarStor
 use rayexec_execution::arrays::array::Array;
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::datatype::DataType;
-use rayexec_execution::arrays::field::Schema;
+use rayexec_execution::arrays::field::ColumnSchema;
 use rayexec_io::FileSink;
 
 use crate::schema::to_parquet_schema;
@@ -29,7 +29,7 @@ pub struct AsyncBatchWriter {
     /// Underlying sink.
     sink: Box<dyn FileSink>,
     /// Schema of parquet file we're writing.
-    schema: Schema,
+    schema: ColumnSchema,
     /// Write properties.
     props: Arc<WriterProperties>,
     /// In-memory writer.
@@ -39,7 +39,7 @@ pub struct AsyncBatchWriter {
 }
 
 impl AsyncBatchWriter {
-    pub fn try_new(sink: Box<dyn FileSink>, schema: Schema) -> Result<Self> {
+    pub fn try_new(sink: Box<dyn FileSink>, schema: ColumnSchema) -> Result<Self> {
         let props = Arc::new(WriterProperties::new());
         let parquet_schema = to_parquet_schema(&schema)?;
         let writer =
@@ -136,7 +136,7 @@ struct RowGroupWriter {
 impl RowGroupWriter {
     fn try_new(
         parquet_schema: &SchemaDescriptor,
-        schema: &Schema,
+        schema: &ColumnSchema,
         props: &WriterPropertiesPtr,
     ) -> Result<Self> {
         let mut leaves = parquet_schema.columns().iter();

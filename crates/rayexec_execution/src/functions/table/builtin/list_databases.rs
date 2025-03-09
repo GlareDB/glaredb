@@ -7,7 +7,7 @@ use rayexec_error::Result;
 use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::field::{Field, Schema};
+use crate::arrays::field::{ColumnSchema, Field};
 use crate::catalog::context::DatabaseContext;
 use crate::catalog::database::Database;
 use crate::execution::operators::{ExecutionProperties, PollPull};
@@ -39,6 +39,7 @@ pub struct ListDatabasesOperatorState {
     databases: Vec<Arc<Database>>,
 }
 
+#[derive(Debug)]
 pub struct ListDatabasePartitionState {
     offset: usize,
     databases: Vec<Arc<Database>>,
@@ -52,17 +53,17 @@ impl TableScanFunction for ListDatabases {
     type OperatorState = ListDatabasesOperatorState;
     type PartitionState = ListDatabasePartitionState;
 
-    fn bind(
+    fn bind<'a>(
         &self,
-        db_context: &DatabaseContext,
+        db_context: &'a DatabaseContext,
         input: TableFunctionInput,
-    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + '_ {
+    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + 'a {
         let databases = db_context.iter_databases().cloned().collect();
         async move {
             Ok(TableFunctionBindState {
                 state: ListDatabasesBindState { databases },
                 input,
-                schema: Schema::new([
+                schema: ColumnSchema::new([
                     Field::new("name", DataType::Utf8, false),
                     Field::new("access_mode", DataType::Utf8, false),
                 ]),

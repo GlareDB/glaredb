@@ -5,7 +5,7 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::field::{Field, Schema};
+use crate::arrays::field::{ColumnSchema, Field};
 use crate::arrays::scalar::ScalarValue;
 use crate::execution::operators::{PollExecute, PollFinalize};
 use crate::expr::Expression;
