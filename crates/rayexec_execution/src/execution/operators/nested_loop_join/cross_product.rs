@@ -8,6 +8,7 @@ use crate::arrays::collection::concurrent::{
     ConcurrentColumnCollection,
 };
 use crate::arrays::datatype::DataType;
+use crate::storage::projections::Projections;
 
 #[derive(Debug)]
 pub struct CrossProductState {
@@ -21,17 +22,21 @@ pub struct CrossProductState {
     batch: Batch,
     /// Current row we're processing.
     row_idx: usize,
+    /// Projections out of the column collection. Should project all columns.
+    projections: Projections,
 }
 
 impl CrossProductState {
     pub fn new(left_datatypes: impl IntoExactSizeIterator<Item = DataType>) -> Result<Self> {
         // TODO: Create batch without needing to allocate.
         let batch = Batch::new(left_datatypes, 1)?;
+        let projections = Projections::new(0..batch.arrays.len());
 
         Ok(CrossProductState {
             scan_state: None,
             batch,
             row_idx: 0,
+            projections,
         })
     }
 
@@ -61,7 +66,7 @@ impl CrossProductState {
         if self.row_idx >= self.batch.num_rows() {
             // Scan next batch.
             self.row_idx = 0;
-            let count = left.scan(scan_state, &mut self.batch)?;
+            let count = left.scan(&self.projections, scan_state, &mut self.batch)?;
             if count == 0 {
                 // We're done.
                 self.scan_state = None;

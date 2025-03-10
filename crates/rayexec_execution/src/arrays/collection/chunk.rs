@@ -7,6 +7,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::compute::copy::copy_rows_raw;
 use crate::arrays::datatype::DataType;
 use crate::buffer::buffer_manager::AsRawBufferManager;
+use crate::storage::projections::Projections;
 
 #[derive(Debug)]
 pub struct ColumnChunk {
@@ -62,11 +63,18 @@ impl ColumnChunk {
         Ok(())
     }
 
-    pub fn scan(&self, output: &mut Batch) -> Result<usize> {
-        debug_assert_eq!(self.buffers.len(), output.arrays.len());
-        for (output, buffer) in output.arrays.iter_mut().zip(&self.buffers) {
-            buffer.clone_to_array(output)?;
-        }
+    /// Scan the chunk into the output batch.
+    ///
+    /// Projections indicates which columns to scan.
+    pub fn scan(&self, projections: &Projections, output: &mut Batch) -> Result<usize> {
+        debug_assert!(projections
+            .indices()
+            .iter()
+            .all(|&idx| idx < self.buffers.len()));
+
+        projections.for_each_column(output, &mut |col_idx, output| {
+            self.buffers[col_idx].clone_to_array(output)
+        })?;
         output.set_num_rows(self.filled)?;
 
         Ok(self.filled)

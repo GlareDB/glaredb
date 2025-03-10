@@ -2,17 +2,24 @@ use std::fmt::Debug;
 
 use rayexec_error::Result;
 
+use super::projections::Projections;
 use crate::arrays::batch::Batch;
 use crate::arrays::collection::concurrent::{
     ColumnCollectionAppendState,
     ColumnCollectionScanState,
     ConcurrentColumnCollection,
+    ParallelColumnCollectionScanState,
 };
 use crate::arrays::datatype::DataType;
 
 #[derive(Debug)]
 pub struct DataTableScanState {
     state: ColumnCollectionScanState,
+}
+
+#[derive(Debug)]
+pub struct ParallelDataTableScanState {
+    state: ParallelColumnCollectionScanState,
 }
 
 #[derive(Debug)]
@@ -49,6 +56,15 @@ impl DataTable {
         }
     }
 
+    pub fn init_parallel_scan_states(
+        &self,
+        num_parallel: usize,
+    ) -> impl Iterator<Item = ParallelDataTableScanState> + '_ {
+        self.collection
+            .init_parallel_scan_states(num_parallel)
+            .map(|state| ParallelDataTableScanState { state })
+    }
+
     pub fn append_batch(&self, state: &mut DataTableAppendState, batch: &Batch) -> Result<()> {
         self.collection.append_batch(&mut state.state, batch)
     }
@@ -57,7 +73,22 @@ impl DataTable {
         self.collection.flush(&mut state.state)
     }
 
-    pub fn scan(&self, state: &mut DataTableScanState, output: &mut Batch) -> Result<usize> {
-        self.collection.scan(&mut state.state, output)
+    pub fn scan(
+        &self,
+        projections: &Projections,
+        state: &mut DataTableScanState,
+        output: &mut Batch,
+    ) -> Result<usize> {
+        self.collection.scan(projections, &mut state.state, output)
+    }
+
+    pub fn parallel_scan(
+        &self,
+        projections: &Projections,
+        state: &mut ParallelDataTableScanState,
+        output: &mut Batch,
+    ) -> Result<usize> {
+        self.collection
+            .parallel_scan(projections, &mut state.state, output)
     }
 }

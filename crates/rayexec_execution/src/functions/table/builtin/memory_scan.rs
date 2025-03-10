@@ -15,7 +15,7 @@ use crate::functions::table::scan::TableScanFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::functions::Signature;
 use crate::logical::statistics::StatisticsValue;
-use crate::storage::datatable::{DataTable, DataTableScanState};
+use crate::storage::datatable::{DataTable, ParallelDataTableScanState};
 use crate::storage::projections::Projections;
 
 pub const FUNCTION_SET_MEMORY_SCAN: TableFunctionSet = TableFunctionSet {
@@ -44,7 +44,7 @@ pub struct MemoryScanOperatorState {
 
 #[derive(Debug)]
 pub struct MemoryScanPartitionState {
-    state: DataTableScanState,
+    state: ParallelDataTableScanState,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -112,12 +112,10 @@ impl TableScanFunction for MemoryScan {
         _props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionState>> {
-        // TODO: Parallel scan.
-        let states = (0..partitions)
-            .map(|_| {
-                let state = op_state.table.init_scan_state();
-                MemoryScanPartitionState { state }
-            })
+        let states = op_state
+            .table
+            .init_parallel_scan_states(partitions)
+            .map(|state| MemoryScanPartitionState { state })
             .collect();
 
         Ok(states)
@@ -129,7 +127,10 @@ impl TableScanFunction for MemoryScan {
         state: &mut Self::PartitionState,
         output: &mut Batch,
     ) -> Result<PollPull> {
-        let count = op_state.table.scan(&mut state.state, output)?;
+        let count =
+            op_state
+                .table
+                .parallel_scan(&op_state.projections, &mut state.state, output)?;
         if count == 0 {
             Ok(PollPull::Exhausted)
         } else {

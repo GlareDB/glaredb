@@ -1,3 +1,4 @@
+use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -7,6 +8,7 @@ use super::segment::ColumnCollectionSegment;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::buffer::buffer_manager::NopBufferManager;
+use crate::storage::projections::Projections;
 
 #[derive(Debug)]
 pub struct ColumnCollectionAppendState {
@@ -21,6 +23,16 @@ pub struct ColumnCollectionScanState {
     segment: Option<Arc<ColumnCollectionSegment>>,
     /// Current chunk within the segment we're on.
     chunk_idx: usize,
+}
+
+/// State for parallel scans on the collection.
+///
+/// All parallel states initialized at the same time will coordinate which
+/// segments to scan such that every row is scanned exactly once.
+#[derive(Debug)]
+pub struct ParallelColumnCollectionScanState {
+    next: Arc<AtomicUsize>,
+    state: ColumnCollectionScanState,
 }
 
 #[derive(Debug)]
@@ -47,6 +59,13 @@ impl ConcurrentColumnCollection {
             segment_size,
             chunk_capacity,
         }
+    }
+
+    pub fn init_parallel_scan_states(
+        &self,
+        num_parallel: usize,
+    ) -> impl Iterator<Item = ParallelColumnCollectionScanState> + '_ {
+        CreateParallelStateIter::new(num_parallel)
     }
 
     pub fn init_append_state(&self) -> ColumnCollectionAppendState {
@@ -114,7 +133,35 @@ impl ConcurrentColumnCollection {
     /// there's no additional batches to scan.
     ///
     /// Note that this may be called interchangeably with `append_batch`.
-    pub fn scan(&self, state: &mut ColumnCollectionScanState, output: &mut Batch) -> Result<usize> {
+    pub fn scan(
+        &self,
+        projections: &Projections,
+        state: &mut ColumnCollectionScanState,
+        output: &mut Batch,
+    ) -> Result<usize> {
+        self.scan_inner(projections, state, output, |curr| curr + 1)
+    }
+
+    pub fn parallel_scan(
+        &self,
+        projections: &Projections,
+        state: &mut ParallelColumnCollectionScanState,
+        output: &mut Batch,
+    ) -> Result<usize> {
+        self.scan_inner(projections, &mut state.state, output, |_curr| {
+            state.next.fetch_add(1, atomic::Ordering::Relaxed)
+        })
+    }
+
+    /// Scan implemenation with the next segment id to scan determined by the
+    /// provided function.
+    fn scan_inner(
+        &self,
+        projections: &Projections,
+        state: &mut ColumnCollectionScanState,
+        output: &mut Batch,
+        next_segment_fn: impl Fn(usize) -> usize,
+    ) -> Result<usize> {
         loop {
             if state.segment.is_none() {
                 let segments = self.segments.lock();
@@ -128,7 +175,7 @@ impl ConcurrentColumnCollection {
                 };
 
                 state.segment = Some(segment.clone());
-                state.next_segment_idx += 1;
+                state.next_segment_idx = next_segment_fn(state.next_segment_idx);
                 state.chunk_idx = 0;
             }
 
@@ -136,7 +183,7 @@ impl ConcurrentColumnCollection {
 
             match segment.get_chunk(state.chunk_idx) {
                 Some(chunk) => {
-                    let num_rows = chunk.scan(output)?;
+                    let num_rows = chunk.scan(projections, output)?;
                     state.chunk_idx += 1;
                     return Ok(num_rows);
                 }
@@ -149,6 +196,53 @@ impl ConcurrentColumnCollection {
     }
 }
 
+#[derive(Debug)]
+struct CreateParallelStateIter {
+    next: Arc<AtomicUsize>,
+    idx: usize,
+    count: usize,
+}
+
+impl CreateParallelStateIter {
+    fn new(num_parallel: usize) -> Self {
+        CreateParallelStateIter {
+            next: Arc::new(AtomicUsize::new(num_parallel)),
+            idx: 0,
+            count: num_parallel,
+        }
+    }
+}
+
+impl Iterator for CreateParallelStateIter {
+    type Item = ParallelColumnCollectionScanState;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.count {
+            return None;
+        }
+
+        let state = ParallelColumnCollectionScanState {
+            next: self.next.clone(),
+            state: ColumnCollectionScanState {
+                next_segment_idx: self.idx,
+                segment: None,
+                chunk_idx: 0,
+            },
+        };
+
+        self.idx += 1;
+
+        Some(state)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let rem = self.count - self.idx;
+        (rem, Some(rem))
+    }
+}
+
+impl ExactSizeIterator for CreateParallelStateIter {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -158,6 +252,7 @@ mod tests {
     #[test]
     fn append_scan_simple() {
         let collection = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 16, 16);
+        let projections = Projections::new([0, 1]);
 
         let mut append_state = collection.init_append_state();
         let mut scan_state = collection.init_scan_state();
@@ -167,11 +262,15 @@ mod tests {
         collection.flush(&mut append_state).unwrap();
 
         let mut output = Batch::new([DataType::Int32, DataType::Utf8], 16).unwrap();
-        collection.scan(&mut scan_state, &mut output).unwrap();
+        collection
+            .scan(&projections, &mut scan_state, &mut output)
+            .unwrap();
         assert_batches_eq(&input, &output);
 
         // Try scan again, get nothing.
-        collection.scan(&mut scan_state, &mut output).unwrap();
+        collection
+            .scan(&projections, &mut scan_state, &mut output)
+            .unwrap();
         assert_eq!(0, output.num_rows());
 
         // Should be able to keep appending.
@@ -179,7 +278,83 @@ mod tests {
         collection.append_batch(&mut append_state, &input).unwrap();
         collection.flush(&mut append_state).unwrap();
 
-        collection.scan(&mut scan_state, &mut output).unwrap();
+        collection
+            .scan(&projections, &mut scan_state, &mut output)
+            .unwrap();
         assert_batches_eq(&input, &output);
+    }
+
+    #[test]
+    fn scan_projected_column() {
+        let collection = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 16, 16);
+        let projections = Projections::new([1]);
+
+        let mut append_state = collection.init_append_state();
+        let mut scan_state = collection.init_scan_state();
+
+        let input = generate_batch!([4, 5, 6, 7], ["a", "b", "c", "d"]);
+        collection.append_batch(&mut append_state, &input).unwrap();
+        collection.flush(&mut append_state).unwrap();
+
+        let mut output = Batch::new([DataType::Utf8], 16).unwrap();
+        collection
+            .scan(&projections, &mut scan_state, &mut output)
+            .unwrap();
+
+        let expected = generate_batch!(["a", "b", "c", "d"]);
+        assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn scan_parallel() {
+        // Very small segments, chunks.
+        let collection = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 1, 2);
+
+        let mut append_state = collection.init_append_state();
+        // TODO: Currently we allow segments to be larger than the configured
+        // size if a single input batch exceeds the size of a chunk. We should
+        // probably split up chunks when we flush to make sure they're all the
+        // correct size.
+        //
+        // To properly get two segments right now, we need to append two batches.
+        let input1 = generate_batch!([4, 5], ["a", "b"]);
+        collection.append_batch(&mut append_state, &input1).unwrap();
+        collection.flush(&mut append_state).unwrap();
+        let input2 = generate_batch!([6, 7], ["c", "d"]);
+        collection.append_batch(&mut append_state, &input2).unwrap();
+        collection.flush(&mut append_state).unwrap();
+
+        let projections = Projections::new([0, 1]);
+
+        // We should have two segments now.
+        let mut states: Vec<_> = collection.init_parallel_scan_states(2).collect();
+        assert_eq!(2, states.len());
+
+        let mut output1 = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+        collection
+            .parallel_scan(&projections, &mut states[0], &mut output1)
+            .unwrap();
+
+        let expected1 = generate_batch!([4, 5], ["a", "b"]);
+        assert_batches_eq(&expected1, &output1);
+
+        let mut output2 = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+        collection
+            .parallel_scan(&projections, &mut states[1], &mut output2)
+            .unwrap();
+
+        let expected2 = generate_batch!([6, 7], ["c", "d"]);
+        assert_batches_eq(&expected2, &output2);
+
+        // Should exhaust both scans.
+        collection
+            .parallel_scan(&projections, &mut states[0], &mut output1)
+            .unwrap();
+        assert_eq!(0, output1.num_rows());
+
+        collection
+            .parallel_scan(&projections, &mut states[1], &mut output2)
+            .unwrap();
+        assert_eq!(0, output2.num_rows());
     }
 }
