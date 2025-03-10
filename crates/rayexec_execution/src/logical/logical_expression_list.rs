@@ -51,6 +51,8 @@ impl LogicalNode for Node<LogicalExpressionList> {
 
 impl Explainable for LogicalExpressionList {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("ExpressionList").with_value("num_rows", self.rows.len())
+        ExplainEntry::new("ExpressionList")
+            .with_value("num_rows", self.rows.len())
+            .with_values("datatypes", &self.types)
     }
 }

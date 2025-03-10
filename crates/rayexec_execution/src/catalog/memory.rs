@@ -29,6 +29,7 @@ use crate::catalog::entry::SchemaEntry;
 use crate::execution::operators::catalog::create_schema::PhysicalCreateSchema;
 use crate::execution::operators::catalog::create_table::PhysicalCreateTable;
 use crate::execution::operators::catalog::create_view::PhysicalCreateView;
+use crate::execution::operators::catalog::insert::PhysicalInsert;
 use crate::execution::operators::PlannedOperator;
 use crate::functions::table::builtin::memory_scan::FUNCTION_SET_MEMORY_SCAN;
 use crate::storage::storage_manager::{StorageManager, StorageTableId};
@@ -144,6 +145,17 @@ impl Catalog for MemoryCatalog {
         };
 
         Ok(PlannedOperator::new_pull(operator))
+    }
+
+    fn plan_insert(
+        self: &Arc<Self>,
+        storage: &Arc<StorageManager>,
+        table: Arc<CatalogEntry>,
+    ) -> Result<PlannedOperator> {
+        Ok(PlannedOperator::new_execute(PhysicalInsert {
+            storage: storage.clone(),
+            entry: table,
+        }))
     }
 
     fn plan_create_schema(self: &Arc<Self>, create: CreateSchemaInfo) -> Result<PlannedOperator> {

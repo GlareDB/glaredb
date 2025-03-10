@@ -84,6 +84,10 @@ impl ExecuteOperator for PhysicalValues {
     ) -> Result<PollExecute> {
         output.set_num_rows(0)?;
 
+        if input.num_rows() == 0 {
+            return Ok(PollExecute::Exhausted);
+        }
+
         let capacity = output.write_capacity()?;
         loop {
             let out_rem = capacity - output.num_rows();
@@ -128,6 +132,8 @@ impl ExecuteOperator for PhysicalValues {
 impl Explainable for PhysicalValues {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Values")
+            .with_value("num_rows", self.expressions.len())
+            .with_values("datatypes", &self.output_types)
     }
 }
 
@@ -136,6 +142,7 @@ mod tests {
     use super::*;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
+    use crate::arrays::scalar::ScalarValue;
     use crate::expr;
     use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::{assert_batches_eq, generate_batch};
@@ -174,6 +181,41 @@ mod tests {
 
         let expected1 = generate_batch!(["a", "b"], [2, 3]);
         assert_batches_eq(&expected1, &output);
+    }
+
+    #[test]
+    fn values_literal_with_null() {
+        // `VALUES (4), (NULL)`
+        let list = TableList::empty();
+        let expr_rows = vec![
+            vec![plan_scalar(&list, expr::lit(4))],
+            vec![plan_scalar(&list, expr::lit(ScalarValue::Null))],
+        ];
+
+        let wrapper = OperatorWrapper::new(PhysicalValues::new(expr_rows));
+        let props = ExecutionProperties { batch_size: 16 };
+        let mut states = wrapper
+            .operator
+            .create_partition_execute_states(&(), props, 1)
+            .unwrap();
+
+        let mut output = Batch::new([DataType::Int32], 1024).unwrap();
+        let mut input = Batch::empty_with_num_rows(1);
+
+        let poll = wrapper
+            .poll_execute(&(), &mut states[0], &mut input, &mut output)
+            .unwrap();
+        assert_eq!(poll, PollExecute::Ready);
+
+        let expected1 = generate_batch!([Some(4), None]);
+        assert_batches_eq(&expected1, &output);
+
+        let mut input = Batch::empty_with_num_rows(0);
+        let poll = wrapper
+            .poll_execute(&(), &mut states[0], &mut input, &mut output)
+            .unwrap();
+        assert_eq!(poll, PollExecute::Exhausted);
+        assert_eq!(0, output.num_rows);
     }
 
     #[test]

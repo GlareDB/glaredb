@@ -9,6 +9,7 @@ mod plan_empty;
 mod plan_explain;
 mod plan_expression_list;
 mod plan_filter;
+mod plan_insert;
 mod plan_join;
 mod plan_limit;
 mod plan_magic_scan;
@@ -80,20 +81,6 @@ impl OperatorPlanner {
 struct Materializations {
     // local: IntermediateMaterializationGroup,
     // TODO: Remote materializations.
-}
-
-/// Represents an intermediate pipeline that we're building up.
-#[derive(Debug)]
-struct InProgressPipeline {
-    // id: IntermediatePipelineId,
-    // /// All operators we've planned so far. Should be order left-to-right in
-    // /// terms of execution flow.
-    // operators: Vec<IntermediateOperator>,
-    // /// Location where these operators should be running. This will determine
-    // /// which pipeline group this pipeline will be placed in.
-    // location: LocationRequirement,
-    // /// Source of the pipeline.
-    // source: PipelineSource,
 }
 
 #[derive(Debug)]
@@ -193,6 +180,7 @@ impl<'a> OperatorPlanState<'a> {
             LogicalOperator::CreateView(node) => self.plan_create_view(node),
             LogicalOperator::CreateSchema(node) => self.plan_create_schema(node),
             LogicalOperator::CreateTable(node) => self.plan_create_table(node),
+            LogicalOperator::Insert(node) => self.plan_insert(node),
             other => not_implemented!("logical plan to physical plan: {other:?}"),
         }
     }

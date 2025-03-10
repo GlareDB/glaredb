@@ -18,6 +18,7 @@ pub struct SessionConfig {
     pub batch_size: u64,
     pub verify_optimized_plan: bool,
     pub enable_function_chaining: bool,
+    pub per_partition_counts: bool,
 }
 
 impl SessionConfig {
@@ -34,6 +35,7 @@ impl SessionConfig {
             batch_size: DEFAULT_BATCH_SIZE as u64,
             verify_optimized_plan: false,
             enable_function_chaining: true,
+            per_partition_counts: false,
         }
     }
 
@@ -108,6 +110,7 @@ static GET_SET_FUNCTIONS: LazyLock<HashMap<&'static str, SettingFunctions>> = La
     insert_setting::<Partitions>(&mut map);
     insert_setting::<BatchSize>(&mut map);
     insert_setting::<EnableFunctionChaining>(&mut map);
+    insert_setting::<PerPartitionCounts>(&mut map);
 
     map
 });
@@ -240,6 +243,24 @@ impl SessionSetting for EnableFunctionChaining {
     }
 }
 
+pub struct PerPartitionCounts;
+
+impl SessionSetting for PerPartitionCounts {
+    const NAME: &'static str = "per_partition_counts";
+    const DESCRIPTION: &'static str =
+        "Show insert row totals per-partition instead of as a total count.";
+
+    fn set_from_scalar(scalar: BorrowedScalarValue, conf: &mut SessionConfig) -> Result<()> {
+        let val = scalar.try_as_bool()?;
+        conf.per_partition_counts = val;
+        Ok(())
+    }
+
+    fn get_as_scalar(conf: &SessionConfig) -> ScalarValue {
+        conf.per_partition_counts.into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -253,6 +274,7 @@ mod tests {
             batch_size: 4096,
             verify_optimized_plan: false,
             enable_function_chaining: true,
+            per_partition_counts: false,
         }
     }
 

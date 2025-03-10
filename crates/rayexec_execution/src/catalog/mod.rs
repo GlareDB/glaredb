@@ -57,6 +57,12 @@ pub trait Catalog: Debug + Sync + Send {
         create: CreateTableInfo,
     ) -> Result<PlannedOperator>;
 
+    fn plan_insert(
+        self: &Arc<Self>,
+        storage: &Arc<StorageManager>,
+        entry: Arc<CatalogEntry>,
+    ) -> Result<PlannedOperator>;
+
     fn plan_create_schema(self: &Arc<Self>, create: CreateSchemaInfo) -> Result<PlannedOperator>;
 }
 

@@ -5,14 +5,7 @@ use rayexec_error::{RayexecError, Result};
 pub struct OperatorPlanConfig {
     /// If we should allow nested loop join.
     pub allow_nested_loop_join: bool,
-}
-
-impl Default for OperatorPlanConfig {
-    fn default() -> Self {
-        OperatorPlanConfig {
-            allow_nested_loop_join: true,
-        }
-    }
+    pub per_partition_counts: bool,
 }
 
 impl OperatorPlanConfig {

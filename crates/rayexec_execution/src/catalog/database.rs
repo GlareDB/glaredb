@@ -5,6 +5,7 @@ use std::sync::Arc;
 use rayexec_error::{RayexecError, Result};
 
 use super::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo};
+use super::entry::CatalogEntry;
 use super::memory::MemoryCatalog;
 use super::Catalog;
 use crate::arrays::scalar::ScalarValue;
@@ -70,6 +71,11 @@ impl Database {
         self.check_can_write()?;
         self.catalog
             .plan_create_table(&self.storage, schema, create)
+    }
+
+    pub fn plan_insert(&self, table: Arc<CatalogEntry>) -> Result<PlannedOperator> {
+        self.check_can_write()?;
+        self.catalog.plan_insert(&self.storage, table)
     }
 
     pub fn plan_create_schema(&self, create: CreateSchemaInfo) -> Result<PlannedOperator> {
