@@ -4,12 +4,15 @@ use rayexec_parser::ast;
 
 use crate::catalog::database::AttachInfo;
 use crate::catalog::entry::CatalogEntry;
+use crate::functions::table::PlannedTableFunction;
 
 /// Table or CTE found in the FROM clause.
 #[derive(Debug, Clone)]
 pub enum ResolvedTableOrCteReference {
     /// Resolved table.
     Table(ResolvedTableReference),
+    /// Resolved view.
+    View(ResolvedViewReference),
     /// Resolved CTE.
     ///
     /// Stores the normalized name of the CTE so that it can be looked up during
@@ -19,6 +22,14 @@ pub enum ResolvedTableOrCteReference {
 
 #[derive(Debug, Clone)]
 pub struct ResolvedTableReference {
+    pub catalog: String,
+    pub schema: String,
+    pub entry: Arc<CatalogEntry>,
+    pub scan_function: PlannedTableFunction,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResolvedViewReference {
     pub catalog: String,
     pub schema: String,
     pub entry: Arc<CatalogEntry>,

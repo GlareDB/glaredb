@@ -410,6 +410,10 @@ where
             return Ok(());
         }
 
+        if !other.valid {
+            return Ok(());
+        }
+
         if self.max.lt(&other.max) {
             std::mem::swap(&mut self.max, &mut other.max);
         }
@@ -458,6 +462,10 @@ impl AggregateState<&[u8], [u8]> for MaxStateBinary {
         if !self.valid {
             self.valid = other.valid;
             std::mem::swap(&mut self.max, &mut other.max);
+            return Ok(());
+        }
+
+        if !other.valid {
             return Ok(());
         }
 
@@ -515,6 +523,10 @@ where
             return Ok(());
         }
 
+        if !other.valid {
+            return Ok(());
+        }
+
         if self.min.gt(&other.min) {
             std::mem::swap(&mut self.min, &mut other.min);
         }
@@ -563,6 +575,10 @@ impl AggregateState<&[u8], [u8]> for MinStateBinary {
         if !self.valid {
             self.valid = other.valid;
             std::mem::swap(&mut self.min, &mut other.min);
+            return Ok(());
+        }
+
+        if !other.valid {
             return Ok(());
         }
 

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
@@ -7,16 +8,19 @@ use tracing::error;
 use super::resolved_table::{
     ResolvedTableOrCteReference,
     ResolvedTableReference,
+    ResolvedViewReference,
     UnresolvedTableReference,
 };
 use super::ResolveContext;
 use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
 use crate::catalog::database::Database;
-use crate::catalog::entry::{CatalogEntry, CatalogEntryType};
+use crate::catalog::entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType};
 use crate::catalog::memory::MemorySchema;
 use crate::catalog::system::BUILTIN_SCHEMA;
 use crate::catalog::{Catalog, Schema};
+use crate::expr;
 use crate::functions::function_set::TableFunctionSet;
+use crate::functions::table::TableFunctionInput;
 
 pub fn create_user_facing_resolve_err(
     schema_ent: Option<&MemorySchema>,
@@ -180,13 +184,49 @@ impl<'a> NormalResolver<'a> {
 
         // Try reading from in-memory catalog first.
         if let Some(entry) = self.resolve_from_memory_catalog(database, &schema, &table)? {
-            return Ok(MaybeResolvedTable::Resolved(
-                ResolvedTableOrCteReference::Table(ResolvedTableReference {
-                    catalog,
-                    schema,
-                    entry,
-                }),
-            ));
+            match &entry.entry {
+                CatalogEntryInner::Table(table_ent) => {
+                    // Base table, get the table scan function and use that.
+                    //
+                    // Arguments are (catalog, schema, table)
+                    let inputs = TableFunctionInput {
+                        positional: vec![
+                            expr::lit(catalog.clone()).into(),
+                            expr::lit(schema.clone()).into(),
+                            expr::lit(table.clone()).into(),
+                        ],
+                        named: HashMap::new(),
+                    };
+
+                    let planned =
+                        expr::bind_table_scan_function(&table_ent.function, self.context, inputs)
+                            .await?;
+
+                    return Ok(MaybeResolvedTable::Resolved(
+                        ResolvedTableOrCteReference::Table(ResolvedTableReference {
+                            catalog,
+                            schema,
+                            entry,
+                            scan_function: planned,
+                        }),
+                    ));
+                }
+                CatalogEntryInner::View(_) => {
+                    return Ok(MaybeResolvedTable::Resolved(
+                        ResolvedTableOrCteReference::View(ResolvedViewReference {
+                            catalog,
+                            schema,
+                            entry,
+                        }),
+                    ))
+                }
+                _ => {
+                    return Err(RayexecError::new(format!(
+                        "Unexpected catalog entry type: {:?}",
+                        entry.entry_type()
+                    )))
+                }
+            }
         }
 
         // Nothing to load from. Return None instead of an error to the

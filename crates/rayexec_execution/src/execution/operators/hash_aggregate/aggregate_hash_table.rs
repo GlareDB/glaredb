@@ -143,7 +143,7 @@ impl AggregateHashTable {
 
         debug_assert!(
             !state.row_ptrs.iter().any(|ptr| ptr.is_null()),
-            "Null pointer at position: {}",
+            "Table Insert: null pointer at position: {}",
             state.row_ptrs.iter().position(|ptr| ptr.is_null()).unwrap(),
         );
 
@@ -356,20 +356,29 @@ impl AggregateHashTable {
             // Append groups we haven't seen before and get dest group pointers.
             let (groups, hashes) = merge_state.split_groups_and_hashes();
             let num_rows = merge_state.groups.num_rows();
-            let row_ptrs = &mut state.row_ptrs[0..num_rows];
+
+            state.row_ptrs.resize(num_rows, std::ptr::null_mut());
 
             self.find_or_create_groups(
                 &mut state.append_state,
                 groups,
                 hashes,
                 num_rows,
-                row_ptrs,
+                &mut state.row_ptrs,
             )?;
+
+            debug_assert!(
+                !state.row_ptrs.iter().any(|ptr| ptr.is_null()),
+                "Table Merge: null pointer at position: {}",
+                state.row_ptrs.iter().position(|ptr| ptr.is_null()).unwrap(),
+            );
 
             // Combine states.
             unsafe {
-                self.layout
-                    .combine_states(merge_state.group_scan.scanned_row_pointers_mut(), row_ptrs)?;
+                self.layout.combine_states(
+                    merge_state.group_scan.scanned_row_pointers_mut(),
+                    &mut state.row_ptrs,
+                )?;
             }
         }
 

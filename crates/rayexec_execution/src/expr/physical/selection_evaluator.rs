@@ -15,8 +15,11 @@ pub struct SelectionEvaluator {
 }
 
 impl SelectionEvaluator {
-    pub fn try_new(expression: PhysicalScalarExpression, batch_size: usize) -> Result<Self> {
-        let evaluator = ExpressionEvaluator::try_new([expression], batch_size)?;
+    pub fn try_new(
+        expression: impl Into<PhysicalScalarExpression>,
+        batch_size: usize,
+    ) -> Result<Self> {
+        let evaluator = ExpressionEvaluator::try_new([expression.into()], batch_size)?;
         let output = Batch::new([DataType::Boolean], batch_size)?;
         let selection = Vec::with_capacity(batch_size);
 
@@ -32,6 +35,9 @@ impl SelectionEvaluator {
     }
 
     /// Select rows from the input based on the expression evaluating to 'true'
+    ///
+    /// Expressions that evaluate to fals or NULL will not be part of the
+    /// selection.
     ///
     /// The internal state is cleared across calls to this method.
     pub fn select(&mut self, input: &mut Batch) -> Result<&[usize]> {
@@ -60,14 +66,9 @@ mod tests {
 
     #[test]
     fn select_simple() {
-        let mut evaluator = SelectionEvaluator::try_new(
-            PhysicalScalarExpression::Column(PhysicalColumnExpr {
-                datatype: DataType::Boolean,
-                idx: 0,
-            }),
-            1024,
-        )
-        .unwrap();
+        let mut evaluator =
+            SelectionEvaluator::try_new(PhysicalColumnExpr::new(0, DataType::Boolean), 1024)
+                .unwrap();
 
         let mut input = generate_batch!([true, false, true, true], [8, 9, 7, 6]);
 
@@ -79,5 +80,17 @@ mod tests {
 
         let selection = evaluator.select(&mut input).unwrap();
         assert_eq!(&[0], selection);
+    }
+
+    #[test]
+    fn select_with_null() {
+        let mut evaluator =
+            SelectionEvaluator::try_new(PhysicalColumnExpr::new(0, DataType::Boolean), 1024)
+                .unwrap();
+
+        let mut input = generate_batch!([Some(true), Some(false), None, Some(true)], [8, 9, 7, 6]);
+
+        let selection = evaluator.select(&mut input).unwrap();
+        assert_eq!(&[0, 3], selection);
     }
 }

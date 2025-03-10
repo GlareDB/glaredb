@@ -109,6 +109,13 @@ impl CatalogEntry {
         }
     }
 
+    pub fn try_as_view_entry(&self) -> Result<&ViewEntry> {
+        match &self.entry {
+            CatalogEntryInner::View(ent) => Ok(ent),
+            _ => Err(RayexecError::new("Entry not a view")),
+        }
+    }
+
     pub fn try_as_schema_entry(&self) -> Result<&SchemaEntry> {
         match &self.entry {
             CatalogEntryInner::Schema(ent) => Ok(ent),

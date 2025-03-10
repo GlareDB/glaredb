@@ -69,8 +69,7 @@ impl AggregateFunction for Count {
 
             if input.validity.all_valid() {
                 for idx in 0..num_rows {
-                    let sel_idx = input.selection.get(idx).unwrap();
-                    let state = unsafe { &mut *states[sel_idx] };
+                    let state = unsafe { &mut *states[idx] };
                     state.count += 1;
                 }
             } else {
@@ -79,8 +78,7 @@ impl AggregateFunction for Count {
                         continue;
                     }
 
-                    let sel_idx = input.selection.get(idx).unwrap();
-                    let state = unsafe { &mut *states[sel_idx] };
+                    let state = unsafe { &mut *states[idx] };
                     state.count += 1;
                 }
             }
@@ -167,5 +165,58 @@ impl AggregateState<&(), i64> for CountNonNullState {
     {
         output.put(&self.count);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::buffer::buffer_manager::NopBufferManager;
+
+    #[test]
+    fn count_single_state() {
+        let mut state = CountNonNullState::default();
+        let state_ptr: *mut CountNonNullState = &mut state;
+        let mut states = vec![state_ptr; 4];
+
+        let array = Array::try_from_iter(["a", "b", "c", "d"]).unwrap();
+
+        Count::update(&(), &[array], 4, &mut states).unwrap();
+
+        assert_eq!(4, state.count);
+    }
+
+    #[test]
+    fn count_multiple_states() {
+        let mut state1 = CountNonNullState::default();
+        let mut state2 = CountNonNullState::default();
+        let state_ptr1: *mut CountNonNullState = &mut state1;
+        let state_ptr2: *mut CountNonNullState = &mut state2;
+
+        let mut states = vec![state_ptr1, state_ptr1, state_ptr2, state_ptr1];
+
+        let array = Array::try_from_iter(["a", "b", "c", "d"]).unwrap();
+        Count::update(&(), &[array], 4, &mut states).unwrap();
+
+        assert_eq!(3, state1.count);
+        assert_eq!(1, state2.count);
+    }
+
+    #[test]
+    fn count_multiple_states_with_constant() {
+        let mut state1 = CountNonNullState::default();
+        let mut state2 = CountNonNullState::default();
+        let state_ptr1: *mut CountNonNullState = &mut state1;
+        let state_ptr2: *mut CountNonNullState = &mut state2;
+
+        let mut states = vec![state_ptr1, state_ptr1, state_ptr2, state_ptr1];
+
+        let array = Array::new_constant(&NopBufferManager, &"a".into(), 4).unwrap();
+        Count::update(&(), &[array], 4, &mut states).unwrap();
+
+        assert_eq!(3, state1.count);
+        assert_eq!(1, state2.count);
     }
 }

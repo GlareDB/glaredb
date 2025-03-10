@@ -51,6 +51,7 @@ impl FromPlanner {
                     catalog: table.catalog,
                     schema: table.schema,
                     source: table.entry,
+                    function: table.scan_function,
                 });
                 let estimated_cardinality = source.cardinality();
 

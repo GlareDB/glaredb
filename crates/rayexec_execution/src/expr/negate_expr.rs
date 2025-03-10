@@ -6,7 +6,7 @@ use super::{AsScalarFunctionSet, Expression};
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::function_set::ScalarFunctionSet;
-use crate::logical::binder::table_list::TableList;
+use crate::functions::scalar::builtin::negate::{FUNCTION_SET_NEGATE, FUNCTION_SET_NOT};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NegateOperator {
@@ -16,7 +16,10 @@ pub enum NegateOperator {
 
 impl AsScalarFunctionSet for NegateOperator {
     fn as_scalar_function_set(&self) -> &ScalarFunctionSet {
-        unimplemented!()
+        match self {
+            Self::Not => &FUNCTION_SET_NOT,
+            Self::Negate => &FUNCTION_SET_NEGATE,
+        }
     }
 }
 

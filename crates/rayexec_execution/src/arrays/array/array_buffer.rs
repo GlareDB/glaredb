@@ -36,7 +36,7 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::datatype::DataType;
 use crate::arrays::string::{StringView, MAX_INLINE_LEN};
-use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager};
+use crate::buffer::buffer_manager::AsRawBufferManager;
 use crate::buffer::raw::RawBuffer;
 use crate::buffer::typed::TypedBuffer;
 

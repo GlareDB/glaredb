@@ -4,7 +4,7 @@ use std::task::Context;
 
 use cross_product::CrossProductState;
 use parking_lot::Mutex;
-use rayexec_error::Result;
+use rayexec_error::{not_implemented, Result};
 
 use super::{
     BaseOperator,
@@ -246,7 +246,7 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
             match &mut state.evaluator {
                 Some(evaluator) => {
                     //
-                    unimplemented!()
+                    not_implemented!("expr eval in nl join")
                 }
                 None => {
                     // Just normal cross product, output already has everything,

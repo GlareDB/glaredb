@@ -52,6 +52,7 @@ pub struct BoundBaseTable {
     pub catalog: String,
     pub schema: String,
     pub entry: Arc<CatalogEntry>,
+    pub scan_function: PlannedTableFunction,
 }
 
 impl PartialEq for BoundBaseTable {
@@ -244,6 +245,7 @@ impl<'a> FromBinder<'a> {
                         catalog: table.catalog.clone(),
                         schema: table.schema.clone(),
                         entry: table.entry.clone(),
+                        scan_function: table.scan_function.clone(),
                     }),
                 })
             }
@@ -251,6 +253,9 @@ impl<'a> FromBinder<'a> {
                 // TODO: Does location matter here?
                 self.bind_cte(bind_context, name, alias)
             }
+            (ResolvedTableOrCteReference::View(_), _location) => Err(RayexecError::new(
+                "View should have been inlined during resolve",
+            )),
         }
     }
 

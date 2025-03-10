@@ -74,6 +74,12 @@ impl<'a> InsertBinder<'a> {
                 // Shouldn't be possible.
                 return Err(RayexecError::new("Cannot insert into CTE"));
             }
+            (ResolvedTableOrCteReference::View(_), _) => {
+                // Also shouldn't be possible.
+                return Err(RayexecError::new(
+                    "View should have been inlined during resolve",
+                ));
+            }
         };
 
         // TODO: Handle specified columns. If provided, insert a projection that

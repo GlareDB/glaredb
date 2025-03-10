@@ -3,13 +3,12 @@ use stdutil::iter::IntoExactSizeIterator;
 use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMut};
 
 /// Validity mask for an array.
-// TODO: Remove PartialEq
 #[derive(Debug, Clone)]
 pub struct Validity {
     inner: ValidityInner,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 enum ValidityInner {
     /// No mask has been set, assume all entries valid.
     AllValid { len: usize },

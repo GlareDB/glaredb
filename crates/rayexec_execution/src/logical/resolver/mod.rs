@@ -29,9 +29,7 @@ use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampType
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::scalar::ScalarValue;
 use crate::catalog::context::DatabaseContext;
-use crate::catalog::entry::CatalogEntryInner;
 use crate::expr;
-use crate::functions::table::TableFunctionInput;
 use crate::logical::operator::LocationRequirement;
 
 /// An AST statement with references bound to data inside of the `resolve_context`.
@@ -207,7 +205,7 @@ impl<'a> Resolver<'a> {
         show: ast::Show<Raw>,
         resolve_context: &mut ResolveContext,
     ) -> Result<ResolvedStatement> {
-        unimplemented!()
+        not_implemented!("Resolve SHOW");
         // let get_view_query = |view: BuiltinView| {
         //     let mut stmts = parser::parse(view.view)?;
         //     let stmt = match stmts.len() {
@@ -833,6 +831,7 @@ impl<'a> Resolver<'a> {
     ) -> Result<ast::FromNode<ResolvedMeta>> {
         // TODO: Very deeply nested... Also rustfmt seems to have trouble
         // properly formatting this.
+        // fffffffffffff
         let body = match from.body {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 match self.resolve_mode {
@@ -841,92 +840,54 @@ impl<'a> Resolver<'a> {
                             .require_resolve_table_or_cte(&reference, resolve_context)
                             .await?;
 
-                        match table {
-                            ResolvedTableOrCteReference::Table(ent) => {
-                                match &ent.entry.entry {
-                                    CatalogEntryInner::View(view) => {
-                                        // Special case for view. If we resolved, then we'll go
-                                        // ahead and parse the sql and treat it as a subquery.
+                        if let ResolvedTableOrCteReference::View(ent) = table {
+                            // Special case for view. If we resolved, then we'll go
+                            // ahead and parse the sql and treat it as a subquery.
 
-                                        let mut statements = parser::parse(&view.query_sql)?;
-                                        let statement = match statements.len() {
-                                            1 => statements.pop().unwrap(),
-                                            other => return Err(RayexecError::new(
-                                                format!("Unexpected number of statements inside view body, expected 1, got {other}")
-                                            ))
-                                        };
+                            let view = ent.entry.try_as_view_entry()?;
 
-                                        let query = match statement {
-                                            Statement::Query(query) => {
-                                                // TODO: Detect a view referencing itself and error.
-                                                Box::pin(self.resolve_query(query, resolve_context))
-                                                    .await?
-                                            }
-                                            other => {
-                                                return Err(RayexecError::new(format!(
-                                                    "Unexpected statement type for view: {other:?}"
-                                                )))
-                                            }
-                                        };
+                            let mut statements = parser::parse(&view.query_sql)?;
+                            let statement = match statements.len() {
+                                1 => statements.pop().unwrap(),
+                                other => return Err(RayexecError::new(
+                                    format!("Unexpected number of statements inside view body, expected 1, got {other}")
+                                ))
+                            };
 
-                                        // TODO: We may want to just include the database/schema
-                                        // on the alias too. Need to see what we're doing for
-                                        // tables and just do the same here.
-                                        ast::FromNodeBody::Subquery(ast::FromSubquery {
-                                            lateral: false,
-                                            options: ResolvedSubqueryOptions::View {
-                                                table_alias: TableAlias {
-                                                    database: None,
-                                                    schema: None,
-                                                    table: ent.entry.name.clone(),
-                                                },
-                                                column_aliases: view
-                                                    .column_aliases
-                                                    .clone()
-                                                    .unwrap_or_default(),
-                                            },
-                                            query,
-                                        })
-                                    }
-                                    CatalogEntryInner::Table(table) => {
-                                        // Base table, get the table scan
-                                        // function and use that.
-                                        //
-                                        // Arguments are (catalog, schema, table)
-                                        let inputs = TableFunctionInput {
-                                            positional: vec![
-                                                expr::lit(ent.catalog.clone()).into(),
-                                                expr::lit(ent.schema.clone()).into(),
-                                                expr::lit(ent.entry.name.clone()).into(),
-                                            ],
-                                            named: HashMap::new(),
-                                        };
-
-                                        let planned = expr::bind_table_scan_function(
-                                            &table.function,
-                                            self.context,
-                                            inputs,
-                                        )
-                                        .await?;
-
-                                        let resolve_idx = resolve_context
-                                            .table_functions
-                                            .push_maybe_resolved(MaybeResolved::Resolved(
-                                                ResolvedTableFunctionReference::Planned(planned),
-                                                LocationRequirement::ClientLocal,
-                                            ));
-
-                                        // TODO: Clean this up.
-                                        ast::FromNodeBody::TableFunction(ast::FromTableFunction {
-                                            lateral: false,
-                                            reference: resolve_idx,
-                                            args: Vec::new(),
-                                        })
-                                    }
-                                    _ => return Err(RayexecError::new("Unexpected catalog entry")),
+                            let query = match statement {
+                                Statement::Query(query) => {
+                                    // TODO: Detect a view referencing itself and error.
+                                    Box::pin(self.resolve_query(query, resolve_context)).await?
                                 }
-                            }
-                            _ => unimplemented!(),
+                                other => {
+                                    return Err(RayexecError::new(format!(
+                                        "Unexpected statement type for view: {other:?}"
+                                    )))
+                                }
+                            };
+
+                            // TODO: We may want to just include the database/schema
+                            // on the alias too. Need to see what we're doing for
+                            // tables and just do the same here.
+                            ast::FromNodeBody::Subquery(ast::FromSubquery {
+                                lateral: false,
+                                options: ResolvedSubqueryOptions::View {
+                                    table_alias: TableAlias {
+                                        database: None,
+                                        schema: None,
+                                        table: ent.entry.name.clone(),
+                                    },
+                                    column_aliases: view.column_aliases.clone().unwrap_or_default(),
+                                },
+                                query,
+                            })
+                        } else {
+                            // Either a table or cte, we can stick these on the
+                            // context directly.
+                            let idx = resolve_context.tables.push_maybe_resolved(
+                                MaybeResolved::Resolved(table, LocationRequirement::ClientLocal),
+                            );
+                            ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference: idx })
                         }
                     }
                     ResolveMode::Hybrid => {

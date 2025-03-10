@@ -53,101 +53,29 @@ impl OperatorPlanState<'_> {
             })
             .collect();
 
-        if !equality_indices.is_empty() {
-            // Use hash join
+        // Need to fall back to nested loop join.
 
-            // let [left, right] = join.take_two_children_exact()?;
-            // let left_refs = left.get_output_table_refs(self.bind_context);
-            // let right_refs = right.get_output_table_refs(self.bind_context);
-
-            // let mut left_types = Vec::new();
-            // for &table_ref in &left_refs {
-            //     let table = self.bind_context.get_table(table_ref)?;
-            //     left_types.extend(table.column_types.iter().cloned());
-            // }
-
-            // let mut right_types = Vec::new();
-            // for &table_ref in &right_refs {
-            //     let table = self.bind_context.get_table(table_ref)?;
-            //     right_types.extend(table.column_types.iter().cloned());
-            // }
-
-            // // Build up all inputs on the right (probe) side. This is going to
-            // // continue with the the current pipeline.
-            // self.walk(materializations, right)?;
-
-            // // Build up the left (build) side in a separate pipeline. This will feed
-            // // into the currently pipeline at the join operator.
-            // let mut left_state = OperatorPlanState::new(self.config, self.bind_context);
-            // left_state.walk(materializations, left)?;
-
-            unimplemented!();
-            // // Take any completed pipelines from the left side and put them in our
-            // // list.
-            // self.local_group
-            //     .merge_from_other(&mut left_state.local_group);
-            // self.remote_group
-            //     .merge_from_other(&mut left_state.remote_group);
-
-            // // Get the left pipeline.
-            // let left_pipeline = left_state.in_progress.take().ok_or_else(|| {
-            //     RayexecError::new("expected in-progress pipeline from left side of join")
-            // })?;
-
-            // let conditions = join
-            //     .node
-            //     .conditions
-            //     .iter()
-            //     .map(|condition| {
-            //         self.expr_planner
-            //             .plan_join_condition_as_hash_join_condition(
-            //                 &left_refs,
-            //                 &right_refs,
-            //                 condition,
-            //             )
-            //             .context_fn(|| format!("Failed to plan condition: {condition}"))
-            //     })
-            //     .collect::<Result<Vec<_>>>()?;
-
-            // let operator = PhysicalOperator::HashJoin(PhysicalHashJoin::new(
-            //     join.node.join_type,
-            //     &equality_indices,
-            //     conditions,
-            //     left_types,
-            //     right_types,
-            // ));
-            // self.push_intermediate_operator(operator, location, id_gen)?;
-
-            // // Left pipeline will be child this this pipeline at the current
-            // // operator.
-            // self.push_as_child_pipeline(left_pipeline, PhysicalHashJoin::BUILD_SIDE_INPUT_INDEX)?;
-
-            // Ok(())
-        } else {
-            // Need to fall back to nested loop join.
-
-            if join.node.join_type != JoinType::Inner {
-                not_implemented!("join type with nl join: {}", join.node.join_type);
-            }
-
-            let table_refs = join.get_output_table_refs(self.bind_context);
-            let [left, right] = join.take_two_children_exact()?;
-
-            let condition = if join.node.conditions.is_empty() {
-                None
-            } else {
-                let condition: Expression =
-                    expr::and(join.node.conditions.into_iter().map(Expression::Comparison))?.into();
-                let condition = self.expr_planner.plan_scalar(&table_refs, &condition)?;
-
-                Some(condition)
-            };
-
-            let op =
-                self.plan_nested_loop_join(location, left, right, condition, join.node.join_type)?;
-
-            Ok(op)
+        if join.node.join_type != JoinType::Inner {
+            not_implemented!("join type with nl join: {}", join.node.join_type);
         }
+
+        let table_refs = join.get_output_table_refs(self.bind_context);
+        let [left, right] = join.take_two_children_exact()?;
+
+        let condition = if join.node.conditions.is_empty() {
+            None
+        } else {
+            let condition: Expression =
+                expr::and(join.node.conditions.into_iter().map(Expression::Comparison))?.into();
+            let condition = self.expr_planner.plan_scalar(&table_refs, &condition)?;
+
+            Some(condition)
+        };
+
+        let op =
+            self.plan_nested_loop_join(location, left, right, condition, join.node.join_type)?;
+
+        Ok(op)
     }
 
     pub fn plan_arbitrary_join(

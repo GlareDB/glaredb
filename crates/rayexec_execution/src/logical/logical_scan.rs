@@ -18,6 +18,7 @@ pub struct TableScanSource {
     pub catalog: String,
     pub schema: String,
     pub source: Arc<CatalogEntry>,
+    pub function: PlannedTableFunction,
 }
 
 impl PartialEq for TableScanSource {
@@ -42,9 +43,16 @@ pub enum ScanSource {
 }
 
 impl ScanSource {
+    pub fn into_function(self) -> PlannedTableFunction {
+        match self {
+            Self::Table(t) => t.function,
+            Self::Function(f) => f.function,
+        }
+    }
+
     pub fn cardinality(&self) -> StatisticsValue<usize> {
         match self {
-            Self::Table(_) => StatisticsValue::Unknown,
+            Self::Table(table) => table.function.bind_state.cardinality,
             Self::Function(func) => func.function.bind_state.cardinality,
         }
     }
