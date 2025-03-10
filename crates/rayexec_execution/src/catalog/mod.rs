@@ -19,6 +19,7 @@ use create::{
 };
 use drop::DropInfo;
 use entry::{CatalogEntry, CatalogEntryType};
+use futures::Stream;
 use rayexec_error::{RayexecError, Result};
 
 use crate::execution::operators::PlannedOperator;
@@ -64,9 +65,15 @@ pub trait Catalog: Debug + Sync + Send {
     ) -> Result<PlannedOperator>;
 
     fn plan_create_schema(self: &Arc<Self>, create: CreateSchemaInfo) -> Result<PlannedOperator>;
+
+    fn list_schemas(
+        self: &Arc<Self>,
+    ) -> impl Stream<Item = Result<Vec<Arc<Self::Schema>>>> + Sync + Send + 'static;
 }
 
 pub trait Schema: Debug + Sync + Send {
+    fn as_entry(&self) -> Arc<CatalogEntry>;
+
     /// Create a table in the schema.
     // TODO: Storage id should be opaque.
     fn create_table(

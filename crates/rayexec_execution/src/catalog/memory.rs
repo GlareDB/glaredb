@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use futures::{stream, Stream};
 use rayexec_error::{RayexecError, Result};
 use scc::ebr::Guard;
 use scc::HashIndex;
@@ -52,7 +53,7 @@ impl Catalog for MemoryCatalog {
 
     fn create_schema(&self, create: &CreateSchemaInfo) -> Result<Arc<Self::Schema>> {
         let schema = Arc::new(MemorySchema {
-            _schema: Arc::new(CatalogEntry {
+            schema: Arc::new(CatalogEntry {
                 name: create.name.clone(),
                 entry: CatalogEntryInner::Schema(SchemaEntry {}),
                 child: None,
@@ -164,12 +165,21 @@ impl Catalog for MemoryCatalog {
             info: create,
         }))
     }
+
+    fn list_schemas(
+        self: &Arc<Self>,
+    ) -> impl Stream<Item = Result<Vec<Arc<Self::Schema>>>> + Sync + Send + 'static {
+        // TODO: Don't care yet.
+        let g = Guard::new();
+        let schemas: Vec<_> = self.schemas.iter(&g).map(|(_, v)| v.clone()).collect();
+        stream::once(async move { Ok(schemas) })
+    }
 }
 
 #[derive(Debug)]
 pub struct MemorySchema {
     /// Catalog entry representing this schema.
-    _schema: Arc<CatalogEntry>,
+    schema: Arc<CatalogEntry>,
     /// All tables and views in the schema.
     tables: CatalogMap,
     /// All table functions in the schema.
@@ -181,6 +191,10 @@ pub struct MemorySchema {
 }
 
 impl Schema for MemorySchema {
+    fn as_entry(&self) -> Arc<CatalogEntry> {
+        self.schema.clone()
+    }
+
     fn create_table(
         &self,
         create: &CreateTableInfo,
