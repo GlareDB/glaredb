@@ -180,6 +180,7 @@ impl<'a> OperatorPlanState<'a> {
             LogicalOperator::CreateView(node) => self.plan_create_view(node),
             LogicalOperator::CreateSchema(node) => self.plan_create_schema(node),
             LogicalOperator::CreateTable(node) => self.plan_create_table(node),
+            LogicalOperator::Drop(node) => self.plan_drop(node),
             LogicalOperator::Insert(node) => self.plan_insert(node),
             other => not_implemented!("logical plan to physical plan: {other:?}"),
         }

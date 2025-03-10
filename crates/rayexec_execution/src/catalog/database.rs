@@ -5,6 +5,7 @@ use std::sync::Arc;
 use rayexec_error::{RayexecError, Result};
 
 use super::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo};
+use super::drop::DropInfo;
 use super::entry::CatalogEntry;
 use super::memory::MemoryCatalog;
 use super::Catalog;
@@ -91,6 +92,11 @@ impl Database {
     pub fn plan_create_schema(&self, create: CreateSchemaInfo) -> Result<PlannedOperator> {
         self.check_can_write()?;
         self.catalog.plan_create_schema(create)
+    }
+
+    pub fn plan_drop(&self, drop: DropInfo) -> Result<PlannedOperator> {
+        self.check_can_write()?;
+        self.catalog.plan_drop(&self.storage, drop)
     }
 
     fn check_can_write(&self) -> Result<()> {

@@ -31,6 +31,7 @@ use crate::execution::operators::catalog::create_schema::PhysicalCreateSchema;
 use crate::execution::operators::catalog::create_table::PhysicalCreateTable;
 use crate::execution::operators::catalog::create_table_as::PhysicalCreateTableAs;
 use crate::execution::operators::catalog::create_view::PhysicalCreateView;
+use crate::execution::operators::catalog::drop::PhysicalDrop;
 use crate::execution::operators::catalog::insert::PhysicalInsert;
 use crate::execution::operators::PlannedOperator;
 use crate::functions::table::builtin::memory_scan::FUNCTION_SET_MEMORY_SCAN;
@@ -92,13 +93,20 @@ impl Catalog for MemoryCatalog {
         Ok(self.schemas.peek(name, &guard).cloned())
     }
 
-    fn drop_entry(&self, drop: &DropInfo) -> Result<()> {
+    fn drop_entry(&self, drop: &DropInfo) -> Result<Option<Arc<CatalogEntry>>> {
         if drop.object == DropObject::Schema {
             if drop.cascade {
                 return Err(RayexecError::new("CASCADE not yet supported"));
             }
 
             // TODO: Schemas should be implemented as a CatalogMap.
+
+            // TODO: The separate clone here seems to be needed in order to
+            // avoid deadlock...
+            //
+            // Check if this happens on the latest version of scc.
+            let schema = self.schemas.get(&drop.schema).map(|ent| ent.clone());
+
             if !self.schemas.remove(&drop.schema) && !drop.if_exists {
                 return Err(RayexecError::new(format!(
                     "Missing schema: {}",
@@ -106,7 +114,7 @@ impl Catalog for MemoryCatalog {
                 )));
             }
 
-            return Ok(());
+            return Ok(schema.map(|s| s.schema.clone()));
         }
 
         let schema = self
@@ -114,9 +122,7 @@ impl Catalog for MemoryCatalog {
             .get(&drop.schema)
             .ok_or_else(|| RayexecError::new(format!("Missing schema: {}", drop.schema)))?;
 
-        schema.drop_entry(drop)?;
-
-        Ok(())
+        schema.drop_entry(drop)
     }
 
     fn plan_create_view(
@@ -180,6 +186,18 @@ impl Catalog for MemoryCatalog {
         Ok(PlannedOperator::new_pull(PhysicalCreateSchema {
             catalog: self.clone(),
             info: create,
+        }))
+    }
+
+    fn plan_drop(
+        self: &Arc<Self>,
+        storage: &Arc<StorageManager>,
+        drop: DropInfo,
+    ) -> Result<PlannedOperator> {
+        Ok(PlannedOperator::new_pull(PhysicalDrop {
+            storage: storage.clone(),
+            catalog: self.clone(),
+            info: drop,
         }))
     }
 
@@ -414,7 +432,7 @@ impl MemorySchema {
         Ok(ent)
     }
 
-    fn drop_entry(&self, drop: &DropInfo) -> Result<()> {
+    fn drop_entry(&self, drop: &DropInfo) -> Result<Option<Arc<CatalogEntry>>> {
         match &drop.object {
             DropObject::Index(_) => Err(RayexecError::new("Dropping indexes not yet supported")),
             DropObject::Function(_) => {
@@ -435,7 +453,7 @@ impl MemorySchema {
         name: &str,
         if_exists: bool,
         cascade: bool,
-    ) -> Result<()> {
+    ) -> Result<Option<Arc<CatalogEntry>>> {
         if cascade {
             return Err(RayexecError::new("CASCADE not yet supported"));
         }
@@ -445,9 +463,9 @@ impl MemorySchema {
         match (ent, if_exists) {
             (Some(ent), _) => {
                 map.drop_entry(ent.as_ref())?;
-                Ok(())
+                Ok(Some(ent))
             }
-            (None, true) => Ok(()),
+            (None, true) => Ok(None),
             (None, false) => Err(RayexecError::new("Missing entry, cannot drop")),
         }
     }

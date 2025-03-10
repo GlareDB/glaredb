@@ -1,27 +1,20 @@
 use rayexec_error::{RayexecError, Result};
 
 use super::OperatorPlanState;
+use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::logical_drop::LogicalDrop;
 use crate::logical::operator::Node;
 
 impl OperatorPlanState<'_> {
-    pub fn plan_drop(&mut self, drop: Node<LogicalDrop>) -> Result<()> {
-        let location = drop.location;
+    pub fn plan_drop(&mut self, drop: Node<LogicalDrop>) -> Result<PlannedOperatorWithChildren> {
+        let _location = drop.location;
 
-        // if self.in_progress.is_some() {
-        //     return Err(RayexecError::new("Expected in progress to be None"));
-        // }
+        let db = self.db_context.require_get_database(&drop.node.catalog)?;
+        let operator = db.plan_drop(drop.node.info)?;
 
-        // let operator = PhysicalOperator::Drop(PhysicalDrop::new(drop.node.catalog, drop.node.info));
-
-        unimplemented!()
-        // self.in_progress = Some(InProgressPipeline {
-        //     id: id_gen.next_pipeline_id(),
-        //     operators: vec![operator],
-        //     location,
-        //     source: PipelineSource::InPipeline,
-        // });
-
-        // Ok(())
+        Ok(PlannedOperatorWithChildren {
+            operator,
+            children: Vec::new(),
+        })
     }
 }

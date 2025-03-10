@@ -35,6 +35,13 @@ impl StorageManager {
         Ok(id)
     }
 
+    pub fn drop_table(&self, id: StorageTableId) -> Result<()> {
+        if self.tables.remove(&id).is_none() {
+            return Err(RayexecError::new(format!("Missing table for id: {id:?}")));
+        }
+        Ok(())
+    }
+
     pub fn get_table(&self, id: StorageTableId) -> Result<Arc<DataTable>> {
         let table = self
             .tables

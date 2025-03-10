@@ -43,7 +43,9 @@ pub trait Catalog: Debug + Sync + Send {
     }
 
     /// Drop an entry in the catalog.
-    fn drop_entry(&self, drop: &DropInfo) -> Result<()>;
+    ///
+    /// Returns the dropped entry, if it exists.
+    fn drop_entry(&self, drop: &DropInfo) -> Result<Option<Arc<CatalogEntry>>>;
 
     fn plan_create_view(
         self: &Arc<Self>,
@@ -72,6 +74,12 @@ pub trait Catalog: Debug + Sync + Send {
     ) -> Result<PlannedOperator>;
 
     fn plan_create_schema(self: &Arc<Self>, create: CreateSchemaInfo) -> Result<PlannedOperator>;
+
+    fn plan_drop(
+        self: &Arc<Self>,
+        storage: &Arc<StorageManager>,
+        drop: DropInfo,
+    ) -> Result<PlannedOperator>;
 
     fn list_schemas(
         self: &Arc<Self>,
