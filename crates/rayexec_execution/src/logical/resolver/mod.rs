@@ -205,7 +205,6 @@ impl<'a> Resolver<'a> {
         show: ast::Show<Raw>,
         resolve_context: &mut ResolveContext,
     ) -> Result<ResolvedStatement> {
-        not_implemented!("Resolve SHOW");
         // let get_view_query = |view: BuiltinView| {
         //     let mut stmts = parser::parse(view.view)?;
         //     let stmt = match stmts.len() {
@@ -225,26 +224,20 @@ impl<'a> Resolver<'a> {
         //     }
         // };
 
-        // match show.reference {
-        //     ast::ShowReference::Variable(var) => Ok(Statement::Show(ast::Show {
-        //         reference: Self::reference_to_strings(var).into(),
-        //     })),
-        //     ast::ShowReference::Databases => {
-        //         let query = get_view_query(SHOW_DATABASES_VIEW)?;
-        //         let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
-        //         Ok(Statement::Query(query))
-        //     }
-        //     ast::ShowReference::Schemas => {
-        //         let query = get_view_query(SHOW_SCHEMAS_VIEW)?;
-        //         let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
-        //         Ok(Statement::Query(query))
-        //     }
-        //     ast::ShowReference::Tables => {
-        //         let query = get_view_query(SHOW_TABLES_VIEW)?;
-        //         let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
-        //         Ok(Statement::Query(query))
-        //     }
-        // }
+        match show.reference {
+            ast::ShowReference::Variable(var) => Ok(Statement::Show(ast::Show {
+                reference: Self::reference_to_strings(var).into(),
+            })),
+            ast::ShowReference::Databases => {
+                not_implemented!("resolve SHOW DATABASES")
+            }
+            ast::ShowReference::Schemas => {
+                not_implemented!("resolve SHOW SCHEMAS")
+            }
+            ast::ShowReference::Tables => {
+                not_implemented!("resolve SHOW TABLES")
+            }
+        }
     }
 
     async fn resolve_attach(

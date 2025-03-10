@@ -29,7 +29,7 @@ pub const FUNCTION_SET_AND: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[RawScalarFunction::new(
         &Signature {
-            positional_args: &[],
+            positional_args: &[DataTypeId::Boolean],
             variadic_arg: Some(DataTypeId::Boolean),
             return_type: DataTypeId::Boolean,
             doc: None,
@@ -52,7 +52,7 @@ pub const FUNCTION_SET_OR: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[RawScalarFunction::new(
         &Signature {
-            positional_args: &[],
+            positional_args: &[DataTypeId::Boolean],
             variadic_arg: Some(DataTypeId::Boolean),
             return_type: DataTypeId::Boolean,
             doc: None,

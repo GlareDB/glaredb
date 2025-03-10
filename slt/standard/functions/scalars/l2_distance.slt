@@ -15,7 +15,7 @@ SELECT l2_distance([1.0, 1.0], [2.0, 4.0]);
 ----
 3.1622776601683795
 
-statement error Cannot reduce arrays with differing lengths, got 2 and 1
+statement error List reduction requires lists be the same length, got 2 and 1
 SELECT l2_distance([1.0, 2.0], [1.0]);
 
 statement error Cannot reduce list containing NULLs

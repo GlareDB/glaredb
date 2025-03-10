@@ -11,7 +11,6 @@ pub struct ImplicitCastConfig {
     /// Allow implicit casting from strings.
     pub allow_from_utf8: bool,
     /// Allow implicit casting to strings.
-    // TODO: Wire up
     pub allow_to_utf8: bool,
 }
 
@@ -44,19 +43,19 @@ pub const fn implicit_cast_score(
         // Cast NULL to anything.
         DataTypeId::Null => return Some(target_score(want)),
         // Simple integer casts.
-        DataTypeId::Int8 => return int8_cast_score(want),
-        DataTypeId::Int16 => return int16_cast_score(want),
-        DataTypeId::Int32 => return int32_cast_score(want),
-        DataTypeId::Int64 => return int64_cast_score(want),
-        DataTypeId::UInt8 => return uint8_cast_score(want),
-        DataTypeId::UInt16 => return uint16_cast_score(want),
-        DataTypeId::UInt32 => return uint32_cast_score(want),
-        DataTypeId::UInt64 => return uint64_cast_score(want),
+        DataTypeId::Int8 => return int8_cast_score(want, conf),
+        DataTypeId::Int16 => return int16_cast_score(want, conf),
+        DataTypeId::Int32 => return int32_cast_score(want, conf),
+        DataTypeId::Int64 => return int64_cast_score(want, conf),
+        DataTypeId::UInt8 => return uint8_cast_score(want, conf),
+        DataTypeId::UInt16 => return uint16_cast_score(want, conf),
+        DataTypeId::UInt32 => return uint32_cast_score(want, conf),
+        DataTypeId::UInt64 => return uint64_cast_score(want, conf),
 
         // Float casts
-        DataTypeId::Float16 => return float16_cast_score(want),
-        DataTypeId::Float32 => return float32_cast_score(want),
-        DataTypeId::Float64 => return float64_cast_score(want),
+        DataTypeId::Float16 => return float16_cast_score(want, conf),
+        DataTypeId::Float32 => return float32_cast_score(want, conf),
+        DataTypeId::Float64 => return float64_cast_score(want, conf),
 
         // String casts
         DataTypeId::Utf8 if conf.allow_from_utf8 => match want {
@@ -108,7 +107,7 @@ const fn target_score(target: DataTypeId) -> u32 {
     }
 }
 
-const fn int8_cast_score(want: DataTypeId) -> Option<u32> {
+const fn int8_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
     Some(match want {
         DataTypeId::Int8
         | DataTypeId::Int16
@@ -119,11 +118,12 @@ const fn int8_cast_score(want: DataTypeId) -> Option<u32> {
         | DataTypeId::Float64
         | DataTypeId::Decimal64
         | DataTypeId::Decimal128 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
     })
 }
 
-const fn int16_cast_score(want: DataTypeId) -> Option<u32> {
+const fn int16_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
     Some(match want {
         DataTypeId::Int16
         | DataTypeId::Int32
@@ -133,11 +133,12 @@ const fn int16_cast_score(want: DataTypeId) -> Option<u32> {
         | DataTypeId::Float64
         | DataTypeId::Decimal64
         | DataTypeId::Decimal128 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
     })
 }
 
-const fn int32_cast_score(want: DataTypeId) -> Option<u32> {
+const fn int32_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
     Some(match want {
         DataTypeId::Int32
         | DataTypeId::Int64
@@ -146,11 +147,12 @@ const fn int32_cast_score(want: DataTypeId) -> Option<u32> {
         | DataTypeId::Float64
         | DataTypeId::Decimal64
         | DataTypeId::Decimal128 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
     })
 }
 
-const fn int64_cast_score(want: DataTypeId) -> Option<u32> {
+const fn int64_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
     Some(match want {
         DataTypeId::Int64
         | DataTypeId::Float16
@@ -158,11 +160,12 @@ const fn int64_cast_score(want: DataTypeId) -> Option<u32> {
         | DataTypeId::Float64
         | DataTypeId::Decimal64
         | DataTypeId::Decimal128 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
     })
 }
 
-const fn uint8_cast_score(want: DataTypeId) -> Option<u32> {
+const fn uint8_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
     Some(match want {
         DataTypeId::UInt8
         | DataTypeId::UInt16
@@ -176,11 +179,12 @@ const fn uint8_cast_score(want: DataTypeId) -> Option<u32> {
         | DataTypeId::Float64
         | DataTypeId::Decimal64
         | DataTypeId::Decimal128 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
     })
 }
 
-const fn uint16_cast_score(want: DataTypeId) -> Option<u32> {
+const fn uint16_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
     Some(match want {
         DataTypeId::UInt16
         | DataTypeId::UInt32
@@ -192,11 +196,12 @@ const fn uint16_cast_score(want: DataTypeId) -> Option<u32> {
         | DataTypeId::Float64
         | DataTypeId::Decimal64
         | DataTypeId::Decimal128 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
     })
 }
 
-const fn uint32_cast_score(want: DataTypeId) -> Option<u32> {
+const fn uint32_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
     Some(match want {
         DataTypeId::UInt32
         | DataTypeId::UInt64
@@ -206,11 +211,12 @@ const fn uint32_cast_score(want: DataTypeId) -> Option<u32> {
         | DataTypeId::Float64
         | DataTypeId::Decimal64
         | DataTypeId::Decimal128 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
     })
 }
 
-const fn uint64_cast_score(want: DataTypeId) -> Option<u32> {
+const fn uint64_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
     Some(match want {
         DataTypeId::UInt64
         | DataTypeId::Float16
@@ -218,31 +224,35 @@ const fn uint64_cast_score(want: DataTypeId) -> Option<u32> {
         | DataTypeId::Float64
         | DataTypeId::Decimal64
         | DataTypeId::Decimal128 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
     })
 }
 
-const fn float16_cast_score(want: DataTypeId) -> Option<u32> {
+const fn float16_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
     Some(match want {
         DataTypeId::Float16
         | DataTypeId::Float32
         | DataTypeId::Float64
         | DataTypeId::Decimal64
         | DataTypeId::Decimal128 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
     })
 }
 
-const fn float32_cast_score(want: DataTypeId) -> Option<u32> {
+const fn float32_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
     Some(match want {
         DataTypeId::Float64 | DataTypeId::Decimal64 | DataTypeId::Decimal128 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
     })
 }
 
-const fn float64_cast_score(want: DataTypeId) -> Option<u32> {
+const fn float64_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
     Some(match want {
         DataTypeId::Decimal64 | DataTypeId::Decimal128 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
     })
 }
@@ -276,7 +286,7 @@ mod tests {
     }
 
     #[test]
-    fn never_implicit_to_utf8() {
+    fn disallow_implicit_to_utf8() {
         let conf = ImplicitCastConfig {
             allow_to_utf8: false,
             allow_from_utf8: false,
@@ -285,6 +295,17 @@ mod tests {
         // ...except when we're casting from utf8 utf8
         assert!(implicit_cast_score(DataTypeId::Int16, DataTypeId::Utf8, conf).is_none());
         assert!(implicit_cast_score(DataTypeId::Timestamp, DataTypeId::Utf8, conf).is_none());
+    }
+
+    #[test]
+    fn allow_implicit_to_utf8() {
+        let conf = ImplicitCastConfig {
+            allow_to_utf8: true,
+            allow_from_utf8: false,
+        };
+
+        assert!(implicit_cast_score(DataTypeId::Int16, DataTypeId::Utf8, conf).is_some());
+        assert!(implicit_cast_score(DataTypeId::Float64, DataTypeId::Utf8, conf).is_some());
     }
 
     #[test]

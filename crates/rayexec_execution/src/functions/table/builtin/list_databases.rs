@@ -64,7 +64,7 @@ impl TableScanFunction for ListDatabases {
                 state: ListDatabasesBindState { databases },
                 input,
                 schema: ColumnSchema::new([
-                    Field::new("name", DataType::Utf8, false),
+                    Field::new("database_name", DataType::Utf8, false),
                     Field::new("access_mode", DataType::Utf8, false),
                 ]),
                 cardinality: StatisticsValue::Unknown,

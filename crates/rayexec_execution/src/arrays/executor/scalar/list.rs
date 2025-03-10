@@ -87,11 +87,10 @@ impl BinaryListReducer {
                 let meta2 = metadata2.get(input2_idx).unwrap();
 
                 if meta1.len != meta2.len {
-                    return Err(RayexecError::new(
-                        "List reduction requires lists be the same length",
-                    )
-                    .with_field("len1", meta1.len)
-                    .with_field("len2", meta2.len));
+                    return Err(RayexecError::new(format!(
+                        "List reduction requires lists be the same length, got {} and {}",
+                        meta1.len, meta2.len,
+                    )));
                 }
 
                 let mut reducer = R::default();

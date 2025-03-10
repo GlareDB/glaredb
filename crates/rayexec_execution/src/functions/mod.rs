@@ -71,8 +71,18 @@ impl Signature {
 
     /// Return if inputs given data types exactly satisfy the signature.
     fn exact_match(&self, inputs: &[DataType]) -> bool {
-        if self.positional_args.len() != inputs.len() && !self.is_variadic() {
-            return false;
+        if self.is_variadic() {
+            // If function is variadic, we need at least the defined number of
+            // positional arguments.
+            if inputs.len() < self.positional_args.len() {
+                return false;
+            }
+        } else {
+            // If the function is not variadic, then positional args needs to be
+            // exact.
+            if inputs.len() != self.positional_args.len() {
+                return false;
+            }
         }
 
         for (&expected, have) in self.positional_args.iter().zip(inputs.iter()) {

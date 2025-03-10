@@ -29,7 +29,7 @@ pub const FUNCTION_SET_CONCAT: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[RawScalarFunction::new(
         &Signature {
-            positional_args: &[],
+            positional_args: &[DataTypeId::Utf8],
             variadic_arg: Some(DataTypeId::Utf8),
             return_type: DataTypeId::Utf8,
             doc: None,
@@ -76,7 +76,7 @@ impl ScalarFunction for StringConcat {
             }
             2 => {
                 let a = &input.arrays()[0];
-                let b = &input.arrays()[0];
+                let b = &input.arrays()[1];
 
                 let mut str_buf = String::new();
 

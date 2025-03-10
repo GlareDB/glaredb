@@ -702,6 +702,14 @@ fn get_value_inner<'a>(
                 value: *v,
             }))
         }
+        DataType::Date32 => {
+            let v = PhysicalI32::get_addressable(buffer)?.get(data_idx).unwrap();
+            Ok(BorrowedScalarValue::Date32(*v))
+        }
+        DataType::Date64 => {
+            let v = PhysicalI64::get_addressable(buffer)?.get(data_idx).unwrap();
+            Ok(BorrowedScalarValue::Date64(*v))
+        }
         DataType::Utf8 => {
             let addressable = PhysicalUtf8::get_addressable(buffer)?;
             let v = addressable.get(data_idx).unwrap();

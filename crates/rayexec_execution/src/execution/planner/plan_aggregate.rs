@@ -1,4 +1,4 @@
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
 use super::OperatorPlanState;
 use crate::execution::operators::hash_aggregate::{Aggregates, PhysicalHashAggregate};
@@ -85,6 +85,10 @@ impl OperatorPlanState<'_> {
             operator: PlannedOperator::new_execute(PhysicalProject::new(preproject_exprs)),
             children: vec![child],
         };
+
+        if phys_aggs.iter().any(|agg| agg.is_distinct) {
+            not_implemented!("distinct aggregates")
+        }
 
         match agg.node.grouping_sets {
             Some(grouping_sets) => {

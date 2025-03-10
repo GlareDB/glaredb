@@ -127,11 +127,11 @@ pub const FUNCTION_SET_BIT_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),
-            &ByteLength,
+            &BitLength,
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Binary], DataTypeId::Int64),
-            &ByteLength,
+            &BitLength,
         ),
     ],
 };

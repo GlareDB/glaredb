@@ -12,7 +12,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::arrays::row::row_scan::RowScanState;
-use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
+use crate::arrays::scalar::ScalarValue;
 use crate::buffer::buffer_manager::NopBufferManager;
 use crate::execution::operators::hash_aggregate::grouping_value::compute_grouping_value;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
@@ -112,6 +112,7 @@ impl GroupingSetHashTable {
         }
     }
 
+    // TODO: Split this up into init_op_state, init_partition_state
     pub fn init_states(
         &self,
         partitions: usize,

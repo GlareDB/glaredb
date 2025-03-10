@@ -54,24 +54,6 @@ impl SeriesParams {
         let stop = input.arrays[1].get_value(row)?.try_as_i64()?;
         let step = input.arrays[2].get_value(row)?.try_as_i64()?;
 
-        if start > stop && step > 0 {
-            return Err(RayexecError::new(
-                "Never-ending series, start larger than stop with positive step",
-            )
-            .with_field("start", start)
-            .with_field("stop", stop)
-            .with_field("step", step));
-        }
-
-        if start < stop && step < 0 {
-            return Err(RayexecError::new(
-                "Never-ending series, start smaller than stop with negative step",
-            )
-            .with_field("start", start)
-            .with_field("stop", stop)
-            .with_field("step", step));
-        }
-
         if step == 0 {
             return Err(RayexecError::new("Step cannot be zero"));
         }
@@ -374,14 +356,16 @@ mod tests {
         let mut input = generate_batch!([5_i64], [1_i64], [1_i64]);
 
         let mut output = Batch::new([DataType::Int64], 5).unwrap();
-        let _ = GenerateSeriesI64::poll_execute(
+        let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),
             &mut state,
             &mut input,
             &mut output,
         )
-        .unwrap_err();
+        .unwrap();
+        assert_eq!(PollExecute::NeedsMore, poll);
+        assert_eq!(0, output.num_rows());
     }
 
     #[test]
@@ -392,13 +376,15 @@ mod tests {
         let mut input = generate_batch!([1_i64], [5_i64], [-1_i64]);
 
         let mut output = Batch::new([DataType::Int64], 5).unwrap();
-        let _ = GenerateSeriesI64::poll_execute(
+        let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),
             &mut state,
             &mut input,
             &mut output,
         )
-        .unwrap_err();
+        .unwrap();
+        assert_eq!(PollExecute::NeedsMore, poll);
+        assert_eq!(0, output.num_rows());
     }
 }

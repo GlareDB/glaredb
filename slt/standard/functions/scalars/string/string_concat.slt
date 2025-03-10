@@ -1,11 +1,7 @@
 # concat (string) function
 
-# Postgres errors on no args. We previously returned an empty string, and now
-# return a NULL. Desired behavior TBD.
-query T
+statement error  Invalid inputs to 'concat'
 select concat();
-----
-NULL
 
 query T
 select concat('a');
@@ -28,6 +24,17 @@ query T
 select concat('a', null);
 ----
 NULL
+
+# Implicit casting.
+query T
+select concat('a', 4);
+----
+a4
+
+query T
+select concat('a', 4.2);
+----
+a4.2
 
 # Syntactic sugar
 

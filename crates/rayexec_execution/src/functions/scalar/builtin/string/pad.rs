@@ -110,7 +110,7 @@ pub const FUNCTION_SET_RIGHT_PAD: ScalarFunctionSet = ScalarFunctionSet {
         // rpad(string, count)
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
-            &LeftPad,
+            &RightPad,
         ),
         // rpad(string, count, pad_val)
         RawScalarFunction::new(
@@ -118,7 +118,7 @@ pub const FUNCTION_SET_RIGHT_PAD: ScalarFunctionSet = ScalarFunctionSet {
                 &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Utf8],
                 DataTypeId::Utf8,
             ),
-            &LeftPad,
+            &RightPad,
         ),
     ],
 };

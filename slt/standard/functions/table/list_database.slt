@@ -1,6 +1,6 @@
 # list_databases system function
 
-query TB
+query TT
 select * from list_databases() where database_name = 'temp';
 ----
-temp  default
+temp  ReadWrite

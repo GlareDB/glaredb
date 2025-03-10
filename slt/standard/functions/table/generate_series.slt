@@ -6,7 +6,7 @@ select * from generate_series(1);
 statement error
 select * from generate_series(1, 2, 3, 4);
 
-statement error may not be zero
+statement error Step cannot be zero
 select * from generate_series(1, 2, 0);
 
 query I

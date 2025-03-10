@@ -81,9 +81,17 @@ impl CandidateSignature {
         buf: &mut Vec<CastType>,
         conf: ImplicitCastConfig,
     ) -> bool {
-        if have.len() != want.len() && variadic.is_none() {
-            return false;
+        // TODO: This logic is duplicated with candidate exact match.
+        if variadic.is_some() {
+            if have.len() < want.len() {
+                return false;
+            }
+        } else {
+            if have.len() != want.len() {
+                return false;
+            }
         }
+
         buf.clear();
 
         for (&have, &want) in have.iter().zip(want.iter()) {
@@ -305,6 +313,66 @@ mod tests {
         }];
 
         assert_eq!(expected, candidates);
+    }
+
+    #[test]
+    fn find_candidate_utf8_positional_and_variadic() {
+        let inputs = &[DataType::Utf8, DataType::Utf8];
+        let sigs = &[Signature {
+            positional_args: &[DataTypeId::Utf8],
+            variadic_arg: Some(DataTypeId::Utf8),
+            return_type: DataTypeId::Utf8,
+            doc: None,
+        }];
+
+        let candidates = CandidateSignature::find_candidates(inputs, sigs);
+        let expected = vec![CandidateSignature {
+            signature_idx: 0,
+            casts: vec![CastType::NoCastNeeded, CastType::NoCastNeeded],
+        }];
+
+        assert_eq!(expected, candidates);
+    }
+
+    #[test]
+    fn find_candidate_utf8_positional_and_variadic_cast_needed() {
+        // SELECT concat('a', 1)
+        //
+        // Should want to cast Int32 to Utf8.
+
+        let inputs = &[DataType::Utf8, DataType::Int32];
+        let sigs = &[Signature {
+            positional_args: &[DataTypeId::Utf8],
+            variadic_arg: Some(DataTypeId::Utf8),
+            return_type: DataTypeId::Utf8,
+            doc: None,
+        }];
+
+        let candidates = CandidateSignature::find_candidates(inputs, sigs);
+        assert_eq!(1, candidates.len());
+
+        assert!(matches!(candidates[0].casts[0], CastType::NoCastNeeded));
+        assert!(matches!(
+            candidates[0].casts[1],
+            CastType::Cast {
+                to: DataTypeId::Utf8,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn find_candidate_utf8_positional_and_variadic_no_args_no_match() {
+        let inputs = &[];
+        let sigs = &[Signature {
+            positional_args: &[DataTypeId::Utf8],
+            variadic_arg: Some(DataTypeId::Utf8),
+            return_type: DataTypeId::Utf8,
+            doc: None,
+        }];
+
+        let candidates = CandidateSignature::find_candidates(inputs, sigs);
+        assert!(candidates.is_empty());
     }
 
     #[test]
