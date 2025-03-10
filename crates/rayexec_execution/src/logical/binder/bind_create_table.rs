@@ -3,6 +3,7 @@ use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::BoundQuery;
+use crate::arrays::datatype::DataType;
 use crate::arrays::field::Field;
 use crate::catalog::create::OnConflict;
 use crate::logical::binder::bind_query::QueryBinder;
@@ -58,6 +59,14 @@ impl<'a> CreateTableBinder<'a> {
 
         let input = match create.source {
             Some(source) => {
+                // Return number of rows inserted for the table.
+                bind_context.push_table(
+                    self.current,
+                    None,
+                    vec![DataType::Int64],
+                    vec!["rows_inserted".to_string()],
+                )?;
+
                 // If we have an input to the table, adjust the column definitions for the table
                 // to be the output schema of the input.
 

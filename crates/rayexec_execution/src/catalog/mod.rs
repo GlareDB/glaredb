@@ -58,6 +58,13 @@ pub trait Catalog: Debug + Sync + Send {
         create: CreateTableInfo,
     ) -> Result<PlannedOperator>;
 
+    fn plan_create_table_as(
+        self: &Arc<Self>,
+        storage: &Arc<StorageManager>,
+        schema: &str,
+        create: CreateTableInfo,
+    ) -> Result<PlannedOperator>;
+
     fn plan_insert(
         self: &Arc<Self>,
         storage: &Arc<StorageManager>,
@@ -131,4 +138,8 @@ pub trait Schema: Debug + Sync + Send {
         entry_types: &[CatalogEntryType],
         name: &str,
     ) -> Result<Option<Arc<CatalogEntry>>>;
+
+    fn list_tables(
+        self: &Arc<Self>,
+    ) -> impl Stream<Item = Result<Vec<Arc<CatalogEntry>>>> + Sync + Send + 'static;
 }

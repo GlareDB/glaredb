@@ -29,6 +29,7 @@ use super::{Catalog, Schema};
 use crate::catalog::entry::SchemaEntry;
 use crate::execution::operators::catalog::create_schema::PhysicalCreateSchema;
 use crate::execution::operators::catalog::create_table::PhysicalCreateTable;
+use crate::execution::operators::catalog::create_table_as::PhysicalCreateTableAs;
 use crate::execution::operators::catalog::create_view::PhysicalCreateView;
 use crate::execution::operators::catalog::insert::PhysicalInsert;
 use crate::execution::operators::PlannedOperator;
@@ -157,6 +158,22 @@ impl Catalog for MemoryCatalog {
             storage: storage.clone(),
             entry: table,
         }))
+    }
+
+    fn plan_create_table_as(
+        self: &Arc<Self>,
+        storage: &Arc<StorageManager>,
+        schema: &str,
+        create: CreateTableInfo,
+    ) -> Result<PlannedOperator> {
+        let schema = self.require_get_schema(schema)?;
+        let operator = PhysicalCreateTableAs {
+            storage: storage.clone(),
+            schema,
+            info: create,
+        };
+
+        Ok(PlannedOperator::new_execute(operator))
     }
 
     fn plan_create_schema(self: &Arc<Self>, create: CreateSchemaInfo) -> Result<PlannedOperator> {
@@ -337,6 +354,26 @@ impl Schema for MemorySchema {
         }
 
         Ok(similar.map(|similar| similar.entry))
+    }
+
+    fn list_tables(
+        self: &Arc<Self>,
+    ) -> impl Stream<Item = Result<Vec<Arc<CatalogEntry>>>> + Sync + Send + 'static {
+        // TODO: Also don't care here.
+        let g = Guard::new();
+        let tables: Vec<_> = self
+            .tables
+            .entries
+            .iter(&g)
+            .filter_map(|(_, v)| {
+                if v.entry_type() == CatalogEntryType::Table {
+                    Some(v.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        stream::once(async move { Ok(tables) })
     }
 }
 

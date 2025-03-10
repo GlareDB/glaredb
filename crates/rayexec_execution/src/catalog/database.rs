@@ -73,6 +73,16 @@ impl Database {
             .plan_create_table(&self.storage, schema, create)
     }
 
+    pub fn plan_create_table_as(
+        &self,
+        schema: &str,
+        create: CreateTableInfo,
+    ) -> Result<PlannedOperator> {
+        self.check_can_write()?;
+        self.catalog
+            .plan_create_table_as(&self.storage, schema, create)
+    }
+
     pub fn plan_insert(&self, table: Arc<CatalogEntry>) -> Result<PlannedOperator> {
         self.check_can_write()?;
         self.catalog.plan_insert(&self.storage, table)

@@ -1,4 +1,5 @@
 pub mod list_databases;
+pub mod list_entries;
 pub mod list_schemas;
 pub mod memory_scan;
 pub mod series;
