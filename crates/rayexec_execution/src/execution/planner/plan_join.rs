@@ -3,7 +3,7 @@ use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use super::OperatorPlanState;
 use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
-use crate::explain::context_display::{ContextDisplay, ContextDisplayWrapper};
+use crate::explain::context_display::ContextDisplayWrapper;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{self, Expression};
@@ -132,8 +132,6 @@ impl OperatorPlanState<'_> {
         filter: Option<PhysicalScalarExpression>,
         join_type: JoinType,
     ) -> Result<PlannedOperatorWithChildren> {
-        self.config.check_nested_loop_join_allowed()?;
-
         let left = self.plan(left)?;
         let right = self.plan(right)?;
 

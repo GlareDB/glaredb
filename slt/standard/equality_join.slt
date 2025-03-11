@@ -1,8 +1,5 @@
 # SIMPLE INNER
 
-statement ok
-set allow_nested_loop_join to false;
-
 query IIII
 select * from
     (values (1, 2),

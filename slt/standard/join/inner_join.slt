@@ -13,10 +13,6 @@ SELECT * FROM generate_series(1, 3) t1(a) INNER JOIN generate_series(1, 2) t2(b)
 3  1
 3  2
 
-# Ensure optimizer is able to pick up on the equality.
-statement ok
-set allow_nested_loop_join to false;
-
 query II rowsort
 SELECT * FROM generate_series(1, 3) t1(a) INNER JOIN generate_series(1, 2) t2(b) ON a = b;
 ----

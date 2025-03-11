@@ -6,9 +6,6 @@ CREATE TEMP TABLE t1 (i INT);
 statement ok
 INSERT INTO t1 VALUES (1), (2), (3), (NULL);
 
-statement ok
-SET allow_nested_loop_join TO false;
-
 # Cross join -> comparison join
 
 query II rowsort

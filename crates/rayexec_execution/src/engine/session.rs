@@ -332,7 +332,6 @@ where
                 let query_id = Uuid::new_v4();
                 let planner = OperatorPlanner::new(
                     OperatorPlanConfig {
-                        allow_nested_loop_join: self.config.allow_nested_loop_join,
                         per_partition_counts: self.config.per_partition_counts,
                     },
                     query_id,

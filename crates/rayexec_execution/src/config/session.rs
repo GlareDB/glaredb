@@ -13,7 +13,6 @@ pub const DEFAULT_BATCH_SIZE: usize = 2048;
 pub struct SessionConfig {
     pub enable_optimizer: bool,
     pub application_name: String,
-    pub allow_nested_loop_join: bool,
     pub partitions: u64,
     pub batch_size: u64,
     pub verify_optimized_plan: bool,
@@ -30,7 +29,6 @@ impl SessionConfig {
         SessionConfig {
             enable_optimizer: true,
             application_name: String::new(),
-            allow_nested_loop_join: true,
             partitions: executor.default_partitions() as u64,
             batch_size: DEFAULT_BATCH_SIZE as u64,
             verify_optimized_plan: false,
@@ -106,7 +104,6 @@ static GET_SET_FUNCTIONS: LazyLock<HashMap<&'static str, SettingFunctions>> = La
 
     insert_setting::<EnableOptimizer>(&mut map);
     insert_setting::<ApplicationName>(&mut map);
-    insert_setting::<AllowNestedLoopJoin>(&mut map);
     insert_setting::<Partitions>(&mut map);
     insert_setting::<BatchSize>(&mut map);
     insert_setting::<EnableFunctionChaining>(&mut map);
@@ -154,23 +151,6 @@ impl SessionSetting for ApplicationName {
 
     fn get_as_scalar(conf: &SessionConfig) -> ScalarValue {
         conf.application_name.clone().into()
-    }
-}
-
-pub struct AllowNestedLoopJoin;
-
-impl SessionSetting for AllowNestedLoopJoin {
-    const NAME: &'static str = "allow_nested_loop_join";
-    const DESCRIPTION: &'static str = "If nested loop join operators are allowed in the plan";
-
-    fn set_from_scalar(scalar: BorrowedScalarValue, conf: &mut SessionConfig) -> Result<()> {
-        let val = scalar.try_as_bool()?;
-        conf.allow_nested_loop_join = val;
-        Ok(())
-    }
-
-    fn get_as_scalar(conf: &SessionConfig) -> ScalarValue {
-        conf.allow_nested_loop_join.into()
     }
 }
 
@@ -269,7 +249,6 @@ mod tests {
         SessionConfig {
             enable_optimizer: true,
             application_name: String::new(),
-            allow_nested_loop_join: true,
             partitions: 8,
             batch_size: 4096,
             verify_optimized_plan: false,
