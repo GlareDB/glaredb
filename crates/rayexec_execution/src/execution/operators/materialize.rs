@@ -63,6 +63,7 @@ pub struct MaterializePullPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalMaterialize {
+    // TODO: Put this on the operator state?
     pub(crate) collection: Arc<ConcurrentColumnCollection>,
 }
 
@@ -218,5 +219,82 @@ impl PushOperator for PhysicalMaterialize {
 impl Explainable for PhysicalMaterialize {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Materialize")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::generate_batch;
+    use crate::testutil::arrays::assert_batches_eq;
+    use crate::testutil::operator::OperatorWrapper;
+
+    // TODO: Wake tests.
+
+    #[test]
+    fn single_input_two_outputs() {
+        let collection = Arc::new(ConcurrentColumnCollection::new([DataType::Int32], 4, 4));
+        let wrapper = OperatorWrapper::new(PhysicalMaterialize { collection });
+
+        let props = ExecutionProperties { batch_size: 4 };
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
+
+        // Single input.
+        let mut input_states = wrapper
+            .operator
+            .create_partition_push_states(&op_state, props, 1)
+            .unwrap();
+
+        // Two outputs, each receiving the same batches.
+        let mut out_states1 = wrapper
+            .operator
+            .create_partition_pull_states(&op_state, props, 1)
+            .unwrap();
+        let mut out_states2 = wrapper
+            .operator
+            .create_partition_pull_states(&op_state, props, 1)
+            .unwrap();
+
+        let mut input = generate_batch!([4, 5, 6, 7]);
+        wrapper
+            .poll_push(&op_state, &mut input_states[0], &mut input)
+            .unwrap();
+
+        let expected = generate_batch!([4, 5, 6, 7]);
+
+        // Output 1
+        let mut out1 = Batch::new([DataType::Int32], 4).unwrap();
+        let poll = wrapper
+            .poll_pull(&op_state, &mut out_states1[0], &mut out1)
+            .unwrap();
+        assert_eq!(PollPull::HasMore, poll);
+        assert_batches_eq(&expected, &out1);
+
+        // Output 2
+        let mut out2 = Batch::new([DataType::Int32], 4).unwrap();
+        let poll = wrapper
+            .poll_pull(&op_state, &mut out_states2[0], &mut out2)
+            .unwrap();
+        assert_eq!(PollPull::HasMore, poll);
+        assert_batches_eq(&expected, &out2);
+
+        // Finish input.
+        let poll = wrapper
+            .poll_finalize_push(&op_state, &mut input_states[0])
+            .unwrap();
+        assert_eq!(PollFinalize::Finalized, poll);
+
+        // Outputs should be exhausted.
+        let poll = wrapper
+            .poll_pull(&op_state, &mut out_states1[0], &mut out1)
+            .unwrap();
+        assert_eq!(PollPull::Exhausted, poll);
+        assert_eq!(0, out1.num_rows());
+
+        let poll = wrapper
+            .poll_pull(&op_state, &mut out_states2[0], &mut out2)
+            .unwrap();
+        assert_eq!(PollPull::Exhausted, poll);
+        assert_eq!(0, out2.num_rows());
     }
 }
