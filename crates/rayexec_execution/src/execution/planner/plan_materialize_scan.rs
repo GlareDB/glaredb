@@ -1,40 +1,27 @@
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
 use super::OperatorPlanState;
+use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::logical_materialization::LogicalMaterializationScan;
 use crate::logical::operator::Node;
 
 impl OperatorPlanState<'_> {
-    pub fn plan_materialize_scan(&mut self, scan: Node<LogicalMaterializationScan>) -> Result<()> {
-        // if !materializations
-        //     .local
-        //     .materializations
-        //     .contains_key(&scan.node.mat)
-        // {
-        //     return Err(RayexecError::new(format!(
-        //         "Missing materialization for ref: {}",
-        //         scan.node.mat
-        //     )));
-        // }
+    pub fn plan_materialize_scan(
+        &mut self,
+        scan: Node<LogicalMaterializationScan>,
+    ) -> Result<PlannedOperatorWithChildren> {
+        let mat_op = self.materializations.get(&scan.node.mat).ok_or_else(|| {
+            RayexecError::new(format!(
+                "Missing materialization for ref: {}",
+                scan.node.mat
+            ))
+        })?;
 
-        // if self.in_progress.is_some() {
-        //     return Err(RayexecError::new(
-        //         "Expected in progress to be None for materialization scan",
-        //     ));
-        // }
-
-        unimplemented!()
-        // // Initialize in-progress with no operators, but scan source being this
-        // // materialization.
-        // self.in_progress = Some(InProgressPipeline {
-        //     id: id_gen.next_pipeline_id(),
-        //     operators: Vec::new(),
-        //     location: LocationRequirement::ClientLocal, // Currently only support local.
-        //     source: PipelineSource::Materialization {
-        //         mat_ref: scan.node.mat,
-        //     },
-        // });
-
-        // Ok(())
+        // Scan/pull operator. Clone only the operator itself and skip the
+        // children.
+        Ok(PlannedOperatorWithChildren {
+            operator: mat_op.operator.clone(),
+            children: Vec::new(),
+        })
     }
 }

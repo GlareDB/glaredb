@@ -53,7 +53,7 @@ impl fmt::Display for CteRef {
 /// Physical planning will then use the bind context for determining physical
 /// column ordering.
 // TODO: Move more of the table/table list handling into TableList
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BindContext {
     /// All child scopes used for binding.
     ///
@@ -129,10 +129,12 @@ struct BindScope {
 
 /// A node in the logical plan that will be materialized to allow for multiple
 /// scans.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PlanMaterialization {
     pub mat_ref: MaterializationRef,
     /// Plan we'll be materializing.
+    // TODO: This should be an Option so we can take it once during physical
+    // planning instead of needing to clone it.
     pub plan: LogicalOperator,
     /// Number of scans against this plan.
     pub scan_count: usize,
@@ -313,15 +315,9 @@ impl BindContext {
             })
     }
 
-    /// Takes the materializations from this bind context.
-    ///
-    /// This should only be called once during physical planning.
-    // TODO: Maybe have this take the inner plan, but keep the
-    // `PlanMaterialization` in the context. Might be useful for centralizing
-    // the table refs for materializations instead of having to clone them into
-    // the scans.
-    pub fn take_materializations(&mut self) -> Vec<PlanMaterialization> {
-        std::mem::take(&mut self.materializations)
+    /// Iterates plan materializations in the order they were planned.
+    pub fn iter_materializations(&mut self) -> impl Iterator<Item = &PlanMaterialization> + '_ {
+        self.materializations.iter()
     }
 
     pub fn get_parent_ref(&self, bind_ref: BindScopeRef) -> Result<Option<BindScopeRef>> {

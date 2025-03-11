@@ -259,8 +259,13 @@ impl ExecuteOperator for PhysicalTableExecute {
 }
 
 impl Explainable for PhysicalTableExecute {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("TableExecute")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        let mut ent = ExplainEntry::new("TableExecute").with_value("function", self.function.name);
+        if conf.verbose {
+            ent = ent.with_values("input_types", &self.input_types);
+        }
+
+        ent
     }
 }
 

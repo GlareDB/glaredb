@@ -23,9 +23,9 @@ impl OperatorPlanState<'_> {
         }
 
         let input = explain.take_one_child_exact()?;
-        // let plan = self.plan(input)?;
-        // let plan_explain_node =
-        //     ExplainNode::new_from_planned_operators(explain.node.verbose, &plan);
+        let plan = self.plan(input)?;
+        let plan_explain_node =
+            ExplainNode::new_from_planned_operators(explain.node.verbose, &plan);
 
         let formatter = ExplainFormatter::new(explain.node.format);
 
@@ -49,12 +49,12 @@ impl OperatorPlanState<'_> {
             ]);
         }
 
-        // // Physical
-        // let phys = formatter.format(&plan_explain_node)?;
-        // rows.push(vec![
-        //     PhysicalLiteralExpr::new("physical").into(),
-        //     PhysicalLiteralExpr::new(phys).into(),
-        // ]);
+        // Physical
+        let phys = formatter.format(&plan_explain_node)?;
+        rows.push(vec![
+            PhysicalLiteralExpr::new("physical").into(),
+            PhysicalLiteralExpr::new(phys).into(),
+        ]);
 
         let values = PhysicalValues::new(rows);
 

@@ -1,6 +1,8 @@
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::OperatorPlanState;
+use crate::execution::operators::project::PhysicalProject;
+use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_materialization::LogicalMagicMaterializationScan;
 use crate::logical::operator::Node;
 
@@ -8,54 +10,38 @@ impl OperatorPlanState<'_> {
     pub fn plan_magic_materialize_scan(
         &mut self,
         scan: Node<LogicalMagicMaterializationScan>,
-    ) -> Result<()> {
-        // if !materializations
-        //     .local
-        //     .materializations
-        //     .contains_key(&scan.node.mat)
-        // {
-        //     return Err(RayexecError::new(format!(
-        //         "Missing materialization for ref: {}",
-        //         scan.node.mat
-        //     )));
-        // }
+    ) -> Result<PlannedOperatorWithChildren> {
+        let mat_op = self.materializations.get(&scan.node.mat).ok_or_else(|| {
+            RayexecError::new(format!(
+                "Missing materialization for ref: {}",
+                scan.node.mat
+            ))
+        })?;
 
-        // if self.in_progress.is_some() {
-        //     return Err(RayexecError::new(
-        //         "Expected in progress to be None for materialization scan",
-        //     ));
-        // }
+        // As with a normal materialized scan, we just need the operator, skip
+        // the children.
+        let scan_op = PlannedOperatorWithChildren {
+            operator: mat_op.operator.clone(),
+            children: Vec::new(),
+        };
 
-        unimplemented!()
-        // // Initialize in-progress with no operators, but scan source being this
-        // // materialization.
-        // self.in_progress = Some(InProgressPipeline {
-        //     id: id_gen.next_pipeline_id(),
-        //     operators: Vec::new(),
-        //     location: LocationRequirement::ClientLocal, // Currently only support local.
-        //     source: PipelineSource::Materialization {
-        //         mat_ref: scan.node.mat,
-        //     },
-        // });
+        // Plan the projection out of the materialization.
+        let materialized_refs = &self
+            .bind_context
+            .get_materialization(scan.node.mat)?
+            .table_refs;
+        let projections = self
+            .expr_planner
+            .plan_scalars(materialized_refs, &scan.node.projections)
+            .context("Failed to plan projections out of materialization")?;
 
-        // // Plan the projection out of the materialization.
-        // let materialized_refs = &self
-        //     .bind_context
-        //     .get_materialization(scan.node.mat)?
-        //     .table_refs;
-        // let projections = self
-        //     .expr_planner
-        //     .plan_scalars(materialized_refs, &scan.node.projections)
-        //     .context("Failed to plan projections out of materialization")?;
-        // let operator = IntermediateOperator {
-        //     operator: Arc::new(PhysicalOperator::Project(PhysicalProject { projections })),
-        //     partitioning_requirement: None,
-        // };
+        let proj_op = PlannedOperatorWithChildren {
+            operator: PlannedOperator::new_execute(PhysicalProject::new(projections)),
+            children: vec![scan_op],
+        };
 
-        // // TODO: Distinct the projection.
+        // TODO: Distinct the projection.
 
-        // self.push_intermediate_operator(operator, scan.location, id_gen)?;
-
-        // Ok(())
+        Ok(proj_op)
     }
 }

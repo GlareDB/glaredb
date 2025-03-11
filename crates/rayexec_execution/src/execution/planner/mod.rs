@@ -66,11 +66,17 @@ impl OperatorPlanner {
     where
         O: PushOperator,
     {
-        let mats = bind_context.take_materializations();
+        // Get the plans making up materializations.
+        let mut mat_plans: Vec<(MaterializationRef, LogicalOperator)> = Vec::new();
+        for mat in bind_context.iter_materializations() {
+            let plan = mat.plan.clone();
+            mat_plans.push((mat.mat_ref, plan));
+        }
+
         let mut state = OperatorPlanState::new(&self.config, db_context, &bind_context);
 
         // Plan materializations first.
-        state.plan_materializations(mats)?;
+        state.plan_materializations(mat_plans)?;
 
         // Now plan to query with access to all materializations.
         let root = state.plan(root)?;
@@ -136,17 +142,20 @@ impl<'a> OperatorPlanState<'a> {
     /// Plan materializations from the bind context.
     ///
     /// The planned materializations will be placed in this plan state.
-    fn plan_materializations(&mut self, materializations: Vec<PlanMaterialization>) -> Result<()> {
+    fn plan_materializations(
+        &mut self,
+        materializations: Vec<(MaterializationRef, LogicalOperator)>,
+    ) -> Result<()> {
         // TODO: The way this and the materialization ref is implemented allows
         // materializations to depend on previously planned materializations.
         // Unsure if we want to make that a strong guarantee (probably yes).
 
-        for mat in materializations {
-            let mat_root = self.plan(mat.plan)?;
+        for (mat_ref, mat_plan) in materializations {
+            let mat_root = self.plan(mat_plan)?;
 
             let operator = PhysicalMaterialize {
                 datatypes: mat_root.operator.call_output_types(),
-                materialization_ref: mat.mat_ref,
+                materialization_ref: mat_ref,
             };
 
             let operator = PlannedOperatorWithChildren {
@@ -154,14 +163,10 @@ impl<'a> OperatorPlanState<'a> {
                 children: vec![mat_root],
             };
 
-            if self
-                .materializations
-                .insert(mat.mat_ref, operator)
-                .is_some()
-            {
+            if self.materializations.insert(mat_ref, operator).is_some() {
                 return Err(RayexecError::new(format!(
                     "Duplicate materialization ref: {}",
-                    mat.mat_ref
+                    mat_ref
                 )));
             }
         }
@@ -186,6 +191,10 @@ impl<'a> OperatorPlanState<'a> {
             LogicalOperator::Describe(node) => self.plan_describe(node),
             LogicalOperator::ShowVar(node) => self.plan_show_var(node),
             LogicalOperator::Scan(node) => self.plan_scan(node),
+            LogicalOperator::MaterializationScan(node) => self.plan_materialize_scan(node),
+            LogicalOperator::MagicMaterializationScan(node) => {
+                self.plan_magic_materialize_scan(node)
+            }
             LogicalOperator::Empty(node) => self.plan_empty(node),
             LogicalOperator::SetVar(_) => {
                 Err(RayexecError::new("SET should be handled in the session"))

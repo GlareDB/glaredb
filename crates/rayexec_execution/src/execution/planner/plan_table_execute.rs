@@ -32,8 +32,6 @@ impl OperatorPlanState<'_> {
             .plan_scalars(&input_refs, &inout.node.projected_outputs)
             .context("Failed to plan additional output expressions for table inout")?;
 
-        let input_types = child.operator.call_output_types();
-
         // Generate column expressions for additional projections.
         let additional_projections: Vec<_> = projected_outputs
             .iter()
@@ -53,6 +51,8 @@ impl OperatorPlanState<'_> {
             operator: PlannedOperator::new_execute(PhysicalProject::new(projections)),
             children: vec![child],
         };
+
+        let input_types = child.operator.call_output_types();
 
         let operator =
             PhysicalTableExecute::new(inout.node.function, additional_projections, input_types);
