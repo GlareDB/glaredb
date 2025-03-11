@@ -16,6 +16,12 @@ pub enum ContextDisplayMode<'a> {
     Raw,
 }
 
+impl<'a> From<&'a BindContext> for ContextDisplayMode<'a> {
+    fn from(context: &'a BindContext) -> Self {
+        ContextDisplayMode::Enriched(context)
+    }
+}
+
 pub trait ContextDisplay {
     /// Format self by enriching the string output with information in the bind
     /// context if it's provided.
@@ -49,8 +55,11 @@ pub struct ContextDisplayWrapper<'a, D> {
 }
 
 impl<'a, D> ContextDisplayWrapper<'a, D> {
-    pub fn with_mode(item: D, mode: ContextDisplayMode<'a>) -> Self {
-        ContextDisplayWrapper { mode, item }
+    pub fn with_mode(item: D, mode: impl Into<ContextDisplayMode<'a>>) -> Self {
+        ContextDisplayWrapper {
+            mode: mode.into(),
+            item,
+        }
     }
 }
 

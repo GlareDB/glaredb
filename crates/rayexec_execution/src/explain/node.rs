@@ -1,10 +1,12 @@
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use super::context_display::ContextDisplayMode;
 use super::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::execution::operators::PlannedOperatorWithChildren;
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::operator::LogicalOperator;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -31,8 +33,9 @@ impl ExplainNode {
             context_mode: ContextDisplayMode::Enriched(bind_context),
             verbose,
         };
+        let mut visited_materializations = HashSet::new();
 
-        Self::walk_logical(bind_context, config, root)
+        Self::walk_logical(bind_context, config, root, &mut visited_materializations)
     }
 
     fn walk_physical(config: ExplainConfig, plan: &PlannedOperatorWithChildren) -> Self {
@@ -50,6 +53,7 @@ impl ExplainNode {
         bind_context: &BindContext,
         config: ExplainConfig,
         plan: &LogicalOperator,
+        visited_materializations: &mut HashSet<MaterializationRef>,
     ) -> Self {
         let (entry, children) = match plan {
             LogicalOperator::Invalid => (ExplainEntry::new("INVALID"), &Vec::new()),
@@ -88,26 +92,45 @@ impl ExplainNode {
                 // materialization from bind context.
                 let entry = n.explain_entry(config);
 
-                let children = match bind_context.get_materialization(n.node.mat) {
-                    Ok(mat) => vec![Self::walk_logical(bind_context, config, &mat.plan)],
-                    Err(e) => {
-                        error!(%e, "failed to get materialization from bind context");
-                        Vec::new()
+                let children = if !visited_materializations.contains(&n.node.mat) {
+                    visited_materializations.insert(n.node.mat);
+                    match bind_context.get_materialization(n.node.mat) {
+                        Ok(mat) => vec![Self::walk_logical(
+                            bind_context,
+                            config,
+                            &mat.plan,
+                            visited_materializations,
+                        )],
+                        Err(e) => {
+                            error!(%e, "failed to get materialization from bind context");
+                            Vec::new()
+                        }
                     }
+                } else {
+                    Vec::new()
                 };
 
                 return ExplainNode { entry, children };
             }
             LogicalOperator::MagicMaterializationScan(n) => {
-                // TODO: Do we actually want too show the children?
                 let entry = n.explain_entry(config);
 
-                let children = match bind_context.get_materialization(n.node.mat) {
-                    Ok(mat) => vec![Self::walk_logical(bind_context, config, &mat.plan)],
-                    Err(e) => {
-                        error!(%e, "failed to get materialization from bind context");
-                        Vec::new()
+                let children = if !visited_materializations.contains(&n.node.mat) {
+                    visited_materializations.insert(n.node.mat);
+                    match bind_context.get_materialization(n.node.mat) {
+                        Ok(mat) => vec![Self::walk_logical(
+                            bind_context,
+                            config,
+                            &mat.plan,
+                            visited_materializations,
+                        )],
+                        Err(e) => {
+                            error!(%e, "failed to get materialization from bind context");
+                            Vec::new()
+                        }
                     }
+                } else {
+                    Vec::new()
                 };
 
                 return ExplainNode { entry, children };
@@ -116,7 +139,7 @@ impl ExplainNode {
 
         let children = children
             .iter()
-            .map(|c| Self::walk_logical(bind_context, config, c))
+            .map(|c| Self::walk_logical(bind_context, config, c, visited_materializations))
             .collect();
 
         ExplainNode { entry, children }

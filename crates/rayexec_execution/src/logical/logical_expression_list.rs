@@ -50,9 +50,13 @@ impl LogicalNode for Node<LogicalExpressionList> {
 }
 
 impl Explainable for LogicalExpressionList {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("ExpressionList")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        let mut ent = ExplainEntry::new("ExpressionList")
             .with_value("num_rows", self.rows.len())
-            .with_values("datatypes", &self.types)
+            .with_values("datatypes", &self.types);
+        if conf.verbose {
+            ent = ent.with_value("table_ref", self.table_ref)
+        }
+        ent
     }
 }

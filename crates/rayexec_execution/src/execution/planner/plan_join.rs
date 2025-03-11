@@ -3,6 +3,7 @@ use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 use super::OperatorPlanState;
 use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
+use crate::explain::context_display::{ContextDisplay, ContextDisplayWrapper};
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{self, Expression};
@@ -67,7 +68,13 @@ impl OperatorPlanState<'_> {
         } else {
             let condition: Expression =
                 expr::and(join.node.conditions.into_iter().map(Expression::Comparison))?.into();
-            let condition = self.expr_planner.plan_scalar(&table_refs, &condition)?;
+            let condition = self
+                .expr_planner
+                .plan_scalar(&table_refs, &condition)
+                .context_fn(|| {
+                    let condition = ContextDisplayWrapper::with_mode(&condition, self.bind_context);
+                    format!("Failed to plan condition for nested loop join: {condition}")
+                })?;
 
             Some(condition)
         };
