@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::task::Context;
 
 use parking_lot::Mutex;
@@ -26,6 +25,8 @@ use crate::storage::projections::Projections;
 
 #[derive(Debug)]
 pub struct MaterializeOperatorState {
+    /// The collection we're materializing into.
+    collection: ConcurrentColumnCollection,
     inner: Mutex<OperatorStateInner>,
 }
 
@@ -63,15 +64,20 @@ pub struct MaterializePullPartitionState {
 
 #[derive(Debug)]
 pub struct PhysicalMaterialize {
-    // TODO: Put this on the operator state?
-    pub(crate) collection: Arc<ConcurrentColumnCollection>,
+    /// Datatypes materialized batches.
+    pub(crate) datatypes: Vec<DataType>,
 }
 
 impl BaseOperator for PhysicalMaterialize {
     type OperatorState = MaterializeOperatorState;
 
-    fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
+    fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
+        // TODO: Configurable segment size.
+        let collection =
+            ConcurrentColumnCollection::new(self.datatypes.clone(), 4, props.batch_size);
+
         Ok(MaterializeOperatorState {
+            collection,
             inner: Mutex::new(OperatorStateInner {
                 remaining_input_partitions: 0,
                 pull_wakers: Vec::new(),
@@ -80,7 +86,7 @@ impl BaseOperator for PhysicalMaterialize {
     }
 
     fn output_types(&self) -> &[DataType] {
-        self.collection.datatypes()
+        &self.datatypes
     }
 }
 
@@ -100,7 +106,7 @@ impl PullOperator for PhysicalMaterialize {
         let output_idx = inner.pull_wakers.len();
         inner.pull_wakers.push(wakers);
 
-        let states = self
+        let states = operator_state
             .collection
             .init_parallel_scan_states(partitions)
             .enumerate()
@@ -108,7 +114,7 @@ impl PullOperator for PhysicalMaterialize {
                 |(partition_idx, scan_state)| MaterializePullPartitionState {
                     output_idx,
                     partition_idx,
-                    projections: Projections::new(0..self.collection.datatypes().len()), // Currently project all output.
+                    projections: Projections::new(0..self.datatypes.len()), // Currently project all output.
                     scan_state,
                 },
             )
@@ -126,9 +132,11 @@ impl PullOperator for PhysicalMaterialize {
     ) -> Result<PollPull> {
         output.reset_for_write()?;
 
-        let count =
-            self.collection
-                .parallel_scan(&state.projections, &mut state.scan_state, output)?;
+        let count = operator_state.collection.parallel_scan(
+            &state.projections,
+            &mut state.scan_state,
+            output,
+        )?;
         debug_assert_eq!(count, output.num_rows());
 
         if count == 0 {
@@ -166,7 +174,7 @@ impl PushOperator for PhysicalMaterialize {
 
         let states = (0..partitions)
             .map(|_| MaterializePushPartitionState {
-                append_state: self.collection.init_append_state(),
+                append_state: operator_state.collection.init_append_state(),
             })
             .collect();
 
@@ -180,9 +188,10 @@ impl PushOperator for PhysicalMaterialize {
         state: &mut Self::PartitionPushState,
         input: &mut Batch,
     ) -> Result<PollPush> {
-        self.collection
+        operator_state
+            .collection
             .append_batch(&mut state.append_state, input)?;
-        self.collection.flush(&mut state.append_state)?;
+        operator_state.collection.flush(&mut state.append_state)?;
 
         // TODO: Do we want to call this every time? Maybe have a bool returned
         // from `append_batch` indicating if we flushed, and only wake then.
@@ -202,7 +211,7 @@ impl PushOperator for PhysicalMaterialize {
         operator_state: &Self::OperatorState,
         state: &mut Self::PartitionPushState,
     ) -> Result<PollFinalize> {
-        self.collection.flush(&mut state.append_state)?;
+        operator_state.collection.flush(&mut state.append_state)?;
 
         let mut inner = operator_state.inner.lock();
         inner.remaining_input_partitions -= 1;
@@ -233,8 +242,9 @@ mod tests {
 
     #[test]
     fn single_input_two_outputs() {
-        let collection = Arc::new(ConcurrentColumnCollection::new([DataType::Int32], 4, 4));
-        let wrapper = OperatorWrapper::new(PhysicalMaterialize { collection });
+        let wrapper = OperatorWrapper::new(PhysicalMaterialize {
+            datatypes: vec![DataType::Int32],
+        });
 
         let props = ExecutionProperties { batch_size: 4 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();

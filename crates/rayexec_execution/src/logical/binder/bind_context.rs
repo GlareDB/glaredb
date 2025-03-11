@@ -16,6 +16,7 @@ pub struct BindScopeRef {
     pub context_idx: usize,
 }
 
+/// Reference to a materialization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MaterializationRef {
     pub materialization_idx: usize,
@@ -27,6 +28,7 @@ impl fmt::Display for MaterializationRef {
     }
 }
 
+/// Reference to a CTE.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CteRef {
     pub cte_idx: usize,
