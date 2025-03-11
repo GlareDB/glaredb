@@ -245,8 +245,19 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
 
             match &mut state.evaluator {
                 Some(evaluator) => {
-                    //
-                    not_implemented!("expr eval in nl join")
+                    // Evaluate the selection on the output of the cross
+                    // product.
+                    let selection = evaluator.select(output)?;
+                    if selection.is_empty() {
+                        // Evaluated empty, reset the chunk and try again.
+                        output.reset_for_write()?;
+                        continue;
+                    }
+
+                    // We have a selection, select the output.
+                    output.select(selection.iter().copied())?;
+
+                    return Ok(PollExecute::HasMore);
                 }
                 None => {
                     // Just normal cross product, output already has everything,
@@ -277,9 +288,11 @@ impl Explainable for PhysicalNestedLoopJoin {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::generate_batch;
+    use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::assert_batches_eq;
+    use crate::testutil::exprs::plan_scalar;
     use crate::testutil::operator::OperatorWrapper;
+    use crate::{expr, generate_batch};
 
     #[test]
     fn cross_join_single_partition() {
@@ -331,5 +344,83 @@ mod tests {
 
         let expected = generate_batch!(["b", "b"], [1, 2]);
         assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn inner_join_single_eq_condition() {
+        // CONDITION: a = b
+        let mut list = TableList::empty();
+        let t0 = list.push_table(None, [DataType::Int32], ["a"]).unwrap();
+        let t1 = list.push_table(None, [DataType::Int32], ["b"]).unwrap();
+        let expr = plan_scalar(
+            &list,
+            expr::eq(
+                expr::column((t0, 0), DataType::Int32),
+                expr::column((t1, 0), DataType::Int32),
+            )
+            .unwrap(),
+        );
+
+        let wrapper = OperatorWrapper::new(PhysicalNestedLoopJoin::new(
+            JoinType::Inner,
+            [DataType::Int32],
+            [DataType::Int32],
+            Some(expr),
+        ));
+
+        let props = ExecutionProperties { batch_size: 16 };
+        let op_state = wrapper.operator.create_operator_state(props).unwrap();
+        let mut push_states = wrapper
+            .operator
+            .create_partition_push_states(&op_state, props, 1)
+            .unwrap();
+        let mut probe_states = wrapper
+            .operator
+            .create_partition_execute_states(&op_state, props, 1)
+            .unwrap();
+
+        // Build
+        let mut build_input = generate_batch!([5, 3, 1, 1]);
+        let poll = wrapper
+            .poll_push(&op_state, &mut push_states[0], &mut build_input)
+            .unwrap();
+        assert_eq!(PollPush::NeedsMore, poll);
+        let poll = wrapper
+            .poll_finalize_push(&op_state, &mut push_states[0])
+            .unwrap();
+        assert_eq!(PollFinalize::Finalized, poll);
+
+        // Probe
+        let mut output = Batch::new([DataType::Int32, DataType::Int32], 16).unwrap();
+        let mut probe_input = generate_batch!([1, 2, 3, 4]);
+
+        let poll = wrapper
+            .poll_execute(
+                &op_state,
+                &mut probe_states[0],
+                &mut probe_input,
+                &mut output,
+            )
+            .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+        let expected = generate_batch!([3], [3]);
+        assert_batches_eq(&expected, &output);
+
+        let poll = wrapper
+            .poll_execute(
+                &op_state,
+                &mut probe_states[0],
+                &mut probe_input,
+                &mut output,
+            )
+            .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+        let expected = generate_batch!([1], [1]);
+        assert_batches_eq(&expected, &output);
+
+        // ... And so on
+        //
+        // Not optimizing the size of the batches here since equality predicates
+        // should be going to hash join.
     }
 }
