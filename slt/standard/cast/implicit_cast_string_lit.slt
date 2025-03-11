@@ -1,0 +1,49 @@
+# Test implicit casting of string literals.
+#
+# We should treat these literals as unknowns and attempt to cast them to the
+# target type.
+#
+# Postgres treats these as "unknown".
+
+statement ok
+CREATE TEMP TABLE t1 AS (VALUES (1), (2), (3), (10), (NULL));
+
+query I
+SELECT * FROM t1 WHERE column1 < '10' ORDER BY 1;
+----
+1
+2
+3
+
+# TODO: Better error.
+statement error Failed to parse value from utf8
+SELECT * FROM t1 WHERE column1 < 'hello' ORDER BY 1;
+
+query I
+SELECT column1 + '5' FROM t1 ORDER BY 1
+----
+6
+7
+8
+15
+NULL
+
+# Can only attempt to cast to int, can't implicitly cast lit to float and the
+# column to float.
+#
+# TODO: Better error.
+statement error Failed to parse value from utf8
+SELECT column1 + '5.0' FROM t1 ORDER BY 1;
+
+query R
+SELECT column1::float + '5.0' FROM t1 ORDER BY 1;
+----
+6.000
+7.000
+8.000
+15.000
+NULL
+
+# Postgres allows this, duckdb doesn't. Uncertain if we care to support it.
+statement error
+SELECT abs('-4.8');
