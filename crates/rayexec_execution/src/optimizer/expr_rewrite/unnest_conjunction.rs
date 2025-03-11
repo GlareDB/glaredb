@@ -62,100 +62,130 @@ fn unnest_op(expr: Expression, search_op: ConjunctionOperator, out: &mut Vec<Exp
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expr::{and, lit, or};
+    use crate::arrays::datatype::DataType;
+    use crate::expr::{and, column, or};
 
-    // #[test]
-    // fn unnest_none() {
-    //     // '(0 AND 1)' => '(0 AND 1)'
-    //     let expr = and([lit(0), lit(1)]).unwrap();
+    #[test]
+    fn unnest_none() {
+        // '(c0 AND c1)' => '(c0 AND c1)'
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
 
-    //     // No change.
-    //     let expected = expr.clone();
+        let expr: Expression = and([c0, c1]).unwrap().into();
 
-    //     let table_list = TableList::empty();
-    //     let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
-    //     assert_eq!(expected, got);
-    // }
+        // No change.
+        let expected = expr.clone();
 
-    // #[test]
-    // fn unnest_one_level() {
-    //     // '(0 AND (1 AND 2))' => '(0 AND 1 AND 2)'
-    //     let expr = and([lit(0), and([lit(1), lit(2)]).unwrap()]).unwrap();
+        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        assert_eq!(expected, got);
+    }
 
-    //     let expected = and([lit(0), lit(1), lit(2)]).unwrap();
+    #[test]
+    fn unnest_one_level() {
+        // '(c0 AND (c1 AND c2))' => '(c0 AND c1 AND c2)'
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
+        let c2: Expression = column((0, 2), DataType::Boolean).into();
 
-    //     let table_list = TableList::empty();
-    //     let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
-    //     assert_eq!(expected, got);
-    // }
+        let expr: Expression = and([c0.clone(), and([c1.clone(), c2.clone()]).unwrap().into()])
+            .unwrap()
+            .into();
 
-    // #[test]
-    // fn no_unnest_different_ops() {
-    //     // '(0 AND (1 OR 2))' => '(0 AND (1 OR 2))'
-    //     let expr = and([lit(0), or([lit(1), lit(2)]).unwrap()]).unwrap();
+        let expected: Expression = and([c0, c1, c2]).unwrap().into();
 
-    //     // No change.
-    //     let expected = expr.clone();
+        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        assert_eq!(expected, got);
+    }
 
-    //     let table_list = TableList::empty();
-    //     let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
-    //     assert_eq!(expected, got);
-    // }
+    #[test]
+    fn no_unnest_different_ops() {
+        // '(c0 AND (c1 OR c2))' => '(c0 AND (c1 OR c2))'
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
+        let c2: Expression = column((0, 2), DataType::Boolean).into();
 
-    // #[test]
-    // fn no_unnest_different_ops_nested() {
-    //     // '(0 AND (1 OR (2 AND 3)))' => '(0 AND (1 OR (2 AND 3)))'
-    //     let expr = and([
-    //         lit(0),
-    //         or([lit(1), and([lit(2), lit(3)]).unwrap()]).unwrap(),
-    //     ])
-    //     .unwrap();
+        let expr: Expression = and([c0, or([c1, c2]).unwrap().into()]).unwrap().into();
 
-    //     // No change.
-    //     let expected = expr.clone();
+        // No change.
+        let expected = expr.clone();
 
-    //     let table_list = TableList::empty();
-    //     let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
-    //     assert_eq!(expected, got);
-    // }
+        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        assert_eq!(expected, got);
+    }
 
-    // #[test]
-    // fn unnest_different_ops_nested() {
-    //     // '(0 AND (1 OR (2 AND (3 AND 4))))' => '(0 AND (1 OR (2 AND 3 AND 4)))'
-    //     let expr = and([
-    //         lit(0),
-    //         or([
-    //             lit(1),
-    //             and([lit(2), and([lit(3), lit(4)]).unwrap()]).unwrap(),
-    //         ])
-    //         .unwrap(),
-    //     ])
-    //     .unwrap();
+    #[test]
+    fn no_unnest_different_ops_nested() {
+        // '(c0 AND (c1 OR (c2 AND c3)))' => '(c0 AND (c1 OR (c2 AND c3)))'
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
+        let c2: Expression = column((0, 2), DataType::Boolean).into();
+        let c3: Expression = column((0, 3), DataType::Boolean).into();
 
-    //     let expected = and([
-    //         lit(0),
-    //         or([lit(1), and([lit(2), lit(3), lit(4)]).unwrap()]).unwrap(),
-    //     ])
-    //     .unwrap();
+        let expr: Expression = and([c0, or([c1, and([c2, c3]).unwrap().into()]).unwrap().into()])
+            .unwrap()
+            .into();
 
-    //     let table_list = TableList::empty();
-    //     let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
-    //     assert_eq!(expected, got);
-    // }
+        // No change.
+        let expected = expr.clone();
 
-    // #[test]
-    // fn unnest_three_levels() {
-    //     // '(0 AND (1 AND (2 AND 3)))' => '(0 AND 1 AND 2 AND 3)'
-    //     let expr = and([
-    //         lit(0),
-    //         and([lit(1), and([lit(2), lit(3)]).unwrap()]).unwrap(),
-    //     ])
-    //     .unwrap();
+        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        assert_eq!(expected, got);
+    }
 
-    //     let expected = and([lit(0), lit(1), lit(2), lit(3)]).unwrap();
+    #[test]
+    fn unnest_different_ops_nested() {
+        // '(c0 AND (c1 OR (c2 AND (c3 AND c4))))' => '(c0 AND (c1 OR (c2 AND c3 AND c4)))'
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
+        let c2: Expression = column((0, 2), DataType::Boolean).into();
+        let c3: Expression = column((0, 3), DataType::Boolean).into();
+        let c4: Expression = column((0, 4), DataType::Boolean).into();
 
-    //     let table_list = TableList::empty();
-    //     let got = UnnestConjunctionRewrite::rewrite(&table_list, expr).unwrap();
-    //     assert_eq!(expected, got);
-    // }
+        let expr: Expression = and([
+            c0.clone(),
+            or([
+                c1.clone(),
+                and([c2.clone(), and([c3.clone(), c4.clone()]).unwrap().into()])
+                    .unwrap()
+                    .into(),
+            ])
+            .unwrap()
+            .into(),
+        ])
+        .unwrap()
+        .into();
+
+        let expected: Expression = and([
+            c0,
+            or([c1, and([c2, c3, c4]).unwrap().into()]).unwrap().into(),
+        ])
+        .unwrap()
+        .into();
+
+        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn unnest_three_levels() {
+        // '(0 AND (1 AND (2 AND 3)))' => '(0 AND 1 AND 2 AND 3)'
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
+        let c2: Expression = column((0, 2), DataType::Boolean).into();
+        let c3: Expression = column((0, 3), DataType::Boolean).into();
+
+        let expr: Expression = and([
+            c0.clone(),
+            and([c1.clone(), and([c2.clone(), c3.clone()]).unwrap().into()])
+                .unwrap()
+                .into(),
+        ])
+        .unwrap()
+        .into();
+
+        let expected: Expression = and([c0, c1, c2, c3]).unwrap().into();
+
+        let got = UnnestConjunctionRewrite::rewrite(expr).unwrap();
+        assert_eq!(expected, got);
+    }
 }
