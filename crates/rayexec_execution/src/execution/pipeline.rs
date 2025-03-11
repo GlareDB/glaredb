@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use rayexec_error::{RayexecError, Result};
 
@@ -17,7 +17,9 @@ pub struct ExecutableMaterialization {
 
 #[derive(Debug)]
 pub struct ExecutablePipelineGraph {
-    pub(crate) materializations: HashMap<MaterializationRef, ExecutableMaterialization>,
+    /// Materializaitons with operator states.
+    pub(crate) materializations: BTreeMap<MaterializationRef, ExecutableMaterialization>,
+    /// All completed pipelines.
     pub(crate) pipelines: Vec<ExecutablePipeline>,
 }
 
@@ -27,13 +29,51 @@ impl ExecutablePipelineGraph {
         query_graph: PlannedQueryGraph,
     ) -> Result<Self> {
         let mut pipeline_graph = ExecutablePipelineGraph {
-            materializations: HashMap::new(),
+            materializations: BTreeMap::new(),
             pipelines: Vec::new(),
         };
 
-        let mut current = ExecutablePipeline::new();
+        for (mat_ref, mut mat_operator) in query_graph.materializations {
+            // Each materialization creates a new pipeline. We plan the child
+            // separate from the materialization node to allow the
+            // `build_pipeline` method on the operator to assume that
+            // encountering a materialization node means it's a scan.
+            if mat_operator.children.len() != 1 {
+                return Err(RayexecError::new(
+                    "Invalid number of children for materialization operator",
+                ));
+            }
 
-        // TODO: Materializations.
+            let mut mat_pipeline = ExecutablePipeline::new();
+
+            let child = mat_operator.children.pop().unwrap();
+            child.build_pipeline(props, &mut pipeline_graph, &mut mat_pipeline)?;
+
+            // Now create the operator state for the materialize node.
+            let mat_op_state = mat_operator.operator.call_create_operator_state(props)?;
+
+            // Push the materialization and state to the current pipline _and_
+            // to the materialization map.
+            //
+            // The push side (in the pipeline) will share the same state as the
+            // the pull side (the map).
+            mat_pipeline
+                .push_operator_and_state(mat_operator.operator.clone(), mat_op_state.clone());
+
+            pipeline_graph.materializations.insert(
+                mat_ref,
+                ExecutableMaterialization {
+                    operator: mat_operator.operator,
+                    operator_state: mat_op_state,
+                },
+            );
+
+            pipeline_graph.push_pipeline(mat_pipeline);
+        }
+
+        // Now plan the query root, it should have access to all materializations.
+
+        let mut current = ExecutablePipeline::new();
 
         let root = query_graph.root;
         root.build_pipeline(props, &mut pipeline_graph, &mut current)?;

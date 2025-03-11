@@ -22,11 +22,12 @@ mod plan_sort;
 mod plan_table_execute;
 mod plan_unnest;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use rayexec_error::{not_implemented, RayexecError, Result};
 use uuid::Uuid;
 
+use super::operators::materialize::PhysicalMaterialize;
 use super::operators::{PlannedOperatorWithChildren, PushOperator};
 use crate::catalog::context::DatabaseContext;
 use crate::config::execution::OperatorPlanConfig;
@@ -38,7 +39,7 @@ use crate::logical::operator::{self, LogicalOperator};
 /// Output of physical planning.
 #[derive(Debug)]
 pub struct PlannedQueryGraph {
-    pub materializations: HashMap<MaterializationRef, PlannedOperatorWithChildren>,
+    pub materializations: BTreeMap<MaterializationRef, PlannedOperatorWithChildren>,
     pub root: PlannedOperatorWithChildren,
 }
 
@@ -108,7 +109,11 @@ struct OperatorPlanState<'a> {
     /// should be cloned, and its children set to empty. This will act as a
     /// "marker" during pipeline building allowing us to get the shared operator
     /// state.
-    materializations: HashMap<MaterializationRef, PlannedOperatorWithChildren>,
+    ///
+    /// BTree map to retain order in which materializations were planned (as one
+    /// might depend on another). We want to make sure we iterate in the same
+    /// order when creating the operator states.
+    materializations: BTreeMap<MaterializationRef, PlannedOperatorWithChildren>,
 }
 
 impl<'a> OperatorPlanState<'a> {
@@ -124,7 +129,7 @@ impl<'a> OperatorPlanState<'a> {
             db_context,
             bind_context,
             expr_planner,
-            materializations: HashMap::new(),
+            materializations: BTreeMap::new(),
         }
     }
 
@@ -138,9 +143,20 @@ impl<'a> OperatorPlanState<'a> {
 
         for mat in materializations {
             let mat_root = self.plan(mat.plan)?;
+
+            let operator = PhysicalMaterialize {
+                datatypes: mat_root.operator.call_output_types(),
+                materialization_ref: mat.mat_ref,
+            };
+
+            let operator = PlannedOperatorWithChildren {
+                operator: PlannedOperator::new_materializing(operator),
+                children: vec![mat_root],
+            };
+
             if self
                 .materializations
-                .insert(mat.mat_ref, mat_root)
+                .insert(mat.mat_ref, operator)
                 .is_some()
             {
                 return Err(RayexecError::new(format!(

@@ -195,8 +195,29 @@ pub trait BaseOperator: Sync + Send + Debug + Explainable + 'static {
                 Ok(())
             }
             OperatorType::Materializing => {
-                // TODO
-                unimplemented!()
+                // Materializing operator, we can assume this is a scan since
+                // the push side should have been handled prior to calling this
+                // operator's build_pipeline method.
+                //
+                // Reach into the query graph to get the already planned
+                // operator and state.
+                //
+                // Note that we discard this operator as it's essentially just a
+                // marker return the materialization reference to use.
+                let mat_ref = operator.call_materialization_ref()?;
+
+                let mat = match graph.materializations.get(&mat_ref) {
+                    Some(mat) => mat,
+                    None => {
+                        return Err(RayexecError::new(format!(
+                            "Missing executable materialization for ref: {mat_ref}"
+                        )))
+                    }
+                };
+
+                current.push_operator_and_state(mat.operator.clone(), mat.operator_state.clone());
+
+                Ok(())
             }
             OperatorType::PushExecute => {
                 // Create new pipeline for left/push child.
