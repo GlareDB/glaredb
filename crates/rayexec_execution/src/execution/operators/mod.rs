@@ -6,6 +6,7 @@ pub mod filter;
 pub mod hash_aggregate;
 pub mod hash_join;
 pub mod limit;
+pub mod materialize;
 pub mod nested_loop_join;
 pub mod project;
 pub mod results;
@@ -123,10 +124,17 @@ pub struct ExecutionProperties {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperatorType {
+    /// Unary operator.
     Execute,
+    /// Source operator.
     Pull,
+    /// Sink operator.
     Push,
+    /// Binary operator, with left side terminating.
     PushExecute,
+    /// Acts a sink for a single pipeline, and a source for some number of other
+    /// pipelines.
+    Materializing,
 }
 
 impl OperatorType {
@@ -135,6 +143,7 @@ impl OperatorType {
             Self::Execute | Self::Push => 1,
             Self::Pull => 0,
             Self::PushExecute => 2,
+            Self::Materializing => 1,
         }
     }
 }
@@ -175,6 +184,10 @@ pub trait BaseOperator: Sync + Send + Debug + Explainable + 'static {
                 current.push_operator_and_state(operator.clone(), state);
 
                 Ok(())
+            }
+            OperatorType::Materializing => {
+                // TODO
+                unimplemented!()
             }
             OperatorType::PushExecute => {
                 // Create new pipeline for left/push child.
@@ -932,6 +945,103 @@ where
 
         poll_finalize_push_fn: |operator, cx, partition_state, operator_state| {
             Err(RayexecError::new("Not a push operator"))
+        },
+        poll_finalize_execute_fn: |operator, cx, partition_state, operator_state| {
+            Err(RayexecError::new("Not an execute operator"))
+        },
+
+        explain_fn: |operator, conf| {
+            let operator = operator.downcast_ref::<O>().unwrap();
+            operator.explain_entry(conf)
+        },
+    };
+}
+
+struct MaterializingOperatorVTable<O: PullOperator + PushOperator>(PhantomData<O>);
+
+impl<O> OperatorVTable for MaterializingOperatorVTable<O>
+where
+    O: PullOperator + PushOperator,
+{
+    const OPERATOR_TYPE: OperatorType = OperatorType::Materializing;
+
+    const VTABLE: &'static RawOperatorVTable = &RawOperatorVTable {
+        create_operator_state_fn: |operator, props| {
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = operator.create_operator_state(props)?;
+            Ok(AnyOperatorState(Arc::new(state)))
+        },
+
+        output_types_fn: |operator| {
+            let operator = operator.downcast_ref::<O>().unwrap();
+            operator.output_types().to_vec()
+        },
+
+        build_pipeline_fn: |operator, children, props, graph, current| {
+            O::build_pipeline(operator, children, props, graph, current)
+        },
+
+        create_partition_execute_states_fn: |operator, op_state, props, partitions| {
+            Err(RayexecError::new("Not an execute operator"))
+        },
+
+        create_partition_pull_states_fn: |operator, op_state, props, partitions| {
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
+            let states = operator.create_partition_pull_states(op_state, props, partitions)?;
+            Ok(states
+                .into_iter()
+                .map(|state| AnyPartitionState(Box::new(state)))
+                .collect())
+        },
+        create_partition_push_states_fn: |operator, op_state, props, partitions| {
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
+            let states = operator.create_partition_push_states(op_state, props, partitions)?;
+            Ok(states
+                .into_iter()
+                .map(|state| AnyPartitionState(Box::new(state)))
+                .collect())
+        },
+
+        poll_pull_fn: |operator, cx, op_state, partition_state, output| {
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = partition_state
+                .downcast_mut::<<O as PullOperator>::PartitionPullState>()
+                .unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
+            operator.poll_pull(cx, op_state, state, output)
+        },
+        poll_push_fn: |operator, cx, op_state, partition_state, input| {
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = partition_state
+                .downcast_mut::<<O as PushOperator>::PartitionPushState>()
+                .unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
+
+            operator.poll_push(cx, op_state, state, input)
+        },
+        poll_execute_fn: |operator, cx, partition_state, operator_state, input, output| {
+            Err(RayexecError::new("Not an execute operator"))
+        },
+        poll_finalize_push_fn: |operator, cx, op_state, partition_state| {
+            let operator = operator.downcast_ref::<O>().unwrap();
+            let state = partition_state
+                .downcast_mut::<<O as PushOperator>::PartitionPushState>()
+                .unwrap();
+            let op_state = op_state
+                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .unwrap();
+
+            operator.poll_finalize_push(cx, op_state, state)
         },
         poll_finalize_execute_fn: |operator, cx, partition_state, operator_state| {
             Err(RayexecError::new("Not an execute operator"))

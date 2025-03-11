@@ -31,10 +31,13 @@ pub struct ColumnCollectionScanState {
 /// segments to scan such that every row is scanned exactly once.
 #[derive(Debug)]
 pub struct ParallelColumnCollectionScanState {
+    /// Shared atomic indicating the next segment to scan.
     next: Arc<AtomicUsize>,
+    /// Local scan state.
     state: ColumnCollectionScanState,
 }
 
+/// Data collection that can be append to/ read from concurrently.
 #[derive(Debug)]
 pub struct ConcurrentColumnCollection {
     /// Data types of columns in this collection.
@@ -61,6 +64,14 @@ impl ConcurrentColumnCollection {
         }
     }
 
+    pub fn init_append_state(&self) -> ColumnCollectionAppendState {
+        ColumnCollectionAppendState {
+            segment: ColumnCollectionSegment::new(self.chunk_capacity),
+        }
+    }
+
+    /// Initializes parallel scan states that will coordinate with each other
+    /// for scanning disjoint batches.
     pub fn init_parallel_scan_states(
         &self,
         num_parallel: usize,
@@ -68,12 +79,7 @@ impl ConcurrentColumnCollection {
         CreateParallelStateIter::new(num_parallel)
     }
 
-    pub fn init_append_state(&self) -> ColumnCollectionAppendState {
-        ColumnCollectionAppendState {
-            segment: ColumnCollectionSegment::new(self.chunk_capacity),
-        }
-    }
-
+    /// Initializes a scan state for reading all batches in the collection.
     pub fn init_scan_state(&self) -> ColumnCollectionScanState {
         ColumnCollectionScanState {
             next_segment_idx: 0,
@@ -142,6 +148,10 @@ impl ConcurrentColumnCollection {
         self.scan_inner(projections, state, output, |curr| curr + 1)
     }
 
+    /// Scans the next batch using a state that coordinates with sibling scan
+    /// states to ensure batches are read only once.
+    ///
+    /// Can be called interchangeably with `append_batch`.
     pub fn parallel_scan(
         &self,
         projections: &Projections,
@@ -196,6 +206,7 @@ impl ConcurrentColumnCollection {
     }
 }
 
+/// Helper for creating parallel scan states.
 #[derive(Debug)]
 struct CreateParallelStateIter {
     next: Arc<AtomicUsize>,
@@ -356,5 +367,53 @@ mod tests {
             .parallel_scan(&projections, &mut states[1], &mut output2)
             .unwrap();
         assert_eq!(0, output2.num_rows());
+    }
+
+    #[test]
+    fn scan_parallel_exhaust_refill() {
+        // Very small segments, chunks.
+        let collection = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 1, 2);
+
+        let projections = Projections::new([0, 1]);
+
+        let mut append_state = collection.init_append_state();
+        let mut scan_states: Vec<_> = collection.init_parallel_scan_states(2).collect();
+
+        // Append first batch.
+        let input1 = generate_batch!([4, 5], ["a", "b"]);
+        collection.append_batch(&mut append_state, &input1).unwrap();
+        collection.flush(&mut append_state).unwrap();
+
+        // Scan first batch.
+        //
+        // Assumes knowledge of internals -- states[0] will read the first
+        // segment, states[1] will read the next.
+        let mut out1 = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+        collection
+            .parallel_scan(&projections, &mut scan_states[0], &mut out1)
+            .unwrap();
+
+        let expected1 = generate_batch!([4, 5], ["a", "b"]);
+        assert_batches_eq(&expected1, &out1);
+
+        // Second scan is exhausted immediately.
+        let mut out2 = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+        collection
+            .parallel_scan(&projections, &mut scan_states[1], &mut out2)
+            .unwrap();
+        assert_eq!(0, out2.num_rows());
+
+        // Push more input.
+        let input2 = generate_batch!([6, 7], ["c", "d"]);
+        collection.append_batch(&mut append_state, &input2).unwrap();
+        collection.flush(&mut append_state).unwrap();
+
+        // Now we should be able to scan.
+        collection
+            .parallel_scan(&projections, &mut scan_states[1], &mut out2)
+            .unwrap();
+
+        let expected2 = generate_batch!([6, 7], ["c", "d"]);
+        assert_batches_eq(&expected2, &out2);
     }
 }
