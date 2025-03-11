@@ -1,15 +1,11 @@
 use rayexec_error::{not_implemented, Result};
 
-use super::{Materializations, OperatorPlanState};
+use super::OperatorPlanState;
 use crate::logical::logical_setop::{LogicalSetop, SetOpKind};
 use crate::logical::operator::Node;
 
 impl OperatorPlanState<'_> {
-    pub fn plan_set_operation(
-        &mut self,
-        materializations: &mut Materializations,
-        mut setop: Node<LogicalSetop>,
-    ) -> Result<()> {
+    pub fn plan_set_operation(&mut self, mut setop: Node<LogicalSetop>) -> Result<()> {
         let location = setop.location;
 
         let [left, right] = setop.take_two_children_exact()?;

@@ -22,6 +22,8 @@ mod plan_sort;
 mod plan_table_execute;
 mod plan_unnest;
 
+use std::collections::HashMap;
+
 use rayexec_error::{not_implemented, RayexecError, Result};
 use uuid::Uuid;
 
@@ -30,11 +32,13 @@ use crate::catalog::context::DatabaseContext;
 use crate::config::execution::OperatorPlanConfig;
 use crate::execution::operators::PlannedOperator;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
-use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::bind_context::{BindContext, MaterializationRef, PlanMaterialization};
 use crate::logical::operator::{self, LogicalOperator};
 
+/// Output of physical planning.
 #[derive(Debug)]
-pub struct QueryGraph {
+pub struct PlannedQueryGraph {
+    pub materializations: HashMap<MaterializationRef, PlannedOperatorWithChildren>,
     pub root: PlannedOperatorWithChildren,
 }
 
@@ -55,15 +59,19 @@ impl OperatorPlanner {
         &self,
         root: operator::LogicalOperator,
         db_context: &DatabaseContext,
-        bind_context: BindContext,
+        mut bind_context: BindContext,
         sink: O,
-    ) -> Result<QueryGraph>
+    ) -> Result<PlannedQueryGraph>
     where
         O: PushOperator,
     {
-        // TODO: Materializations....
-
+        let mats = bind_context.take_materializations();
         let mut state = OperatorPlanState::new(&self.config, db_context, &bind_context);
+
+        // Plan materializations first.
+        state.plan_materializations(mats)?;
+
+        // Now plan to query with access to all materializations.
         let root = state.plan(root)?;
 
         let planned_sink = PlannedOperator::new_push(sink);
@@ -73,14 +81,11 @@ impl OperatorPlanner {
             children: vec![root],
         };
 
-        Ok(QueryGraph { root })
+        Ok(PlannedQueryGraph {
+            root,
+            materializations: state.materializations,
+        })
     }
-}
-
-#[derive(Debug)]
-struct Materializations {
-    // local: IntermediateMaterializationGroup,
-    // TODO: Remote materializations.
 }
 
 #[derive(Debug)]
@@ -97,6 +102,13 @@ struct OperatorPlanState<'a> {
     bind_context: &'a BindContext,
     /// Expression planner for converting logical to physical expressions.
     expr_planner: PhysicalExpressionPlanner<'a>,
+    /// Mapping of materialization refs to the plans.
+    ///
+    /// When placing a materialization in the requesting plan, only the operator
+    /// should be cloned, and its children set to empty. This will act as a
+    /// "marker" during pipeline building allowing us to get the shared operator
+    /// state.
+    materializations: HashMap<MaterializationRef, PlannedOperatorWithChildren>,
 }
 
 impl<'a> OperatorPlanState<'a> {
@@ -112,42 +124,33 @@ impl<'a> OperatorPlanState<'a> {
             db_context,
             bind_context,
             expr_planner,
+            materializations: HashMap::new(),
         }
     }
 
     /// Plan materializations from the bind context.
-    fn plan_materializations(&mut self) -> Result<Materializations> {
+    ///
+    /// The planned materializations will be placed in this plan state.
+    fn plan_materializations(&mut self, materializations: Vec<PlanMaterialization>) -> Result<()> {
         // TODO: The way this and the materialization ref is implemented allows
         // materializations to depend on previously planned materializations.
         // Unsure if we want to make that a strong guarantee (probably yes).
 
-        unimplemented!()
-        // let mut materializations = Materializations {
-        //     local: IntermediateMaterializationGroup::default(),
-        // };
+        for mat in materializations {
+            let mat_root = self.plan(mat.plan)?;
+            if self
+                .materializations
+                .insert(mat.mat_ref, mat_root)
+                .is_some()
+            {
+                return Err(RayexecError::new(format!(
+                    "Duplicate materialization ref: {}",
+                    mat.mat_ref
+                )));
+            }
+        }
 
-        // for mat in self.bind_context.iter_materializations() {
-        //     self.walk(&mut materializations, id_gen, mat.plan.clone())?; // TODO: The clone is unfortunate.
-
-        //     let in_progress = self.take_in_progress_pipeline()?;
-        //     if in_progress.location == LocationRequirement::Remote {
-        //         not_implemented!("remote materializations");
-        //     }
-
-        //     let intermediate = IntermediateMaterialization {
-        //         id: in_progress.id,
-        //         source: in_progress.source,
-        //         operators: in_progress.operators,
-        //         scan_count: mat.scan_count,
-        //     };
-
-        //     materializations
-        //         .local
-        //         .materializations
-        //         .insert(mat.mat_ref, intermediate);
-        // }
-
-        // Ok(materializations)
+        Ok(())
     }
 
     fn plan(&mut self, plan: LogicalOperator) -> Result<PlannedOperatorWithChildren> {

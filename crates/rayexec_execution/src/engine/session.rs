@@ -15,7 +15,7 @@ use crate::config::session::SessionConfig;
 use crate::execution::operators::results::streaming::{PhysicalStreamingResults, ResultStream};
 use crate::execution::operators::{ExecutionProperties, PushOperator};
 use crate::execution::pipeline::ExecutablePipelineGraph;
-use crate::execution::planner::{OperatorPlanner, QueryGraph};
+use crate::execution::planner::{OperatorPlanner, PlannedQueryGraph};
 use crate::explain::node::ExplainNode;
 use crate::logical::binder::bind_statement::StatementBinder;
 use crate::logical::logical_set::VariableOrAll;
@@ -91,7 +91,7 @@ enum ExecutionMode {
 struct IntermediatePortal {
     query_id: Uuid,
     execution_mode: ExecutionMode,
-    query_graph: QueryGraph,
+    query_graph: PlannedQueryGraph,
     output_schema: ColumnSchema,
 }
 

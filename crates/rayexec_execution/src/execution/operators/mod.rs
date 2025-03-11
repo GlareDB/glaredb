@@ -31,6 +31,7 @@ use super::pipeline::{ExecutablePipeline, ExecutablePipelineGraph};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::binder::bind_context::MaterializationRef;
 
 /// Poll result for operator execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -143,7 +144,15 @@ impl OperatorType {
             Self::Execute | Self::Push => 1,
             Self::Pull => 0,
             Self::PushExecute => 2,
-            Self::Materializing => 1,
+            // When reaching a materialize node during pipeline planning, the
+            // children should not be on the materialization. Children planning
+            // happens before we build the pipelines for the rest of the query.
+            //
+            // Instead we'll reach into the pipeline graph to get the correct
+            // materialization operator (and state) to use, letting us share the
+            // operator state between the sink side and any number of the source
+            // sides.
+            Self::Materializing => 0,
         }
     }
 }
@@ -212,6 +221,12 @@ pub trait BaseOperator: Sync + Send + Debug + Explainable + 'static {
             }
         }
     }
+}
+
+pub trait MaterializingOperator: PushOperator + PullOperator {
+    /// Return the materialization reference associated with this
+    /// materialization.
+    fn materialization_ref(&self) -> MaterializationRef;
 }
 
 pub trait ExecuteOperator: BaseOperator {
@@ -364,6 +379,17 @@ impl PlannedOperator {
         }
     }
 
+    pub fn new_materializing<O>(op: O) -> Self
+    where
+        O: MaterializingOperator,
+    {
+        PlannedOperator {
+            operator: Arc::new(op),
+            vtable: MaterializingOperatorVTable::<O>::VTABLE,
+            operator_type: MaterializingOperatorVTable::<O>::OPERATOR_TYPE,
+        }
+    }
+
     pub fn call_create_operator_state(
         &self,
         props: ExecutionProperties,
@@ -373,6 +399,10 @@ impl PlannedOperator {
 
     pub fn call_output_types(&self) -> Vec<DataType> {
         unsafe { (self.vtable.output_types_fn)(self.operator.as_ref()) }
+    }
+
+    pub fn call_materialization_ref(&self) -> Result<MaterializationRef> {
+        unsafe { (self.vtable.materialization_ref_fn)(self.operator.as_ref()) }
     }
 
     pub fn call_create_partition_execute_states(
@@ -533,6 +563,8 @@ pub(crate) struct RawOperatorVTable {
 
     output_types_fn: unsafe fn(operator: &dyn Any) -> Vec<DataType>,
 
+    materialization_ref_fn: unsafe fn(operator: &dyn Any) -> Result<MaterializationRef>,
+
     build_pipeline_fn: unsafe fn(
         operator: &PlannedOperator,
         children: &[PlannedOperatorWithChildren],
@@ -635,6 +667,8 @@ where
             operator.output_types().to_vec()
         },
 
+        materialization_ref_fn: |operator| Err(RayexecError::new("Not a materializing operator")),
+
         build_pipeline_fn: |operator, children, props, graph, current| {
             O::build_pipeline(operator, children, props, graph, current)
         },
@@ -716,6 +750,8 @@ where
             operator.output_types().to_vec()
         },
 
+        materialization_ref_fn: |operator| Err(RayexecError::new("Not a materializing operator")),
+
         build_pipeline_fn: |operator, children, props, graph, current| {
             O::build_pipeline(operator, children, props, graph, current)
         },
@@ -796,6 +832,8 @@ where
             let operator = operator.downcast_ref::<O>().unwrap();
             operator.output_types().to_vec()
         },
+
+        materialization_ref_fn: |operator| Err(RayexecError::new("Not a materializing operator")),
 
         build_pipeline_fn: |operator, children, props, graph, current| {
             O::build_pipeline(operator, children, props, graph, current)
@@ -903,6 +941,8 @@ where
             operator.output_types().to_vec()
         },
 
+        materialization_ref_fn: |operator| Err(RayexecError::new("Not a materializing operator")),
+
         build_pipeline_fn: |operator, children, props, graph, current| {
             O::build_pipeline(operator, children, props, graph, current)
         },
@@ -957,11 +997,11 @@ where
     };
 }
 
-struct MaterializingOperatorVTable<O: PullOperator + PushOperator>(PhantomData<O>);
+struct MaterializingOperatorVTable<O: MaterializingOperator>(PhantomData<O>);
 
 impl<O> OperatorVTable for MaterializingOperatorVTable<O>
 where
-    O: PullOperator + PushOperator,
+    O: MaterializingOperator,
 {
     const OPERATOR_TYPE: OperatorType = OperatorType::Materializing;
 
@@ -975,6 +1015,11 @@ where
         output_types_fn: |operator| {
             let operator = operator.downcast_ref::<O>().unwrap();
             operator.output_types().to_vec()
+        },
+
+        materialization_ref_fn: |operator| {
+            let operator = operator.downcast_ref::<O>().unwrap();
+            Ok(operator.materialization_ref())
         },
 
         build_pipeline_fn: |operator, children, props, graph, current| {

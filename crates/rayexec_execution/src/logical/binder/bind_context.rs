@@ -313,8 +313,15 @@ impl BindContext {
             })
     }
 
-    pub fn iter_materializations(&self) -> impl Iterator<Item = &PlanMaterialization> {
-        self.materializations.iter()
+    /// Takes the materializations from this bind context.
+    ///
+    /// This should only be called once during physical planning.
+    // TODO: Maybe have this take the inner plan, but keep the
+    // `PlanMaterialization` in the context. Might be useful for centralizing
+    // the table refs for materializations instead of having to clone them into
+    // the scans.
+    pub fn take_materializations(&mut self) -> Vec<PlanMaterialization> {
+        std::mem::take(&mut self.materializations)
     }
 
     pub fn get_parent_ref(&self, bind_ref: BindScopeRef) -> Result<Option<BindScopeRef>> {

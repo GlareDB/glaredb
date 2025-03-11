@@ -1,15 +1,11 @@
 use rayexec_error::{Result, ResultExt};
 
-use super::{Materializations, OperatorPlanState};
+use super::OperatorPlanState;
 use crate::logical::logical_unnest::LogicalUnnest;
 use crate::logical::operator::{LogicalNode, Node};
 
 impl OperatorPlanState<'_> {
-    pub fn plan_unnest(
-        &mut self,
-        materializations: &mut Materializations,
-        mut unnest: Node<LogicalUnnest>,
-    ) -> Result<()> {
+    pub fn plan_unnest(&mut self, mut unnest: Node<LogicalUnnest>) -> Result<()> {
         let location = unnest.location;
 
         let input = unnest.take_one_child_exact()?;

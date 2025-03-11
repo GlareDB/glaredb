@@ -6,6 +6,7 @@ use rayexec_error::Result;
 use super::{
     BaseOperator,
     ExecutionProperties,
+    MaterializingOperator,
     PollFinalize,
     PollPull,
     PollPush,
@@ -21,6 +22,7 @@ use crate::arrays::collection::concurrent::{
 use crate::arrays::datatype::DataType;
 use crate::execution::partition_wakers::PartitionWakers;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::logical::binder::bind_context::MaterializationRef;
 use crate::storage::projections::Projections;
 
 #[derive(Debug)]
@@ -66,6 +68,8 @@ pub struct MaterializePullPartitionState {
 pub struct PhysicalMaterialize {
     /// Datatypes materialized batches.
     pub(crate) datatypes: Vec<DataType>,
+    /// The materialization reference associated with this node.
+    pub(crate) materialization_ref: MaterializationRef,
 }
 
 impl BaseOperator for PhysicalMaterialize {
@@ -87,6 +91,12 @@ impl BaseOperator for PhysicalMaterialize {
 
     fn output_types(&self) -> &[DataType] {
         &self.datatypes
+    }
+}
+
+impl MaterializingOperator for PhysicalMaterialize {
+    fn materialization_ref(&self) -> MaterializationRef {
+        self.materialization_ref
     }
 }
 
@@ -244,6 +254,9 @@ mod tests {
     fn single_input_two_outputs() {
         let wrapper = OperatorWrapper::new(PhysicalMaterialize {
             datatypes: vec![DataType::Int32],
+            materialization_ref: MaterializationRef {
+                materialization_idx: 0,
+            },
         });
 
         let props = ExecutionProperties { batch_size: 4 };

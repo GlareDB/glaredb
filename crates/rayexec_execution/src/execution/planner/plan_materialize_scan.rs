@@ -1,15 +1,11 @@
 use rayexec_error::Result;
 
-use super::{Materializations, OperatorPlanState};
+use super::OperatorPlanState;
 use crate::logical::logical_materialization::LogicalMaterializationScan;
 use crate::logical::operator::Node;
 
 impl OperatorPlanState<'_> {
-    pub fn plan_materialize_scan(
-        &mut self,
-        materializations: &mut Materializations,
-        scan: Node<LogicalMaterializationScan>,
-    ) -> Result<()> {
+    pub fn plan_materialize_scan(&mut self, scan: Node<LogicalMaterializationScan>) -> Result<()> {
         // if !materializations
         //     .local
         //     .materializations

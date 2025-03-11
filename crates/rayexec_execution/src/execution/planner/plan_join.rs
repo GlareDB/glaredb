@@ -1,6 +1,6 @@
 use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
 
-use super::{Materializations, OperatorPlanState};
+use super::OperatorPlanState;
 use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::expr::comparison_expr::ComparisonOperator;

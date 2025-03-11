@@ -1,13 +1,12 @@
 use rayexec_error::Result;
 
-use super::{Materializations, OperatorPlanState};
+use super::OperatorPlanState;
 use crate::logical::logical_materialization::LogicalMagicMaterializationScan;
 use crate::logical::operator::Node;
 
 impl OperatorPlanState<'_> {
     pub fn plan_magic_materialize_scan(
         &mut self,
-        materializations: &mut Materializations,
         scan: Node<LogicalMagicMaterializationScan>,
     ) -> Result<()> {
         // if !materializations

@@ -1,15 +1,11 @@
 use rayexec_error::Result;
 
-use super::{Materializations, OperatorPlanState};
+use super::OperatorPlanState;
 use crate::logical::logical_distinct::LogicalDistinct;
 use crate::logical::operator::{LogicalNode, Node};
 
 impl OperatorPlanState<'_> {
-    pub fn plan_distinct(
-        &mut self,
-        materializations: &mut Materializations,
-        mut distinct: Node<LogicalDistinct>,
-    ) -> Result<()> {
+    pub fn plan_distinct(&mut self, mut distinct: Node<LogicalDistinct>) -> Result<()> {
         let input = distinct.take_one_child_exact()?;
         let input_refs = input.get_output_table_refs(self.bind_context);
         // self.walk(materializations, input)?;

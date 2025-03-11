@@ -1,19 +1,33 @@
+use std::collections::HashMap;
+
 use rayexec_error::{RayexecError, Result};
 
 use super::operators::{AnyOperatorState, ExecutionProperties, PlannedOperator};
 use super::partition_pipeline::ExecutablePartitionPipeline;
-use super::planner::QueryGraph;
+use super::planner::PlannedQueryGraph;
 use crate::arrays::batch::Batch;
 use crate::execution::execution_stack::ExecutionStack;
+use crate::logical::binder::bind_context::MaterializationRef;
+
+#[derive(Debug)]
+pub struct ExecutableMaterialization {
+    pub(crate) operator: PlannedOperator,
+    pub(crate) operator_state: AnyOperatorState,
+}
 
 #[derive(Debug)]
 pub struct ExecutablePipelineGraph {
+    pub(crate) materializations: HashMap<MaterializationRef, ExecutableMaterialization>,
     pub(crate) pipelines: Vec<ExecutablePipeline>,
 }
 
 impl ExecutablePipelineGraph {
-    pub fn plan_from_graph(props: ExecutionProperties, query_graph: QueryGraph) -> Result<Self> {
+    pub fn plan_from_graph(
+        props: ExecutionProperties,
+        query_graph: PlannedQueryGraph,
+    ) -> Result<Self> {
         let mut pipeline_graph = ExecutablePipelineGraph {
+            materializations: HashMap::new(),
             pipelines: Vec::new(),
         };
 
