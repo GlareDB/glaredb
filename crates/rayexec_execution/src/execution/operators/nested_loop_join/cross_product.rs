@@ -105,7 +105,7 @@ impl CrossProductState {
         output.set_num_rows(right.num_rows)?;
 
         self.batch_row_idx += 1;
-        self.batch_row_idx += 1;
+        self.collection_row_idx += 1;
 
         Ok(true)
     }
