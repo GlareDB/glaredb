@@ -56,16 +56,22 @@ impl OperatorPlanState<'_> {
 
         // Need to fall back to nested loop join.
 
-        if join.node.join_type != JoinType::Inner {
-            not_implemented!("join type with nl join: {}", join.node.join_type);
-        }
-
-        let table_refs = join.get_output_table_refs(self.bind_context);
         let [left, right] = join.take_two_children_exact()?;
+        let left_refs = left.get_output_table_refs(self.bind_context);
+        let right_refs = right.get_output_table_refs(self.bind_context);
 
         let condition = if join.node.conditions.is_empty() {
             None
         } else {
+            // TODO: `main` branch had nl join use the table refs from the
+            // output of the nl join, not from the children... Unsure if that's
+            // a bug, or I had a reason for that.
+            let table_refs: Vec<_> = left_refs
+                .iter()
+                .cloned()
+                .chain(right_refs.iter().cloned())
+                .collect();
+
             let condition: Expression =
                 expr::and(join.node.conditions.into_iter().map(Expression::Comparison))?.into();
             let condition = self
@@ -140,7 +146,7 @@ impl OperatorPlanState<'_> {
             left.operator.call_output_types(),
             right.operator.call_output_types(),
             filter,
-        );
+        )?;
 
         Ok(PlannedOperatorWithChildren {
             operator: PlannedOperator::new_push_execute(join),

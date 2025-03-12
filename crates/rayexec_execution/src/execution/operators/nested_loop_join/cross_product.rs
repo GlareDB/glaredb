@@ -20,8 +20,12 @@ pub struct CrossProductState {
     scan_state: Option<ColumnCollectionScanState>,
     /// Batch containing data from the left side.
     batch: Batch,
-    /// Current row we're processing.
-    row_idx: usize,
+    /// Current row relative to the batch we're processing.
+    batch_row_idx: usize,
+    /// Current row relative to the entire collection.
+    ///
+    /// Used to set matches for the left side.
+    collection_row_idx: usize,
     /// Projections out of the column collection. Should project all columns.
     projections: Projections,
 }
@@ -35,9 +39,14 @@ impl CrossProductState {
         Ok(CrossProductState {
             scan_state: None,
             batch,
-            row_idx: 0,
+            batch_row_idx: 0,
+            collection_row_idx: 0,
             projections,
         })
+    }
+
+    pub fn collection_row_idx(&self) -> usize {
+        self.collection_row_idx
     }
 
     /// Try to scan the next cross-product into `output`.
@@ -49,7 +58,7 @@ impl CrossProductState {
     /// If this returns false, then a new right-side batch should be provided.
     /// Internally keeps state to reset the left-side scan to the beginning when
     /// `false` is returned.
-    pub fn try_next(
+    pub fn scan_next(
         &mut self,
         left: &ConcurrentColumnCollection,
         right: &mut Batch,
@@ -63,9 +72,9 @@ impl CrossProductState {
             }
         };
 
-        if self.row_idx >= self.batch.num_rows() {
+        if self.batch_row_idx >= self.batch.num_rows() {
             // Scan next batch.
-            self.row_idx = 0;
+            self.batch_row_idx = 0;
             let count = left.scan(&self.projections, scan_state, &mut self.batch)?;
             if count == 0 {
                 // We're done.
@@ -81,7 +90,7 @@ impl CrossProductState {
             let left = &mut self.batch.arrays[idx];
             let dest = &mut output.arrays[idx];
 
-            dest.clone_constant_from(left, self.row_idx, right.num_rows(), &mut NopCache)?;
+            dest.clone_constant_from(left, self.batch_row_idx, right.num_rows(), &mut NopCache)?;
         }
 
         // Now just move the right array over.
@@ -94,7 +103,9 @@ impl CrossProductState {
         }
 
         output.set_num_rows(right.num_rows)?;
-        self.row_idx += 1;
+
+        self.batch_row_idx += 1;
+        self.batch_row_idx += 1;
 
         Ok(true)
     }
@@ -125,7 +136,7 @@ mod tests {
             Batch::new([DataType::Int32, DataType::Utf8, DataType::Float64], 16).unwrap();
 
         let did_write_out = cross_state
-            .try_next(&collection, &mut right, &mut output)
+            .scan_next(&collection, &mut right, &mut output)
             .unwrap();
         assert!(did_write_out);
 
@@ -133,7 +144,7 @@ mod tests {
         assert_batches_eq(&expected, &output);
 
         let did_write_out = cross_state
-            .try_next(&collection, &mut right, &mut output)
+            .scan_next(&collection, &mut right, &mut output)
             .unwrap();
         assert!(did_write_out);
 
@@ -141,7 +152,7 @@ mod tests {
         assert_batches_eq(&expected, &output);
 
         let did_write_out = cross_state
-            .try_next(&collection, &mut right, &mut output)
+            .scan_next(&collection, &mut right, &mut output)
             .unwrap();
         assert!(!did_write_out);
         assert_eq!(0, output.num_rows);
@@ -151,7 +162,7 @@ mod tests {
         let mut right = generate_batch!([7.5, 8.0]);
 
         let did_write_out = cross_state
-            .try_next(&collection, &mut right, &mut output)
+            .scan_next(&collection, &mut right, &mut output)
             .unwrap();
         assert!(did_write_out);
 
@@ -159,7 +170,7 @@ mod tests {
         assert_batches_eq(&expected, &output);
 
         let did_write_out = cross_state
-            .try_next(&collection, &mut right, &mut output)
+            .scan_next(&collection, &mut right, &mut output)
             .unwrap();
         assert!(did_write_out);
 

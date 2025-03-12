@@ -88,6 +88,13 @@ impl ConcurrentColumnCollection {
         }
     }
 
+    /// Gets the total number of rows in the collection.
+    ///
+    /// This will lock the segments while iterating.
+    pub fn total_rows(&self) -> usize {
+        self.segments.lock().iter().map(|s| s.num_rows()).sum()
+    }
+
     pub fn datatypes(&self) -> &[DataType] {
         &self.datatypes
     }

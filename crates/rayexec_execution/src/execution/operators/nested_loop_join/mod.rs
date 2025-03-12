@@ -1,10 +1,12 @@
 mod cross_product;
+mod match_tracker;
 
 use std::task::Context;
 
 use cross_product::CrossProductState;
+use match_tracker::MatchTracker;
 use parking_lot::Mutex;
-use rayexec_error::{not_implemented, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 
 use super::{
     BaseOperator,
@@ -19,6 +21,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::collection::concurrent::{
     ColumnCollectionAppendState,
     ConcurrentColumnCollection,
+    ParallelColumnCollectionScanState,
 };
 use crate::arrays::datatype::DataType;
 use crate::execution::partition_wakers::PartitionWakers;
@@ -39,6 +42,12 @@ struct StateInner {
     remaining_build_inputs: usize,
     /// Wakers for pending probes if we're still building.
     probe_wakers: PartitionWakers,
+    /// Rows in the left collection that matched.
+    ///
+    /// This is relative to the entire collection.
+    ///
+    /// Only used for LEFT/OUTER joins.
+    left_matches: MatchTracker,
 }
 
 #[derive(Debug)]
@@ -56,6 +65,10 @@ pub struct NestedLoopJoinProbeState {
     cross_state: CrossProductState,
     /// Condition evaluator.
     evaluator: Option<SelectionEvaluator>,
+    /// Rows in the right batch that matched.
+    ///
+    /// Only used for RIGHT/OUTER joins.
+    right_matches: MatchTracker,
 }
 
 #[derive(Debug)]
@@ -73,7 +86,13 @@ impl PhysicalNestedLoopJoin {
         left_types: impl IntoIterator<Item = DataType>,
         right_types: impl IntoIterator<Item = DataType>,
         filter: Option<PhysicalScalarExpression>,
-    ) -> Self {
+    ) -> Result<Self> {
+        if !matches!(join_type, JoinType::Inner | JoinType::Right) {
+            return Err(RayexecError::new(format!(
+                "Unsupported join type for nested loop join: {join_type}",
+            )));
+        }
+
         let left_types: Vec<_> = left_types.into_iter().collect();
         let right_types: Vec<_> = right_types.into_iter().collect();
         // TODO: Mark/semi/anti
@@ -83,13 +102,13 @@ impl PhysicalNestedLoopJoin {
             .chain(right_types.iter().cloned())
             .collect();
 
-        PhysicalNestedLoopJoin {
+        Ok(PhysicalNestedLoopJoin {
             join_type,
             left_types,
             right_types,
             output_types,
             filter,
-        }
+        })
     }
 }
 
@@ -103,6 +122,7 @@ impl BaseOperator for PhysicalNestedLoopJoin {
         let inner = StateInner {
             remaining_build_inputs: 0, // Set when creating push partition states.
             probe_wakers: PartitionWakers::empty(), // Set when creating probe partition states.
+            left_matches: MatchTracker::empty(),
         };
 
         Ok(NestedLoopJoinOperatorState {
@@ -165,6 +185,12 @@ impl PushOperator for PhysicalNestedLoopJoin {
         // probers.
         if inner.remaining_build_inputs == 0 {
             inner.probe_wakers.wake_all();
+
+            // Init left matches if needed.
+            if matches!(self.join_type, JoinType::Left) {
+                let num_rows_left = operator_state.collected.total_rows();
+                inner.left_matches.ensure_initialized(num_rows_left);
+            }
         }
 
         Ok(PollFinalize::Finalized)
@@ -202,6 +228,7 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
                     build_complete: false,
                     cross_state: CrossProductState::new(self.left_types.iter().cloned())?,
                     evaluator,
+                    right_matches: MatchTracker::empty(),
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -230,14 +257,34 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
             state.build_complete = true;
         }
 
+        if matches!(self.join_type, JoinType::Right) {
+            // Note this doesn't clear the existing values. This essentially
+            // acts as an initialization step during new right-side batches.
+            state.right_matches.ensure_initialized(input.num_rows());
+        }
+
         loop {
-            let keep_scanning =
+            output.reset_for_write()?;
+
+            let keep_right =
                 state
                     .cross_state
-                    .try_next(&operator_state.collected, input, output)?;
+                    .scan_next(&operator_state.collected, input, output)?;
 
-            if !keep_scanning {
+            if !keep_right {
+                // We're done scanning the right batch. Finish up any remaining
+                // scanning and request a new batch.
+
                 // TODO: Join types, etc.
+
+                if matches!(self.join_type, JoinType::Right) {
+                    // Find rows that didn't match from the right, and flush
+                    // them out with null left side values.
+                    state.right_matches.right_outer_result(input, output)?;
+                    state.right_matches.reset();
+
+                    return Ok(PollExecute::Ready);
+                }
 
                 // Need to move to next batch.
                 return Ok(PollExecute::NeedsMore);
@@ -248,10 +295,24 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
                     // Evaluate the selection on the output of the cross
                     // product.
                     let selection = evaluator.select(output)?;
+
                     if selection.is_empty() {
                         // Evaluated empty, reset the chunk and try again.
-                        output.reset_for_write()?;
                         continue;
+                    }
+
+                    if matches!(self.join_type, JoinType::Right) {
+                        // Mark right rows as matched.
+                        state.right_matches.set_matches(selection.iter().copied());
+                    }
+
+                    if matches!(self.join_type, JoinType::Left) {
+                        // Marke left _row_ as matched. Note that we produce a
+                        // row at a time for the left.
+                        let mut inner = operator_state.inner.lock();
+                        inner
+                            .left_matches
+                            .set_match(state.cross_state.collection_row_idx());
                     }
 
                     // We have a selection, select the output.
@@ -296,12 +357,10 @@ mod tests {
 
     #[test]
     fn cross_join_single_partition() {
-        let wrapper = OperatorWrapper::new(PhysicalNestedLoopJoin::new(
-            JoinType::Inner,
-            [DataType::Utf8],
-            [DataType::Int32],
-            None,
-        ));
+        let wrapper = OperatorWrapper::new(
+            PhysicalNestedLoopJoin::new(JoinType::Inner, [DataType::Utf8], [DataType::Int32], None)
+                .unwrap(),
+        );
 
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();
@@ -361,12 +420,15 @@ mod tests {
             .unwrap(),
         );
 
-        let wrapper = OperatorWrapper::new(PhysicalNestedLoopJoin::new(
-            JoinType::Inner,
-            [DataType::Int32],
-            [DataType::Int32],
-            Some(expr),
-        ));
+        let wrapper = OperatorWrapper::new(
+            PhysicalNestedLoopJoin::new(
+                JoinType::Inner,
+                [DataType::Int32],
+                [DataType::Int32],
+                Some(expr),
+            )
+            .unwrap(),
+        );
 
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();
