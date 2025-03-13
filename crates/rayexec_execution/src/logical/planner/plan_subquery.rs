@@ -24,7 +24,6 @@ use crate::logical::logical_materialization::{
     LogicalMaterializationScan,
 };
 use crate::logical::logical_project::LogicalProject;
-use crate::logical::logical_scan::ScanSource;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::planner::plan_query::QueryPlanner;
 use crate::logical::statistics::StatisticsValue;
@@ -694,6 +693,12 @@ impl DependentJoinPushdown {
                 );
                 has_correlation |= self.find_correlations_in_children(&inout.children)?;
             }
+            LogicalOperator::ExpressionList(list) => {
+                for row in &list.node.rows {
+                    has_correlation |= self.any_expression_has_correlation(row);
+                }
+                has_correlation |= self.find_correlations_in_children(&list.children)?;
+            }
             _ => (),
         }
 
@@ -838,6 +843,55 @@ impl DependentJoinPushdown {
                         correlated.clone(),
                         ColumnReference {
                             table_scope: project.node.projection_table,
+                            column: offset + idx,
+                        },
+                    );
+                }
+
+                Ok(())
+            }
+            LogicalOperator::ExpressionList(list) => {
+                self.pushdown_children(bind_context, &mut list.children)?;
+
+                // Rewrite the original expressions.
+                for row in &mut list.node.rows {
+                    self.rewrite_expressions(bind_context, row)?;
+                }
+
+                // Now append the materialized columns.
+                let offset = list.node.types.len();
+                for (idx, correlated) in self.columns.iter().enumerate() {
+                    let reference = *self.column_map.get(correlated).ok_or_else(|| {
+                            RayexecError::new(
+                                format!("Missing correlated column in column map for appending expression to expression list: {correlated:?}"))
+                    })?;
+
+                    let datatype = bind_context.get_column_type(reference)?;
+                    let expr = Expression::Column(ColumnExpr {
+                        reference,
+                        datatype: datatype.clone(),
+                    });
+
+                    bind_context.push_column_for_table(
+                        list.node.table_ref,
+                        format!("__generated_expression_list_decorrelation_{idx}"),
+                        datatype.clone(),
+                    )?;
+
+                    // Append datatype, as well as the new expression. This new
+                    // expression needs to be appended to each row in the
+                    // expression list.
+                    list.node.types.push(datatype);
+
+                    for row in &mut list.node.rows {
+                        row.push(expr.clone());
+                    }
+
+                    // And update column map.
+                    self.column_map.insert(
+                        correlated.clone(),
+                        ColumnReference {
+                            table_scope: list.node.table_ref,
                             column: offset + idx,
                         },
                     );
