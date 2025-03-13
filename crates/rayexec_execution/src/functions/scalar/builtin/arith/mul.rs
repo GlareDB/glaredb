@@ -230,8 +230,8 @@ where
         let d1 = inputs[0].datatype()?;
         let d2 = inputs[1].datatype()?;
 
-        let m1 = D::try_unwrap_decimal_meta(&d1).required("Decimal data type")?;
-        let m2 = D::try_unwrap_decimal_meta(&d2).required("Decimal data type")?;
+        let m1 = D::decimal_meta_opt(&d1).required("Decimal data type")?;
+        let m2 = D::decimal_meta_opt(&d2).required("Decimal data type")?;
 
         // Since we're multiplying, might as well go wide as possible.
         // Eventually we'll want to bumpt up to 128 if the precision is

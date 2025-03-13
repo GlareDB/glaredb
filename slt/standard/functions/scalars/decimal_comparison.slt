@@ -11,7 +11,37 @@ SELECT 1.3::DECIMAL(6, 4) < 1.4::DECIMAL(6, 2);
 true
 
 query ?
+SELECT 1.3::DECIMAL(6, 4) > 1.4::DECIMAL(6, 2);
+----
+false
+
+query ?
 SELECT sum(1.3::DECIMAL(6, 4)) < 1.4::DECIMAL(6, 2);
 ----
 true
 
+query ?
+SELECT 1.2::DECIMAL(6,4) = 1.3::DECIMAL(6,4);
+----
+false
+
+query ?
+SELECT 1.3::DECIMAL(6,4) = 1.3::DECIMAL(6,4);
+----
+true
+
+query ?
+SELECT 1.3::DECIMAL(6,4) = 1.3::DECIMAL(6,2);
+----
+true
+
+query ?
+SELECT 1.01::DECIMAL(6,4) = 1.01::DECIMAL(6,2);
+----
+true
+
+# Implicitly truncates the right value.
+query ?
+SELECT 1.001::DECIMAL(6,4) = 1.001::DECIMAL(6,2);
+----
+false

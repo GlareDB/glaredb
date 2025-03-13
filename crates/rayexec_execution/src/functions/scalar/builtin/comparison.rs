@@ -25,10 +25,11 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::arrays::executor::OutBuffer;
-use crate::expr::Expression;
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::expr::{self, Expression};
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
@@ -382,124 +383,73 @@ where
     O: ComparisonOperation,
 {
     [
-        RawScalarFunction::new(
-            &SIGS.bool,
-            UnnestedComparisonImpl::<O, PhysicalBool>::new_static(),
-        ),
+        RawScalarFunction::new(&SIGS.bool, FlatComparison::<O, PhysicalBool>::new_static()),
         // Ints
-        RawScalarFunction::new(
-            &SIGS.i8,
-            UnnestedComparisonImpl::<O, PhysicalI8>::new_static(),
-        ),
-        RawScalarFunction::new(
-            &SIGS.i16,
-            UnnestedComparisonImpl::<O, PhysicalI16>::new_static(),
-        ),
-        RawScalarFunction::new(
-            &SIGS.i32,
-            UnnestedComparisonImpl::<O, PhysicalI32>::new_static(),
-        ),
-        RawScalarFunction::new(
-            &SIGS.i64,
-            UnnestedComparisonImpl::<O, PhysicalI64>::new_static(),
-        ),
-        RawScalarFunction::new(
-            &SIGS.i128,
-            UnnestedComparisonImpl::<O, PhysicalI128>::new_static(),
-        ),
-        RawScalarFunction::new(
-            &SIGS.u8,
-            UnnestedComparisonImpl::<O, PhysicalU8>::new_static(),
-        ),
-        RawScalarFunction::new(
-            &SIGS.u16,
-            UnnestedComparisonImpl::<O, PhysicalU16>::new_static(),
-        ),
-        RawScalarFunction::new(
-            &SIGS.u32,
-            UnnestedComparisonImpl::<O, PhysicalU32>::new_static(),
-        ),
-        RawScalarFunction::new(
-            &SIGS.u64,
-            UnnestedComparisonImpl::<O, PhysicalU64>::new_static(),
-        ),
-        RawScalarFunction::new(
-            &SIGS.u128,
-            UnnestedComparisonImpl::<O, PhysicalU128>::new_static(),
-        ),
+        RawScalarFunction::new(&SIGS.i8, FlatComparison::<O, PhysicalI8>::new_static()),
+        RawScalarFunction::new(&SIGS.i16, FlatComparison::<O, PhysicalI16>::new_static()),
+        RawScalarFunction::new(&SIGS.i32, FlatComparison::<O, PhysicalI32>::new_static()),
+        RawScalarFunction::new(&SIGS.i64, FlatComparison::<O, PhysicalI64>::new_static()),
+        RawScalarFunction::new(&SIGS.i128, FlatComparison::<O, PhysicalI128>::new_static()),
+        RawScalarFunction::new(&SIGS.u8, FlatComparison::<O, PhysicalU8>::new_static()),
+        RawScalarFunction::new(&SIGS.u16, FlatComparison::<O, PhysicalU16>::new_static()),
+        RawScalarFunction::new(&SIGS.u32, FlatComparison::<O, PhysicalU32>::new_static()),
+        RawScalarFunction::new(&SIGS.u64, FlatComparison::<O, PhysicalU64>::new_static()),
+        RawScalarFunction::new(&SIGS.u128, FlatComparison::<O, PhysicalU128>::new_static()),
         // Floats
-        RawScalarFunction::new(
-            &SIGS.f16,
-            UnnestedComparisonImpl::<O, PhysicalF16>::new_static(),
-        ),
-        RawScalarFunction::new(
-            &SIGS.f32,
-            UnnestedComparisonImpl::<O, PhysicalF32>::new_static(),
-        ),
-        RawScalarFunction::new(
-            &SIGS.f64,
-            UnnestedComparisonImpl::<O, PhysicalF64>::new_static(),
-        ),
+        RawScalarFunction::new(&SIGS.f16, FlatComparison::<O, PhysicalF16>::new_static()),
+        RawScalarFunction::new(&SIGS.f32, FlatComparison::<O, PhysicalF32>::new_static()),
+        RawScalarFunction::new(&SIGS.f64, FlatComparison::<O, PhysicalF64>::new_static()),
         // Date/times
-        RawScalarFunction::new(
-            &SIGS.date32,
-            UnnestedComparisonImpl::<O, PhysicalI32>::new_static(),
-        ),
-        RawScalarFunction::new(
-            &SIGS.date64,
-            UnnestedComparisonImpl::<O, PhysicalI64>::new_static(),
-        ),
+        RawScalarFunction::new(&SIGS.date32, FlatComparison::<O, PhysicalI32>::new_static()),
+        RawScalarFunction::new(&SIGS.date64, FlatComparison::<O, PhysicalI64>::new_static()),
         // TODO: Probably scale
         RawScalarFunction::new(
             &SIGS.timestamp,
-            UnnestedComparisonImpl::<O, PhysicalI64>::new_static(),
+            FlatComparison::<O, PhysicalI64>::new_static(),
         ),
         RawScalarFunction::new(
             &SIGS.interval,
-            UnnestedComparisonImpl::<O, PhysicalInterval>::new_static(),
+            FlatComparison::<O, PhysicalInterval>::new_static(),
         ),
         // Decimals
         // TODO: Definitely scale
         RawScalarFunction::new(
             &SIGS.decimal64,
-            UnnestedComparisonImpl::<O, PhysicalI64>::new_static(),
+            DecimalComparison::<O, Decimal64Type>::new_static(),
         ),
         RawScalarFunction::new(
             &SIGS.decimal128,
-            UnnestedComparisonImpl::<O, PhysicalI128>::new_static(),
+            DecimalComparison::<O, Decimal128Type>::new_static(),
         ),
         // Varlen
         RawScalarFunction::new(
             &SIGS.binary,
-            UnnestedComparisonImpl::<O, PhysicalBinary>::new_static(),
+            FlatComparison::<O, PhysicalBinary>::new_static(),
         ),
-        RawScalarFunction::new(
-            &SIGS.utf8,
-            UnnestedComparisonImpl::<O, PhysicalUtf8>::new_static(),
-        ),
+        RawScalarFunction::new(&SIGS.utf8, FlatComparison::<O, PhysicalUtf8>::new_static()),
     ]
 }
 
 #[derive(Debug, Clone, Copy)]
-struct UnnestedComparisonImpl<O: ComparisonOperation, S: ScalarStorage> {
+pub struct FlatComparison<O: ComparisonOperation, S: ScalarStorage> {
     _op: PhantomData<O>,
     _s: PhantomData<S>,
 }
 
-impl<O, S> UnnestedComparisonImpl<O, S>
+impl<O, S> FlatComparison<O, S>
 where
     O: ComparisonOperation,
     S: ScalarStorage,
 {
     pub const fn new_static() -> &'static Self {
-        &UnnestedComparisonImpl {
+        &FlatComparison {
             _op: PhantomData,
             _s: PhantomData,
         }
     }
 }
 
-impl<O, S> ScalarFunction for UnnestedComparisonImpl<O, S>
+impl<O, S> ScalarFunction for FlatComparison<O, S>
 where
     O: ComparisonOperation,
     S: ScalarStorage,
@@ -521,6 +471,109 @@ where
         let right = &input.arrays()[1];
 
         BinaryExecutor::execute::<S, S, PhysicalBool, _>(
+            left,
+            sel,
+            right,
+            sel,
+            OutBuffer::from_array(output)?,
+            |left, right, buf| buf.put(&O::compare(left, right)),
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DecimalComparison<O: ComparisonOperation, D: DecimalType> {
+    _op: PhantomData<O>,
+    _d: PhantomData<D>,
+}
+
+impl<O, D> DecimalComparison<O, D>
+where
+    O: ComparisonOperation,
+    D: DecimalType,
+{
+    pub const fn new_static() -> &'static Self {
+        &DecimalComparison {
+            _op: PhantomData,
+            _d: PhantomData,
+        }
+    }
+}
+
+impl<O, D> ScalarFunction for DecimalComparison<O, D>
+where
+    O: ComparisonOperation,
+    D: DecimalType,
+{
+    type State = ();
+
+    fn bind(&self, mut inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        let right = inputs.pop().unwrap();
+        let left = inputs.pop().unwrap();
+
+        let l_meta = D::decimal_meta(&left.datatype()?)?;
+        let r_meta = D::decimal_meta(&right.datatype()?)?;
+
+        if l_meta != r_meta {
+            // Need to apply casts to get the decimals to the same prec/scale.
+            let max_scale = i8::max(l_meta.scale, r_meta.scale);
+
+            // TODO: Does this properly handle negative scale?
+            let l_int_digits = (l_meta.precision as i8) - l_meta.scale;
+            let r_int_digits = (r_meta.precision as i8) - r_meta.scale;
+
+            let max_int_digits = i8::max(l_int_digits, r_int_digits);
+
+            let mut new_prec = (max_int_digits + max_scale) as u8;
+            if new_prec > D::MAX_PRECISION {
+                // Truncate to max precision this decimal type can handle.
+                // Casting may fail at runtime.
+                new_prec = D::MAX_PRECISION;
+            }
+
+            let new_meta = DecimalTypeMeta {
+                precision: new_prec,
+                scale: max_scale,
+            };
+            let new_datatype = D::datatype_from_decimal_meta(new_meta);
+
+            let left = if l_meta != new_meta {
+                // Cast left.
+                expr::cast(left, new_datatype.clone()).into()
+            } else {
+                // Left is unchanged.
+                left
+            };
+
+            let right = if r_meta != new_meta {
+                // Cast right.
+                expr::cast(right, new_datatype).into()
+            } else {
+                // Right is unchanged.
+                right
+            };
+
+            Ok(BindState {
+                state: (),
+                return_type: DataType::Boolean,
+                inputs: vec![left, right],
+            })
+        } else {
+            // Left/right have the same precision and scale, no need to cast.
+            Ok(BindState {
+                state: (),
+                return_type: DataType::Boolean,
+                inputs: vec![left, right],
+            })
+        }
+    }
+
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let left = &input.arrays()[0];
+        let right = &input.arrays()[1];
+
+        BinaryExecutor::execute::<D::Storage, D::Storage, PhysicalBool, _>(
             left,
             sel,
             right,

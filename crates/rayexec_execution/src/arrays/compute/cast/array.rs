@@ -278,7 +278,7 @@ where
     D1: DecimalType,
     D2: DecimalType,
 {
-    let new_meta = arr.datatype().try_get_decimal_type_meta()?;
+    let new_meta = out.datatype().try_get_decimal_type_meta()?;
     let arr_meta = arr.datatype().try_get_decimal_type_meta()?;
 
     let scale_amount = <D2::Primitive as NumCast>::from(
@@ -907,5 +907,43 @@ mod tests {
 
         let expected = Array::try_from_iter([1.5_f64, 2.0, 2.5]).unwrap();
         assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn array_cast_decimal64_to_different_prec() {
+        let mut arr = Array::try_from_iter([13000_i64]).unwrap();
+        // '[1.3000]'
+        arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(6, 4));
+
+        let mut out = Array::new(
+            &NopBufferManager,
+            DataType::Decimal64(DecimalTypeMeta::new(8, 4)),
+            1,
+        )
+        .unwrap();
+        cast_array(&mut arr, [0], &mut out, CastFailBehavior::Error).unwrap();
+
+        let v = PhysicalI64::get_addressable(&out.data).unwrap().slice;
+        // No change.
+        assert_eq!(13000, v[0]);
+    }
+
+    #[test]
+    fn array_cast_decimal64_to_different_scale() {
+        let mut arr = Array::try_from_iter([13000_i64]).unwrap();
+        // '[1.3000]'
+        arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(6, 4));
+
+        let mut out = Array::new(
+            &NopBufferManager,
+            DataType::Decimal64(DecimalTypeMeta::new(6, 2)),
+            1,
+        )
+        .unwrap();
+        cast_array(&mut arr, [0], &mut out, CastFailBehavior::Error).unwrap();
+
+        let v = PhysicalI64::get_addressable(&out.data).unwrap().slice;
+        // Truncate right-most zeros
+        assert_eq!(130, v[0]);
     }
 }

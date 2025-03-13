@@ -500,13 +500,20 @@ impl_from_expr!(ScalarFunction, ScalarFunctionExpr);
 impl_from_expr!(Unnest, UnnestExpr);
 impl_from_expr!(Window, WindowExpr);
 
+/// Constructs a comparison expression between left and right.
+///
+/// This will wrap left/right in casts if necessary, e.g. for implicitly casting
+/// one argument type to another, or for rescaling decimal arguments.
 pub fn compare(
     op: ComparisonOperator,
     left: impl Into<Expression>,
     right: impl Into<Expression>,
 ) -> Result<ComparisonExpr> {
-    let (_, [left, right]) =
-        bind_function_signature_fixed(op.as_scalar_function_set(), [left.into(), right.into()])?;
+    let (raw, inputs) =
+        bind_function_signature(op.as_scalar_function_set(), vec![left.into(), right.into()])?;
+
+    let state = raw.call_bind(inputs)?;
+    let [left, right] = state.inputs.try_into().unwrap();
 
     Ok(ComparisonExpr {
         op,
@@ -619,6 +626,9 @@ pub fn lit(scalar: impl Into<ScalarValue>) -> LiteralExpr {
     }
 }
 
+/// Wraps an expression in a cast.
+///
+/// Does not verify that the cast is valid.
 pub fn cast(expr: impl Into<Expression>, to: DataType) -> CastExpr {
     CastExpr {
         to,

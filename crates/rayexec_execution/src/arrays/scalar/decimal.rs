@@ -67,7 +67,12 @@ pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
     /// Try to unwrap the decimal type metadata from a data type.
     ///
     /// Should return None if the datatype is not the correct type or size.
-    fn try_unwrap_decimal_meta(datatype: &DataType) -> Option<DecimalTypeMeta>;
+    fn decimal_meta_opt(datatype: &DataType) -> Option<DecimalTypeMeta>;
+
+    fn decimal_meta(datatype: &DataType) -> Result<DecimalTypeMeta> {
+        Self::decimal_meta_opt(datatype)
+            .ok_or_else(|| RayexecError::new("Failed to unwrap decimal type meta"))
+    }
 
     /// Create a new datatype using the provide precision and scale.
     fn datatype_from_decimal_meta(meta: DecimalTypeMeta) -> DataType;
@@ -84,7 +89,7 @@ impl DecimalType for Decimal64Type {
     // since they assume this is 3.
     const DEFAULT_SCALE: i8 = 3;
 
-    fn try_unwrap_decimal_meta(datatype: &DataType) -> Option<DecimalTypeMeta> {
+    fn decimal_meta_opt(datatype: &DataType) -> Option<DecimalTypeMeta> {
         match datatype {
             DataType::Decimal64(m) => Some(*m),
             _ => None,
@@ -105,7 +110,7 @@ impl DecimalType for Decimal128Type {
     const MAX_PRECISION: u8 = 38;
     const DEFAULT_SCALE: i8 = 9;
 
-    fn try_unwrap_decimal_meta(datatype: &DataType) -> Option<DecimalTypeMeta> {
+    fn decimal_meta_opt(datatype: &DataType) -> Option<DecimalTypeMeta> {
         match datatype {
             DataType::Decimal128(m) => Some(*m),
             _ => None,

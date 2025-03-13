@@ -206,8 +206,8 @@ where
         let d1 = inputs[0].datatype()?;
         let d2 = inputs[1].datatype()?;
 
-        let m1 = D::try_unwrap_decimal_meta(&d1).required("Incorrect decimal type")?;
-        let m2 = D::try_unwrap_decimal_meta(&d2).required("Incorrect decimal type")?;
+        let m1 = D::decimal_meta_opt(&d1).required("Incorrect decimal type")?;
+        let m2 = D::decimal_meta_opt(&d2).required("Incorrect decimal type")?;
 
         // TODO: We could add a cast here.
         //
