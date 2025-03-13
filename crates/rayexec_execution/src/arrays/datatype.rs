@@ -92,13 +92,105 @@ impl fmt::Display for DataTypeId {
 /// Metadata associated with decimals.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DecimalTypeMeta {
+    /// Number of significant digits.
     pub precision: u8,
+    /// Number of digits to the right of the decimal point.
     pub scale: i8,
 }
 
 impl DecimalTypeMeta {
     pub const fn new(precision: u8, scale: i8) -> Self {
         DecimalTypeMeta { precision, scale }
+    }
+
+    /// Returns the decimal type metadata that would be able to represent the
+    /// given datatype.
+    ///
+    /// Returns None if the datatype cannot be represented as a decimal.
+    pub const fn new_for_datatype_id(id: DataTypeId) -> Option<Self> {
+        match id {
+            DataTypeId::Boolean => Some(DecimalTypeMeta {
+                precision: 1,
+                scale: 0,
+            }),
+            DataTypeId::Int8 => {
+                // [-128, 127]
+                Some(DecimalTypeMeta {
+                    precision: 3,
+                    scale: 0,
+                })
+            }
+            DataTypeId::Int16 => {
+                // [-32_768, 32_767]
+                Some(DecimalTypeMeta {
+                    precision: 5,
+                    scale: 0,
+                })
+            }
+            DataTypeId::Int32 => {
+                // [-2_147_483_648, 2_147_483_647]
+                Some(DecimalTypeMeta {
+                    precision: 10,
+                    scale: 0,
+                })
+            }
+            DataTypeId::Int64 => {
+                // [-9_223_372_036_854_775_808, 9_223_372_036_854_775_807]
+                Some(DecimalTypeMeta {
+                    precision: 19,
+                    scale: 0,
+                })
+            }
+            DataTypeId::Int128 => {
+                // [-170_141_183_460_469_231_731_687_303_715_884_105_728, 170_141_183_460_469_231_731_687_303_715_884_105_727]
+                //
+                // Note that the real precision should be 39, but the max
+                // precision we support is 38. If we add in a Decimal256 type,
+                // we should bump this up to the right precision.
+                Some(DecimalTypeMeta {
+                    precision: 38,
+                    scale: 0,
+                })
+            }
+            DataTypeId::UInt8 => {
+                // [0, 255]
+                Some(DecimalTypeMeta {
+                    precision: 3,
+                    scale: 0,
+                })
+            }
+            DataTypeId::UInt16 => {
+                // [0, 65_535]
+                Some(DecimalTypeMeta {
+                    precision: 5,
+                    scale: 0,
+                })
+            }
+            DataTypeId::UInt32 => {
+                // [0, 4_294_967_295]
+                Some(DecimalTypeMeta {
+                    precision: 10,
+                    scale: 0,
+                })
+            }
+            DataTypeId::UInt64 => {
+                // [0, 18_446_744_073_709_551_615]
+                Some(DecimalTypeMeta {
+                    precision: 19,
+                    scale: 0,
+                })
+            }
+            DataTypeId::UInt128 => {
+                // [0, 340_282_366_920_938_463_463_374_607_431_768_211_455]
+                //
+                // See note for Int128
+                Some(DecimalTypeMeta {
+                    precision: 38,
+                    scale: 0,
+                })
+            }
+            _ => None,
+        }
     }
 }
 

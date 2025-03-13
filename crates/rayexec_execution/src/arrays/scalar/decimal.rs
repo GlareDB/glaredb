@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalI128, PhysicalI64};
 use crate::arrays::datatype::{DataType, DecimalTypeMeta};
 
+/// Trait describing the underlying primivite representing the decimal.
 pub trait DecimalPrimitive:
     PrimInt + FromPrimitive + Signed + Default + Debug + Display + Sync + Send
 {
@@ -29,6 +30,7 @@ impl DecimalPrimitive for i128 {
     }
 }
 
+/// Describes a decimal type.
 pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
     /// The underlying primitive type storing the decimal's value.
     type Primitive: DecimalPrimitive;
@@ -69,6 +71,8 @@ pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
     /// Should return None if the datatype is not the correct type or size.
     fn decimal_meta_opt(datatype: &DataType) -> Option<DecimalTypeMeta>;
 
+    /// Unwrap the decimal type metadata, returning an error if the datatype is
+    /// not the correct type.
     fn decimal_meta(datatype: &DataType) -> Result<DecimalTypeMeta> {
         Self::decimal_meta_opt(datatype)
             .ok_or_else(|| RayexecError::new("Failed to unwrap decimal type meta"))
@@ -78,6 +82,7 @@ pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
     fn datatype_from_decimal_meta(meta: DecimalTypeMeta) -> DataType;
 }
 
+/// 64-bit decimal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Decimal64Type;
 
@@ -101,6 +106,7 @@ impl DecimalType for Decimal64Type {
     }
 }
 
+/// 128-bit decimal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Decimal128Type;
 

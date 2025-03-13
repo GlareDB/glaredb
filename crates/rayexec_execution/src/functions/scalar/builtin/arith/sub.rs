@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
+use super::decimal_sigs::D_SIGS;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalF16,
@@ -24,11 +25,12 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::arrays::executor::OutBuffer;
-use crate::expr::Expression;
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::expr::{self, Expression};
 use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::builtin::arith::decimal_arith::common_add_sub_decimal_type_info;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
-use crate::logical::binder::table_list::TableList;
 
 pub const FUNCTION_SET_SUB: ScalarFunctionSet = ScalarFunctionSet {
     name: "-",
@@ -111,6 +113,26 @@ pub const FUNCTION_SET_SUB: ScalarFunctionSet = ScalarFunctionSet {
             ),
             &Sub::<PhysicalU128>::new(&DataType::UInt128),
         ),
+        // Decimal64
+        RawScalarFunction::new(D_SIGS.d64_d64, &DecimalSub::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i8, &DecimalSub::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i16, &DecimalSub::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i32, &DecimalSub::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i64, &DecimalSub::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i8_d64, &DecimalSub::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i16_d64, &DecimalSub::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i32_d64, &DecimalSub::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i64_d64, &DecimalSub::<Decimal64Type>::new()),
+        // Decimal128
+        RawScalarFunction::new(D_SIGS.d128_d128, &DecimalSub::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i8, &DecimalSub::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i16, &DecimalSub::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i32, &DecimalSub::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i64, &DecimalSub::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i8_d128, &DecimalSub::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i16_d128, &DecimalSub::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i32_d128, &DecimalSub::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i64_d128, &DecimalSub::<Decimal128Type>::new()),
         // date - days
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Date32, DataTypeId::Int32], DataTypeId::Date32),
@@ -155,6 +177,71 @@ where
         let b = &input.arrays()[1];
 
         BinaryExecutor::execute::<S, S, S, _>(
+            a,
+            sel,
+            b,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, &b, buf| buf.put(&(a - b)),
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DecimalSub<D> {
+    _d: PhantomData<D>,
+}
+
+impl<D> DecimalSub<D>
+where
+    D: DecimalType,
+{
+    pub const fn new() -> Self {
+        DecimalSub { _d: PhantomData }
+    }
+}
+
+impl<D> ScalarFunction for DecimalSub<D>
+where
+    D: DecimalType,
+{
+    type State = ();
+
+    fn bind(&self, mut inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        let mut right = inputs.pop().unwrap();
+        let mut left = inputs.pop().unwrap();
+
+        let l_type = left.datatype()?;
+        let r_type = right.datatype()?;
+
+        let info = common_add_sub_decimal_type_info::<D>(&l_type, &r_type)?;
+
+        let return_type = D::datatype_from_decimal_meta(info.meta);
+
+        // Cast the inputs if needed.
+        match D::decimal_meta_opt(&l_type) {
+            Some(meta) if meta == info.meta => (), // Nothing to do.
+            _ => left = expr::cast(left, return_type.clone()).into(),
+        }
+
+        match D::decimal_meta_opt(&r_type) {
+            Some(meta) if meta == info.meta => (), // Nothing to do.
+            _ => right = expr::cast(right, return_type.clone()).into(),
+        }
+
+        Ok(BindState {
+            state: (),
+            return_type,
+            inputs: vec![left, right],
+        })
+    }
+
+    fn execute(_: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
+
+        BinaryExecutor::execute::<D::Storage, D::Storage, D::Storage, _>(
             a,
             sel,
             b,

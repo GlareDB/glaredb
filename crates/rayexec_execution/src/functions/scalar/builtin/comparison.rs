@@ -412,7 +412,6 @@ where
             FlatComparison::<O, PhysicalInterval>::new_static(),
         ),
         // Decimals
-        // TODO: Definitely scale
         RawScalarFunction::new(
             &SIGS.decimal64,
             DecimalComparison::<O, Decimal64Type>::new_static(),
