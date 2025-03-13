@@ -43,6 +43,19 @@ impl<'a> SelectListBinder<'a> {
         }
 
         // Generate column names from ast expressions.
+        //
+        // We do this before binding the expressions in the select, as
+        // projections in the select can bind to previously bound projections.
+        //
+        // This enables queries like `select 1 as a, a + 2`.
+        //
+        // This is also useful for function chaining, e.g.:
+        // ```
+        // SELECT
+        //     string_col.upper() as u,
+        //     u.contains("ABC") as c,
+        //     ...
+        // ```
         let mut names = projections
             .iter()
             .map(|expr| {
