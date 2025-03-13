@@ -15,8 +15,7 @@ SELECT * FROM t1 WHERE column1 < '10' ORDER BY 1;
 2
 3
 
-# TODO: Better error.
-statement error Failed to parse value from utf8
+statement error Failed to parse 'hello' into Int32
 SELECT * FROM t1 WHERE column1 < 'hello' ORDER BY 1;
 
 query I
@@ -30,20 +29,31 @@ NULL
 
 # Can only attempt to cast to int, can't implicitly cast lit to float and the
 # column to float.
-#
-# TODO: Better error.
-statement error Failed to parse value from utf8
+statement error Failed to parse '5.0' into Int32
 SELECT column1 + '5.0' FROM t1 ORDER BY 1;
+
+query TT
+DESCRIBE SELECT column1::float + '5.0' FROM t1 ORDER BY 1;
+----
+?column?  Float32
 
 query R
 SELECT column1::float + '5.0' FROM t1 ORDER BY 1;
 ----
-6.000
-7.000
-8.000
-15.000
+6
+7
+8
+15
 NULL
 
-# Postgres allows this, duckdb doesn't. Uncertain if we care to support it.
-statement error
+# This works in postgres, but fails in duckdb. Previously it wasn't working for
+# us, but it got accidentally fixed. Unsure if we want this or not.
+query R
 SELECT abs('-4.8');
+----
+4.8
+
+query TT
+DESCRIBE SELECT abs('-4.8');
+----
+abs  Float32

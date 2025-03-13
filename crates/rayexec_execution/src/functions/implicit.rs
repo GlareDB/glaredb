@@ -73,7 +73,7 @@ pub const fn implicit_cast_score(
             | DataTypeId::UInt16
             | DataTypeId::UInt32
             | DataTypeId::UInt64
-            | DataTypeId::Float16
+            // | DataTypeId::Float16 // Exluded because this shouldn't be common. Unsure if this will change though.
             | DataTypeId::Float32
             | DataTypeId::Float64
             | DataTypeId::Decimal64
