@@ -2,8 +2,9 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use num_traits::{NumCast, PrimInt};
-use rayexec_error::{OptionExt, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 
+use super::decimal_sigs::D_SIGS;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalF16,
@@ -29,7 +30,7 @@ use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::scalar::interval::Interval;
-use crate::expr::Expression;
+use crate::expr::{self, Expression};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
@@ -115,21 +116,26 @@ pub const FUNCTION_SET_MUL: ScalarFunctionSet = ScalarFunctionSet {
             ),
             &Mul::<PhysicalU128>::new(&DataType::UInt128),
         ),
-        // Decimals.
-        RawScalarFunction::new(
-            &Signature::new(
-                &[DataTypeId::Decimal64, DataTypeId::Decimal64],
-                DataTypeId::Decimal64,
-            ),
-            &MulDecimal::<Decimal64Type>::new(),
-        ),
-        RawScalarFunction::new(
-            &Signature::new(
-                &[DataTypeId::Decimal128, DataTypeId::Decimal128],
-                DataTypeId::Decimal128,
-            ),
-            &MulDecimal::<Decimal128Type>::new(),
-        ),
+        // Decimal64
+        RawScalarFunction::new(D_SIGS.d64_d64, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i8, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i16, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i32, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i64, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i8_d64, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i16_d64, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i32_d64, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i64_d64, &DecimalMul::<Decimal64Type>::new()),
+        // Decimal128
+        RawScalarFunction::new(D_SIGS.d128_d128, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i8, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i16, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i32, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i64, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i8_d128, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i16_d128, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i32_d128, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i64_d128, &DecimalMul::<Decimal128Type>::new()),
         // interval * int
         RawScalarFunction::new(
             &Signature::new(
@@ -210,40 +216,94 @@ where
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct MulDecimal<D> {
+pub struct DecimalMul<D> {
     _d: PhantomData<D>,
 }
 
-impl<D> MulDecimal<D> {
+impl<D> DecimalMul<D> {
     pub const fn new() -> Self {
-        MulDecimal { _d: PhantomData }
+        DecimalMul { _d: PhantomData }
     }
 }
 
-impl<D> ScalarFunction for MulDecimal<D>
+impl<D> ScalarFunction for DecimalMul<D>
 where
     D: DecimalType,
 {
     type State = ();
 
-    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
-        let d1 = inputs[0].datatype()?;
-        let d2 = inputs[1].datatype()?;
+    fn bind(&self, mut inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        let mut right = inputs.pop().unwrap();
+        let mut left = inputs.pop().unwrap();
 
-        let m1 = D::decimal_meta_opt(&d1).required("Decimal data type")?;
-        let m2 = D::decimal_meta_opt(&d2).required("Decimal data type")?;
+        let l_type = left.datatype()?;
+        let r_type = right.datatype()?;
 
-        // Since we're multiplying, might as well go wide as possible.
-        // Eventually we'll want to bumpt up to 128 if the precision is
-        // over some threshold to be more resilient to overflows.
-        let precision = D::MAX_PRECISION;
-        let scale = m1.scale + m2.scale;
-        let return_type = D::datatype_from_decimal_meta(DecimalTypeMeta::new(precision, scale));
+        let (cast_left, l_meta) = match D::decimal_meta_opt(&l_type) {
+            Some(meta) => (false, meta),
+            None => {
+                let meta = DecimalTypeMeta::new_for_datatype_id(l_type.datatype_id()).ok_or_else(
+                    || RayexecError::new(format!("Cannot convert {l_type} into a decimal")),
+                )?;
+                (true, meta)
+            }
+        };
+
+        let (cast_right, r_meta) = match D::decimal_meta_opt(&r_type) {
+            Some(meta) => (false, meta),
+            None => {
+                let meta = DecimalTypeMeta::new_for_datatype_id(r_type.datatype_id()).ok_or_else(
+                    || RayexecError::new(format!("Cannot convert {r_type} into a decimal")),
+                )?;
+                (true, meta)
+            }
+        };
+
+        let mut new_precision = l_meta.precision + r_meta.precision;
+        let new_scale = l_meta.scale + r_meta.scale;
+
+        if new_scale > D::MAX_PRECISION as i8 {
+            return Err(RayexecError::new(format!(
+                "Resuling decimal scale of '{new_scale}' exceeds max decimal precion '{}'",
+                D::MAX_PRECISION
+            )));
+        }
+
+        if new_precision > D::MAX_PRECISION {
+            // TODO: Need to check overflow.
+            new_precision = D::MAX_PRECISION;
+        }
+
+        if new_scale > new_precision as i8 {
+            return Err(RayexecError::new(format!(
+                "Compute scale '{new_scale}' exceeds computed precision '{new_precision}'"
+            )));
+        }
+
+        let return_type = D::datatype_from_decimal_meta(DecimalTypeMeta {
+            precision: new_precision,
+            scale: new_scale,
+        });
+
+        // We only need to cast the left/right inputs if they're not already
+        // decimals.
+        //
+        // Note we don't cast to the return type, we cast to the original
+        // decimal metas for the type.
+        if cast_left {
+            let left_type = D::datatype_from_decimal_meta(l_meta);
+            left = expr::cast(left, left_type).into();
+        }
+
+        if cast_right {
+            let right_type = D::datatype_from_decimal_meta(r_meta);
+            right = expr::cast(right, right_type).into();
+        }
 
         Ok(BindState {
             state: (),
             return_type,
-            inputs,
+            inputs: vec![left, right],
         })
     }
 

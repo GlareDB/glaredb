@@ -4,7 +4,20 @@ use rayexec_parser::ast::{self, QueryNode};
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ExpressionColumnBinder;
+use crate::arrays::compute::cast::parse::{
+    Decimal128Parser,
+    Decimal64Parser,
+    DecimalParser,
+    Parser,
+};
 use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::decimal::{
+    Decimal128Scalar,
+    Decimal128Type,
+    Decimal64Scalar,
+    Decimal64Type,
+    DecimalType,
+};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::expr::aggregate_expr::AggregateExpr;
@@ -898,21 +911,15 @@ impl<'a> BaseExpressionBinder<'a> {
         Ok(match literal {
             ast::Literal::Number(n) => {
                 if let Ok(n) = n.parse::<i32>() {
-                    Expression::Literal(LiteralExpr {
-                        literal: ScalarValue::Int32(n),
-                    })
+                    expr::lit(n).into()
                 } else if let Ok(n) = n.parse::<i64>() {
-                    Expression::Literal(LiteralExpr {
-                        literal: ScalarValue::Int64(n),
-                    })
+                    expr::lit(n).into()
                 } else if let Ok(n) = n.parse::<u64>() {
-                    Expression::Literal(LiteralExpr {
-                        literal: ScalarValue::UInt64(n),
-                    })
+                    expr::lit(n).into()
+                } else if let Some(decimal) = try_parse_as_decimal(n) {
+                    expr::lit(decimal).into()
                 } else if let Ok(n) = n.parse::<f64>() {
-                    Expression::Literal(LiteralExpr {
-                        literal: ScalarValue::Float64(n),
-                    })
+                    expr::lit(n).into()
                 } else {
                     return Err(RayexecError::new(format!(
                         "Unable to parse {n} as a number"
@@ -1186,6 +1193,167 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                 }
             }
+        }
+    }
+}
+
+/// Try to parse a string as a decimal literal.
+fn try_parse_as_decimal(n: &str) -> Option<ScalarValue> {
+    if n.is_empty() {
+        return None;
+    }
+
+    let mut num_underscores = 0;
+    let mut num_underscores_right = 0;
+    let mut decimal_pos = None;
+
+    for (idx, c) in n.chars().enumerate() {
+        match c {
+            'e' | 'E' => return None, // Parse as float.
+            '_' => {
+                if decimal_pos.is_some() {
+                    num_underscores += 1;
+                    num_underscores_right += 1;
+                } else {
+                    num_underscores += 1;
+                }
+            }
+            '.' => {
+                if decimal_pos.is_some() {
+                    return None; // More than one decimal point.
+                } else {
+                    decimal_pos = Some(idx)
+                }
+            }
+            _ => (),
+        }
+    }
+
+    let decimal_pos = decimal_pos?;
+
+    // Ignore underscores and decimal.
+    let mut precision = n.len() - 1 - num_underscores;
+    let scale = precision - (decimal_pos + num_underscores_right);
+
+    let c = n.chars().next().unwrap();
+    if c == '-' || c == '+' {
+        precision -= 1;
+    }
+
+    if precision <= Decimal64Type::MAX_PRECISION as usize {
+        let mut parser = Decimal64Parser::new(precision as u8, scale as i8);
+        let v = parser.parse(n)?;
+        return Some(ScalarValue::Decimal64(Decimal64Scalar {
+            value: v,
+            precision: precision as u8,
+            scale: scale as i8,
+        }));
+    }
+
+    if precision <= Decimal128Type::MAX_PRECISION as usize {
+        let mut parser = Decimal128Parser::new(precision as u8, scale as i8);
+        let v = parser.parse(n)?;
+        return Some(ScalarValue::Decimal128(Decimal128Scalar {
+            value: v,
+            precision: precision as u8,
+            scale: scale as i8,
+        }));
+    }
+
+    // Number too wide, need to parse as float.
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn try_parse_as_decimal_cases() {
+        let test_cases = [
+            (
+                "1.0",
+                Some(
+                    Decimal64Scalar {
+                        precision: 2,
+                        scale: 1,
+                        value: 10,
+                    }
+                    .into(),
+                ),
+            ),
+            (
+                "1.2",
+                Some(
+                    Decimal64Scalar {
+                        precision: 2,
+                        scale: 1,
+                        value: 12,
+                    }
+                    .into(),
+                ),
+            ),
+            // TODO: Allow this in the parser.
+            // (
+            //     "1_000.2",
+            //     Some(
+            //         Decimal64Scalar {
+            //             precision: 5,
+            //             scale: 1,
+            //             value: 10002,
+            //         }
+            //         .into(),
+            //     ),
+            // ),
+            (
+                "1.200",
+                Some(
+                    Decimal64Scalar {
+                        precision: 4,
+                        scale: 3,
+                        value: 1200,
+                    }
+                    .into(),
+                ),
+            ),
+            (
+                "-1.200",
+                Some(
+                    Decimal64Scalar {
+                        precision: 4,
+                        scale: 3,
+                        value: -1200,
+                    }
+                    .into(),
+                ),
+            ),
+            (
+                "+1.200",
+                Some(
+                    Decimal64Scalar {
+                        precision: 4,
+                        scale: 3,
+                        value: 1200,
+                    }
+                    .into(),
+                ),
+            ),
+            (
+                "123456891234568912.200",
+                Some(
+                    Decimal128Scalar {
+                        precision: 21,
+                        scale: 3,
+                        value: 123456891234568912200,
+                    }
+                    .into(),
+                ),
+            ),
+        ];
+
+        for (s, expected) in test_cases {
+            let got = try_parse_as_decimal(s);
+            assert_eq!(expected, got, "input: {s}")
         }
     }
 }

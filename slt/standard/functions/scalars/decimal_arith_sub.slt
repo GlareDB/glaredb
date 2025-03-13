@@ -13,7 +13,7 @@ SELECT 8 - '4.20'::DECIMAL
 query TT
 DESCRIBE SELECT 4.8 - '4.20'::DECIMAL(9,3);
 ----
-?column? Decimal64(18,3)
+?column? Decimal64(10,3)
 
 query R
 SELECT 4.8 - '4.20'::DECIMAL(9,3);

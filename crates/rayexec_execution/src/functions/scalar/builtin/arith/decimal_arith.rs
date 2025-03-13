@@ -2,7 +2,6 @@ use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::datatype::{DataType, DecimalTypeMeta};
 use crate::arrays::scalar::decimal::DecimalType;
-use crate::functions::Signature;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CastDecimalTypeInfo {

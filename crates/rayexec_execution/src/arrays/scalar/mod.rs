@@ -400,6 +400,18 @@ impl<'a, T: Into<BorrowedScalarValue<'a>>> From<Option<T>> for BorrowedScalarVal
     }
 }
 
+impl From<Decimal64Scalar> for ScalarValue {
+    fn from(value: Decimal64Scalar) -> Self {
+        ScalarValue::Decimal64(value)
+    }
+}
+
+impl From<Decimal128Scalar> for ScalarValue {
+    fn from(value: Decimal128Scalar) -> Self {
+        ScalarValue::Decimal128(value)
+    }
+}
+
 impl ProtoConv for ScalarValue {
     type ProtoType = rayexec_proto::generated::expr::OwnedScalarValue;
 

@@ -3,7 +3,7 @@
 query R
 select add(1.0, 2);
 ----
-3
+3.0
 
 query R
 select add(1.1, 2);
@@ -58,7 +58,7 @@ select column1, add(add(add(column2, 2), add(column1, 4)), add(5,column2)) from 
 query R
 select sub(1.0, 2);
 ----
--1
+-1.0
 
 query R
 select sub(1.2, 2);
@@ -102,7 +102,7 @@ select column1- column2 from (values (1, 2), (3, 4));
 query R
 select mul(1.0, 2);
 ----
-2
+2.0
 
 query R
 select mul(1.1, 2);
@@ -122,7 +122,7 @@ select 2 * 3;
 query RI
 select 2.5 * 3.0, 2 * 1;
 ----
-7.5  2
+7.50  2
 
 query II rowsort
 select column1, column1 * 2 from (values (1, 2), (3, 4));
