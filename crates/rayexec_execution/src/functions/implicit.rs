@@ -57,6 +57,10 @@ pub const fn implicit_cast_score(
         DataTypeId::Float32 => return float32_cast_score(want, conf),
         DataTypeId::Float64 => return float64_cast_score(want, conf),
 
+        // Decimal casts
+        DataTypeId::Decimal64 => return decimal64_cast_score(want, conf),
+        DataTypeId::Decimal128 => return decimal128_cast_score(want, conf),
+
         // String casts
         DataTypeId::Utf8 if conf.allow_from_utf8 => match want {
             DataTypeId::Int8
@@ -257,6 +261,22 @@ const fn float64_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Optio
     })
 }
 
+const fn decimal64_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
+    Some(match want {
+        DataTypeId::Float32 | DataTypeId::Float64 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
+        _ => return None,
+    })
+}
+
+const fn decimal128_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
+    Some(match want {
+        DataTypeId::Float32 | DataTypeId::Float64 => target_score(want),
+        DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -336,6 +356,31 @@ mod tests {
 
         // Not valid
         assert!(implicit_cast_score(DataTypeId::Float64, DataTypeId::Int64, conf).is_none());
+    }
+
+    #[test]
+    fn decimal_to_float_scores_higher_than_float_to_decimal() {
+        // Mostly when it comes to arith. We want to prefer casting decimals to
+        // floats instead of the other way around.
+        //
+        // This shouldn't impact decimal/decimal arith.
+
+        let conf = ImplicitCastConfig {
+            allow_to_utf8: false,
+            allow_from_utf8: false,
+        };
+
+        let d_to_f_score =
+            implicit_cast_score(DataTypeId::Decimal64, DataTypeId::Float32, conf).unwrap();
+        let f_to_d_score =
+            implicit_cast_score(DataTypeId::Float32, DataTypeId::Decimal64, conf).unwrap();
+        assert!(d_to_f_score > f_to_d_score);
+
+        let d_to_f_score =
+            implicit_cast_score(DataTypeId::Decimal64, DataTypeId::Float64, conf).unwrap();
+        let f_to_d_score =
+            implicit_cast_score(DataTypeId::Float64, DataTypeId::Decimal64, conf).unwrap();
+        assert!(d_to_f_score > f_to_d_score);
     }
 
     #[test]

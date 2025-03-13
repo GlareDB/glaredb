@@ -218,7 +218,7 @@ pub fn cast_array(
         }
 
         // Decimal to float.
-        DataType::Decimal64(_) => match to {
+        DataType::Decimal64(_) if to.is_float() => match to {
             DataType::Float16 => {
                 cast_decimal_to_float::<Decimal64Type, PhysicalF16>(arr, sel, out, behavior)
             }
@@ -230,7 +230,7 @@ pub fn cast_array(
             }
             other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
         },
-        DataType::Decimal128(_) => match to {
+        DataType::Decimal128(_) if to.is_float() => match to {
             DataType::Float16 => {
                 cast_decimal_to_float::<Decimal128Type, PhysicalF16>(arr, sel, out, behavior)
             }
