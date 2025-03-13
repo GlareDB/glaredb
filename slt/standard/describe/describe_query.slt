@@ -20,7 +20,7 @@ query TT
 describe select * from (values (1,2.0,3.0::decimal(18,9))) as v(a,b,c);
 ----
 a  Int32
-b  Float64
+b  Decimal64(2,1)
 c  Decimal64(18,9)
 
 query TT

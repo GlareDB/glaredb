@@ -818,6 +818,9 @@ where
     P: Parser<Type = S::StorageType>,
     S: MutableScalarStorage,
 {
+    // TODO: Temp until... not sure. Is this actually reasonable?
+    let id = out.datatype.datatype_id();
+
     let mut fail_state = behavior.new_state();
     UnaryExecutor::execute::<PhysicalUtf8, S, _>(
         arr,
@@ -826,7 +829,8 @@ where
         |v, buf| match parser.parse(v) {
             Some(v) => buf.put(&v),
             None => {
-                fail_state.set_error(|| RayexecError::new("Failed to parse value from utf8"));
+                fail_state
+                    .set_error(|| RayexecError::new(format!("Failed to parse '{v}' into {id}")));
                 buf.put_null();
             }
         },

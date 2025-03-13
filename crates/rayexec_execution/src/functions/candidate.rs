@@ -376,6 +376,22 @@ mod tests {
     }
 
     #[test]
+    fn find_candidate_float32_and_string() {
+        // SELECT f32_col + '5.0'
+        let inputs = &[DataType::Float32, DataType::Utf8];
+
+        let sigs = &[Signature {
+            positional_args: &[DataTypeId::Float32, DataTypeId::Float32],
+            variadic_arg: None,
+            return_type: DataTypeId::Float32,
+            doc: None,
+        }];
+
+        let candidates = CandidateSignature::find_candidates(inputs, sigs);
+        assert_eq!(1, candidates.len());
+    }
+
+    #[test]
     fn best_datatype_for_ints_and_floats() {
         let conf = ImplicitCastConfig {
             allow_to_utf8: false,

@@ -1,7 +1,9 @@
 use crate::arrays::datatype::DataTypeId;
 
 /// Score that should be used if no cast is needed.
-pub const NO_CAST_SCORE: u32 = 400;
+pub const NO_CAST_SCORE: u32 = 800;
+
+const FROM_STRING_CAST_SCORE: u32 = 200;
 
 // TODO:
 // String literal => allow from utf8 cast
@@ -71,10 +73,13 @@ pub const fn implicit_cast_score(
             | DataTypeId::UInt16
             | DataTypeId::UInt32
             | DataTypeId::UInt64
+            | DataTypeId::Float16
+            | DataTypeId::Float32
+            | DataTypeId::Float64
             | DataTypeId::Decimal64
             | DataTypeId::Decimal128
             | DataTypeId::Interval
-            | DataTypeId::Timestamp => return Some(target_score(want)),
+            | DataTypeId::Timestamp => return Some(FROM_STRING_CAST_SCORE),
 
             // Non-zero since it's a valid cast, just we would prefer something
             // else.

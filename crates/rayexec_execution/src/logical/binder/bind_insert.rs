@@ -5,9 +5,8 @@ use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::BoundQuery;
 use super::table_list::TableRef;
 use crate::arrays::datatype::DataType;
-use crate::expr::cast_expr::CastExpr;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
-use crate::expr::Expression;
+use crate::expr::{cast, Expression};
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -128,10 +127,7 @@ impl<'a> InsertBinder<'a> {
             });
 
             if have.2 != want {
-                expr = Expression::Cast(CastExpr {
-                    to: want.clone(),
-                    expr: Box::new(expr),
-                });
+                expr = cast(expr, want.clone()).into();
                 has_cast = true;
             }
 

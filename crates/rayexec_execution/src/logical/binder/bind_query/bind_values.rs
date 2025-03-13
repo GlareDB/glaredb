@@ -3,7 +3,7 @@ use rayexec_parser::ast;
 
 use crate::arrays::datatype::DataType;
 use crate::expr::cast_expr::CastExpr;
-use crate::expr::Expression;
+use crate::expr::{cast, Expression};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
@@ -90,10 +90,8 @@ impl<'a> ValuesBinder<'a> {
         for row in &mut rows {
             for (expr, datatype) in row.iter_mut().zip(&types) {
                 if &expr.datatype()? != datatype {
-                    *expr = Expression::Cast(CastExpr {
-                        to: datatype.clone(),
-                        expr: Box::new(expr.clone()), // TODO: Could try to take instead of clone.
-                    })
+                    // TODO: Could try to take instead of clone.
+                    *expr = cast(expr.clone(), datatype.clone()).into()
                 }
             }
         }

@@ -471,15 +471,11 @@ impl<'a> BaseExpressionBinder<'a> {
                 Ok(conj.into())
             }
             ast::Expr::TypedString { datatype, value } => {
-                let scalar = ScalarValue::Utf8(value.clone().into());
                 // TODO: Add this back. Currently doing this to avoid having to
                 // update cast rules for arrays and scalars at the same time.
                 //
                 // let scalar = cast_scalar(scalar, &datatype)?;
-                Ok(Expression::Cast(CastExpr {
-                    to: datatype.clone(),
-                    expr: Box::new(Expression::Literal(LiteralExpr { literal: scalar })),
-                }))
+                Ok(expr::cast(expr::lit(value.clone()), datatype.clone()).into())
             }
             ast::Expr::Cast { datatype, expr } => {
                 let expr = self.bind_expression(
@@ -491,10 +487,8 @@ impl<'a> BaseExpressionBinder<'a> {
                         ..recur
                     },
                 )?;
-                Ok(Expression::Cast(CastExpr {
-                    to: datatype.clone(),
-                    expr: Box::new(expr),
-                }))
+
+                Ok(expr::cast(expr, datatype.clone()).into())
             }
             ast::Expr::Like {
                 expr,
@@ -642,10 +636,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         let expr = expr::arith(op, interval, expr)?;
                         Ok(expr.into())
                     }
-                    None => Ok(Expression::Cast(CastExpr {
-                        to: DataType::Interval,
-                        expr: Box::new(expr),
-                    })),
+                    None => Ok(expr::cast(expr, DataType::Interval).into()),
                 }
             }
             ast::Expr::Between {

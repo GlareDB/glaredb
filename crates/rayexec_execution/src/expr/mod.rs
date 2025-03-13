@@ -854,8 +854,6 @@ where
         }
     };
 
-    // TODO: Further refine the types (e.g. aligning precision/scale for
-    // decimals).
 
     Ok((*func, inputs))
 }
