@@ -32,4 +32,4 @@ serde_json = { version = "1.0", features = ["std"] }
 bytes = "1.10.0"
 uuid = { version = "1.12.1", features = ["v4"] }
 scc = "2.3.3"
-half = { version = "2.4.1", features = ["num-traits", "serde"] }
+half = { version = "2.5.0", features = ["num-traits", "serde"] }
