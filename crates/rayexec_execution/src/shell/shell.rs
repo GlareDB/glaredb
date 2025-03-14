@@ -90,7 +90,6 @@ where
         writeln!(writer, "{}{shell_msg}{}", MODE_BOLD, MODES_OFF)?;
         let version = env!("CARGO_PKG_VERSION");
         writeln!(writer, "Preview ({version}) - There will be bugs!")?;
-        writer.write_all(b"\n")?;
 
         Ok(())
     }
@@ -196,8 +195,6 @@ where
                         writeln!(writer, "{e}")?;
                     }
                 }
-
-                writer.write_all(b"\n")?;
 
                 Ok(())
             }

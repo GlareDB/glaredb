@@ -14,7 +14,7 @@ pub struct GroupingSetExpr {
 
 impl GroupingSetExpr {
     pub fn datatype(&self) -> DataType {
-        DataType::UInt64
+        DataType::Int64
     }
 }
 

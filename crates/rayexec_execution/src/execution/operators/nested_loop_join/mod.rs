@@ -69,6 +69,12 @@ pub struct NestedLoopJoinProbeState {
     ///
     /// Only used for RIGHT/OUTER joins.
     right_matches: MatchTracker,
+    /// State used to drain the left batches from the the collection.
+    ///
+    /// Only used for LEFT/OUTER joins.
+    left_drain_state: ParallelColumnCollectionScanState,
+    /// Marker for if this partition is currently draining for a LEFT JOIN.
+    draining_left: bool,
 }
 
 #[derive(Debug)]
@@ -87,7 +93,10 @@ impl PhysicalNestedLoopJoin {
         right_types: impl IntoIterator<Item = DataType>,
         filter: Option<PhysicalScalarExpression>,
     ) -> Result<Self> {
-        if !matches!(join_type, JoinType::Inner | JoinType::Right) {
+        if !matches!(
+            join_type,
+            JoinType::Inner | JoinType::Right | JoinType::Left
+        ) {
             return Err(RayexecError::new(format!(
                 "Unsupported join type for nested loop join: {join_type}",
             )));
@@ -188,7 +197,7 @@ impl PushOperator for PhysicalNestedLoopJoin {
 
             // Init left matches if needed.
             if matches!(self.join_type, JoinType::Left) {
-                let num_rows_left = operator_state.collected.total_rows();
+                let num_rows_left = operator_state.collected.flushed_rows();
                 inner.left_matches.ensure_initialized(num_rows_left);
             }
         }
@@ -207,14 +216,18 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionExecuteState>> {
-        operator_state
-            .inner
-            .lock()
-            .probe_wakers
-            .init_for_partitions(partitions);
+        let mut inner = operator_state.inner.lock();
+        inner.probe_wakers.init_for_partitions(partitions);
 
-        let states = (0..partitions)
-            .map(|partition_idx| {
+        // Init states for left drain. Note that these might end up being
+        // unused, but creating them isn't expensive.
+        let left_scan_states = operator_state
+            .collected
+            .init_parallel_scan_states(partitions);
+
+        let states = left_scan_states
+            .enumerate()
+            .map(|(partition_idx, left_drain_state)| {
                 let evaluator = match &self.filter {
                     Some(filter) => Some(SelectionEvaluator::try_new(
                         filter.clone(),
@@ -229,6 +242,8 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
                     cross_state: CrossProductState::new(self.left_types.iter().cloned())?,
                     evaluator,
                     right_matches: MatchTracker::empty(),
+                    left_drain_state,
+                    draining_left: false,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -255,6 +270,31 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
 
             // We can probe, avoid having to check the global state again.
             state.build_complete = true;
+        }
+
+        if state.draining_left {
+            // We're just draining, input batch no longer matters.
+            let count = operator_state.collected.parallel_scan(
+                &state.cross_state.projections,
+                &mut state.left_drain_state,
+                &mut state.cross_state.batch,
+            )?;
+            if count == 0 {
+                output.set_num_rows(0)?;
+                return Ok(PollExecute::Exhausted);
+            }
+
+            // TODO: Don't lock.
+            let inner = operator_state.inner.lock();
+            // TODO: Possibly loop here if output rows is zero.
+            inner.left_matches.left_outer_result(
+                state.left_drain_state.state.relative_scan_offset(),
+                &mut state.cross_state.batch,
+                output,
+            )?;
+
+            // Keep going.
+            return Ok(PollExecute::HasMore);
         }
 
         if matches!(self.join_type, JoinType::Right) {
@@ -307,12 +347,14 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
                     }
 
                     if matches!(self.join_type, JoinType::Left) {
-                        // Marke left _row_ as matched. Note that we produce a
+                        // Mark left _row_ as matched. Note that we produce a
                         // row at a time for the left.
+                        let left_row =
+                            state.cross_state.collection_scan_offset().ok_or_else(|| {
+                                RayexecError::new("Expected in-progress cross product scan")
+                            })?;
                         let mut inner = operator_state.inner.lock();
-                        inner
-                            .left_matches
-                            .set_match(state.cross_state.collection_row_idx());
+                        inner.left_matches.set_match(left_row);
                     }
 
                     // We have a selection, select the output.
@@ -333,9 +375,15 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
         &self,
         _cx: &mut Context,
         _operator_state: &Self::OperatorState,
-        _state: &mut Self::PartitionExecuteState,
+        state: &mut Self::PartitionExecuteState,
     ) -> Result<PollFinalize> {
-        // TODO: Left join drains.
+        if matches!(self.join_type, JoinType::Left | JoinType::Full) {
+            // Trigger left drain if needed.
+            state.draining_left = true;
+            return Ok(PollFinalize::NeedsDrain);
+        }
+
+        // Otherwise we're done.
         Ok(PollFinalize::Finalized)
     }
 }

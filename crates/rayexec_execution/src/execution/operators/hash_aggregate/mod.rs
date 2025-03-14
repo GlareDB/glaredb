@@ -100,7 +100,7 @@ impl PhysicalHashAggregate {
             output_types.push(agg.function.state.return_type.clone());
         }
         for _ in 0..aggregates.grouping_functions.len() {
-            output_types.push(DataType::UInt64);
+            output_types.push(DataType::Int64);
         }
 
         PhysicalHashAggregate {

@@ -10,6 +10,8 @@ use crate::arrays::collection::concurrent::{
 use crate::arrays::datatype::DataType;
 use crate::storage::projections::Projections;
 
+// TODO: `batch` and `projections` are pub so we can reuse them when draining
+// the collection for left outer.
 #[derive(Debug)]
 pub struct CrossProductState {
     /// Scan state for column collection containing the left-side data.
@@ -19,7 +21,7 @@ pub struct CrossProductState {
     /// the beginning again).
     scan_state: Option<ColumnCollectionScanState>,
     /// Batch containing data from the left side.
-    batch: Batch,
+    pub batch: Batch,
     /// Current row relative to the batch we're processing.
     batch_row_idx: usize,
     /// Current row relative to the entire collection.
@@ -27,7 +29,7 @@ pub struct CrossProductState {
     /// Used to set matches for the left side.
     collection_row_idx: usize,
     /// Projections out of the column collection. Should project all columns.
-    projections: Projections,
+    pub projections: Projections,
 }
 
 impl CrossProductState {
@@ -45,8 +47,11 @@ impl CrossProductState {
         })
     }
 
-    pub fn collection_row_idx(&self) -> usize {
-        self.collection_row_idx
+    /// Get the current scan offset into the collection.
+    pub fn collection_scan_offset(&self) -> Option<usize> {
+        self.scan_state
+            .as_ref()
+            .map(|state| state.relative_scan_offset() + self.batch_row_idx)
     }
 
     /// Try to scan the next cross-product into `output`.
@@ -65,8 +70,12 @@ impl CrossProductState {
         output: &mut Batch,
     ) -> Result<bool> {
         let scan_state = match self.scan_state.as_mut() {
-            Some(state) => state,
+            Some(state) => {
+                self.batch_row_idx += 1;
+                state
+            }
             None => {
+                self.batch_row_idx = 0;
                 self.scan_state = Some(left.init_scan_state());
                 self.scan_state.as_mut().unwrap()
             }
@@ -104,9 +113,6 @@ impl CrossProductState {
 
         output.set_num_rows(right.num_rows)?;
 
-        self.batch_row_idx += 1;
-        self.collection_row_idx += 1;
-
         Ok(true)
     }
 }
@@ -142,6 +148,7 @@ mod tests {
 
         let expected = generate_batch!([1, 1], ["a", "a"], [4.5, 6.0]);
         assert_batches_eq(&expected, &output);
+        assert_eq!(Some(0), cross_state.collection_scan_offset());
 
         let did_write_out = cross_state
             .scan_next(&collection, &mut right, &mut output)
@@ -150,12 +157,14 @@ mod tests {
 
         let expected = generate_batch!([2, 2], ["b", "b"], [4.5, 6.0]);
         assert_batches_eq(&expected, &output);
+        assert_eq!(Some(1), cross_state.collection_scan_offset());
 
         let did_write_out = cross_state
             .scan_next(&collection, &mut right, &mut output)
             .unwrap();
         assert!(!did_write_out);
         assert_eq!(0, output.num_rows);
+        assert_eq!(None, cross_state.collection_scan_offset());
 
         // Now begin scanning with a new right-side batch, we should begin
         // scanning from the beginning again.
@@ -168,6 +177,7 @@ mod tests {
 
         let expected = generate_batch!([1, 1], ["a", "a"], [7.5, 8.0]);
         assert_batches_eq(&expected, &output);
+        assert_eq!(Some(0), cross_state.collection_scan_offset());
 
         let did_write_out = cross_state
             .scan_next(&collection, &mut right, &mut output)
@@ -176,5 +186,6 @@ mod tests {
 
         let expected = generate_batch!([2, 2], ["b", "b"], [7.5, 8.0]);
         assert_batches_eq(&expected, &output);
+        assert_eq!(Some(1), cross_state.collection_scan_offset());
     }
 }

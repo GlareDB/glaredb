@@ -1,4 +1,4 @@
-pub const DEFAULT_COMPONENTS: TableComponents = TableComponents {
+pub const PRETTY_COMPONENTS: TableComponents = TableComponents {
     lb: '│',
     rb: '│',
     tb: '─',
@@ -14,6 +14,24 @@ pub const DEFAULT_COMPONENTS: TableComponents = TableComponents {
     tb_int: '┬',
     bb_int: '┴',
     intersection: '┼',
+};
+
+pub const ASCII_COMPONENTS: TableComponents = TableComponents {
+    lb: '|',
+    rb: '|',
+    tb: '-',
+    bb: '-',
+    vert: '|',
+    hor: '-',
+    urc: '+',
+    ulc: '+',
+    brc: '+',
+    blc: '+',
+    lb_int: '+',
+    rb_int: '+',
+    tb_int: '+',
+    bb_int: '+',
+    intersection: '+',
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

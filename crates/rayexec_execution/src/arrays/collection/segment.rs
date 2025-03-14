@@ -7,7 +7,9 @@ use crate::buffer::buffer_manager::AsRawBufferManager;
 
 #[derive(Debug)]
 pub struct ColumnCollectionSegment {
+    /// Capacity to use when creating new chunks.
     chunk_capacity: usize,
+    /// All chunks in this segment.
     chunks: Vec<ColumnChunk>,
 }
 
@@ -18,6 +20,16 @@ impl ColumnCollectionSegment {
         ColumnCollectionSegment {
             chunk_capacity,
             chunks: Vec::new(),
+        }
+    }
+
+    /// Sets the relative offset for all chunks in this segment.
+    pub fn set_relative_offsets(&mut self, relative_offset: usize) {
+        let mut offset = relative_offset;
+
+        for chunk in &mut self.chunks {
+            chunk.relative_offset = offset;
+            offset += chunk.filled;
         }
     }
 

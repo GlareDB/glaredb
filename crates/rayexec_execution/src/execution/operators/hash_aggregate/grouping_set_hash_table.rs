@@ -82,7 +82,7 @@ pub struct GroupingSetHashTable {
     groups: Vec<PhysicalColumnExpr>,
     /// Computed group values representing the null bitmask for eaching GROUPING
     /// function.
-    grouping_values: Vec<u64>,
+    grouping_values: Vec<i64>,
     batch_size: usize,
 }
 
@@ -395,7 +395,7 @@ impl GroupingSetHashTable {
             let output_idx = num_groups + num_aggs + idx;
             let mut const_arr = Array::new_constant(
                 &NopBufferManager,
-                &ScalarValue::UInt64(grouping_val),
+                &ScalarValue::Int64(grouping_val),
                 group_row_count,
             )?;
             output.arrays[output_idx].swap(&mut const_arr)?;

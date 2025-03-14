@@ -1,10 +1,11 @@
 use std::fmt::{self, Write as _};
 
+use super::components::TableComponents;
 use super::table::ColumnValues;
-use crate::arrays::format::pretty::components::DEFAULT_COMPONENTS;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrettyHeader {
+    components: &'static TableComponents,
     column_widths: Vec<usize>,
     headers: Vec<ColumnValues>,
     table_has_values: bool,
@@ -12,12 +13,14 @@ pub struct PrettyHeader {
 
 impl PrettyHeader {
     pub fn new(
+        components: &'static TableComponents,
         column_widths: Vec<usize>,
         headers: Vec<ColumnValues>,
         table_has_values: bool,
     ) -> Self {
         debug_assert_eq!(headers.len(), column_widths.len());
         PrettyHeader {
+            components,
             column_widths,
             headers,
             table_has_values,
@@ -28,58 +31,58 @@ impl PrettyHeader {
 impl fmt::Display for PrettyHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Write the top border.
-        f.write_char(DEFAULT_COMPONENTS.ulc)?;
+        f.write_char(self.components.ulc)?;
         for (idx, &width) in self.column_widths.iter().enumerate() {
-            f.write_char(DEFAULT_COMPONENTS.tb)?;
+            f.write_char(self.components.tb)?;
             for _ in 0..width {
-                f.write_char(DEFAULT_COMPONENTS.tb)?;
+                f.write_char(self.components.tb)?;
             }
-            f.write_char(DEFAULT_COMPONENTS.tb)?;
+            f.write_char(self.components.tb)?;
 
             if idx < self.headers.len() - 1 {
-                f.write_char(DEFAULT_COMPONENTS.tb_int)?;
+                f.write_char(self.components.tb_int)?;
             }
         }
-        f.write_char(DEFAULT_COMPONENTS.urc)?;
+        f.write_char(self.components.urc)?;
         f.write_char('\n')?;
 
         // Write first header line.
-        f.write_char(DEFAULT_COMPONENTS.vert)?;
+        f.write_char(self.components.vert)?;
         for (header, &width) in self.headers.iter().zip(self.column_widths.iter()) {
             f.write_char(' ')?;
             write!(f, "{:width$}", header.value(0))?;
             f.write_char(' ')?;
 
-            f.write_char(DEFAULT_COMPONENTS.vert)?;
+            f.write_char(self.components.vert)?;
         }
         f.write_char('\n')?;
 
         // Write second header line.
-        f.write_char(DEFAULT_COMPONENTS.vert)?;
+        f.write_char(self.components.vert)?;
         for (header, &width) in self.headers.iter().zip(self.column_widths.iter()) {
             f.write_char(' ')?;
             write!(f, "{:width$}", header.value(1))?;
             f.write_char(' ')?;
 
-            f.write_char(DEFAULT_COMPONENTS.vert)?;
+            f.write_char(self.components.vert)?;
         }
         f.write_char('\n')?;
 
         // Write header separator.
         if self.table_has_values {
-            f.write_char(DEFAULT_COMPONENTS.lb_int)?;
+            f.write_char(self.components.lb_int)?;
             for (idx, &width) in self.column_widths.iter().enumerate() {
-                f.write_char(DEFAULT_COMPONENTS.hor)?;
+                f.write_char(self.components.hor)?;
                 for _ in 0..width {
-                    f.write_char(DEFAULT_COMPONENTS.hor)?;
+                    f.write_char(self.components.hor)?;
                 }
-                f.write_char(DEFAULT_COMPONENTS.hor)?;
+                f.write_char(self.components.hor)?;
 
                 if idx < self.headers.len() - 1 {
-                    f.write_char(DEFAULT_COMPONENTS.intersection)?;
+                    f.write_char(self.components.intersection)?;
                 }
             }
-            f.write_char(DEFAULT_COMPONENTS.rb_int)?;
+            f.write_char(self.components.rb_int)?;
             f.write_char('\n')?;
         }
 
@@ -95,6 +98,7 @@ pub enum Alignment {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrettyValues {
+    components: &'static TableComponents,
     alignments: Vec<Alignment>,
     column_widths: Vec<usize>,
     columns: Vec<ColumnValues>,
@@ -103,6 +107,7 @@ pub struct PrettyValues {
 
 impl PrettyValues {
     pub fn new(
+        components: &'static TableComponents,
         alignments: Vec<Alignment>,
         column_widths: Vec<usize>,
         columns: Vec<ColumnValues>,
@@ -126,6 +131,7 @@ impl PrettyValues {
         }
 
         PrettyValues {
+            components,
             alignments,
             column_widths,
             columns,
@@ -144,7 +150,7 @@ impl fmt::Display for PrettyValues {
         for row in 0..num_rows {
             if self.row_heights[row] == 1 {
                 // Simple case, row is only a single line.
-                f.write_char(DEFAULT_COMPONENTS.vert)?;
+                f.write_char(self.components.vert)?;
                 for (column, (&width, alignment)) in self
                     .columns
                     .iter()
@@ -157,7 +163,7 @@ impl fmt::Display for PrettyValues {
                     }
                     f.write_char(' ')?;
 
-                    f.write_char(DEFAULT_COMPONENTS.vert)?;
+                    f.write_char(self.components.vert)?;
                 }
                 f.write_char('\n')?;
             } else {
@@ -167,7 +173,7 @@ impl fmt::Display for PrettyValues {
                     self.columns.iter().map(|c| c.value(row).lines()).collect();
 
                 for _n in 0..self.row_heights[row] {
-                    f.write_char(DEFAULT_COMPONENTS.vert)?;
+                    f.write_char(self.components.vert)?;
                     for (col_idx, width) in self.column_widths.iter().enumerate() {
                         f.write_char(' ')?;
                         let val = col_lines[col_idx].next().unwrap_or("");
@@ -177,7 +183,7 @@ impl fmt::Display for PrettyValues {
                         }
                         f.write_char(' ')?;
 
-                        f.write_char(DEFAULT_COMPONENTS.vert)?;
+                        f.write_char(self.components.vert)?;
                     }
 
                     f.write_char('\n')?;
@@ -191,6 +197,7 @@ impl fmt::Display for PrettyValues {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrettyFooter {
+    pub components: &'static TableComponents,
     pub content: String,
     pub column_widths: Vec<usize>,
 }
@@ -200,25 +207,25 @@ impl fmt::Display for PrettyFooter {
         // Characters depending on if we actually have a footer or not.
         let (left_border, intersection, right_border) = if self.content.is_empty() {
             (
-                DEFAULT_COMPONENTS.blc,
-                DEFAULT_COMPONENTS.bb_int,
-                DEFAULT_COMPONENTS.brc,
+                self.components.blc,
+                self.components.bb_int,
+                self.components.brc,
             )
         } else {
             (
-                DEFAULT_COMPONENTS.lb_int,
-                DEFAULT_COMPONENTS.bb_int,
-                DEFAULT_COMPONENTS.rb_int,
+                self.components.lb_int,
+                self.components.bb_int,
+                self.components.rb_int,
             )
         };
 
         f.write_char(left_border)?;
         for (idx, &width) in self.column_widths.iter().enumerate() {
-            f.write_char(DEFAULT_COMPONENTS.hor)?;
+            f.write_char(self.components.hor)?;
             for _ in 0..width {
-                f.write_char(DEFAULT_COMPONENTS.hor)?;
+                f.write_char(self.components.hor)?;
             }
-            f.write_char(DEFAULT_COMPONENTS.hor)?;
+            f.write_char(self.components.hor)?;
 
             if idx < self.column_widths.len() - 1 {
                 f.write_char(intersection)?;
@@ -230,22 +237,22 @@ impl fmt::Display for PrettyFooter {
             f.write_char('\n')?;
             let table_width = table_width(&self.column_widths);
 
-            f.write_char(DEFAULT_COMPONENTS.lb)?;
+            f.write_char(self.components.lb)?;
             f.write_char(' ')?;
 
             let usable = table_width - 4; // Remove border and space padding.
             write!(f, "{:usable$}", self.content)?;
 
             f.write_char(' ')?;
-            f.write_char(DEFAULT_COMPONENTS.rb)?;
+            f.write_char(self.components.rb)?;
             f.write_char('\n')?;
 
-            f.write_char(DEFAULT_COMPONENTS.blc)?;
+            f.write_char(self.components.blc)?;
             let border_width = table_width - 2; // Remove corners
             for _ in 0..border_width {
-                f.write_char(DEFAULT_COMPONENTS.bb)?;
+                f.write_char(self.components.bb)?;
             }
-            f.write_char(DEFAULT_COMPONENTS.brc)?;
+            f.write_char(self.components.brc)?;
         }
 
         Ok(())

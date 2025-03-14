@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use crate::logical::logical_aggregate::GroupingFunction;
 
-pub fn compute_grouping_value(grouping: &GroupingFunction, grouping_set: &BTreeSet<usize>) -> u64 {
-    let mut grouping_val: u64 = 0;
+pub fn compute_grouping_value(grouping: &GroupingFunction, grouping_set: &BTreeSet<usize>) -> i64 {
+    let mut grouping_val: i64 = 0;
 
     // Reverse iter to match postgres, the right-most
     // column the GROUPING corresponds to the least

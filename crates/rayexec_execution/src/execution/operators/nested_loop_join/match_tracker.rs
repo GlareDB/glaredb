@@ -71,10 +71,52 @@ impl MatchTracker {
             right_out.select_from_other(&NopBufferManager, right, selection, &mut NopCache)?;
         }
 
-        // Set the validities for the left array to all null.
+        // Set the validities for the left arrays to all null.
         for arr_idx in 0..arr_offset {
             let left = &mut output.arrays[arr_idx];
             left.put_validity(Validity::new_all_invalid(left.logical_len()))?;
+        }
+
+        output.set_num_rows(output_rows)?;
+
+        Ok(())
+    }
+
+    /// Writes the results of a left outer join to `output`.
+    ///
+    /// `left_offset` indicates the row offset that the left batch starts at.
+    pub fn left_outer_result(
+        &self,
+        left_offset: usize,
+        left: &mut Batch,
+        output: &mut Batch,
+    ) -> Result<()> {
+        debug_assert!(left.num_rows() + left_offset <= self.matches.len());
+
+        // Slice matches to only the ones for this batch.
+        let matches = &self.matches[left_offset..(left_offset + left.num_rows())];
+
+        let not_match_iter = NotMatchIter::new(matches);
+        let output_rows = not_match_iter.rem_no_matches;
+
+        if output_rows == 0 {
+            // Don't need to do anything, just set output to have no rows.
+            output.set_num_rows(0)?;
+            return Ok(());
+        }
+
+        // Slice the left arrays.
+        for arr_idx in 0..left.arrays.len() {
+            let left = &mut left.arrays[arr_idx];
+            let left_out = &mut output.arrays[arr_idx];
+
+            let selection = not_match_iter.clone();
+            left_out.select_from_other(&NopBufferManager, left, selection, &mut NopCache)?;
+        }
+
+        // Set the validities for the rights arrays to all null.
+        for right_arr in &mut output.arrays[left.arrays.len()..] {
+            right_arr.put_validity(Validity::new_all_invalid(right_arr.logical_len()))?;
         }
 
         output.set_num_rows(output_rows)?;
@@ -192,6 +234,90 @@ mod tests {
         tracker.right_outer_result(&mut right, &mut output).unwrap();
 
         let expected = generate_batch!([None as Option<i32>, None], ["a", "c"]);
+        assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn left_outer_all_rows_match() {
+        // COLLECTION SIZE: 4
+        // OUTPUT SIZE: 2
+        //
+        // No output produced
+
+        let mut tracker = MatchTracker::empty();
+        tracker.ensure_initialized(4);
+
+        for idx in 0..4 {
+            tracker.set_match(idx);
+        }
+
+        let mut output = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+
+        let mut left = generate_batch!([1, 2]);
+        tracker
+            .left_outer_result(0, &mut left, &mut output)
+            .unwrap();
+        assert_eq!(0, output.num_rows());
+
+        let mut left = generate_batch!([3, 4]);
+        tracker
+            .left_outer_result(0, &mut left, &mut output)
+            .unwrap();
+        assert_eq!(0, output.num_rows());
+    }
+
+    #[test]
+    fn left_outer_no_rows_match() {
+        // COLLECTION SIZE: 4
+        // OUTPUT SIZE: 2
+        //
+        // All output produced
+
+        let mut tracker = MatchTracker::empty();
+        tracker.ensure_initialized(4);
+
+        let mut output = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+
+        let mut left = generate_batch!([1, 2]);
+        tracker
+            .left_outer_result(0, &mut left, &mut output)
+            .unwrap();
+        let expected = generate_batch!([1, 2], [None as Option<&str>, None]);
+        assert_batches_eq(&expected, &output);
+
+        let mut left = generate_batch!([3, 4]);
+        tracker
+            .left_outer_result(0, &mut left, &mut output)
+            .unwrap();
+        let expected = generate_batch!([3, 4], [None as Option<&str>, None]);
+        assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn left_outer_some_rows_match() {
+        // COLLECTION SIZE: 4
+        // OUTPUT SIZE: 2
+
+        let mut tracker = MatchTracker::empty();
+        tracker.ensure_initialized(4);
+
+        // Should produce rows 1 and 3
+        tracker.set_matches([0, 2]);
+
+        let mut output = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+
+        let mut left = generate_batch!([1, 2]);
+        tracker
+            .left_outer_result(0, &mut left, &mut output)
+            .unwrap();
+        let expected = generate_batch!([2], [None as Option<&str>]);
+        assert_batches_eq(&expected, &output);
+
+        let mut left = generate_batch!([3, 4]);
+        tracker
+            .left_outer_result(0, &mut left, &mut output)
+            .unwrap();
+        let expected = generate_batch!([4], [None as Option<&str>]);
         assert_batches_eq(&expected, &output);
     }
 }

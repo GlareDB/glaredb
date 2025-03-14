@@ -17,6 +17,9 @@ pub struct ColumnCollectionAppendState {
 
 #[derive(Debug)]
 pub struct ColumnCollectionScanState {
+    /// Row offset for the batch we just scanned relative to the entire
+    /// collection.
+    relative_scan_offset: usize,
     /// Index of the segment we should check next.
     next_segment_idx: usize,
     /// Current segment we're on.
@@ -25,16 +28,26 @@ pub struct ColumnCollectionScanState {
     chunk_idx: usize,
 }
 
+impl ColumnCollectionScanState {
+    /// Get the relative row for the most recent scan.
+    ///
+    /// If the most recent scan produced no rows, then this should not change
+    /// from the previous scan.
+    pub fn relative_scan_offset(&self) -> usize {
+        self.relative_scan_offset
+    }
+}
+
 /// State for parallel scans on the collection.
 ///
 /// All parallel states initialized at the same time will coordinate which
 /// segments to scan such that every row is scanned exactly once.
 #[derive(Debug)]
 pub struct ParallelColumnCollectionScanState {
+    /// Local scan state.
+    pub state: ColumnCollectionScanState,
     /// Shared atomic indicating the next segment to scan.
     next: Arc<AtomicUsize>,
-    /// Local scan state.
-    state: ColumnCollectionScanState,
 }
 
 /// Data collection that can be append to/ read from concurrently.
@@ -42,12 +55,19 @@ pub struct ParallelColumnCollectionScanState {
 pub struct ConcurrentColumnCollection {
     /// Data types of columns in this collection.
     datatypes: Vec<DataType>,
-    /// All segments that have been flushed to the collection.
-    segments: Mutex<Vec<Arc<ColumnCollectionSegment>>>,
     /// Segment size in chunks. Inexact.
     segment_size: usize,
     /// Max capacity of each chunk in rows.
     chunk_capacity: usize,
+    flushed: Mutex<FlushedSegments>,
+}
+
+#[derive(Debug)]
+struct FlushedSegments {
+    /// All segments that have been flushed to the collection.
+    segments: Vec<Arc<ColumnCollectionSegment>>,
+    /// Number of rows that have been flushed to the collection.
+    flushed_row_count: usize,
 }
 
 impl ConcurrentColumnCollection {
@@ -58,9 +78,12 @@ impl ConcurrentColumnCollection {
     ) -> Self {
         ConcurrentColumnCollection {
             datatypes: datatypes.into_iter().collect(),
-            segments: Mutex::new(Vec::new()),
             segment_size,
             chunk_capacity,
+            flushed: Mutex::new(FlushedSegments {
+                segments: Vec::new(),
+                flushed_row_count: 0,
+            }),
         }
     }
 
@@ -82,17 +105,16 @@ impl ConcurrentColumnCollection {
     /// Initializes a scan state for reading all batches in the collection.
     pub fn init_scan_state(&self) -> ColumnCollectionScanState {
         ColumnCollectionScanState {
+            relative_scan_offset: 0,
             next_segment_idx: 0,
             segment: None,
             chunk_idx: 0,
         }
     }
 
-    /// Gets the total number of rows in the collection.
-    ///
-    /// This will lock the segments while iterating.
-    pub fn total_rows(&self) -> usize {
-        self.segments.lock().iter().map(|s| s.num_rows()).sum()
+    /// Gets the total number of flushed rows in the collection.
+    pub fn flushed_rows(&self) -> usize {
+        self.flushed.lock().flushed_row_count
     }
 
     pub fn datatypes(&self) -> &[DataType] {
@@ -128,14 +150,21 @@ impl ConcurrentColumnCollection {
             ColumnCollectionSegment::new(self.chunk_capacity),
         );
         segment.finish_append();
+
         // Ensure we don't add segments with zero total rows since we depend on
         // zero being a marker value for when we're done scanning.
-        if segment.num_rows() == 0 {
+        let num_rows = segment.num_rows();
+        if num_rows == 0 {
             return Ok(());
         }
 
-        let mut segments = self.segments.lock();
-        segments.push(Arc::new(segment));
+        let mut flushed = self.flushed.lock();
+
+        let relative_offset = flushed.flushed_row_count;
+        segment.set_relative_offsets(relative_offset);
+
+        flushed.segments.push(Arc::new(segment));
+        flushed.flushed_row_count += num_rows;
 
         Ok(())
     }
@@ -181,8 +210,8 @@ impl ConcurrentColumnCollection {
     ) -> Result<usize> {
         loop {
             if state.segment.is_none() {
-                let segments = self.segments.lock();
-                let segment = match segments.get(state.next_segment_idx) {
+                let flushed = self.flushed.lock();
+                let segment = match flushed.segments.get(state.next_segment_idx) {
                     Some(segment) => segment,
                     None => {
                         // No more segments.
@@ -192,6 +221,7 @@ impl ConcurrentColumnCollection {
                 };
 
                 state.segment = Some(segment.clone());
+                state.relative_scan_offset = 0;
                 state.next_segment_idx = next_segment_fn(state.next_segment_idx);
                 state.chunk_idx = 0;
             }
@@ -201,7 +231,11 @@ impl ConcurrentColumnCollection {
             match segment.get_chunk(state.chunk_idx) {
                 Some(chunk) => {
                     let num_rows = chunk.scan(projections, output)?;
+                    // TODO: Do we need to check that that chunk is exhausted
+                    // before incrementing?
                     state.chunk_idx += 1;
+                    state.relative_scan_offset = chunk.relative_offset;
+
                     return Ok(num_rows);
                 }
                 None => {
@@ -242,6 +276,7 @@ impl Iterator for CreateParallelStateIter {
         let state = ParallelColumnCollectionScanState {
             next: self.next.clone(),
             state: ColumnCollectionScanState {
+                relative_scan_offset: 0,
                 next_segment_idx: self.idx,
                 segment: None,
                 chunk_idx: 0,
@@ -284,12 +319,14 @@ mod tests {
             .scan(&projections, &mut scan_state, &mut output)
             .unwrap();
         assert_batches_eq(&input, &output);
+        assert_eq!(0, scan_state.relative_scan_offset());
 
         // Try scan again, get nothing.
         collection
             .scan(&projections, &mut scan_state, &mut output)
             .unwrap();
         assert_eq!(0, output.num_rows());
+        assert_eq!(0, scan_state.relative_scan_offset());
 
         // Should be able to keep appending.
         let input = generate_batch!([1, 2, 3, 4], ["e", "f", "g", "h"]);
@@ -300,6 +337,39 @@ mod tests {
             .scan(&projections, &mut scan_state, &mut output)
             .unwrap();
         assert_batches_eq(&input, &output);
+        assert_eq!(4, scan_state.relative_scan_offset());
+    }
+
+    #[test]
+    fn scan_from_many_chunks() {
+        // SEGMENT SIZE: 2 chunks
+        // CHUNK CAPACITY: 4 rows
+        let collection = ConcurrentColumnCollection::new([DataType::Int32], 2, 4);
+
+        let mut append_state = collection.init_append_state();
+        // Insert batches.
+        // batch 0: [[0, 0, 0, 0]]
+        // batch 1: [[1, 1, 1, 1]]
+        // ...
+        for idx in 0..16 {
+            let batch = generate_batch!(std::iter::repeat(idx).take(4));
+            collection.append_batch(&mut append_state, &batch).unwrap();
+        }
+        collection.flush(&mut append_state).unwrap();
+
+        // Now read out batches.
+        let mut out = Batch::new([DataType::Int32], 4).unwrap();
+        let projections = Projections::new([0]);
+        let mut scan_state = collection.init_scan_state();
+
+        for idx in 0..16 {
+            let expected_offset = idx * 4;
+            let count = collection
+                .scan(&projections, &mut scan_state, &mut out)
+                .unwrap();
+            assert_eq!(4, count);
+            assert_eq!(expected_offset, scan_state.relative_scan_offset());
+        }
     }
 
     #[test]
@@ -352,28 +422,30 @@ mod tests {
         collection
             .parallel_scan(&projections, &mut states[0], &mut output1)
             .unwrap();
-
         let expected1 = generate_batch!([4, 5], ["a", "b"]);
         assert_batches_eq(&expected1, &output1);
+        assert_eq!(0, states[0].state.relative_scan_offset());
 
         let mut output2 = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
         collection
             .parallel_scan(&projections, &mut states[1], &mut output2)
             .unwrap();
-
         let expected2 = generate_batch!([6, 7], ["c", "d"]);
         assert_batches_eq(&expected2, &output2);
+        assert_eq!(2, states[1].state.relative_scan_offset());
 
         // Should exhaust both scans.
         collection
             .parallel_scan(&projections, &mut states[0], &mut output1)
             .unwrap();
         assert_eq!(0, output1.num_rows());
+        assert_eq!(0, states[0].state.relative_scan_offset());
 
         collection
             .parallel_scan(&projections, &mut states[1], &mut output2)
             .unwrap();
         assert_eq!(0, output2.num_rows());
+        assert_eq!(2, states[1].state.relative_scan_offset());
     }
 
     #[test]
@@ -399,9 +471,9 @@ mod tests {
         collection
             .parallel_scan(&projections, &mut scan_states[0], &mut out1)
             .unwrap();
-
         let expected1 = generate_batch!([4, 5], ["a", "b"]);
         assert_batches_eq(&expected1, &out1);
+        assert_eq!(0, scan_states[0].state.relative_scan_offset());
 
         // Second scan is exhausted immediately.
         let mut out2 = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
@@ -409,6 +481,7 @@ mod tests {
             .parallel_scan(&projections, &mut scan_states[1], &mut out2)
             .unwrap();
         assert_eq!(0, out2.num_rows());
+        assert_eq!(0, scan_states[1].state.relative_scan_offset());
 
         // Push more input.
         let input2 = generate_batch!([6, 7], ["c", "d"]);
@@ -419,8 +492,8 @@ mod tests {
         collection
             .parallel_scan(&projections, &mut scan_states[1], &mut out2)
             .unwrap();
-
         let expected2 = generate_batch!([6, 7], ["c", "d"]);
         assert_batches_eq(&expected2, &out2);
+        assert_eq!(2, scan_states[1].state.relative_scan_offset());
     }
 }

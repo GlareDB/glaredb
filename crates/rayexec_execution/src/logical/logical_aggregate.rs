@@ -8,6 +8,13 @@ use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
+/// An instance of a GROUPING function.
+///
+/// A GROUPING function returns a i64 value denoting the null bitmask for that
+/// group.
+///
+/// The rationale for returning an i64 is mostly for its higher compatability
+/// with casting to other types.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupingFunction {
     /// Indices pointing to expressions in the GROUP BY.

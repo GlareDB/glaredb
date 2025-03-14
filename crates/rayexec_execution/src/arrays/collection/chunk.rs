@@ -11,8 +11,15 @@ use crate::storage::projections::Projections;
 
 #[derive(Debug)]
 pub struct ColumnChunk {
+    /// Relative row offset of this chunk in the entire collection.
+    ///
+    /// Set only when the containing segment is flushed to the collection.
+    pub relative_offset: usize,
+    /// Column buffers making up this chunk.
     pub buffers: Vec<ColumnBuffer>,
+    /// Capacity in rows for this chunk.
     pub capacity: usize,
+    /// Number of rows filled up in this chunk.
     pub filled: usize,
 }
 
@@ -32,6 +39,7 @@ impl ColumnChunk {
         }
 
         Ok(ColumnChunk {
+            relative_offset: 0,
             buffers,
             capacity,
             filled: 0,

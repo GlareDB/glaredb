@@ -3,6 +3,9 @@
 statement ok
 create temp table t1 (a int);
 
-statement error Not yet implemented
+statement ok
 drop table t1;
 
+# TODO: Needs to error
+# statement error
+# drop table t1;
