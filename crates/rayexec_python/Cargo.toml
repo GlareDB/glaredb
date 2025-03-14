@@ -20,5 +20,5 @@ rayexec_rt_native = { path = '../rayexec_rt_native' }
 futures = { workspace = true }
 parking_lot = { workspace = true }
 tracing = { workspace = true }
-pyo3 = { version = "0.23.4", features = ["abi3-py37", "extension-module"] }
+pyo3 = { version = "0.24.0", features = ["abi3-py37", "extension-module"] }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
