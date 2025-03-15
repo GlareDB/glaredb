@@ -55,3 +55,6 @@ pub const MODE_BOLD: &str = "\x1b[1m";
 pub const MODE_UNDERLINE: &str = "\x1b[4m";
 pub const MODE_BLINK: &str = "\x1b[6m";
 pub const MODE_REVERSE: &str = "\x1b[7m";
+
+pub const CRLF: &str = "\r\n";
+pub const CR: &str = "\r";

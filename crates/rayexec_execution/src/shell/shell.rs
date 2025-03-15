@@ -4,7 +4,8 @@ use std::io::{self, Write};
 use rayexec_error::{RayexecError, Result};
 use tracing::trace;
 
-use super::lineedit::{KeyEvent, LineEditor, Signal};
+use super::lineedit::{KeyEvent, LineEditor, Signal, TermSize};
+use super::raw::RawTerminalWriter;
 use super::vt100::{MODES_OFF, MODE_BOLD};
 use crate::arrays::format::pretty::table::PrettyTable;
 use crate::engine::single_user::SingleUserEngine;
@@ -70,7 +71,10 @@ where
     T: RawModeTerm,
 {
     pub fn new(writer: W, term: T) -> Self {
-        let editor = LineEditor::new(writer, ">> ", 80);
+        const PROMPT: &str = "glaredb> ";
+        const CONTIN: &str = "     ... ";
+
+        let editor = LineEditor::new(writer, PROMPT, CONTIN, TermSize { cols: 80 });
         Shell {
             editor: RefCell::new(editor),
             engine: RefCell::new(None),
@@ -86,7 +90,7 @@ where
         });
 
         let mut editor = self.editor.borrow_mut();
-        let mut writer = editor.raw_mode_writer();
+        let mut writer = RawTerminalWriter::new(editor.writer_mut());
         writeln!(writer, "{}{shell_msg}{}", MODE_BOLD, MODES_OFF)?;
         let version = env!("CARGO_PKG_VERSION");
         writeln!(writer, "Preview ({version}) - There will be bugs!")?;
@@ -102,9 +106,9 @@ where
         Ok(guard)
     }
 
-    pub fn set_cols(&self, cols: usize) {
+    pub fn set_size(&self, size: TermSize) {
         let mut editor = self.editor.borrow_mut();
-        editor.set_cols(cols);
+        editor.set_size(size);
     }
 
     pub fn consume_key(&self, guard: RawModeGuard<T>, key: KeyEvent) -> Result<ShellSignal<T>> {
@@ -140,7 +144,7 @@ where
         std::mem::drop(guard);
 
         let mut editor = self.editor.borrow_mut();
-        let width = editor.get_cols();
+        let width = editor.get_size().cols;
 
         let mut engine = self.engine.borrow_mut();
         match engine.as_mut() {
@@ -149,7 +153,7 @@ where
                     Some(query) => query,
                     None => return Ok(()), // Nothing to execute.
                 };
-                let mut writer = editor.raw_mode_writer();
+                let mut writer = RawTerminalWriter::new(editor.writer_mut());
                 writer.write_all(b"\n")?;
 
                 match engine.engine.session().query_many(&query) {

@@ -9,7 +9,7 @@ use rayexec_error::Result;
 use rayexec_execution::arrays::format::pretty::table::PrettyTable;
 use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
-use rayexec_execution::shell::lineedit::KeyEvent;
+use rayexec_execution::shell::lineedit::{KeyEvent, TermSize};
 use rayexec_execution::shell::shell::{RawModeTerm, Shell, ShellSignal};
 // use rayexec_iceberg::IcebergDataSource;
 // use rayexec_parquet::ParquetDataSource;
@@ -173,7 +173,9 @@ async fn inner(
     // Otherwise continue on with interactive shell.
 
     let shell = Shell::new(stdout, CrosstermRawModeTerm);
-    shell.set_cols(cols as usize);
+    shell.set_size(TermSize {
+        cols: cols as usize,
+    });
     shell.attach(engine, "GlareDB Shell")?;
 
     let mut edit_guard = shell.edit_start()?;
@@ -204,7 +206,9 @@ async fn inner(
                         ShellSignal::Exit => break,
                     }
                 }
-                Event::Resize(cols, _) => shell.set_cols(cols as usize),
+                Event::Resize(cols, _) => shell.set_size(TermSize {
+                    cols: cols as usize,
+                }),
                 _event => (),
             }
         }

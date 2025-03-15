@@ -27,7 +27,8 @@ use crate::tokens::{Token, TokenWithLocation, Tokenizer};
 /// Parse a sql query into statements.
 pub fn parse(sql: &str) -> Result<Vec<Statement<Raw>>> {
     trace!(%sql, "parsing sql statement");
-    let toks = Tokenizer::new(sql).tokenize()?;
+    let mut toks = Vec::new();
+    Tokenizer::new(sql).tokenize(&mut toks)?;
     Parser::with_tokens(toks, sql).parse_statements()
 }
 

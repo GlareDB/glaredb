@@ -227,8 +227,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     /// Generate tokens for the configured query.
-    pub fn tokenize(&mut self) -> Result<Vec<TokenWithLocation>> {
-        let mut tokens = Vec::new();
+    pub fn tokenize(&mut self, tokens: &mut Vec<TokenWithLocation>) -> Result<()> {
         let mut start_idx = self.state.idx;
         while let Some(token) = self.next_token()? {
             tokens.push(TokenWithLocation {
@@ -241,7 +240,7 @@ impl<'a> Tokenizer<'a> {
             start_idx = self.state.idx;
         }
 
-        Ok(tokens)
+        Ok(())
     }
 
     fn next_token(&mut self) -> Result<Option<Token>> {
@@ -484,8 +483,9 @@ mod tests {
 
     #[test]
     fn simple_token_start_idx() {
-        let toks = Tokenizer::new("CREATE VIEW   hi AS SELECT 1 FROM my_table")
-            .tokenize()
+        let mut toks = Vec::new();
+        Tokenizer::new("CREATE VIEW   hi AS SELECT 1 FROM my_table")
+            .tokenize(&mut toks)
             .unwrap();
 
         // CREATE

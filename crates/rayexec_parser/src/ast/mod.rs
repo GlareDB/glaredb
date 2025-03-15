@@ -61,7 +61,8 @@ mod testutil {
 
     /// Parse an AST node directly from a string.
     pub(crate) fn parse_ast<A: AstParseable>(s: &str) -> Result<A> {
-        let toks = Tokenizer::new(s).tokenize()?;
+        let mut toks = Vec::new();
+        Tokenizer::new(s).tokenize(&mut toks)?;
         let mut parser = Parser::with_tokens(toks, s);
         A::parse(&mut parser)
     }
