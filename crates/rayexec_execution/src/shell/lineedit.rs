@@ -54,14 +54,12 @@ pub struct LineEditor<W: io::Write> {
     writer: W,
     /// Current terminal size.
     size: TermSize,
-    /// Current cursor position.
-    pos: usize,
-    /// Number of lines we called `refresh` with previously.
-    ///
-    /// This is used to clear the old line. We don't use the current number of
-    /// lines since the might have just entered in an '\n' which wouldn't be
-    /// reflected in the output.
-    prev_lines: usize,
+    /// Current cursor position relative to the input text.
+    text_pos: usize,
+    /// Row index for where we previously rendered the cursor.
+    rendered_cursor_row: usize,
+    /// Max number of lines we've edited thus far for a query.
+    max_lines: usize,
     /// If the user hti CTRL-C on the previous input.
     ///
     /// Used to exit after the user hits CTRL-C twice in succession. Get's reset
@@ -88,8 +86,9 @@ where
             buffer: TextBuffer::new(),
             writer,
             size,
-            pos: 0,
-            prev_lines: 1, // We never have less than one line.
+            text_pos: 0,
+            rendered_cursor_row: 0,
+            max_lines: 1, // We never have less than one line.
             did_ctrl_c: false,
             highlighter: HighlightState::new(),
         }
@@ -128,6 +127,7 @@ where
             }
             KeyEvent::Enter => {
                 if self.is_complete() {
+                    self.edit_move_to_end()?;
                     return Ok(Signal::InputCompleted(&self.buffer.as_ref()));
                 }
                 self.edit_enter()?;
@@ -146,6 +146,10 @@ where
             }
             KeyEvent::CtrlC => {
                 self.did_ctrl_c = true;
+
+                // Move to end of input.
+                self.edit_move_to_end()?;
+
                 write!(self.writer, "{}", vt100::CRLF)?;
                 self.edit_start()?;
             }
@@ -163,8 +167,9 @@ where
 
     pub fn edit_start(&mut self) -> Result<()> {
         self.buffer.clear();
-        self.pos = 0;
-        self.prev_lines = 1;
+        self.text_pos = 0;
+        self.rendered_cursor_row = 0;
+        self.max_lines = 1;
 
         Self::write_prompt(&mut self.writer, self.prompt)?;
         self.writer.flush()?;
@@ -172,12 +177,20 @@ where
         Ok(())
     }
 
+    fn edit_move_to_end(&mut self) -> Result<()> {
+        if self.text_pos == self.buffer.current.len() {
+            return Ok(());
+        }
+        self.text_pos = self.buffer.current.len();
+        self.refresh()
+    }
+
     fn edit_enter(&mut self) -> Result<()> {
         self.edit_insert_char('\n', true)
     }
 
     fn edit_move_up(&mut self) -> Result<()> {
-        let line = self.buffer.current_line(self.pos);
+        let line = self.buffer.current_line(self.text_pos);
         if line == 0 {
             // TODO: History
             return Ok(());
@@ -185,10 +198,12 @@ where
 
         // Relative position in the current line. We'll use this to try to line
         // up the relative position in the previous line.
-        let pos_rel = self.pos - self.buffer.spans[line].start;
-
+        //
+        // If our relative position is goes beyond the end of the previous line,
+        // we put the position at the end (where the newline char would be).
+        let pos_rel = self.text_pos - self.buffer.spans[line].start;
         let prev = self.buffer.spans[line - 1];
-        self.pos = usize::min(prev.start + prev.len, prev.start + pos_rel);
+        self.text_pos = usize::min(prev.start + prev.len - 1, prev.start + pos_rel);
 
         self.refresh()?;
 
@@ -196,17 +211,16 @@ where
     }
 
     fn edit_move_down(&mut self) -> Result<()> {
-        let line = self.buffer.current_line(self.pos);
+        let line = self.buffer.current_line(self.text_pos);
         if line == self.buffer.spans.len() - 1 {
             // TODO: History
             return Ok(());
         }
 
         // See above.
-        let pos_rel = self.pos - self.buffer.spans[line].start;
-
+        let pos_rel = self.text_pos - self.buffer.spans[line].start;
         let next = self.buffer.spans[line + 1];
-        self.pos = usize::min(next.start + next.len, next.start + pos_rel);
+        self.text_pos = usize::min(next.start + next.len - 1, next.start + pos_rel);
 
         self.refresh()?;
 
@@ -214,16 +228,16 @@ where
     }
 
     fn edit_move_left(&mut self) -> Result<()> {
-        if self.pos > 0 {
-            self.pos -= 1;
+        if self.text_pos > 0 {
+            self.text_pos -= 1;
             self.refresh()?;
         }
         Ok(())
     }
 
     fn edit_move_right(&mut self) -> Result<()> {
-        if self.pos < self.buffer.current.len() {
-            self.pos += 1;
+        if self.text_pos < self.buffer.current.len() {
+            self.text_pos += 1;
             self.refresh()?;
         }
         Ok(())
@@ -231,8 +245,8 @@ where
 
     /// Insert a character.
     fn edit_insert_char(&mut self, ch: char, refresh: bool) -> Result<()> {
-        self.buffer.insert_char(self.pos, ch);
-        self.pos += 1;
+        self.buffer.insert_char(self.text_pos, ch);
+        self.text_pos += 1;
 
         if refresh {
             self.refresh()?;
@@ -242,12 +256,12 @@ where
     }
 
     fn edit_backspace(&mut self) -> Result<()> {
-        if self.pos == 0 {
+        if self.text_pos == 0 {
             return Ok(());
         }
 
-        self.buffer.remove_char(self.pos);
-        self.pos -= 1;
+        self.buffer.remove_char(self.text_pos);
+        self.text_pos -= 1;
         self.refresh()?;
 
         Ok(())
@@ -256,11 +270,14 @@ where
     /// Refresh the current "line" we're on (which may actually be multiple
     /// lines).
     fn refresh(&mut self) -> Result<()> {
-        // Position relative to the buffer.
-        let (pos_line, pos_col) = self.buffer.current_line_and_column(self.pos);
-        debug::log(|| format!("position: line: {pos_line}, col: {pos_col}"));
-
-        let row_diff = self.buffer.spans.len() - 1 - pos_line;
+        debug::log(|| {
+            format!(
+                "max_lines: {}, rendered_cursor_row: {}",
+                self.max_lines, self.rendered_cursor_row
+            )
+        });
+        // First clear out the previous lines.
+        let row_diff = self.max_lines - self.rendered_cursor_row;
         debug::log(|| format!("row_diff: {row_diff}"));
         if row_diff > 0 {
             // Cursor not on the last line, need to move it to the end.
@@ -268,14 +285,14 @@ where
         }
 
         // Clear previous rows.
-        for _ in 0..self.prev_lines - 1 {
+        for _ in 0..self.max_lines - 1 {
             // Clear current line.
             write!(self.writer, "{}", vt100::CR)?;
             write!(self.writer, "{}", vt100::CLEAR_LINE_CURSOR_RIGHT)?;
             vt100::cursor_up(&mut self.writer, 1)?;
         }
 
-        // Clear current line.
+        // Clear current/top line.
         write!(self.writer, "{}", vt100::CR)?;
         write!(self.writer, "{}", vt100::CLEAR_LINE_CURSOR_RIGHT)?;
 
@@ -286,36 +303,46 @@ where
         let mut lines = buffer.lines();
 
         // Write the prompt with the first line.
+        debug::log(|| "printing first line");
         Self::write_prompt(&mut self.writer, self.prompt)?;
         let first = lines.next().unwrap();
         let h_first = self.highlighter.next_chunk_highlight(first);
         for h_str in h_first {
-            h_str.write_vt100(&mut self.writer)?;
+            h_str.write_vt100_trim_nl(&mut self.writer)?;
         }
 
         // Now write each following line with a continuation string.
+        debug::log(|| "printing remaining lines");
         for line in lines {
-            // Don't highlight continuations.
-            self.highlighter.clear_highlight(&mut self.writer)?;
             write!(self.writer, "{}", vt100::CRLF)?;
-            write!(self.writer, "{}", self.continuation)?;
+            write!(
+                self.writer,
+                "{}{}",
+                vt100::COLOR_FG_BRIGHT_BLACK,
+                self.continuation
+            )?;
 
             // Highlight each line
             let h_line = self.highlighter.next_chunk_highlight(line);
             for h_str in h_line {
-                h_str.write_vt100(&mut self.writer)?;
+                h_str.write_vt100_trim_nl(&mut self.writer)?;
             }
         }
 
         // We're done highlighting.
         self.highlighter.clear_highlight(&mut self.writer)?;
 
+        // Now get the cursor line/col relative to the text input.
+        let (pos_line, pos_col) = self.buffer.current_line_and_column(self.text_pos);
+        debug::log(|| format!("position: line: {pos_line}, col: {pos_col}"));
+
         // TODO: Need to account for automatic wrapping for lines longer than
         // terminal width.
-        self.prev_lines = self.buffer.spans.len();
+        self.max_lines = usize::max(self.buffer.spans.len(), self.max_lines);
 
         // Now move cursor to correct line/column
         let line = pos_line; // TODO: Compute overflow.
+        self.rendered_cursor_row = line;
 
         let col = if line == 0 {
             // Adjust using width of "normal" prompt.
@@ -384,6 +411,30 @@ impl LineSpan {
     }
 }
 
+/// Holds the raw user input, along with info about where lines begin/end.
+///
+/// All `pos` arguments should indicate where the cursor is relative to the
+/// input.
+///
+/// E.g. for the following:
+/// ```text
+/// SELECT * FROM table;
+///          ^ pos = 9
+/// ```
+///
+/// - An insert will insert before 'F'.
+/// - A backspace will remove the space before the 'F'.
+///
+/// And for newlines:
+/// ```text
+/// SELECT 1,
+/// 2;
+/// ```
+///
+/// - Position 8 is the ','. A backspace will delete the '1'.
+/// - Position 9 is immediately after the comma, but still on the first line. A
+///   backspace will delete the ','.
+/// - Postiion 10 is the '2'. A backspace will delete the newline.
 #[derive(Debug)]
 struct TextBuffer {
     spans: Vec<LineSpan>,
@@ -426,11 +477,12 @@ impl TextBuffer {
 
     fn insert_char(&mut self, pos: usize, ch: char) {
         if pos == self.current.len() {
-            self.spans.last_mut().unwrap().len += 1;
+            // Cursor is at the end of the input.
+
             self.current.push(ch);
+            self.spans.last_mut().unwrap().len += 1;
 
             if ch == '\n' {
-                debug::log(|| "hello?");
                 // Start a new line.
                 self.spans.push(LineSpan {
                     start: pos + 1,
@@ -438,25 +490,29 @@ impl TextBuffer {
                 });
             }
         } else {
-            unimplemented!()
-            // // Need to find which line we're currently in.
-            // let span_pos = self.current_line(pos);
+            self.current.insert(pos, ch);
 
-            // // Need to split span into two.
-            // let span = self.spans[span_pos];
-            // let at_relative = pos - span.start;
-            // let (left, right) = span.split(at_relative);
+            let line_idx = self.current_line(pos);
+            let line = &mut self.spans[line_idx];
+            line.len += 1;
 
-            // self.spans[span_pos] = left;
-            // self.spans.insert(span_pos + 1, right);
+            // Adjust start position of all lines after this one.
+            if line_idx != self.spans.len() - 1 {
+                let after = &mut self.spans[line_idx + 1..];
+                for line in after {
+                    line.start += 1;
+                }
+            }
 
-            // // Adjust all spans after the on we just inserted to account for the
-            // // new character.
-            // for span in &mut self.spans[span_pos + 1..] {
-            //     span.start += 1;
-            // }
+            if ch == '\n' {
+                // Need to split this line in two.
+                let line = &self.spans[line_idx];
+                let relative = pos - line.start + 1; // Account for the newly appended '\n'.
+                let (line, next) = line.split(relative);
 
-            // self.buffer.push(ch);
+                self.spans[line_idx] = line;
+                self.spans.insert(line_idx + 1, next);
+            }
         }
     }
 
@@ -468,19 +524,45 @@ impl TextBuffer {
             return;
         }
 
-        if pos == self.current.len() {
-            let last = self.spans.last().unwrap();
-            if last.len == 0 {
-                // We're deleting through a newline, just remove this span.
-                self.spans.pop().unwrap();
-            }
+        let ch = self.current.remove(pos - 1);
 
-            // We want to remove from this span even if we removed one as this
-            // would remove the "newline" position.
-            self.spans.last_mut().unwrap().len -= 1;
-            self.current.remove(pos - 1);
+        let mut line_idx = self.current_line(pos);
+        let line = self.spans[line_idx];
+
+        if pos == line.start {
+            // We're removing a newline char. We want to merge this line
+            // into the previous line.
+            debug_assert_eq!(ch, '\n');
+            debug_assert!(self.spans.len() >= 2);
+
+            let prev = &mut self.spans[line_idx - 1];
+            prev.len += line.len;
+            prev.len -= 1; // Account for removal of newline char.
+
+            // Remove this line.
+            self.spans.remove(line_idx);
+
+            // We're now in the previous line.
+            line_idx -= 1;
+            // Adjust the start of all lines after this line.
+            if line_idx != self.spans.len() - 1 {
+                let after = &mut self.spans[line_idx + 1..];
+                for line in after {
+                    line.start -= 1;
+                }
+            }
         } else {
-            // TODO: ...
+            // Otherwise we're deleting from the middle (or end) of a line.
+            let line = &mut self.spans[line_idx];
+            line.len -= 1;
+
+            // Adjust the start of all lines after this line.
+            if line_idx != self.spans.len() - 1 {
+                let after = &mut self.spans[line_idx + 1..];
+                for line in after {
+                    line.start -= 1;
+                }
+            }
         }
     }
 
@@ -491,17 +573,16 @@ impl TextBuffer {
         }
     }
 
+    /// Returns the line string at the given index.
+    ///
+    /// Whitespace is not trimmed.
     fn line_str(&self, line_idx: usize) -> Option<&str> {
         if line_idx >= self.spans.len() {
             return None;
         }
 
         let span = self.spans[line_idx];
-        let mut line = &self.current[span.start..(span.start + span.len)];
-
-        // Trim newline characters from the end. We're going to be the ones
-        // responsible for writing the newlines.
-        line = line.trim_end_matches('\n');
+        let line = &self.current[span.start..(span.start + span.len)];
 
         Some(line)
     }
@@ -552,7 +633,7 @@ mod tests {
     }
 
     #[test]
-    fn text_buffer_insert_single_line() {
+    fn text_buffer_append_single_line() {
         let mut buf = TextBuffer::new();
         insert_str(&mut buf, 0, "select 1;");
 
@@ -565,12 +646,36 @@ mod tests {
     }
 
     #[test]
-    fn text_buffer_insert_multiple_lines() {
+    fn text_buffer_insert_single_line() {
+        let mut buf = TextBuffer::new();
+        insert_str(&mut buf, 0, "select 1;");
+
+        buf.insert_char(7, '6');
+        assert_eq!(Some("select 61;"), buf.line_str(0));
+    }
+
+    #[test]
+    fn text_buffer_insert_newline() {
+        let mut buf = TextBuffer::new();
+        insert_str(&mut buf, 0, "select 1, 2,\n3;");
+
+        // Cursor on the '2'
+        buf.insert_char(10, '\n');
+
+        println!("LINES: {:?}", buf.lines().collect::<Vec<_>>());
+
+        assert_eq!(Some("select 1, \n"), buf.line_str(0));
+        assert_eq!(Some("2,\n"), buf.line_str(1));
+        assert_eq!(Some("3;"), buf.line_str(2));
+    }
+
+    #[test]
+    fn text_buffer_append_multiple_lines() {
         let mut buf = TextBuffer::new();
         let pos = insert_str(&mut buf, 0, "select");
         _ = insert_str(&mut buf, pos, "\n1;");
 
-        assert_eq!(Some("select"), buf.line_str(0));
+        assert_eq!(Some("select\n"), buf.line_str(0));
         assert_eq!(Some("1;"), buf.line_str(1));
         assert_eq!(None, buf.line_str(2));
 
@@ -588,7 +693,7 @@ mod tests {
     }
 
     #[test]
-    fn text_buffer_delete_from_line() {
+    fn text_buffer_delete_from_end_of_line() {
         let mut buf = TextBuffer::new();
         let pos = insert_str(&mut buf, 0, "select 1;");
         assert_eq!(9, pos);
@@ -598,6 +703,17 @@ mod tests {
         buf.remove_char(7);
 
         assert_eq!(Some("select"), buf.line_str(0));
+    }
+
+    #[test]
+    fn text_buffer_delete_from_line() {
+        let mut buf = TextBuffer::new();
+        let pos = insert_str(&mut buf, 0, "select 61;");
+        assert_eq!(10, pos);
+
+        buf.remove_char(8);
+
+        assert_eq!(Some("select 1;"), buf.line_str(0));
     }
 
     #[test]
@@ -614,5 +730,54 @@ mod tests {
 
         assert_eq!(Some("selec"), buf.line_str(0));
         assert_eq!(None, buf.line_str(1));
+    }
+
+    #[test]
+    fn text_buffer_delete_through_newline_multiple_lines() {
+        let mut buf = TextBuffer::new();
+        let _ = insert_str(&mut buf, 0, "select 1,\n2,\n3;");
+
+        // Cursor after the '2,' line, delete the line.
+        buf.remove_char(12); // Remove ','
+        buf.remove_char(11); // Remove '2'
+        buf.remove_char(10); // Remove '\n'
+
+        println!("LINES: {:?}", buf.lines().collect::<Vec<_>>());
+
+        assert_eq!(Some("select 1,\n"), buf.line_str(0));
+        assert_eq!(Some("3;"), buf.line_str(1));
+        assert_eq!(None, buf.line_str(2));
+    }
+
+    #[test]
+    fn text_buffer_delete_newline_move_line_up() {
+        let mut buf = TextBuffer::new();
+        let _ = insert_str(&mut buf, 0, "select 1,\n2,\n3;");
+
+        // Cursor on the '2'
+        buf.remove_char(10); // Remove '\n'
+
+        println!("LINES: {:?}", buf.lines().collect::<Vec<_>>());
+        println!("BUF: {:?}", buf.current);
+
+        assert_eq!(Some("select 1,2,\n"), buf.line_str(0));
+        assert_eq!(Some("3;"), buf.line_str(1));
+        assert_eq!(None, buf.line_str(2));
+    }
+
+    #[test]
+    fn text_buffer_position_multiple_empty_lines() {
+        let mut buf = TextBuffer::new();
+        let _ = insert_str(&mut buf, 0, "select 1,\n\n\n\n2;");
+
+        println!("SPANS: {:?}", buf.spans);
+
+        assert_eq!((0, 8), buf.current_line_and_column(8)); // On comma
+        assert_eq!((0, 9), buf.current_line_and_column(9)); // Newline after comma
+        assert_eq!((1, 0), buf.current_line_and_column(10));
+        assert_eq!((2, 0), buf.current_line_and_column(11));
+        assert_eq!((3, 0), buf.current_line_and_column(12));
+        assert_eq!((4, 0), buf.current_line_and_column(13)); // '2'
+        assert_eq!((4, 1), buf.current_line_and_column(14)); // ';'
     }
 }

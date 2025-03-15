@@ -11,6 +11,7 @@ pub enum TokenType {
     Reset,
     Keyword,
     Literal,
+    Comment,
 }
 
 impl TokenType {
@@ -19,6 +20,7 @@ impl TokenType {
             Self::Reset => vt100::MODES_OFF,
             Self::Keyword => vt100::COLOR_FG_GREEN,
             Self::Literal => vt100::COLOR_FG_BLUE,
+            Self::Comment => vt100::COLOR_FG_BRIGHT_BLACK,
         }
     }
 }
@@ -83,6 +85,12 @@ impl HighlightState {
                         offset: tok.start_idx,
                     });
                 }
+                Token::Comment(_) => {
+                    self.highlight_toks.push_back(HighlightToken {
+                        token_type: TokenType::Comment,
+                        offset: tok.start_idx,
+                    });
+                }
                 _ => {
                     // For everything else, do no highlighting.
                     match self.highlight_toks.back() {
@@ -95,8 +103,6 @@ impl HighlightState {
                 }
             }
         }
-
-        // debug::log(|| format!("highlight tokens: {:?}", self.highlight_toks));
     }
 
     /// Returns an iterator producing strings for highlighting.
@@ -119,6 +125,7 @@ impl HighlightState {
     }
 }
 
+/// String with an associated token type to use for the highlight.
 #[derive(Debug)]
 pub struct HighlightedStr<'a> {
     pub token_type: TokenType,
@@ -126,15 +133,22 @@ pub struct HighlightedStr<'a> {
 }
 
 impl<'a> HighlightedStr<'a> {
-    pub fn write_vt100<W>(&self, writer: &mut W) -> Result<()>
+    /// Write the the string to the writer using the correct term code for
+    /// highlight.
+    ///
+    /// This will also take care of trimming newlines in the string.
+    pub fn write_vt100_trim_nl<W>(&self, writer: &mut W) -> Result<()>
     where
         W: io::Write,
     {
-        write!(writer, "{}{}", self.token_type.vt100(), self.s)?;
+        let s = self.s.trim_matches('\n');
+        // debug::log(|| format!("highlight trimmed: '{s}', {:?}", self.token_type));
+        write!(writer, "{}{}", self.token_type.vt100(), s)?;
         Ok(())
     }
 }
 
+/// Produces highlighted strings from a previously tokenized query string.
 #[derive(Debug)]
 pub struct HighlightedStrIterMut<'a> {
     /// Tokens we're using for highlighting.
@@ -172,8 +186,13 @@ impl<'a> Iterator for HighlightedStrIterMut<'a> {
                 let tok_len = second.offset - tok.offset;
                 if self.s.len() < tok_len {
                     // This token applies to this string and followup string.
-                    // Use to highlight, and keep in queue.
-                    self.tokens.push_front(tok);
+                    // Use to highlight, and push an updated value in the queue
+                    // with an adjusted offset.
+                    self.tokens.push_front(HighlightToken {
+                        token_type: tok.token_type,
+                        offset: tok.offset + self.s.len(),
+                    });
+
                     let highlight = HighlightedStr {
                         token_type: tok.token_type,
                         s: self.s,

@@ -5,11 +5,19 @@ use rayexec_error::{RayexecError, Result};
 use crate::keywords::{keyword_from_str, Keyword};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Comment {
+    SingleLine(String),
+    Multiline(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     Word(Word),
     SingleQuotedString(String),
     Number(String),
     Whitespace,
+    /// Single line `-- ...` or multi line `/* ... */` comment.
+    Comment(Comment),
     /// '='
     Eq,
     /// '=='
@@ -138,7 +146,6 @@ impl fmt::Display for Word {
     }
 }
 
-// TODO: Update line and column numbers.
 #[derive(Debug)]
 struct State<'a> {
     /// The entire sql query.
@@ -288,7 +295,16 @@ impl<'a> Tokenizer<'a> {
             }
             '-' => {
                 self.state.next();
-                Token::Minus
+                match self.state.peek() {
+                    Some('-') => {
+                        // Single line comment.
+                        self.state.next();
+                        let comment =
+                            Comment::SingleLine(self.take_single_line_comment().to_string());
+                        Token::Comment(comment)
+                    }
+                    _ => Token::Minus,
+                }
             }
             '/' => {
                 self.state.next();
@@ -427,6 +443,10 @@ impl<'a> Tokenizer<'a> {
         }))
     }
 
+    fn take_single_line_comment(&mut self) -> &'a str {
+        self.state.take_while(|c| c != '\n')
+    }
+
     fn take_quoted_string(&mut self, quote: char) -> &'a str {
         // TODO: End quote? Would need to track nested quotes.
         let s = self.state.take_while(|c| c != quote);
@@ -504,5 +524,45 @@ mod tests {
 
         // hi
         assert_eq!(toks[6].start_idx, 14);
+    }
+
+    #[test]
+    fn simple_token_start_idx_new_line() {
+        let mut toks = Vec::new();
+        Tokenizer::new(
+            r#"SELECT *
+FROM hello"#,
+        )
+        .tokenize(&mut toks)
+        .unwrap();
+
+        // SELECT
+        assert_eq!(toks[0].start_idx, 0);
+
+        // <whitespace>
+        assert_eq!(toks[1].start_idx, 6);
+
+        // *
+        assert_eq!(toks[2].start_idx, 7);
+
+        // <newline>
+        assert_eq!(toks[3].start_idx, 8);
+
+        // FROM
+        assert_eq!(toks[4].start_idx, 9);
+    }
+
+    #[test]
+    fn single_line_comment() {
+        let mut toks = Vec::new();
+        Tokenizer::new("-- a comment").tokenize(&mut toks).unwrap();
+
+        let expected = vec![TokenWithLocation {
+            token: Token::Comment(Comment::SingleLine(" a comment".to_string())),
+            start_idx: 0,
+            line: 0,
+            col: 2, // TODO: ??
+        }];
+        assert_eq!(expected, toks);
     }
 }
