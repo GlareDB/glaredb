@@ -986,6 +986,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "glaredb_slt"
+version = "0.0.95"
+dependencies = [
+ "async-trait",
+ "crossterm",
+ "env_logger",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "libtest-mimic",
+ "rand",
+ "rayexec_rt_native",
+ "sqllogictest",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "glaredb_wasm"
 version = "0.0.95"
 dependencies = [
@@ -2164,25 +2183,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rayexec_slt"
-version = "0.0.95"
-dependencies = [
- "async-trait",
- "crossterm",
- "env_logger",
- "futures",
- "glaredb_error",
- "glaredb_execution",
- "libtest-mimic",
- "rand",
- "rayexec_rt_native",
- "sqllogictest",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "rayon"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2739,8 +2739,8 @@ version = "0.0.95"
 dependencies = [
  "glaredb_error",
  "glaredb_execution",
+ "glaredb_slt",
  "rayexec_rt_native",
- "rayexec_slt",
  "tokio",
 ]
 
