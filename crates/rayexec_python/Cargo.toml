@@ -9,7 +9,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 rayexec_execution = { path = '../rayexec_execution' }
-rayexec_bullet = { path = '../rayexec_bullet' }
 rayexec_error = { path = '../rayexec_error' }
 rayexec_shell = { path = '../rayexec_shell' }
 rayexec_parquet = { path = '../rayexec_parquet' }
