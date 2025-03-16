@@ -2,11 +2,9 @@ use std::io::{self, BufWriter};
 use std::rc::Rc;
 
 use js_sys::Function;
-use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
-use rayexec_parquet::ParquetDataSource;
-use rayexec_shell::lineedit::KeyEvent;
-use rayexec_shell::session::SingleUserEngine;
-use rayexec_shell::shell::{Shell, ShellSignal};
+use rayexec_execution::engine::single_user::SingleUserEngine;
+use rayexec_execution::shell::lineedit::{KeyEvent, TermSize};
+use rayexec_execution::shell::shell::{RawModeGuard, RawModeTerm, Shell, ShellSignal};
 use tracing::{error, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -83,7 +81,21 @@ pub struct WasmShell {
     // up. The buf writer is a good thing since we're calling flush where
     // appropriate, but it'd be nice to know what's going wrong when it's not
     // used.
-    pub(crate) shell: Rc<Shell<BufWriter<TerminalWrapper>, WasmExecutor, WasmRuntime>>,
+    pub(crate) shell: Rc<Shell<BufWriter<TerminalWrapper>, WasmExecutor, WasmRuntime, NopRawMode>>,
+    /// Updateable guard used for shell inputs.
+    edit_guard: Option<RawModeGuard<NopRawMode>>,
+}
+
+/// Implementation of raw mode term that does nothing.
+///
+/// xterm.js is essentially always in raw mode, there no notion of "cooked" mode
+/// for it, so there's no state for use to return to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct NopRawMode;
+
+impl RawModeTerm for NopRawMode {
+    fn enable_raw_mode(&self) {}
+    fn disable_raw_mode(&self) {}
 }
 
 #[wasm_bindgen]
@@ -91,24 +103,24 @@ impl WasmShell {
     /// Create a new shell that writes its output to the provided terminal.
     pub fn try_new(terminal: Terminal) -> Result<WasmShell> {
         let runtime = WasmRuntime::try_new()?;
-        let registry = DataSourceRegistry::default()
-            .with_datasource("memory", Box::new(MemoryDataSource))?
-            .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?;
-
-        let engine = SingleUserEngine::try_new(WasmExecutor, runtime, registry)?;
+        let engine = SingleUserEngine::try_new(WasmExecutor, runtime)?;
 
         let terminal = TerminalWrapper::new(terminal);
-        let shell = Rc::new(Shell::new(BufWriter::new(terminal)));
+        let shell = Rc::new(Shell::new(BufWriter::new(terminal), NopRawMode));
 
         shell.attach(engine, "GlareDB WASM Shell")?;
+        let edit_guard = shell.edit_start()?;
 
-        Ok(WasmShell { shell })
+        Ok(WasmShell {
+            shell,
+            edit_guard: Some(edit_guard),
+        })
     }
 
     /// Notify on terminal resize.
     pub fn on_resize(&self, cols: usize) {
         trace!(%cols, "setting columns");
-        self.shell.set_cols(cols)
+        self.shell.set_size(TermSize { cols });
     }
 
     /// Consume a string verbatim.
@@ -124,7 +136,7 @@ impl WasmShell {
     /// This should be hooked up to xterm's `attachCustomKeyEventHandler`. This
     /// will handle _all_ input, so `false` should be returned to xterm after
     /// calling this for an event.
-    pub fn on_key(&self, event: KeyboardEvent) -> Result<()> {
+    pub fn on_key(&mut self, event: KeyboardEvent) -> Result<()> {
         if event.type_() != "keydown" {
             return Ok(());
         }
@@ -162,15 +174,24 @@ impl WasmShell {
             },
         };
 
-        match self.shell.consume_key(key)? {
-            ShellSignal::Continue => (), // Continue with normal editing.
-            ShellSignal::ExecutePending => {
+        let guard = match self.edit_guard.take() {
+            Some(guard) => guard,
+            None => self.shell.edit_start()?, // TODO: Shouldn't happen.
+        };
+
+        match self.shell.consume_key(guard, key)? {
+            ShellSignal::Continue(guard) => {
+                self.edit_guard = Some(guard);
+                // Continue with normal editing.
+            }
+            ShellSignal::ExecutePending(guard) => {
                 let shell = self.shell.clone();
                 spawn_local(async move {
-                    if let Err(e) = shell.execute_pending().await {
+                    if let Err(e) = shell.execute_pending(guard).await {
                         error!(%e, "error executing pending query");
                     }
                 });
+                self.edit_guard = Some(self.shell.edit_start()?);
             }
             ShellSignal::Exit => (), // Can't exit out of the web shell.
         }

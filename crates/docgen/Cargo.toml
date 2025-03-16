@@ -11,7 +11,6 @@ rayexec_rt_native = { path = '../rayexec_rt_native' }
 rayexec_csv = { path = '../rayexec_csv' }
 rayexec_delta = { path = '../rayexec_delta' }
 rayexec_iceberg = { path = '../rayexec_iceberg' }
-rayexec_debug = { path = '../rayexec_debug' }
 regex = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }

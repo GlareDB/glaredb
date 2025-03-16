@@ -208,7 +208,6 @@ version = "0.0.95"
 dependencies = [
  "rayexec_bench",
  "rayexec_csv",
- "rayexec_debug",
  "rayexec_delta",
  "rayexec_error",
  "rayexec_execution",
@@ -642,7 +641,6 @@ version = "0.0.95"
 dependencies = [
  "logutil",
  "rayexec_csv",
- "rayexec_debug",
  "rayexec_delta",
  "rayexec_error",
  "rayexec_execution",
@@ -2027,23 +2025,6 @@ dependencies = [
  "regex",
  "serde",
  "stdutil",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "rayexec_debug"
-version = "0.0.95"
-dependencies = [
- "bytes",
- "futures",
- "parking_lot",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_io",
- "rayexec_proto",
- "regex",
- "scc",
  "tracing",
  "url",
 ]

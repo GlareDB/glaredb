@@ -111,6 +111,13 @@ where
         editor.set_size(size);
     }
 
+    // TODO: Should this allow signalling the end?
+    pub fn consume_text(&self, text: &str) -> Result<()> {
+        let mut editor = self.editor.borrow_mut();
+        editor.consume_text(text)?;
+        Ok(())
+    }
+
     pub fn consume_key(&self, guard: RawModeGuard<T>, key: KeyEvent) -> Result<ShellSignal<T>> {
         let mut editor = self.editor.borrow_mut();
 

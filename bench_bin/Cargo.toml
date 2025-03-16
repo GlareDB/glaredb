@@ -13,7 +13,6 @@ rayexec_bench = { path = '../crates/rayexec_bench' }
 rayexec_csv = { path = '../crates/rayexec_csv' }
 rayexec_delta = { path = '../crates/rayexec_delta' }
 rayexec_iceberg = { path = '../crates/rayexec_iceberg' }
-rayexec_debug = { path = '../crates/rayexec_debug' }
 
 # TODO: Figure out the bench harness stuff.
 

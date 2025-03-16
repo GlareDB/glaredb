@@ -1,23 +1,17 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};
 
 use futures::future::BoxFuture;
-use futures::stream::{self, BoxStream};
-use futures::StreamExt;
 use parking_lot::Mutex;
-use rayexec_error::{not_implemented, RayexecError, Result};
-use rayexec_execution::execution::executable::pipeline::{
-    ExecutablePartitionPipeline,
-    ExecutablePipeline,
-};
-use rayexec_execution::execution::executable::profiler::ExecutionProfileData;
-use rayexec_execution::runtime::handle::QueryHandle;
+use rayexec_error::{not_implemented, Result};
+use rayexec_execution::arrays::scalar::ScalarValue;
+use rayexec_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
+use rayexec_execution::io::access::AccessConfig;
+use rayexec_execution::io::file::FileOpener;
+use rayexec_execution::io::memory::MemoryFileSource;
+use rayexec_execution::runtime::handle::{ExecutionProfileData, QueryHandle};
 use rayexec_execution::runtime::{ErrorSink, PipelineExecutor, Runtime, TokioHandlerProvider};
-use rayexec_io::http::HttpFile;
-use rayexec_io::location::{AccessConfig, FileLocation};
-use rayexec_io::memory::MemoryFileSystem;
-use rayexec_io::s3::{S3Client, S3Location};
-use rayexec_io::{FileProvider2, FileSink, FileSource};
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
@@ -26,15 +20,12 @@ use crate::time::PerformanceInstant;
 
 #[derive(Debug, Clone)]
 pub struct WasmRuntime {
-    // TODO: Remove Arc? Arc already used internally for the memory fs.
-    pub(crate) fs: Arc<MemoryFileSystem>,
+    // TODO: Shared memory fs
 }
 
 impl WasmRuntime {
     pub fn try_new() -> Result<Self> {
-        Ok(WasmRuntime {
-            fs: Arc::new(MemoryFileSystem::default()),
-        })
+        Ok(WasmRuntime {})
     }
 }
 
@@ -46,9 +37,7 @@ impl Runtime for WasmRuntime {
 
     fn file_provider(&self) -> Arc<Self::FileProvider> {
         // TODO: Could probably remove this arc.
-        Arc::new(WasmFileProvider {
-            fs: self.fs.clone(),
-        })
+        Arc::new(WasmFileProvider {})
     }
 
     fn http_client(&self) -> Self::HttpClient {
@@ -83,14 +72,13 @@ impl PipelineExecutor for WasmExecutor {
 
     fn spawn_pipelines(
         &self,
-        pipelines: Vec<ExecutablePipeline>,
+        pipelines: Vec<ExecutablePartitionPipeline>,
         errors: Arc<dyn ErrorSink>,
     ) -> Box<dyn QueryHandle> {
         debug!("spawning query graph on wasm runtime");
 
         let states: Vec<_> = pipelines
             .into_iter()
-            .flat_map(|pipeline| pipeline.into_partition_pipeline_iter())
             .map(|pipeline| WasmTaskState {
                 errors: errors.clone(),
                 pipeline: Arc::new(Mutex::new(pipeline)),
@@ -109,83 +97,6 @@ impl PipelineExecutor for WasmExecutor {
 }
 
 #[derive(Debug, Clone)]
-pub struct WasmFileProvider {
-    fs: Arc<MemoryFileSystem>,
-}
-
-impl FileProvider2 for WasmFileProvider {
-    fn file_source(
-        &self,
-        location: FileLocation,
-        config: &AccessConfig,
-    ) -> Result<Box<dyn FileSource>> {
-        match (location, config) {
-            (FileLocation::Url(url), AccessConfig::None) => {
-                let client = WasmHttpClient::new(reqwest::Client::default());
-                Ok(Box::new(HttpFile::new(client, url)))
-            }
-            (
-                FileLocation::Url(url),
-                AccessConfig::S3 {
-                    credentials,
-                    region,
-                },
-            ) => {
-                let client = S3Client::new(
-                    WasmHttpClient::new(reqwest::Client::default()),
-                    credentials.clone(),
-                );
-                let location = S3Location::from_url(url, region)?;
-                let reader = client.file_source(location, region)?;
-                Ok(reader)
-            }
-            (FileLocation::Path(path), _) => self.fs.file_source(&path),
-        }
-    }
-
-    fn file_sink(
-        &self,
-        location: FileLocation,
-        _config: &AccessConfig,
-    ) -> Result<Box<dyn FileSink>> {
-        match location {
-            FileLocation::Url(_url) => not_implemented!("http sink wasm"),
-            FileLocation::Path(path) => self.fs.file_sink(&path),
-        }
-    }
-
-    fn list_prefix(
-        &self,
-        prefix: FileLocation,
-        config: &AccessConfig,
-    ) -> BoxStream<'static, Result<Vec<String>>> {
-        match (prefix, config) {
-            (
-                FileLocation::Url(url),
-                AccessConfig::S3 {
-                    credentials,
-                    region,
-                },
-            ) => {
-                let client = S3Client::new(
-                    WasmHttpClient::new(reqwest::Client::default()),
-                    credentials.clone(),
-                );
-                let location = S3Location::from_url(url, region).unwrap(); // TODO
-                let stream = client.list_prefix(location, region);
-                stream.boxed()
-            }
-            (FileLocation::Url(_), AccessConfig::None) => Box::pin(stream::once(async move {
-                Err(RayexecError::new("Cannot list for http file sources"))
-            })),
-            (FileLocation::Path(_), _) => {
-                stream::once(async move { not_implemented!("wasm list fs") }).boxed()
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
 struct WasmTaskState {
     errors: Arc<dyn ErrorSink>,
     pipeline: Arc<Mutex<ExecutablePartitionPipeline>>,
@@ -200,17 +111,18 @@ impl WasmTaskState {
         let mut pipeline = self.pipeline.lock();
         loop {
             match pipeline.poll_execute::<PerformanceInstant>(&mut cx) {
-                Poll::Ready(Some(Ok(()))) => {
-                    continue;
+                Poll::Ready(Ok(())) => {
+                    // Pushing through the pipeline was successful.
+                    return;
                 }
-                Poll::Ready(Some(Err(e))) => {
+                Poll::Ready(Err(e)) => {
                     self.errors.set_error(e);
                     return;
                 }
                 Poll::Pending => {
-                    return;
-                }
-                Poll::Ready(None) => {
+                    // Exit the loop. Waker was already stored in the pending
+                    // sink/source, we'll be woken back up when there's more
+                    // this operator chain can start executing.
                     return;
                 }
             }
@@ -220,6 +132,7 @@ impl WasmTaskState {
 
 #[derive(Debug)]
 pub struct WasmQueryHandle {
+    #[allow(unused)]
     states: Vec<WasmTaskState>,
 }
 
@@ -229,18 +142,7 @@ impl QueryHandle for WasmQueryHandle {
     }
 
     fn generate_execution_profile_data(&self) -> BoxFuture<'_, Result<ExecutionProfileData>> {
-        Box::pin(async {
-            let mut data = ExecutionProfileData::default();
-
-            for state in self.states.iter() {
-                let pipeline = state.pipeline.lock();
-                data.add_partition_data(&pipeline);
-            }
-
-            // TODO: Remote pipelines
-
-            Ok(data)
-        })
+        Box::pin(async { not_implemented!("execution profile data") })
     }
 }
 
@@ -256,5 +158,36 @@ impl Wake for WasmWaker {
 
     fn wake(self: Arc<Self>) {
         spawn_local(async move { self.state.execute() })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WasmFileProvider {}
+
+#[derive(Debug)]
+pub struct StubAccess {}
+
+impl AccessConfig for StubAccess {
+    fn from_options(
+        _unnamed: &[ScalarValue],
+        _named: &HashMap<String, ScalarValue>,
+    ) -> Result<Self> {
+        not_implemented!("access from args")
+    }
+}
+
+impl FileOpener for WasmFileProvider {
+    type AccessConfig = StubAccess;
+    type ReadFile = MemoryFileSource;
+
+    fn list_prefix(
+        &self,
+        _prefix: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<String>>> + Send {
+        async { Ok(Vec::new()) }
+    }
+
+    fn open_for_read(&self, _conf: &Self::AccessConfig) -> Result<Self::ReadFile> {
+        not_implemented!("open for read")
     }
 }

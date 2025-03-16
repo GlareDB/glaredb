@@ -6,15 +6,9 @@ mod session;
 use std::io;
 
 use file::DocFile;
-use rayexec_csv::CsvDataSource;
-use rayexec_delta::DeltaDataSource;
 use rayexec_error::Result;
-use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
-use rayexec_iceberg::IcebergDataSource;
-use rayexec_parquet::ParquetDataSource;
+use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-use rayexec_shell::session::SingleUserEngine;
-use rayexec_unity_catalog::UnityCatalogDataSource;
 use section::{AggregateFunctionWriter, ScalarFunctionWriter, TableFunctionWriter};
 use session::DocsSession;
 use tracing::info;
@@ -40,14 +34,7 @@ fn main() -> Result<()> {
     let executor = ThreadedNativeExecutor::try_new().unwrap();
     let runtime = NativeRuntime::with_default_tokio().unwrap();
 
-    let registry = DataSourceRegistry::default()
-        .with_datasource("memory", Box::new(MemoryDataSource))?
-        .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
-        .with_datasource("unity", UnityCatalogDataSource::initialize(runtime.clone()))?
-        .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
-        .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?
-        .with_datasource("iceberg", IcebergDataSource::initialize(runtime.clone()))?;
-    let engine = SingleUserEngine::try_new(executor, runtime, registry)?;
+    let engine = SingleUserEngine::try_new(executor, runtime)?;
     let session = DocsSession { engine };
 
     for file in FILES {
