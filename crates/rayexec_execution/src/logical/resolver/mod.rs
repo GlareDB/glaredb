@@ -203,7 +203,7 @@ impl<'a> Resolver<'a> {
     async fn resolve_show(
         &self,
         show: ast::Show<Raw>,
-        resolve_context: &mut ResolveContext,
+        _resolve_context: &mut ResolveContext,
     ) -> Result<ResolvedStatement> {
         // let get_view_query = |view: BuiltinView| {
         //     let mut stmts = parser::parse(view.view)?;
@@ -897,7 +897,7 @@ impl<'a> Resolver<'a> {
                 options: ResolvedSubqueryOptions::Normal,
                 query: Box::pin(self.resolve_query(query, resolve_context)).await?,
             }),
-            ast::FromNodeBody::File(ast::FromFilePath { path }) => {
+            ast::FromNodeBody::File(ast::FromFilePath { .. }) => {
                 not_implemented!("infer from file path")
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction {

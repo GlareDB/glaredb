@@ -24,16 +24,6 @@ struct StateInner {
     remaining_count: usize,
 }
 
-#[derive(Debug)]
-pub struct LimitPartitionState {
-    /// Remaining offset before we can actually start sending rows.
-    remaining_offset: usize,
-    /// Remaining number of rows before we stop sending batches.
-    ///
-    /// Initialized to the operator `limit`.
-    remaining_count: usize,
-}
-
 /// Operator for LIMIT and OFFSET clauses.
 ///
 /// The provided `limit` and `offset` values work on a per-partition basis. A
@@ -83,8 +73,8 @@ impl ExecuteOperator for PhysicalLimit {
 
     fn create_partition_execute_states(
         &self,
-        operator_state: &Self::OperatorState,
-        props: ExecutionProperties,
+        _operator_state: &Self::OperatorState,
+        _props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionExecuteState>> {
         Ok(vec![(); partitions])
@@ -92,9 +82,9 @@ impl ExecuteOperator for PhysicalLimit {
 
     fn poll_execute(
         &self,
-        cx: &mut Context,
+        _cx: &mut Context,
         operator_state: &Self::OperatorState,
-        state: &mut Self::PartitionExecuteState,
+        _state: &mut Self::PartitionExecuteState,
         input: &mut Batch,
         output: &mut Batch,
     ) -> Result<PollExecute> {

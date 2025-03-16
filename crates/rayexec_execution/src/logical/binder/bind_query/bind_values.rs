@@ -2,7 +2,6 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use crate::arrays::datatype::DataType;
-use crate::expr::cast_expr::CastExpr;
 use crate::expr::{cast, Expression};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::DefaultColumnBinder;
@@ -69,6 +68,11 @@ impl<'a> ValuesBinder<'a> {
         // TODO: Below casting could be a bit more sophisticated by using the
         // implicit cast scoring to find the best types. Currently just searches
         // for null types and replaces those.
+
+        // TODO: This currently implicitly truncates decimals.
+        //
+        // E.g. `select * from (values (1.2), (1.23));`
+        // returns 1.2 and 1.2
 
         // Find any null types and try to replace them.
         for row in &rows {

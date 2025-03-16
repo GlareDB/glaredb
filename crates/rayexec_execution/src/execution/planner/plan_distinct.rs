@@ -1,44 +1,15 @@
-use rayexec_error::Result;
+use rayexec_error::{not_implemented, Result};
 
 use super::OperatorPlanState;
+use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::logical_distinct::LogicalDistinct;
-use crate::logical::operator::{LogicalNode, Node};
+use crate::logical::operator::Node;
 
 impl OperatorPlanState<'_> {
-    pub fn plan_distinct(&mut self, mut distinct: Node<LogicalDistinct>) -> Result<()> {
-        let input = distinct.take_one_child_exact()?;
-        let input_refs = input.get_output_table_refs(self.bind_context);
-        // self.walk(materializations, input)?;
-
-        // // Create group expressions from the distinct.
-        // let group_types = distinct
-        //     .node
-        //     .on
-        //     .iter()
-        //     .map(|expr| expr.datatype())
-        //     .collect::<Result<Vec<_>>>()?;
-        // let group_exprs = self
-        //     .expr_planner
-        //     .plan_scalars(&input_refs, &distinct.node.on)?;
-
-        // self.push_intermediate_operator(
-        //     PhysicalOperator::Project(PhysicalProject::new(group_exprs)),
-        //     distinct.location,
-        // )?;
-
-        // let grouping_sets: Vec<BTreeSet<usize>> = vec![(0..group_types.len()).collect()];
-
-        unimplemented!()
-        // self.push_intermediate_operator(
-        //     PhysicalOperator::HashAggregate(PhysicalHashAggregate::new(
-        //         Vec::new(),
-        //         grouping_sets,
-        //         Vec::new(),
-        //     )),
-        //     distinct.location,
-        //     id_gen,
-        // )?;
-
-        // Ok(())
+    pub fn plan_distinct(
+        &mut self,
+        _distinct: Node<LogicalDistinct>,
+    ) -> Result<PlannedOperatorWithChildren> {
+        not_implemented!("plan distinct")
     }
 }

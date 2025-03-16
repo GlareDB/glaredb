@@ -9,7 +9,6 @@ use num::PrimInt;
 
 use crate::arrays::compute::date::EPOCH_DAYS_FROM_CE;
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::scalar::ScalarValue;
 
 /// Logic for parsing a string into some type.
 pub trait Parser {

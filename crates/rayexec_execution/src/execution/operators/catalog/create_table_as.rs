@@ -197,7 +197,7 @@ impl ExecuteOperator for PhysicalCreateTableAs {
 }
 
 impl Explainable for PhysicalCreateTableAs {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("CreateTableAs")
     }
 }

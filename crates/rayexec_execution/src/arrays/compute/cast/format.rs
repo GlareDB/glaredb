@@ -1,12 +1,12 @@
 //! Utilities for writing values into strings (and other buffers).
-use std::fmt::{self, Display, Write as _};
+use std::fmt::{self, Display};
 use std::marker::PhantomData;
 
 use chrono::{DateTime, Utc};
 use half::f16;
 
 use crate::arrays::compute::date::SECONDS_IN_DAY;
-use crate::arrays::scalar::decimal::{DecimalPrimitive, DecimalType};
+use crate::arrays::scalar::decimal::DecimalPrimitive;
 use crate::arrays::scalar::interval::Interval;
 
 /// Logic for formatting and writing a type to a buffer.

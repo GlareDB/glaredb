@@ -1,2 +1,1 @@
-pub mod futures;
 pub mod power_of_two;

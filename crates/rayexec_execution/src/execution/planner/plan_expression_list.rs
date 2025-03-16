@@ -1,7 +1,6 @@
 use rayexec_error::Result;
 
 use super::OperatorPlanState;
-use crate::execution::operators::empty::PhysicalEmpty;
 use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_expression_list::LogicalExpressionList;

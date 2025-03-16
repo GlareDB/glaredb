@@ -9,7 +9,6 @@ use super::block_scan::BlockScanState;
 use super::row_blocks::RowBlocks;
 use super::row_layout::RowLayout;
 use crate::arrays::array::Array;
-use crate::buffer::buffer_manager::NopBufferManager;
 
 /// State for resumable scanning of a set of row blocks conforming to some row
 /// layout.

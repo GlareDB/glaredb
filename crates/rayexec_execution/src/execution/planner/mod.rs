@@ -33,7 +33,7 @@ use crate::catalog::context::DatabaseContext;
 use crate::config::execution::OperatorPlanConfig;
 use crate::execution::operators::PlannedOperator;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
-use crate::logical::binder::bind_context::{BindContext, MaterializationRef, PlanMaterialization};
+use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::operator::{self, LogicalOperator};
 
 /// Output of physical planning.
@@ -47,12 +47,15 @@ pub struct PlannedQueryGraph {
 #[derive(Debug)]
 pub struct OperatorPlanner {
     config: OperatorPlanConfig,
-    query_id: Uuid,
+    _query_id: Uuid,
 }
 
 impl OperatorPlanner {
     pub fn new(config: OperatorPlanConfig, query_id: Uuid) -> Self {
-        OperatorPlanner { config, query_id }
+        OperatorPlanner {
+            config,
+            _query_id: query_id,
+        }
     }
 
     /// Plan the intermediate pipelines.
@@ -188,6 +191,9 @@ impl<'a> OperatorPlanState<'a> {
             LogicalOperator::ArbitraryJoin(join) => self.plan_arbitrary_join(join),
             LogicalOperator::ComparisonJoin(join) => self.plan_comparison_join(join),
             LogicalOperator::TableExecute(join) => self.plan_table_execute(join),
+            LogicalOperator::SetOp(join) => self.plan_set_operation(join),
+            LogicalOperator::Unnest(join) => self.plan_unnest(join),
+            LogicalOperator::Distinct(join) => self.plan_distinct(join),
             LogicalOperator::Describe(node) => self.plan_describe(node),
             LogicalOperator::ShowVar(node) => self.plan_show_var(node),
             LogicalOperator::Scan(node) => self.plan_scan(node),

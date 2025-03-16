@@ -6,7 +6,7 @@ use std::task::Context;
 use cross_product::CrossProductState;
 use match_tracker::MatchTracker;
 use parking_lot::Mutex;
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{RayexecError, Result};
 
 use super::{
     BaseOperator,
@@ -81,6 +81,7 @@ pub struct NestedLoopJoinProbeState {
 pub struct PhysicalNestedLoopJoin {
     pub(crate) join_type: JoinType,
     pub(crate) left_types: Vec<DataType>,
+    #[expect(unused)] // For now.
     pub(crate) right_types: Vec<DataType>,
     pub(crate) output_types: Vec<DataType>,
     pub(crate) filter: Option<PhysicalScalarExpression>,

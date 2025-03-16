@@ -13,7 +13,6 @@ use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
-use crate::logical::binder::table_list::TableList;
 
 pub const FUNCTION_SET_REPEAT: ScalarFunctionSet = ScalarFunctionSet {
     name: "repeat",

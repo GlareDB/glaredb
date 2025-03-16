@@ -9,12 +9,14 @@ use crate::arrays::batch::Batch;
 use crate::execution::operators::hash_aggregate::Aggregates;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 
+#[expect(unused)]
 #[derive(Debug)]
 pub struct DistinctAggregateOperatorState {
     /// Operator states for each hash table.
     operator_states: Vec<GroupingSetOperatorState>,
 }
 
+#[expect(unused)]
 #[derive(Debug)]
 pub struct DistinctAggregatePartitionState {
     /// Partition state per table.
@@ -31,6 +33,7 @@ pub struct DistinctAggregateInfo {
     pub groups: Vec<PhysicalColumnExpr>,
 }
 
+#[expect(unused)]
 #[derive(Debug)]
 pub struct DistinctAggregateInputs {
     /// Hash tables holding the inputs to distinct aggregates.

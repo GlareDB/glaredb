@@ -18,9 +18,7 @@ use super::{debug, vt100};
 // line. Then moving back down positions the cursor at the wrong offset,
 // probably not taking into account prompt width somewhere.
 
-// TODO: History
-//
-// Just need to add the logic to the relevant up/down methods.
+// TODO: History currently a bit wonk.
 
 /// Incoming key event.
 #[derive(Debug, Clone, PartialEq, Eq)]

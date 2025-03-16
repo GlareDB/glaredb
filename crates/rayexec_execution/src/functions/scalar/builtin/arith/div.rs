@@ -29,7 +29,6 @@ use crate::expr::Expression;
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
-use crate::logical::binder::table_list::TableList;
 
 pub const FUNCTION_SET_DIV: ScalarFunctionSet = ScalarFunctionSet {
     name: "/",

@@ -72,7 +72,7 @@ impl BinaryAggregate for StringAgg {
         })
     }
 
-    fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState {
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         StringAggState::default()
     }
 }

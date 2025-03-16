@@ -1,7 +1,6 @@
 use std::fmt;
 
-use rayexec_error::{OptionExt, Result};
-use rayexec_proto::ProtoConv;
+use rayexec_error::Result;
 
 use super::ExpressionState;
 use crate::arrays::array::selection::Selection;

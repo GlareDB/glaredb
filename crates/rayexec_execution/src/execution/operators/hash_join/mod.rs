@@ -22,12 +22,12 @@ mod join_hash_table;
 
 #[derive(Debug)]
 pub struct HashJoinOperatorState {
-    table: JoinHashTable,
+    _table: JoinHashTable,
 }
 
 #[derive(Debug)]
 pub struct HashJoinPartitionBuildState {
-    build_state: BuildState,
+    _build_state: BuildState,
 }
 
 #[derive(Debug)]
@@ -35,16 +35,16 @@ pub struct HashJoinPartitionProbeState {}
 
 #[derive(Debug)]
 pub struct PhysicalHashJoin {
-    pub(crate) join_type: JoinType,
-    pub(crate) left_types: Vec<DataType>,
-    pub(crate) right_types: Vec<DataType>,
-    pub(crate) conditions: Vec<HashJoinCondition>,
+    pub(crate) _join_type: JoinType,
+    pub(crate) _left_types: Vec<DataType>,
+    pub(crate) _right_types: Vec<DataType>,
+    pub(crate) _conditions: Vec<HashJoinCondition>,
 }
 
 impl BaseOperator for PhysicalHashJoin {
     type OperatorState = HashJoinOperatorState;
 
-    fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
+    fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
         unimplemented!()
     }
 
@@ -58,29 +58,29 @@ impl ExecuteOperator for PhysicalHashJoin {
 
     fn create_partition_execute_states(
         &self,
-        operator_state: &Self::OperatorState,
-        props: ExecutionProperties,
-        partitions: usize,
+        _operator_state: &Self::OperatorState,
+        _props: ExecutionProperties,
+        _partitions: usize,
     ) -> Result<Vec<Self::PartitionExecuteState>> {
         unimplemented!()
     }
 
     fn poll_execute(
         &self,
-        cx: &mut Context,
-        operator_state: &Self::OperatorState,
-        state: &mut Self::PartitionExecuteState,
-        input: &mut Batch,
-        output: &mut Batch,
+        _cx: &mut Context,
+        _operator_state: &Self::OperatorState,
+        _state: &mut Self::PartitionExecuteState,
+        _input: &mut Batch,
+        _output: &mut Batch,
     ) -> Result<PollExecute> {
         unimplemented!()
     }
 
     fn poll_finalize_execute(
         &self,
-        cx: &mut Context,
-        operator_state: &Self::OperatorState,
-        state: &mut Self::PartitionExecuteState,
+        _cx: &mut Context,
+        _operator_state: &Self::OperatorState,
+        _state: &mut Self::PartitionExecuteState,
     ) -> Result<PollFinalize> {
         unimplemented!()
     }
@@ -91,9 +91,9 @@ impl PushOperator for PhysicalHashJoin {
 
     fn create_partition_push_states(
         &self,
-        operator_state: &Self::OperatorState,
-        props: ExecutionProperties,
-        partitions: usize,
+        _operator_state: &Self::OperatorState,
+        _props: ExecutionProperties,
+        _partitions: usize,
     ) -> Result<Vec<Self::PartitionPushState>> {
         unimplemented!()
     }
@@ -101,9 +101,9 @@ impl PushOperator for PhysicalHashJoin {
     fn poll_push(
         &self,
         _cx: &mut Context,
-        operator_state: &Self::OperatorState,
-        state: &mut Self::PartitionPushState,
-        input: &mut Batch,
+        _operator_state: &Self::OperatorState,
+        _state: &mut Self::PartitionPushState,
+        _input: &mut Batch,
     ) -> Result<PollPush> {
         unimplemented!()
         // operator_state
@@ -114,16 +114,16 @@ impl PushOperator for PhysicalHashJoin {
 
     fn poll_finalize_push(
         &self,
-        cx: &mut Context,
-        operator_state: &Self::OperatorState,
-        state: &mut Self::PartitionPushState,
+        _cx: &mut Context,
+        _operator_state: &Self::OperatorState,
+        _state: &mut Self::PartitionPushState,
     ) -> Result<PollFinalize> {
         unimplemented!()
     }
 }
 
 impl Explainable for PhysicalHashJoin {
-    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("HashJoin")
     }
 }

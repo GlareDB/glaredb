@@ -3,18 +3,13 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
-// use rayexec_csv::CsvDataSource;
-// use rayexec_delta::DeltaDataSource;
 use rayexec_error::Result;
 use rayexec_execution::arrays::format::pretty::table::PrettyTable;
 use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
 use rayexec_execution::shell::lineedit::{KeyEvent, TermSize};
 use rayexec_execution::shell::shell::{RawModeTerm, Shell, ShellSignal};
-// use rayexec_iceberg::IcebergDataSource;
-// use rayexec_parquet::ParquetDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-// use rayexec_unity_catalog::UnityCatalogDataSource;
 
 #[derive(Parser)]
 #[clap(name = "rayexec_bin")]
@@ -109,13 +104,6 @@ async fn inner(
     executor: impl PipelineExecutor,
     runtime: impl Runtime,
 ) -> Result<()> {
-    // let registry =
-    //     DataSourceRegistry::default().with_datasource("memory", Box::new(MemoryDataSource))?;
-    // .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
-    // .with_datasource("unity", UnityCatalogDataSource::initialize(runtime.clone()))?
-    // .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
-    // .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?
-    // .with_datasource("iceberg", IcebergDataSource::initialize(runtime.clone()))?;
     let engine = SingleUserEngine::try_new(executor, runtime)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
@@ -126,26 +114,18 @@ async fn inner(
         for path in args.files {
             let content = std::fs::read_to_string(path)?;
 
-            unimplemented!()
-            // let pending_queries = engine.session().query_many(&content)?;
-            // for pending in pending_queries {
-            //     let table = pending
-            //         .execute()
-            //         .await?
-            //         .collect_with_execution_profile()
-            //         .await?;
-            //     writeln!(stdout, "{}", table.pretty_table(cols as usize, None)?)?;
+            let pending_queries = engine.session().query_many(&content)?;
+            for pending in pending_queries {
+                let mut q_res = pending.execute().await?;
+                let batches = q_res.output.collect().await?;
 
-            //     if args.dump_profile {
-            //         writeln!(stdout, "---- PLANNING ----")?;
-            //         writeln!(stdout, "{}", table.planning_profile_data().unwrap())?;
-            //         writeln!(stdout, "---- EXECUTION ----")?;
-            //         writeln!(stdout, "{}", table.execution_profile_data().unwrap())?;
-            //     }
+                let table =
+                    PrettyTable::try_new(&q_res.output_schema, &batches, cols as usize, None)?;
+                writeln!(stdout, "{table}")?;
 
-            //     stdout.flush()?;
-            // }
-            // stdout.flush()?;
+                stdout.flush()?;
+            }
+            stdout.flush()?;
         }
 
         return Ok(());

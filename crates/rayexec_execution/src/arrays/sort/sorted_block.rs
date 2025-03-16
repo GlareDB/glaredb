@@ -176,6 +176,7 @@ impl SortedBlock {
     /// - The row layout passed in must represent same layout that was used when
     ///   creating the block.
     /// - The selection must provide valid row indices for initialized rows.
+    #[allow(unused)] // Useful for tests, try to remove
     pub(crate) unsafe fn prepare_data_read(
         &self,
         state: &mut BlockScanState,

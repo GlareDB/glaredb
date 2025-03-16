@@ -12,7 +12,6 @@ use crate::functions::scalar::builtin::string::{
     FUNCTION_SET_STARTS_WITH,
 };
 use crate::functions::scalar::PlannedScalarFunction;
-use crate::logical::binder::table_list::TableList;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 /// Rewrite LIKE expressions into equivalent prefix/suffix/contains calls if

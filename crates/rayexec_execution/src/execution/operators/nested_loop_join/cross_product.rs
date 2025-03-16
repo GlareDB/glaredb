@@ -24,10 +24,6 @@ pub struct CrossProductState {
     pub batch: Batch,
     /// Current row relative to the batch we're processing.
     batch_row_idx: usize,
-    /// Current row relative to the entire collection.
-    ///
-    /// Used to set matches for the left side.
-    collection_row_idx: usize,
     /// Projections out of the column collection. Should project all columns.
     pub projections: Projections,
 }
@@ -42,7 +38,6 @@ impl CrossProductState {
             scan_state: None,
             batch,
             batch_row_idx: 0,
-            collection_row_idx: 0,
             projections,
         })
     }

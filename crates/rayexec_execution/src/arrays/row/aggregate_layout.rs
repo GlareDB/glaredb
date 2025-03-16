@@ -251,7 +251,7 @@ const fn align_len(curr_len: usize, alignment: usize) -> usize {
 mod tests {
     use super::*;
     use crate::expr::{self, bind_aggregate_function};
-    use crate::functions::aggregate::builtin::minmax::{self, FUNCTION_SET_MAX, FUNCTION_SET_MIN};
+    use crate::functions::aggregate::builtin::minmax::{FUNCTION_SET_MAX, FUNCTION_SET_MIN};
 
     #[test]
     fn align_len_sanity() {

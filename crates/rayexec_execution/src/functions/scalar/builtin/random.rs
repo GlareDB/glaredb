@@ -10,7 +10,6 @@ use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, FunctionVolatility, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
-use crate::logical::binder::table_list::TableList;
 
 pub const FUNCTION_SET_RANDOM: ScalarFunctionSet = ScalarFunctionSet {
     name: "random",

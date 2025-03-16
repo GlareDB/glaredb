@@ -100,6 +100,7 @@ struct IntermediatePortal {
 struct ExecutablePortal {
     /// Query id for this query. Used to begin execution on the remote side if
     /// needed.
+    #[expect(unused)]
     query_id: Uuid,
     /// Execution mode of the query.
     ///
@@ -114,8 +115,10 @@ struct ExecutablePortal {
     /// Output result stream.
     result_stream: ResultStream,
     /// Profile data we've collected during resolving/binding/planning.
+    #[expect(unused)]
     profile: PlanningProfileData,
     /// Optional verifier that we're carrying through planning.
+    #[expect(unused)]
     verifier: Option<()>,
 }
 
@@ -135,10 +138,6 @@ where
             prepared: HashMap::new(),
             portals: HashMap::new(),
         }
-    }
-
-    pub(crate) fn config_mut(&mut self) -> &mut SessionConfig {
-        &mut self.config
     }
 
     /// Get execution results from one or more sql queries.
@@ -338,12 +337,12 @@ where
                 );
 
                 let query_graph = match logical {
-                    LogicalOperator::AttachDatabase(attach) => {
-                        not_implemented!("Detach database")
+                    LogicalOperator::AttachDatabase(_) => {
+                        not_implemented!("Attach database")
                         // self.handle_attach_database(attach).await?;
                         // planner.plan(LogicalOperator::EMPTY, bind_context, sink)?
                     }
-                    LogicalOperator::DetachDatabase(detach) => {
+                    LogicalOperator::DetachDatabase(_) => {
                         not_implemented!("Detach database")
                         // let empty = planner.plan(LogicalOperator::EMPTY, bind_context, sink)?; // Here to avoid lifetime issues.
                         // self.context.detach_database(&detach.as_ref().name)?;

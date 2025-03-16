@@ -3,7 +3,6 @@ pub mod list_entries;
 pub mod list_schemas;
 pub mod memory_scan;
 pub mod series;
-pub mod unnest;
 
 use list_databases::FUNCTION_SET_LIST_DATABASES;
 use list_schemas::FUNCTION_SET_LIST_SCHEMAS;

@@ -46,8 +46,6 @@ pub struct AggregateHashTable {
     pub(crate) layout: AggregateLayout,
     /// Hash table directory.
     pub(crate) directory: Directory,
-    /// Byte offset to where a hash is stored in a row.
-    pub(crate) hash_offset: usize,
     /// Hash table data storing the group and aggregate states.
     pub(crate) data: AggregateCollection,
     /// Group value matcher.
@@ -73,9 +71,6 @@ impl AggregateHashTable {
             ));
         }
 
-        // Hash is the last column in the groups layout.
-        let hash_offset = *layout.groups.offsets.last().unwrap();
-
         let data = AggregateCollection::new(layout.clone(), row_capacity);
         let directory = Directory::try_new(Directory::DEFAULT_CAPACITY)?;
         let matcher = GroupMatcher::new(&layout);
@@ -83,7 +78,6 @@ impl AggregateHashTable {
         Ok(AggregateHashTable {
             layout,
             directory,
-            hash_offset,
             data,
             matcher,
             row_capacity,

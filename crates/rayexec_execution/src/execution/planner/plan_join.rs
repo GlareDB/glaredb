@@ -1,10 +1,9 @@
-use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use rayexec_error::{RayexecError, Result, ResultExt};
 
 use super::OperatorPlanState;
 use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::explain::context_display::ContextDisplayWrapper;
-use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{self, Expression};
 use crate::logical::logical_join::{
@@ -40,19 +39,19 @@ impl OperatorPlanState<'_> {
     ) -> Result<PlannedOperatorWithChildren> {
         let location = join.location;
 
-        let equality_indices: Vec<_> = join
-            .node
-            .conditions
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, cond)| {
-                if cond.op == ComparisonOperator::Eq {
-                    Some(idx)
-                } else {
-                    None
-                }
-            })
-            .collect();
+        // let equality_indices: Vec<_> = join
+        //     .node
+        //     .conditions
+        //     .iter()
+        //     .enumerate()
+        //     .filter_map(|(idx, cond)| {
+        //         if cond.op == ComparisonOperator::Eq {
+        //             Some(idx)
+        //         } else {
+        //             None
+        //         }
+        //     })
+        //     .collect();
 
         // Need to fall back to nested loop join.
 

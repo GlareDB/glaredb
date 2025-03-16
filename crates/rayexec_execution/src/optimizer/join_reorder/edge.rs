@@ -7,7 +7,7 @@ use rayexec_error::{RayexecError, Result};
 use super::graph::{BaseRelation, RelId, RelationSet};
 use super::ReorderableCondition;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
-use crate::expr::column_expr::{ColumnExpr, ColumnReference};
+use crate::expr::column_expr::ColumnReference;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::binder::table_list::TableRef;
 

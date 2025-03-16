@@ -188,6 +188,7 @@ impl RowCollection {
         )
     }
 
+    #[allow(unused)] // Useful for tests.
     pub(crate) unsafe fn scan_raw<'a, A>(
         &self,
         state: &BlockScanState,

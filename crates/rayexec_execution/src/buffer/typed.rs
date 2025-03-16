@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use rayexec_error::Result;
 use stdutil::marker::PhantomCovariant;
 
-use super::buffer_manager::{AsRawBufferManager, BufferManager};
+use super::buffer_manager::AsRawBufferManager;
 use super::raw::RawBuffer;
 
 /// Type alias to a raw buffer storing bytes.

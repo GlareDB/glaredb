@@ -3,7 +3,7 @@ use std::ptr::NonNull;
 
 use rayexec_error::{RayexecError, Result, ResultExt};
 
-use super::buffer_manager::{AsRawBufferManager, BufferManager, RawBufferManager, Reservation};
+use super::buffer_manager::{AsRawBufferManager, RawBufferManager, Reservation};
 
 /// A raw buffer densely allocated on the heap.
 ///

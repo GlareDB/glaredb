@@ -1,7 +1,5 @@
 use std::fmt;
 
-use rayexec_error::Result;
-
 use super::{AsScalarFunctionSet, Expression};
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
@@ -13,8 +11,6 @@ use crate::functions::scalar::builtin::arith::{
     FUNCTION_SET_REM,
     FUNCTION_SET_SUB,
 };
-use crate::functions::scalar::PlannedScalarFunction;
-use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ArithOperator {

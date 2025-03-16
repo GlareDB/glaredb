@@ -239,17 +239,6 @@ impl SortLayout {
         let offset = self.offsets[col];
         &mut buf[offset..offset + size]
     }
-
-    /// Get a mut ptr to the row index for a row.
-    ///
-    /// The returned pointer is **not** guaranteed to be aligned.
-    ///
-    /// # Safetey
-    ///
-    /// ...
-    pub(crate) unsafe fn row_index_mut_ptr(&self, row_ptr: *mut u8) -> *mut u32 {
-        row_ptr.byte_add(self.compare_width).cast()
-    }
 }
 
 /// Get the sort key width for a physical type.
@@ -433,7 +422,7 @@ trait ComparableEncode: Sized {
 
 impl ComparableEncode for UntypedNull {
     const ENCODE_WIDTH: usize = 0;
-    fn encode(&self, buf: &mut [u8]) {
+    fn encode(&self, _buf: &mut [u8]) {
         // Do nothing, we encode nothing for null values as a column containing
         // just nulls has no order.
     }

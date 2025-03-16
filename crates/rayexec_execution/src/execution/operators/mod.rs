@@ -14,7 +14,6 @@ pub mod scan;
 pub mod sort;
 pub mod table_execute;
 pub mod ungrouped_aggregate;
-pub mod unnest;
 pub mod values;
 
 pub(crate) mod util;
@@ -688,7 +687,7 @@ where
             operator.output_types().to_vec()
         },
 
-        materialization_ref_fn: |operator| Err(RayexecError::new("Not a materializing operator")),
+        materialization_ref_fn: |_operator| Err(RayexecError::new("Not a materializing operator")),
 
         build_pipeline_fn: |operator, children, props, graph, current| {
             O::build_pipeline(operator, children, props, graph, current)
@@ -706,17 +705,17 @@ where
                 .collect())
         },
 
-        create_partition_pull_states_fn: |operator, op_state, props, partitions| {
+        create_partition_pull_states_fn: |_operator, _op_state, _props, _partitions| {
             Err(RayexecError::new("Not a pull operator"))
         },
-        create_partition_push_states_fn: |operator, op_state, props, partitions| {
+        create_partition_push_states_fn: |_operator, _op_state, _props, _partitions| {
             Err(RayexecError::new("Not a push operator"))
         },
 
-        poll_pull_fn: |operator, cx, partition_state, operator_state, output| {
+        poll_pull_fn: |_operator, _cx, _partition_state, _operator_state, _output| {
             Err(RayexecError::new("Not a pull operator"))
         },
-        poll_push_fn: |operator, cx, partition_state, operator_state, input| {
+        poll_push_fn: |_operator, _cx, _partition_state, _operator_state, _input| {
             Err(RayexecError::new("Not a push operator"))
         },
         poll_execute_fn: |operator, cx, op_state, partition_state, input, output| {
@@ -730,7 +729,7 @@ where
             operator.poll_execute(cx, op_state, state, input, output)
         },
 
-        poll_finalize_push_fn: |operator, cx, partition_state, operator_state| {
+        poll_finalize_push_fn: |_operator, _cx, _partition_state, _operator_state| {
             Err(RayexecError::new("Not a push operator"))
         },
         poll_finalize_execute_fn: |operator, cx, op_state, partition_state| {
@@ -771,17 +770,17 @@ where
             operator.output_types().to_vec()
         },
 
-        materialization_ref_fn: |operator| Err(RayexecError::new("Not a materializing operator")),
+        materialization_ref_fn: |_operator| Err(RayexecError::new("Not a materializing operator")),
 
         build_pipeline_fn: |operator, children, props, graph, current| {
             O::build_pipeline(operator, children, props, graph, current)
         },
 
-        create_partition_execute_states_fn: |operator, op_state, props, partitions| {
+        create_partition_execute_states_fn: |_operator, _op_state, _props, _partitions| {
             Err(RayexecError::new("Not an execute operator"))
         },
 
-        create_partition_pull_states_fn: |operator, op_state, props, partitions| {
+        create_partition_pull_states_fn: |_operator, _op_state, _props, _partitions| {
             Err(RayexecError::new("Not a pull operator"))
         },
         create_partition_push_states_fn: |operator, op_state, props, partitions| {
@@ -796,7 +795,7 @@ where
                 .collect())
         },
 
-        poll_pull_fn: |operator, cx, partition_state, operator_state, output| {
+        poll_pull_fn: |_operator, _cx, _partition_state, _operator_state, _output| {
             Err(RayexecError::new("Not a pull operator"))
         },
         poll_push_fn: |operator, cx, op_state, partition_state, input| {
@@ -809,7 +808,7 @@ where
                 .unwrap();
             operator.poll_push(cx, op_state, state, input)
         },
-        poll_execute_fn: |operator, cx, partition_state, operator_state, input, output| {
+        poll_execute_fn: |_operator, _cx, _partition_state, _operator_state, _input, _output| {
             Err(RayexecError::new("Not an execute operator"))
         },
 
@@ -823,7 +822,7 @@ where
                 .unwrap();
             operator.poll_finalize_push(cx, op_state, state)
         },
-        poll_finalize_execute_fn: |operator, cx, partition_state, operator_state| {
+        poll_finalize_execute_fn: |_operator, _cx, _partition_state, _operator_state| {
             Err(RayexecError::new("Not an execute operator"))
         },
 
@@ -854,7 +853,7 @@ where
             operator.output_types().to_vec()
         },
 
-        materialization_ref_fn: |operator| Err(RayexecError::new("Not a materializing operator")),
+        materialization_ref_fn: |_operator| Err(RayexecError::new("Not a materializing operator")),
 
         build_pipeline_fn: |operator, children, props, graph, current| {
             O::build_pipeline(operator, children, props, graph, current)
@@ -872,7 +871,7 @@ where
                 .collect())
         },
 
-        create_partition_pull_states_fn: |operator, op_state, props, partitions| {
+        create_partition_pull_states_fn: |_operator, _op_state, _props, _partitions| {
             Err(RayexecError::new("Not a pull operator"))
         },
         create_partition_push_states_fn: |operator, op_state, props, partitions| {
@@ -887,7 +886,7 @@ where
                 .collect())
         },
 
-        poll_pull_fn: |operator, cx, partition_state, operator_state, output| {
+        poll_pull_fn: |_operator, _cx, _partition_state, _operator_state, _output| {
             Err(RayexecError::new("Not a pull operator"))
         },
         poll_push_fn: |operator, cx, op_state, partition_state, input| {
@@ -962,13 +961,13 @@ where
             operator.output_types().to_vec()
         },
 
-        materialization_ref_fn: |operator| Err(RayexecError::new("Not a materializing operator")),
+        materialization_ref_fn: |_operator| Err(RayexecError::new("Not a materializing operator")),
 
         build_pipeline_fn: |operator, children, props, graph, current| {
             O::build_pipeline(operator, children, props, graph, current)
         },
 
-        create_partition_execute_states_fn: |operator, op_state, props, partitions| {
+        create_partition_execute_states_fn: |_operator, _op_state, _props, _partitions| {
             Err(RayexecError::new("Not an execute operator"))
         },
 
@@ -983,7 +982,7 @@ where
                 .map(|state| AnyPartitionState(Box::new(state)))
                 .collect())
         },
-        create_partition_push_states_fn: |operator, op_state, props, partitions| {
+        create_partition_push_states_fn: |_operator, _op_state, _props, _partitions| {
             Err(RayexecError::new("Not a push operator"))
         },
 
@@ -997,17 +996,17 @@ where
                 .unwrap();
             operator.poll_pull(cx, op_state, state, output)
         },
-        poll_push_fn: |operator, cx, partition_state, operator_state, input| {
+        poll_push_fn: |_operator, _cx, _partition_state, _operator_state, _input| {
             Err(RayexecError::new("Not a push operator"))
         },
-        poll_execute_fn: |operator, cx, partition_state, operator_state, input, output| {
+        poll_execute_fn: |_operator, _cx, _partition_state, _operator_state, _input, _output| {
             Err(RayexecError::new("Not an execute operator"))
         },
 
-        poll_finalize_push_fn: |operator, cx, partition_state, operator_state| {
+        poll_finalize_push_fn: |_operator, _cx, _partition_state, _operator_state| {
             Err(RayexecError::new("Not a push operator"))
         },
-        poll_finalize_execute_fn: |operator, cx, partition_state, operator_state| {
+        poll_finalize_execute_fn: |_operator, _cx, _partition_state, _operator_state| {
             Err(RayexecError::new("Not an execute operator"))
         },
 
@@ -1047,7 +1046,7 @@ where
             O::build_pipeline(operator, children, props, graph, current)
         },
 
-        create_partition_execute_states_fn: |operator, op_state, props, partitions| {
+        create_partition_execute_states_fn: |_operator, _op_state, _props, _partitions| {
             Err(RayexecError::new("Not an execute operator"))
         },
 
@@ -1095,7 +1094,7 @@ where
 
             operator.poll_push(cx, op_state, state, input)
         },
-        poll_execute_fn: |operator, cx, partition_state, operator_state, input, output| {
+        poll_execute_fn: |_operator, _cx, _partition_state, _operator_state, _input, _output| {
             Err(RayexecError::new("Not an execute operator"))
         },
         poll_finalize_push_fn: |operator, cx, op_state, partition_state| {
@@ -1109,7 +1108,7 @@ where
 
             operator.poll_finalize_push(cx, op_state, state)
         },
-        poll_finalize_execute_fn: |operator, cx, partition_state, operator_state| {
+        poll_finalize_execute_fn: |_operator, _cx, _partition_state, _operator_state| {
             Err(RayexecError::new("Not an execute operator"))
         },
 

@@ -195,44 +195,6 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         ))
     }
 
-    fn plan_scalar_function(
-        &self,
-        table_refs: &[TableRef],
-        planned: PlannedScalarFunction,
-    ) -> Result<PhysicalScalarExpression> {
-        let physical_inputs = self.plan_scalars(table_refs, &planned.state.inputs)?;
-
-        Ok(PhysicalScalarExpression::ScalarFunction(
-            PhysicalScalarFunctionExpr {
-                function: planned,
-                inputs: physical_inputs,
-            },
-        ))
-    }
-
-    // pub fn plan_join_condition_as_hash_join_condition(
-    //     &self,
-    //     left_refs: &[TableRef],
-    //     right_refs: &[TableRef],
-    //     condition: &ComparisonCondition,
-    // ) -> Result<HashJoinCondition> {
-    //     let scalar = condition.op.as_scalar_function();
-    //     let function = scalar.plan(
-    //         self.table_list,
-    //         vec![condition.left.clone(), condition.right.clone()],
-    //     )?;
-
-    //     Ok(HashJoinCondition {
-    //         left: self
-    //             .plan_scalar(left_refs, &condition.left)
-    //             .context("Failed to plan for left side of condition")?,
-    //         right: self
-    //             .plan_scalar(right_refs, &condition.right)
-    //             .context("Failed to plan for right side of condition")?,
-    //         function,
-    //     })
-    // }
-
     pub fn plan_sorts(
         &self,
         table_refs: &[TableRef],

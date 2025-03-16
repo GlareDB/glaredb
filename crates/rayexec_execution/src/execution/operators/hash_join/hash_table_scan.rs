@@ -1,11 +1,11 @@
 use rayexec_error::Result;
 
 use super::join_hash_table::JoinHashTable;
-use crate::buffer::buffer_manager::NopBufferManager;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
 use crate::arrays::row::block_scan::BlockScanState;
+use crate::buffer::buffer_manager::NopBufferManager;
 use crate::logical::logical_join::JoinType;
 
 // TODO:
@@ -41,12 +41,14 @@ pub struct HashTableScanState {
     pub row_pointers: Vec<*const u8>,
     /// Reusable hashes buffer. Filled when we probe the hash table with
     /// rhs_keys.
+    #[allow(unused)]
     pub hashes: Vec<u64>,
     /// State used to read rows for the build side.
     pub block_read: BlockScanState,
 }
 
 impl HashTableScanState {
+    #[allow(unused)]
     pub fn scan_next(
         &mut self,
         table: &JoinHashTable,

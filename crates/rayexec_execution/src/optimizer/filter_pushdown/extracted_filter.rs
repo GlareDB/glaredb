@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 
-use crate::expr::column_expr::{ColumnExpr, ColumnReference};
+use crate::expr::column_expr::ColumnReference;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableRef;
 

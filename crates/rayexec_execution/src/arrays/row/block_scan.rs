@@ -1,5 +1,4 @@
 use super::block::Block;
-use crate::buffer::buffer_manager::BufferManager;
 
 /// State for scanning a row block conforming to some row layout.
 #[derive(Debug)]

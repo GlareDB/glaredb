@@ -41,7 +41,6 @@ use physical_type::{
     ScalarStorage,
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
-use selection::Selection;
 use stdutil::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};
 use validity::Validity;
 
@@ -553,8 +552,8 @@ impl Array {
             BorrowedScalarValue::Binary(val) => {
                 PhysicalBinary::get_addressable_mut(&mut self.data)?.put(idx, val);
             }
-            BorrowedScalarValue::List(list) => {
-                not_implemented!("set value list")
+            BorrowedScalarValue::List(_) => {
+                not_implemented!("set value for list")
                 // let secondary = self.data.try_as_mut()?.get_secondary_mut().get_list_mut()?;
 
                 // // Ensure we have space to push.

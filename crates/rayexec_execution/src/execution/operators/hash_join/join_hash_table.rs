@@ -45,6 +45,7 @@ pub struct HashJoinCondition {
 /// systems that use 32 bit pointers (wasm), this should still function
 /// correctly. The first 32 bits will be the actual pointer, the trailing
 /// 32 bits will be meaningless data (that we don't read).
+#[allow(unused)]
 #[derive(Debug)]
 pub struct JoinHashTable {
     /// Join type this hash table is for.
@@ -76,6 +77,7 @@ pub struct JoinHashTable {
 }
 
 impl JoinHashTable {
+    #[allow(unused)]
     pub fn new(
         join_type: JoinType,
         left_datatypes: impl IntoIterator<Item = DataType>,
@@ -141,6 +143,7 @@ impl JoinHashTable {
     }
 
     /// Initializes a build state for this hash table.
+    #[allow(unused)]
     pub fn init_build_state(&self) -> BuildState {
         BuildState {
             match_init: Array::new_constant(&NopBufferManager, &false.into(), self.batch_size)
@@ -150,6 +153,7 @@ impl JoinHashTable {
     }
 
     /// Get the row count for the build side of the hash table.
+    #[allow(unused)]
     pub fn row_count(&self) -> usize {
         self.data.row_count()
     }
@@ -176,6 +180,7 @@ impl JoinHashTable {
     ///
     /// This will hash the key columns and insert batches into the row
     /// collection.
+    #[allow(unused)]
     pub fn collect_build(&mut self, state: &mut BuildState, input: &Batch) -> Result<()> {
         let cap = input.arrays.len() + self.extra_column_count();
         let mut build_arrays = Vec::with_capacity(cap);
@@ -218,6 +223,7 @@ impl JoinHashTable {
     ///
     /// This should only be done once and after all build-side data has been
     /// collected.
+    #[allow(unused)]
     pub fn init_directory(&mut self) -> Result<()> {
         let num_rows = self.data.row_count();
         let directory = Directory::new_for_num_rows(num_rows)?;
@@ -237,6 +243,7 @@ impl JoinHashTable {
     ///
     /// This can be called concurrently by multiple threads. Entries in the hash
     /// table are atomically updated.
+    #[allow(unused)]
     pub fn insert_hashes_for_blocks(
         &self,
         block_indices: impl IntoIterator<Item = usize>,
@@ -307,6 +314,7 @@ impl JoinHashTable {
         Ok(())
     }
 
+    #[allow(unused)]
     pub fn init_scan_state(&self) -> HashTableScanState {
         HashTableScanState {
             selection: Vec::new(),
@@ -320,6 +328,7 @@ impl JoinHashTable {
     /// Probe the hash table with the given keys.
     ///
     /// The scan state will be updated for scanning.
+    #[allow(unused)]
     pub fn probe(&self, state: &mut HashTableScanState, rhs: &Batch) -> Result<()> {
         // TODO: Reuse array.
         let keys: Vec<_> = self
@@ -489,12 +498,6 @@ pub struct Directory {
 impl Directory {
     const MIN_SIZE: usize = 256;
     const LOAD_FACTOR: f64 = 0.7;
-
-    fn empty() -> Self {
-        Directory {
-            entries: TypedBuffer::try_with_capacity(&NopBufferManager, 0).unwrap(),
-        }
-    }
 
     /// Mask to use when determining the position for an entry in the hash
     /// table.

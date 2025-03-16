@@ -5,7 +5,6 @@ use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::Array;
 use crate::arrays::executor::{OutBuffer, PutBuffer};
-use crate::buffer::buffer_manager::BufferManager;
 
 #[derive(Debug, Clone, Copy)]
 pub struct UniformExecutor;

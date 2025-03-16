@@ -3,7 +3,6 @@ use std::task::Context;
 use rayexec_error::Result;
 
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
-use crate::arrays::array::physical_type::{PhysicalI32, ScalarStorage};
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;

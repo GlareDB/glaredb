@@ -24,6 +24,7 @@ impl PartitionWakers {
     /// Wakes a waker for the given partition.
     ///
     /// Removes the waker after waking.
+    #[allow(unused)]
     pub fn wake(&mut self, partition: usize) {
         if let Some(waker) = self.wakers[partition].take() {
             waker.wake();

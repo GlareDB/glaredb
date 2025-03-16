@@ -167,6 +167,7 @@ impl AggregateCollection {
         state.scan_subset(&self.layout.groups, &self.blocks, columns, outputs, count)
     }
 
+    #[allow(unused)] // Useful for tests.
     pub(crate) unsafe fn finalize_groups<A>(
         &self,
         group_ptrs: &mut [*mut u8],

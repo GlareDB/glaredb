@@ -1,4 +1,4 @@
-use rayexec_error::{not_implemented, RayexecError, Result};
+use rayexec_error::{not_implemented, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::ast;
 
@@ -54,7 +54,7 @@ impl<'a> CopyBinder<'a> {
 
         let source_scope = bind_context.new_orphan_scope();
 
-        let source = match copy_to.source {
+        let _source = match copy_to.source {
             ast::CopyToSource::Query(query) => {
                 let query_binder = QueryBinder::new(source_scope, self.resolve_context);
                 let bound_query = query_binder.bind(bind_context, query)?;
@@ -73,7 +73,7 @@ impl<'a> CopyBinder<'a> {
             }
         };
 
-        let source_schema = ColumnSchema::new(
+        let _source_schema = ColumnSchema::new(
             bind_context
                 .iter_tables_in_scope(source_scope)?
                 .flat_map(|t| {

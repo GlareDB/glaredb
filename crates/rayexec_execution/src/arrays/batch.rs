@@ -4,9 +4,8 @@ use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
 use super::array::selection::Selection;
-use super::cache::{BufferCache, MaybeCache, NopCache};
+use super::cache::{BufferCache, NopCache};
 use super::datatype::DataType;
-use super::scalar::BorrowedScalarValue;
 use crate::arrays::array::Array;
 use crate::buffer::buffer_manager::NopBufferManager;
 
@@ -384,7 +383,7 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::testutil::arrays::{assert_batches_eq, generate_batch};
+    use crate::testutil::arrays::assert_batches_eq;
 
     #[test]
     fn new_from_other() {

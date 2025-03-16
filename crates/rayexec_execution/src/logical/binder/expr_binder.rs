@@ -1,15 +1,9 @@
-use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ExpressionColumnBinder;
-use crate::arrays::compute::cast::parse::{
-    Decimal128Parser,
-    Decimal64Parser,
-    DecimalParser,
-    Parser,
-};
+use crate::arrays::compute::cast::parse::{Decimal128Parser, Decimal64Parser, Parser};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::decimal::{
     Decimal128Scalar,

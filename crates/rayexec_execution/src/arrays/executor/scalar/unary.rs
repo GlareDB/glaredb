@@ -11,7 +11,6 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::array::Array;
 use crate::arrays::executor::{OutBuffer, PutBuffer};
-use crate::buffer::buffer_manager::BufferManager;
 
 #[derive(Debug, Clone)]
 pub struct UnaryExecutor;

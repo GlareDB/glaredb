@@ -304,14 +304,6 @@ where
         let heap_blocks = std::mem::take(&mut self.heap_blocks);
         (row_blocks, heap_blocks)
     }
-
-    /// Get a pointer to a heap block at the given byte offset.
-    pub(crate) unsafe fn heap_ptr(&self, heap_idx: usize, offset: usize) -> *const u8 {
-        let heap_block = &self.heap_blocks[heap_idx];
-        let ptr = heap_block.as_ptr().byte_add(offset);
-        debug_assert!(heap_block.data.raw.contains_addr(ptr.addr()));
-        ptr
-    }
 }
 
 /// Iterator over row pointers in a row block.
