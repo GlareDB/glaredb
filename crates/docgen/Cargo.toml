@@ -12,7 +12,6 @@ rayexec_rt_native = { path = '../rayexec_rt_native' }
 rayexec_parquet = { path = '../rayexec_parquet' }
 rayexec_csv = { path = '../rayexec_csv' }
 rayexec_delta = { path = '../rayexec_delta' }
-rayexec_unity_catalog = { path = '../rayexec_unity_catalog' }
 rayexec_iceberg = { path = '../rayexec_iceberg' }
 rayexec_debug = { path = '../rayexec_debug' }
 regex = { workspace = true }

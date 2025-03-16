@@ -17,7 +17,6 @@
 //!
 //! Determine if there's a header by trying to parse the first record into the
 //! inferred types from the previous step. If it differs, assume a header.
-use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use rayexec_error::{RayexecError, Result, ResultExt};
@@ -38,8 +37,9 @@ use rayexec_execution::arrays::compute::cast::parse::{
     Parser,
 };
 use rayexec_execution::arrays::datatype::DataType;
-use rayexec_execution::execution::operators::source::operation::{PollPull, Projections};
-use rayexec_io::exp::AsyncReadStream;
+use rayexec_execution::execution::operators::PollPull;
+use rayexec_execution::io::file::AsyncReadStream;
+use rayexec_execution::storage::projections::Projections;
 
 use crate::decoder::{ByteRecords, CsvDecoder};
 
@@ -51,7 +51,7 @@ pub struct CsvReader {
     output: ByteRecords,
     decoder: CsvDecoder,
     /// Source stream.
-    stream: Pin<Box<dyn AsyncReadStream>>,
+    stream: Box<dyn AsyncReadStream>,
     projections: Projections,
     /// Current write state.
     write_state: WriteState,
@@ -67,7 +67,7 @@ struct WriteState {
 
 impl CsvReader {
     pub fn new(
-        stream: Pin<Box<dyn AsyncReadStream>>,
+        stream: Box<dyn AsyncReadStream>,
         skip_header: bool,
         projections: Projections,
         read_buf: Vec<u8>,
@@ -156,42 +156,43 @@ impl CsvReader {
         write_offset: usize,
         count: usize,
     ) -> Result<()> {
-        for (out_idx, &col_idx) in self.projections.column_indices.iter().enumerate() {
-            let array = &mut batch.arrays_mut()[out_idx];
-            match array.datatype() {
-                DataType::Boolean => self.write_primitive::<PhysicalBool, _>(
-                    records_offset,
-                    col_idx,
-                    array,
-                    write_offset,
-                    count,
-                    BoolParser,
-                )?,
-                DataType::Int64 => self.write_primitive::<PhysicalI64, _>(
-                    records_offset,
-                    col_idx,
-                    array,
-                    write_offset,
-                    count,
-                    Int64Parser::new(),
-                )?,
-                DataType::Float64 => self.write_primitive::<PhysicalF64, _>(
-                    records_offset,
-                    col_idx,
-                    array,
-                    write_offset,
-                    count,
-                    Float64Parser::new(),
-                )?,
-                DataType::Utf8 => {
-                    self.write_string(records_offset, col_idx, array, write_offset, count)?
+        self.projections
+            .for_each_column(batch, &mut |col_idx, array| {
+                match array.datatype() {
+                    DataType::Boolean => self.write_primitive::<PhysicalBool, _>(
+                        records_offset,
+                        col_idx,
+                        array,
+                        write_offset,
+                        count,
+                        BoolParser,
+                    )?,
+                    DataType::Int64 => self.write_primitive::<PhysicalI64, _>(
+                        records_offset,
+                        col_idx,
+                        array,
+                        write_offset,
+                        count,
+                        Int64Parser::new(),
+                    )?,
+                    DataType::Float64 => self.write_primitive::<PhysicalF64, _>(
+                        records_offset,
+                        col_idx,
+                        array,
+                        write_offset,
+                        count,
+                        Float64Parser::new(),
+                    )?,
+                    DataType::Utf8 => {
+                        self.write_string(records_offset, col_idx, array, write_offset, count)?
+                    }
+                    other => {
+                        return Err(RayexecError::new("Unhandled datatype for csv scanning")
+                            .with_field("datatype", other.clone()))
+                    }
                 }
-                other => {
-                    return Err(RayexecError::new("Unhandled datatype for csv scanning")
-                        .with_field("datatype", other.clone()))
-                }
-            }
-        }
+                Ok(())
+            })?;
 
         Ok(())
     }
@@ -263,13 +264,21 @@ impl CsvReader {
 
 #[cfg(test)]
 mod tests {
+    use rayexec_execution::buffer::buffer_manager::NopBufferManager;
     use rayexec_execution::generate_batch;
+    use rayexec_execution::io::file::FileSource;
+    use rayexec_execution::io::memory::MemoryFileSource;
     use rayexec_execution::testutil::arrays::assert_batches_eq;
-    use rayexec_io::memory::MemoryRead;
     use stdutil::task::noop_context;
 
     use super::*;
     use crate::dialect::DialectOptions;
+
+    fn make_stream(bytes: impl AsRef<[u8]>) -> Box<dyn AsyncReadStream> {
+        let mut source = MemoryFileSource::new(&NopBufferManager, bytes).unwrap();
+        let stream = source.read();
+        Box::new(stream)
+    }
 
     #[test]
     fn default_dialect_no_skip_header_complete_read() {
@@ -277,7 +286,7 @@ mod tests {
 wario,10.0,950
 yoshi,4.5,10000
 "#;
-        let stream = Box::pin(MemoryRead::new(input));
+        let stream = make_stream(input);
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
@@ -310,7 +319,7 @@ yoshi,4.5,10000
 wario,10.0,950
 yoshi,4.5,10000
 "#;
-        let stream = Box::pin(MemoryRead::new(input));
+        let stream = make_stream(input);
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
@@ -342,7 +351,7 @@ yoshi,4.5,10000
 wario,10.0,950
 yoshi,4.5,10000
 "#;
-        let stream = Box::pin(MemoryRead::new(input));
+        let stream = make_stream(input);
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
@@ -379,7 +388,7 @@ yoshi,4.5,10000
 wario,10.0,950
 yoshi,4.5,10000
 "#;
-        let stream = Box::pin(MemoryRead::new(input));
+        let stream = make_stream(input);
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
@@ -414,7 +423,7 @@ mario,9.5,8000
 wario,10.0,950
 yoshi,4.5,10000
 "#;
-        let stream = Box::pin(MemoryRead::new(input));
+        let stream = make_stream(input);
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
