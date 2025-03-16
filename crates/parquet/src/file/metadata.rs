@@ -633,6 +633,7 @@ impl ColumnChunkMetaData {
     }
 
     /// Returns the range for the offset index if any
+    #[allow(unused)]
     pub(crate) fn column_index_range(&self) -> Option<Range<usize>> {
         let offset = usize::try_from(self.column_index_offset?).ok()?;
         let length = usize::try_from(self.column_index_length?).ok()?;
@@ -650,6 +651,7 @@ impl ColumnChunkMetaData {
     }
 
     /// Returns the range for the offset index if any
+    #[allow(unused)]
     pub(crate) fn offset_index_range(&self) -> Option<Range<usize>> {
         let offset = usize::try_from(self.offset_index_offset?).ok()?;
         let length = usize::try_from(self.offset_index_length?).ok()?;

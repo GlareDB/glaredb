@@ -114,6 +114,7 @@ pub(crate) trait CompressionLevel<T: std::fmt::Display + std::cmp::PartialOrd> {
 /// Given the compression type `codec`, returns a codec used to compress and decompress
 /// bytes for the compression type.
 /// This returns `None` if the codec type is `UNCOMPRESSED`.
+#[allow(unused)]
 pub fn create_codec(
     codec: CodecType,
     _options: &CodecOptions,

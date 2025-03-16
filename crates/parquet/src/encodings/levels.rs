@@ -25,6 +25,7 @@ use crate::util::bit_util::{ceil, num_required_bits, BitWriter};
 /// Computes max buffer size for level encoder/decoder based on encoding, max
 /// repetition/definition level and number of total buffered values (includes null
 /// values).
+#[allow(unused)]
 #[inline]
 pub fn max_buffer_size(encoding: Encoding, max_level: i16, num_buffered_values: usize) -> usize {
     let bit_width = num_required_bits(max_level as u64);
@@ -38,6 +39,7 @@ pub fn max_buffer_size(encoding: Encoding, max_level: i16, num_buffered_values: 
 
 /// Encoder for definition/repetition levels.
 /// Currently only supports Rle and BitPacked (dev/null) encoding, including v2.
+#[allow(unused)]
 pub enum LevelEncoder {
     Rle(RleEncoder),
     RleV2(RleEncoder),
@@ -52,6 +54,7 @@ impl LevelEncoder {
     /// Used to encode levels for Data Page v1.
     ///
     /// Panics, if encoding is not supported.
+    #[allow(unused)]
     pub fn v1(encoding: Encoding, max_level: i16, capacity: usize) -> Self {
         let capacity_bytes = max_buffer_size(encoding, max_level, capacity);
         let mut buffer = Vec::with_capacity(capacity_bytes);
@@ -75,6 +78,7 @@ impl LevelEncoder {
 
     /// Creates new level encoder based on RLE encoding. Used to encode Data Page v2
     /// repetition and definition levels.
+    #[allow(unused)]
     pub fn v2(max_level: i16, capacity: usize) -> Self {
         let capacity_bytes = max_buffer_size(Encoding::RLE, max_level, capacity);
         let buffer = Vec::with_capacity(capacity_bytes);
@@ -85,6 +89,7 @@ impl LevelEncoder {
     /// Put/encode levels vector into this level encoder.
     /// Returns number of encoded values that are less than or equal to length of the
     /// input buffer.
+    #[allow(unused)]
     #[inline]
     pub fn put(&mut self, buffer: &[i16]) -> usize {
         let mut num_encoded = 0;
@@ -109,6 +114,7 @@ impl LevelEncoder {
 
     /// Finalizes level encoder, flush all intermediate buffers and return resulting
     /// encoded buffer. Returned buffer is already truncated to encoded bytes only.
+    #[allow(unused)]
     #[inline]
     pub fn consume(self) -> Vec<u8> {
         match self {

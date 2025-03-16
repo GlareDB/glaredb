@@ -59,7 +59,6 @@ impl ColumnReader {
                 PageDecoder::Plain(dec) => {
                     dec.read_plain(page_buf, definitions, output, offset, count)?
                 }
-                _ => unimplemented!(),
             }
 
             // Update page reader state.

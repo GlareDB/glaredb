@@ -19,7 +19,6 @@
 //!
 //! Provides access to file and row group readers and writers, record API, metadata, etc.
 
-pub mod fetch;
 pub mod footer;
 pub mod metadata;
 pub mod page_encoding_stats;

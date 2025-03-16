@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use rayexec_error::{RayexecError, Result};
 use rayexec_execution::buffer::buffer_manager::AsRawBufferManager;
 use rayexec_execution::buffer::typed::ByteBuffer;

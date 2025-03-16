@@ -15,17 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
-
 use bytes::Bytes;
 use rand::distributions::uniform::SampleUniform;
 use rand::distributions::{Distribution, Standard};
 use rand::{thread_rng, Rng};
 
-use crate::basic::Encoding;
 use crate::data_type::*;
-use crate::encodings::encoding::{DictEncoder, Encoder};
-use crate::schema::types::ColumnDescPtr;
 
 /// Random generator of data type `T` values and sequences.
 pub trait RandGen<T: DataType> {

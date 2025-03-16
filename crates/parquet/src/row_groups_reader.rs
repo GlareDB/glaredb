@@ -1,18 +1,3 @@
-use std::collections::VecDeque;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-
-use futures::FutureExt;
-use rayexec_error::{RayexecError, Result};
-use rayexec_execution::arrays::batch::Batch;
-use rayexec_execution::execution::operators::source::operation::{PollPull, Projections};
-use rayexec_io::exp::{AsyncReadStream, FileSource};
-use rayexec_io::future::read_into::ReadInto;
-
-use crate::column::struct_reader::StructReader;
-use crate::file::metadata::ParquetMetaData;
-
 // #[derive(Debug)]
 // pub struct RowGroupsReader {
 //     metadata: Arc<ParquetMetaData>,

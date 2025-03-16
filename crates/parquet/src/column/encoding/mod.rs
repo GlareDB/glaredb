@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 pub mod plain;
 pub mod rle_bp;
 

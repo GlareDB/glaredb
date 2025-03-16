@@ -4,6 +4,8 @@
 //! for byte arrays. Note also that none of these implement the `Decoder` trait
 //! since that's hard to work with.
 
+#![allow(unused)]
+
 use std::marker::PhantomData;
 
 use bytes::Bytes;

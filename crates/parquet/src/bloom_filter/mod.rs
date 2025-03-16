@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![allow(unused)]
+
 //! Bloom filter implementation specific to Parquet, as described
 //! in the [spec][parquet-bf-spec].
 //!
@@ -74,7 +76,6 @@
 
 use std::hash::Hasher;
 use std::io::Write;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use thrift::protocol::{TCompactOutputProtocol, TOutputProtocol};
@@ -82,7 +83,6 @@ use twox_hash::XxHash64;
 
 use crate::data_type::AsBytes;
 use crate::errors::ParquetError;
-use crate::file::metadata::ColumnChunkMetaData;
 use crate::format::{
     BloomFilterAlgorithm,
     BloomFilterCompression,

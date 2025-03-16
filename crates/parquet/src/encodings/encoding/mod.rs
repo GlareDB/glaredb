@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![allow(unused)]
+
 //! Contains all supported encoders for Parquet.
 
 use std::cmp;

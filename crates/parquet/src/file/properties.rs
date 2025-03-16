@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![allow(unused)]
+
 //! Configuration via [`WriterProperties`] and [`ReaderProperties`]
 use std::collections::HashMap;
 use std::str::FromStr;

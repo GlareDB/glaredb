@@ -243,6 +243,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
 ///
 /// NOTE: the primitive type in `descr` MUST match the data type `T`, otherwise
 /// disastrous consequence could occur.
+#[allow(unused)]
 pub fn get_decoder<T: DataType>(
     descr: ColumnDescPtr,
     encoding: Encoding,
@@ -370,6 +371,7 @@ impl<T: DataType> DictDecoder<T> {
     }
 
     /// Decodes and sets values for dictionary using `decoder` decoder.
+    #[allow(unused)]
     pub fn set_dict(&mut self, mut decoder: Box<dyn Decoder<T>>) -> ParquetResult<()> {
         let num_values = decoder.values_left();
         self.dictionary.resize(num_values, T::T::default());

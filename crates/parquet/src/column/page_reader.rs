@@ -270,6 +270,7 @@ impl PageReader {
     /// Initializes the page decoder.
     ///
     /// Should only be called after we've processed a page header.
+    #[allow(unused)]
     fn init_page_decoder(&mut self, encoding: Encoding) -> Result<()> {
         match encoding {
             Encoding::PLAIN => {
