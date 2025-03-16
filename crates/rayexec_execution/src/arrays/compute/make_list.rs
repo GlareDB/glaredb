@@ -1,6 +1,4 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
-use stdutil::convert::TryAsMut;
-use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::array_buffer::{ArrayBufferType, ListItemMetadata, SharedOrOwned};
 use crate::arrays::array::physical_type::{
@@ -30,6 +28,8 @@ use crate::arrays::array::physical_type::{
 use crate::arrays::array::validity::Validity;
 use crate::arrays::array::Array;
 use crate::arrays::datatype::DataType;
+use crate::util::convert::TryAsMut;
+use crate::util::iter::IntoExactSizeIterator;
 
 /// Writes lists values from `inputs` into `output`.
 ///

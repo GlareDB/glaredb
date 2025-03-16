@@ -1,6 +1,6 @@
 use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc};
 use rayexec_error::{not_implemented, RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::{PhysicalI32, PhysicalI64};
 use crate::arrays::array::Array;

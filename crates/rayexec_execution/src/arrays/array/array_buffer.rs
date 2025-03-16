@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
-use stdutil::convert::TryAsMut;
+use crate::util::convert::TryAsMut;
 
 use super::physical_type::{
     BinaryViewAddressable,

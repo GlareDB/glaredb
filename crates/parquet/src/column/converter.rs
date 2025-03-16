@@ -2,7 +2,7 @@
 
 use std::fmt::Debug;
 
-use stdutil::marker::PhantomCovariant;
+use rayexec_execution::util::marker::PhantomCovariant;
 
 /// Describes converting a raw parquet value to to an internal type.
 pub trait ValueConverter: Debug {

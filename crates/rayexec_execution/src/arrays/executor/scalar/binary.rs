@@ -1,5 +1,5 @@
 use rayexec_error::Result;
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
@@ -152,7 +152,7 @@ impl BinaryExecutor {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};

@@ -2,7 +2,7 @@ use std::borrow::BorrowMut;
 use std::collections::VecDeque;
 
 use rayexec_error::Result;
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 
 use super::block::ValidityInitializer;
 use super::block_scan::BlockScanState;

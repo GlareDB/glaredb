@@ -36,7 +36,7 @@ pub use radians::*;
 use rayexec_error::Result;
 pub use sin::*;
 pub use sqrt::*;
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 pub use tan::*;
 
 use crate::arrays::array::physical_type::MutableScalarStorage;

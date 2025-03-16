@@ -7,7 +7,6 @@ edition.workspace = true
 rayexec_proto = { path = '../rayexec_proto' }
 rayexec_execution = { path = '../rayexec_execution' }
 rayexec_error = { path = '../rayexec_error' }
-stdutil = { path = "../stdutil" }
 futures = { workspace = true }
 tracing = { workspace = true }
 regex = { workspace = true }

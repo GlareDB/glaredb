@@ -2,7 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::Poll;
 
-use crate::task::noop_context;
+use super::task::noop_context;
 
 /// Block on a future.
 ///

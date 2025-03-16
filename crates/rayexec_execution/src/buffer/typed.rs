@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use rayexec_error::Result;
-use stdutil::marker::PhantomCovariant;
+use crate::util::marker::PhantomCovariant;
 
 use super::buffer_manager::AsRawBufferManager;
 use super::raw::RawBuffer;

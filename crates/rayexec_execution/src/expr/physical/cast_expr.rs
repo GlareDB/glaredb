@@ -71,7 +71,7 @@ impl fmt::Display for PhysicalCastExpr {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::buffer::buffer_manager::NopBufferManager;

@@ -1,5 +1,5 @@
 use rayexec_error::Result;
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;

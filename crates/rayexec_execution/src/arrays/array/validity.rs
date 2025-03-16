@@ -1,4 +1,4 @@
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 
 use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMut};
 

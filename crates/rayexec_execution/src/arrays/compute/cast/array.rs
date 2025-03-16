@@ -2,7 +2,7 @@ use std::ops::Mul;
 
 use num::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
 use rayexec_error::{RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 
 use super::behavior::CastFailBehavior;
 use super::format::{
@@ -841,7 +841,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::datatype::DecimalTypeMeta;

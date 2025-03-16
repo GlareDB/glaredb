@@ -231,7 +231,7 @@ impl RowCollection {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::datatype::DataType;

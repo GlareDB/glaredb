@@ -1,5 +1,5 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::{
     Addressable,

@@ -1,5 +1,5 @@
 use rayexec_error::Result;
-use stdutil::convert::TryAsMut;
+use crate::util::convert::TryAsMut;
 
 use super::array::array_buffer::{ArrayBuffer, ArrayBufferType, ScalarBuffer, StringBuffer};
 use super::array::Array;

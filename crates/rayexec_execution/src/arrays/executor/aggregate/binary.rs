@@ -1,5 +1,5 @@
 use rayexec_error::{RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 
 use super::AggregateState;
 use crate::arrays::array::flat::FlattenedArray;
@@ -134,7 +134,7 @@ impl BinaryNonNullUpdater {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::array::physical_type::{AddressableMut, PhysicalI32};

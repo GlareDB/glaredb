@@ -1,6 +1,6 @@
 use num_traits::Float;
 use rayexec_error::Result;
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
 use crate::arrays::array::physical_type::{

@@ -238,14 +238,13 @@ impl PartialSortedRowCollection {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::arrays::row::block_scan::BlockScanState;
     use crate::arrays::sort::sort_layout::SortColumn;
     use crate::generate_batch;
     use crate::testutil::arrays::assert_arrays_eq;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     /// Helper for asserting that key/data inputs sort correctly with the
     /// resulting data matching `expected`.

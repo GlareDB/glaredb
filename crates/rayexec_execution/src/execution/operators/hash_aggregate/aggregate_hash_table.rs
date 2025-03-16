@@ -603,13 +603,12 @@ impl Directory {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::expr::physical::PhysicalAggregateExpression;
     use crate::expr::{self, bind_aggregate_function};
     use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::testutil::arrays::{assert_arrays_eq, assert_batches_eq, generate_batch};
+    use crate::util::iter::TryFromExactSizeIterator;
 
     /// Helper to get the groups and results from a hash table.
     fn get_groups_and_results(table: &AggregateHashTable) -> (Batch, Batch) {

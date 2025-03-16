@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
@@ -202,7 +202,7 @@ pub fn assert_batches_eq(batch1: &Batch, batch2: &Batch) {
 mod tests {
     use std::sync::Arc;
 
-    use stdutil::iter::TryFromExactSizeIterator;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::buffer::buffer_manager::NopBufferManager;

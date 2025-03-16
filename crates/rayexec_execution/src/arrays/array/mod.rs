@@ -41,7 +41,6 @@ use physical_type::{
     ScalarStorage,
 };
 use rayexec_error::{not_implemented, RayexecError, Result};
-use stdutil::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};
 use validity::Validity;
 
 use super::cache::MaybeCache;
@@ -53,6 +52,7 @@ use crate::arrays::scalar::timestamp::TimestampScalar;
 use crate::arrays::scalar::BorrowedScalarValue;
 use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager, NopBufferManager};
 use crate::buffer::typed::TypedBuffer;
+use crate::util::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};
 
 #[derive(Debug)]
 pub struct Array {
@@ -755,7 +755,7 @@ macro_rules! impl_primitive_from_iter {
         impl TryFromExactSizeIterator<$prim> for Array {
             type Error = RayexecError;
 
-            fn try_from_iter<T: stdutil::iter::IntoExactSizeIterator<Item = $prim>>(
+            fn try_from_iter<T: crate::util::iter::IntoExactSizeIterator<Item = $prim>>(
                 iter: T,
             ) -> Result<Self, Self::Error> {
                 let iter = iter.into_exact_size_iter();
@@ -812,7 +812,7 @@ where
 {
     type Error = RayexecError;
 
-    fn try_from_iter<T: stdutil::iter::IntoExactSizeIterator<Item = S>>(
+    fn try_from_iter<T: crate::util::iter::IntoExactSizeIterator<Item = S>>(
         iter: T,
     ) -> Result<Self, Self::Error> {
         let iter = iter.into_exact_size_iter();
@@ -838,7 +838,7 @@ where
 {
     type Error = RayexecError;
 
-    fn try_from_iter<T: stdutil::iter::IntoExactSizeIterator<Item = Option<V>>>(
+    fn try_from_iter<T: crate::util::iter::IntoExactSizeIterator<Item = Option<V>>>(
         iter: T,
     ) -> Result<Self, Self::Error> {
         let iter = iter.into_exact_size_iter();

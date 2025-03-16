@@ -170,10 +170,9 @@ impl AggregateState<&(), i64> for CountNonNullState {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn count_single_state() {

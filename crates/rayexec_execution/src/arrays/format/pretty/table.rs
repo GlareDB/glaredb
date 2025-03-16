@@ -769,7 +769,7 @@ const fn elide_index<T>(v: &[T]) -> usize {
 #[cfg(test)]
 mod tests {
 
-    use stdutil::iter::TryFromExactSizeIterator;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::array::selection::Selection;

@@ -3,7 +3,6 @@ use std::borrow::Borrow;
 use ahash::RandomState;
 use half::f16;
 use rayexec_error::{not_implemented, RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
@@ -34,6 +33,7 @@ use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
+use crate::util::iter::IntoExactSizeIterator;
 
 /// State used for all hashing operations during physical execution.
 pub const HASH_RANDOM_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);
@@ -325,12 +325,11 @@ impl HashValue for UntypedNull {
 #[cfg(test)]
 mod tests {
 
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::{DataType, ListTypeMeta};
     use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn combine_hashes_not_zero() {

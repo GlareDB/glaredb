@@ -1,5 +1,4 @@
 use rayexec_error::Result;
-use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::PhysicalI64;
 use crate::arrays::array::Array;
@@ -11,6 +10,7 @@ use crate::expr::Expression;
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
+use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_EPOCH: ScalarFunctionSet = ScalarFunctionSet {
     name: "epoch",

@@ -1,7 +1,7 @@
 use std::borrow::{Borrow, BorrowMut};
 
 use rayexec_error::Result;
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 
 use super::aggregate_layout::AggregateLayout;
 use super::block::ValidityInitializer;
@@ -198,7 +198,7 @@ impl AggregateCollection {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::datatype::DataType;

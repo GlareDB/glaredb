@@ -2,7 +2,6 @@ use std::borrow::{Borrow, BorrowMut};
 
 use half::f16;
 use rayexec_error::Result;
-use stdutil::iter::IntoExactSizeIterator;
 
 use super::row_blocks::{BlockAppendState, HeapMutPtr};
 use crate::arrays::array::flat::FlattenedArray;
@@ -36,6 +35,7 @@ use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMu
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::string::StringPtr;
+use crate::util::iter::IntoExactSizeIterator;
 
 /// Describes the layout of a row for use with a row collection.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -604,13 +604,12 @@ unsafe fn read_binary(
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::row::block_scan::BlockScanState;
     use crate::arrays::row::row_blocks::RowBlocks;
     use crate::buffer::buffer_manager::NopBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn new_empty() {

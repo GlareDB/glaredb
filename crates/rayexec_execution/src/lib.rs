@@ -15,4 +15,6 @@ pub mod runtime;
 pub mod shell;
 pub mod storage;
 
+pub mod util;
+
 pub mod testutil;

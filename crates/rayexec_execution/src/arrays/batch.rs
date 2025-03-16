@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use rayexec_error::{RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
+use crate::util::iter::IntoExactSizeIterator;
 
 use super::array::selection::Selection;
 use super::cache::{BufferCache, NopCache};
@@ -380,7 +380,7 @@ fn check_num_arrays(b1: &Batch, b2: &Batch) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::testutil::arrays::assert_batches_eq;

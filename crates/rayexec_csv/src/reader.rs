@@ -269,7 +269,7 @@ mod tests {
     use rayexec_execution::io::file::FileSource;
     use rayexec_execution::io::memory::MemoryFileSource;
     use rayexec_execution::testutil::arrays::assert_batches_eq;
-    use stdutil::task::noop_context;
+    use rayexec_execution::util::task::noop_context;
 
     use super::*;
     use crate::dialect::DialectOptions;

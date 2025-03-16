@@ -89,11 +89,10 @@ impl AsyncReadStream for MemoryFileRead {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::future::block_on;
-
     use super::*;
     use crate::buffer::buffer_manager::NopBufferManager;
     use crate::io::futures::read_into::ReadInto;
+    use crate::util::future::block_on;
 
     #[test]
     fn memory_size() {
