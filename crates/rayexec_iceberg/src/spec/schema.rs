@@ -2,14 +2,14 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 use glaredb_error::{not_implemented, RayexecError, Result};
-use rayexec_execution::arrays::datatype::{
+use glaredb_execution::arrays::datatype::{
     DataType,
     DecimalTypeMeta,
     ListTypeMeta,
     TimeUnit,
     TimestampTypeMeta,
 };
-use rayexec_execution::arrays::field::{ColumnSchema as BulletSchema, Field};
+use glaredb_execution::arrays::field::{ColumnSchema as BulletSchema, Field};
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
 

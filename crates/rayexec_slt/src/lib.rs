@@ -1,6 +1,6 @@
 mod vars;
-use rayexec_execution::arrays::format::pretty::table::PrettyTable;
-use rayexec_execution::engine::single_user::SingleUserEngine;
+use glaredb_execution::arrays::format::pretty::table::PrettyTable;
+use glaredb_execution::engine::single_user::SingleUserEngine;
 pub use vars::*;
 
 mod convert;

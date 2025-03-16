@@ -26,7 +26,7 @@ edition = { workspace = true }
 [dependencies]
 glaredb_error = { path = "../glaredb_error" }
 rayexec_io = { path = "../rayexec_io" }
-rayexec_execution = { path = "../rayexec_execution" }
+glaredb_execution = { path = "../glaredb_execution" }
 
 ahash = { workspace = true }
 bytes = { version = "1.10", default-features = false, features = ["std"] }

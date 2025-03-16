@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use benchmark::Benchmark;
 use clap::Parser;
 use glaredb_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::engine::single_user::SingleUserEngine;
+use glaredb_execution::engine::single_user::SingleUserEngine;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use runner::{BenchmarkRunner, BenchmarkTimes, RunnerConfig};
 

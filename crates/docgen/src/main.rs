@@ -7,7 +7,7 @@ use std::io;
 
 use file::DocFile;
 use glaredb_error::Result;
-use rayexec_execution::engine::single_user::SingleUserEngine;
+use glaredb_execution::engine::single_user::SingleUserEngine;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use section::{AggregateFunctionWriter, ScalarFunctionWriter, TableFunctionWriter};
 use session::DocsSession;

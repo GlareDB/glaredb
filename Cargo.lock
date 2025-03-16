@@ -208,9 +208,9 @@ version = "0.0.95"
 dependencies = [
  "glaredb_bench",
  "glaredb_error",
+ "glaredb_execution",
  "rayexec_csv",
  "rayexec_delta",
- "rayexec_execution",
  "rayexec_iceberg",
  "rayexec_rt_native",
 ]
@@ -626,10 +626,10 @@ name = "docgen"
 version = "0.0.95"
 dependencies = [
  "glaredb_error",
+ "glaredb_execution",
  "logutil",
  "rayexec_csv",
  "rayexec_delta",
- "rayexec_execution",
  "rayexec_iceberg",
  "rayexec_rt_native",
  "regex",
@@ -917,8 +917,8 @@ dependencies = [
  "crossterm",
  "futures",
  "glaredb_error",
+ "glaredb_execution",
  "logutil",
- "rayexec_execution",
  "rayexec_rt_native",
  "tracing",
  "tracing-subscriber",
@@ -931,14 +931,47 @@ dependencies = [
  "clap",
  "futures",
  "glaredb_error",
+ "glaredb_execution",
  "logutil",
- "rayexec_execution",
  "rayexec_rt_native",
 ]
 
 [[package]]
 name = "glaredb_error"
 version = "0.0.95"
+
+[[package]]
+name = "glaredb_execution"
+version = "0.0.95"
+dependencies = [
+ "ahash",
+ "chrono",
+ "fmtutil",
+ "futures",
+ "glaredb_error",
+ "half",
+ "hashbrown 0.14.5",
+ "indexmap",
+ "num-traits",
+ "num_cpus",
+ "parking_lot",
+ "rand",
+ "rayexec_io",
+ "rayexec_parser",
+ "rayexec_proto",
+ "rayon",
+ "regex",
+ "scc",
+ "serde",
+ "serde_json",
+ "similar-asserts",
+ "strsim",
+ "textwrap",
+ "tokio",
+ "tracing",
+ "url",
+ "uuid",
+]
 
 [[package]]
 name = "glob"
@@ -1680,6 +1713,7 @@ dependencies = [
  "flate2",
  "futures",
  "glaredb_error",
+ "glaredb_execution",
  "half",
  "hashbrown 0.14.5",
  "lz4_flex",
@@ -1687,7 +1721,6 @@ dependencies = [
  "num-bigint",
  "paste",
  "rand",
- "rayexec_execution",
  "rayexec_io",
  "seq-macro",
  "serde",
@@ -1981,7 +2014,7 @@ dependencies = [
  "csv-core",
  "futures",
  "glaredb_error",
- "rayexec_execution",
+ "glaredb_execution",
  "rayexec_proto",
  "regex",
  "tracing",
@@ -1995,8 +2028,8 @@ dependencies = [
  "bytes",
  "futures",
  "glaredb_error",
+ "glaredb_execution",
  "parquet",
- "rayexec_execution",
  "rayexec_io",
  "rayexec_proto",
  "regex",
@@ -2004,39 +2037,6 @@ dependencies = [
  "serde_json",
  "tracing",
  "url",
-]
-
-[[package]]
-name = "rayexec_execution"
-version = "0.0.95"
-dependencies = [
- "ahash",
- "chrono",
- "fmtutil",
- "futures",
- "glaredb_error",
- "half",
- "hashbrown 0.14.5",
- "indexmap",
- "num-traits",
- "num_cpus",
- "parking_lot",
- "rand",
- "rayexec_io",
- "rayexec_parser",
- "rayexec_proto",
- "rayon",
- "regex",
- "scc",
- "serde",
- "serde_json",
- "similar-asserts",
- "strsim",
- "textwrap",
- "tokio",
- "tracing",
- "url",
- "uuid",
 ]
 
 [[package]]
@@ -2047,8 +2047,8 @@ dependencies = [
  "bytes",
  "futures",
  "glaredb_error",
+ "glaredb_execution",
  "parquet",
- "rayexec_execution",
  "rayexec_io",
  "rayexec_proto",
  "regex",
@@ -2108,11 +2108,11 @@ version = "0.0.95"
 dependencies = [
  "futures",
  "glaredb_error",
+ "glaredb_execution",
  "parking_lot",
  "pyo3",
  "rayexec_csv",
  "rayexec_delta",
- "rayexec_execution",
  "rayexec_io",
  "rayexec_rt_native",
  "tokio",
@@ -2126,9 +2126,9 @@ dependencies = [
  "bytes",
  "futures",
  "glaredb_error",
+ "glaredb_execution",
  "num_cpus",
  "parking_lot",
- "rayexec_execution",
  "rayexec_io",
  "rayon",
  "reqwest",
@@ -2146,9 +2146,9 @@ dependencies = [
  "env_logger",
  "futures",
  "glaredb_error",
+ "glaredb_execution",
  "libtest-mimic",
  "rand",
- "rayexec_execution",
  "rayexec_rt_native",
  "sqllogictest",
  "tokio",
@@ -2165,11 +2165,11 @@ dependencies = [
  "futures",
  "getrandom 0.2.14",
  "glaredb_error",
+ "glaredb_execution",
  "js-sys",
  "parking_lot",
  "rayexec_csv",
  "rayexec_delta",
- "rayexec_execution",
  "rayexec_iceberg",
  "rayexec_io",
  "reqwest",
@@ -2738,7 +2738,7 @@ name = "test_bin"
 version = "0.0.95"
 dependencies = [
  "glaredb_error",
- "rayexec_execution",
+ "glaredb_execution",
  "rayexec_rt_native",
  "rayexec_slt",
  "tokio",

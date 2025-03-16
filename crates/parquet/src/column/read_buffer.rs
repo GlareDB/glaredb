@@ -1,8 +1,8 @@
 #![allow(unused)]
 
 use glaredb_error::{RayexecError, Result};
-use rayexec_execution::buffer::buffer_manager::AsRawBufferManager;
-use rayexec_execution::buffer::typed::ByteBuffer;
+use glaredb_execution::buffer::buffer_manager::AsRawBufferManager;
+use glaredb_execution::buffer::typed::ByteBuffer;
 
 /// Read buffer that owns the underlying buffer.
 #[derive(Debug)]
@@ -193,7 +193,7 @@ impl ReadBuffer {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_execution::buffer::buffer_manager::NopBufferManager;
+    use glaredb_execution::buffer::buffer_manager::NopBufferManager;
 
     use super::*;
 

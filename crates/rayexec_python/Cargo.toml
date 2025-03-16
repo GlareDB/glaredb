@@ -8,7 +8,7 @@ name = "rayexec"
 crate-type = ["cdylib"]
 
 [dependencies]
-rayexec_execution = { path = '../rayexec_execution' }
+glaredb_execution = { path = '../glaredb_execution' }
 glaredb_error = { path = '../glaredb_error' }
 rayexec_csv = { path = '../rayexec_csv' }
 rayexec_delta = { path = '../rayexec_delta' }

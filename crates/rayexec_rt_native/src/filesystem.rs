@@ -4,7 +4,7 @@ use std::path::Path;
 use std::task::{Context, Poll};
 
 use glaredb_error::{Result, ResultExt};
-use rayexec_execution::io::file::{AsyncReadStream, FileSource};
+use glaredb_execution::io::file::{AsyncReadStream, FileSource};
 
 #[derive(Debug)]
 pub struct LocalFile {

@@ -20,7 +20,7 @@
 use std::task::{Context, Poll};
 
 use glaredb_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::arrays::array::physical_type::{
+use glaredb_execution::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
     PhysicalBool,
@@ -28,18 +28,18 @@ use rayexec_execution::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalUtf8,
 };
-use rayexec_execution::arrays::array::Array;
-use rayexec_execution::arrays::batch::Batch;
-use rayexec_execution::arrays::compute::cast::parse::{
+use glaredb_execution::arrays::array::Array;
+use glaredb_execution::arrays::batch::Batch;
+use glaredb_execution::arrays::compute::cast::parse::{
     BoolParser,
     Float64Parser,
     Int64Parser,
     Parser,
 };
-use rayexec_execution::arrays::datatype::DataType;
-use rayexec_execution::execution::operators::PollPull;
-use rayexec_execution::io::file::AsyncReadStream;
-use rayexec_execution::storage::projections::Projections;
+use glaredb_execution::arrays::datatype::DataType;
+use glaredb_execution::execution::operators::PollPull;
+use glaredb_execution::io::file::AsyncReadStream;
+use glaredb_execution::storage::projections::Projections;
 
 use crate::decoder::{ByteRecords, CsvDecoder};
 
@@ -264,12 +264,12 @@ impl CsvReader {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_execution::buffer::buffer_manager::NopBufferManager;
-    use rayexec_execution::generate_batch;
-    use rayexec_execution::io::file::FileSource;
-    use rayexec_execution::io::memory::MemoryFileSource;
-    use rayexec_execution::testutil::arrays::assert_batches_eq;
-    use rayexec_execution::util::task::noop_context;
+    use glaredb_execution::buffer::buffer_manager::NopBufferManager;
+    use glaredb_execution::generate_batch;
+    use glaredb_execution::io::file::FileSource;
+    use glaredb_execution::io::memory::MemoryFileSource;
+    use glaredb_execution::testutil::arrays::assert_batches_eq;
+    use glaredb_execution::util::task::noop_context;
 
     use super::*;
     use crate::dialect::DialectOptions;

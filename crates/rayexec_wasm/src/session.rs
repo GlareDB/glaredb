@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use glaredb_error::RayexecError;
-use rayexec_execution::arrays::batch::Batch;
-use rayexec_execution::arrays::field::ColumnSchema;
-use rayexec_execution::engine::single_user::SingleUserEngine;
+use glaredb_execution::arrays::batch::Batch;
+use glaredb_execution::arrays::field::ColumnSchema;
+use glaredb_execution::engine::single_user::SingleUserEngine;
 use tracing::trace;
 use wasm_bindgen::prelude::*;
 

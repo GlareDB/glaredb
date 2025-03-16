@@ -3,12 +3,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use glaredb_error::{not_implemented, Result, ResultExt};
-use rayexec_execution::arrays::scalar::ScalarValue;
-use rayexec_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
-use rayexec_execution::io::access::AccessConfig;
-use rayexec_execution::io::file::FileOpener;
-use rayexec_execution::runtime::handle::QueryHandle;
-use rayexec_execution::runtime::{
+use glaredb_execution::arrays::scalar::ScalarValue;
+use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
+use glaredb_execution::io::access::AccessConfig;
+use glaredb_execution::io::file::FileOpener;
+use glaredb_execution::runtime::handle::QueryHandle;
+use glaredb_execution::runtime::{
     ErrorSink,
     OptionalTokioRuntime,
     PipelineExecutor,

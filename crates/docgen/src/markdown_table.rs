@@ -1,9 +1,9 @@
 use std::fmt;
 
 use glaredb_error::Result;
-use rayexec_execution::arrays::batch::Batch;
-use rayexec_execution::arrays::field::ColumnSchema;
-use rayexec_execution::arrays::format::{FormatOptions, Formatter};
+use glaredb_execution::arrays::batch::Batch;
+use glaredb_execution::arrays::field::ColumnSchema;
+use glaredb_execution::arrays::format::{FormatOptions, Formatter};
 
 const FORMATTER: Formatter = Formatter::new(FormatOptions {
     null: "",
@@ -54,9 +54,9 @@ pub fn write_markdown_table<'a>(
 
 // #[cfg(test)]
 // mod tests {
-//     use rayexec_execution::arrays::datatype::DataType;
-//     use rayexec_execution::arrays::field::Field;
-//     use rayexec_execution::generate_batch;
+//     use glaredb_execution::arrays::datatype::DataType;
+//     use glaredb_execution::arrays::field::Field;
+//     use glaredb_execution::generate_batch;
 
 //     use super::*;
 

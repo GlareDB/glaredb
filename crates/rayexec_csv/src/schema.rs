@@ -1,12 +1,12 @@
 use glaredb_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::arrays::compute::cast::parse::{
+use glaredb_execution::arrays::compute::cast::parse::{
     BoolParser,
     Float64Parser,
     Int64Parser,
     Parser,
 };
-use rayexec_execution::arrays::datatype::{DataType, TimeUnit, TimestampTypeMeta};
-use rayexec_execution::arrays::field::{ColumnSchema, Field};
+use glaredb_execution::arrays::datatype::{DataType, TimeUnit, TimestampTypeMeta};
+use glaredb_execution::arrays::field::{ColumnSchema, Field};
 
 use crate::decoder::ByteRecords;
 

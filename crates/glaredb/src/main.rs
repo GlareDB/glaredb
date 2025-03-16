@@ -4,11 +4,11 @@ use std::path::PathBuf;
 use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
 use glaredb_error::Result;
-use rayexec_execution::arrays::format::pretty::table::PrettyTable;
-use rayexec_execution::engine::single_user::SingleUserEngine;
-use rayexec_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
-use rayexec_execution::shell::lineedit::{KeyEvent, TermSize};
-use rayexec_execution::shell::shell::{RawModeTerm, Shell, ShellSignal};
+use glaredb_execution::arrays::format::pretty::table::PrettyTable;
+use glaredb_execution::engine::single_user::SingleUserEngine;
+use glaredb_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
+use glaredb_execution::shell::lineedit::{KeyEvent, TermSize};
+use glaredb_execution::shell::shell::{RawModeTerm, Shell, ShellSignal};
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 
 #[derive(Parser)]

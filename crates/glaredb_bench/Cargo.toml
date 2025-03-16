@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 glaredb_error = { path = '../glaredb_error' }
-rayexec_execution = { path = '../rayexec_execution' }
+glaredb_execution = { path = '../glaredb_execution' }
 rayexec_rt_native = { path = '../rayexec_rt_native' }
 logutil = { path = '../logutil' }
 futures = { workspace = true }

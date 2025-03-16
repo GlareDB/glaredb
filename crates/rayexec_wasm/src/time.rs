@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use rayexec_execution::runtime::time::RuntimeInstant;
+use glaredb_execution::runtime::time::RuntimeInstant;
 use tracing::warn;
 
 thread_local! {

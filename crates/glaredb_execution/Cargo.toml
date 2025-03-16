@@ -1,5 +1,5 @@
 [package]
-name = "rayexec_execution"
+name = "glaredb_execution"
 version = { workspace = true }
 edition = { workspace = true }
 

@@ -4,14 +4,14 @@ use std::task::{Context, Poll, Wake, Waker};
 
 use futures::future::BoxFuture;
 use glaredb_error::{not_implemented, Result};
+use glaredb_execution::arrays::scalar::ScalarValue;
+use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
+use glaredb_execution::io::access::AccessConfig;
+use glaredb_execution::io::file::FileOpener;
+use glaredb_execution::io::memory::MemoryFileSource;
+use glaredb_execution::runtime::handle::{ExecutionProfileData, QueryHandle};
+use glaredb_execution::runtime::{ErrorSink, PipelineExecutor, Runtime, TokioHandlerProvider};
 use parking_lot::Mutex;
-use rayexec_execution::arrays::scalar::ScalarValue;
-use rayexec_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
-use rayexec_execution::io::access::AccessConfig;
-use rayexec_execution::io::file::FileOpener;
-use rayexec_execution::io::memory::MemoryFileSource;
-use rayexec_execution::runtime::handle::{ExecutionProfileData, QueryHandle};
-use rayexec_execution::runtime::{ErrorSink, PipelineExecutor, Runtime, TokioHandlerProvider};
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 

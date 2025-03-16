@@ -1,4 +1,4 @@
-use rayexec_execution::runtime::time::RuntimeInstant;
+use glaredb_execution::runtime::time::RuntimeInstant;
 
 /// Instant implementation that wraps std Instant.
 #[derive(Debug, Clone, PartialEq, Eq)]

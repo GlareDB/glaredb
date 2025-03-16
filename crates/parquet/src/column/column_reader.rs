@@ -1,5 +1,5 @@
 use glaredb_error::{RayexecError, Result};
-use rayexec_execution::arrays::array::Array;
+use glaredb_execution::arrays::array::Array;
 
 use super::page_reader::PageReader;
 use crate::column::encoding::{Definitions, PageDecoder};

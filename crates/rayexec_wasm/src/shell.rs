@@ -1,10 +1,10 @@
 use std::io::{self, BufWriter};
 use std::rc::Rc;
 
+use glaredb_execution::engine::single_user::SingleUserEngine;
+use glaredb_execution::shell::lineedit::{KeyEvent, TermSize};
+use glaredb_execution::shell::shell::{RawModeGuard, RawModeTerm, Shell, ShellSignal};
 use js_sys::Function;
-use rayexec_execution::engine::single_user::SingleUserEngine;
-use rayexec_execution::shell::lineedit::{KeyEvent, TermSize};
-use rayexec_execution::shell::shell::{RawModeGuard, RawModeTerm, Shell, ShellSignal};
 use tracing::{error, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;

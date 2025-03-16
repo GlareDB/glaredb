@@ -2,7 +2,7 @@
 
 use std::fmt::Debug;
 
-use rayexec_execution::util::marker::PhantomCovariant;
+use glaredb_execution::util::marker::PhantomCovariant;
 
 use crate::column::read_buffer::ReadBuffer;
 

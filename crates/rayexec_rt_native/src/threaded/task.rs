@@ -2,9 +2,9 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};
 
 use glaredb_error::RayexecError;
+use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
+use glaredb_execution::runtime::ErrorSink;
 use parking_lot::Mutex;
-use rayexec_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
-use rayexec_execution::runtime::ErrorSink;
 use rayon::ThreadPool;
 
 use crate::time::NativeInstant;
