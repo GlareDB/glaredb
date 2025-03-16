@@ -10,7 +10,7 @@ glaredb_error = { path = '../crates/glaredb_error' }
 glaredb_execution = { path = '../crates/glaredb_execution' }
 glaredb_rt_native = { path = '../crates/glaredb_rt_native' }
 glaredb_bench = { path = '../crates/glaredb_bench' }
-rayexec_csv = { path = '../crates/rayexec_csv' }
+ext_csv = { path = '../crates/ext_csv' }
 rayexec_delta = { path = '../crates/rayexec_delta' }
 rayexec_iceberg = { path = '../crates/rayexec_iceberg' }
 

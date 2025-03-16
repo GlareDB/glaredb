@@ -1,5 +1,5 @@
 [package]
-name = "rayexec_csv"
+name = "ext_csv"
 version.workspace = true
 edition.workspace = true
 

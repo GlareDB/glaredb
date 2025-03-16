@@ -206,11 +206,11 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 name = "bench_bin"
 version = "0.0.95"
 dependencies = [
+ "ext_csv",
  "glaredb_bench",
  "glaredb_error",
  "glaredb_execution",
  "glaredb_rt_native",
- "rayexec_csv",
  "rayexec_delta",
  "rayexec_iceberg",
 ]
@@ -625,11 +625,11 @@ dependencies = [
 name = "docgen"
 version = "0.0.95"
 dependencies = [
+ "ext_csv",
  "glaredb_error",
  "glaredb_execution",
  "glaredb_rt_native",
  "logutil",
- "rayexec_csv",
  "rayexec_delta",
  "rayexec_iceberg",
  "regex",
@@ -727,6 +727,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba4f4911e3666fcd7826997b4745c8224295a6f3072f1418c3067b97a67557ee"
 dependencies = [
  "rustversion",
+]
+
+[[package]]
+name = "ext_csv"
+version = "0.0.95"
+dependencies = [
+ "bytes",
+ "csv",
+ "csv-core",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_proto",
+ "regex",
+ "tracing",
+ "url",
 ]
 
 [[package]]
@@ -1073,13 +1089,13 @@ version = "0.0.95"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
+ "ext_csv",
  "futures",
  "getrandom 0.2.14",
  "glaredb_error",
  "glaredb_execution",
  "js-sys",
  "parking_lot",
- "rayexec_csv",
  "rayexec_delta",
  "rayexec_iceberg",
  "rayexec_io",
@@ -2091,22 +2107,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rayexec_csv"
-version = "0.0.95"
-dependencies = [
- "bytes",
- "csv",
- "csv-core",
- "futures",
- "glaredb_error",
- "glaredb_execution",
- "glaredb_proto",
- "regex",
- "tracing",
- "url",
-]
-
-[[package]]
 name = "rayexec_delta"
 version = "0.0.95"
 dependencies = [
@@ -2169,13 +2169,13 @@ dependencies = [
 name = "rayexec_python"
 version = "0.0.95"
 dependencies = [
+ "ext_csv",
  "futures",
  "glaredb_error",
  "glaredb_execution",
  "glaredb_rt_native",
  "parking_lot",
  "pyo3",
- "rayexec_csv",
  "rayexec_delta",
  "rayexec_io",
  "tokio",
