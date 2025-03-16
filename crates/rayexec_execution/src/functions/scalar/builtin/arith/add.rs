@@ -3,7 +3,10 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
+use super::decimal_arith::common_add_sub_decimal_type_info;
+use super::decimal_sigs::D_SIGS;
 use crate::arrays::array::physical_type::{
+    MutableScalarStorage,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
@@ -12,246 +15,244 @@ use crate::arrays::array::physical_type::{
     PhysicalI32,
     PhysicalI64,
     PhysicalI8,
-    PhysicalStorage,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
 };
-use crate::arrays::array::{Array, ArrayData2};
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::scalar::BinaryExecutor;
-use crate::arrays::storage::PrimitiveStorage;
-use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::arrays::executor::OutBuffer;
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::expr::{self, Expression};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Add;
-
-impl FunctionInfo for Add {
-    fn name(&self) -> &'static str {
-        "+"
-    }
-
-    fn aliases(&self) -> &'static [&'static str] {
-        &["add"]
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const SIGS: &[Signature] = &[
-            Signature::new_positional(
+pub const FUNCTION_SET_ADD: ScalarFunctionSet = ScalarFunctionSet {
+    name: "+",
+    aliases: &["add"],
+    doc: None,
+    functions: &[
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Float16, DataTypeId::Float16],
                 DataTypeId::Float16,
             ),
-            Signature::new_positional(
+            &Add::<PhysicalF16>::new(&DataType::Float16),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Float32, DataTypeId::Float32],
                 DataTypeId::Float32,
             ),
-            Signature::new_positional(
+            &Add::<PhysicalF32>::new(&DataType::Float32),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Float64, DataTypeId::Float64],
                 DataTypeId::Float64,
             ),
-            Signature::new_positional(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
-            Signature::new_positional(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
-            Signature::new_positional(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
-            Signature::new_positional(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
-            Signature::new_positional(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
-            Signature::new_positional(
+            &Add::<PhysicalF64>::new(&DataType::Float64),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
+            &Add::<PhysicalI8>::new(&DataType::Int8),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
+            &Add::<PhysicalI16>::new(&DataType::Int16),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
+            &Add::<PhysicalI32>::new(&DataType::Int32),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
+            &Add::<PhysicalI64>::new(&DataType::Int64),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
+                &[DataTypeId::Int128, DataTypeId::Int128],
+                DataTypeId::Int128,
+            ),
+            &Add::<PhysicalI128>::new(&DataType::Int128),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
+            &Add::<PhysicalU8>::new(&DataType::UInt8),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::UInt16, DataTypeId::UInt16],
                 DataTypeId::UInt16,
             ),
-            Signature::new_positional(
+            &Add::<PhysicalU16>::new(&DataType::UInt16),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::UInt32, DataTypeId::UInt32],
                 DataTypeId::UInt32,
             ),
-            Signature::new_positional(
+            &Add::<PhysicalU32>::new(&DataType::UInt32),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::UInt64, DataTypeId::UInt64],
                 DataTypeId::UInt64,
             ),
-            Signature::new_positional(&[DataTypeId::Date32, DataTypeId::Int32], DataTypeId::Date32),
-            Signature::new_positional(&[DataTypeId::Int32, DataTypeId::Date32], DataTypeId::Date32),
-            Signature::new_positional(
-                &[DataTypeId::Interval, DataTypeId::Int64],
-                DataTypeId::Interval,
+            &Add::<PhysicalU64>::new(&DataType::UInt64),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
+                &[DataTypeId::UInt128, DataTypeId::UInt128],
+                DataTypeId::UInt128,
             ),
-            Signature::new_positional(
-                &[DataTypeId::Decimal64, DataTypeId::Decimal64],
-                DataTypeId::Decimal64,
-            ),
-        ];
-        SIGS
-    }
-}
+            &Add::<PhysicalU128>::new(&DataType::UInt128),
+        ),
+        // Decimal64
+        RawScalarFunction::new(D_SIGS.d64_d64, &DecimalAdd::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i8, &DecimalAdd::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i16, &DecimalAdd::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i32, &DecimalAdd::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i64, &DecimalAdd::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i8_d64, &DecimalAdd::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i16_d64, &DecimalAdd::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i32_d64, &DecimalAdd::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i64_d64, &DecimalAdd::<Decimal64Type>::new()),
+        // Decimal128
+        RawScalarFunction::new(D_SIGS.d128_d128, &DecimalAdd::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i8, &DecimalAdd::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i16, &DecimalAdd::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i32, &DecimalAdd::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i64, &DecimalAdd::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i8_d128, &DecimalAdd::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i16_d128, &DecimalAdd::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i32_d128, &DecimalAdd::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i64_d128, &DecimalAdd::<Decimal128Type>::new()),
+        // Date + days => date
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Date32, DataTypeId::Int32], DataTypeId::Date32),
+            &Add::<PhysicalI32>::new(&DataType::Date32),
+        ),
+        // Days + date => date
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int32, DataTypeId::Date32], DataTypeId::Date32),
+            &Add::<PhysicalI32>::new(&DataType::Date32),
+        ),
+    ],
+};
 
-impl ScalarFunction for Add {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        plan_check_num_args(self, &inputs, 2)?;
-
-        let (function_impl, return_type): (Box<dyn ScalarFunctionImpl>, _) = match (
-            inputs[0].datatype(table_list)?,
-            inputs[1].datatype(table_list)?,
-        ) {
-            (DataType::Float16, DataType::Float16) => (
-                Box::new(AddImpl::<PhysicalF16>::new(DataType::Float16)),
-                DataType::Float16,
-            ),
-            (DataType::Float32, DataType::Float32) => (
-                Box::new(AddImpl::<PhysicalF32>::new(DataType::Float32)),
-                DataType::Float32,
-            ),
-            (DataType::Float64, DataType::Float64) => (
-                Box::new(AddImpl::<PhysicalF64>::new(DataType::Float64)),
-                DataType::Float64,
-            ),
-            (DataType::Int8, DataType::Int8) => (
-                Box::new(AddImpl::<PhysicalI8>::new(DataType::Int8)),
-                DataType::Int8,
-            ),
-            (DataType::Int16, DataType::Int16) => (
-                Box::new(AddImpl::<PhysicalI16>::new(DataType::Int16)),
-                DataType::Int16,
-            ),
-            (DataType::Int32, DataType::Int32) => (
-                Box::new(AddImpl::<PhysicalI32>::new(DataType::Int32)),
-                DataType::Int32,
-            ),
-            (DataType::Int64, DataType::Int64) => (
-                Box::new(AddImpl::<PhysicalI64>::new(DataType::Int64)),
-                DataType::Int64,
-            ),
-            (DataType::Int128, DataType::Int128) => (
-                Box::new(AddImpl::<PhysicalI128>::new(DataType::Int128)),
-                DataType::Int128,
-            ),
-            (DataType::UInt8, DataType::UInt8) => (
-                Box::new(AddImpl::<PhysicalU8>::new(DataType::UInt8)),
-                DataType::UInt8,
-            ),
-            (DataType::UInt16, DataType::UInt16) => (
-                Box::new(AddImpl::<PhysicalU16>::new(DataType::UInt16)),
-                DataType::UInt16,
-            ),
-            (DataType::UInt32, DataType::UInt32) => (
-                Box::new(AddImpl::<PhysicalU32>::new(DataType::UInt32)),
-                DataType::UInt32,
-            ),
-            (DataType::UInt64, DataType::UInt64) => (
-                Box::new(AddImpl::<PhysicalU64>::new(DataType::UInt64)),
-                DataType::UInt64,
-            ),
-            (DataType::UInt128, DataType::UInt128) => (
-                Box::new(AddImpl::<PhysicalU128>::new(DataType::UInt128)),
-                DataType::UInt128,
-            ),
-
-            // TODO: Split out decimal (for scaling)
-            datatypes @ (DataType::Decimal64(_), DataType::Decimal64(_)) => (
-                Box::new(AddImpl::<PhysicalI64>::new(datatypes.0.clone())),
-                datatypes.0,
-            ),
-            datatypes @ (DataType::Decimal128(_), DataType::Decimal128(_)) => (
-                Box::new(AddImpl::<PhysicalI128>::new(datatypes.0.clone())),
-                datatypes.0,
-            ),
-
-            // Date + days
-            (DataType::Date32, DataType::Int32) => (
-                Box::new(AddImpl::<PhysicalI32>::new(DataType::Date32)),
-                DataType::Date32,
-            ),
-            // Days + date
-            // Note both are represented as i32 physical type, we don't need to worry about flipping the sides.
-            (DataType::Int32, DataType::Date32) => (
-                Box::new(AddImpl::<PhysicalI32>::new(DataType::Date32)),
-                DataType::Date32,
-            ),
-
-            // TODO: Interval
-            (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
-        };
-
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
-            return_type,
-            inputs,
-            function_impl,
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AddImpl<S> {
-    datatype: DataType,
+#[derive(Debug, Clone, Copy)]
+pub struct Add<S> {
+    return_type: &'static DataType,
     _s: PhantomData<S>,
 }
 
-impl<S> AddImpl<S> {
-    fn new(datatype: DataType) -> Self {
-        AddImpl {
-            datatype,
+impl<S> Add<S> {
+    pub const fn new(return_type: &'static DataType) -> Self {
+        Add {
+            return_type,
             _s: PhantomData,
         }
     }
 }
 
-impl<S> ScalarFunctionImpl for AddImpl<S>
+impl<S> ScalarFunction for Add<S>
 where
-    S: PhysicalStorage,
-    for<'a> S::Type<'a>: std::ops::Add<Output = S::Type<'static>> + Default + Copy,
-    ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
+    S: MutableScalarStorage,
+    S::StorageType: std::ops::Add<Output = S::StorageType> + Sized + Copy,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let a = inputs[0];
-        let b = inputs[1];
+    type State = ();
 
-        let builder = ArrayBuilder {
-            datatype: self.datatype.clone(),
-            buffer: PrimitiveBuffer::with_len(a.logical_len()),
-        };
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: self.return_type.clone(),
+            inputs,
+        })
+    }
 
-        BinaryExecutor::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a + b)))
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
+
+        BinaryExecutor::execute::<S, S, S, _>(
+            a,
+            sel,
+            b,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, &b, buf| buf.put(&(a + b)),
+        )
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::arrays::datatype::DataType;
-    use crate::expr;
-    use crate::functions::scalar::ScalarFunction;
+#[derive(Debug, Clone, Copy)]
+pub struct DecimalAdd<D> {
+    _d: PhantomData<D>,
+}
 
-    #[test]
-    fn add_i32() {
-        let a = Array::from_iter([1, 2, 3]);
-        let b = Array::from_iter([4, 5, 6]);
+impl<D> DecimalAdd<D>
+where
+    D: DecimalType,
+{
+    pub const fn new() -> Self {
+        DecimalAdd { _d: PhantomData }
+    }
+}
 
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Int32, DataType::Int32],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
+impl<D> ScalarFunction for DecimalAdd<D>
+where
+    D: DecimalType,
+{
+    type State = ();
 
-        let planned = Add
-            .plan(
-                &table_list,
-                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
-            )
-            .unwrap();
+    fn bind(&self, mut inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        let mut right = inputs.pop().unwrap();
+        let mut left = inputs.pop().unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([5, 7, 9]);
+        let l_type = left.datatype()?;
+        let r_type = right.datatype()?;
 
-        assert_eq!(expected, out);
+        let info = common_add_sub_decimal_type_info::<D>(&l_type, &r_type)?;
+
+        let return_type = D::datatype_from_decimal_meta(info.meta);
+
+        // Cast the inputs if needed.
+        match D::decimal_meta_opt(&l_type) {
+            Some(meta) if meta == info.meta => (), // Nothing to do.
+            _ => left = expr::cast(left, return_type.clone()).into(),
+        }
+
+        match D::decimal_meta_opt(&r_type) {
+            Some(meta) if meta == info.meta => (), // Nothing to do.
+            _ => right = expr::cast(right, return_type.clone()).into(),
+        }
+
+        Ok(BindState {
+            state: (),
+            return_type,
+            inputs: vec![left, right],
+        })
+    }
+
+    fn execute(_: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
+
+        BinaryExecutor::execute::<D::Storage, D::Storage, D::Storage, _>(
+            a,
+            sel,
+            b,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, &b, buf| buf.put(&(a + b)),
+        )
     }
 }

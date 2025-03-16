@@ -5,7 +5,7 @@ use rayexec_error::Result;
 use super::ExpressionRewriteRule;
 use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use crate::expr::Expression;
-use crate::logical::binder::table_list::{TableList, TableRef};
+use crate::logical::binder::table_list::TableRef;
 
 /// Rewrites join filter expressions containing ORs that reference both sides of
 /// a join to an AND expression with the OR distributed.
@@ -20,7 +20,7 @@ use crate::logical::binder::table_list::{TableList, TableRef};
 pub struct JoinFilterOrRewrite;
 
 impl ExpressionRewriteRule for JoinFilterOrRewrite {
-    fn rewrite(_table_list: &TableList, mut expression: Expression) -> Result<Expression> {
+    fn rewrite(mut expression: Expression) -> Result<Expression> {
         fn inner(expr: &mut Expression) -> Result<()> {
             match expr {
                 Expression::Conjunction(conj) if conj.op == ConjunctionOperator::Or => {

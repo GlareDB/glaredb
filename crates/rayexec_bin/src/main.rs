@@ -1,21 +1,15 @@
-use std::io::{BufWriter, Write};
+use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
-use rayexec_csv::CsvDataSource;
-use rayexec_delta::DeltaDataSource;
 use rayexec_error::Result;
-use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
+use rayexec_execution::arrays::format::pretty::table::PrettyTable;
+use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
-use rayexec_iceberg::IcebergDataSource;
-use rayexec_parquet::ParquetDataSource;
-use rayexec_postgres::PostgresDataSource;
+use rayexec_execution::shell::lineedit::{KeyEvent, TermSize};
+use rayexec_execution::shell::shell::{RawModeTerm, Shell, ShellSignal};
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-use rayexec_shell::lineedit::KeyEvent;
-use rayexec_shell::session::SingleUserEngine;
-use rayexec_shell::shell::{Shell, ShellSignal};
-use rayexec_unity_catalog::UnityCatalogDataSource;
 
 #[derive(Parser)]
 #[clap(name = "rayexec_bin")]
@@ -36,23 +30,40 @@ struct Arguments {
 /// Simple binary for quickly running arbitrary queries.
 fn main() {
     let args = Arguments::parse();
-    logutil::configure_global_logger(tracing::Level::ERROR, logutil::LogFormat::HumanReadable);
+    logutil::configure_global_logger(
+        tracing::Level::ERROR,
+        logutil::LogFormat::HumanReadable,
+        io::stderr,
+    );
 
-    let executor = ThreadedNativeExecutor::try_new().unwrap();
-    let runtime = NativeRuntime::with_default_tokio().unwrap();
-    let tokio_handle = runtime
-        .tokio_handle()
-        .handle()
-        .expect("tokio to be configured");
+    // Nested result. Outer result for the panic, inner is execution result.
+    let result = std::panic::catch_unwind(|| {
+        let executor = ThreadedNativeExecutor::try_new().unwrap();
+        let runtime = NativeRuntime::with_default_tokio().unwrap();
+        let tokio_handle = runtime
+            .tokio_handle()
+            .handle()
+            .expect("tokio to be configured");
 
-    // Note we do an explicit clone here to avoid dropping the tokio runtime
-    // owned by the execution runtime inside the async context.
-    let runtime_clone = runtime.clone();
-    let result = tokio_handle.block_on(async move { inner(args, executor, runtime_clone).await });
+        // Note we do an explicit clone here to avoid dropping the tokio runtime
+        // owned by the execution runtime inside the async context.
+        let runtime_clone = runtime.clone();
 
-    if let Err(e) = result {
-        println!("ERROR: {e}");
-        std::process::exit(1);
+        tokio_handle.block_on(async move { inner(args, executor, runtime_clone).await })
+    });
+
+    match result {
+        Ok(Err(err)) => {
+            // "Normal" error.
+            println!("ERROR: {err}");
+            std::process::exit(1);
+        }
+        Err(err) => {
+            // Panic error.
+            println!("PANIC: {err:?}");
+            std::process::exit(2);
+        }
+        Ok(Ok(())) => (),
     }
 }
 
@@ -75,20 +86,25 @@ fn from_crossterm_keycode(code: crossterm::event::KeyCode) -> KeyEvent {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct CrosstermRawModeTerm;
+
+impl RawModeTerm for CrosstermRawModeTerm {
+    fn enable_raw_mode(&self) {
+        let _ = crossterm::terminal::enable_raw_mode();
+    }
+
+    fn disable_raw_mode(&self) {
+        let _ = crossterm::terminal::disable_raw_mode();
+    }
+}
+
 async fn inner(
     args: Arguments,
     executor: impl PipelineExecutor,
     runtime: impl Runtime,
 ) -> Result<()> {
-    let registry = DataSourceRegistry::default()
-        .with_datasource("memory", Box::new(MemoryDataSource))?
-        .with_datasource("postgres", PostgresDataSource::initialize(runtime.clone()))?
-        .with_datasource("delta", DeltaDataSource::initialize(runtime.clone()))?
-        .with_datasource("unity", UnityCatalogDataSource::initialize(runtime.clone()))?
-        .with_datasource("parquet", ParquetDataSource::initialize(runtime.clone()))?
-        .with_datasource("csv", CsvDataSource::initialize(runtime.clone()))?
-        .with_datasource("iceberg", IcebergDataSource::initialize(runtime.clone()))?;
-    let engine = SingleUserEngine::try_new(executor, runtime, registry)?;
+    let engine = SingleUserEngine::try_new(executor, runtime)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
     let mut stdout = BufWriter::new(std::io::stdout());
@@ -100,19 +116,12 @@ async fn inner(
 
             let pending_queries = engine.session().query_many(&content)?;
             for pending in pending_queries {
-                let table = pending
-                    .execute()
-                    .await?
-                    .collect_with_execution_profile()
-                    .await?;
-                writeln!(stdout, "{}", table.pretty_table(cols as usize, None)?)?;
+                let mut q_res = pending.execute().await?;
+                let batches = q_res.output.collect().await?;
 
-                if args.dump_profile {
-                    writeln!(stdout, "---- PLANNING ----")?;
-                    writeln!(stdout, "{}", table.planning_profile_data().unwrap())?;
-                    writeln!(stdout, "---- EXECUTION ----")?;
-                    writeln!(stdout, "{}", table.execution_profile_data().unwrap())?;
-                }
+                let table =
+                    PrettyTable::try_new(&q_res.output_schema, &batches, cols as usize, None)?;
+                writeln!(stdout, "{table}")?;
 
                 stdout.flush()?;
             }
@@ -127,8 +136,13 @@ async fn inner(
         for query in args.queries {
             let pending_queries = engine.session().query_many(&query)?;
             for pending in pending_queries {
-                let table = pending.execute().await?.collect().await?;
-                writeln!(stdout, "{}", table.pretty_table(cols as usize, None)?)?;
+                let mut query_res = pending.execute().await?;
+                let batches = query_res.output.collect().await?;
+
+                let table =
+                    PrettyTable::try_new(&query_res.output_schema, &batches, cols as usize, None)?;
+
+                writeln!(stdout, "{table}")?;
             }
             stdout.flush()?;
         }
@@ -138,11 +152,13 @@ async fn inner(
 
     // Otherwise continue on with interactive shell.
 
-    crossterm::terminal::enable_raw_mode()?;
-
-    let shell = Shell::new(stdout);
-    shell.set_cols(cols as usize);
+    let shell = Shell::new(stdout, CrosstermRawModeTerm);
+    shell.set_size(TermSize {
+        cols: cols as usize,
+    });
     shell.attach(engine, "GlareDB Shell")?;
+
+    let mut edit_guard = shell.edit_start()?;
 
     let inner_loop = || async move {
         loop {
@@ -150,30 +166,33 @@ async fn inner(
                 Event::Key(event::KeyEvent {
                     code, modifiers, ..
                 }) => {
-                    let key = if modifiers.contains(KeyModifiers::CONTROL) {
-                        match code {
-                            event::KeyCode::Char('c') => KeyEvent::CtrlC,
-                            _ => KeyEvent::Unknown,
-                        }
+                    let key = if modifiers.contains(KeyModifiers::CONTROL)
+                        && matches!(code, event::KeyCode::Char('c'))
+                    {
+                        KeyEvent::CtrlC
                     } else {
                         from_crossterm_keycode(code)
                     };
 
-                    match shell.consume_key(key)? {
-                        ShellSignal::Continue => (),
-                        ShellSignal::ExecutePending => shell.execute_pending().await?,
+                    match shell.consume_key(edit_guard, key)? {
+                        ShellSignal::Continue(guard) => {
+                            edit_guard = guard;
+                        }
+                        ShellSignal::ExecutePending(guard) => {
+                            shell.execute_pending(guard).await?;
+                            edit_guard = shell.edit_start()?;
+                        }
                         ShellSignal::Exit => break,
                     }
                 }
-                Event::Resize(cols, _) => shell.set_cols(cols as usize),
+                Event::Resize(cols, _) => shell.set_size(TermSize {
+                    cols: cols as usize,
+                }),
                 _event => (),
             }
         }
         Ok(())
     };
 
-    let result = inner_loop().await;
-    crossterm::terminal::disable_raw_mode()?;
-
-    result
+    inner_loop().await
 }

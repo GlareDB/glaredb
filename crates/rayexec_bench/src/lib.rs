@@ -8,9 +8,8 @@ use std::path::{Path, PathBuf};
 use benchmark::Benchmark;
 use clap::Parser;
 use rayexec_error::{RayexecError, Result, ResultExt};
-use rayexec_execution::datasource::{DataSourceRegistry, MemoryDataSource};
+use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-use rayexec_shell::session::SingleUserEngine;
 use runner::{BenchmarkRunner, BenchmarkTimes, RunnerConfig};
 
 #[derive(Parser)]
@@ -63,10 +62,7 @@ impl DefaultEngineBuilder {
 
 impl EngineBuilder for DefaultEngineBuilder {
     fn build(&self) -> Result<SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>> {
-        let registry =
-            DataSourceRegistry::default().with_datasource("memory", Box::new(MemoryDataSource))?;
-
-        SingleUserEngine::try_new(self.executor.clone(), self.runtime.clone(), registry)
+        SingleUserEngine::try_new(self.executor.clone(), self.runtime.clone())
     }
 }
 

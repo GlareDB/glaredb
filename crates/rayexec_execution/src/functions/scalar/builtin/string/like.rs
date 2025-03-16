@@ -1,130 +1,106 @@
 use rayexec_error::{Result, ResultExt};
 use regex::{escape, Regex};
 
-use crate::arrays::array::physical_type::PhysicalUtf8;
+use crate::arrays::array::physical_type::{PhysicalBool, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, BooleanBuffer};
 use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Like;
+pub const FUNCTION_SET_LIKE: ScalarFunctionSet = ScalarFunctionSet {
+    name: "like",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Check if a string matches the given pattern.",
+        arguments: &["string", "pattern"],
+        example: Some(Example {
+            example: "like('hello, world', '%world')",
+            output: "true",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Boolean),
+        &Like,
+    )],
+};
 
-impl FunctionInfo for Like {
-    fn name(&self) -> &'static str {
-        "like"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[
-            // like(input, pattern)
-            Signature {
-                positional_args: &[DataTypeId::Utf8, DataTypeId::Utf8],
-                variadic_arg: None,
-                return_type: DataTypeId::Boolean,
-                doc: Some(&Documentation {
-                    category: Category::String,
-                    description: "Check if a string matches the given pattern.",
-                    arguments: &["string", "pattern"],
-                    example: Some(Example {
-                        example: "like('hello, world', '%world')",
-                        output: "true",
-                    }),
-                }),
-            },
-        ]
-    }
+#[derive(Debug)]
+pub struct LikeState {
+    constant: Option<Regex>,
 }
 
-impl ScalarFunction for Like {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        match (
-            inputs[0].datatype(table_list)?,
-            inputs[1].datatype(table_list)?,
-        ) {
-            (DataType::Utf8, DataType::Utf8) => (),
-            (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
-        }
+#[derive(Debug, Clone, Copy)]
+pub struct Like;
 
-        let function_impl: Box<dyn ScalarFunctionImpl> = if inputs[1].is_const_foldable() {
-            let pattern = ConstFold::rewrite(table_list, inputs[1].clone())?
+impl ScalarFunction for Like {
+    type State = LikeState;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        let constant = if inputs[1].is_const_foldable() {
+            let pattern = ConstFold::rewrite(inputs[1].clone())?
                 .try_into_scalar()?
                 .try_into_string()?;
 
             let pattern = like_pattern_to_regex(&mut String::new(), &pattern, Some('\\'))?;
 
-            Box::new(LikeConstImpl { constant: pattern })
+            Some(pattern)
         } else {
-            Box::new(LikeImpl)
+            None
         };
 
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
+        Ok(BindState {
+            state: LikeState { constant },
             return_type: DataType::Boolean,
             inputs,
-            function_impl,
         })
     }
-}
 
-#[derive(Debug, Clone)]
-pub struct LikeConstImpl {
-    pub constant: Regex,
-}
+    fn execute(state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let strings = &input.arrays()[0];
+        let patterns = &input.arrays()[1];
 
-impl ScalarFunctionImpl for LikeConstImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
-        };
-
-        UnaryExecutor::execute2::<PhysicalUtf8, _, _>(inputs[0], builder, |s, buf| {
-            let b = self.constant.is_match(s);
-            buf.put(&b);
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct LikeImpl;
-
-impl ScalarFunctionImpl for LikeImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let builder = ArrayBuilder {
-            datatype: DataType::Boolean,
-            buffer: BooleanBuffer::with_len(inputs[0].logical_len()),
-        };
-
-        let mut s_buf = String::new();
-
-        BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
-            inputs[0],
-            inputs[1],
-            builder,
-            |a, b, buf| {
-                match like_pattern_to_regex(&mut s_buf, b, Some('\\')) {
-                    Ok(pat) => {
-                        let b = pat.is_match(a);
-                        buf.put(&b);
-                    }
-                    Err(_) => {
-                        // TODO: Do something
-                    }
-                }
-            },
-        )
+        match state.constant.as_ref() {
+            Some(regex) => UnaryExecutor::execute::<PhysicalUtf8, PhysicalBool, _>(
+                strings,
+                sel,
+                OutBuffer::from_array(output)?,
+                |s, buf| {
+                    let b = regex.is_match(s);
+                    buf.put(&b);
+                },
+            ),
+            None => {
+                let mut s_buf = String::new();
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
+                    strings,
+                    sel,
+                    patterns,
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |s, pattern, buf| {
+                        match like_pattern_to_regex(&mut s_buf, pattern, Some('\\')) {
+                            Ok(pat) => {
+                                let b = pat.is_match(s);
+                                buf.put(&b);
+                            }
+                            Err(_) => {
+                                // TODO: Do something
+                            }
+                        }
+                    },
+                )
+            }
+        }
     }
 }
 

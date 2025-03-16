@@ -1,317 +1,390 @@
-use std::collections::HashMap;
-use std::task::{Context, Waker};
+use std::task::Context;
 
 use rayexec_error::{RayexecError, Result};
 
-use crate::arrays::array::physical_type::PhysicalI64;
+use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalI64};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::scalar::UnaryExecutor;
-use crate::arrays::field::{Field, Schema};
-use crate::arrays::scalar::OwnedScalarValue;
-use crate::arrays::storage::PrimitiveStorage;
-use crate::execution::operators::{PollFinalize, PollPush};
-use crate::expr::{self, Expression};
+use crate::arrays::field::{ColumnSchema, Field};
+use crate::execution::operators::{ExecutionProperties, PollExecute, PollFinalize};
+use crate::expr;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::table::inout::{InOutPollPull, TableInOutFunction, TableInOutPartitionState};
-use crate::functions::table::{
-    InOutPlanner,
-    PlannedTableFunction,
-    TableFunction,
-    TableFunctionImpl,
-    TableFunctionPlanner,
-};
-use crate::functions::{
-    invalid_input_types_error,
-    plan_check_num_args_one_of,
-    FunctionInfo,
-    Signature,
-};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::TableFunctionSet;
+use crate::functions::table::execute::TableExecuteFunction;
+use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
+use crate::functions::Signature;
 use crate::logical::statistics::StatisticsValue;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GenerateSeries;
+pub const FUNCTION_SET_GENERATE_SERIES: TableFunctionSet = TableFunctionSet {
+    name: "generate_series",
+    aliases: &[],
+    doc: Some(&Documentation{
+        category: Category::Table,
+        description: "Generate a series of values from 'start' to 'end' incrementing by a step of 1. 'start' and 'end' are both inclusive.",
+        arguments: &["start", "end"],
+        example: None,
+    }),
+    functions: &[
+        // generate_series(start, stop)
+        RawTableFunction::new_execute(&Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Table), &GenerateSeriesI64),
+        // generate_series(start, stop, step)
+        RawTableFunction::new_execute(&Signature::new(&[DataTypeId::Int64, DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Table), &GenerateSeriesI64),
+    ],
+};
 
-impl FunctionInfo for GenerateSeries {
-    fn name(&self) -> &'static str {
-        "generate_series"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                positional_args: &[DataTypeId::Int64, DataTypeId::Int64],
-                variadic_arg: None,
-                return_type: DataTypeId::Any,
-                doc: Some(&Documentation{
-                    category: Category::Table,
-                    description: "Generate a series of values from 'start' to 'end' incrementing by a step of 1. 'start' and 'end' are both inclusive.",
-                    arguments: &["start", "end"],
-                    example: None,
-                })
-            },
-            Signature {
-                positional_args: &[DataTypeId::Int64, DataTypeId::Int64, DataTypeId::Int64],
-                variadic_arg: None,
-                return_type: DataTypeId::Any,
-                doc: Some(&Documentation{
-                    category: Category::Table,
-                    description: "Generate a series of values from 'start' to 'end' incrementing by 'step'. 'start' and 'end' are both inclusive.",
-                    arguments: &["start", "end", "step"],
-                    example: None,
-                })
-            },
-        ]
-    }
-}
-
-impl TableFunction for GenerateSeries {
-    fn planner(&self) -> TableFunctionPlanner {
-        TableFunctionPlanner::InOut(&GenerateSeriesInOutPlanner)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct GenerateSeriesInOutPlanner;
-
-impl InOutPlanner for GenerateSeriesInOutPlanner {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        mut positional_inputs: Vec<Expression>,
-        named_inputs: HashMap<String, OwnedScalarValue>,
-    ) -> Result<PlannedTableFunction> {
-        plan_check_num_args_one_of(&GenerateSeries, &positional_inputs, [2, 3])?;
-        if !named_inputs.is_empty() {
-            return Err(RayexecError::new(format!(
-                "'{}' does not accept named arguments",
-                GenerateSeries.name()
-            )));
-        }
-
-        let datatypes = positional_inputs
-            .iter()
-            .map(|expr| expr.datatype(table_list))
-            .collect::<Result<Vec<_>>>()?;
-
-        for datatype in &datatypes {
-            if datatype != &DataType::Int64 {
-                return Err(invalid_input_types_error(&GenerateSeries, &datatypes));
-            }
-        }
-
-        if positional_inputs.len() == 2 {
-            // Add constant for the 'step' argument.
-            positional_inputs.push(expr::lit(1_i64))
-        }
-
-        Ok(PlannedTableFunction {
-            function: Box::new(GenerateSeries),
-            positional_inputs,
-            named_inputs,
-            function_impl: TableFunctionImpl::InOut(Box::new(GenerateSeriesInOutImpl)),
-            cardinality: StatisticsValue::Unknown,
-            schema: Schema::new([Field::new("generate_series", DataType::Int64, false)]),
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct GenerateSeriesInOutImpl;
-
-impl TableInOutFunction for GenerateSeriesInOutImpl {
-    fn create_states(
-        &self,
-        num_partitions: usize,
-    ) -> Result<Vec<Box<dyn TableInOutPartitionState>>> {
-        let states: Vec<_> = (0..num_partitions)
-            .map(|_| {
-                Box::new(GenerateSeriesInOutPartitionState {
-                    batch_size: 1024, // TODO
-                    batch: None,
-                    next_row_idx: 0,
-                    finished: false,
-                    params: SeriesParams {
-                        exhausted: true, // Triggers param update on first pull
-                        current_row_idx: 0,
-                        curr: 0,
-                        stop: 0,
-                        step: 0,
-                    },
-                    push_waker: None,
-                    pull_waker: None,
-                }) as _
-            })
-            .collect();
-
-        Ok(states)
-    }
+#[derive(Debug, Default)]
+pub struct GenerateSeriesI64PartitionState {
+    /// Current params.
+    params: Option<SeriesParams>,
+    /// Row in the input we're currently working on.
+    current_row: usize,
 }
 
 #[derive(Debug, Clone)]
 struct SeriesParams {
-    exhausted: bool,
-
-    /// Index of the row these parameters were generated from.
-    current_row_idx: usize,
-
     curr: i64,
     stop: i64,
     step: i64,
 }
 
 impl SeriesParams {
-    /// Generate the next set of rows using the current parameters.
-    fn generate_next(&mut self, batch_size: usize) -> Array {
-        debug_assert!(!self.exhausted);
+    fn try_new(input: &Batch, row: usize) -> Result<Self> {
+        let start = input.arrays[0].get_value(row)?.try_as_i64()?;
+        let stop = input.arrays[1].get_value(row)?.try_as_i64()?;
+        let step = input.arrays[2].get_value(row)?.try_as_i64()?;
 
-        let mut series: Vec<i64> = Vec::new();
-        if self.curr < self.stop && self.step > 0 {
+        if step == 0 {
+            return Err(RayexecError::new("Step cannot be zero"));
+        }
+
+        Ok(SeriesParams {
+            curr: start,
+            stop,
+            step,
+        })
+    }
+
+    /// Generate the next set of rows using the current parameters.
+    ///
+    /// Returns the count of values written to `out`.
+    fn generate_next(&mut self, out: &mut Array) -> Result<usize> {
+        let mut out = PhysicalI64::get_addressable_mut(&mut out.data)?;
+
+        let mut idx = 0;
+        if self.curr <= self.stop && self.step > 0 {
             // Going up.
-            let mut count = 0;
-            while self.curr <= self.stop && count < batch_size {
-                series.push(self.curr);
+            while self.curr <= self.stop && idx < out.len() {
+                out.put(idx, &self.curr);
                 self.curr += self.step;
-                count += 1;
+                idx += 1;
             }
-        } else if self.curr > self.stop && self.step < 0 {
+        } else if self.curr >= self.stop && self.step < 0 {
             // Going down.
-            let mut count = 0;
-            while self.curr >= self.stop && count < batch_size {
-                series.push(self.curr);
+            while self.curr >= self.stop && idx < out.len() {
+                out.put(idx, &self.curr);
                 self.curr += self.step;
-                count += 1;
+                idx += 1;
             }
         }
 
-        if series.len() < batch_size {
-            self.exhausted = true;
+        if idx == 0 {
+            // Nothing written.
+            return Ok(0);
         }
 
         // Calculate the start value for the next iteration.
-        if let Some(last) = series.last() {
-            self.curr = *last + self.step;
-        }
+        let last = out.slice.get(idx - 1).expect("value to exist");
+        self.curr = *last + self.step;
 
-        Array::new_with_array_data(DataType::Int64, PrimitiveStorage::from(series))
+        Ok(idx)
     }
 }
 
-#[derive(Debug)]
-pub struct GenerateSeriesInOutPartitionState {
-    batch_size: usize,
-    /// Batch we're working on.
-    batch: Option<Batch>,
-    /// Current row number
-    next_row_idx: usize,
-    /// If we're finished.
-    finished: bool,
-    /// Current params.
-    params: SeriesParams,
-    push_waker: Option<Waker>,
-    pull_waker: Option<Waker>,
-}
+#[derive(Debug, Clone, Copy)]
+pub struct GenerateSeriesI64;
 
-impl TableInOutPartitionState for GenerateSeriesInOutPartitionState {
-    fn poll_push(&mut self, cx: &mut Context, batch: Batch) -> Result<PollPush> {
-        if self.batch.is_some() {
-            // Still processing current batch, come back later.
-            self.push_waker = Some(cx.waker().clone());
-            if let Some(pull_waker) = self.pull_waker.take() {
-                pull_waker.wake();
+impl TableExecuteFunction for GenerateSeriesI64 {
+    type BindState = ();
+
+    type OperatorState = ();
+    type PartitionState = GenerateSeriesI64PartitionState;
+
+    fn bind(
+        &self,
+        mut input: TableFunctionInput,
+    ) -> Result<TableFunctionBindState<Self::BindState>> {
+        if input.positional.len() == 2 {
+            // Push constant step value.
+            input.positional.push(expr::lit(1_i64).into());
+        }
+
+        Ok(TableFunctionBindState {
+            state: (),
+            input,
+            schema: ColumnSchema::new([Field::new("generate_series", DataType::Int64, false)]),
+            cardinality: StatisticsValue::Unknown,
+        })
+    }
+
+    fn create_execute_operator_state(
+        _bind_state: &Self::BindState,
+        _props: ExecutionProperties,
+    ) -> Result<Self::OperatorState> {
+        Ok(())
+    }
+
+    fn create_execute_partition_states(
+        _op_state: &Self::OperatorState,
+        _props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<Self::PartitionState>> {
+        let states: Vec<_> = (0..partitions)
+            .map(|_| GenerateSeriesI64PartitionState {
+                params: None,
+                current_row: 0,
+            })
+            .collect();
+
+        Ok(states)
+    }
+
+    fn poll_execute(
+        _cx: &mut Context,
+        _operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionState,
+        input: &mut Batch,
+        output: &mut Batch,
+    ) -> Result<PollExecute> {
+        loop {
+            if state.params.is_none() {
+                // Need to generate params from current row.
+                if state.current_row >= input.num_rows() {
+                    // Need a new batch.
+                    state.current_row = 0;
+                    return Ok(PollExecute::NeedsMore);
+                }
+
+                // Get params from the current row.
+                let params = SeriesParams::try_new(input, state.current_row)?;
+                state.params = Some(params);
             }
-            return Ok(PollPush::Pending(batch));
+
+            let count = state
+                .params
+                .as_mut()
+                .unwrap()
+                .generate_next(&mut output.arrays[0])?;
+
+            if count == 0 {
+                // Next row.
+                state.params = None;
+                state.current_row += 1;
+                continue;
+            }
+
+            output.set_num_rows(count)?;
+
+            // Next poll should execute with the same input batch.
+            return Ok(PollExecute::HasMore);
         }
-
-        self.batch = Some(batch);
-        self.next_row_idx = 0;
-
-        Ok(PollPush::Pushed)
     }
 
-    fn poll_finalize_push(&mut self, _cx: &mut Context) -> Result<PollFinalize> {
-        self.finished = true;
-        if let Some(waker) = self.pull_waker.take() {
-            waker.wake();
-        }
-
+    fn poll_finalize_execute(
+        _cx: &mut Context,
+        _operator_state: &Self::OperatorState,
+        _state: &mut Self::PartitionState,
+    ) -> Result<PollFinalize> {
         Ok(PollFinalize::Finalized)
     }
+}
 
-    fn poll_pull(&mut self, cx: &mut Context) -> Result<InOutPollPull> {
-        if self.params.exhausted {
-            let batch = match &self.batch {
-                Some(batch) => batch,
-                None => {
-                    if self.finished {
-                        return Ok(InOutPollPull::Exhausted);
-                    }
+#[cfg(test)]
+mod tests {
+    use stdutil::task::noop_context;
 
-                    // No batch to work on, come back later.
-                    self.pull_waker = Some(cx.waker().clone());
-                    if let Some(push_waker) = self.push_waker.take() {
-                        push_waker.wake()
-                    }
-                    return Ok(InOutPollPull::Pending);
-                }
-            };
+    use super::*;
+    use crate::generate_batch;
+    use crate::testutil::arrays::assert_batches_eq;
 
-            // Generate new params from row.
-            let start = UnaryExecutor::value_at2::<PhysicalI64>(
-                batch.array(0).unwrap(),
-                self.next_row_idx,
-            )?;
-            let end = UnaryExecutor::value_at2::<PhysicalI64>(
-                batch.array(1).unwrap(),
-                self.next_row_idx,
-            )?;
-            let step = UnaryExecutor::value_at2::<PhysicalI64>(
-                batch.array(2).unwrap(),
-                self.next_row_idx,
-            )?;
+    #[test]
+    fn generate_series_single_row() {
+        let mut state = GenerateSeriesI64PartitionState::default();
 
-            // Use values from start/end if they're both not null. Otherwise use
-            // parameters that produce an empty array.
-            match (start, end, step) {
-                (Some(start), Some(end), Some(step)) => {
-                    if step == 0 {
-                        return Err(RayexecError::new("'step' may not be zero"));
-                    }
+        // generate_series(1, 5, 1)
+        let mut input = generate_batch!([1_i64], [5_i64], [1_i64]);
 
-                    self.params = SeriesParams {
-                        exhausted: false,
-                        current_row_idx: self.next_row_idx,
-                        curr: start,
-                        stop: end,
-                        step,
-                    }
-                }
-                _ => {
-                    self.params = SeriesParams {
-                        exhausted: false,
-                        current_row_idx: self.next_row_idx,
-                        curr: 1,
-                        stop: 0,
-                        step: 1,
-                    }
-                }
-            }
+        let mut output = Batch::new([DataType::Int64], 5).unwrap();
+        let poll = GenerateSeriesI64::poll_execute(
+            &mut noop_context(),
+            &(),
+            &mut state,
+            &mut input,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
 
-            // Increment next row to use when current row exhausted.
-            self.next_row_idx += 1;
-            if self.next_row_idx >= batch.num_rows() {
-                // Need more input.
-                self.batch = None;
-            }
-        }
+        let expected = generate_batch!([1_i64, 2, 3, 4, 5]);
+        assert_batches_eq(&expected, &output);
 
-        let out = self.params.generate_next(self.batch_size);
-        let batch = Batch::try_from_arrays([out])?;
+        let poll = GenerateSeriesI64::poll_execute(
+            &mut noop_context(),
+            &(),
+            &mut state,
+            &mut input,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(PollExecute::NeedsMore, poll);
+    }
 
-        let row_nums = vec![self.params.current_row_idx; batch.num_rows()];
+    #[test]
+    fn generate_series_single_row_out_lacks_capacity() {
+        // Same as single row test, just we poll with an output capacity that
+        // requires multiple polls to get all output.
+        let mut state = GenerateSeriesI64PartitionState::default();
 
-        Ok(InOutPollPull::Batch { batch, row_nums })
+        // generate_series(1, 5, 1)
+        let mut input = generate_batch!([1_i64], [5_i64], [1_i64]);
+
+        let mut output = Batch::new([DataType::Int64], 3).unwrap();
+        let poll = GenerateSeriesI64::poll_execute(
+            &mut noop_context(),
+            &(),
+            &mut state,
+            &mut input,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+
+        let expected = generate_batch!([1_i64, 2, 3]);
+        assert_batches_eq(&expected, &output);
+
+        let poll = GenerateSeriesI64::poll_execute(
+            &mut noop_context(),
+            &(),
+            &mut state,
+            &mut input,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+
+        let expected = generate_batch!([4_i64, 5]);
+        assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn generate_series_single_row_out_lacks_capacity_by_1() {
+        // Test off by one...
+        let mut state = GenerateSeriesI64PartitionState::default();
+
+        // generate_series(1, 5, 1)
+        let mut input = generate_batch!([1_i64], [5_i64], [1_i64]);
+
+        let mut output = Batch::new([DataType::Int64], 4).unwrap();
+        let poll = GenerateSeriesI64::poll_execute(
+            &mut noop_context(),
+            &(),
+            &mut state,
+            &mut input,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+
+        let expected = generate_batch!([1_i64, 2, 3, 4]);
+        assert_batches_eq(&expected, &output);
+
+        let poll = GenerateSeriesI64::poll_execute(
+            &mut noop_context(),
+            &(),
+            &mut state,
+            &mut input,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+
+        let expected = generate_batch!([5_i64]);
+        assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn generate_series_multiple_rows() {
+        let mut state = GenerateSeriesI64PartitionState::default();
+
+        // generate_series(1, 5, 1)
+        // generate_series(4, 8, 2)
+        let mut input = generate_batch!([1_i64, 4], [5_i64, 8], [1_i64, 2]);
+
+        let mut output = Batch::new([DataType::Int64], 5).unwrap();
+        let poll = GenerateSeriesI64::poll_execute(
+            &mut noop_context(),
+            &(),
+            &mut state,
+            &mut input,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+
+        let expected = generate_batch!([1_i64, 2, 3, 4, 5]);
+        assert_batches_eq(&expected, &output);
+
+        let poll = GenerateSeriesI64::poll_execute(
+            &mut noop_context(),
+            &(),
+            &mut state,
+            &mut input,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(PollExecute::HasMore, poll);
+
+        let expected = generate_batch!([4_i64, 6, 8]);
+        assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn generate_series_neverending_start_gt_stop() {
+        let mut state = GenerateSeriesI64PartitionState::default();
+
+        // generate_series(5, 1, 1)
+        let mut input = generate_batch!([5_i64], [1_i64], [1_i64]);
+
+        let mut output = Batch::new([DataType::Int64], 5).unwrap();
+        let poll = GenerateSeriesI64::poll_execute(
+            &mut noop_context(),
+            &(),
+            &mut state,
+            &mut input,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(PollExecute::NeedsMore, poll);
+        assert_eq!(0, output.num_rows());
+    }
+
+    #[test]
+    fn generate_series_neverending_start_lt_stop() {
+        let mut state = GenerateSeriesI64PartitionState::default();
+
+        // generate_series(1, 5, -1)
+        let mut input = generate_batch!([1_i64], [5_i64], [-1_i64]);
+
+        let mut output = Batch::new([DataType::Int64], 5).unwrap();
+        let poll = GenerateSeriesI64::poll_execute(
+            &mut noop_context(),
+            &(),
+            &mut state,
+            &mut input,
+            &mut output,
+        )
+        .unwrap();
+        assert_eq!(PollExecute::NeedsMore, poll);
+        assert_eq!(0, output.num_rows());
     }
 }

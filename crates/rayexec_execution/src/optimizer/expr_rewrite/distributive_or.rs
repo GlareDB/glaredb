@@ -4,7 +4,6 @@ use rayexec_error::{RayexecError, Result};
 use super::ExpressionRewriteRule;
 use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use crate::expr::Expression;
-use crate::logical::binder::table_list::TableList;
 
 /// Tries to lift up AND expressions through OR expressions
 ///
@@ -13,7 +12,7 @@ use crate::logical::binder::table_list::TableList;
 pub struct DistributiveOrRewrite;
 
 impl ExpressionRewriteRule for DistributiveOrRewrite {
-    fn rewrite(_table_list: &TableList, mut expression: Expression) -> Result<Expression> {
+    fn rewrite(mut expression: Expression) -> Result<Expression> {
         fn inner(expr: &mut Expression) -> Result<()> {
             match expr {
                 Expression::Conjunction(conj) if conj.op == ConjunctionOperator::Or => {
@@ -168,72 +167,92 @@ fn insert_children_to_common_set<'a>(child: &'a Expression, exprs: &mut IndexSet
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expr::{and, lit, or};
+    use crate::arrays::datatype::DataType;
+    use crate::expr::{and, column, or};
 
     #[test]
     fn distribute_none() {
-        // '(0 AND 1) OR (2 AND 3)' => '(0 AND 1)'
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
+        let c2: Expression = column((0, 2), DataType::Boolean).into();
+        let c3: Expression = column((0, 3), DataType::Boolean).into();
+
+        // '(c0 AND c1) OR (c2 AND c3)'
         let expr = or([
-            and([lit(0), lit(1)]).unwrap(),
-            and([lit(2), lit(3)]).unwrap(),
+            and([c0.clone(), c1.clone()]).unwrap().into(),
+            and([c2.clone(), c3.clone()]).unwrap().into(),
         ])
         .unwrap();
 
         // No changes.
-        let expected = expr.clone();
+        let expected: Expression =
+            or([and([c0, c1]).unwrap().into(), and([c2, c3]).unwrap().into()])
+                .unwrap()
+                .into();
 
-        let table_list = TableList::empty();
-        let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();
+        let got = DistributiveOrRewrite::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn distribute_eliminate_redundant_or() {
-        // '(0 AND 1) OR (0 AND 1)' => '(0 AND 1)'
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
+
+        // '(c0 AND c1) OR (c0 AND c1)' => '(c0 AND c1)'
         let expr = or([
-            and([lit(0), lit(1)]).unwrap(),
-            and([lit(0), lit(1)]).unwrap(),
+            and([c0.clone(), c1.clone()]).unwrap().into(),
+            and([c0.clone(), c1.clone()]).unwrap().into(),
         ])
         .unwrap();
 
-        let expected = and([lit(0), lit(1)]).unwrap();
+        let expected: Expression = and([c0, c1]).unwrap().into();
 
-        let table_list = TableList::empty();
-        let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();
+        let got = DistributiveOrRewrite::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn distribute_eliminate_or_with_single_remaining() {
-        // '(0) OR (0 AND 1)' => '(0 AND 1)'
-        let expr = or([lit(0), and([lit(0), lit(1)]).unwrap()]).unwrap();
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
 
-        let expected = and([lit(0), lit(1)]).unwrap();
+        // '(c0) OR (c0 AND c1)' => '(c0 AND c1)'
+        let expr = or([c0.clone(), and([c0.clone(), c1.clone()]).unwrap().into()]).unwrap();
 
-        let table_list = TableList::empty();
-        let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();
+        let expected: Expression = and([c0, c1]).unwrap().into();
+
+        let got = DistributiveOrRewrite::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn distribute_or_keep_inner_and() {
-        // '(0 AND 1 AND 2 AND 3) OR (0 AND 4)
+        let c0: Expression = column((0, 0), DataType::Boolean).into();
+        let c1: Expression = column((0, 1), DataType::Boolean).into();
+        let c2: Expression = column((0, 2), DataType::Boolean).into();
+        let c3: Expression = column((0, 3), DataType::Boolean).into();
+        let c4: Expression = column((0, 4), DataType::Boolean).into();
+
+        // '(c0 AND c1 AND c2 AND c3) OR (c0 AND c4)
         // =>
-        // '((0) AND ((1 AND 2 AND 3) OR (4))'
+        // '((c0) AND ((c1 AND c2 AND c3) OR (c4))'
         let expr = or([
-            and([lit(0), lit(1), lit(2), lit(3)]).unwrap(),
-            and([lit(0), lit(4)]).unwrap(),
+            and([c0.clone(), c1.clone(), c2.clone(), c3.clone()])
+                .unwrap()
+                .into(),
+            and([c0.clone(), c4.clone()]).unwrap().into(),
         ])
         .unwrap();
 
-        let expected = and([
-            lit(0),
-            or([and([lit(1), lit(2), lit(3)]).unwrap(), lit(4)]).unwrap(),
+        let expected: Expression = and([
+            c0,
+            or([and([c1, c2, c3]).unwrap().into(), c4]).unwrap().into(),
         ])
-        .unwrap();
+        .unwrap()
+        .into();
 
-        let table_list = TableList::empty();
-        let got = DistributiveOrRewrite::rewrite(&table_list, expr).unwrap();
+        let got = DistributiveOrRewrite::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got, "expected: {expected:#?}\n, got: {got:#?}");
     }
 }

@@ -2,12 +2,11 @@ use std::fmt;
 
 use rayexec_error::Result;
 
-use super::{AsScalarFunction, Expression};
+use super::{AsScalarFunctionSet, Expression};
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::scalar::builtin::negate;
-use crate::functions::scalar::ScalarFunction;
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::builtin::negate::{FUNCTION_SET_NEGATE, FUNCTION_SET_NOT};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NegateOperator {
@@ -15,11 +14,11 @@ pub enum NegateOperator {
     Negate, // Numeric
 }
 
-impl AsScalarFunction for NegateOperator {
-    fn as_scalar_function(&self) -> &dyn ScalarFunction {
+impl AsScalarFunctionSet for NegateOperator {
+    fn as_scalar_function_set(&self) -> &ScalarFunctionSet {
         match self {
-            Self::Not => &negate::Not,
-            Self::Negate => &negate::Negate,
+            Self::Not => &FUNCTION_SET_NOT,
+            Self::Negate => &FUNCTION_SET_NEGATE,
         }
     }
 }
@@ -31,16 +30,10 @@ pub struct NegateExpr {
 }
 
 impl NegateExpr {
-    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
+    pub fn datatype(&self) -> Result<DataType> {
         Ok(match self.op {
             NegateOperator::Not => DataType::Boolean,
-            NegateOperator::Negate => {
-                // Sure
-                self.op
-                    .as_scalar_function()
-                    .plan(table_list, vec![self.expr.as_ref().clone()])?
-                    .return_type
-            }
+            NegateOperator::Negate => self.expr.datatype()?,
         })
     }
 }

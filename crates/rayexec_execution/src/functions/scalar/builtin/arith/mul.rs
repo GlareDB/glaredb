@@ -2,9 +2,11 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use num_traits::{NumCast, PrimInt};
-use rayexec_error::Result;
+use rayexec_error::{RayexecError, Result};
 
+use super::decimal_sigs::D_SIGS;
 use crate::arrays::array::physical_type::{
+    MutableScalarStorage,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
@@ -14,354 +16,361 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalI8,
     PhysicalInterval,
-    PhysicalStorage,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
+    ScalarStorage,
 };
-use crate::arrays::array::{Array, ArrayData2};
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::scalar::BinaryExecutor;
+use crate::arrays::executor::OutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::storage::PrimitiveStorage;
-use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::expr::{self, Expression};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Mul;
-
-impl FunctionInfo for Mul {
-    fn name(&self) -> &'static str {
-        "*"
-    }
-
-    fn aliases(&self) -> &'static [&'static str] {
-        &["mul"]
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const SIGS: &[Signature] = &[
-            Signature::new_positional(
+pub const FUNCTION_SET_MUL: ScalarFunctionSet = ScalarFunctionSet {
+    name: "*",
+    aliases: &["mul"],
+    doc: None,
+    functions: &[
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Float16, DataTypeId::Float16],
                 DataTypeId::Float16,
             ),
-            Signature::new_positional(
+            &Mul::<PhysicalF16>::new(&DataType::Float16),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Float32, DataTypeId::Float32],
                 DataTypeId::Float32,
             ),
-            Signature::new_positional(
+            &Mul::<PhysicalF32>::new(&DataType::Float32),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Float64, DataTypeId::Float64],
                 DataTypeId::Float64,
             ),
-            Signature::new_positional(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
-            Signature::new_positional(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
-            Signature::new_positional(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
-            Signature::new_positional(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
-            Signature::new_positional(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
-            Signature::new_positional(
+            &Mul::<PhysicalF64>::new(&DataType::Float64),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
+            &Mul::<PhysicalI8>::new(&DataType::Int8),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
+            &Mul::<PhysicalI16>::new(&DataType::Int16),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
+            &Mul::<PhysicalI32>::new(&DataType::Int32),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
+            &Mul::<PhysicalI64>::new(&DataType::Int64),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
+                &[DataTypeId::Int128, DataTypeId::Int128],
+                DataTypeId::Int128,
+            ),
+            &Mul::<PhysicalI128>::new(&DataType::Int128),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
+            &Mul::<PhysicalU8>::new(&DataType::UInt8),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::UInt16, DataTypeId::UInt16],
                 DataTypeId::UInt16,
             ),
-            Signature::new_positional(
+            &Mul::<PhysicalU16>::new(&DataType::UInt16),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::UInt32, DataTypeId::UInt32],
                 DataTypeId::UInt32,
             ),
-            Signature::new_positional(
+            &Mul::<PhysicalU32>::new(&DataType::UInt32),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::UInt64, DataTypeId::UInt64],
                 DataTypeId::UInt64,
             ),
-            Signature::new_positional(&[DataTypeId::Date32, DataTypeId::Int64], DataTypeId::Date32),
-            // Interval * Int (commutative)
-            Signature::new_positional(
+            &Mul::<PhysicalU64>::new(&DataType::UInt64),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
+                &[DataTypeId::UInt128, DataTypeId::UInt128],
+                DataTypeId::UInt128,
+            ),
+            &Mul::<PhysicalU128>::new(&DataType::UInt128),
+        ),
+        // Decimal64
+        RawScalarFunction::new(D_SIGS.d64_d64, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i8, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i16, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i32, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.d64_i64, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i8_d64, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i16_d64, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i32_d64, &DecimalMul::<Decimal64Type>::new()),
+        RawScalarFunction::new(D_SIGS.i64_d64, &DecimalMul::<Decimal64Type>::new()),
+        // Decimal128
+        RawScalarFunction::new(D_SIGS.d128_d128, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i8, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i16, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i32, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.d128_i64, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i8_d128, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i16_d128, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i32_d128, &DecimalMul::<Decimal128Type>::new()),
+        RawScalarFunction::new(D_SIGS.i64_d128, &DecimalMul::<Decimal128Type>::new()),
+        // interval * int
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Interval, DataTypeId::Int32],
                 DataTypeId::Interval,
             ),
-            Signature::new_positional(
-                &[DataTypeId::Int32, DataTypeId::Interval],
-                DataTypeId::Interval,
-            ),
-            Signature::new_positional(
+            &MulInterval::<PhysicalI32, false>::new(),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Interval, DataTypeId::Int64],
                 DataTypeId::Interval,
             ),
-            Signature::new_positional(
+            &MulInterval::<PhysicalI64, false>::new(),
+        ),
+        // int * interval
+        RawScalarFunction::new(
+            &Signature::new(
+                &[DataTypeId::Int32, DataTypeId::Interval],
+                DataTypeId::Interval,
+            ),
+            &MulInterval::<PhysicalI32, true>::new(),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Int64, DataTypeId::Interval],
                 DataTypeId::Interval,
             ),
-            // Decimal
-            Signature::new_positional(
-                &[DataTypeId::Decimal64, DataTypeId::Decimal64],
-                DataTypeId::Decimal64,
-            ),
-        ];
-        SIGS
-    }
-}
+            &MulInterval::<PhysicalI64, true>::new(),
+        ),
+    ],
+};
 
-impl ScalarFunction for Mul {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        plan_check_num_args(self, &inputs, 2)?;
-
-        let (function_impl, return_type): (Box<dyn ScalarFunctionImpl>, _) = match (
-            inputs[0].datatype(table_list)?,
-            inputs[1].datatype(table_list)?,
-        ) {
-            (DataType::Float16, DataType::Float16) => (
-                Box::new(MulImpl::<PhysicalF16>::new(DataType::Float16)),
-                DataType::Float16,
-            ),
-            (DataType::Float32, DataType::Float32) => (
-                Box::new(MulImpl::<PhysicalF32>::new(DataType::Float32)),
-                DataType::Float32,
-            ),
-            (DataType::Float64, DataType::Float64) => (
-                Box::new(MulImpl::<PhysicalF64>::new(DataType::Float64)),
-                DataType::Float64,
-            ),
-            (DataType::Int8, DataType::Int8) => (
-                Box::new(MulImpl::<PhysicalI8>::new(DataType::Int8)),
-                DataType::Int8,
-            ),
-            (DataType::Int16, DataType::Int16) => (
-                Box::new(MulImpl::<PhysicalI16>::new(DataType::Int16)),
-                DataType::Int16,
-            ),
-            (DataType::Int32, DataType::Int32) => (
-                Box::new(MulImpl::<PhysicalI32>::new(DataType::Int32)),
-                DataType::Int32,
-            ),
-            (DataType::Int64, DataType::Int64) => (
-                Box::new(MulImpl::<PhysicalI64>::new(DataType::Int64)),
-                DataType::Int64,
-            ),
-            (DataType::Int128, DataType::Int128) => (
-                Box::new(MulImpl::<PhysicalI128>::new(DataType::Int128)),
-                DataType::Int128,
-            ),
-            (DataType::UInt8, DataType::UInt8) => (
-                Box::new(MulImpl::<PhysicalU8>::new(DataType::UInt8)),
-                DataType::UInt8,
-            ),
-            (DataType::UInt16, DataType::UInt16) => (
-                Box::new(MulImpl::<PhysicalU16>::new(DataType::UInt16)),
-                DataType::UInt16,
-            ),
-            (DataType::UInt32, DataType::UInt32) => (
-                Box::new(MulImpl::<PhysicalU32>::new(DataType::UInt32)),
-                DataType::UInt32,
-            ),
-            (DataType::UInt64, DataType::UInt64) => (
-                Box::new(MulImpl::<PhysicalU64>::new(DataType::UInt64)),
-                DataType::UInt64,
-            ),
-            (DataType::UInt128, DataType::UInt128) => (
-                Box::new(MulImpl::<PhysicalU128>::new(DataType::UInt128)),
-                DataType::UInt128,
-            ),
-
-            // Decimal
-            (DataType::Decimal64(a), DataType::Decimal64(b)) => {
-                // Since we're multiplying, might as well go wide as possible.
-                // Eventually we'll want to bumpt up to 128 if the precision is
-                // over some threshold to be more resilient to overflows.
-                let precision = Decimal64Type::MAX_PRECISION;
-                let scale = a.scale + b.scale;
-                let return_type = DataType::Decimal64(DecimalTypeMeta { precision, scale });
-                (
-                    Box::new(DecimalMulImpl::<Decimal64Type>::new(return_type.clone())),
-                    return_type,
-                )
-            }
-            (DataType::Decimal128(a), DataType::Decimal128(b)) => {
-                let precision = Decimal128Type::MAX_PRECISION;
-                let scale = a.scale + b.scale;
-                let return_type = DataType::Decimal128(DecimalTypeMeta { precision, scale });
-                (
-                    Box::new(DecimalMulImpl::<Decimal128Type>::new(return_type.clone())),
-                    return_type,
-                )
-            }
-
-            // Interval
-            (DataType::Interval, DataType::Int32) => (
-                Box::new(IntervalMulImpl::<PhysicalI32, false>::new()),
-                DataType::Interval,
-            ),
-            (DataType::Interval, DataType::Int64) => (
-                Box::new(IntervalMulImpl::<PhysicalI64, false>::new()),
-                DataType::Interval,
-            ),
-            (DataType::Int32, DataType::Interval) => (
-                Box::new(IntervalMulImpl::<PhysicalI32, true>::new()),
-                DataType::Interval,
-            ),
-            (DataType::Int64, DataType::Interval) => (
-                Box::new(IntervalMulImpl::<PhysicalI64, true>::new()),
-                DataType::Interval,
-            ),
-
-            // TODO: Date
-            (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
-        };
-
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
-            return_type,
-            inputs,
-            function_impl,
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct IntervalMulImpl<Rhs, const LHS_RHS_FLIPPED: bool> {
-    _rhs: PhantomData<Rhs>,
-}
-
-impl<Rhs, const LHS_RHS_FLIPPED: bool> IntervalMulImpl<Rhs, LHS_RHS_FLIPPED> {
-    fn new() -> Self {
-        IntervalMulImpl { _rhs: PhantomData }
-    }
-}
-
-impl<Rhs, const LHS_RHS_FLIPPED: bool> ScalarFunctionImpl for IntervalMulImpl<Rhs, LHS_RHS_FLIPPED>
-where
-    Rhs: PhysicalStorage,
-    for<'a> Rhs::Type<'a>: PrimInt,
-{
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let (lhs, rhs) = if LHS_RHS_FLIPPED {
-            (inputs[1], inputs[0])
-        } else {
-            (inputs[0], inputs[1])
-        };
-
-        let builder = ArrayBuilder {
-            datatype: DataType::Interval,
-            buffer: PrimitiveBuffer::<Interval>::with_len(lhs.logical_len()),
-        };
-
-        BinaryExecutor::execute::<PhysicalInterval, Rhs, _, _>(lhs, rhs, builder, |a, b, buf| {
-            // TODO: Overflow check
-            buf.put(&Interval {
-                months: a.months * (<i32 as NumCast>::from(b).unwrap_or_default()),
-                days: a.days * (<i32 as NumCast>::from(b).unwrap_or_default()),
-                nanos: a.nanos * (<i64 as NumCast>::from(b).unwrap_or_default()),
-            })
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct DecimalMulImpl<D> {
-    datatype: DataType,
-    _d: PhantomData<D>,
-}
-
-impl<D> DecimalMulImpl<D> {
-    fn new(datatype: DataType) -> Self {
-        DecimalMulImpl {
-            datatype,
-            _d: PhantomData,
-        }
-    }
-}
-
-impl<D> ScalarFunctionImpl for DecimalMulImpl<D>
-where
-    D: DecimalType,
-    ArrayData2: From<PrimitiveStorage<D::Primitive>>,
-{
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let a = inputs[0];
-        let b = inputs[1];
-
-        let builder = ArrayBuilder {
-            datatype: self.datatype.clone(),
-            buffer: PrimitiveBuffer::<D::Primitive>::with_len(a.logical_len()),
-        };
-
-        BinaryExecutor::execute::<D::Storage, D::Storage, _, _>(a, b, builder, |a, b, buf| {
-            buf.put(&(a * b))
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct MulImpl<S> {
-    datatype: DataType,
+#[derive(Debug, Clone, Copy)]
+pub struct Mul<S> {
+    return_type: &'static DataType,
     _s: PhantomData<S>,
 }
 
-impl<S> MulImpl<S> {
-    fn new(datatype: DataType) -> Self {
-        MulImpl {
-            datatype,
+impl<S> Mul<S> {
+    pub const fn new(return_type: &'static DataType) -> Self {
+        Mul {
+            return_type,
             _s: PhantomData,
         }
     }
 }
 
-impl<S> ScalarFunctionImpl for MulImpl<S>
+impl<S> ScalarFunction for Mul<S>
 where
-    S: PhysicalStorage,
-    for<'a> S::Type<'a>: std::ops::Mul<Output = S::Type<'static>> + Default + Copy,
-    ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
+    S: MutableScalarStorage,
+    S::StorageType: std::ops::Mul<Output = S::StorageType> + Sized + Copy,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let a = inputs[0];
-        let b = inputs[1];
+    type State = ();
 
-        let builder = ArrayBuilder {
-            datatype: self.datatype.clone(),
-            buffer: PrimitiveBuffer::with_len(a.logical_len()),
-        };
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: self.return_type.clone(),
+            inputs,
+        })
+    }
 
-        BinaryExecutor::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a * b)))
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
+
+        BinaryExecutor::execute::<S, S, S, _>(
+            a,
+            sel,
+            b,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, &b, buf| buf.put(&(a * b)),
+        )
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::arrays::datatype::DataType;
-    use crate::expr;
-    use crate::functions::scalar::ScalarFunction;
+#[derive(Debug, Clone, Copy)]
+pub struct DecimalMul<D> {
+    _d: PhantomData<D>,
+}
 
-    #[test]
-    fn mul_i32() {
-        let a = Array::from_iter([4, 5, 6]);
-        let b = Array::from_iter([1, 2, 3]);
+impl<D> DecimalMul<D> {
+    pub const fn new() -> Self {
+        DecimalMul { _d: PhantomData }
+    }
+}
 
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Int32, DataType::Int32],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
+impl<D> ScalarFunction for DecimalMul<D>
+where
+    D: DecimalType,
+{
+    type State = ();
 
-        let planned = Mul
-            .plan(
-                &table_list,
-                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
-            )
-            .unwrap();
+    fn bind(&self, mut inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        let mut right = inputs.pop().unwrap();
+        let mut left = inputs.pop().unwrap();
 
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([4, 10, 18]);
+        let l_type = left.datatype()?;
+        let r_type = right.datatype()?;
 
-        assert_eq!(expected, out);
+        let (cast_left, l_meta) = match D::decimal_meta_opt(&l_type) {
+            Some(meta) => (false, meta),
+            None => {
+                let meta = DecimalTypeMeta::new_for_datatype_id(l_type.datatype_id()).ok_or_else(
+                    || RayexecError::new(format!("Cannot convert {l_type} into a decimal")),
+                )?;
+                (true, meta)
+            }
+        };
+
+        let (cast_right, r_meta) = match D::decimal_meta_opt(&r_type) {
+            Some(meta) => (false, meta),
+            None => {
+                let meta = DecimalTypeMeta::new_for_datatype_id(r_type.datatype_id()).ok_or_else(
+                    || RayexecError::new(format!("Cannot convert {r_type} into a decimal")),
+                )?;
+                (true, meta)
+            }
+        };
+
+        let mut new_precision = l_meta.precision + r_meta.precision;
+        let new_scale = l_meta.scale + r_meta.scale;
+
+        if new_scale > D::MAX_PRECISION as i8 {
+            return Err(RayexecError::new(format!(
+                "Resuling decimal scale of '{new_scale}' exceeds max decimal precion '{}'",
+                D::MAX_PRECISION
+            )));
+        }
+
+        if new_precision > D::MAX_PRECISION {
+            // TODO: Need to check overflow.
+            new_precision = D::MAX_PRECISION;
+        }
+
+        if new_scale > new_precision as i8 {
+            return Err(RayexecError::new(format!(
+                "Compute scale '{new_scale}' exceeds computed precision '{new_precision}'"
+            )));
+        }
+
+        let return_type = D::datatype_from_decimal_meta(DecimalTypeMeta {
+            precision: new_precision,
+            scale: new_scale,
+        });
+
+        // We only need to cast the left/right inputs if they're not already
+        // decimals.
+        //
+        // Note we don't cast to the return type, we cast to the original
+        // decimal metas for the type.
+        if cast_left {
+            let left_type = D::datatype_from_decimal_meta(l_meta);
+            left = expr::cast(left, left_type).into();
+        }
+
+        if cast_right {
+            let right_type = D::datatype_from_decimal_meta(r_meta);
+            right = expr::cast(right, right_type).into();
+        }
+
+        Ok(BindState {
+            state: (),
+            return_type,
+            inputs: vec![left, right],
+        })
+    }
+
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
+
+        BinaryExecutor::execute::<D::Storage, D::Storage, D::Storage, _>(
+            a,
+            sel,
+            b,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, &b, buf| buf.put(&(a * b)),
+        )
+    }
+}
+
+/// Multiply interval with integer (rhs).
+#[derive(Debug, Clone, Copy)]
+pub struct MulInterval<Rhs, const LHS_RHS_FLIPPED: bool> {
+    _rhs: PhantomData<Rhs>,
+}
+
+impl<Rhs, const LHS_RHS_FLIPPED: bool> MulInterval<Rhs, LHS_RHS_FLIPPED> {
+    pub const fn new() -> Self {
+        MulInterval { _rhs: PhantomData }
+    }
+}
+
+impl<Rhs, const LHS_RHS_FLIPPED: bool> ScalarFunction for MulInterval<Rhs, LHS_RHS_FLIPPED>
+where
+    Rhs: ScalarStorage,
+    Rhs::StorageType: PrimInt,
+{
+    type State = ();
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Interval,
+            inputs,
+        })
+    }
+
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
+
+        let (lhs, rhs) = if LHS_RHS_FLIPPED { (b, a) } else { (a, b) };
+
+        BinaryExecutor::execute::<PhysicalInterval, Rhs, PhysicalInterval, _>(
+            lhs,
+            sel,
+            rhs,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, &b, buf| {
+                // TODO: Overflow check
+                buf.put(&Interval {
+                    months: a.months * (<i32 as NumCast>::from(b).unwrap_or_default()),
+                    days: a.days * (<i32 as NumCast>::from(b).unwrap_or_default()),
+                    nanos: a.nanos * (<i64 as NumCast>::from(b).unwrap_or_default()),
+                })
+            },
+        )
     }
 }

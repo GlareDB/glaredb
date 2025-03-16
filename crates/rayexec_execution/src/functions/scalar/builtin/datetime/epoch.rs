@@ -1,122 +1,67 @@
 use rayexec_error::Result;
+use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::PhysicalI64;
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Epoch;
+pub const FUNCTION_SET_EPOCH: ScalarFunctionSet = ScalarFunctionSet {
+    name: "epoch",
+    aliases: &["epoch_s"],
+    doc: None,
+    functions: &[RawScalarFunction::new(
+        &Signature::new(&[DataTypeId::Int64], DataTypeId::Timestamp),
+        &EpochImpl::<1_000_000>,
+    )],
+};
 
-impl FunctionInfo for Epoch {
-    fn name(&self) -> &'static str {
-        "epoch"
-    }
-
-    fn aliases(&self) -> &'static [&'static str] {
-        &["epoch_s"]
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[
-            // S -> Timestamp
-            Signature {
-                positional_args: &[DataTypeId::Int64],
-                variadic_arg: None,
-                return_type: DataTypeId::Timestamp,
-                doc: None,
-            },
-        ]
-    }
-}
-
-impl ScalarFunction for Epoch {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype(table_list)? {
-            DataType::Int64 => Ok(PlannedScalarFunction {
-                function: Box::new(*self),
-                return_type: DataType::Timestamp(TimestampTypeMeta {
-                    unit: TimeUnit::Microsecond,
-                }),
-                inputs,
-                function_impl: Box::new(EpochImpl::<1_000_000>),
-            }),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EpochMs;
-
-impl FunctionInfo for EpochMs {
-    fn name(&self) -> &'static str {
-        "epoch_ms"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[
-            // MS -> Timestamp
-            Signature {
-                positional_args: &[DataTypeId::Int64],
-                variadic_arg: None,
-                return_type: DataTypeId::Timestamp,
-                doc: None,
-            },
-        ]
-    }
-}
-
-impl ScalarFunction for EpochMs {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype(table_list)? {
-            DataType::Int64 => Ok(PlannedScalarFunction {
-                function: Box::new(*self),
-                return_type: DataType::Timestamp(TimestampTypeMeta {
-                    unit: TimeUnit::Microsecond,
-                }),
-                inputs,
-                function_impl: Box::new(EpochImpl::<1000>),
-            }),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
-    }
-}
+pub const FUNCTION_SET_EPOCH_MS: ScalarFunctionSet = ScalarFunctionSet {
+    name: "epoch_ms",
+    aliases: &[],
+    doc: None,
+    functions: &[RawScalarFunction::new(
+        &Signature::new(&[DataTypeId::Int64], DataTypeId::Timestamp),
+        &EpochImpl::<1000>,
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EpochImpl<const S: i64>;
 
-impl<const S: i64> ScalarFunctionImpl for EpochImpl<S> {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = inputs[0];
-        to_timestamp::<S>(input)
+impl<const S: i64> ScalarFunction for EpochImpl<S> {
+    type State = ();
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond)),
+            inputs,
+        })
+    }
+
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
+        to_timestamp::<S>(input, sel, output)
     }
 }
 
-fn to_timestamp<const S: i64>(input: &Array) -> Result<Array> {
-    let builder = ArrayBuilder {
-        datatype: DataType::Timestamp(TimestampTypeMeta {
-            unit: TimeUnit::Microsecond,
-        }),
-        buffer: PrimitiveBuffer::with_len(input.logical_len()),
-    };
-
-    UnaryExecutor::execute2::<PhysicalI64, _, _>(input, builder, |v, buf| {
-        buf.put(&(v * S));
-    })
+fn to_timestamp<const S: i64>(
+    input: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    out: &mut Array,
+) -> Result<()> {
+    UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _>(
+        input,
+        sel,
+        OutBuffer::from_array(out)?,
+        |&v, buf| buf.put(&(v * S)),
+    )
 }

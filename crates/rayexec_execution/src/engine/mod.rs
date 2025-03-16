@@ -1,26 +1,23 @@
 pub mod profiler;
-pub mod result;
-pub mod server_state;
+pub mod query_result;
 pub mod session;
-
-mod verifier;
+pub mod single_user;
 
 use std::sync::Arc;
 
 use rayexec_error::Result;
-use server_state::ServerState;
 use session::Session;
 
-use crate::database::memory_catalog::MemoryCatalog;
-use crate::database::system::new_system_catalog;
-use crate::database::DatabaseContext;
-use crate::datasource::{DataSourceRegistry, MemoryDataSource};
+use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
+use crate::catalog::database::{AccessMode, Database};
+use crate::catalog::system::new_system_catalog;
+use crate::extension::Extension;
 use crate::runtime::{PipelineExecutor, Runtime};
+use crate::storage::storage_manager::StorageManager;
 
 #[derive(Debug)]
 pub struct Engine<P: PipelineExecutor, R: Runtime> {
-    registry: Arc<DataSourceRegistry>,
-    system_catalog: Arc<MemoryCatalog>,
+    system_catalog: Arc<Database>,
     executor: P,
     runtime: R,
 }
@@ -31,20 +28,15 @@ where
     R: Runtime,
 {
     pub fn new(executor: P, runtime: R) -> Result<Self> {
-        let registry =
-            DataSourceRegistry::default().with_datasource("memory", Box::new(MemoryDataSource))?;
-        Self::new_with_registry(executor, runtime, registry)
-    }
-
-    pub fn new_with_registry(
-        executor: P,
-        runtime: R,
-        registry: DataSourceRegistry,
-    ) -> Result<Self> {
-        let system_catalog = Arc::new(new_system_catalog(&registry)?);
+        let system_catalog = Arc::new(Database {
+            name: SYSTEM_CATALOG.to_string(),
+            mode: AccessMode::ReadOnly,
+            catalog: Arc::new(new_system_catalog()?),
+            storage: Arc::new(StorageManager::empty()),
+            attach_info: None,
+        });
 
         Ok(Engine {
-            registry: Arc::new(registry),
             system_catalog,
             executor,
             runtime,
@@ -65,15 +57,13 @@ where
             context,
             self.executor.clone(),
             self.runtime.clone(),
-            self.registry.clone(),
         ))
     }
 
-    pub fn new_server_state(&self) -> Result<ServerState<P, R>> {
-        Ok(ServerState::new(
-            self.executor.clone(),
-            self.runtime.clone(),
-            self.registry.clone(),
-        ))
+    pub fn register_extension<E>(&self, _ext: E) -> Result<()>
+    where
+        E: Extension,
+    {
+        unimplemented!()
     }
 }

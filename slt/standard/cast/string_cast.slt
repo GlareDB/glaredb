@@ -70,7 +70,7 @@ select '2.2'::REAL::TEXT
 ----
 2.2
 
-statement error Failed to cast '2.0' to Int32
+statement error Failed to parse '2.0' into Int32
 select '2.0'::INT;
 
 # TODO: Failed to parse '123456789e-1234'
@@ -86,7 +86,7 @@ select '123456789e-1234'::float::int
 
 # Type overflows
 
-statement error Failed to cast '128' to Int8
+statement error Failed to parse '128' into Int8
 select '128'::TINYINT
 
 query I
@@ -94,5 +94,5 @@ select '32767'::SMALLINT
 ----
 32767
 
-statement error Failed to cast '32768' to Int16
+statement error Failed to parse '32768' into Int16
 select '32768'::SMALLINT

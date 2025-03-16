@@ -1,5 +1,6 @@
 use rayexec_error::Result;
 
+use crate::explain::node::ExplainNode;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_explain::BoundExplain;
 use crate::logical::logical_explain::LogicalExplain;
@@ -23,7 +24,11 @@ impl ExplainPlanner {
                 analyze: explain.analyze,
                 verbose: explain.verbose,
                 format: explain.format,
-                logical_unoptimized: Box::new(plan.clone()),
+                logical_unoptimized: ExplainNode::new_from_logical_plan(
+                    bind_context,
+                    explain.verbose,
+                    &plan,
+                ),
                 logical_optimized: None,
             },
             location: LocationRequirement::Any,

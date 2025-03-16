@@ -1,34 +1,52 @@
-use fmtutil::IntoDisplayableSlice;
 use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ExpressionColumnBinder;
+use crate::arrays::compute::cast::parse::{Decimal128Parser, Decimal64Parser, Parser};
 use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::decimal::{
+    Decimal128Scalar,
+    Decimal128Type,
+    Decimal64Scalar,
+    Decimal64Type,
+    DecimalType,
+};
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
+use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::expr::aggregate_expr::AggregateExpr;
-use crate::expr::arith_expr::{ArithExpr, ArithOperator};
+use crate::expr::arith_expr::ArithOperator;
 use crate::expr::case_expr::{CaseExpr, WhenThen};
 use crate::expr::cast_expr::CastExpr;
-use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
-use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use crate::expr::comparison_expr::ComparisonOperator;
+use crate::expr::conjunction_expr::ConjunctionOperator;
 use crate::expr::grouping_set_expr::GroupingSetExpr;
 use crate::expr::literal_expr::LiteralExpr;
-use crate::expr::negate_expr::{NegateExpr, NegateOperator};
+use crate::expr::negate_expr::NegateOperator;
 use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
-use crate::expr::{AsScalarFunction, Expression};
-use crate::functions::aggregate::AggregateFunction;
-use crate::functions::scalar::builtin::datetime::DatePart;
-use crate::functions::scalar::builtin::is;
-use crate::functions::scalar::builtin::list::{ListExtract, ListValues};
-use crate::functions::scalar::builtin::string::{Concat, Like, StartsWith, Substring};
-use crate::functions::scalar::ScalarFunction;
-use crate::functions::table::TableFunction;
-use crate::functions::CastType;
+use crate::expr::{self, bind_aggregate_function, Expression};
+use crate::functions::scalar::builtin::datetime::FUNCTION_SET_DATE_PART;
+use crate::functions::scalar::builtin::is::{
+    FUNCTION_SET_IS_FALSE,
+    FUNCTION_SET_IS_NOT_FALSE,
+    FUNCTION_SET_IS_NOT_NULL,
+    FUNCTION_SET_IS_NOT_TRUE,
+    FUNCTION_SET_IS_NULL,
+    FUNCTION_SET_IS_TRUE,
+};
+use crate::functions::scalar::builtin::list::{
+    FUNCTION_SET_LIST_EXTRACT,
+    FUNCTION_SET_LIST_VALUES,
+};
+use crate::functions::scalar::builtin::string::{
+    FUNCTION_SET_CONCAT,
+    FUNCTION_SET_LIKE,
+    FUNCTION_SET_STARTS_WITH,
+    FUNCTION_SET_SUBSTRING,
+};
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -149,14 +167,9 @@ impl<'a> BaseExpressionBinder<'a> {
                     })
                     .collect::<Result<Vec<_>>>()?;
 
-                let scalar = Box::new(ListValues);
-                let exprs =
-                    self.apply_casts_for_scalar_function(bind_context, scalar.as_ref(), exprs)?;
-                let planned = scalar.plan(bind_context.get_table_list(), exprs)?;
+                let function = expr::bind_scalar_function(&FUNCTION_SET_LIST_VALUES, exprs)?;
 
-                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
-                    function: planned,
-                }))
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
             ast::Expr::ArraySubscript { expr, subscript } => {
                 let expr = self.bind_expression(
@@ -181,21 +194,12 @@ impl<'a> BaseExpressionBinder<'a> {
                             },
                         )?;
 
-                        let scalar = Box::new(ListExtract);
-                        let mut exprs = self.apply_casts_for_scalar_function(
-                            bind_context,
-                            scalar.as_ref(),
+                        let function = expr::bind_scalar_function(
+                            &FUNCTION_SET_LIST_EXTRACT,
                             vec![expr, index],
                         )?;
-                        let index = exprs.pop().unwrap();
-                        let expr = exprs.pop().unwrap();
 
-                        let planned =
-                            scalar.plan(bind_context.get_table_list(), vec![expr, index])?;
-
-                        Ok(Expression::ScalarFunction(ScalarFunctionExpr {
-                            function: planned,
-                        }))
+                        Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
                     }
                     ast::ArraySubscript::Slice { .. } => {
                         Err(RayexecError::new("Array slicing not yet implemented"))
@@ -215,29 +219,8 @@ impl<'a> BaseExpressionBinder<'a> {
 
                 Ok(match op {
                     ast::UnaryOperator::Plus => expr,
-                    ast::UnaryOperator::Not => {
-                        let [expr] = self.apply_cast_for_operator(
-                            bind_context,
-                            NegateOperator::Not,
-                            [expr],
-                        )?;
-                        Expression::Negate(NegateExpr {
-                            op: NegateOperator::Not,
-                            expr: Box::new(expr),
-                        })
-                    }
-                    ast::UnaryOperator::Minus => {
-                        let [expr] = self.apply_cast_for_operator(
-                            bind_context,
-                            NegateOperator::Negate,
-                            [expr],
-                        )?;
-
-                        Expression::Negate(NegateExpr {
-                            op: NegateOperator::Negate,
-                            expr: Box::new(expr),
-                        })
-                    }
+                    ast::UnaryOperator::Not => expr::negate(NegateOperator::Not, expr)?.into(),
+                    ast::UnaryOperator::Minus => expr::negate(NegateOperator::Negate, expr)?.into(),
                 })
             }
             ast::Expr::BinaryExpr { left, op, right } => {
@@ -263,145 +246,67 @@ impl<'a> BaseExpressionBinder<'a> {
                 Ok(match op {
                     ast::BinaryOperator::NotEq => {
                         let op = ComparisonOperator::NotEq;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Comparison(ComparisonExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            op,
-                        })
+                        expr::compare(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Eq => {
                         let op = ComparisonOperator::Eq;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Comparison(ComparisonExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            op,
-                        })
+                        expr::compare(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Lt => {
                         let op = ComparisonOperator::Lt;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Comparison(ComparisonExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            op,
-                        })
+                        expr::compare(op, left, right)?.into()
                     }
                     ast::BinaryOperator::LtEq => {
                         let op = ComparisonOperator::LtEq;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Comparison(ComparisonExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            op,
-                        })
+                        expr::compare(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Gt => {
                         let op = ComparisonOperator::Gt;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Comparison(ComparisonExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            op,
-                        })
+                        expr::compare(op, left, right)?.into()
                     }
                     ast::BinaryOperator::GtEq => {
                         let op = ComparisonOperator::GtEq;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Comparison(ComparisonExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            op,
-                        })
+                        expr::compare(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Plus => {
                         let op = ArithOperator::Add;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Arith(ArithExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            op,
-                        })
+                        expr::arith(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Minus => {
                         let op = ArithOperator::Sub;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Arith(ArithExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            op,
-                        })
+                        expr::arith(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Multiply => {
                         let op = ArithOperator::Mul;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Arith(ArithExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            op,
-                        })
+                        expr::arith(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Divide => {
                         let op = ArithOperator::Div;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Arith(ArithExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            op,
-                        })
+                        expr::arith(op, left, right)?.into()
                     }
                     ast::BinaryOperator::Modulo => {
                         let op = ArithOperator::Mod;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Arith(ArithExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            op,
-                        })
+                        expr::arith(op, left, right)?.into()
                     }
                     ast::BinaryOperator::And => {
                         let op = ConjunctionOperator::And;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Conjunction(ConjunctionExpr {
-                            expressions: vec![left, right],
-                            op,
-                        })
+                        expr::conjunction(op, [left, right])?.into()
                     }
                     ast::BinaryOperator::Or => {
                         let op = ConjunctionOperator::Or;
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, op, [left, right])?;
-                        Expression::Conjunction(ConjunctionExpr {
-                            expressions: vec![left, right],
-                            op,
-                        })
+                        expr::conjunction(op, [left, right])?.into()
                     }
                     ast::BinaryOperator::StringConcat => {
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, Concat, [left, right])?;
-                        let planned =
-                            Concat.plan(bind_context.get_table_list(), vec![left, right])?;
-                        Expression::ScalarFunction(ScalarFunctionExpr { function: planned })
+                        let function =
+                            expr::bind_scalar_function(&FUNCTION_SET_CONCAT, vec![left, right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr { function })
                     }
                     ast::BinaryOperator::StringStartsWith => {
-                        let [left, right] =
-                            self.apply_cast_for_operator(bind_context, StartsWith, [left, right])?;
-                        let planned =
-                            StartsWith.plan(bind_context.get_table_list(), vec![left, right])?;
-                        Expression::ScalarFunction(ScalarFunctionExpr { function: planned })
+                        let function = expr::bind_scalar_function(
+                            &FUNCTION_SET_STARTS_WITH,
+                            vec![left, right],
+                        )?;
+                        Expression::ScalarFunction(ScalarFunctionExpr { function })
                     }
                     other => not_implemented!("binary operator {other:?}"),
                 })
@@ -476,10 +381,9 @@ impl<'a> BaseExpressionBinder<'a> {
                         };
                         let subquery = self.bind_subquery(bind_context, right, typ)?;
 
-                        Ok(Expression::Negate(NegateExpr {
-                            op: NegateOperator::Not,
-                            expr: Box::new(subquery),
-                        }))
+                        let negated = expr::negate(NegateOperator::Not, subquery)?;
+
+                        Ok(negated.into())
                     }
                     _ => unreachable!(),
                 }
@@ -509,10 +413,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 )?;
 
                 if *negated {
-                    expr = Expression::Negate(NegateExpr {
-                        op: NegateOperator::Not,
-                        expr: Box::new(expr),
-                    });
+                    expr = expr::negate(NegateOperator::Not, expr)?.into();
                 }
 
                 Ok(expr)
@@ -553,36 +454,22 @@ impl<'a> BaseExpressionBinder<'a> {
                 let cmp_exprs = list
                     .into_iter()
                     .map(|expr| {
-                        let [needle, expr] = self.apply_cast_for_operator(
-                            bind_context,
-                            cmp_op,
-                            [needle.clone(), expr],
-                        )?;
-                        Ok(Expression::Comparison(ComparisonExpr {
-                            left: Box::new(needle),
-                            right: Box::new(expr),
-                            op: cmp_op,
-                        }))
+                        let cmp = expr::compare(cmp_op, needle.clone(), expr)?;
+                        Ok(cmp.into())
                     })
                     .collect::<Result<Vec<_>>>()?;
 
-                // TODO: Error on no epxressions?
+                // TODO: Error on no expressions?
 
-                Ok(Expression::Conjunction(ConjunctionExpr {
-                    op: conj_op,
-                    expressions: cmp_exprs,
-                }))
+                let conj = expr::conjunction(conj_op, cmp_exprs)?;
+                Ok(conj.into())
             }
             ast::Expr::TypedString { datatype, value } => {
-                let scalar = OwnedScalarValue::Utf8(value.clone().into());
                 // TODO: Add this back. Currently doing this to avoid having to
                 // update cast rules for arrays and scalars at the same time.
                 //
                 // let scalar = cast_scalar(scalar, &datatype)?;
-                Ok(Expression::Cast(CastExpr {
-                    to: datatype.clone(),
-                    expr: Box::new(Expression::Literal(LiteralExpr { literal: scalar })),
-                }))
+                Ok(expr::cast(expr::lit(value.clone()), datatype.clone()).into())
             }
             ast::Expr::Cast { datatype, expr } => {
                 let expr = self.bind_expression(
@@ -594,10 +481,8 @@ impl<'a> BaseExpressionBinder<'a> {
                         ..recur
                     },
                 )?;
-                Ok(Expression::Cast(CastExpr {
-                    to: datatype.clone(),
-                    expr: Box::new(expr),
-                }))
+
+                Ok(expr::cast(expr, datatype.clone()).into())
             }
             ast::Expr::Like {
                 expr,
@@ -628,15 +513,12 @@ impl<'a> BaseExpressionBinder<'a> {
                     },
                 )?;
 
-                let scalar = Like.plan(bind_context.get_table_list(), vec![expr, pattern])?;
+                let function = expr::bind_scalar_function(&FUNCTION_SET_LIKE, vec![expr, pattern])?;
 
-                let mut expr = Expression::ScalarFunction(ScalarFunctionExpr { function: scalar });
+                let mut expr = Expression::ScalarFunction(ScalarFunctionExpr { function });
 
                 if *negated {
-                    expr = Expression::Negate(NegateExpr {
-                        op: NegateOperator::Not,
-                        expr: Box::new(expr),
-                    })
+                    expr = expr::negate(NegateOperator::Not, expr)?.into();
                 }
 
                 Ok(expr)
@@ -652,15 +534,15 @@ impl<'a> BaseExpressionBinder<'a> {
                     },
                 )?;
 
-                let scalar = if !negated {
-                    is::IsNull.plan(bind_context.get_table_list(), vec![expr])?
+                let function_set = if !negated {
+                    &FUNCTION_SET_IS_NULL
                 } else {
-                    is::IsNotNull.plan(bind_context.get_table_list(), vec![expr])?
+                    &FUNCTION_SET_IS_NOT_NULL
                 };
 
-                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
-                    function: scalar,
-                }))
+                let function = expr::bind_scalar_function(function_set, vec![expr])?;
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
             ast::Expr::IsBool { expr, val, negated } => {
                 let expr = self.bind_expression(
@@ -673,22 +555,16 @@ impl<'a> BaseExpressionBinder<'a> {
                     },
                 )?;
 
-                let scalar = match (val, negated) {
-                    (true, false) => is::IsTrue.plan(bind_context.get_table_list(), vec![expr])?,
-                    (true, true) => {
-                        is::IsNotTrue.plan(bind_context.get_table_list(), vec![expr])?
-                    }
-                    (false, false) => {
-                        is::IsFalse.plan(bind_context.get_table_list(), vec![expr])?
-                    }
-                    (false, true) => {
-                        is::IsNotFalse.plan(bind_context.get_table_list(), vec![expr])?
-                    }
+                let function_set = match (val, negated) {
+                    (true, false) => &FUNCTION_SET_IS_TRUE,
+                    (true, true) => &FUNCTION_SET_IS_NOT_TRUE,
+                    (false, false) => &FUNCTION_SET_IS_FALSE,
+                    (false, true) => &FUNCTION_SET_IS_NOT_FALSE,
                 };
 
-                Ok(Expression::ScalarFunction(ScalarFunctionExpr {
-                    function: scalar,
-                }))
+                let function = expr::bind_scalar_function(function_set, vec![expr])?;
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
             ast::Expr::Interval(ast::Interval {
                 value,
@@ -746,21 +622,15 @@ impl<'a> BaseExpressionBinder<'a> {
                         };
 
                         let interval = Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Interval(const_interval),
+                            literal: BorrowedScalarValue::Interval(const_interval),
                         });
 
                         let op = ArithOperator::Mul;
                         // Plan `mul(<interval>, <expr>)`
-                        Ok(Expression::Arith(ArithExpr {
-                            op,
-                            left: Box::new(interval),
-                            right: Box::new(expr),
-                        }))
+                        let expr = expr::arith(op, interval, expr)?;
+                        Ok(expr.into())
                     }
-                    None => Ok(Expression::Cast(CastExpr {
-                        to: DataType::Interval,
-                        expr: Box::new(expr),
-                    })),
+                    None => Ok(expr::cast(expr, DataType::Interval).into()),
                 }
             }
             ast::Expr::Between {
@@ -796,41 +666,25 @@ impl<'a> BaseExpressionBinder<'a> {
                 } else {
                     ComparisonOperator::Lt
                 };
-                let [low_left, low_right] =
-                    self.apply_cast_for_operator(bind_context, low_op, [expr.clone(), low])?;
 
-                let left = Expression::Comparison(ComparisonExpr {
-                    left: Box::new(low_left),
-                    right: Box::new(low_right),
-                    op: low_op,
-                });
+                let left = expr::compare(low_op, expr.clone(), low)?;
 
                 let high_op = if !negated {
                     ComparisonOperator::LtEq
                 } else {
                     ComparisonOperator::Gt
                 };
-                let [high_left, high_right] =
-                    self.apply_cast_for_operator(bind_context, high_op, [expr, high])?;
 
-                let right = Expression::Comparison(ComparisonExpr {
-                    left: Box::new(high_left),
-                    right: Box::new(high_right),
-                    op: high_op,
-                });
+                let right = expr::compare(high_op, expr, high)?;
 
                 let conj_op = if !negated {
                     ConjunctionOperator::And
                 } else {
                     ConjunctionOperator::Or
                 };
-                let [left, right] =
-                    self.apply_cast_for_operator(bind_context, conj_op, [left, right])?;
 
-                Ok(Expression::Conjunction(ConjunctionExpr {
-                    expressions: vec![left, right],
-                    op: conj_op,
-                }))
+                let conj = expr::conjunction(conj_op, [left.into(), right.into()])?;
+                Ok(conj.into())
             }
             ast::Expr::Case {
                 expr,
@@ -873,21 +727,15 @@ impl<'a> BaseExpressionBinder<'a> {
                     self.bind_expressions(bind_context, results, column_binder, recur.not_root())?;
 
                 // When leading expr is provided, conditions are implicit equalities.
-                let build_condition = |cond_expr| match &expr {
-                    Some(expr) => {
-                        let [left, right] = self.apply_cast_for_operator(
-                            bind_context,
-                            ComparisonOperator::Eq,
-                            [expr.clone(), cond_expr],
-                        )?;
-
-                        Ok::<_, RayexecError>(Expression::Comparison(ComparisonExpr {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            op: ComparisonOperator::Eq,
-                        }))
+                let build_condition = |cond_expr| -> Result<Expression> {
+                    match &expr {
+                        Some(expr) => {
+                            let cmp =
+                                expr::compare(ComparisonOperator::Eq, expr.clone(), cond_expr)?;
+                            Ok(cmp.into())
+                        }
+                        None => Ok(cond_expr),
                     }
-                    None => Ok(cond_expr),
                 };
 
                 // TODO: Cast the results so they all produce the same type.
@@ -903,13 +751,10 @@ impl<'a> BaseExpressionBinder<'a> {
 
                 // Apply cast to else if needed.
                 if let Some(expr) = else_expr {
-                    let first_case_dt = cases
-                        .first()
-                        .expect("at least one case")
-                        .then
-                        .datatype(bind_context.get_table_list())?;
+                    let first_case_dt =
+                        cases.first().expect("at least one case").then.datatype()?;
 
-                    if expr.datatype(bind_context.get_table_list())? != first_case_dt {
+                    if expr.datatype()? != first_case_dt {
                         else_expr = Some(Expression::Cast(CastExpr {
                             to: first_case_dt,
                             expr: Box::new(expr),
@@ -919,19 +764,18 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                 }
 
-                Ok(Expression::Case(CaseExpr {
-                    cases,
-                    else_expr: else_expr.map(Box::new),
-                }))
+                let case_expr = CaseExpr::try_new(cases, else_expr.map(Box::new))?;
+
+                Ok(Expression::Case(case_expr))
             }
             ast::Expr::Substring { expr, from, count } => {
-                let func = Box::new(Substring);
+                let function_set = &FUNCTION_SET_SUBSTRING;
                 let expr =
                     self.bind_expression(bind_context, expr, column_binder, recur.not_root())?;
                 let from =
                     self.bind_expression(bind_context, from, column_binder, recur.not_root())?;
 
-                let inputs = match count {
+                let function = match count {
                     Some(count) => {
                         let count = self.bind_expression(
                             bind_context,
@@ -939,20 +783,11 @@ impl<'a> BaseExpressionBinder<'a> {
                             column_binder,
                             recur.not_root(),
                         )?;
-                        self.apply_casts_for_scalar_function(
-                            bind_context,
-                            func.as_ref(),
-                            vec![expr, from, count],
-                        )?
-                    }
-                    None => self.apply_casts_for_scalar_function(
-                        bind_context,
-                        func.as_ref(),
-                        vec![expr, from],
-                    )?,
-                };
 
-                let function = func.plan(bind_context.get_table_list(), inputs)?;
+                        expr::bind_scalar_function(function_set, vec![expr, from, count])?
+                    }
+                    None => expr::bind_scalar_function(function_set, vec![expr, from])?,
+                };
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
@@ -964,9 +799,10 @@ impl<'a> BaseExpressionBinder<'a> {
                 let expr =
                     self.bind_expression(bind_context, expr, column_binder, recur.not_root())?;
 
-                let func = Box::new(DatePart);
-                let function =
-                    func.plan(bind_context.get_table_list(), vec![date_part_expr, expr])?;
+                let function = expr::bind_scalar_function(
+                    &FUNCTION_SET_DATE_PART,
+                    vec![date_part_expr, expr],
+                )?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
@@ -1023,7 +859,7 @@ impl<'a> BaseExpressionBinder<'a> {
         // if needed.
         let subquery_type = match subquery_type {
             SubqueryType::Any { expr, op } => {
-                if expr.datatype(bind_context.get_table_list())? != return_type {
+                if expr.datatype()? != return_type {
                     SubqueryType::Any {
                         expr: Box::new(Expression::Cast(CastExpr {
                             to: query_return_type,
@@ -1060,21 +896,15 @@ impl<'a> BaseExpressionBinder<'a> {
         Ok(match literal {
             ast::Literal::Number(n) => {
                 if let Ok(n) = n.parse::<i32>() {
-                    Expression::Literal(LiteralExpr {
-                        literal: OwnedScalarValue::Int32(n),
-                    })
+                    expr::lit(n).into()
                 } else if let Ok(n) = n.parse::<i64>() {
-                    Expression::Literal(LiteralExpr {
-                        literal: OwnedScalarValue::Int64(n),
-                    })
+                    expr::lit(n).into()
                 } else if let Ok(n) = n.parse::<u64>() {
-                    Expression::Literal(LiteralExpr {
-                        literal: OwnedScalarValue::UInt64(n),
-                    })
+                    expr::lit(n).into()
+                } else if let Some(decimal) = try_parse_as_decimal(n) {
+                    expr::lit(decimal).into()
                 } else if let Ok(n) = n.parse::<f64>() {
-                    Expression::Literal(LiteralExpr {
-                        literal: OwnedScalarValue::Float64(n),
-                    })
+                    expr::lit(n).into()
                 } else {
                     return Err(RayexecError::new(format!(
                         "Unable to parse {n} as a number"
@@ -1082,13 +912,13 @@ impl<'a> BaseExpressionBinder<'a> {
                 }
             }
             ast::Literal::Boolean(b) => Expression::Literal(LiteralExpr {
-                literal: OwnedScalarValue::Boolean(*b),
+                literal: ScalarValue::Boolean(*b),
             }),
             ast::Literal::Null => Expression::Literal(LiteralExpr {
-                literal: OwnedScalarValue::Null,
+                literal: ScalarValue::Null,
             }),
             ast::Literal::SingleQuotedString(s) => Expression::Literal(LiteralExpr {
-                literal: OwnedScalarValue::Utf8(s.to_string().into()),
+                literal: ScalarValue::Utf8(s.to_string().into()),
             }),
             other => {
                 return Err(RayexecError::new(format!(
@@ -1194,7 +1024,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         });
 
                         // To verify input types.
-                        let _ = unnest_expr.datatype(bind_context.get_table_list())?;
+                        let _ = unnest_expr.datatype()?;
 
                         Ok(unnest_expr)
                     }
@@ -1251,19 +1081,12 @@ impl<'a> BaseExpressionBinder<'a> {
                     ));
                 }
 
-                let inputs =
-                    self.apply_casts_for_scalar_function(bind_context, scalar.as_ref(), inputs)?;
-
-                let function = scalar.plan(bind_context.get_table_list(), inputs)?;
+                let function = expr::bind_scalar_function(scalar, inputs)?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
             (ResolvedFunction::Aggregate(agg), _) => {
-                let inputs =
-                    self.apply_casts_for_aggregate_function(bind_context, agg.as_ref(), inputs)?;
-
-                let agg = agg.plan(bind_context.get_table_list(), inputs)?;
-
+                let agg = bind_aggregate_function(agg, inputs)?;
                 match &func.over {
                     Some(over) => {
                         // Window
@@ -1357,218 +1180,165 @@ impl<'a> BaseExpressionBinder<'a> {
             }
         }
     }
+}
 
-    pub(crate) fn apply_cast_for_operator<const N: usize>(
-        &self,
-        bind_context: &BindContext,
-        operator: impl AsScalarFunction,
-        inputs: [Expression; N],
-    ) -> Result<[Expression; N]> {
-        let mut inputs = self.apply_casts_for_scalar_function(
-            bind_context,
-            operator.as_scalar_function(),
-            inputs.to_vec(),
-        )?;
+/// Try to parse a string as a decimal literal.
+fn try_parse_as_decimal(n: &str) -> Option<ScalarValue> {
+    if n.is_empty() {
+        return None;
+    }
 
-        // Further refine the types. When we're applying casts for an operator,
-        // we know there's some relationship between the inputs.
-        //
-        // TODO: This may be useful for all functions, might pull this out.
-        let mut decimal64_meta = None;
-        let mut decimal128_meta = None;
+    let mut num_underscores = 0;
+    let mut num_underscores_right = 0;
+    let mut decimal_pos = None;
 
-        for input in &inputs {
-            if matches!(input, Expression::Cast(_)) {
-                continue;
-            }
-
-            match input.datatype(bind_context.get_table_list())? {
-                DataType::Decimal64(m) => decimal64_meta = Some(m),
-                DataType::Decimal128(m) => decimal128_meta = Some(m),
-                _ => (),
-            }
-        }
-
-        for input in &mut inputs {
-            if let Expression::Cast(cast) = input {
-                match &mut cast.to {
-                    DataType::Decimal64(curr) => {
-                        if let Some(m) = decimal64_meta {
-                            *curr = m;
-                        }
-                    }
-                    DataType::Decimal128(curr) => {
-                        if let Some(m) = decimal128_meta {
-                            *curr = m;
-                        }
-                    }
-                    _ => (),
+    for (idx, c) in n.chars().enumerate() {
+        match c {
+            'e' | 'E' => return None, // Parse as float.
+            '_' => {
+                if decimal_pos.is_some() {
+                    num_underscores += 1;
+                    num_underscores_right += 1;
+                } else {
+                    num_underscores += 1;
                 }
             }
-        }
-
-        inputs
-            .try_into()
-            .map_err(|_| RayexecError::new("Number of casted inputs incorrect"))
-    }
-
-    /// Applies casts to an input expression based on the signatures for a
-    /// scalar function.
-    fn apply_casts_for_scalar_function(
-        &self,
-        bind_context: &BindContext,
-        scalar: &dyn ScalarFunction,
-        inputs: Vec<Expression>,
-    ) -> Result<Vec<Expression>> {
-        let input_datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype(bind_context.get_table_list()))
-            .collect::<Result<Vec<_>>>()?;
-
-        if scalar.exact_signature(&input_datatypes).is_some() {
-            // Exact
-            Ok(inputs)
-        } else {
-            // Try to find candidates that we can cast to.
-            let mut candidates = scalar.candidate(&input_datatypes);
-
-            if candidates.is_empty() {
-                // TODO: Do we want to fall through? Is it possible for a
-                // scalar and aggregate function to have the same name?
-
-                // TODO: Better error.
-                return Err(RayexecError::new(format!(
-                    "Invalid inputs to '{}': {}",
-                    scalar.name(),
-                    input_datatypes.display_with_brackets(),
-                )));
+            '.' => {
+                if decimal_pos.is_some() {
+                    return None; // More than one decimal point.
+                } else {
+                    decimal_pos = Some(idx)
+                }
             }
-
-            // TODO: Maybe more sophisticated candidate selection.
-            //
-            // We should do some lightweight const folding and prefer candidates
-            // that cast the consts over ones that need array inputs to be
-            // casted.
-            let candidate = candidates.swap_remove(0);
-
-            // Apply casts where needed.
-            let inputs = inputs
-                .into_iter()
-                .zip(candidate.casts)
-                .map(|(input, cast_to)| {
-                    Ok(match cast_to {
-                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
-                            to: DataType::try_default_datatype(to)?,
-                            expr: Box::new(input),
-                        }),
-                        CastType::NoCastNeeded => input,
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?;
-
-            Ok(inputs)
+            _ => (),
         }
     }
 
-    // TODO: Reduce dupliation with the scalar one.
-    fn apply_casts_for_aggregate_function(
-        &self,
-        bind_context: &BindContext,
-        agg: &dyn AggregateFunction,
-        inputs: Vec<Expression>,
-    ) -> Result<Vec<Expression>> {
-        let input_datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype(bind_context.get_table_list()))
-            .collect::<Result<Vec<_>>>()?;
+    let decimal_pos = decimal_pos?;
 
-        if agg.exact_signature(&input_datatypes).is_some() {
-            // Exact
-            Ok(inputs)
-        } else {
-            // Try to find candidates that we can cast to.
-            let mut candidates = agg.candidate(&input_datatypes);
+    // Ignore underscores and decimal.
+    let mut precision = n.len() - 1 - num_underscores;
+    let scale = precision - (decimal_pos + num_underscores_right);
 
-            if candidates.is_empty() {
-                return Err(RayexecError::new(format!(
-                    "Invalid inputs to '{}': {}",
-                    agg.name(),
-                    input_datatypes.display_with_brackets(),
-                )));
-            }
-
-            // TODO: Maybe more sophisticated candidate selection.
-            let candidate = candidates.swap_remove(0);
-
-            // Apply casts where needed.
-            let inputs = inputs
-                .into_iter()
-                .zip(candidate.casts)
-                .map(|(input, cast_to)| {
-                    Ok(match cast_to {
-                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
-                            to: DataType::try_default_datatype(to)?,
-                            expr: Box::new(input),
-                        }),
-                        CastType::NoCastNeeded => input,
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?;
-
-            Ok(inputs)
-        }
+    let c = n.chars().next().unwrap();
+    if c == '-' || c == '+' {
+        precision -= 1;
     }
 
-    // TODO: Reduce duplication with scalar one.
-    //
-    // Upcasting to FunctionInfo would be cool.
-    // See: <https://github.com/rust-lang/rust/issues/65991>
-    pub(crate) fn apply_casts_for_table_function(
-        &self,
-        bind_context: &BindContext,
-        table: &dyn TableFunction,
-        inputs: Vec<Expression>,
-    ) -> Result<Vec<Expression>> {
-        let input_datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype(bind_context.get_table_list()))
-            .collect::<Result<Vec<_>>>()?;
+    if precision <= Decimal64Type::MAX_PRECISION as usize {
+        let mut parser = Decimal64Parser::new(precision as u8, scale as i8);
+        let v = parser.parse(n)?;
+        return Some(ScalarValue::Decimal64(Decimal64Scalar {
+            value: v,
+            precision: precision as u8,
+            scale: scale as i8,
+        }));
+    }
 
-        if table.exact_signature(&input_datatypes).is_some() {
-            // Exact
-            Ok(inputs)
-        } else {
-            // Try to find candidates that we can cast to.
-            let mut candidates = table.candidate(&input_datatypes);
+    if precision <= Decimal128Type::MAX_PRECISION as usize {
+        let mut parser = Decimal128Parser::new(precision as u8, scale as i8);
+        let v = parser.parse(n)?;
+        return Some(ScalarValue::Decimal128(Decimal128Scalar {
+            value: v,
+            precision: precision as u8,
+            scale: scale as i8,
+        }));
+    }
 
-            if candidates.is_empty() {
-                // TODO: Better error.
-                return Err(RayexecError::new(format!(
-                    "Invalid inputs to '{}': {}",
-                    table.name(),
-                    input_datatypes.display_with_brackets(),
-                )));
-            }
+    // Number too wide, need to parse as float.
+    None
+}
 
-            // TODO: Maybe more sophisticated candidate selection.
-            let candidate = candidates.swap_remove(0);
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-            // Apply casts where needed.
-            let inputs = inputs
-                .into_iter()
-                .zip(candidate.casts)
-                .map(|(input, cast_to)| {
-                    Ok(match cast_to {
-                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
-                            to: DataType::try_default_datatype(to)?,
-                            expr: Box::new(input),
-                        }),
-                        CastType::NoCastNeeded => input,
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?;
+    #[test]
+    fn try_parse_as_decimal_cases() {
+        let test_cases = [
+            (
+                "1.0",
+                Some(
+                    Decimal64Scalar {
+                        precision: 2,
+                        scale: 1,
+                        value: 10,
+                    }
+                    .into(),
+                ),
+            ),
+            (
+                "1.2",
+                Some(
+                    Decimal64Scalar {
+                        precision: 2,
+                        scale: 1,
+                        value: 12,
+                    }
+                    .into(),
+                ),
+            ),
+            // TODO: Allow this in the parser.
+            // (
+            //     "1_000.2",
+            //     Some(
+            //         Decimal64Scalar {
+            //             precision: 5,
+            //             scale: 1,
+            //             value: 10002,
+            //         }
+            //         .into(),
+            //     ),
+            // ),
+            (
+                "1.200",
+                Some(
+                    Decimal64Scalar {
+                        precision: 4,
+                        scale: 3,
+                        value: 1200,
+                    }
+                    .into(),
+                ),
+            ),
+            (
+                "-1.200",
+                Some(
+                    Decimal64Scalar {
+                        precision: 4,
+                        scale: 3,
+                        value: -1200,
+                    }
+                    .into(),
+                ),
+            ),
+            (
+                "+1.200",
+                Some(
+                    Decimal64Scalar {
+                        precision: 4,
+                        scale: 3,
+                        value: 1200,
+                    }
+                    .into(),
+                ),
+            ),
+            (
+                "123456891234568912.200",
+                Some(
+                    Decimal128Scalar {
+                        precision: 21,
+                        scale: 3,
+                        value: 123456891234568912200,
+                    }
+                    .into(),
+                ),
+            ),
+        ];
 
-            Ok(inputs)
+        for (s, expected) in test_cases {
+            let got = try_parse_as_decimal(s);
+            assert_eq!(expected, got, "input: {s}")
         }
     }
 }

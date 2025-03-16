@@ -1,3 +1,6 @@
+pub mod access;
+pub mod exp;
+pub mod future;
 pub mod http;
 pub mod location;
 pub mod memory;
@@ -21,7 +24,7 @@ use rayexec_error::Result;
 /// variant, this should just return an error.
 // TODO: List/delete. With globs and hive, we could do something fancy where we
 // have an async stream of sources, but idk if that's good idea yet.
-pub trait FileProvider: Sync + Send + Debug {
+pub trait FileProvider2: Sync + Send + Debug {
     /// Gets a file source at some location.
     fn file_source(
         &self,

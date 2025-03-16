@@ -17,13 +17,13 @@
 
 use crate::basic::{ConvertedType, Repetition};
 use crate::errors::ParquetError::General;
-use crate::errors::Result;
+use crate::errors::ParquetResult;
 use crate::schema::types::{Type, TypePtr};
 
 /// A utility trait to help user to traverse against parquet type.
 pub trait TypeVisitor<R, C> {
     /// Called when a primitive type hit.
-    fn visit_primitive(&mut self, primitive_type: TypePtr, context: C) -> Result<R>;
+    fn visit_primitive(&mut self, primitive_type: TypePtr, context: C) -> ParquetResult<R>;
 
     /// Default implementation when visiting a list.
     ///
@@ -45,7 +45,7 @@ pub trait TypeVisitor<R, C> {
     /// 
     /// In such a case, [`Self::visit_list_with_item`] will be called with `my_list` as the list
     /// type, and `element` as the `item_type`
-    fn visit_list(&mut self, list_type: TypePtr, context: C) -> Result<R> {
+    fn visit_list(&mut self, list_type: TypePtr, context: C) -> ParquetResult<R> {
         match list_type.as_ref() {
             Type::PrimitiveType { .. } => {
                 panic!("{list_type:?} is a list type and must be a group type")
@@ -92,13 +92,13 @@ pub trait TypeVisitor<R, C> {
     }
 
     /// Called when a struct type hit.
-    fn visit_struct(&mut self, struct_type: TypePtr, context: C) -> Result<R>;
+    fn visit_struct(&mut self, struct_type: TypePtr, context: C) -> ParquetResult<R>;
 
     /// Called when a map type hit.
-    fn visit_map(&mut self, map_type: TypePtr, context: C) -> Result<R>;
+    fn visit_map(&mut self, map_type: TypePtr, context: C) -> ParquetResult<R>;
 
     /// A utility method which detects input type and calls corresponding method.
-    fn dispatch(&mut self, cur_type: TypePtr, context: C) -> Result<R> {
+    fn dispatch(&mut self, cur_type: TypePtr, context: C) -> ParquetResult<R> {
         if cur_type.is_primitive() {
             self.visit_primitive(cur_type, context)
         } else {
@@ -118,7 +118,7 @@ pub trait TypeVisitor<R, C> {
         list_type: TypePtr,
         item_type: TypePtr,
         context: C,
-    ) -> Result<R>;
+    ) -> ParquetResult<R>;
 }
 
 #[cfg(test)]
@@ -127,7 +127,7 @@ mod tests {
 
     use super::TypeVisitor;
     use crate::basic::Type as PhysicalType;
-    use crate::errors::Result;
+    use crate::errors::ParquetResult;
     use crate::schema::parser::parse_message_type;
     use crate::schema::types::TypePtr;
 
@@ -144,7 +144,7 @@ mod tests {
             &mut self,
             primitive_type: TypePtr,
             _context: TestVisitorContext,
-        ) -> Result<bool> {
+        ) -> ParquetResult<bool> {
             assert_eq!(
                 self.get_field_by_name(primitive_type.name()).as_ref(),
                 primitive_type.as_ref()
@@ -157,7 +157,7 @@ mod tests {
             &mut self,
             struct_type: TypePtr,
             _context: TestVisitorContext,
-        ) -> Result<bool> {
+        ) -> ParquetResult<bool> {
             assert_eq!(
                 self.get_field_by_name(struct_type.name()).as_ref(),
                 struct_type.as_ref()
@@ -166,7 +166,11 @@ mod tests {
             Ok(true)
         }
 
-        fn visit_map(&mut self, _map_type: TypePtr, _context: TestVisitorContext) -> Result<bool> {
+        fn visit_map(
+            &mut self,
+            _map_type: TypePtr,
+            _context: TestVisitorContext,
+        ) -> ParquetResult<bool> {
             unimplemented!()
         }
 
@@ -175,7 +179,7 @@ mod tests {
             list_type: TypePtr,
             item_type: TypePtr,
             _context: TestVisitorContext,
-        ) -> Result<bool> {
+        ) -> ParquetResult<bool> {
             assert_eq!(
                 self.get_field_by_name(list_type.name()).as_ref(),
                 list_type.as_ref()

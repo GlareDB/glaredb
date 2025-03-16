@@ -168,6 +168,13 @@ pub struct ExplainConfig<'a> {
     pub verbose: bool,
 }
 
+impl ExplainConfig<'_> {
+    pub const RAW_VERBOSE: Self = Self {
+        context_mode: ContextDisplayMode::Raw,
+        verbose: true,
+    };
+}
+
 /// Trait for explaining a single node in the query tree.
 pub trait Explainable {
     /// Create an ExplainEntry for this node.

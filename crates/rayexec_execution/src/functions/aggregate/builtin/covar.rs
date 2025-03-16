@@ -3,152 +3,114 @@ use std::marker::PhantomData;
 
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::PhysicalF64;
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    new_binary_aggregate_states,
-    primitive_finalize,
-    AggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::simple::{BinaryAggregate, SimpleBinaryAggregate};
+use crate::functions::aggregate::RawAggregateFunction;
+use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::Signature;
+
+pub const FUNCTION_SET_COVAR_POP: AggregateFunctionSet = AggregateFunctionSet {
+    name: "covar_pop",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Compute population covariance.",
+        arguments: &["y", "x"],
+        example: None,
+    }),
+    functions: &[RawAggregateFunction::new(
+        &Signature::new(
+            &[DataTypeId::Float64, DataTypeId::Float64],
+            DataTypeId::Float64,
+        ),
+        &SimpleBinaryAggregate::new(&CovarPop),
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CovarPop;
 
-impl FunctionInfo for CovarPop {
-    fn name(&self) -> &'static str {
-        "covar_pop"
+impl BinaryAggregate for CovarPop {
+    type Input1 = PhysicalF64;
+    type Input2 = PhysicalF64;
+    type Output = PhysicalF64;
+
+    type BindState = ();
+    type GroupState = CovarState<CovarPopFinalize>;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Float64,
+            inputs,
+        })
     }
 
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Float64, DataTypeId::Float64],
-            variadic_arg: None,
-            return_type: DataTypeId::Float64,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Compute population covariance.",
-                arguments: &["y", "x"],
-                example: None,
-            }),
-        }]
-    }
-}
-
-impl AggregateFunction for CovarPop {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction> {
-        plan_check_num_args(self, &inputs, 2)?;
-
-        match (
-            inputs[0].datatype(table_list)?,
-            inputs[1].datatype(table_list)?,
-        ) {
-            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
-                function: Box::new(*self),
-                return_type: DataType::Float64,
-                inputs,
-                function_impl: Box::new(CovarPopImpl),
-            }),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
-        }
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
+        Default::default()
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CovarPopImpl;
-
-impl AggregateFunctionImpl for CovarPopImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
-            CovarState::<CovarPopFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
-    }
-}
+pub const FUNCTION_SET_COVAR_SAMP: AggregateFunctionSet = AggregateFunctionSet {
+    name: "covar_samp",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Compute sample covariance.",
+        arguments: &["y", "x"],
+        example: None,
+    }),
+    functions: &[RawAggregateFunction::new(
+        &Signature::new(
+            &[DataTypeId::Float64, DataTypeId::Float64],
+            DataTypeId::Float64,
+        ),
+        &SimpleBinaryAggregate::new(&CovarSamp),
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CovarSamp;
 
-impl FunctionInfo for CovarSamp {
-    fn name(&self) -> &'static str {
-        "covar_samp"
+impl BinaryAggregate for CovarSamp {
+    type Input1 = PhysicalF64;
+    type Input2 = PhysicalF64;
+    type Output = PhysicalF64;
+
+    type BindState = ();
+    type GroupState = CovarState<CovarSampFinalize>;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Float64,
+            inputs,
+        })
     }
 
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Float64, DataTypeId::Float64],
-            variadic_arg: None,
-            return_type: DataTypeId::Float64,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Compute sample covariance.",
-                arguments: &["y", "x"],
-                example: None,
-            }),
-        }]
-    }
-}
-
-impl AggregateFunction for CovarSamp {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction> {
-        plan_check_num_args(self, &inputs, 2)?;
-
-        match (
-            inputs[0].datatype(table_list)?,
-            inputs[1].datatype(table_list)?,
-        ) {
-            (DataType::Float64, DataType::Float64) => Ok(PlannedAggregateFunction {
-                function: Box::new(*self),
-                return_type: DataType::Float64,
-                inputs,
-                function_impl: Box::new(CovarSampImpl),
-            }),
-            (a, b) => Err(invalid_input_types_error(self, &[a, b])),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CovarSampImpl;
-
-impl AggregateFunctionImpl for CovarSampImpl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_binary_aggregate_states::<PhysicalF64, PhysicalF64, _, _, _, _>(
-            CovarState::<CovarSampFinalize>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
+        Default::default()
     }
 }
 
 pub trait CovarFinalize: Sync + Send + Debug + Default + 'static {
-    fn finalize(co_moment: f64, count: i64) -> (f64, bool);
+    fn finalize(co_moment: f64, count: i64) -> Option<f64>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CovarSampFinalize;
 
 impl CovarFinalize for CovarSampFinalize {
-    fn finalize(co_moment: f64, count: i64) -> (f64, bool) {
+    fn finalize(co_moment: f64, count: i64) -> Option<f64> {
         match count {
-            0 | 1 => (0.0, false),
-            _ => (co_moment / (count - 1) as f64, true),
+            0 | 1 => None,
+            _ => Some(co_moment / (count - 1) as f64),
         }
     }
 }
@@ -157,10 +119,10 @@ impl CovarFinalize for CovarSampFinalize {
 pub struct CovarPopFinalize;
 
 impl CovarFinalize for CovarPopFinalize {
-    fn finalize(co_moment: f64, count: i64) -> (f64, bool) {
+    fn finalize(co_moment: f64, count: i64) -> Option<f64> {
         match count {
-            0 => (0.0, false),
-            _ => (co_moment / count as f64, true),
+            0 => None,
+            _ => Some(co_moment / count as f64),
         }
     }
 }
@@ -174,11 +136,22 @@ pub struct CovarState<F: CovarFinalize> {
     _finalize: PhantomData<F>,
 }
 
-impl<F> AggregateState<(f64, f64), f64> for CovarState<F>
+impl<F> CovarState<F>
 where
     F: CovarFinalize,
 {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    pub fn finalize_value(&self) -> Option<f64> {
+        F::finalize(self.co_moment, self.count)
+    }
+}
+
+impl<F> AggregateState<(&f64, &f64), f64> for CovarState<F>
+where
+    F: CovarFinalize,
+{
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         if self.count == 0 {
             std::mem::swap(self, other);
             return Ok(());
@@ -206,11 +179,8 @@ where
         Ok(())
     }
 
-    fn update(&mut self, input: (f64, f64)) -> Result<()> {
-        // Note that 'y' comes first, covariance functions are call like `COVAR_SAMP(y, x)`.
-        let x = input.1;
-        let y = input.0;
-
+    // Note that 'y' comes first, covariance functions are call like `COVAR_SAMP(y, x)`.
+    fn update(&mut self, _state: &(), (&y, &x): (&f64, &f64)) -> Result<()> {
         self.count += 1;
         let n = self.count as f64;
 
@@ -229,7 +199,14 @@ where
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(f64, bool)> {
-        Ok(F::finalize(self.co_moment, self.count))
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = f64>,
+    {
+        match F::finalize(self.co_moment, self.count) {
+            Some(val) => output.put(&val),
+            None => output.put_null(),
+        }
+        Ok(())
     }
 }

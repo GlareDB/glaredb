@@ -3,7 +3,7 @@ use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use crate::arrays::datatype::DataType;
-use crate::arrays::field::{Field, Schema};
+use crate::arrays::field::{ColumnSchema, Field};
 use crate::logical::binder::bind_query::bind_from::FromBinder;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::logical_describe::LogicalDescribe;
@@ -64,7 +64,7 @@ impl<'a> DescribeBinder<'a> {
 
         Ok(Node {
             node: LogicalDescribe {
-                schema: Schema::new(fields),
+                schema: ColumnSchema::new(fields),
                 table_ref,
             },
             location: LocationRequirement::Any,

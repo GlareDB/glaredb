@@ -8,7 +8,6 @@ rayexec_proto = { path = '../rayexec_proto' }
 rayexec_execution = { path = '../rayexec_execution' }
 rayexec_error = { path = '../rayexec_error' }
 rayexec_io = { path = '../rayexec_io' }
-rayexec_parquet = { path = '../rayexec_parquet' }
 parquet = { path = '../parquet' }
 futures = { workspace = true }
 tracing = { workspace = true }

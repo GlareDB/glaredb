@@ -2,19 +2,18 @@ use rayexec_error::{RayexecError, Result};
 
 use super::plan_query::QueryPlanner;
 use super::plan_subquery::SubqueryPlanner;
-use crate::arrays::scalar::ScalarValue;
-use crate::expr::column_expr::ColumnExpr;
+use crate::arrays::scalar::BorrowedScalarValue;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::{self, Expression};
-use crate::functions::table::TableFunctionImpl;
+use crate::functions::table::TableFunctionType;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin};
 use crate::logical::logical_empty::LogicalEmpty;
 use crate::logical::logical_filter::LogicalFilter;
-use crate::logical::logical_inout::LogicalInOut;
+use crate::logical::logical_inout::LogicalTableExecute;
 use crate::logical::logical_join::{
-    ComparisonCondition,
     JoinType,
     LogicalArbitraryJoin,
     LogicalComparisonJoin,
@@ -22,7 +21,12 @@ use crate::logical::logical_join::{
 };
 use crate::logical::logical_materialization::LogicalMaterializationScan;
 use crate::logical::logical_project::LogicalProject;
-use crate::logical::logical_scan::{LogicalScan, ScanSource};
+use crate::logical::logical_scan::{
+    LogicalScan,
+    ScanSource,
+    TableFunctionScanSource,
+    TableScanSource,
+};
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor;
@@ -43,11 +47,12 @@ impl FromPlanner {
 
                 let projection = (0..types.len()).collect();
 
-                let source = ScanSource::Table {
+                let source = ScanSource::Table(TableScanSource {
                     catalog: table.catalog,
                     schema: table.schema,
                     source: table.entry,
-                };
+                    function: table.scan_function,
+                });
                 let estimated_cardinality = source.cardinality();
 
                 Ok(LogicalOperator::Scan(Node {
@@ -56,7 +61,6 @@ impl FromPlanner {
                         types,
                         names,
                         projection,
-                        did_prune_columns: false,
                         scan_filters: Vec::new(),
                         source,
                     },
@@ -74,39 +78,16 @@ impl FromPlanner {
                     names.extend(table.column_names.iter().cloned());
                 }
 
-                match &func.function.function_impl {
-                    TableFunctionImpl::Scan(_) => {
-                        let projection = (0..types.len()).collect();
-
-                        let source = ScanSource::TableFunction {
-                            function: func.function,
-                        };
-                        let estimated_cardinality = source.cardinality();
-
-                        Ok(LogicalOperator::Scan(Node {
-                            node: LogicalScan {
-                                table_ref: func.table_ref,
-                                types,
-                                names,
-                                projection,
-                                did_prune_columns: false,
-                                scan_filters: Vec::new(),
-                                source,
-                            },
-                            location: func.location,
-                            children: Vec::new(),
-                            estimated_cardinality,
-                        }))
-                    }
-                    TableFunctionImpl::InOut(_) => {
-                        let cardinality = func.function.cardinality;
+                match func.function.raw.function_type() {
+                    TableFunctionType::Execute => {
+                        let cardinality = func.function.bind_state.cardinality;
 
                         // In/out always requires one input. Initialize its
                         // input with an empty operator. Subquery planning will
                         // take care of the lateral binding and changing its
                         // child as needed.
-                        Ok(LogicalOperator::InOut(Node {
-                            node: LogicalInOut {
+                        Ok(LogicalOperator::TableExecute(Node {
+                            node: LogicalTableExecute {
                                 function_table_ref: func.table_ref,
                                 function: func.function,
                                 projected_table_ref: None,
@@ -115,6 +96,28 @@ impl FromPlanner {
                             location: func.location,
                             children: vec![LogicalOperator::EMPTY],
                             estimated_cardinality: cardinality,
+                        }))
+                    }
+                    TableFunctionType::Scan => {
+                        let source = ScanSource::Function(TableFunctionScanSource {
+                            function: func.function,
+                        });
+
+                        let projection = (0..types.len()).collect();
+                        let estimated_cardinality = source.cardinality();
+
+                        Ok(LogicalOperator::Scan(Node {
+                            node: LogicalScan {
+                                table_ref: func.table_ref,
+                                types,
+                                names,
+                                projection,
+                                scan_filters: Vec::new(),
+                                source,
+                            },
+                            location: func.location,
+                            children: Vec::new(),
+                            estimated_cardinality,
                         }))
                     }
                 }
@@ -132,8 +135,11 @@ impl FromPlanner {
                     let table = bind_context.get_table(table_ref)?;
                     for col_idx in 0..table.num_columns() {
                         projections.push(Expression::Column(ColumnExpr {
-                            table_scope: table_ref,
-                            column: col_idx,
+                            reference: ColumnReference {
+                                table_scope: table_ref,
+                                column: col_idx,
+                            },
+                            datatype: table.column_types[col_idx].clone(),
                         }));
                     }
                 }
@@ -183,8 +189,11 @@ impl FromPlanner {
                     let table = bind_context.get_table(table_ref)?;
                     for col_idx in 0..table.num_columns() {
                         projections.push(Expression::Column(ColumnExpr {
-                            table_scope: table_ref,
-                            column: col_idx,
+                            reference: ColumnReference {
+                                table_scope: table_ref,
+                                column: col_idx,
+                            },
+                            datatype: table.column_types[col_idx].clone(),
                         }));
                     }
                 }
@@ -248,7 +257,7 @@ impl FromPlanner {
         if !extracted.left_filter.is_empty() {
             left = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: expr::and(extracted.left_filter).expect("at least one expression"),
+                    filter: expr::and(extracted.left_filter)?.into(),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left],
@@ -259,7 +268,7 @@ impl FromPlanner {
         if !extracted.right_filter.is_empty() {
             right = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: expr::and(extracted.right_filter).expect("at least one expression"),
+                    filter: expr::and(extracted.right_filter)?.into(),
                 },
                 location: LocationRequirement::Any,
                 children: vec![right],
@@ -301,7 +310,7 @@ impl FromPlanner {
     pub fn plan_join_from_conditions(
         &self,
         join_type: JoinType,
-        comparisons: Vec<ComparisonCondition>,
+        comparisons: Vec<ComparisonExpr>,
         arbitrary: Vec<Expression>,
         left: LogicalOperator,
         right: LogicalOperator,
@@ -316,25 +325,21 @@ impl FromPlanner {
         if use_arbitrary_join {
             let mut expressions = arbitrary;
             for condition in comparisons {
-                expressions.push(Expression::Comparison(ComparisonExpr {
-                    left: Box::new(condition.left),
-                    right: Box::new(condition.right),
-                    op: condition.op,
-                }));
+                expressions.push(Expression::Comparison(condition));
             }
 
             // Possible if we were able to push filters to left/right
             // completely.
             if expressions.is_empty() {
                 expressions.push(Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Boolean(true),
+                    literal: BorrowedScalarValue::Boolean(true),
                 }));
             }
 
             return Ok(LogicalOperator::ArbitraryJoin(Node {
                 node: LogicalArbitraryJoin {
                     join_type,
-                    condition: expr::and(expressions).expect("at least one expression"),
+                    condition: expr::and(expressions)?.into(),
                 },
                 location: LocationRequirement::Any,
                 children: vec![left, right],
@@ -357,7 +362,7 @@ impl FromPlanner {
         if !arbitrary.is_empty() {
             plan = LogicalOperator::Filter(Node {
                 node: LogicalFilter {
-                    filter: expr::and(arbitrary).expect("at least one expression"),
+                    filter: expr::and(arbitrary)?.into(),
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],

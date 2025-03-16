@@ -8,7 +8,10 @@ use super::resolve_normal::create_user_facing_resolve_err;
 use super::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
 use super::resolved_table_function::ConstantFunctionArgs;
 use super::{ResolveContext, ResolvedMeta, Resolver};
-use crate::database::catalog_entry::CatalogEntryType;
+use crate::catalog::context::SYSTEM_CATALOG;
+use crate::catalog::entry::CatalogEntryType;
+use crate::catalog::system::BUILTIN_SCHEMA;
+use crate::catalog::{Catalog, Schema};
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
 use crate::logical::operator::LocationRequirement;
 
@@ -569,12 +572,12 @@ impl<'a> ExpressionResolver<'a> {
         let (catalog, schema, func_name) = match func.reference.0.len() {
             0 => return Err(RayexecError::new("Missing idents for function reference")), // Shouldn't happen.
             1 => (
-                "system".to_string(),
-                "glare_catalog".to_string(),
+                SYSTEM_CATALOG.to_string(),
+                BUILTIN_SCHEMA.to_string(),
                 func.reference.0[0].as_normalized_string(),
             ),
             2 => (
-                "system".to_string(),
+                SYSTEM_CATALOG.to_string(),
                 func.reference.0[0].as_normalized_string(),
                 func.reference.0[1].as_normalized_string(),
             ),
@@ -602,11 +605,11 @@ impl<'a> ExpressionResolver<'a> {
         let is_qualified = func.reference.0.len() > 1;
         if self.resolver.config.enable_function_chaining
             && is_qualified
-            && (!context.database_exists(&catalog)
+            && (context.get_database(&catalog).is_none()
                 || context
-                    .get_database(&catalog)?
+                    .require_get_database(&catalog)?
                     .catalog
-                    .get_schema(self.resolver.tx, &schema)?
+                    .get_schema(&schema)?
                     .is_none())
         {
             let unqualified_name = func.reference.0.pop().unwrap(); // Length checked above.
@@ -649,9 +652,9 @@ impl<'a> ExpressionResolver<'a> {
         let args = Box::pin(self.resolve_function_args(func.args, resolve_context)).await?;
 
         let schema_ent = context
-            .get_database(&catalog)?
+            .require_get_database(&catalog)?
             .catalog
-            .get_schema(self.resolver.tx, &schema)?
+            .get_schema(&schema)?
             .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
 
         // Check if this is a special function.
@@ -670,12 +673,12 @@ impl<'a> ExpressionResolver<'a> {
         }
 
         // Now check scalars.
-        if let Some(scalar) = schema_ent.get_scalar_function(self.resolver.tx, &func_name)? {
+        if let Some(scalar) = schema_ent.get_scalar_function(&func_name)? {
             // TODO: Allow unresolved scalars?
             // TODO: This also assumes scalars (and aggs) are the same everywhere, which
             // they probably should be for now.
             let resolve_idx = resolve_context.functions.push_resolved(
-                ResolvedFunction::Scalar(scalar.try_as_scalar_function_entry()?.function.clone()),
+                ResolvedFunction::Scalar(scalar.try_as_scalar_function_entry()?.function),
                 LocationRequirement::Any,
             );
             return Ok(ast::Expr::Function(Box::new(ast::Function {
@@ -688,15 +691,10 @@ impl<'a> ExpressionResolver<'a> {
         }
 
         // Now check aggregates.
-        if let Some(aggregate) = schema_ent.get_aggregate_function(self.resolver.tx, &func_name)? {
+        if let Some(aggregate) = schema_ent.get_aggregate_function(&func_name)? {
             // TODO: Allow unresolved aggregates?
             let resolve_idx = resolve_context.functions.push_resolved(
-                ResolvedFunction::Aggregate(
-                    aggregate
-                        .try_as_aggregate_function_entry()?
-                        .function
-                        .clone(),
-                ),
+                ResolvedFunction::Aggregate(aggregate.try_as_aggregate_function_entry()?.function),
                 LocationRequirement::Any,
             );
             return Ok(ast::Expr::Function(Box::new(ast::Function {
@@ -709,7 +707,6 @@ impl<'a> ExpressionResolver<'a> {
         }
 
         Err(create_user_facing_resolve_err(
-            self.resolver.tx,
             Some(&schema_ent),
             &[
                 CatalogEntryType::ScalarFunction,

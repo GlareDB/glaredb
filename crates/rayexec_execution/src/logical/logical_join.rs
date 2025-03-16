@@ -1,13 +1,12 @@
 use std::fmt;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use super::binder::bind_context::{BindContext, MaterializationRef};
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
+use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,9 +20,9 @@ pub enum JoinType {
     /// Standard full/outer join.
     Full,
     /// Left semi join.
-    Semi,
+    LeftSemi,
     /// Left anti join.
-    Anti,
+    LeftAnti,
     /// A left join that emits all rows on the left side joined with a column
     /// that indicates if there was a join partner on the right.
     ///
@@ -40,6 +39,26 @@ pub enum JoinType {
 }
 
 impl JoinType {
+    /// If the result of a join should be empty if the build input is empty.
+    ///
+    /// Assumes "left" is the build side.
+    pub const fn empty_output_on_empty_build(&self) -> bool {
+        match self {
+            JoinType::Inner | JoinType::Left | JoinType::LeftSemi | JoinType::LeftAnti => true,
+            JoinType::Full | JoinType::Right | JoinType::LeftMark { .. } => false,
+        }
+    }
+
+    /// If this join produces all rows from the build side.
+    ///
+    /// Assumes "left" is the build side.
+    pub const fn produce_all_build_side_rows(&self) -> bool {
+        match self {
+            JoinType::Left | JoinType::Full | JoinType::LeftAnti | JoinType::LeftSemi => true,
+            JoinType::Inner | JoinType::Right | JoinType::LeftMark { .. } => false,
+        }
+    }
+
     /// Helper for determining the output refs for a given node type.
     fn output_refs<T>(self, node: &Node<T>, bind_context: &BindContext) -> Vec<TableRef> {
         if let JoinType::LeftMark { table_ref } = self {
@@ -63,80 +82,17 @@ impl fmt::Display for JoinType {
             Self::Left => write!(f, "LEFT"),
             Self::Right => write!(f, "RIGHT"),
             Self::Full => write!(f, "FULL"),
-            Self::Semi => write!(f, "SEMI"),
-            Self::Anti => write!(f, "ANTI"),
+            Self::LeftSemi => write!(f, "SEMI"),
+            Self::LeftAnti => write!(f, "ANTI"),
             Self::LeftMark { table_ref } => write!(f, "LEFT MARK (ref = {table_ref})"),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComparisonCondition {
-    /// Expression containing column references from the left side.
-    pub left: Expression,
-    /// Expression containing column references from the right side.
-    pub right: Expression,
-    /// Comparision operator.
-    pub op: ComparisonOperator,
-}
-
-impl ComparisonCondition {
-    pub fn into_expression(self) -> Expression {
-        Expression::Comparison(ComparisonExpr {
-            left: Box::new(self.left),
-            right: Box::new(self.right),
-            op: self.op,
-        })
-    }
-
-    pub fn flip_sides(&mut self) {
-        self.op = self.op.flip();
-        std::mem::swap(&mut self.left, &mut self.right);
-    }
-}
-
-impl fmt::Display for ComparisonCondition {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} {}", self.left, self.op, self.right)
-    }
-}
-
-impl TryFrom<Expression> for ComparisonCondition {
-    type Error = RayexecError;
-    fn try_from(value: Expression) -> Result<Self, Self::Error> {
-        match value {
-            Expression::Comparison(cmp) => Ok(ComparisonCondition {
-                left: *cmp.left,
-                right: *cmp.right,
-                op: cmp.op,
-            }),
-            other => Err(RayexecError::new(format!(
-                "Cannot convert '{other}' into a comparison condition"
-            ))),
-        }
-    }
-}
-
-impl ContextDisplay for ComparisonCondition {
-    fn fmt_using_context(
-        &self,
-        mode: ContextDisplayMode,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        write!(
-            f,
-            "{} {} {}",
-            ContextDisplayWrapper::with_mode(&self.left, mode),
-            self.op,
-            ContextDisplayWrapper::with_mode(&self.right, mode),
-        )
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalComparisonJoin {
     pub join_type: JoinType,
-    pub conditions: Vec<ComparisonCondition>,
+    pub conditions: Vec<ComparisonExpr>,
 }
 
 impl Explainable for LogicalComparisonJoin {
@@ -198,7 +154,7 @@ pub struct LogicalMagicJoin {
     /// The join type, behaves the same as a comparison join.
     pub join_type: JoinType,
     /// Conditions, same as comparison join.
-    pub conditions: Vec<ComparisonCondition>,
+    pub conditions: Vec<ComparisonExpr>,
 }
 
 impl Explainable for LogicalMagicJoin {
@@ -297,55 +253,5 @@ impl LogicalNode for Node<LogicalCrossJoin> {
         F: FnMut(&mut Expression) -> Result<()>,
     {
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::arrays::scalar::ScalarValue;
-    use crate::expr::literal_expr::LiteralExpr;
-
-    #[test]
-    fn flip_comparison() {
-        let a = Expression::Literal(LiteralExpr {
-            literal: ScalarValue::Int8(1),
-        });
-        let b = Expression::Literal(LiteralExpr {
-            literal: ScalarValue::Int8(2),
-        });
-
-        // (original, flipped)
-        let tests = [
-            (
-                ComparisonCondition {
-                    left: a.clone(),
-                    right: b.clone(),
-                    op: ComparisonOperator::Lt,
-                },
-                ComparisonCondition {
-                    left: b.clone(),
-                    right: a.clone(),
-                    op: ComparisonOperator::Gt,
-                },
-            ),
-            (
-                ComparisonCondition {
-                    left: a.clone(),
-                    right: b.clone(),
-                    op: ComparisonOperator::LtEq,
-                },
-                ComparisonCondition {
-                    left: b.clone(),
-                    right: a.clone(),
-                    op: ComparisonOperator::GtEq,
-                },
-            ),
-        ];
-
-        for (mut original, flipped) in tests {
-            original.flip_sides();
-            assert_eq!(flipped, original);
-        }
     }
 }

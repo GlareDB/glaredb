@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_error::Result;
-use rayexec_execution::execution::executable::profiler::ExecutionProfileData;
-use rayexec_execution::runtime::handle::QueryHandle;
+use rayexec_error::{not_implemented, Result};
+use rayexec_execution::runtime::handle::{ExecutionProfileData, QueryHandle};
 
 use super::task::{PartitionPipelineTask, TaskState};
 
@@ -33,18 +32,6 @@ impl QueryHandle for ThreadedQueryHandle {
     }
 
     fn generate_execution_profile_data(&self) -> BoxFuture<'_, Result<ExecutionProfileData>> {
-        Box::pin(async {
-            let mut data = ExecutionProfileData::default();
-            let states = self.states.lock();
-
-            for state in states.iter() {
-                let pipeline = state.pipeline.lock();
-                data.add_partition_data(&pipeline.pipeline);
-            }
-
-            // TODO: Get remote pipeline data somehow.
-
-            Ok(data)
-        })
+        Box::pin(async { not_implemented!("generate execution profile data") })
     }
 }

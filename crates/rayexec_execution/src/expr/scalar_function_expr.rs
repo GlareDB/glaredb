@@ -24,15 +24,11 @@ impl ContextDisplay for ScalarFunctionExpr {
     ) -> fmt::Result {
         let inputs: Vec<_> = self
             .function
+            .state
             .inputs
             .iter()
             .map(|expr| ContextDisplayWrapper::with_mode(expr, mode))
             .collect();
-        write!(
-            f,
-            "{}({})",
-            self.function.function.name(),
-            inputs.display_as_list()
-        )
+        write!(f, "{}({})", self.function.name, inputs.display_as_list())
     }
 }

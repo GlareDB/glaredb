@@ -107,8 +107,7 @@ impl FilterPushdown {
             return Ok(plan);
         }
 
-        let filter = expr::and(self.drain_filters().map(|ex| ex.filter))
-            .expect("expression to be created from non-empty iter");
+        let filter = expr::and(self.drain_filters().map(|ex| ex.filter))?.into();
 
         Ok(LogicalOperator::Filter(Node {
             node: LogicalFilter { filter },
@@ -458,8 +457,7 @@ impl FilterPushdown {
             JoinType::Inner => {
                 // Convert to cross join, push down on cross join.
                 for cond in plan.node.conditions {
-                    let expr = cond.into_expression();
-                    self.add_filters([expr]);
+                    self.add_filters([Expression::Comparison(cond)]);
                 }
 
                 let plan = Node {
@@ -506,7 +504,7 @@ impl FilterPushdown {
                         && matches!(plan.node.join_type, JoinType::LeftMark { .. })
                         && matches!(filter.filter, Expression::Column(_))
                     {
-                        plan.node.join_type = JoinType::Semi;
+                        plan.node.join_type = JoinType::LeftSemi;
                         continue;
                     }
 
@@ -634,20 +632,20 @@ fn replace_references(
 ) -> Result<()> {
     match expr {
         Expression::Column(col) => {
-            if col.table_scope != table_ref {
+            if col.reference.table_scope != table_ref {
                 return Err(RayexecError::new(format!(
                     "Unexpected table ref, expected {}, got {}",
-                    table_ref, col.table_scope
+                    table_ref, col.reference.table_scope
                 )));
             }
-            if col.column >= columns.len() {
+            if col.reference.column >= columns.len() {
                 return Err(RayexecError::new(format!(
                     "Column reference outside of expected columns, ref: {col}, columns len: {}",
                     columns.len()
                 )));
             }
 
-            *expr = columns[col.column].clone();
+            *expr = columns[col.reference.column].clone();
 
             Ok(())
         }

@@ -5,7 +5,7 @@ use rayexec_parser::ast;
 
 use super::select_expr_expander::ExpandedSelectExpr;
 use super::select_list::SelectList;
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::{DefaultColumnBinder, ExpressionColumnBinder};
@@ -43,6 +43,19 @@ impl<'a> SelectListBinder<'a> {
         }
 
         // Generate column names from ast expressions.
+        //
+        // We do this before binding the expressions in the select, as
+        // projections in the select can bind to previously bound projections.
+        //
+        // This enables queries like `select 1 as a, a + 2`.
+        //
+        // This is also useful for function chaining, e.g.:
+        // ```
+        // SELECT
+        //     string_col.upper() as u,
+        //     u.contains("ABC") as c,
+        //     ...
+        // ```
         let mut names = projections
             .iter()
             .map(|expr| {
@@ -107,7 +120,7 @@ impl<'a> SelectListBinder<'a> {
 
         let types = exprs
             .iter()
-            .map(|expr| expr.datatype(bind_context.get_table_list()))
+            .map(|expr| expr.datatype())
             .collect::<Result<Vec<_>>>()?;
 
         // Create table with columns. Now things can bind to the select list if
@@ -164,17 +177,20 @@ impl<'a> SelectListBinder<'a> {
             Expression::Aggregate(agg) => {
                 // Replace the aggregate in the projections list with a column
                 // reference that points to the extracted aggregate.
-                let datatype = agg.datatype(bind_context)?;
+                let datatype = agg.datatype()?;
                 let col_idx = bind_context.push_column_for_table(
                     aggregates_table,
                     "__generated_agg_ref",
-                    datatype,
+                    datatype.clone(),
                 )?;
                 let agg = std::mem::replace(
                     expression,
                     Expression::Column(ColumnExpr {
-                        table_scope: aggregates_table,
-                        column: col_idx,
+                        reference: ColumnReference {
+                            table_scope: aggregates_table,
+                            column: col_idx,
+                        },
+                        datatype,
                     }),
                 );
 
@@ -187,14 +203,17 @@ impl<'a> SelectListBinder<'a> {
                 let col_idx = bind_context.push_column_for_table(
                     groupings_table,
                     "__generated_grouping_ref",
-                    datatype,
+                    datatype.clone(),
                 )?;
 
                 let grouping = std::mem::replace(
                     expression,
                     Expression::Column(ColumnExpr {
-                        table_scope: groupings_table,
-                        column: col_idx,
+                        reference: ColumnReference {
+                            table_scope: groupings_table,
+                            column: col_idx,
+                        },
+                        datatype,
                     }),
                 );
 
@@ -224,17 +243,20 @@ impl<'a> SelectListBinder<'a> {
         if let Expression::Window(window) = expression {
             // Replace the window in the projections list with a column
             // reference that points to the extracted aggregate.
-            let datatype = window.datatype(bind_context)?;
+            let datatype = window.datatype()?;
             let col_idx = bind_context.push_column_for_table(
                 windows_table,
                 "__generated_window_ref",
-                datatype,
+                datatype.clone(),
             )?;
             let agg = std::mem::replace(
                 expression,
                 Expression::Column(ColumnExpr {
-                    table_scope: windows_table,
-                    column: col_idx,
+                    reference: ColumnReference {
+                        table_scope: windows_table,
+                        column: col_idx,
+                    },
+                    datatype,
                 }),
             );
 

@@ -1,13 +1,12 @@
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use futures::stream::{self, BoxStream};
-use futures::StreamExt;
-use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
-use rayexec_execution::execution::executable::pipeline::{
-    ExecutablePartitionPipeline,
-    ExecutablePipeline,
-};
+use rayexec_error::{not_implemented, Result, ResultExt};
+use rayexec_execution::arrays::scalar::ScalarValue;
+use rayexec_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
+use rayexec_execution::io::access::AccessConfig;
+use rayexec_execution::io::file::FileOpener;
 use rayexec_execution::runtime::handle::QueryHandle;
 use rayexec_execution::runtime::{
     ErrorSink,
@@ -16,12 +15,8 @@ use rayexec_execution::runtime::{
     Runtime,
     TokioHandlerProvider,
 };
-use rayexec_io::http::HttpClientReader;
-use rayexec_io::location::{AccessConfig, FileLocation};
-use rayexec_io::s3::{S3Client, S3Location};
-use rayexec_io::{FileProvider, FileSink, FileSource};
 
-use crate::filesystem::LocalFileSystemProvider;
+use crate::filesystem::LocalFile;
 use crate::http::TokioWrappedHttpClient;
 use crate::threaded::ThreadedScheduler;
 use crate::time::NativeInstant;
@@ -62,15 +57,10 @@ impl<S: Scheduler + 'static> PipelineExecutor for NativeExecutor<S> {
 
     fn spawn_pipelines(
         &self,
-        pipelines: Vec<ExecutablePipeline>,
+        pipelines: Vec<ExecutablePartitionPipeline>,
         errors: Arc<dyn ErrorSink>,
     ) -> Box<dyn QueryHandle> {
-        let handle = self.0.spawn_pipelines(
-            pipelines
-                .into_iter()
-                .flat_map(|pipeline| pipeline.into_partition_pipeline_iter()),
-            errors,
-        );
+        let handle = self.0.spawn_pipelines(pipelines, errors);
         Box::new(handle)
     }
 }
@@ -109,7 +99,7 @@ impl Runtime for NativeRuntime {
 
     fn file_provider(&self) -> Arc<Self::FileProvider> {
         Arc::new(NativeFileProvider {
-            handle: self.tokio.handle_opt(),
+            _handle: self.tokio.handle_opt(),
         })
     }
 
@@ -130,83 +120,30 @@ pub struct NativeFileProvider {
     ///
     /// If we don't have it, we return an error when attempting to access an
     /// http file.
-    handle: Option<tokio::runtime::Handle>,
+    _handle: Option<tokio::runtime::Handle>,
 }
 
-impl FileProvider for NativeFileProvider {
-    fn file_source(
-        &self,
-        location: FileLocation,
-        config: &AccessConfig,
-    ) -> Result<Box<dyn FileSource>> {
-        match (location, config, self.handle.as_ref()) {
-            (FileLocation::Url(url), AccessConfig::None, Some(handle)) => {
-                let client =
-                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone());
-                Ok(Box::new(HttpClientReader::new(client, url)))
-            }
-            (
-                FileLocation::Url(url),
-                AccessConfig::S3 {
-                    credentials,
-                    region,
-                },
-                Some(handle),
-            ) => {
-                let client = S3Client::new(
-                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone()),
-                    credentials.clone(),
-                );
-                let location = S3Location::from_url(url, region)?;
-                let reader = client.file_source(location, region)?;
-                Ok(reader)
-            }
-            (FileLocation::Url(_), _, None) => Err(RayexecError::new(
-                "Cannot create http client, missing tokio runtime",
-            )),
-            (FileLocation::Path(path), _, _) => LocalFileSystemProvider.file_source(&path),
-        }
+#[derive(Debug)]
+pub struct StubAccess {}
+
+impl AccessConfig for StubAccess {
+    fn from_options(
+        _unnamed: &[ScalarValue],
+        _named: &HashMap<String, ScalarValue>,
+    ) -> Result<Self> {
+        not_implemented!("access from args")
+    }
+}
+
+impl FileOpener for NativeFileProvider {
+    type AccessConfig = StubAccess;
+    type ReadFile = LocalFile;
+
+    async fn list_prefix(&self, _prefix: &str) -> Result<Vec<String>> {
+        Ok(Vec::new())
     }
 
-    fn file_sink(
-        &self,
-        location: FileLocation,
-        _config: &AccessConfig,
-    ) -> Result<Box<dyn FileSink>> {
-        match (location, self.handle.as_ref()) {
-            (FileLocation::Url(_url), _) => not_implemented!("http sink native"),
-            (FileLocation::Path(path), _) => LocalFileSystemProvider.file_sink(&path),
-        }
-    }
-
-    fn list_prefix(
-        &self,
-        prefix: FileLocation,
-        config: &AccessConfig,
-    ) -> BoxStream<'static, Result<Vec<String>>> {
-        match (prefix, config, self.handle.as_ref()) {
-            (
-                FileLocation::Url(url),
-                AccessConfig::S3 {
-                    credentials,
-                    region,
-                },
-                Some(handle),
-            ) => {
-                let client = S3Client::new(
-                    TokioWrappedHttpClient::new(reqwest::Client::default(), handle.clone()),
-                    credentials.clone(),
-                );
-                let location = S3Location::from_url(url, region).unwrap(); // TODO
-                let stream = client.list_prefix(location, region);
-                stream.boxed()
-            }
-            (FileLocation::Url(_), _, _) => Box::pin(stream::once(async move {
-                Err(RayexecError::new("Cannot list for http file sources"))
-            })),
-            (FileLocation::Path(path), _, _) => Box::pin(stream::once(async move {
-                LocalFileSystemProvider.list_prefix(&path)
-            })),
-        }
+    fn open_for_read(&self, _conf: &Self::AccessConfig) -> Result<Self::ReadFile> {
+        not_implemented!("open for read")
     }
 }

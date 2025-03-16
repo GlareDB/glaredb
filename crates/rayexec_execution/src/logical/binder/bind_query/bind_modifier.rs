@@ -209,10 +209,10 @@ impl ExpressionColumnBinder for OrderByColumnBinder<'_> {
     fn bind_from_root_literal(
         &mut self,
         _bind_scope: BindScopeRef,
-        _bind_context: &mut BindContext,
+        bind_context: &mut BindContext,
         literal: &ast::Literal<ResolvedMeta>,
     ) -> Result<Option<Expression>> {
-        if let Some(col) = self.select_list.column_by_ordinal(literal)? {
+        if let Some(col) = self.select_list.column_by_ordinal(bind_context, literal)? {
             self.did_bind_to_select = true;
             return Ok(Some(Expression::Column(col)));
         }
@@ -239,7 +239,7 @@ impl ExpressionColumnBinder for OrderByColumnBinder<'_> {
         }
 
         // Try to bind to a user-provided alias.
-        if let Some(col) = self.select_list.column_by_user_alias(ident) {
+        if let Some(col) = self.select_list.column_by_user_alias(bind_context, ident)? {
             self.did_bind_to_select = true;
             return Ok(Some(Expression::Column(col)));
         }

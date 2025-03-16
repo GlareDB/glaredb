@@ -15,12 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[macro_use]
-pub mod bit_util;
 mod bit_pack;
+pub mod bit_util;
 pub(crate) mod interner;
-#[cfg(test)]
-pub(crate) mod test_common;
-
-#[cfg(test)]
-pub use self::test_common::page_util::{DataPageBuilder, DataPageBuilderImpl};

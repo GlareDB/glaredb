@@ -16,20 +16,6 @@ select count(true) from t1;
 ----
 3
 
-# query TT
-# explain select c1, count(true) from t1 group by c1;
-# ----
-# logical   Projection (expressions = [#1, #0])
-# .           Aggregate (GROUP BY = [#1], outputs = [count(#0), #1])
-# .             Projection (expressions = [true, #0])
-# .               Scan (source = t1)
-# pipelines Pipeline 0
-# .           Project (projections = [#1, #0])
-# .           HashAggregate (aggregate_columns = [0], group_by_columns = [1])
-# .           Project (projections = [true, #0])
-# .           Scan (table = t1)
-
-
 query I rowsort
 select c1, count(true) from t1 group by c1;
 ----

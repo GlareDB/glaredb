@@ -1,11 +1,12 @@
 //! Utilities for writing values into strings (and other buffers).
-use std::fmt::{self, Display, Write as _};
+use std::fmt::{self, Display};
 use std::marker::PhantomData;
 
 use chrono::{DateTime, Utc};
 use half::f16;
 
 use crate::arrays::compute::date::SECONDS_IN_DAY;
+use crate::arrays::scalar::decimal::DecimalPrimitive;
 use crate::arrays::scalar::interval::Interval;
 
 /// Logic for formatting and writing a type to a buffer.
@@ -46,49 +47,64 @@ pub type Float32Formatter = DisplayFormatter<f32>;
 pub type Float64Formatter = DisplayFormatter<f64>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DecimalFormatter<T: Display> {
+pub struct DecimalFormatter<T: DecimalPrimitive> {
     precision: u8,
     scale: i8,
-    buf: String,
-    _type: PhantomData<T>,
+    /// Mask to use to get digits before and after the decimal point.
+    mask: T,
 }
 
 pub type Decimal64Formatter = DecimalFormatter<i64>;
 pub type Decimal128Formatter = DecimalFormatter<i128>;
 
-impl<T: Display> DecimalFormatter<T> {
+impl<T: DecimalPrimitive> DecimalFormatter<T> {
     pub fn new(precision: u8, scale: i8) -> Self {
+        let mask = T::pow(T::from(10).unwrap(), scale.unsigned_abs() as _);
+
         DecimalFormatter {
             precision,
             scale,
-            buf: String::new(),
-            _type: PhantomData,
+            mask,
         }
     }
 }
 
-impl<T: Display> Formatter for DecimalFormatter<T> {
+impl<T> Formatter for DecimalFormatter<T>
+where
+    T: DecimalPrimitive,
+{
     type Type = T;
     fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result {
-        self.buf.clear();
-        match self.scale {
-            scale if scale > 0 => {
-                write!(&mut self.buf, "{val}").expect("string write to not fail");
-                if self.buf.len() <= self.scale as usize {
-                    let pad = self.scale.unsigned_abs() as usize;
-                    write!(buf, "0.{val:0>pad$}")
-                } else {
-                    self.buf.insert(self.buf.len() - self.scale as usize, '.');
-                    write!(buf, "{}", self.buf)
-                }
-            }
-            scale if scale < 0 => {
-                write!(&mut self.buf, "{val}").expect("string write to not fail");
-                let pad = self.buf.len() + self.scale.unsigned_abs() as usize;
-                write!(buf, "{val:0<pad$}")
-            }
-            _ => write!(buf, "{val}"),
+        let mut val = *val;
+
+        if val.is_negative() {
+            val = -val;
+            write!(buf, "-")?;
         }
+
+        let (int_digits, decimal_digits) = if self.scale < 0 {
+            // Negative scale, never has anything to the right of the decimal
+            // point.
+            (val * self.mask, T::zero())
+        } else {
+            (val / self.mask, val % self.mask)
+        };
+
+        if int_digits.is_zero() {
+            write!(buf, "0")?;
+        } else {
+            write!(buf, "{int_digits}")?;
+        }
+
+        if self.scale <= 0 {
+            // Nothing left to do.
+            return Ok(());
+        }
+
+        let pad = self.scale as usize; // We just checked that this is positive.
+        write!(buf, ".{decimal_digits:0>pad$}")?;
+
+        Ok(())
     }
 }
 
@@ -283,6 +299,46 @@ mod tests {
         let mut buf = String::new();
         formatter.write(&23, &mut buf).unwrap();
         assert_eq!("23", buf);
+    }
+
+    #[test]
+    fn decimal_negative_value() {
+        let mut formatter = Decimal64Formatter::new(3, 2);
+        let mut buf = String::new();
+        formatter.write(&-49, &mut buf).unwrap();
+        assert_eq!("-0.49", buf);
+    }
+
+    #[test]
+    fn decimal_negative_value_with_left_padding_in_decimal() {
+        let mut formatter = Decimal64Formatter::new(4, 3);
+        let mut buf = String::new();
+        formatter.write(&-49, &mut buf).unwrap();
+        assert_eq!("-0.049", buf);
+    }
+
+    #[test]
+    fn decimal_negative_value_with_non_zero_int() {
+        let mut formatter = Decimal64Formatter::new(5, 3);
+        let mut buf = String::new();
+        formatter.write(&-24049, &mut buf).unwrap();
+        assert_eq!("-24.049", buf);
+    }
+
+    #[test]
+    fn decimal_negative_value_with_trailing_zero_in_decimal() {
+        let mut formatter = Decimal64Formatter::new(4, 3);
+        let mut buf = String::new();
+        formatter.write(&-490, &mut buf).unwrap();
+        assert_eq!("-0.490", buf);
+    }
+
+    #[test]
+    fn decimal_zero_right_of_decimal() {
+        let mut formatter = Decimal64Formatter::new(4, 1);
+        let mut buf = String::new();
+        formatter.write(&30, &mut buf).unwrap();
+        assert_eq!("3.0", buf);
     }
 
     #[test]

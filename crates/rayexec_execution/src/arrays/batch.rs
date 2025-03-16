@@ -1,17 +1,16 @@
-use std::sync::Arc;
+use std::fmt::Debug;
 
 use rayexec_error::{RayexecError, Result};
 use stdutil::iter::IntoExactSizeIterator;
 
-use super::array::buffer_manager::NopBufferManager;
+use super::array::selection::Selection;
+use super::cache::{BufferCache, NopCache};
 use super::datatype::DataType;
 use crate::arrays::array::Array;
-use crate::arrays::executor::scalar::concat_with_exact_total_len;
-use crate::arrays::row::ScalarRow;
-use crate::arrays::selection::SelectionVector;
+use crate::buffer::buffer_manager::NopBufferManager;
 
-/// A batch of same-length arrays.
-#[derive(Debug, Clone, PartialEq)]
+/// A batch of owned same-length arrays.
+#[derive(Debug)]
 pub struct Batch {
     /// Arrays making up the batch.
     ///
@@ -25,11 +24,14 @@ pub struct Batch {
     /// This allows "resizing" batches without needed to resize the underlying
     /// arrays, allowing for buffer reuse.
     pub(crate) num_rows: usize,
-    /// Capacity (in number of rows) of the batch.
+    /// Cache for this batch.
     ///
-    /// This should match the capacity of the arrays. If there are zero arrays
-    /// in the batch, this should be zero.
-    pub(crate) capacity: usize,
+    /// If a batch is being written to, then this cache must be configured with
+    /// appropriate buffer cache.
+    ///
+    /// If the batch is only ever going to reference shared arrays, then we can
+    /// omit the caches.
+    pub(crate) cache: Option<BufferCache>,
 }
 
 impl Batch {
@@ -37,7 +39,7 @@ impl Batch {
         Batch {
             arrays: Vec::new(),
             num_rows: 0,
-            capacity: 0,
+            cache: None,
         }
     }
 
@@ -45,29 +47,46 @@ impl Batch {
         Batch {
             arrays: Vec::new(),
             num_rows,
-            capacity: 0,
+            cache: None,
         }
     }
 
     /// Create a batch by initializing arrays for the given datatypes.
     ///
     /// Each array will be initialized to hold `capacity` rows.
-    pub fn try_new(
+    pub fn new(
         datatypes: impl IntoExactSizeIterator<Item = DataType>,
         capacity: usize,
     ) -> Result<Self> {
-        let datatypes = datatypes.into_iter();
+        let datatypes = datatypes.into_exact_size_iter();
         let mut arrays = Vec::with_capacity(datatypes.len());
 
         for datatype in datatypes {
-            let array = Array::try_new(&Arc::new(NopBufferManager), datatype, capacity)?;
+            let array = Array::new(&NopBufferManager, datatype, capacity)?;
             arrays.push(array)
         }
+
+        let cache = BufferCache::new(&NopBufferManager, capacity, arrays.len());
 
         Ok(Batch {
             arrays,
             num_rows: 0,
-            capacity,
+            cache: Some(cache),
+        })
+    }
+
+    /// Try to create a new batch using the arrays from the other batch.
+    pub fn new_from_other(other: &mut Self) -> Result<Self> {
+        let arrays = other
+            .arrays_mut()
+            .iter_mut()
+            .map(|arr| Array::new_from_other(&NopBufferManager, arr))
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Batch {
+            arrays,
+            num_rows: other.num_rows,
+            cache: None,
         })
     }
 
@@ -78,77 +97,165 @@ impl Batch {
     /// The initial number of rows the batch will report will equal the capacity
     /// of the arrays. `set_num_rows` should be used if the logical number of
     /// rows is less than capacity.
-    pub fn try_from_arrays(arrays: impl IntoIterator<Item = Array>) -> Result<Self> {
+    pub fn from_arrays(arrays: impl IntoIterator<Item = Array>) -> Result<Self> {
         let arrays: Vec<_> = arrays.into_iter().collect();
-        let capacity = match arrays.first() {
-            Some(arr) => arr.capacity(),
+        let num_rows = match arrays.first() {
+            Some(arr) => arr.logical_len(),
             None => {
                 return Ok(Batch {
                     arrays: Vec::new(),
                     num_rows: 0,
-                    capacity: 0,
+                    cache: None,
                 })
             }
         };
 
         for array in &arrays {
-            if array.capacity() != capacity {
+            if array.logical_len() != num_rows {
                 return Err(RayexecError::new(
-                    "Attempted to create batch from arrays with different capacities",
+                    "Attempted to create batch from arrays with different lengths",
                 )
-                .with_field("expected", capacity)
-                .with_field("got", array.capacity()));
+                .with_field("expected", num_rows)
+                .with_field("got", array.logical_len()));
             }
         }
 
         Ok(Batch {
             arrays,
-            num_rows: capacity,
-            capacity,
+            num_rows,
+            cache: None,
         })
     }
 
-    pub fn num_rows(&self) -> usize {
-        self.num_rows
+    /// Try to clone arrays from another batch into self.
+    ///
+    /// If we have a cache configured for this batch, we'll attempt to cache the
+    /// current array buffers for later reuse.
+    pub fn clone_from_other(&mut self, other: &mut Self) -> Result<()> {
+        check_num_arrays(self, other)?;
+        match &mut self.cache {
+            Some(cache) => {
+                debug_assert_eq!(self.arrays.len(), cache.cached.len());
+                for (src, (dest, dest_cache)) in other
+                    .arrays
+                    .iter_mut()
+                    .zip(self.arrays.iter_mut().zip(&mut cache.cached))
+                {
+                    dest.clone_from_other(src, dest_cache)?;
+                }
+            }
+            None => {
+                for (src, dest) in other.arrays.iter_mut().zip(&mut self.arrays) {
+                    dest.clone_from_other(src, &mut NopCache)?;
+                }
+            }
+        }
+
+        self.num_rows = other.num_rows;
+
+        Ok(())
     }
 
-    /// Sets the logical number of rows for the batch.
+    /// Swap a pair of arrays between two batches.
     ///
-    /// Errors if `rows` is greater than the capacity of the batch.
-    pub fn set_num_rows(&mut self, rows: usize) -> Result<()> {
-        // TODO: Need to solidify what capacity should be with dictionaries.
-        // if rows > self.capacity {
-        //     return Err(RayexecError::new("Number of rows exceeds capacity")
-        //         .with_field("capacity", self.capacity)
-        //         .with_field("requested_num_rows", rows));
-        // }
-        self.num_rows = rows;
+    /// This does not alter the cache for either batch.
+    pub fn swap_arrays(
+        &mut self,
+        own_idx: usize,
+        (other, other_idx): (&mut Self, usize),
+    ) -> Result<()> {
+        self.arrays[own_idx].swap(&mut other.arrays[other_idx])
+    }
+
+    /// Clones an array from the other batch into this batch.
+    ///
+    /// Tries to cache the existing array for this batch.
+    pub fn clone_array_from(
+        &mut self,
+        own_idx: usize,
+        (other, other_idx): (&mut Self, usize),
+    ) -> Result<()> {
+        match &mut self.cache {
+            Some(cache) => self.arrays[own_idx]
+                .clone_from_other(&mut other.arrays[other_idx], &mut cache.cached[own_idx]),
+            None => {
+                self.arrays[own_idx].clone_from_other(&mut other.arrays[other_idx], &mut NopCache)
+            }
+        }
+    }
+
+    /// Try to clone an row from another batch into this batch.
+    ///
+    /// `num_rows` determines the how many times the row will be logically
+    /// repeated in the batch.
+    ///
+    /// If we have a cache configured, arrays buffers will attempt to be cached.
+    pub fn clone_row_from_other(
+        &mut self,
+        other: &mut Self,
+        row: usize,
+        num_rows: usize,
+    ) -> Result<()> {
+        check_num_arrays(self, other)?;
+        match &mut self.cache {
+            Some(cache) => {
+                debug_assert_eq!(self.arrays.len(), cache.cached.len());
+                for ((src, src_cache), dest) in
+                    (other.arrays.iter_mut().zip(&mut cache.cached)).zip(&mut self.arrays)
+                {
+                    dest.clone_constant_from(src, row, num_rows, src_cache)?;
+                }
+            }
+            None => {
+                for (src, dest) in other.arrays.iter_mut().zip(&mut self.arrays) {
+                    dest.clone_constant_from(src, row, num_rows, &mut NopCache)?;
+                }
+            }
+        }
+
+        self.num_rows = num_rows;
 
         Ok(())
     }
 
     /// Selects rows from the batch based on `selection`.
-    pub fn select(&mut self, selection: &[usize]) -> Result<()> {
+    pub fn select(
+        &mut self,
+        selection: impl IntoExactSizeIterator<Item = usize> + Clone,
+    ) -> Result<()> {
+        let num_rows = selection.clone().into_exact_size_iter().len();
         for arr in &mut self.arrays {
-            arr.select(&Arc::new(NopBufferManager), selection.iter().copied())?;
+            let selection = selection.clone();
+            arr.select(&NopBufferManager, selection)?;
         }
-        self.set_num_rows(selection.len())?;
+        self.set_num_rows(num_rows)?;
 
         Ok(())
     }
 
     /// Reset all arrays in the batch for writes.
+    ///
+    /// This errors if we don't have a buffer cache configured for this batch.
     pub fn reset_for_write(&mut self) -> Result<()> {
-        for arr in &mut self.arrays {
-            arr.reset_for_write(&Arc::new(NopBufferManager))?;
+        match &mut self.cache {
+            Some(cache) => {
+                cache.reset_arrays(&mut self.arrays)?;
+                self.num_rows = 0;
+                Ok(())
+            }
+            None => Err(RayexecError::new(
+                "No buffer cache configured for batch, cannot reset for write",
+            )),
         }
-        Ok(())
     }
 
     /// Copy rows from this batch to another batch.
     ///
     /// `mapping` provides (from, to) pairs for how to copy the rows.
-    pub fn copy_rows(&self, mapping: &[(usize, usize)], dest: &mut Self) -> Result<()> {
+    pub fn copy_rows<I>(&self, mapping: I, dest: &mut Self) -> Result<()>
+    where
+        I: IntoIterator<Item = (usize, usize)> + Clone,
+    {
         if self.arrays.len() != dest.arrays.len() {
             return Err(RayexecError::new(
                 "Attempted to copy rows to another batch with invalid number of columns",
@@ -156,7 +263,8 @@ impl Batch {
         }
 
         for (from, to) in self.arrays.iter().zip(dest.arrays.iter_mut()) {
-            from.copy_rows(mapping.iter().copied(), to)?;
+            let mapping = mapping.clone();
+            from.copy_rows(mapping, to)?;
         }
 
         Ok(())
@@ -167,12 +275,13 @@ impl Batch {
     /// Errors if this batch doesn't have enough capacity to append the other
     /// batch.
     pub fn append(&mut self, other: &Batch) -> Result<()> {
-        if self.num_rows() + other.num_rows() > self.capacity {
+        let capacity = self.write_capacity()?;
+        if self.num_rows() + other.num_rows() > capacity {
             return Err(
                 RayexecError::new("Batch doesn't have sufficient capacity for append")
                     .with_field("self_rows", self.num_rows())
                     .with_field("other_rows", other.num_rows())
-                    .with_field("self_capacity", self.capacity),
+                    .with_field("self_capacity", capacity),
             );
         }
 
@@ -188,122 +297,6 @@ impl Batch {
         Ok(())
     }
 
-    /// Concat multiple batches into one.
-    ///
-    /// Batches are requried to have the same logical schemas.
-    #[deprecated]
-    pub fn concat(batches: &[Batch]) -> Result<Self> {
-        let num_cols = match batches.first() {
-            Some(batch) => batch.num_arrays(),
-            None => return Err(RayexecError::new("Cannot concat zero batches")),
-        };
-
-        for batch in batches {
-            if batch.num_arrays() != num_cols {
-                return Err(RayexecError::new(format!(
-                    "Cannot concat batches with different number of columns, got {} and {}",
-                    num_cols,
-                    batch.num_arrays()
-                )));
-            }
-        }
-
-        let num_rows: usize = batches.iter().map(|b| b.num_rows).sum();
-
-        // Special case for zero col batches. The true number of rows wouldn't
-        // be reflected if we just attempted to concat no array.
-        if num_cols == 0 {
-            return Ok(Batch::empty_with_num_rows(num_rows));
-        }
-
-        let mut output_cols = Vec::with_capacity(num_cols);
-
-        let mut working_arrays = Vec::with_capacity(batches.len());
-        for col_idx in 0..num_cols {
-            batches
-                .iter()
-                .for_each(|b| working_arrays.push(b.array(col_idx).unwrap()));
-
-            let out = concat_with_exact_total_len(&working_arrays, num_rows)?;
-            output_cols.push(out);
-
-            working_arrays.clear();
-        }
-
-        Batch::try_from_arrays(output_cols)
-    }
-
-    // TODO: Owned variant
-    #[deprecated]
-    pub fn project(&self, indices: &[usize]) -> Self {
-        let cols = indices
-            .iter()
-            .map(|idx| self.arrays[*idx].clone())
-            .collect();
-
-        Batch {
-            arrays: cols,
-            num_rows: self.num_rows,
-            capacity: self.capacity,
-        }
-    }
-
-    // TODO: Remove
-    #[deprecated]
-    pub fn slice(&self, offset: usize, count: usize) -> Self {
-        let cols = self.arrays.iter().map(|c| c.slice(offset, count)).collect();
-        Batch {
-            arrays: cols,
-            num_rows: count,
-            capacity: count,
-        }
-    }
-
-    // TODO: Remove
-    /// Selects rows in the batch.
-    ///
-    /// This accepts an Arc selection as it'll be cloned for each array in the
-    /// batch.
-    #[deprecated]
-    pub fn select_old(&self, selection: Arc<SelectionVector>) -> Batch {
-        let cols = self
-            .arrays
-            .iter()
-            .map(|c| {
-                let mut col = c.clone();
-                col.select_mut2(selection.clone());
-                col
-            })
-            .collect();
-
-        Batch {
-            arrays: cols,
-            num_rows: selection.as_ref().num_rows(),
-            capacity: selection.as_ref().num_rows(),
-        }
-    }
-
-    /// Get the row at some index.
-    #[deprecated]
-    pub fn row(&self, idx: usize) -> Option<ScalarRow> {
-        if idx >= self.num_rows {
-            return None;
-        }
-
-        // Non-zero number of rows, but no actual columns. Just return an empty
-        // row.
-        if self.arrays.is_empty() {
-            return Some(ScalarRow::empty());
-        }
-
-        let row = self
-            .arrays
-            .iter()
-            .map(|col| col.logical_value(idx).unwrap());
-
-        Some(ScalarRow::from_iter(row))
-    }
-
     pub fn array(&self, idx: usize) -> Option<&Array> {
         self.arrays.get(idx)
     }
@@ -312,7 +305,7 @@ impl Batch {
         &self.arrays
     }
 
-    pub fn array_mut(&mut self) -> &mut [Array] {
+    pub fn arrays_mut(&mut self) -> &mut [Array] {
         &mut self.arrays
     }
 
@@ -330,11 +323,11 @@ impl Batch {
     #[cfg(debug_assertions)]
     #[allow(unused)]
     pub fn debug_table(&self) -> super::format::pretty::table::PrettyTable {
-        use crate::arrays::field::{Field, Schema};
+        use crate::arrays::field::{ColumnSchema, Field};
         use crate::arrays::format::pretty::table::PrettyTable;
 
         let schema =
-            Schema::new(self.arrays.iter().enumerate().map(|(idx, array)| {
+            ColumnSchema::new(self.arrays.iter().enumerate().map(|(idx, array)| {
                 Field::new(format!("array{idx}"), array.datatype().clone(), true)
             }));
 
@@ -343,37 +336,121 @@ impl Batch {
     }
 }
 
+impl Batch {
+    /// Get the write capacity for this batch.
+    ///
+    /// Errors if we don't have a buffer cache configured for this batchs.
+    pub fn write_capacity(&self) -> Result<usize> {
+        match &self.cache {
+            Some(cache) => Ok(cache.capacity()),
+            None => Err(RayexecError::new(
+                "Batch doesn't have a buffer cache and cannot be written to",
+            )),
+        }
+    }
+
+    /// Returns a selection that selects rows [0, num_rows).
+    pub fn selection<'a>(&self) -> Selection<'a> {
+        Selection::Linear {
+            start: 0,
+            len: self.num_rows,
+        }
+    }
+
+    pub fn num_rows(&self) -> usize {
+        self.num_rows
+    }
+
+    /// Sets the logical number of rows for the batch.
+    pub fn set_num_rows(&mut self, rows: usize) -> Result<()> {
+        self.num_rows = rows;
+        Ok(())
+    }
+}
+
+/// Check that two batches have the same number of arrays.
+fn check_num_arrays(b1: &Batch, b2: &Batch) -> Result<()> {
+    if b1.arrays.len() != b2.arrays.len() {
+        return Err(RayexecError::new("Batches have different number of arrays")
+            .with_field("batch1", b1.arrays.len())
+            .with_field("batch2", b2.arrays.len()));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::arrays::testutil::assert_batches_eq;
+    use crate::testutil::arrays::assert_batches_eq;
+
+    #[test]
+    fn new_from_other() {
+        let mut batch = Batch::from_arrays([
+            Array::try_from_iter([1, 2, 3, 4]).unwrap(),
+            Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
+        ])
+        .unwrap();
+
+        let new_batch = Batch::new_from_other(&mut batch).unwrap();
+
+        let expected = Batch::from_arrays([
+            Array::try_from_iter([1, 2, 3, 4]).unwrap(),
+            Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
+        ])
+        .unwrap();
+
+        assert_batches_eq(&expected, &batch);
+        assert_batches_eq(&expected, &new_batch);
+    }
 
     #[test]
     fn append_batch_simple() {
-        let mut batch = Batch::try_new([DataType::Int32, DataType::Utf8], 1024).unwrap();
+        let mut batch = Batch::new([DataType::Int32, DataType::Utf8], 1024).unwrap();
 
-        let append1 = Batch::try_from_arrays([
+        let append1 = Batch::from_arrays([
             Array::try_from_iter([1, 2, 3]).unwrap(),
             Array::try_from_iter(["a", "b", "c"]).unwrap(),
         ])
         .unwrap();
         batch.append(&append1).unwrap();
 
-        let append2 = Batch::try_from_arrays([
+        let append2 = Batch::from_arrays([
             Array::try_from_iter([4, 5, 6]).unwrap(),
             Array::try_from_iter(["d", "e", "f"]).unwrap(),
         ])
         .unwrap();
         batch.append(&append2).unwrap();
 
-        let expected = Batch::try_from_arrays([
+        let expected = Batch::from_arrays([
             Array::try_from_iter([1, 2, 3, 4, 5, 6]).unwrap(),
             Array::try_from_iter(["a", "b", "c", "d", "e", "f"]).unwrap(),
         ])
         .unwrap();
 
         assert_batches_eq(&expected, &batch);
+    }
+
+    #[test]
+    fn clone_from_simple() {
+        let mut batch1 = Batch::from_arrays([
+            Array::try_from_iter([1, 2, 3, 4]).unwrap(),
+            Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
+        ])
+        .unwrap();
+
+        let mut batch2 = Batch::new([DataType::Int32, DataType::Utf8], 4).unwrap();
+
+        batch2.clone_from_other(&mut batch1).unwrap();
+
+        let expected = Batch::from_arrays([
+            Array::try_from_iter([1, 2, 3, 4]).unwrap(),
+            Array::try_from_iter(["a", "b", "c", "d"]).unwrap(),
+        ])
+        .unwrap();
+
+        assert_batches_eq(&expected, &batch1);
+        assert_batches_eq(&expected, &batch2);
     }
 }

@@ -5,7 +5,7 @@ use rayexec_parser::ast::{self};
 
 use super::bind_group_by::BoundGroupBy;
 use super::bind_select_list::SelectListBinder;
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
@@ -135,11 +135,16 @@ impl SelectList {
             )?;
 
             // Project out only expressions in the original select list.
+            let projections_table = bind_context.get_table(self.projections_table)?;
+
             let expressions = (0..len)
                 .map(|idx| {
                     Expression::Column(ColumnExpr {
-                        table_scope: self.projections_table,
-                        column: idx,
+                        reference: ColumnReference {
+                            table_scope: self.projections_table,
+                            column: idx,
+                        },
+                        datatype: projections_table.column_types[idx].clone(),
                     })
                 })
                 .collect();
@@ -183,8 +188,11 @@ impl SelectList {
         fn inner(bind_context: &BindContext, expr: &Expression, refs: &[TableRef]) -> Result<()> {
             match expr {
                 Expression::Column(col) => {
-                    if !refs.iter().any(|table_ref| &col.table_scope == table_ref) {
-                        let (col_name, _) = bind_context.get_column(col.table_scope, col.column)?;
+                    if !refs
+                        .iter()
+                        .any(|table_ref| &col.reference.table_scope == table_ref)
+                    {
+                        let (col_name, _) = bind_context.get_column(col.reference)?;
                         return Err(RayexecError::new(format!("Column '{col_name}' must appear in the GROUP BY clause or be used in an aggregate function")));
                     }
                 }
@@ -225,7 +233,7 @@ impl SelectList {
         bind_context: &mut BindContext,
         mut expr: Expression,
     ) -> Result<ColumnExpr> {
-        let datatype = expr.datatype(bind_context.get_table_list())?;
+        let datatype = expr.datatype()?;
 
         SelectListBinder::extract_aggregates(
             self.aggregates_table,
@@ -240,33 +248,49 @@ impl SelectList {
         let idx = bind_context.push_column_for_table(
             self.projections_table,
             "__appended_proj",
-            datatype,
+            datatype.clone(),
         )?;
 
         Ok(ColumnExpr {
-            table_scope: self.projections_table,
-            column: idx,
+            reference: ColumnReference {
+                table_scope: self.projections_table,
+                column: idx,
+            },
+            datatype,
         })
     }
 
     /// Try to get a column by a user-provided alias.
-    pub fn column_by_user_alias(&self, ident: &ast::Ident) -> Option<ColumnExpr> {
+    ///
+    /// Returns Ok(None) if a column with the given ident alias doesn't exist.
+    pub fn column_by_user_alias(
+        &self,
+        bind_context: &BindContext,
+        ident: &ast::Ident,
+    ) -> Result<Option<ColumnExpr>> {
         let name = ident.as_normalized_string();
 
         // Check user provided alias first.
         if let Some(idx) = self.alias_map.get(&name) {
-            return Some(ColumnExpr {
+            let reference = ColumnReference {
                 table_scope: self.projections_table,
                 column: *idx,
-            });
+            };
+            let datatype = bind_context.get_column_type(reference)?;
+
+            return Ok(Some(ColumnExpr {
+                reference,
+                datatype,
+            }));
         }
 
-        None
+        Ok(None)
     }
 
     /// Get a column reference by ordinal.
     pub fn column_by_ordinal(
         &self,
+        bind_context: &BindContext,
         lit: &ast::Literal<ResolvedMeta>,
     ) -> Result<Option<ColumnExpr>> {
         if let ast::Literal::Number(s) = lit {
@@ -280,11 +304,18 @@ impl SelectList {
                 )))?;
             }
 
-            return Ok(Some(ColumnExpr {
+            let reference = ColumnReference {
                 table_scope: self.projections_table,
-                column: n as usize - 1,
+                column: n as usize - 1, // SQL is 1 indexed
+            };
+            let datatype = bind_context.get_column_type(reference)?;
+
+            return Ok(Some(ColumnExpr {
+                reference,
+                datatype,
             }));
         }
+
         Ok(None)
     }
 
@@ -353,18 +384,26 @@ impl SelectList {
         // Update group expressions to be the base for any aliased expressions.
         for (idx, expr) in group_by.expressions.iter_mut().enumerate() {
             if let Expression::Column(col) = expr {
-                if col.table_scope == self.projections_table {
-                    let proj_expr = self.projections.get_mut(col.column).ok_or_else(|| {
-                        RayexecError::new(format!("Missing projection column: {col}"))
-                    })?;
+                if col.reference.table_scope == self.projections_table {
+                    let proj_expr =
+                        self.projections
+                            .get_mut(col.reference.column)
+                            .ok_or_else(|| {
+                                RayexecError::new(format!("Missing projection column: {col}"))
+                            })?;
 
-                    // Point projection to group by expression, replace group by
+                    let datatype = proj_expr.datatype()?;
+
+                    // Point projection to GROUP BY expression, replace GROUP BY
                     // expression with original expression.
                     let orig = std::mem::replace(
                         proj_expr,
                         Expression::Column(ColumnExpr {
-                            table_scope: group_by.group_exprs_table,
-                            column: idx,
+                            reference: ColumnReference {
+                                table_scope: group_by.group_exprs_table,
+                                column: idx,
+                            },
+                            datatype,
                         }),
                     );
 
@@ -375,11 +414,11 @@ impl SelectList {
 
         fn update_projection_expr(
             group_by_expr: &Expression,
-            group_by_col: ColumnExpr,
+            group_by_col: &ColumnExpr,
             expr: &mut Expression,
         ) -> Result<()> {
             if expr == group_by_expr {
-                *expr = Expression::Column(group_by_col);
+                *expr = Expression::Column(group_by_col.clone());
                 return Ok(());
             }
 
@@ -392,12 +431,15 @@ impl SelectList {
         // BY expressions.
         for (idx, group_by_expr) in group_by.expressions.iter().enumerate() {
             let group_by_col = ColumnExpr {
-                table_scope: group_by.group_exprs_table,
-                column: idx,
+                reference: ColumnReference {
+                    table_scope: group_by.group_exprs_table,
+                    column: idx,
+                },
+                datatype: group_by_expr.datatype()?,
             };
 
             for expr in self.projections.iter_mut().chain(self.appended.iter_mut()) {
-                update_projection_expr(group_by_expr, group_by_col, expr)?;
+                update_projection_expr(group_by_expr, &group_by_col, expr)?;
             }
         }
 

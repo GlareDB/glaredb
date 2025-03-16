@@ -34,7 +34,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use crate::basic::{ColumnOrder, Compression, Encoding, Type};
-use crate::errors::Result;
+use crate::errors::{general_err, ParquetResult};
 use crate::file::page_encoding_stats::{self, PageEncodingStats};
 use crate::file::page_index::index::Index;
 use crate::file::statistics::{self, Statistics};
@@ -88,11 +88,6 @@ pub type ParquetOffsetIndex = Vec<Vec<Vec<PageLocation>>>;
 /// * (Optional) "Page Index" structures: [`ParquetColumnIndex`] and [`ParquetOffsetIndex`]
 ///
 /// [`parquet.thrift`]: https://github.com/apache/parquet-format/blob/master/src/main/thrift/parquet.thrift
-///
-/// This structure is read by the various readers in this crate or can be read
-/// directly from a file using the [`parse_metadata`] function.
-///
-/// [`parse_metadata`]: crate::file::footer::parse_metadata
 #[derive(Debug, Clone)]
 pub struct ParquetMetaData {
     /// File level metadata
@@ -285,16 +280,19 @@ pub type RowGroupMetaDataPtr = Arc<RowGroupMetaData>;
 
 /// Metadata for a row group
 ///
-/// Includes [`ColumnChunkMetaData`] for each column in the row group, the number of rows
-/// the total byte size of the row group, and the [`SchemaDescriptor`] for the row group.
+/// Includes [`ColumnChunkMetaData`] for each column in the row group, the
+/// number of rows the total byte size of the row group, and the
+/// [`SchemaDescriptor`] for the row group.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RowGroupMetaData {
     columns: Vec<ColumnChunkMetaData>,
     num_rows: i64,
     sorting_columns: Option<Vec<SortingColumn>>,
+    /// Total byte size of uncompressed data.
     total_byte_size: i64,
     schema_descr: SchemaDescPtr,
-    /// We can't infer from file offset of first column since there may empty columns in row group.
+    /// We can't infer from file offset of first column since there may empty
+    /// columns in row group.
     file_offset: Option<i64>,
     /// Ordinal position of this row group in file
     ordinal: Option<i16>,
@@ -367,7 +365,10 @@ impl RowGroupMetaData {
     }
 
     /// Method to convert from Thrift.
-    pub fn from_thrift(schema_descr: SchemaDescPtr, mut rg: RowGroup) -> Result<RowGroupMetaData> {
+    pub fn from_thrift(
+        schema_descr: SchemaDescPtr,
+        mut rg: RowGroup,
+    ) -> ParquetResult<RowGroupMetaData> {
         if schema_descr.num_columns() != rg.columns.len() {
             return Err(general_err!(
                 "Column count mismatch. Schema has {} columns while Row Group has {}",
@@ -466,7 +467,7 @@ impl RowGroupMetaDataBuilder {
     }
 
     /// Builds row group metadata.
-    pub fn build(self) -> Result<RowGroupMetaData> {
+    pub fn build(self) -> ParquetResult<RowGroupMetaData> {
         if self.0.schema_descr.num_columns() != self.0.columns.len() {
             return Err(general_err!(
                 "Column length mismatch: {} != {}",
@@ -488,6 +489,8 @@ pub struct ColumnChunkMetaData {
     file_offset: i64,
     num_values: i64,
     compression: Compression,
+    /// Total byte size of all compressed, and potentially encrypted, pages in
+    /// this column chunk (including the headers)
     total_compressed_size: i64,
     total_uncompressed_size: i64,
     data_page_offset: i64,
@@ -630,6 +633,7 @@ impl ColumnChunkMetaData {
     }
 
     /// Returns the range for the offset index if any
+    #[allow(unused)]
     pub(crate) fn column_index_range(&self) -> Option<Range<usize>> {
         let offset = usize::try_from(self.column_index_offset?).ok()?;
         let length = usize::try_from(self.column_index_length?).ok()?;
@@ -647,6 +651,7 @@ impl ColumnChunkMetaData {
     }
 
     /// Returns the range for the offset index if any
+    #[allow(unused)]
     pub(crate) fn offset_index_range(&self) -> Option<Range<usize>> {
         let offset = usize::try_from(self.offset_index_offset?).ok()?;
         let length = usize::try_from(self.offset_index_length?).ok()?;
@@ -654,7 +659,7 @@ impl ColumnChunkMetaData {
     }
 
     /// Method to convert from Thrift.
-    pub fn from_thrift(column_descr: ColumnDescPtr, cc: ColumnChunk) -> Result<Self> {
+    pub fn from_thrift(column_descr: ColumnDescPtr, cc: ColumnChunk) -> ParquetResult<Self> {
         if cc.meta_data.is_none() {
             return Err(general_err!("Expected to have column metadata"));
         }
@@ -664,7 +669,7 @@ impl ColumnChunkMetaData {
             .encodings
             .drain(0..)
             .map(Encoding::try_from)
-            .collect::<Result<_>>()?;
+            .collect::<ParquetResult<_>>()?;
         let compression = Compression::try_from(col_metadata.codec)?;
         let file_path = cc.file_path;
         let file_offset = cc.file_offset;
@@ -681,7 +686,7 @@ impl ColumnChunkMetaData {
             .map(|vec| {
                 vec.iter()
                     .map(page_encoding_stats::try_from_thrift)
-                    .collect::<Result<_>>()
+                    .collect::<ParquetResult<_>>()
             })
             .transpose()?;
         let bloom_filter_offset = col_metadata.bloom_filter_offset;
@@ -900,7 +905,7 @@ impl ColumnChunkMetaDataBuilder {
     }
 
     /// Builds column chunk metadata.
-    pub fn build(self) -> Result<ColumnChunkMetaData> {
+    pub fn build(self) -> ParquetResult<ColumnChunkMetaData> {
         Ok(self.0)
     }
 }

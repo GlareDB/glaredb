@@ -2,240 +2,173 @@ use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{PhysicalI64, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor};
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
-use crate::functions::{
-    invalid_input_types_error,
-    plan_check_num_args_one_of,
-    FunctionInfo,
-    Signature,
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
+
+pub const FUNCTION_SET_LEFT_PAD: ScalarFunctionSet = ScalarFunctionSet {
+    name: "lpad",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description:
+            "Left pad a string with spaces until the resulting string contains 'count' characters.",
+        arguments: &["string", "count"],
+        example: Some(Example {
+            example: "lpad('house', 8)",
+            output: "   house",
+        }),
+    }),
+    functions: &[
+        // lpad(string, count)
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
+            &LeftPad,
+        ),
+        // lpad(string, count, pad_val)
+        RawScalarFunction::new(
+            &Signature::new(
+                &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Utf8],
+                DataTypeId::Utf8,
+            ),
+            &LeftPad,
+        ),
+    ],
 };
-use crate::logical::binder::table_list::TableList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LeftPad;
 
-impl FunctionInfo for LeftPad {
-    fn name(&self) -> &'static str {
-        "lpad"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                positional_args: &[DataTypeId::Utf8, DataTypeId::Int64],
-                variadic_arg: None,
-                return_type: DataTypeId::Utf8,
-                doc: Some(&Documentation{
-                    category: Category::String,
-                    description: "Left pad a string with spaces until the resulting string contains 'count' characters.",
-                    arguments: &["string", "count"],
-                    example: Some(Example{
-                        example: "lpad('house', 8)",
-                        output: "   house",
-                    }),
-                }),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Utf8],
-                variadic_arg: None,
-                return_type: DataTypeId::Utf8,
-                doc: Some(&Documentation{
-                    category: Category::String,
-                    description: "Left pad a string with another string until the resulting string contains 'count' characters.",
-                    arguments: &["string", "count", "pad"],
-                    example: Some(Example{
-                        example: "lpad('house', 8, '_')",
-                        output: "___house",
-                    }),
-                }),
-            },
-        ]
-    }
-}
-
 impl ScalarFunction for LeftPad {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        plan_check_num_args_one_of(self, &inputs, [2, 3])?;
+    type State = ();
 
-        let datatypes = inputs
-            .iter()
-            .map(|input| input.datatype(table_list))
-            .collect::<Result<Vec<_>>>()?;
-
-        match inputs.len() {
-            2 => match (&datatypes[0], &datatypes[1]) {
-                (DataType::Utf8, DataType::Int64) => (),
-                (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
-            },
-            3 => match (&datatypes[0], &datatypes[1], &datatypes[2]) {
-                (DataType::Utf8, DataType::Int64, DataType::Utf8) => (),
-                (a, b, c) => return Err(invalid_input_types_error(self, &[a, b, c])),
-            },
-            other => unreachable!("num inputs checked, got {other}"),
-        }
-
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
             return_type: DataType::Utf8,
             inputs,
-            function_impl: Box::new(LeftPadImpl),
         })
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LeftPadImpl;
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
 
-impl ScalarFunctionImpl for LeftPadImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let mut string_buf = String::new();
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
-        };
 
-        match inputs.len() {
-            2 => BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
-                inputs[0],
-                inputs[1],
-                builder,
-                |s, count, buf| {
+        match input.arrays().len() {
+            2 => BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _>(
+                &input.arrays[0],
+                sel,
+                &input.arrays()[1],
+                sel,
+                OutBuffer::from_array(output)?,
+                |s, &count, buf| {
                     lpad(s, count, " ", &mut string_buf);
                     buf.put(&string_buf);
                 },
             ),
-            3 => TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _, _>(
-                inputs[0],
-                inputs[1],
-                inputs[2],
-                builder,
-                |s, count, pad, buf| {
-                    lpad(s, count, pad, &mut string_buf);
-                    buf.put(&string_buf);
-                },
-            ),
+            3 => {
+                TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, PhysicalUtf8, _>(
+                    &input.arrays[0],
+                    sel,
+                    &input.arrays()[1],
+                    sel,
+                    &input.arrays()[2],
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |s, &count, pad, buf| {
+                        lpad(s, count, pad, &mut string_buf);
+                        buf.put(&string_buf);
+                    },
+                )
+            }
             other => unreachable!("num inputs checked, got {other}"),
         }
     }
 }
+
+pub const FUNCTION_SET_RIGHT_PAD: ScalarFunctionSet = ScalarFunctionSet {
+    name: "rpad",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description:
+            "Right pad a string with spaces until the resulting string contains 'count' characters.",
+        arguments: &["string", "count"],
+        example: Some(Example {
+            example: "rpad('house', 8)",
+            output: "house    ",
+        }),
+    }),
+    functions: &[
+        // rpad(string, count)
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
+            &RightPad,
+        ),
+        // rpad(string, count, pad_val)
+        RawScalarFunction::new(
+            &Signature::new(
+                &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Utf8],
+                DataTypeId::Utf8,
+            ),
+            &RightPad,
+        ),
+    ],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RightPad;
 
-impl FunctionInfo for RightPad {
-    fn name(&self) -> &'static str {
-        "rpad"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[
-            Signature {
-                positional_args: &[DataTypeId::Utf8, DataTypeId::Int64],
-                variadic_arg: None,
-                return_type: DataTypeId::Utf8,
-                doc: Some(&Documentation{
-                    category: Category::String,
-                    description: "Right pad a string with spaces until the resulting string contains 'count' characters.",
-                    arguments: &["string", "count"],
-                    example: Some(Example{
-                        example: "rpad('house', 8)",
-                        output: "house   ",
-                    }),
-                }),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Utf8],
-                variadic_arg: None,
-                return_type: DataTypeId::Utf8,
-                doc: Some(&Documentation{
-                    category: Category::String,
-                    description: "Right pad a string with another string until the resulting string contains 'count' characters.",
-                    arguments: &["string", "count", "pad"],
-                    example: Some(Example{
-                        example: "rpad('house', 8, '_')",
-                        output: "house___",
-                    }),
-                }),
-
-            },
-        ]
-    }
-}
-
 impl ScalarFunction for RightPad {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        plan_check_num_args_one_of(self, &inputs, [2, 3])?;
+    type State = ();
 
-        let datatypes = inputs
-            .iter()
-            .map(|input| input.datatype(table_list))
-            .collect::<Result<Vec<_>>>()?;
-
-        match inputs.len() {
-            2 => match (&datatypes[0], &datatypes[1]) {
-                (DataType::Utf8, DataType::Int64) => (),
-                (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
-            },
-            3 => match (&datatypes[0], &datatypes[1], &datatypes[2]) {
-                (DataType::Utf8, DataType::Int64, DataType::Utf8) => (),
-                (a, b, c) => return Err(invalid_input_types_error(self, &[a, b, c])),
-            },
-            other => unreachable!("num inputs checked, got {other}"),
-        }
-
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
             return_type: DataType::Utf8,
             inputs,
-            function_impl: Box::new(RightPadImpl),
         })
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RightPadImpl;
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
 
-impl ScalarFunctionImpl for RightPadImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
         let mut string_buf = String::new();
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(inputs[0].logical_len()),
-        };
 
-        match inputs.len() {
-            2 => BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _, _>(
-                inputs[0],
-                inputs[1],
-                builder,
-                |s, count, buf| {
+        match input.arrays().len() {
+            2 => BinaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _>(
+                &input.arrays[0],
+                sel,
+                &input.arrays()[1],
+                sel,
+                OutBuffer::from_array(output)?,
+                |s, &count, buf| {
                     rpad(s, count, " ", &mut string_buf);
                     buf.put(&string_buf);
                 },
             ),
-            3 => TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, _, _>(
-                inputs[0],
-                inputs[1],
-                inputs[2],
-                builder,
-                |s, count, pad, buf| {
-                    rpad(s, count, pad, &mut string_buf);
-                    buf.put(&string_buf);
-                },
-            ),
+            3 => {
+                TernaryExecutor::execute::<PhysicalUtf8, PhysicalI64, PhysicalUtf8, PhysicalUtf8, _>(
+                    &input.arrays[0],
+                    sel,
+                    &input.arrays()[1],
+                    sel,
+                    &input.arrays()[2],
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |s, &count, pad, buf| {
+                        rpad(s, count, pad, &mut string_buf);
+                        buf.put(&string_buf);
+                    },
+                )
+            }
             other => unreachable!("num inputs checked, got {other}"),
         }
     }

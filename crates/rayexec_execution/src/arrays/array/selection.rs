@@ -4,10 +4,10 @@ pub enum Selection<'a> {
     ///
     /// All indices point to the same location.
     Constant { len: usize, loc: usize },
-    /// Represents a linear selection.
+    /// Represents a linear selection starting at some index.
     ///
-    /// '0..len'
-    Linear { len: usize },
+    /// 'start..(start + len)'
+    Linear { start: usize, len: usize },
     /// Slice of indices that indicate rows that are selected.
     ///
     /// Row indices may be included more than once and be in any order.
@@ -19,8 +19,8 @@ impl<'a> Selection<'a> {
         Self::Constant { len, loc }
     }
 
-    pub fn linear(len: usize) -> Self {
-        Self::Linear { len }
+    pub fn linear(start: usize, len: usize) -> Self {
+        Self::Linear { start, len }
     }
 
     pub fn slice(sel: &'a [usize]) -> Self {
@@ -38,7 +38,7 @@ impl<'a> Selection<'a> {
     pub fn len(&self) -> usize {
         match self {
             Self::Constant { len, .. } => *len,
-            Self::Linear { len } => *len,
+            Self::Linear { len, .. } => *len,
             Self::Slice(sel) => sel.len(),
         }
     }
@@ -57,11 +57,11 @@ impl<'a> Selection<'a> {
                     Some(*loc)
                 }
             }
-            Self::Linear { len } => {
+            Self::Linear { start, len } => {
                 if idx >= *len {
                     None
                 } else {
-                    Some(idx)
+                    Some(idx + start)
                 }
             }
             Self::Slice(sel) => sel.get(idx).copied(),
@@ -78,7 +78,7 @@ impl<'a> IntoIterator for Selection<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FlatSelectionIter<'a> {
     idx: usize,
     sel: Selection<'a>,
@@ -94,7 +94,7 @@ impl Iterator for FlatSelectionIter<'_> {
 
         let v = match self.sel {
             Selection::Constant { loc, .. } => loc,
-            Selection::Linear { .. } => self.idx,
+            Selection::Linear { start, .. } => self.idx + start,
             Selection::Slice(sel) => sel[self.idx],
         };
 
@@ -110,3 +110,47 @@ impl Iterator for FlatSelectionIter<'_> {
 }
 
 impl ExactSizeIterator for FlatSelectionIter<'_> {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn select_constant() {
+        let sel = Selection::constant(4, 2);
+
+        assert_eq!(Some(2), sel.get(0));
+        assert_eq!(Some(2), sel.get(1));
+        assert_eq!(Some(2), sel.get(2));
+        assert_eq!(Some(2), sel.get(3));
+        assert_eq!(None, sel.get(4));
+    }
+
+    #[test]
+    fn select_linear_with_offset() {
+        let sel = Selection::linear(2, 3);
+
+        assert_eq!(Some(2), sel.get(0));
+        assert_eq!(Some(3), sel.get(1));
+        assert_eq!(Some(4), sel.get(2));
+        assert_eq!(None, sel.get(3));
+    }
+
+    #[test]
+    fn select_linear_with_offset_iter() {
+        let sel = Selection::linear(2, 3);
+
+        let out: Vec<_> = sel.into_iter().collect();
+        assert_eq!(vec![2, 3, 4], out);
+    }
+
+    #[test]
+    fn select_slice() {
+        let sel = Selection::slice(&[4, 1, 2]);
+
+        assert_eq!(Some(4), sel.get(0));
+        assert_eq!(Some(1), sel.get(1));
+        assert_eq!(Some(2), sel.get(2));
+        assert_eq!(None, sel.get(3));
+    }
+}

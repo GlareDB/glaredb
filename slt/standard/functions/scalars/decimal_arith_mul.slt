@@ -1,0 +1,38 @@
+# MUL on decimals
+
+query TT
+DESCRIBE SELECT 1.3 * 1.4;
+----
+?column?  Decimal64(4,2)
+
+query R
+SELECT 1.3 * 1.4
+----
+1.82
+
+query TT
+DESCRIBE SELECT 1.00003 * 45;
+----
+?column?  Decimal64(16,5)
+
+query R
+SELECT 1.00003 * 45;
+----
+45.00135
+
+query R
+SELECT 1.00003::DECIMAL(14, 3) * 45;
+----
+45.000
+
+# Multiplying decimals is cool, but we still want to prefer casting to float if
+# we have a float input.
+query TT
+DESCRIBE SELECT 4.5 * 16.2::REAL;
+----
+?column?  Float32
+
+query R
+SELECT 4.5 * 16.2::REAL
+----
+72.9

@@ -3,7 +3,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use rayexec_error::{RayexecError, Result};
 
 use super::OptimizeRule;
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::logical_project::LogicalProject;
@@ -39,7 +39,7 @@ struct MagicScanColumnExtractor {
     mat: MaterializationRef,
     /// Complete set of columns from the underlying materialized plan that the
     /// scan is referencing.
-    columns: HashSet<ColumnExpr>,
+    columns: HashSet<ColumnReference>,
 }
 
 impl MagicScanColumnExtractor {
@@ -49,7 +49,7 @@ impl MagicScanColumnExtractor {
                 // Magic scan matches the materialization, get the underlying
                 // columns being referenced.
                 for proj in &scan.node.projections {
-                    extract_column_exprs(proj, &mut self.columns);
+                    extract_column_refs(proj, &mut self.columns);
                 }
             }
             other => {
@@ -70,7 +70,7 @@ struct MagicScanColumnReplacer<'a> {
     /// Only look at scans that match this reference.
     mat: MaterializationRef,
     /// Updated expressions mapping original column exprs to new expressions.
-    updated: &'a HashMap<ColumnExpr, Expression>,
+    updated: &'a HashMap<ColumnReference, Expression>,
 }
 
 impl MagicScanColumnReplacer<'_> {
@@ -102,10 +102,10 @@ struct PruneState {
     /// Column references encountered so far.
     ///
     /// This get's built up as we go down the plan tree.
-    current_references: HashSet<ColumnExpr>,
+    current_references: HashSet<ColumnReference>,
     /// Mapping of old column refs to new expressions that should be used in
     /// place of the old columns.
-    updated_expressions: HashMap<ColumnExpr, Expression>,
+    updated_expressions: HashMap<ColumnReference, Expression>,
 }
 
 impl PruneState {
@@ -127,7 +127,7 @@ impl PruneState {
 
         parent
             .for_each_expr(&mut |expr| {
-                extract_column_exprs(expr, &mut current_references);
+                extract_column_refs(expr, &mut current_references);
                 Ok(())
             })
             .expect("extract to not fail");
@@ -218,7 +218,7 @@ impl PruneState {
         // The alternative could be to do this more selectively, but doesn't
         // seem worthwhile.
         plan.for_each_expr(&mut |expr| {
-            extract_column_exprs(expr, &mut self.current_references);
+            extract_column_refs(expr, &mut self.current_references);
             Ok(())
         })?;
 
@@ -314,7 +314,7 @@ impl PruneState {
                     let mut old_references = HashMap::new();
 
                     for (col_idx, projection) in project.node.projections.iter().enumerate() {
-                        let old_column = ColumnExpr {
+                        let old_column = ColumnReference {
                             table_scope: project.node.projection_table,
                             column: col_idx,
                         };
@@ -326,7 +326,7 @@ impl PruneState {
                         }
 
                         let child_col = match projection {
-                            Expression::Column(col) => *col,
+                            Expression::Column(col) => col.reference,
                             other => {
                                 return Err(RayexecError::new(format!(
                                     "Unexpected expression: {other}"
@@ -361,8 +361,14 @@ impl PruneState {
                             None => {
                                 // Child didn't change, map old column to child
                                 // column.
-                                self.updated_expressions
-                                    .insert(old_col, Expression::Column(child_col));
+                                let datatype = bind_context.get_column_type(child_col)?;
+                                self.updated_expressions.insert(
+                                    old_col,
+                                    Expression::Column(ColumnExpr {
+                                        reference: child_col,
+                                        datatype,
+                                    }),
+                                );
                             }
                         }
                     }
@@ -383,11 +389,11 @@ impl PruneState {
                     && proj_references.len() != project.node.projections.len()
                     && !proj_references.is_empty()
                 {
-                    let mut new_proj_mapping: Vec<(ColumnExpr, Expression)> =
+                    let mut new_proj_mapping: Vec<(ColumnReference, Expression)> =
                         Vec::with_capacity(proj_references.len());
 
                     for (col_idx, projection) in project.node.projections.iter().enumerate() {
-                        let old_column = ColumnExpr {
+                        let old_column = ColumnReference {
                             table_scope: project.node.projection_table,
                             column: col_idx,
                         };
@@ -413,11 +419,17 @@ impl PruneState {
                     {
                         new_projections.push(projection);
 
+                        let reference = ColumnReference {
+                            table_scope: table_ref,
+                            column: col_idx,
+                        };
+                        let datatype = bind_context.get_column_type(reference)?;
+
                         self.updated_expressions.insert(
                             old_column,
                             Expression::Column(ColumnExpr {
-                                table_scope: table_ref,
-                                column: col_idx,
+                                reference,
+                                datatype,
                             }),
                         );
                     }
@@ -488,20 +500,25 @@ impl PruneState {
                     )?;
 
                     for (new_col, old_col) in cols.iter().copied().enumerate() {
+                        let new_reference = ColumnReference {
+                            table_scope: new_ref,
+                            column: new_col,
+                        };
+                        let datatype = bind_context.get_column_type(new_reference)?;
+
                         self.updated_expressions.insert(
-                            ColumnExpr {
+                            ColumnReference {
                                 table_scope: scan.node.table_ref,
                                 column: old_col,
                             },
                             Expression::Column(ColumnExpr {
-                                table_scope: new_ref,
-                                column: new_col,
+                                reference: new_reference,
+                                datatype,
                             }),
                         );
                     }
 
                     // Update operator.
-                    scan.node.did_prune_columns = true;
                     scan.node.types = pruned_types;
                     scan.node.names = pruned_names;
                     scan.node.table_ref = new_ref;
@@ -557,7 +574,7 @@ impl PruneState {
 
                 let mut child_prune = PruneState::new(true);
                 other.for_each_expr(&mut |expr| {
-                    extract_column_exprs(expr, &mut child_prune.current_references);
+                    extract_column_refs(expr, &mut child_prune.current_references);
                     Ok(())
                 })?;
 
@@ -601,11 +618,11 @@ fn projection_is_passthrough(
             _ => return Ok(false),
         };
 
-        if col.table_scope != child_ref {
+        if col.reference.table_scope != child_ref {
             return Ok(false);
         }
 
-        if col.column != check_idx {
+        if col.reference.column != check_idx {
             return Ok(false);
         }
     }
@@ -637,14 +654,14 @@ fn try_flatten_projection(current: &mut Node<LogicalProject>) -> Result<()> {
 
     // Generate old -> new expression map from the child. We'll walk the parent
     // expression and just replace the old references.
-    let expr_map: HashMap<ColumnExpr, Expression> = child_projection
+    let expr_map: HashMap<ColumnReference, Expression> = child_projection
         .node
         .projections
         .into_iter()
         .enumerate()
         .map(|(col_idx, expr)| {
             (
-                ColumnExpr {
+                ColumnReference {
                     table_scope: child_projection.node.projection_table,
                     column: col_idx,
                 },
@@ -666,10 +683,10 @@ fn try_flatten_projection(current: &mut Node<LogicalProject>) -> Result<()> {
 
 /// Replace all column references in the expression map with the associated
 /// expression.
-fn replace_column_reference(expr: &mut Expression, mapping: &HashMap<ColumnExpr, Expression>) {
+fn replace_column_reference(expr: &mut Expression, mapping: &HashMap<ColumnReference, Expression>) {
     match expr {
         Expression::Column(col) => {
-            if let Some(replace) = mapping.get(col) {
+            if let Some(replace) = mapping.get(&col.reference) {
                 *expr = replace.clone()
             }
         }
@@ -682,14 +699,14 @@ fn replace_column_reference(expr: &mut Expression, mapping: &HashMap<ColumnExpr,
     }
 }
 
-fn extract_column_exprs(expr: &Expression, refs: &mut HashSet<ColumnExpr>) {
+fn extract_column_refs(expr: &Expression, refs: &mut HashSet<ColumnReference>) {
     match expr {
         Expression::Column(col) => {
-            refs.insert(*col);
+            refs.insert(col.reference);
         }
         other => other
             .for_each_child(&mut |child| {
-                extract_column_exprs(child, refs);
+                extract_column_refs(child, refs);
                 Ok(())
             })
             .expect("extract not to fail"),

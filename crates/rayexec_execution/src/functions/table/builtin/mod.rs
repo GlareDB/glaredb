@@ -1,23 +1,21 @@
+pub mod list_databases;
+pub mod list_entries;
+pub mod list_schemas;
+pub mod memory_scan;
 pub mod series;
-pub mod system;
-pub mod unnest;
 
-use std::sync::LazyLock;
+use list_databases::FUNCTION_SET_LIST_DATABASES;
+use list_schemas::FUNCTION_SET_LIST_SCHEMAS;
+use memory_scan::FUNCTION_SET_MEMORY_SCAN;
+use series::FUNCTION_SET_GENERATE_SERIES;
 
-use series::GenerateSeries;
-use system::{ListDatabases, ListFunctions, ListSchemas, ListTables};
-use unnest::Unnest;
+use crate::functions::function_set::TableFunctionSet;
 
-use super::TableFunction;
-
-pub static BUILTIN_TABLE_FUNCTIONS: LazyLock<Vec<Box<dyn TableFunction>>> = LazyLock::new(|| {
-    vec![
-        Box::new(GenerateSeries),
-        Box::new(Unnest),
-        // Various list system object functions.
-        Box::new(ListDatabases::new()),
-        Box::new(ListSchemas::new()),
-        Box::new(ListTables::new()),
-        Box::new(ListFunctions::new()),
-    ]
-});
+pub const BUILTIN_TABLE_FUNCTION_SETS: &[TableFunctionSet] = &[
+    FUNCTION_SET_GENERATE_SERIES,
+    // System functions.
+    FUNCTION_SET_LIST_DATABASES,
+    FUNCTION_SET_LIST_SCHEMAS,
+    // Scan functions.
+    FUNCTION_SET_MEMORY_SCAN,
+];

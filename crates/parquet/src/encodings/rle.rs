@@ -39,7 +39,7 @@ use std::mem::size_of;
 
 use bytes::Bytes;
 
-use crate::errors::Result;
+use crate::errors::{eof_err, ParquetResult};
 use crate::util::bit_util::{self, from_le_slice, BitReader, BitWriter, FromBytes};
 
 /// Maximum groups of 8 values per bit-packed run. Current value is 64.
@@ -333,7 +333,7 @@ impl RleDecoder {
     // that damage L1d-cache occupancy. This results in a ~18% performance drop
     #[inline(never)]
     #[allow(unused)]
-    pub fn get<T: FromBytes>(&mut self) -> Result<Option<T>> {
+    pub fn get<T: FromBytes>(&mut self) -> ParquetResult<Option<T>> {
         assert!(size_of::<T>() <= 8);
 
         while self.rle_left == 0 && self.bit_packed_left == 0 {
@@ -366,7 +366,7 @@ impl RleDecoder {
     }
 
     #[inline(never)]
-    pub fn get_batch<T: FromBytes>(&mut self, buffer: &mut [T]) -> Result<usize> {
+    pub fn get_batch<T: FromBytes>(&mut self, buffer: &mut [T]) -> ParquetResult<usize> {
         assert!(size_of::<T>() <= 8);
 
         let mut values_read = 0;
@@ -405,7 +405,7 @@ impl RleDecoder {
     }
 
     #[inline(never)]
-    pub fn skip(&mut self, num_values: usize) -> Result<usize> {
+    pub fn skip(&mut self, num_values: usize) -> ParquetResult<usize> {
         let mut values_skipped = 0;
         while values_skipped < num_values {
             if self.rle_left > 0 {
@@ -439,7 +439,7 @@ impl RleDecoder {
         dict: &[T],
         buffer: &mut [T],
         max_values: usize,
-    ) -> Result<usize>
+    ) -> ParquetResult<usize>
     where
         T: Default + Clone,
     {

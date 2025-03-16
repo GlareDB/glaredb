@@ -61,7 +61,7 @@ impl<'a> GroupByBinder<'a> {
                     },
                 )?;
 
-                let datatype = expr.datatype(bind_context.get_table_list())?;
+                let datatype = expr.datatype()?;
                 bind_context.push_column_for_table(
                     group_table,
                     format!("__generated_group_{idx}"),
@@ -89,10 +89,10 @@ impl ExpressionColumnBinder for GroupByColumnBinder<'_> {
     fn bind_from_root_literal(
         &mut self,
         _bind_scope: BindScopeRef,
-        _bind_context: &mut BindContext,
+        bind_context: &mut BindContext,
         literal: &ast::Literal<ResolvedMeta>,
     ) -> Result<Option<Expression>> {
-        if let Some(col) = self.select_list.column_by_ordinal(literal)? {
+        if let Some(col) = self.select_list.column_by_ordinal(bind_context, literal)? {
             return Ok(Some(Expression::Column(col)));
         }
         Ok(None)
@@ -118,7 +118,7 @@ impl ExpressionColumnBinder for GroupByColumnBinder<'_> {
         }
 
         // Try to bind to a user-provided alias.
-        if let Some(col) = self.select_list.column_by_user_alias(ident) {
+        if let Some(col) = self.select_list.column_by_user_alias(bind_context, ident)? {
             return Ok(Some(Expression::Column(col)));
         }
 

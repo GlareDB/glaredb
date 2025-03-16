@@ -119,24 +119,32 @@ impl EquivalentSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::arrays::datatype::DataType;
     use crate::expr;
 
     #[test]
     fn gen_equal_simple() {
-        let input1 = expr::eq(expr::col_ref(0, 0), expr::col_ref(1, 0));
-        let input2 = expr::eq(expr::col_ref(1, 0), expr::col_ref(2, 0));
+        // INPUT:     c0 = c1, c1 = c2
+        // GENERATED: c0 = c2
+
+        let c0 = expr::column((0, 0), DataType::Int32);
+        let c1 = expr::column((1, 0), DataType::Int32);
+        let c2 = expr::column((2, 0), DataType::Int32);
+
+        let input1 = expr::eq(c0.clone(), c1.clone()).unwrap();
+        let input2 = expr::eq(c1.clone(), c2.clone()).unwrap();
 
         let mut gen = FilterGenerator::default();
-        gen.add_expression(input1);
-        gen.add_expression(input2);
+        gen.add_expression(input1.into());
+        gen.add_expression(input2.into());
 
         let out = gen.into_expressions();
 
         // Order assumes knowledge of internals.
-        let expected = vec![
-            expr::eq(expr::col_ref(0, 0), expr::col_ref(2, 0)),
-            expr::eq(expr::col_ref(1, 0), expr::col_ref(2, 0)),
-            expr::eq(expr::col_ref(0, 0), expr::col_ref(1, 0)),
+        let expected: Vec<Expression> = vec![
+            expr::eq(c0.clone(), c2.clone()).unwrap().into(),
+            expr::eq(c1.clone(), c2.clone()).unwrap().into(),
+            expr::eq(c0.clone(), c1.clone()).unwrap().into(),
         ];
 
         assert_eq!(expected, out);
@@ -144,19 +152,23 @@ mod tests {
 
     #[test]
     fn gen_not_equal_simple() {
+        let c0 = expr::column((0, 0), DataType::Int32);
+        let c1 = expr::column((1, 0), DataType::Int32);
+        let c2 = expr::column((2, 0), DataType::Int32);
+
         // TODO: We _could_ generated '(0,0) < (2,0)'
-        let input1 = expr::lt(expr::col_ref(0, 0), expr::col_ref(1, 0));
-        let input2 = expr::lt(expr::col_ref(1, 0), expr::col_ref(2, 0));
+        let input1 = expr::lt(c0.clone(), c1.clone()).unwrap();
+        let input2 = expr::lt(c1.clone(), c2.clone()).unwrap();
 
         let mut gen = FilterGenerator::default();
-        gen.add_expression(input1);
-        gen.add_expression(input2);
+        gen.add_expression(input1.into());
+        gen.add_expression(input2.into());
 
         let out = gen.into_expressions();
 
-        let expected = vec![
-            expr::lt(expr::col_ref(0, 0), expr::col_ref(1, 0)),
-            expr::lt(expr::col_ref(1, 0), expr::col_ref(2, 0)),
+        let expected: Vec<Expression> = vec![
+            expr::lt(c0, c1.clone()).unwrap().into(),
+            expr::lt(c1, c2).unwrap().into(),
         ];
 
         assert_eq!(expected, out);

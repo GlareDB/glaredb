@@ -1,102 +1,68 @@
-use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
-use super::{
-    ExecutableOperator,
-    ExecutionStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
-};
+use super::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::arrays::batch::Batch;
-use crate::database::DatabaseContext;
-use crate::execution::operators::InputOutputStates;
+use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::proto::DatabaseProtoConv;
 
-#[derive(Debug, Default)]
-pub struct EmptyPartitionState {
-    finished: bool,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmptyPartitionState {
+    Emit,
+    NoEmit,
 }
 
-/// A dummy operator that produces a single batch containing no columns and a
-/// single row for each partition.
+/// A dummy operator that emits a single row across all partitions.
 #[derive(Debug)]
 pub struct PhysicalEmpty;
 
-impl ExecutableOperator for PhysicalEmpty {
-    fn create_states(
-        &self,
-        _context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: (0..partitions[0])
-                    .map(|_| PartitionState::Empty(EmptyPartitionState { finished: false }))
-                    .collect(),
-            },
-        })
+impl BaseOperator for PhysicalEmpty {
+    type OperatorState = ();
+
+    fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
+        Ok(())
     }
 
-    fn poll_push(
-        &self,
-        _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
-        Err(RayexecError::new("Cannot push to physical empty"))
+    fn output_types(&self) -> &[DataType] {
+        &[]
     }
+}
 
-    fn poll_finalize_push(
+impl PullOperator for PhysicalEmpty {
+    type PartitionPullState = EmptyPartitionState;
+
+    fn create_partition_pull_states(
         &self,
-        _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
-        Err(RayexecError::new("Cannot push to physical empty"))
+        _operator_state: &Self::OperatorState,
+        _props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<Self::PartitionPullState>> {
+        debug_assert!(partitions >= 1);
+
+        let mut states = vec![EmptyPartitionState::Emit];
+        states.resize(partitions, EmptyPartitionState::NoEmit);
+
+        Ok(states)
     }
 
     fn poll_pull(
         &self,
         _cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        _operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionPullState,
+        output: &mut Batch,
     ) -> Result<PollPull> {
-        match partition_state {
-            PartitionState::Empty(state) => {
-                if state.finished {
-                    Ok(PollPull::Exhausted)
-                } else {
-                    state.finished = true;
-                    Ok(PollPull::Computed(Batch::empty_with_num_rows(1).into()))
-                }
-            }
-            other => panic!("inner join state is not building: {other:?}"),
+        match state {
+            EmptyPartitionState::Emit => output.set_num_rows(1)?,
+            EmptyPartitionState::NoEmit => output.set_num_rows(0)?,
         }
+        Ok(PollPull::Exhausted)
     }
 }
 
 impl Explainable for PhysicalEmpty {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
         ExplainEntry::new("Empty")
-    }
-}
-
-impl DatabaseProtoConv for PhysicalEmpty {
-    type ProtoType = rayexec_proto::generated::execution::PhysicalEmpty;
-
-    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {})
-    }
-
-    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        Ok(Self)
     }
 }

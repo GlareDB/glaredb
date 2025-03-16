@@ -1,122 +1,117 @@
 use rayexec_error::Result;
 
-use crate::arrays::array::physical_type::PhysicalUtf8;
+use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
-use crate::arrays::executor::scalar::{BinaryExecutor, UniformExecutor};
+use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor, UniformExecutor};
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 
 // TODO: Currently '||' aliases to this, however there should be two separate
 // concat functions. One that should return null on any null arguments (||), and
 // one that should omit null arguments when concatenating (the normal concat).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Concat;
-
-impl FunctionInfo for Concat {
-    fn name(&self) -> &'static str {
-        "concat"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[],
+pub const FUNCTION_SET_CONCAT: ScalarFunctionSet = ScalarFunctionSet {
+    name: "concat",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Concatenate many strings into a single string.",
+        arguments: &["var_args"],
+        example: Some(Example {
+            example: "concat('cat', 'dog', 'mouse')",
+            output: "catdogmouse",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        &Signature {
+            positional_args: &[DataTypeId::Utf8],
             variadic_arg: Some(DataTypeId::Utf8),
             return_type: DataTypeId::Utf8,
-            doc: Some(&Documentation {
-                category: Category::String,
-                description: "Concatenate many strings into a single string.",
-                arguments: &["var_args"],
-                example: Some(Example {
-                    example: "concat('cat', 'dog', 'mouse')",
-                    output: "catdogmouse",
-                }),
-            }),
-        }]
-    }
-}
+            doc: None,
+        },
+        &StringConcat,
+    )],
+};
 
-impl ScalarFunction for Concat {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        let datatypes = inputs
-            .iter()
-            .map(|input| input.datatype(table_list))
-            .collect::<Result<Vec<_>>>()?;
+#[derive(Debug, Clone, Copy)]
+pub struct StringConcat;
 
-        if !datatypes.iter().all(|dt| dt == &DataType::Utf8) {
-            return Err(invalid_input_types_error(self, &datatypes));
-        }
+impl ScalarFunction for StringConcat {
+    type State = ();
 
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
             return_type: DataType::Utf8,
             inputs,
-            function_impl: Box::new(StringConcatImpl),
         })
     }
-}
 
-#[derive(Debug, Clone)]
-pub struct StringConcatImpl;
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
 
-impl ScalarFunctionImpl for StringConcatImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        match inputs.len() {
+        match input.arrays().len() {
             0 => {
-                let mut array = Array::from_iter([""]);
-                array.set_physical_validity(0, false);
-                Ok(array)
+                // TODO: Zero args should actually error during planning.
+                // Currently this just sets everything to an empty string.
+                let mut s = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
+                for idx in 0..s.len() {
+                    s.put(idx, "");
+                }
             }
-            1 => Ok(inputs[0].clone()),
+            1 => {
+                let input = &input.arrays()[0];
+
+                UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+                    input,
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |s, buf| buf.put(s),
+                )?;
+            }
             2 => {
-                let a = inputs[0];
-                let b = inputs[1];
+                let a = &input.arrays()[0];
+                let b = &input.arrays()[1];
 
-                let mut string_buf = String::new();
+                let mut str_buf = String::new();
 
-                // TODO: Compute data capacity.
-
-                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _, _>(
+                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalUtf8, _>(
                     a,
+                    sel,
                     b,
-                    ArrayBuilder {
-                        datatype: DataType::Utf8,
-                        buffer: GermanVarlenBuffer::with_len(a.logical_len()),
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |s1, s2, buf| {
+                        str_buf.clear();
+                        str_buf.push_str(s1);
+                        str_buf.push_str(s2);
+                        buf.put(&str_buf);
                     },
-                    |a, b, buf| {
-                        string_buf.clear();
-                        string_buf.push_str(a);
-                        string_buf.push_str(b);
-                        buf.put(string_buf.as_str());
-                    },
-                )
+                )?;
             }
             _ => {
-                let mut string_buf = String::new();
+                let mut str_buf = String::new();
 
-                UniformExecutor::execute::<PhysicalUtf8, _, _>(
-                    inputs,
-                    ArrayBuilder {
-                        datatype: DataType::Utf8,
-                        buffer: GermanVarlenBuffer::with_len(inputs[0].logical_len()),
-                    },
-                    |strings, buf| {
-                        string_buf.clear();
-                        for s in strings {
-                            string_buf.push_str(s);
+                UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+                    input.arrays(),
+                    sel,
+                    OutBuffer::from_array(output)?,
+                    |ss, buf| {
+                        str_buf.clear();
+                        for s in ss {
+                            str_buf.push_str(s);
                         }
-                        buf.put(string_buf.as_str());
+                        buf.put(&str_buf);
                     },
-                )
+                )?;
             }
         }
+
+        Ok(())
     }
 }

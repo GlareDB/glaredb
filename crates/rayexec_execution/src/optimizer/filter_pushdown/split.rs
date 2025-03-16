@@ -20,13 +20,13 @@ pub fn split_conjunction(expr: Expression, out: &mut Vec<Expression>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::scalar::ScalarValue;
+    use crate::arrays::scalar::BorrowedScalarValue;
     use crate::expr::literal_expr::LiteralExpr;
 
     #[test]
     fn split_conjunction_none() {
         let expr = Expression::Literal(LiteralExpr {
-            literal: ScalarValue::Int8(4),
+            literal: BorrowedScalarValue::Int8(4),
         });
 
         let mut out = Vec::new();
@@ -41,10 +41,10 @@ mod tests {
         let expr = Expression::Conjunction(ConjunctionExpr {
             expressions: vec![
                 Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Boolean(true),
+                    literal: BorrowedScalarValue::Boolean(true),
                 }),
                 Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Boolean(false),
+                    literal: BorrowedScalarValue::Boolean(false),
                 }),
             ],
             op: ConjunctionOperator::And,
@@ -55,10 +55,10 @@ mod tests {
 
         let expected = vec![
             Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(true),
+                literal: BorrowedScalarValue::Boolean(true),
             }),
             Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(false),
+                literal: BorrowedScalarValue::Boolean(false),
             }),
         ];
         assert_eq!(expected, out);
@@ -69,15 +69,15 @@ mod tests {
         let expr = Expression::Conjunction(ConjunctionExpr {
             expressions: vec![
                 Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Boolean(true),
+                    literal: BorrowedScalarValue::Boolean(true),
                 }),
                 Expression::Conjunction(ConjunctionExpr {
                     expressions: vec![
                         Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Boolean(true),
+                            literal: BorrowedScalarValue::Boolean(true),
                         }),
                         Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Boolean(false),
+                            literal: BorrowedScalarValue::Boolean(false),
                         }),
                     ],
                     op: ConjunctionOperator::And,
@@ -91,13 +91,13 @@ mod tests {
 
         let expected = vec![
             Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(true),
+                literal: BorrowedScalarValue::Boolean(true),
             }),
             Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(true),
+                literal: BorrowedScalarValue::Boolean(true),
             }),
             Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(false),
+                literal: BorrowedScalarValue::Boolean(false),
             }),
         ];
         assert_eq!(expected, out);
@@ -110,16 +110,16 @@ mod tests {
                 Expression::Conjunction(ConjunctionExpr {
                     expressions: vec![
                         Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Boolean(true),
+                            literal: BorrowedScalarValue::Boolean(true),
                         }),
                         Expression::Literal(LiteralExpr {
-                            literal: ScalarValue::Boolean(false),
+                            literal: BorrowedScalarValue::Boolean(false),
                         }),
                     ],
                     op: ConjunctionOperator::And,
                 }),
                 Expression::Literal(LiteralExpr {
-                    literal: ScalarValue::Boolean(true),
+                    literal: BorrowedScalarValue::Boolean(true),
                 }),
             ],
 
@@ -131,13 +131,13 @@ mod tests {
 
         let expected = vec![
             Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(true),
+                literal: BorrowedScalarValue::Boolean(true),
             }),
             Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(false),
+                literal: BorrowedScalarValue::Boolean(false),
             }),
             Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(true),
+                literal: BorrowedScalarValue::Boolean(true),
             }),
         ];
         assert_eq!(expected, out);

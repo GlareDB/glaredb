@@ -7,7 +7,6 @@ use super::Expression;
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::aggregate::PlannedAggregateFunction;
-use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -77,8 +76,8 @@ pub struct WindowExpr {
 }
 
 impl WindowExpr {
-    pub fn datatype(&self, _bind_context: &BindContext) -> Result<DataType> {
-        Ok(self.agg.return_type.clone())
+    pub fn datatype(&self) -> Result<DataType> {
+        Ok(self.agg.state.return_type.clone())
     }
 }
 
@@ -88,9 +87,10 @@ impl ContextDisplay for WindowExpr {
         mode: ContextDisplayMode,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "{}", self.agg.function.name())?;
+        write!(f, "{}", self.agg.name)?;
         let inputs = self
             .agg
+            .state
             .inputs
             .iter()
             .map(|expr| ContextDisplayWrapper::with_mode(expr, mode).to_string())

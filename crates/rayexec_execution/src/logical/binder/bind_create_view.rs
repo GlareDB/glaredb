@@ -2,7 +2,7 @@ use rayexec_error::{RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
-use crate::database::create::OnConflict;
+use crate::catalog::create::OnConflict;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::logical_create::LogicalCreateView;
 use crate::logical::operator::{LocationRequirement, Node};

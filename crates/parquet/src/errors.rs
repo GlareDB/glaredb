@@ -18,6 +18,7 @@
 //! Common Parquet errors and macros.
 
 use std::error::Error;
+use std::num::TryFromIntError;
 use std::{cell, io, result, str};
 
 /// Parquet error enumeration
@@ -65,6 +66,12 @@ impl Error for ParquetError {
     }
 }
 
+impl From<TryFromIntError> for ParquetError {
+    fn from(e: TryFromIntError) -> ParquetError {
+        ParquetError::General(format!("Integer overflow: {e}"))
+    }
+}
+
 impl From<io::Error> for ParquetError {
     fn from(e: io::Error) -> ParquetError {
         ParquetError::External(Box::new(e))
@@ -96,8 +103,14 @@ impl From<str::Utf8Error> for ParquetError {
     }
 }
 
+impl From<RayexecError> for ParquetError {
+    fn from(e: RayexecError) -> Self {
+        ParquetError::External(Box::new(e))
+    }
+}
+
 /// A specialized `Result` for Parquet errors.
-pub type Result<T, E = ParquetError> = result::Result<T, E>;
+pub type ParquetResult<T, E = ParquetError> = result::Result<T, E>;
 
 // ----------------------------------------------------------------------
 // Conversion from `ParquetError` to other types of `Error`s
@@ -118,13 +131,17 @@ macro_rules! general_err {
     ($e:ident, $fmt:expr, $($args:tt),*) => (
         crate::errors::ParquetError::General(&format!($fmt, $($args),*), $e));
 }
+pub(crate) use general_err;
 
 macro_rules! nyi_err {
     ($fmt:expr) => (crate::errors::ParquetError::NYI($fmt.to_owned()));
     ($fmt:expr, $($args:expr),*) => (crate::errors::ParquetError::NYI(format!($fmt, $($args),*)));
 }
+pub(crate) use nyi_err;
 
 macro_rules! eof_err {
     ($fmt:expr) => (crate::errors::ParquetError::EOF($fmt.to_owned()));
     ($fmt:expr, $($args:expr),*) => (crate::errors::ParquetError::EOF(format!($fmt, $($args),*)));
 }
+pub(crate) use eof_err;
+use rayexec_error::RayexecError;

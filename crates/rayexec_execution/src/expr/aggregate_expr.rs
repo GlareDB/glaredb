@@ -6,7 +6,6 @@ use super::Expression;
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::aggregate::PlannedAggregateFunction;
-use crate::logical::binder::bind_context::BindContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AggregateExpr {
@@ -19,8 +18,8 @@ pub struct AggregateExpr {
 }
 
 impl AggregateExpr {
-    pub fn datatype(&self, _bind_context: &BindContext) -> Result<DataType> {
-        Ok(self.agg.return_type.clone())
+    pub fn datatype(&self) -> Result<DataType> {
+        Ok(self.agg.state.return_type.clone())
     }
 }
 
@@ -30,9 +29,10 @@ impl ContextDisplay for AggregateExpr {
         mode: ContextDisplayMode,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "{}", self.agg.function.name())?;
+        write!(f, "{}", self.agg.name)?;
         let inputs = self
             .agg
+            .state
             .inputs
             .iter()
             .map(|e| ContextDisplayWrapper::with_mode(e, mode).to_string())

@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![allow(unused)]
+
 //! Bloom filter implementation specific to Parquet, as described
 //! in the [spec][parquet-bf-spec].
 //!
@@ -74,7 +76,6 @@
 
 use std::hash::Hasher;
 use std::io::Write;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use thrift::protocol::{TCompactOutputProtocol, TOutputProtocol};
@@ -82,8 +83,6 @@ use twox_hash::XxHash64;
 
 use crate::data_type::AsBytes;
 use crate::errors::ParquetError;
-use crate::file::metadata::ColumnChunkMetaData;
-use crate::file::reader::ChunkReader;
 use crate::format::{
     BloomFilterAlgorithm,
     BloomFilterCompression,
@@ -310,55 +309,55 @@ impl Sbbf {
         }
     }
 
-    /// Read a new bloom filter from the given offset in the given reader.
-    pub(crate) fn read_from_column_chunk<R: ChunkReader>(
-        column_metadata: &ColumnChunkMetaData,
-        reader: Arc<R>,
-    ) -> Result<Option<Self>, ParquetError> {
-        let offset: u64 = if let Some(offset) = column_metadata.bloom_filter_offset() {
-            offset
-                .try_into()
-                .map_err(|_| ParquetError::General("Bloom filter offset is invalid".to_string()))?
-        } else {
-            return Ok(None);
-        };
+    // /// Read a new bloom filter from the given offset in the given reader.
+    // pub(crate) fn read_from_column_chunk<R: ChunkReader>(
+    //     column_metadata: &ColumnChunkMetaData,
+    //     reader: Arc<R>,
+    // ) -> Result<Option<Self>, ParquetError> {
+    //     let offset: u64 = if let Some(offset) = column_metadata.bloom_filter_offset() {
+    //         offset
+    //             .try_into()
+    //             .map_err(|_| ParquetError::General("Bloom filter offset is invalid".to_string()))?
+    //     } else {
+    //         return Ok(None);
+    //     };
 
-        let buffer = match column_metadata.bloom_filter_length() {
-            Some(length) => reader.get_bytes(offset, length as usize),
-            None => reader.get_bytes(offset, SBBF_HEADER_SIZE_ESTIMATE),
-        }?;
+    //     let buffer = match column_metadata.bloom_filter_length() {
+    //         Some(length) => reader.get_bytes(offset, length as usize),
+    //         None => reader.get_bytes(offset, SBBF_HEADER_SIZE_ESTIMATE),
+    //     }?;
 
-        let (header, bitset_offset) =
-            chunk_read_bloom_filter_header_and_offset(offset, buffer.clone())?;
+    //     let (header, bitset_offset) =
+    //         chunk_read_bloom_filter_header_and_offset(offset, buffer.clone())?;
 
-        match header.algorithm {
-            BloomFilterAlgorithm::BLOCK(_) => {
-                // this match exists to future proof the singleton algorithm enum
-            }
-        }
-        match header.compression {
-            BloomFilterCompression::UNCOMPRESSED(_) => {
-                // this match exists to future proof the singleton compression enum
-            }
-        }
-        match header.hash {
-            BloomFilterHash::XXHASH(_) => {
-                // this match exists to future proof the singleton hash enum
-            }
-        }
+    //     match header.algorithm {
+    //         BloomFilterAlgorithm::BLOCK(_) => {
+    //             // this match exists to future proof the singleton algorithm enum
+    //         }
+    //     }
+    //     match header.compression {
+    //         BloomFilterCompression::UNCOMPRESSED(_) => {
+    //             // this match exists to future proof the singleton compression enum
+    //         }
+    //     }
+    //     match header.hash {
+    //         BloomFilterHash::XXHASH(_) => {
+    //             // this match exists to future proof the singleton hash enum
+    //         }
+    //     }
 
-        let bitset = match column_metadata.bloom_filter_length() {
-            Some(_) => buffer.slice((bitset_offset - offset) as usize..),
-            None => {
-                let bitset_length: usize = header.num_bytes.try_into().map_err(|_| {
-                    ParquetError::General("Bloom filter length is invalid".to_string())
-                })?;
-                reader.get_bytes(bitset_offset, bitset_length)?
-            }
-        };
+    //     let bitset = match column_metadata.bloom_filter_length() {
+    //         Some(_) => buffer.slice((bitset_offset - offset) as usize..),
+    //         None => {
+    //             let bitset_length: usize = header.num_bytes.try_into().map_err(|_| {
+    //                 ParquetError::General("Bloom filter length is invalid".to_string())
+    //             })?;
+    //             reader.get_bytes(bitset_offset, bitset_length)?
+    //         }
+    //     };
 
-        Ok(Some(Self::new(&bitset)))
-    }
+    //     Ok(Some(Self::new(&bitset)))
+    // }
 
     #[inline]
     fn hash_to_block_index(&self, hash: u64) -> usize {

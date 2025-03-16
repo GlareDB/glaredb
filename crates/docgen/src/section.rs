@@ -25,7 +25,7 @@ pub struct ScalarFunctionWriter;
 impl SectionWriter for ScalarFunctionWriter {
     fn write(&self, session: &DocsSession, output: &mut dyn fmt::Write) -> Result<()> {
         let table = session.query(SCALAR_FUNCTIONS_QUERY)?;
-        write_markdown_table(output, table.schema(), table.iter_batches())
+        write_markdown_table(output, &table.schema, &table.batches)
     }
 }
 
@@ -45,7 +45,7 @@ pub struct AggregateFunctionWriter;
 impl SectionWriter for AggregateFunctionWriter {
     fn write(&self, session: &DocsSession, output: &mut dyn fmt::Write) -> Result<()> {
         let table = session.query(AGGREGATE_FUNCTIONS_QUERY)?;
-        write_markdown_table(output, table.schema(), table.iter_batches())
+        write_markdown_table(output, &table.schema, &table.batches)
     }
 }
 
@@ -65,6 +65,6 @@ pub struct TableFunctionWriter;
 impl SectionWriter for TableFunctionWriter {
     fn write(&self, session: &DocsSession, output: &mut dyn fmt::Write) -> Result<()> {
         let table = session.query(TABLE_FUNCTIONS_QUERY)?;
-        write_markdown_table(output, table.schema(), table.iter_batches())
+        write_markdown_table(output, &table.schema, &table.batches)
     }
 }

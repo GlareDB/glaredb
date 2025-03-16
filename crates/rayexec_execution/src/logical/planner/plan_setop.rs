@@ -1,7 +1,7 @@
 use rayexec_error::{RayexecError, Result};
 
 use crate::expr::cast_expr::CastExpr;
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::bind_query::bind_setop::{BoundSetOp, SetOpCastRequirement};
@@ -142,8 +142,11 @@ impl SetOpPlanner {
             .enumerate()
         {
             let col_expr = Expression::Column(ColumnExpr {
-                table_scope: orig_table.reference,
-                column: idx,
+                reference: ColumnReference {
+                    table_scope: orig_table.reference,
+                    column: idx,
+                },
+                datatype: orig_type.clone(),
             });
 
             if orig_type == need_type {

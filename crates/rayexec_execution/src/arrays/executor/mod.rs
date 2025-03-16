@@ -1,11 +1,9 @@
 pub mod aggregate;
-pub mod builder;
 pub mod scalar;
 
 use rayexec_error::Result;
 
 use super::array::array_buffer::ArrayBuffer;
-use super::array::buffer_manager::{BufferManager, NopBufferManager};
 use super::array::physical_type::AddressableMut;
 use super::array::validity::Validity;
 use super::array::Array;
@@ -13,18 +11,16 @@ use super::array::Array;
 /// Wrapper around an array buffer and validity buffer that will be used to
 /// construct a full array.
 #[derive(Debug)]
-pub struct OutBuffer<'a, B: BufferManager = NopBufferManager> {
-    pub buffer: &'a mut ArrayBuffer<B>,
+pub struct OutBuffer<'a> {
+    pub buffer: &'a mut ArrayBuffer,
     pub validity: &'a mut Validity,
 }
 
 impl<'a> OutBuffer<'a> {
     pub fn from_array(array: &'a mut Array) -> Result<Self> {
-        let next = array.next.as_mut().unwrap();
-
         Ok(OutBuffer {
-            buffer: next.data.try_as_mut()?,
-            validity: &mut next.validity,
+            buffer: &mut array.data,
+            validity: &mut array.validity,
         })
     }
 }

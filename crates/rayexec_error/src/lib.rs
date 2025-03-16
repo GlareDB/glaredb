@@ -16,12 +16,10 @@ macro_rules! not_implemented {
 }
 
 // TODO: Implement partial eq on msg
-#[derive(Debug)]
 pub struct RayexecError {
     inner: Box<RayexecErrorInner>,
 }
 
-#[derive(Debug)]
 struct RayexecErrorInner {
     /// Message for the error.
     pub msg: String,
@@ -150,6 +148,14 @@ impl fmt::Display for RayexecError {
         }
 
         Ok(())
+    }
+}
+
+// Debug implemented by using the Display out as that's significantly easier to
+// read.
+impl fmt::Debug for RayexecError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 

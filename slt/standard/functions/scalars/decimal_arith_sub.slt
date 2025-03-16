@@ -1,0 +1,21 @@
+# SUB on decimals
+
+query R
+DESCRIBE SELECT 8 - '4.20'::DECIMAL
+----
+?column?  Decimal64(18,3)
+
+query R
+SELECT 8 - '4.20'::DECIMAL
+----
+3.800
+
+query TT
+DESCRIBE SELECT 4.8 - '4.20'::DECIMAL(9,3);
+----
+?column? Decimal64(10,3)
+
+query R
+SELECT 4.8 - '4.20'::DECIMAL(9,3);
+----
+0.600

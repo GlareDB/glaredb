@@ -1,4 +1,4 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::{not_implemented, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::ast;
 
@@ -6,8 +6,7 @@ use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::bind_from::BoundFrom;
 use super::bind_query::BoundQuery;
 use crate::arrays::datatype::DataType;
-use crate::arrays::field::{Field, Schema};
-use crate::functions::copy::CopyToFunction;
+use crate::arrays::field::{ColumnSchema, Field};
 use crate::logical::binder::bind_query::bind_from::FromBinder;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -22,9 +21,9 @@ pub enum BoundCopyToSource {
 #[derive(Debug)]
 pub struct BoundCopyTo {
     pub source: BoundCopyToSource,
-    pub source_schema: Schema,
+    pub source_schema: ColumnSchema,
     pub location: FileLocation,
-    pub copy_to: Box<dyn CopyToFunction>,
+    // pub copy_to: Box<dyn CopyToFunction>,
 }
 
 #[derive(Debug)]
@@ -55,7 +54,7 @@ impl<'a> CopyBinder<'a> {
 
         let source_scope = bind_context.new_orphan_scope();
 
-        let source = match copy_to.source {
+        let _source = match copy_to.source {
             ast::CopyToSource::Query(query) => {
                 let query_binder = QueryBinder::new(source_scope, self.resolve_context);
                 let bound_query = query_binder.bind(bind_context, query)?;
@@ -74,27 +73,30 @@ impl<'a> CopyBinder<'a> {
             }
         };
 
-        let source_schema = Schema::new(bind_context.iter_tables_in_scope(source_scope)?.flat_map(
-            |t| {
-                t.column_names
-                    .iter()
-                    .zip(&t.column_types)
-                    .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
-            },
-        ));
+        let _source_schema = ColumnSchema::new(
+            bind_context
+                .iter_tables_in_scope(source_scope)?
+                .flat_map(|t| {
+                    t.column_names
+                        .iter()
+                        .zip(&t.column_types)
+                        .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
+                }),
+        );
 
-        let resolved_copy_to = self
-            .resolve_context
-            .copy_to
-            .as_ref()
-            .ok_or_else(|| RayexecError::new("Missing COPY TO function"))?
-            .clone();
+        // let resolved_copy_to = self
+        //     .resolve_context
+        //     .copy_to
+        //     .as_ref()
+        //     .ok_or_else(|| RayexecError::new("Missing COPY TO function"))?
+        //     .clone();
 
-        Ok(BoundCopyTo {
-            source,
-            source_schema,
-            location: copy_to.target,
-            copy_to: resolved_copy_to.func,
-        })
+        not_implemented!("Bind COPY TO")
+        // Ok(BoundCopyTo {
+        //     source,
+        //     source_schema,
+        //     location: copy_to.target,
+        //     copy_to: resolved_copy_to.func,
+        // })
     }
 }

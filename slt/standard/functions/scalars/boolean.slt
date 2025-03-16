@@ -50,10 +50,8 @@ select and(true, true, false);
 ----
 false
 
-query B
+statement error  Invalid inputs to 'and'
 select and();
-----
-NULL
 
 query B
 select or(true, true, true);
@@ -70,15 +68,8 @@ select or(false, false, false);
 ----
 false
 
-query B
+statement error  Invalid inputs to 'or'
 select or();
-----
-NULL
 
-query B
+statement error  Invalid inputs to 'or'
 select or() from (values (1), (1), (1));
-----
-NULL
-NULL
-NULL
-

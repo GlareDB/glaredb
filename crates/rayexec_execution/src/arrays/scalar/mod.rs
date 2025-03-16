@@ -9,13 +9,12 @@ use std::hash::Hash;
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use half::f16;
 use interval::Interval;
-use rayexec_error::{not_implemented, OptionExt, RayexecError, Result};
+use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
-use crate::arrays::array::{Array, ArrayData2};
-use crate::arrays::bitmap::Bitmap;
+use crate::arrays::array::Array;
 use crate::arrays::compute::cast::format::{
     BoolFormatter,
     Date32Formatter,
@@ -49,19 +48,11 @@ use crate::arrays::datatype::{
     TimeUnit,
     TimestampTypeMeta,
 };
-use crate::arrays::executor::scalar::concat;
-use crate::arrays::selection::SelectionVector;
-use crate::arrays::storage::{
-    BooleanStorage,
-    GermanVarlenStorage,
-    ListItemMetadata2,
-    ListStorage,
-    PrimitiveStorage,
-};
+use crate::buffer::buffer_manager::NopBufferManager;
 
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum ScalarValue<'a> {
+pub enum BorrowedScalarValue<'a> {
     Null,
     Boolean(bool),
     Float16(f16),
@@ -85,15 +76,15 @@ pub enum ScalarValue<'a> {
     Interval(Interval),
     Utf8(Cow<'a, str>),
     Binary(Cow<'a, [u8]>),
-    Struct(Vec<ScalarValue<'a>>),
-    List(Vec<ScalarValue<'a>>),
+    Struct(Vec<BorrowedScalarValue<'a>>),
+    List(Vec<BorrowedScalarValue<'a>>),
 }
 
 // TODO: TBD if we want this. We may need to implement PartialEq to exact
 // equality semantics for floats.
-impl Eq for ScalarValue<'_> {}
+impl Eq for BorrowedScalarValue<'_> {}
 
-impl Hash for ScalarValue<'_> {
+impl Hash for BorrowedScalarValue<'_> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
             Self::Null => 0_u8.hash(state),
@@ -125,40 +116,42 @@ impl Hash for ScalarValue<'_> {
     }
 }
 
-pub type OwnedScalarValue = ScalarValue<'static>;
+pub type ScalarValue = BorrowedScalarValue<'static>;
 
-impl ScalarValue<'_> {
+impl BorrowedScalarValue<'_> {
     pub fn datatype(&self) -> DataType {
         match self {
-            ScalarValue::Null => DataType::Null,
-            ScalarValue::Boolean(_) => DataType::Boolean,
-            ScalarValue::Float16(_) => DataType::Float16,
-            ScalarValue::Float32(_) => DataType::Float32,
-            ScalarValue::Float64(_) => DataType::Float64,
-            ScalarValue::Int8(_) => DataType::Int8,
-            ScalarValue::Int16(_) => DataType::Int16,
-            ScalarValue::Int32(_) => DataType::Int32,
-            ScalarValue::Int64(_) => DataType::Int64,
-            ScalarValue::Int128(_) => DataType::Int128,
-            ScalarValue::UInt8(_) => DataType::UInt8,
-            ScalarValue::UInt16(_) => DataType::UInt16,
-            ScalarValue::UInt32(_) => DataType::UInt32,
-            ScalarValue::UInt64(_) => DataType::UInt64,
-            ScalarValue::UInt128(_) => DataType::UInt128,
-            ScalarValue::Decimal64(v) => {
+            BorrowedScalarValue::Null => DataType::Null,
+            BorrowedScalarValue::Boolean(_) => DataType::Boolean,
+            BorrowedScalarValue::Float16(_) => DataType::Float16,
+            BorrowedScalarValue::Float32(_) => DataType::Float32,
+            BorrowedScalarValue::Float64(_) => DataType::Float64,
+            BorrowedScalarValue::Int8(_) => DataType::Int8,
+            BorrowedScalarValue::Int16(_) => DataType::Int16,
+            BorrowedScalarValue::Int32(_) => DataType::Int32,
+            BorrowedScalarValue::Int64(_) => DataType::Int64,
+            BorrowedScalarValue::Int128(_) => DataType::Int128,
+            BorrowedScalarValue::UInt8(_) => DataType::UInt8,
+            BorrowedScalarValue::UInt16(_) => DataType::UInt16,
+            BorrowedScalarValue::UInt32(_) => DataType::UInt32,
+            BorrowedScalarValue::UInt64(_) => DataType::UInt64,
+            BorrowedScalarValue::UInt128(_) => DataType::UInt128,
+            BorrowedScalarValue::Decimal64(v) => {
                 DataType::Decimal64(DecimalTypeMeta::new(v.precision, v.scale))
             }
-            ScalarValue::Decimal128(v) => {
+            BorrowedScalarValue::Decimal128(v) => {
                 DataType::Decimal128(DecimalTypeMeta::new(v.precision, v.scale))
             }
-            ScalarValue::Date32(_) => DataType::Date32,
-            ScalarValue::Date64(_) => DataType::Date64,
-            ScalarValue::Timestamp(v) => DataType::Timestamp(TimestampTypeMeta::new(v.unit)),
-            ScalarValue::Interval(_) => DataType::Interval,
-            ScalarValue::Utf8(_) => DataType::Utf8,
-            ScalarValue::Binary(_) => DataType::Binary,
-            ScalarValue::Struct(_fields) => unimplemented!(), // TODO: Fill out the meta
-            ScalarValue::List(list) => match list.first() {
+            BorrowedScalarValue::Date32(_) => DataType::Date32,
+            BorrowedScalarValue::Date64(_) => DataType::Date64,
+            BorrowedScalarValue::Timestamp(v) => {
+                DataType::Timestamp(TimestampTypeMeta::new(v.unit))
+            }
+            BorrowedScalarValue::Interval(_) => DataType::Interval,
+            BorrowedScalarValue::Utf8(_) => DataType::Utf8,
+            BorrowedScalarValue::Binary(_) => DataType::Binary,
+            BorrowedScalarValue::Struct(_fields) => unimplemented!(), // TODO: Fill out the meta
+            BorrowedScalarValue::List(list) => match list.first() {
                 Some(first) => DataType::List(ListTypeMeta {
                     datatype: Box::new(first.datatype()),
                 }),
@@ -169,102 +162,39 @@ impl ScalarValue<'_> {
         }
     }
 
-    pub fn into_owned(self) -> OwnedScalarValue {
+    pub fn into_owned(self) -> ScalarValue {
         match self {
-            Self::Null => OwnedScalarValue::Null,
-            Self::Boolean(v) => OwnedScalarValue::Boolean(v),
-            Self::Float16(v) => OwnedScalarValue::Float16(v),
-            Self::Float32(v) => OwnedScalarValue::Float32(v),
-            Self::Float64(v) => OwnedScalarValue::Float64(v),
-            Self::Int8(v) => OwnedScalarValue::Int8(v),
-            Self::Int16(v) => OwnedScalarValue::Int16(v),
-            Self::Int32(v) => OwnedScalarValue::Int32(v),
-            Self::Int64(v) => OwnedScalarValue::Int64(v),
-            Self::Int128(v) => OwnedScalarValue::Int128(v),
-            Self::UInt8(v) => OwnedScalarValue::UInt8(v),
-            Self::UInt16(v) => OwnedScalarValue::UInt16(v),
-            Self::UInt32(v) => OwnedScalarValue::UInt32(v),
-            Self::UInt64(v) => OwnedScalarValue::UInt64(v),
-            Self::UInt128(v) => OwnedScalarValue::UInt128(v),
-            Self::Decimal64(v) => OwnedScalarValue::Decimal64(v),
-            Self::Decimal128(v) => OwnedScalarValue::Decimal128(v),
-            Self::Date32(v) => OwnedScalarValue::Date32(v),
-            Self::Date64(v) => OwnedScalarValue::Date64(v),
-            Self::Timestamp(v) => OwnedScalarValue::Timestamp(v),
-            Self::Interval(v) => OwnedScalarValue::Interval(v),
-            Self::Utf8(v) => OwnedScalarValue::Utf8(v.into_owned().into()),
-            Self::Binary(v) => OwnedScalarValue::Binary(v.into_owned().into()),
-            Self::Struct(v) => {
-                OwnedScalarValue::Struct(v.into_iter().map(|v| v.into_owned()).collect())
-            }
-            Self::List(v) => {
-                OwnedScalarValue::List(v.into_iter().map(|v| v.into_owned()).collect())
-            }
+            Self::Null => ScalarValue::Null,
+            Self::Boolean(v) => ScalarValue::Boolean(v),
+            Self::Float16(v) => ScalarValue::Float16(v),
+            Self::Float32(v) => ScalarValue::Float32(v),
+            Self::Float64(v) => ScalarValue::Float64(v),
+            Self::Int8(v) => ScalarValue::Int8(v),
+            Self::Int16(v) => ScalarValue::Int16(v),
+            Self::Int32(v) => ScalarValue::Int32(v),
+            Self::Int64(v) => ScalarValue::Int64(v),
+            Self::Int128(v) => ScalarValue::Int128(v),
+            Self::UInt8(v) => ScalarValue::UInt8(v),
+            Self::UInt16(v) => ScalarValue::UInt16(v),
+            Self::UInt32(v) => ScalarValue::UInt32(v),
+            Self::UInt64(v) => ScalarValue::UInt64(v),
+            Self::UInt128(v) => ScalarValue::UInt128(v),
+            Self::Decimal64(v) => ScalarValue::Decimal64(v),
+            Self::Decimal128(v) => ScalarValue::Decimal128(v),
+            Self::Date32(v) => ScalarValue::Date32(v),
+            Self::Date64(v) => ScalarValue::Date64(v),
+            Self::Timestamp(v) => ScalarValue::Timestamp(v),
+            Self::Interval(v) => ScalarValue::Interval(v),
+            Self::Utf8(v) => ScalarValue::Utf8(v.into_owned().into()),
+            Self::Binary(v) => ScalarValue::Binary(v.into_owned().into()),
+            Self::Struct(v) => ScalarValue::Struct(v.into_iter().map(|v| v.into_owned()).collect()),
+            Self::List(v) => ScalarValue::List(v.into_iter().map(|v| v.into_owned()).collect()),
         }
     }
 
     /// Create an array of size `n` using the scalar value.
     pub fn as_array(&self, n: usize) -> Result<Array> {
-        let data: ArrayData2 = match self {
-            Self::Null => return Ok(Array::new_untyped_null_array(n)),
-            Self::Boolean(v) => BooleanStorage(Bitmap::new_with_val(*v, 1)).into(),
-            Self::Float16(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Float32(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Float64(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int8(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int16(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int32(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int64(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Int128(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt8(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt16(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt32(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt64(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::UInt128(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Decimal64(v) => PrimitiveStorage::from(vec![v.value]).into(),
-            Self::Decimal128(v) => PrimitiveStorage::from(vec![v.value]).into(),
-            Self::Date32(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Date64(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Timestamp(v) => PrimitiveStorage::from(vec![v.value]).into(),
-            Self::Interval(v) => PrimitiveStorage::from(vec![*v]).into(),
-            Self::Utf8(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
-            Self::Binary(v) => GermanVarlenStorage::with_value(v.as_ref()).into(),
-            Self::List(v) => {
-                if v.is_empty() {
-                    let metadata = ListItemMetadata2 { offset: 0, len: 0 };
-
-                    ListStorage {
-                        metadata: vec![metadata].into(),
-                        array: Array::new_untyped_null_array(0),
-                    }
-                    .into()
-                } else {
-                    let arrays = v
-                        .iter()
-                        .map(|v| v.as_array(1))
-                        .collect::<Result<Vec<_>>>()?;
-                    let refs: Vec<_> = arrays.iter().collect();
-                    let array = concat(&refs)?;
-
-                    let metadata = ListItemMetadata2 {
-                        offset: 0,
-                        len: array.logical_len() as i32,
-                    };
-
-                    ListStorage {
-                        metadata: vec![metadata].into(),
-                        array,
-                    }
-                    .into()
-                }
-            }
-            other => not_implemented!("{other:?} to array"), // Struct, List
-        };
-
-        let mut array = Array::new_with_array_data(self.datatype(), data);
-        array.selection2 = Some(SelectionVector::repeated(n, 0).into());
-
-        Ok(array)
+        Array::new_constant(&NopBufferManager, self, n)
     }
 
     pub fn try_as_bool(&self) -> Result<bool> {
@@ -355,7 +285,7 @@ impl ScalarValue<'_> {
     }
 }
 
-impl fmt::Display for ScalarValue<'_> {
+impl fmt::Display for BorrowedScalarValue<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Null => write!(f, "NULL"),
@@ -413,112 +343,76 @@ impl fmt::Display for ScalarValue<'_> {
     }
 }
 
-impl From<bool> for ScalarValue<'_> {
-    fn from(value: bool) -> Self {
-        ScalarValue::Boolean(value)
-    }
+macro_rules! impl_primitive_from {
+    ($prim:ty, $variant:ident) => {
+        impl From<$prim> for ScalarValue {
+            fn from(value: $prim) -> Self {
+                ScalarValue::$variant(value)
+            }
+        }
+    };
 }
 
-impl From<f16> for ScalarValue<'_> {
-    fn from(value: f16) -> Self {
-        ScalarValue::Float16(value)
-    }
-}
+impl_primitive_from!(bool, Boolean);
 
-impl From<f32> for ScalarValue<'_> {
-    fn from(value: f32) -> Self {
-        ScalarValue::Float32(value)
-    }
-}
+impl_primitive_from!(i8, Int8);
+impl_primitive_from!(i16, Int16);
+impl_primitive_from!(i32, Int32);
+impl_primitive_from!(i64, Int64);
+impl_primitive_from!(i128, Int128);
 
-impl From<f64> for ScalarValue<'_> {
-    fn from(value: f64) -> Self {
-        ScalarValue::Float64(value)
-    }
-}
+impl_primitive_from!(u8, UInt8);
+impl_primitive_from!(u16, UInt16);
+impl_primitive_from!(u32, UInt32);
+impl_primitive_from!(u64, UInt64);
+impl_primitive_from!(u128, UInt128);
 
-impl From<i8> for ScalarValue<'_> {
-    fn from(value: i8) -> Self {
-        ScalarValue::Int8(value)
-    }
-}
+impl_primitive_from!(f16, Float16);
+impl_primitive_from!(f32, Float32);
+impl_primitive_from!(f64, Float64);
 
-impl From<i16> for ScalarValue<'_> {
-    fn from(value: i16) -> Self {
-        ScalarValue::Int16(value)
-    }
-}
+impl_primitive_from!(Interval, Interval);
 
-impl From<i32> for ScalarValue<'_> {
-    fn from(value: i32) -> Self {
-        ScalarValue::Int32(value)
-    }
-}
-
-impl From<i64> for ScalarValue<'_> {
-    fn from(value: i64) -> Self {
-        ScalarValue::Int64(value)
-    }
-}
-
-impl From<u8> for ScalarValue<'_> {
-    fn from(value: u8) -> Self {
-        ScalarValue::UInt8(value)
-    }
-}
-
-impl From<u16> for ScalarValue<'_> {
-    fn from(value: u16) -> Self {
-        ScalarValue::UInt16(value)
-    }
-}
-
-impl From<u32> for ScalarValue<'_> {
-    fn from(value: u32) -> Self {
-        ScalarValue::UInt32(value)
-    }
-}
-
-impl From<u64> for ScalarValue<'_> {
-    fn from(value: u64) -> Self {
-        ScalarValue::UInt64(value)
-    }
-}
-
-impl From<Interval> for ScalarValue<'_> {
-    fn from(value: Interval) -> Self {
-        ScalarValue::Interval(value)
-    }
-}
-
-impl<'a> From<&'a str> for ScalarValue<'a> {
+impl<'a> From<&'a str> for BorrowedScalarValue<'a> {
     fn from(value: &'a str) -> Self {
-        ScalarValue::Utf8(Cow::Borrowed(value))
+        BorrowedScalarValue::Utf8(Cow::Borrowed(value))
     }
 }
 
-impl From<String> for ScalarValue<'static> {
+impl From<String> for BorrowedScalarValue<'static> {
     fn from(value: String) -> Self {
-        ScalarValue::Utf8(Cow::Owned(value))
+        BorrowedScalarValue::Utf8(Cow::Owned(value))
     }
 }
 
-impl<'a> From<&'a [u8]> for ScalarValue<'a> {
+impl<'a> From<&'a [u8]> for BorrowedScalarValue<'a> {
     fn from(value: &'a [u8]) -> Self {
-        ScalarValue::Binary(Cow::Borrowed(value))
+        BorrowedScalarValue::Binary(Cow::Borrowed(value))
     }
 }
 
-impl<'a, T: Into<ScalarValue<'a>>> From<Option<T>> for ScalarValue<'a> {
+impl<'a, T: Into<BorrowedScalarValue<'a>>> From<Option<T>> for BorrowedScalarValue<'a> {
     fn from(value: Option<T>) -> Self {
         match value {
             Some(value) => value.into(),
-            None => ScalarValue::Null,
+            None => BorrowedScalarValue::Null,
         }
     }
 }
 
-impl ProtoConv for OwnedScalarValue {
+impl From<Decimal64Scalar> for ScalarValue {
+    fn from(value: Decimal64Scalar) -> Self {
+        ScalarValue::Decimal64(value)
+    }
+}
+
+impl From<Decimal128Scalar> for ScalarValue {
+    fn from(value: Decimal128Scalar) -> Self {
+        ScalarValue::Decimal128(value)
+    }
+}
+
+impl ProtoConv for ScalarValue {
     type ProtoType = rayexec_proto::generated::expr::OwnedScalarValue;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
@@ -598,7 +492,7 @@ impl ProtoConv for OwnedScalarValue {
                 let values = v
                     .values
                     .into_iter()
-                    .map(OwnedScalarValue::from_proto)
+                    .map(ScalarValue::from_proto)
                     .collect::<Result<Vec<_>>>()?;
                 Self::Struct(values)
             }
@@ -606,10 +500,38 @@ impl ProtoConv for OwnedScalarValue {
                 let values = v
                     .values
                     .into_iter()
-                    .map(OwnedScalarValue::from_proto)
+                    .map(ScalarValue::from_proto)
                     .collect::<Result<Vec<_>>>()?;
                 Self::List(values)
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use stdutil::iter::TryFromExactSizeIterator;
+
+    use super::*;
+    use crate::testutil::arrays::assert_arrays_eq;
+
+    #[test]
+    fn scalar_i32_as_array() {
+        let s = BorrowedScalarValue::from(14);
+        let arr = s.as_array(4).unwrap();
+
+        let expected = Array::try_from_iter([14, 14, 14, 14]).unwrap();
+
+        assert_arrays_eq(&expected, &arr);
+    }
+
+    #[test]
+    fn scalar_utf8_as_array() {
+        let s = BorrowedScalarValue::from("dog");
+        let arr = s.as_array(4).unwrap();
+
+        let expected = Array::try_from_iter(["dog", "dog", "dog", "dog"]).unwrap();
+
+        assert_arrays_eq(&expected, &arr);
     }
 }

@@ -4,256 +4,226 @@ use std::ops::AddAssign;
 
 use num_traits::AsPrimitive;
 use rayexec_error::Result;
-use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::physical_type::{PhysicalF64, PhysicalI64};
-use crate::arrays::array::Array;
-use crate::arrays::bitmap::Bitmap;
+use crate::arrays::array::physical_type::{
+    AddressableMut,
+    PhysicalF64,
+    PhysicalI64,
+    ScalarStorage,
+};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::aggregate::AggregateState;
-use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, PrimitiveBuffer};
+use crate::arrays::executor::PutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::expr::Expression;
-use crate::functions::aggregate::states::{
-    new_unary_aggregate_states,
-    primitive_finalize,
-    AggregateGroupStates,
-};
-use crate::functions::aggregate::{
-    AggregateFunction,
-    AggregateFunctionImpl,
-    PlannedAggregateFunction,
-};
+use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
+use crate::functions::aggregate::RawAggregateFunction;
+use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::Signature;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Avg;
+pub const FUNCTION_SET_AVG: AggregateFunctionSet = AggregateFunctionSet {
+    name: "avg",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Aggregate,
+        description: "Return the average value from the input column.",
+        arguments: &["input"],
+        example: None,
+    }),
+    functions: &[
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Decimal64], DataTypeId::Float64),
+            &SimpleUnaryAggregate::new(&AvgDecimal::<Decimal64Type>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Decimal128], DataTypeId::Float64),
+            &SimpleUnaryAggregate::new(&AvgDecimal::<Decimal128Type>::new()),
+        ),
+        // i64 uses an i128 as its intermediate sum to avoid (delay) overflow
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Int64], DataTypeId::Float64), // TODO: Should be decimal // TODO: Should it though?
+            &SimpleUnaryAggregate::new(&Avg::<PhysicalI64, i128>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+            &SimpleUnaryAggregate::new(&Avg::<PhysicalF64, f64>::new()),
+        ),
+    ],
+};
 
-impl FunctionInfo for Avg {
-    fn name(&self) -> &'static str {
-        "avg"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const DOC: &Documentation = &Documentation {
-            category: Category::Aggregate,
-            description: "Return the average value from the inputs.",
-            arguments: &["input"],
-            example: None,
-        };
-
-        &[
-            Signature {
-                positional_args: &[DataTypeId::Float64],
-                variadic_arg: None,
-                return_type: DataTypeId::Float64,
-                doc: Some(DOC),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Int64],
-                variadic_arg: None,
-                return_type: DataTypeId::Float64, // TODO: Should be decimal // TODO: Should it though?
-                doc: Some(DOC),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Decimal64],
-                variadic_arg: None,
-                return_type: DataTypeId::Float64,
-                doc: Some(DOC),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Decimal128],
-                variadic_arg: None,
-                return_type: DataTypeId::Float64,
-                doc: Some(DOC),
-            },
-        ]
-    }
+#[derive(Debug, Clone, Copy)]
+pub struct Avg<S, T> {
+    _s: PhantomData<S>,
+    _t: PhantomData<T>,
 }
 
-impl AggregateFunction for Avg {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction> {
-        plan_check_num_args(self, &inputs, 1)?;
-
-        let (function_impl, return_type): (Box<dyn AggregateFunctionImpl>, _) =
-            match inputs[0].datatype(table_list)? {
-                DataType::Int64 => (Box::new(AvgInt64Impl), DataType::Float64),
-                DataType::Float64 => (Box::new(AvgFloat64Impl), DataType::Float64),
-                dt @ DataType::Decimal64(_) => {
-                    // Datatype only used in order to convert decimal to float
-                    // at the end. This always returns Float64.
-                    (
-                        Box::new(AvgDecimalImpl::<Decimal64Type>::new(dt)),
-                        DataType::Float64,
-                    )
-                }
-                dt @ DataType::Decimal128(_) => {
-                    // See above
-                    (
-                        Box::new(AvgDecimalImpl::<Decimal128Type>::new(dt)),
-                        DataType::Float64,
-                    )
-                }
-
-                other => return Err(invalid_input_types_error(self, &[other])),
-            };
-
-        Ok(PlannedAggregateFunction {
-            function: Box::new(*self),
-            return_type,
-            inputs,
-            function_impl,
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AvgDecimalImpl<D> {
-    datatype: DataType,
-    _d: PhantomData<D>,
-}
-
-impl<D> AvgDecimalImpl<D> {
-    fn new(datatype: DataType) -> Self {
-        AvgDecimalImpl {
-            datatype,
-            _d: PhantomData,
+impl<S, T> Avg<S, T> {
+    pub const fn new() -> Self {
+        Avg {
+            _s: PhantomData,
+            _t: PhantomData,
         }
     }
 }
 
-impl<D> AggregateFunctionImpl for AvgDecimalImpl<D>
+impl<S, T> UnaryAggregate for Avg<S, T>
+where
+    S: ScalarStorage,
+    S::StorageType: Into<T> + Copy + Default + Debug + Sync + Send,
+    T: AsPrimitive<f64> + AddAssign + Debug + Default + Sync + Send,
+{
+    type Input = S;
+    type Output = PhysicalF64;
+
+    type BindState = ();
+    type GroupState = AvgStateF64<S::StorageType, T>;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Float64,
+            inputs,
+        })
+    }
+
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
+        Default::default()
+    }
+}
+
+#[derive(Debug)]
+pub struct AvgDecimalBindState {
+    scale: f64,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AvgDecimal<D> {
+    _d: PhantomData<D>,
+}
+
+impl<D> AvgDecimal<D> {
+    pub const fn new() -> Self {
+        AvgDecimal { _d: PhantomData }
+    }
+}
+
+impl<D> UnaryAggregate for AvgDecimal<D>
 where
     D: DecimalType,
     D::Primitive: Into<i128>,
 {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        let datatype = self.datatype.clone();
+    type Input = D::Storage;
+    type Output = PhysicalF64;
 
-        let state_finalize = move |states: &mut [AvgStateDecimal<D::Primitive>]| {
-            let mut builder = ArrayBuilder {
-                datatype: DataType::Float64,
-                buffer: PrimitiveBuffer::with_len(states.len()),
-            };
+    type BindState = AvgDecimalBindState;
+    type GroupState = AvgStateDecimal<D::Primitive>;
 
-            let mut validities = Bitmap::new_with_all_true(states.len());
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        let datatype = inputs[0].datatype()?;
+        let m = datatype.try_get_decimal_type_meta()?;
 
-            let m = datatype.clone().try_get_decimal_type_meta()?;
-            let scale = f64::powi(10.0, m.scale.abs() as i32);
+        let scale = f64::powi(10.0, m.scale.abs() as i32);
 
-            for (idx, state) in states.iter_mut().enumerate() {
-                let ((sum, count), valid) = state.finalize()?;
+        Ok(BindState {
+            state: AvgDecimalBindState { scale },
+            return_type: DataType::Float64,
+            inputs,
+        })
+    }
 
-                if !valid {
-                    validities.set_unchecked(idx, false);
-                    continue;
-                }
-
-                let val = (sum as f64) / (count as f64 * scale);
-                builder.buffer.put(idx, &val);
-            }
-
-            Ok(Array::new_with_validity_and_array_data(
-                builder.datatype,
-                validities,
-                builder.buffer.into_data(),
-            ))
-        };
-
-        new_unary_aggregate_states::<D::Storage, _, _, _, _>(
-            AvgStateDecimal::<D::Primitive>::default,
-            state_finalize,
-        )
+    fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState {
+        AvgStateDecimal::<D::Primitive> {
+            scale: state.scale,
+            sum: 0,
+            count: 0,
+            _input: PhantomData,
+        }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AvgFloat64Impl;
-
-impl AggregateFunctionImpl for AvgFloat64Impl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalF64, _, _, _, _>(
-            AvgStateF64::<f64, f64>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AvgInt64Impl;
-
-impl AggregateFunctionImpl for AvgInt64Impl {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates> {
-        new_unary_aggregate_states::<PhysicalI64, _, _, _, _>(
-            AvgStateF64::<i64, i128>::default,
-            move |states| primitive_finalize(DataType::Float64, states),
-        )
-    }
-}
-
-#[derive(Debug, Default)]
-struct AvgStateDecimal<I> {
+#[derive(Debug)]
+pub struct AvgStateDecimal<I> {
+    /// Scale to use when finalizing the physical decimal value.
+    scale: f64,
     sum: i128,
     count: i64,
     _input: PhantomData<I>,
 }
 
-impl<I: Into<i128> + Default + Debug> AggregateState<I, (i128, i64)> for AvgStateDecimal<I> {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+impl<I> AggregateState<&I, f64> for AvgStateDecimal<I>
+where
+    I: Into<i128> + Copy + Debug + Sync + Send,
+{
+    type BindState = AvgDecimalBindState;
+
+    fn merge(&mut self, _state: &Self::BindState, other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
         Ok(())
     }
 
-    fn update(&mut self, input: I) -> Result<()> {
+    fn update(&mut self, _state: &Self::BindState, &input: &I) -> Result<()> {
         self.sum += input.into();
         self.count += 1;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<((i128, i64), bool)> {
+    fn finalize<M>(&mut self, _state: &Self::BindState, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = f64>,
+    {
         if self.count == 0 {
-            return Ok(((0, 0), false));
+            output.put_null();
+            return Ok(());
         }
-        Ok(((self.sum, self.count), true))
+
+        let val = (self.sum as f64) / (self.count as f64 * self.scale);
+        output.put(&val);
+
+        Ok(())
     }
 }
 
 #[derive(Debug, Default)]
-struct AvgStateF64<I, T> {
+pub struct AvgStateF64<I, T> {
     sum: T,
     count: i64,
     _input: PhantomData<I>,
 }
 
-impl<I, T> AggregateState<I, f64> for AvgStateF64<I, T>
+impl<I, T> AggregateState<&I, f64> for AvgStateF64<I, T>
 where
-    I: Into<T> + Default + Debug,
-    T: AsPrimitive<f64> + AddAssign + Debug + Default,
+    I: Into<T> + Copy + Default + Debug + Sync + Send,
+    T: AsPrimitive<f64> + AddAssign + Debug + Default + Sync + Send,
 {
-    fn merge(&mut self, other: &mut Self) -> Result<()> {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
         self.sum += other.sum;
         self.count += other.count;
         Ok(())
     }
 
-    fn update(&mut self, input: I) -> Result<()> {
+    fn update(&mut self, _state: &(), &input: &I) -> Result<()> {
         self.sum += input.into();
         self.count += 1;
         Ok(())
     }
 
-    fn finalize(&mut self) -> Result<(f64, bool)> {
+    fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = f64>,
+    {
         if self.count == 0 {
-            return Ok((0.0, false));
+            output.put_null();
+            return Ok(());
         }
         let sum: f64 = self.sum.as_();
-        Ok((sum / self.count as f64, true))
+        let val = sum / self.count as f64;
+        output.put(&val);
+
+        Ok(())
     }
 }

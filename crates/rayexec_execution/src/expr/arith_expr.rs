@@ -1,13 +1,16 @@
 use std::fmt;
 
-use rayexec_error::Result;
-
-use super::{AsScalarFunction, Expression};
+use super::{AsScalarFunctionSet, Expression};
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::scalar::builtin::arith;
-use crate::functions::scalar::ScalarFunction;
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::builtin::arith::{
+    FUNCTION_SET_ADD,
+    FUNCTION_SET_DIV,
+    FUNCTION_SET_MUL,
+    FUNCTION_SET_REM,
+    FUNCTION_SET_SUB,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ArithOperator {
@@ -18,14 +21,14 @@ pub enum ArithOperator {
     Mod,
 }
 
-impl AsScalarFunction for ArithOperator {
-    fn as_scalar_function(&self) -> &dyn ScalarFunction {
+impl AsScalarFunctionSet for ArithOperator {
+    fn as_scalar_function_set(&self) -> &ScalarFunctionSet {
         match self {
-            Self::Add => &arith::Add,
-            Self::Sub => &arith::Sub,
-            Self::Div => &arith::Div,
-            Self::Mul => &arith::Mul,
-            Self::Mod => &arith::Rem,
+            Self::Add => &FUNCTION_SET_ADD,
+            Self::Sub => &FUNCTION_SET_SUB,
+            Self::Div => &FUNCTION_SET_DIV,
+            Self::Mul => &FUNCTION_SET_MUL,
+            Self::Mod => &FUNCTION_SET_REM,
         }
     }
 }
@@ -44,23 +47,10 @@ impl fmt::Display for ArithOperator {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArithExpr {
+    pub op: ArithOperator,
     pub left: Box<Expression>,
     pub right: Box<Expression>,
-    pub op: ArithOperator,
-}
-
-impl ArithExpr {
-    pub fn datatype(&self, table_list: &TableList) -> Result<DataType> {
-        // TODO: Be more efficient here.
-        Ok(self
-            .op
-            .as_scalar_function()
-            .plan(
-                table_list,
-                vec![self.left.as_ref().clone(), self.right.as_ref().clone()],
-            )?
-            .return_type)
-    }
+    pub return_type: DataType,
 }
 
 impl ContextDisplay for ArithExpr {

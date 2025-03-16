@@ -9,7 +9,7 @@ use crate::functions::table::PlannedTableFunction;
 
 /// A table function that accepts inputs and produces outputs.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LogicalInOut {
+pub struct LogicalTableExecute {
     /// Table ref for referencing the output of this function.
     pub function_table_ref: TableRef,
     /// The table function.
@@ -24,11 +24,11 @@ pub struct LogicalInOut {
     pub projected_outputs: Vec<Expression>,
 }
 
-impl Explainable for LogicalInOut {
+impl Explainable for LogicalTableExecute {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("TableInOut")
-            .with_value("function", self.function.function.name())
-            .with_values_context("inputs", conf, &self.function.positional_inputs);
+        let mut ent = ExplainEntry::new("TableExecute")
+            .with_value("function", self.function.name)
+            .with_values_context("inputs", conf, &self.function.bind_state.input.positional);
 
         if conf.verbose {
             ent = ent.with_value("function_table_ref", self.function_table_ref);
@@ -44,7 +44,7 @@ impl Explainable for LogicalInOut {
     }
 }
 
-impl LogicalNode for Node<LogicalInOut> {
+impl LogicalNode for Node<LogicalTableExecute> {
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         if let Some(projected_table_ref) = self.node.projected_table_ref {
             vec![self.node.function_table_ref, projected_table_ref]
@@ -57,7 +57,8 @@ impl LogicalNode for Node<LogicalInOut> {
     where
         F: FnMut(&Expression) -> Result<()>,
     {
-        for expr in &self.node.function.positional_inputs {
+        // TODO: What about named arguments?
+        for expr in &self.node.function.bind_state.input.positional {
             func(expr)?
         }
         for expr in &self.node.projected_outputs {
@@ -71,7 +72,7 @@ impl LogicalNode for Node<LogicalInOut> {
     where
         F: FnMut(&mut Expression) -> Result<()>,
     {
-        for expr in &mut self.node.function.positional_inputs {
+        for expr in &mut self.node.function.bind_state.input.positional {
             func(expr)?
         }
         for expr in &mut self.node.projected_outputs {

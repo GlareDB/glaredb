@@ -1,142 +1,110 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
+use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::PhysicalUtf8;
-use crate::arrays::array::{Array, ArrayData2};
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, GermanVarlenBuffer};
 use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
+
+pub const FUNCTION_SET_LOWER: ScalarFunctionSet = ScalarFunctionSet {
+    name: "lower",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Convert the string to lowercase.",
+        arguments: &["string"],
+        example: Some(Example {
+            example: "lower('ABC')",
+            output: "abc",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
+        &Lower,
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Lower;
 
-impl FunctionInfo for Lower {
-    fn name(&self) -> &'static str {
-        "lower"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Utf8],
-            variadic_arg: None,
-            return_type: DataTypeId::Utf8,
-            doc: Some(&Documentation {
-                category: Category::String,
-                description: "Convert the string to lowercase.",
-                arguments: &["string"],
-                example: Some(Example {
-                    example: "lower('ABC')",
-                    output: "abc",
-                }),
-            }),
-        }]
-    }
-}
-
 impl ScalarFunction for Lower {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFunction {
-                function: Box::new(*self),
-                return_type: DataType::Utf8,
-                inputs,
-                function_impl: Box::new(LowerImpl),
-            }),
-            a => Err(invalid_input_types_error(self, &[a])),
-        }
+    type State = ();
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Utf8,
+            inputs,
+        })
+    }
+
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
+        case_convert_execute(input, sel, str::to_lowercase, output)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LowerImpl;
-
-impl ScalarFunctionImpl for LowerImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = inputs[0];
-        case_convert_execute(input, str::to_lowercase)
-    }
-}
+pub const FUNCTION_SET_UPPER: ScalarFunctionSet = ScalarFunctionSet {
+    name: "upper",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::String,
+        description: "Convert the string to uppercase.",
+        arguments: &["string"],
+        example: Some(Example {
+            example: "upper('ABC')",
+            output: "ABC",
+        }),
+    }),
+    functions: &[RawScalarFunction::new(
+        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
+        &Upper,
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Upper;
 
-impl FunctionInfo for Upper {
-    fn name(&self) -> &'static str {
-        "upper"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Utf8],
-            variadic_arg: None,
-            return_type: DataTypeId::Utf8,
-            doc: Some(&Documentation {
-                category: Category::String,
-                description: "Convert the string to uppercase.",
-                arguments: &["string"],
-                example: Some(Example {
-                    example: "lower('abc')",
-                    output: "ABC",
-                }),
-            }),
-        }]
-    }
-}
-
 impl ScalarFunction for Upper {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        plan_check_num_args(self, &inputs, 1)?;
-        match inputs[0].datatype(table_list)? {
-            DataType::Utf8 => Ok(PlannedScalarFunction {
-                function: Box::new(*self),
-                return_type: DataType::Utf8,
-                inputs,
-                function_impl: Box::new(UpperImpl),
-            }),
-            a => Err(invalid_input_types_error(self, &[a])),
-        }
+    type State = ();
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Utf8,
+            inputs,
+        })
+    }
+
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let input = &input.arrays()[0];
+        case_convert_execute(input, sel, str::to_uppercase, output)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UpperImpl;
-
-impl ScalarFunctionImpl for UpperImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = inputs[0];
-        case_convert_execute(input, str::to_uppercase)
-    }
-}
-
-fn case_convert_execute<F>(input: &Array, case_fn: F) -> Result<Array>
+// TODO: Reusable string buffer.
+fn case_convert_execute<F>(
+    input: &Array,
+    sel: impl IntoExactSizeIterator<Item = usize>,
+    case_fn: F,
+    output: &mut Array,
+) -> Result<()>
 where
     F: Fn(&str) -> String,
 {
-    let cap = match input.array_data() {
-        ArrayData2::Binary(bin) => bin.binary_data_size_bytes(),
-        _ => return Err(RayexecError::new("Unexpected array data type")),
-    };
-
-    let builder = ArrayBuilder {
-        datatype: DataType::Utf8,
-        buffer: GermanVarlenBuffer::<str>::with_len_and_data_capacity(input.logical_len(), cap),
-    };
-
-    UnaryExecutor::execute2::<PhysicalUtf8, _, _>(input, builder, |v, buf| {
-        // TODO: Non-allocating variant.
-        buf.put(&case_fn(v))
-    })
+    UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
+        input,
+        sel,
+        OutBuffer::from_array(output)?,
+        |v, buf| buf.put(&case_fn(v)),
+    )
 }

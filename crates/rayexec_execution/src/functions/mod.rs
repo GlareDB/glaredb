@@ -1,17 +1,32 @@
+// Allow `new` constructors for functions without an associated Default
+// implementations.
+//
+// Functions must be able to be created via a constant context, and some
+// functions defualt a `const fn new` to accomplish this. Functions are never
+// created outside of a const context, so the Default implementation is useless.
+#![allow(clippy::new_without_default)]
+// Clippy produces false positives here.
+//
+// Table scan functions can return futures, and those futures are tied to the
+// lifetime of the passed in database context. Clippy seems to think that
+// they're tied to the lifetime of `&self`, which is not the case.
+#![allow(clippy::manual_async_fn)]
+
 pub mod aggregate;
-pub mod copy;
+pub mod bind_state;
+pub mod candidate;
 pub mod documentation;
+pub mod function_set;
 pub mod implicit;
-pub mod proto;
 pub mod scalar;
 pub mod table;
 
 use std::borrow::Borrow;
 use std::fmt::Display;
 
+use candidate::CandidateSignature;
 use documentation::Documentation;
 use fmtutil::IntoDisplayableSlice;
-use implicit::{implicit_cast_score, NO_CAST_SCORE};
 use rayexec_error::{RayexecError, Result};
 
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -54,9 +69,9 @@ pub struct NamedArgument {
 }
 
 impl Signature {
-    pub const fn new_positional(input: &'static [DataTypeId], return_type: DataTypeId) -> Self {
+    pub const fn new(inputs: &'static [DataTypeId], return_type: DataTypeId) -> Self {
         Signature {
-            positional_args: input,
+            positional_args: inputs,
             variadic_arg: None,
             return_type,
             doc: None,
@@ -70,8 +85,18 @@ impl Signature {
 
     /// Return if inputs given data types exactly satisfy the signature.
     fn exact_match(&self, inputs: &[DataType]) -> bool {
-        if self.positional_args.len() != inputs.len() && !self.is_variadic() {
-            return false;
+        if self.is_variadic() {
+            // If function is variadic, we need at least the defined number of
+            // positional arguments.
+            if inputs.len() < self.positional_args.len() {
+                return false;
+            }
+        } else {
+            // If the function is not variadic, then positional args needs to be
+            // exact.
+            if inputs.len() != self.positional_args.len() {
+                return false;
+            }
         }
 
         for (&expected, have) in self.positional_args.iter().zip(inputs.iter()) {
@@ -126,13 +151,6 @@ pub trait FunctionInfo {
         &[]
     }
 
-    /// A description for the function.
-    ///
-    /// Defaults to an empty string.
-    fn description(&self) -> &'static str {
-        ""
-    }
-
     /// Signature for the function.
     ///
     /// This is used during binding/planning to determine the return type for a
@@ -155,178 +173,6 @@ pub trait FunctionInfo {
     /// being first.
     fn candidate(&self, inputs: &[DataType]) -> Vec<CandidateSignature> {
         CandidateSignature::find_candidates(inputs, self.signatures())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum CastType {
-    /// Need to cast the type to this one.
-    Cast { to: DataTypeId, score: u32 },
-    /// Casting isn't needed, the original data type works.
-    NoCastNeeded,
-}
-
-impl CastType {
-    fn score(&self) -> u32 {
-        match self {
-            Self::Cast { score, .. } => *score,
-            Self::NoCastNeeded => NO_CAST_SCORE,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct CandidateSignature {
-    /// Index of the signature
-    pub signature_idx: usize,
-
-    /// Casts that would need to be applied in order to satisfy the signature.
-    pub casts: Vec<CastType>,
-}
-
-impl CandidateSignature {
-    /// Find candidate signatures for the given dataypes.
-    ///
-    /// This will return a sorted vec where the first element is the candidate
-    /// with the highest score.
-    fn find_candidates(inputs: &[DataType], sigs: &[Signature]) -> Vec<Self> {
-        let mut candidates = Vec::new();
-
-        let mut buf = Vec::new();
-        for (idx, sig) in sigs.iter().enumerate() {
-            if !Self::compare_and_fill_types(
-                inputs,
-                sig.positional_args,
-                sig.variadic_arg,
-                &mut buf,
-            ) {
-                continue;
-            }
-
-            candidates.push(CandidateSignature {
-                signature_idx: idx,
-                casts: std::mem::take(&mut buf),
-            })
-        }
-
-        candidates.sort_unstable_by(|a, b| {
-            let a_score: u32 = a.casts.iter().map(|c| c.score()).sum();
-            let b_score: u32 = b.casts.iter().map(|c| c.score()).sum();
-
-            a_score.cmp(&b_score).reverse() // Higher score should be first.
-        });
-
-        candidates
-    }
-
-    /// Compare the types we have with the types we want, filling the provided
-    /// buffer with the cast type.
-    ///
-    /// Returns true if everything is able to be implicitly cast, false otherwise.
-    fn compare_and_fill_types(
-        have: &[DataType],
-        want: &[DataTypeId],
-        variadic: Option<DataTypeId>,
-        buf: &mut Vec<CastType>,
-    ) -> bool {
-        if have.len() != want.len() && variadic.is_none() {
-            return false;
-        }
-        buf.clear();
-
-        for (have, &want) in have.iter().zip(want.iter()) {
-            if have.datatype_id() == want {
-                buf.push(CastType::NoCastNeeded);
-                continue;
-            }
-
-            let score = implicit_cast_score(have, want);
-            if let Some(score) = score {
-                buf.push(CastType::Cast { to: want, score });
-                continue;
-            }
-
-            return false;
-        }
-
-        // Check variadic.
-        let remaining = &have[want.len()..];
-        match variadic {
-            Some(expected) if !remaining.is_empty() => {
-                let expected = if expected == DataTypeId::Any {
-                    // Find a common data type to use in place of Any.
-                    match Self::best_datatype_for_variadic_any(remaining) {
-                        Some(typ) => typ,
-                        None => return false, // No common data type for all remaining args.
-                    }
-                } else {
-                    expected
-                };
-
-                for have in remaining {
-                    if have.datatype_id() == expected {
-                        buf.push(CastType::NoCastNeeded);
-                        continue;
-                    }
-
-                    let score = implicit_cast_score(have, expected);
-                    if let Some(score) = score {
-                        buf.push(CastType::Cast {
-                            to: expected,
-                            score,
-                        });
-                        continue;
-                    }
-
-                    return false;
-                }
-
-                // Everything's valid, casts have been pushed to the buffer.
-                true
-            }
-            _ => {
-                // No variadics to check. If we got this far, everything's valid
-                // for this signature.
-                true
-            }
-        }
-    }
-
-    /// Get the best common data type that we can cast to for the given inputs. Returns None
-    /// if there isn't a common data type.
-    fn best_datatype_for_variadic_any(inputs: &[DataType]) -> Option<DataTypeId> {
-        let mut best_type = None;
-        let mut best_total_score = 0;
-
-        for input in inputs {
-            let test_type = input.datatype_id();
-            let mut total_score = 0;
-            let mut valid = true;
-
-            for input in inputs {
-                if input.datatype_id() == test_type {
-                    // Arbitrary.
-                    total_score += 200;
-                    continue;
-                }
-
-                let score = implicit_cast_score(input, test_type);
-                match score {
-                    Some(score) => total_score += score,
-                    None => {
-                        // Test type is not a valid cast for this input.
-                        valid = false;
-                    }
-                }
-            }
-
-            if total_score > best_total_score && valid {
-                best_type = Some(test_type);
-                best_total_score = total_score;
-            }
-        }
-
-        best_type
     }
 }
 
@@ -379,80 +225,4 @@ where
         got.display_with_brackets(),
         func.name()
     ))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn find_candidate_no_match() {
-        let inputs = &[DataType::Int64];
-        let sigs = &[Signature {
-            positional_args: &[DataTypeId::List],
-            variadic_arg: None,
-            return_type: DataTypeId::Int64,
-            doc: None,
-        }];
-
-        let candidates = CandidateSignature::find_candidates(inputs, sigs);
-        let expected: Vec<CandidateSignature> = Vec::new();
-        assert_eq!(expected, candidates);
-    }
-
-    #[test]
-    fn find_candidate_simple_no_variadic() {
-        let inputs = &[DataType::Int64];
-        let sigs = &[Signature {
-            positional_args: &[DataTypeId::Int64],
-            variadic_arg: None,
-            return_type: DataTypeId::Int64,
-            doc: None,
-        }];
-
-        let candidates = CandidateSignature::find_candidates(inputs, sigs);
-        let expected = vec![CandidateSignature {
-            signature_idx: 0,
-            casts: vec![CastType::NoCastNeeded],
-        }];
-
-        assert_eq!(expected, candidates);
-    }
-
-    #[test]
-    fn find_candidate_simple_with_variadic() {
-        let inputs = &[DataType::Int64, DataType::Int64, DataType::Int64];
-        let sigs = &[Signature {
-            positional_args: &[],
-            variadic_arg: Some(DataTypeId::Any),
-            return_type: DataTypeId::List,
-            doc: None,
-        }];
-
-        let candidates = CandidateSignature::find_candidates(inputs, sigs);
-        let expected = vec![CandidateSignature {
-            signature_idx: 0,
-            casts: vec![
-                CastType::NoCastNeeded,
-                CastType::NoCastNeeded,
-                CastType::NoCastNeeded,
-            ],
-        }];
-
-        assert_eq!(expected, candidates);
-    }
-
-    #[test]
-    fn best_datatype_for_ints_and_floats() {
-        let inputs = &[DataType::Int64, DataType::Float64, DataType::Int64];
-        let best = CandidateSignature::best_datatype_for_variadic_any(inputs);
-        assert_eq!(Some(DataTypeId::Float64), best);
-    }
-
-    #[test]
-    fn best_datatype_for_floats() {
-        let inputs = &[DataType::Float64, DataType::Float64, DataType::Float64];
-        let best = CandidateSignature::best_datatype_for_variadic_any(inputs);
-        assert_eq!(Some(DataTypeId::Float64), best);
-    }
 }

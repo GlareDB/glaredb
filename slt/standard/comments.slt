@@ -1,0 +1,36 @@
+# Tests to ensure we ignore comments in queries.
+
+query II
+-- A comment
+select 1, 2;
+----
+1  2
+
+query II
+select 1, 2;
+-- A comment
+----
+1  2
+
+query II
+select 1, 2; -- A comment
+----
+1  2
+
+query II
+select 1, -- A comment
+2;
+----
+1  2
+
+query II
+select 1,
+-- A comment
+2;
+----
+1  2
+
+query T
+select '-- not a comment';
+----
+-- not a comment

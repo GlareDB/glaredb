@@ -1,3 +1,3 @@
-pub mod catalog_storage;
-pub mod memory;
-pub mod table_storage;
+pub mod datatable;
+pub mod projections;
+pub mod storage_manager;

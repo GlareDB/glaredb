@@ -1,8 +1,8 @@
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
 use super::ExpressionRewriteRule;
-use crate::arrays::batch::Batch;
 use crate::expr::literal_expr::LiteralExpr;
+use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
 use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
@@ -12,65 +12,49 @@ use crate::logical::binder::table_list::TableList;
 pub struct ConstFold;
 
 impl ExpressionRewriteRule for ConstFold {
-    fn rewrite(table_list: &TableList, mut expression: Expression) -> Result<Expression> {
-        maybe_fold(table_list, &mut expression)?;
+    fn rewrite(mut expression: Expression) -> Result<Expression> {
+        maybe_fold(&mut expression)?;
         Ok(expression)
     }
 }
 
-fn maybe_fold(table_list: &TableList, expr: &mut Expression) -> Result<()> {
+fn maybe_fold(expr: &mut Expression) -> Result<()> {
     if matches!(expr, Expression::Literal(_)) {
         return Ok(());
     }
 
     if expr.is_const_foldable() {
-        let planner = PhysicalExpressionPlanner::new(table_list);
+        const EMPTY: &TableList = &TableList::empty();
+
+        let planner = PhysicalExpressionPlanner::new(EMPTY);
         let phys_expr = planner.plan_scalar(&[], expr)?;
-        let dummy = Batch::empty_with_num_rows(1);
-        let val = phys_expr.eval(&dummy)?;
-
-        if val.logical_len() != 1 {
-            return Err(RayexecError::new(format!(
-                "Expected 1 value from const eval, got {}",
-                val.logical_len()
-            )));
-        }
-
-        let val = val
-            .logical_value(0) // Len checked above.
-            .map_err(|_| {
-                RayexecError::new(format!(
-                    "Failed to get folded scalar value from expression: {expr}"
-                ))
-            })?;
+        let mut evaluator = ExpressionEvaluator::try_new(vec![phys_expr], 1)?;
+        let val = evaluator.try_eval_constant()?;
 
         // Our brand new expression.
-        *expr = Expression::Literal(LiteralExpr {
-            literal: val.into_owned(),
-        });
+        *expr = Expression::Literal(LiteralExpr { literal: val });
 
         return Ok(());
     }
 
     // Otherwise try the children.
-    expr.for_each_child_mut(&mut |child| maybe_fold(table_list, child))
+    expr.for_each_child_mut(&mut |child| maybe_fold(child))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::expr::{add, and, cast, col_ref, lit};
+    use crate::expr::{add, and, cast, column, lit};
 
     #[test]
     fn no_fold_literal() {
-        let expr = lit("a");
+        let expr = lit("a").into();
 
         // No changes.
-        let expected = expr.clone();
+        let expected: Expression = lit("a").into();
 
-        let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let got = ConstFold::rewrite(expr).unwrap();
         assert_eq!(expected, got);
     }
 
@@ -78,66 +62,86 @@ mod tests {
     fn fold_string_to_float_cast() {
         let expr = cast(lit("3.1"), DataType::Float64);
 
-        let expected = lit(3.1_f64);
+        let expected: Expression = lit(3.1_f64).into();
 
-        let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let got = ConstFold::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn fold_and_true_true() {
-        let expr = and([lit(true), lit(true)]).unwrap();
+        let expr = and([lit(true).into(), lit(true).into()]).unwrap();
 
-        let expected = lit(true);
+        let expected: Expression = lit(true).into();
 
-        let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let got = ConstFold::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn fold_and_true_false() {
-        let expr = and([lit(true), lit(false)]).unwrap();
+        let expr = and([lit(true).into(), lit(false).into()]).unwrap();
 
-        let expected = lit(false);
+        let expected: Expression = lit(false).into();
 
-        let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let got = ConstFold::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn fold_add_numbers() {
-        let expr = add(lit(4), lit(5));
+        let expr = add(lit(4), lit(5)).unwrap();
 
-        let expected = lit(9);
+        let expected: Expression = lit(9).into();
 
-        let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let got = ConstFold::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn no_fold_col_ref() {
-        let expr = add(col_ref(1, 1), lit(5));
+        let expr = add(column((0, 1), DataType::Int32), lit(5)).unwrap();
 
         // No change
-        let expected = expr.clone();
+        let expected: Expression = add(column((0, 1), DataType::Int32), lit(5)).unwrap().into();
 
-        let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let got = ConstFold::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 
     #[test]
     fn partial_fold_col_ref() {
-        let expr = add(col_ref(1, 1), add(lit(4), lit(5)));
+        let expr = add(
+            column((0, 1), DataType::Int32),
+            add(lit(4), lit(5)).unwrap(),
+        )
+        .unwrap();
 
-        let expected = add(col_ref(1, 1), lit(9));
+        // 4 + 5 => 9
+        let expected: Expression = add(column((0, 1), DataType::Int32), lit(9)).unwrap().into();
 
-        let table_list = TableList::empty();
-        let got = ConstFold::rewrite(&table_list, expr).unwrap();
+        let got = ConstFold::rewrite(expr.into()).unwrap();
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn partial_fold_col_ref_with_cast() {
+        // Same as above but with the addition of an implicit cast from i32 to
+        // i64 for the constant part since the non-constant part is i64. The
+        // cast should be folded away leaving a literal value of the right type.
+
+        let expr = add(
+            column((0, 1), DataType::Int64),
+            add(lit(4), lit(5)).unwrap(),
+        )
+        .unwrap();
+
+        // 4 + 5 => 9
+        let expected: Expression = add(column((0, 1), DataType::Int64), lit(9_i64))
+            .unwrap()
+            .into();
+
+        let got = ConstFold::rewrite(expr.into()).unwrap();
         assert_eq!(expected, got);
     }
 }

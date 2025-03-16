@@ -6,6 +6,7 @@ use super::Expression;
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 
+/// Expression that corresponds to a GROUPING call.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GroupingSetExpr {
     pub inputs: Vec<Expression>,
@@ -13,7 +14,7 @@ pub struct GroupingSetExpr {
 
 impl GroupingSetExpr {
     pub fn datatype(&self) -> DataType {
-        DataType::UInt64
+        DataType::Int64
     }
 }
 

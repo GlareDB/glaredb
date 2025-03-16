@@ -1,65 +1,80 @@
 pub mod builtin;
-pub mod states;
+pub mod simple;
 
+use std::any::Any;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::sync::Arc;
 
-use dyn_clone::DynClone;
 use rayexec_error::Result;
-use states::AggregateGroupStates;
 
-use super::FunctionInfo;
-use crate::arrays::datatype::DataType;
-use crate::arrays::executor::aggregate::RowToStateMapping;
-use crate::execution::operators::hash_aggregate::hash_table::GroupAddress;
+use super::bind_state::{BindState, RawBindState};
+use super::Signature;
+use crate::arrays::array::Array;
 use crate::expr::Expression;
-use crate::logical::binder::table_list::TableList;
 
-/// A generic aggregate function that can be specialized into a more specific
-/// function depending on type.
-pub trait AggregateFunction: FunctionInfo + Debug + Sync + Send + DynClone {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedAggregateFunction>;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AggregateStateInfo {
+    /// Size in bytes of the aggregate state (stack).
+    pub size: usize,
+    /// Alignment requirement of the aggregate state.
+    pub align: usize,
 }
-
-impl Clone for Box<dyn AggregateFunction> {
-    fn clone(&self) -> Self {
-        dyn_clone::clone_box(&**self)
-    }
-}
-
-impl PartialEq<dyn AggregateFunction> for Box<dyn AggregateFunction + '_> {
-    fn eq(&self, other: &dyn AggregateFunction) -> bool {
-        self.as_ref() == other
-    }
-}
-
-impl PartialEq for dyn AggregateFunction + '_ {
-    fn eq(&self, other: &dyn AggregateFunction) -> bool {
-        self.name() == other.name() && self.signatures() == other.signatures()
-    }
-}
-
-impl Eq for dyn AggregateFunction {}
 
 #[derive(Debug, Clone)]
 pub struct PlannedAggregateFunction {
-    pub function: Box<dyn AggregateFunction>,
-    pub return_type: DataType,
-    pub inputs: Vec<Expression>,
-    pub function_impl: Box<dyn AggregateFunctionImpl>,
+    pub(crate) name: &'static str,
+    pub(crate) raw: RawAggregateFunction,
+    pub(crate) state: RawBindState,
+}
+
+impl PlannedAggregateFunction {
+    pub(crate) const fn aggregate_state_info(&self) -> AggregateStateInfo {
+        AggregateStateInfo {
+            size: self.raw.state_size,
+            align: self.raw.state_align,
+        }
+    }
+
+    pub(crate) unsafe fn call_new_aggregate_state(&self, agg_state_out: *mut u8) {
+        (self.raw.vtable.new_aggregate_state_fn)(self.state.state_as_any(), agg_state_out)
+    }
+
+    pub(crate) unsafe fn call_update(
+        &self,
+        inputs: &[Array],
+        num_rows: usize,
+        agg_states: &mut [*mut u8],
+    ) -> Result<()> {
+        (self.raw.vtable.update_fn)(self.state.state_as_any(), inputs, num_rows, agg_states)
+    }
+
+    /// Combines `src` pointers into `dest` pointers, consuming the source
+    /// values.
+    pub(crate) unsafe fn call_combine(
+        &self,
+        src: &mut [*mut u8],
+        dest: &mut [*mut u8],
+    ) -> Result<()> {
+        (self.raw.vtable.combine_fn)(self.state.state_as_any(), src, dest)
+    }
+
+    pub(crate) unsafe fn call_finalize(
+        &self,
+        agg_states: &mut [*mut u8],
+        output: &mut Array,
+    ) -> Result<()> {
+        (self.raw.vtable.finalize_fn)(self.state.state_as_any(), agg_states, output)
+    }
 }
 
 /// Assumes that a function with same inputs and return type is using the same
 /// function implementation.
 impl PartialEq for PlannedAggregateFunction {
     fn eq(&self, other: &Self) -> bool {
-        self.function == other.function
-            && self.return_type == other.return_type
-            && self.inputs == other.inputs
+        self.name == other.name
+            && self.state.return_type == other.state.return_type
+            && self.state.inputs == other.state.inputs
     }
 }
 
@@ -67,57 +82,196 @@ impl Eq for PlannedAggregateFunction {}
 
 impl Hash for PlannedAggregateFunction {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.function.name().hash(state);
-        self.return_type.hash(state);
-        self.inputs.hash(state);
+        self.name.hash(state);
+        self.state.return_type.hash(state);
+        self.state.inputs.hash(state);
     }
 }
 
-pub trait AggregateFunctionImpl: Debug + Sync + Send + DynClone {
-    fn new_states(&self) -> Box<dyn AggregateGroupStates>;
+#[derive(Debug, Clone, Copy)]
+pub struct RawAggregateFunction {
+    function: *const (),
+    signature: &'static Signature,
+    vtable: &'static RawAggregateFunctionVTable,
+    state_align: usize,
+    state_size: usize,
 }
 
-impl Clone for Box<dyn AggregateFunctionImpl> {
-    fn clone(&self) -> Self {
-        dyn_clone::clone_box(&**self)
-    }
-}
+unsafe impl Send for RawAggregateFunction {}
+unsafe impl Sync for RawAggregateFunction {}
 
-/// Iterator that internally filters an iterator of group addresses to to just
-/// row mappings that correspond to a single chunk.
-#[derive(Debug)]
-pub struct ChunkGroupAddressIter<'a> {
-    pub row_idx: usize,
-    pub chunk_idx: u16,
-    pub addresses: std::slice::Iter<'a, GroupAddress>,
-}
-
-impl<'a> ChunkGroupAddressIter<'a> {
-    pub fn new(chunk_idx: u16, addrs: &'a [GroupAddress]) -> Self {
-        ChunkGroupAddressIter {
-            row_idx: 0,
-            chunk_idx,
-            addresses: addrs.iter(),
+impl RawAggregateFunction {
+    pub const fn new<F>(sig: &'static Signature, function: &'static F) -> Self
+    where
+        F: AggregateFunction,
+    {
+        let function = (function as *const F).cast();
+        RawAggregateFunction {
+            function,
+            signature: sig,
+            vtable: F::VTABLE,
+            state_size: std::mem::size_of::<F::GroupState>(),
+            state_align: std::mem::align_of::<F::GroupState>(),
         }
     }
+
+    pub fn call_bind(&self, inputs: Vec<Expression>) -> Result<RawBindState> {
+        unsafe { (self.vtable.bind_fn)(self.function, inputs) }
+    }
+
+    pub fn signature(&self) -> &Signature {
+        self.signature
+    }
 }
 
-impl Iterator for ChunkGroupAddressIter<'_> {
-    type Item = RowToStateMapping;
+/// VTable for aggregate functions.
+///
+/// # Safety
+///
+/// This is expected to be used with the aggregate collection where state are
+/// written inline according to a row layout.
+///
+/// This collection ensures pointers are aligned.
+#[derive(Debug, Clone, Copy)]
+#[allow(clippy::type_complexity)]
+pub struct RawAggregateFunctionVTable {
+    bind_fn: unsafe fn(function: *const (), inputs: Vec<Expression>) -> Result<RawBindState>,
+    new_aggregate_state_fn: unsafe fn(state: &dyn Any, state: *mut u8),
+    update_fn: unsafe fn(
+        state: &dyn Any,
+        inputs: &[Array],
+        num_rows: usize,
+        states: &mut [*mut u8],
+    ) -> Result<()>,
+    combine_fn: unsafe fn(state: &dyn Any, src: &mut [*mut u8], dest: &mut [*mut u8]) -> Result<()>,
+    finalize_fn:
+        unsafe fn(state: &dyn Any, states: &mut [*mut u8], output: &mut Array) -> Result<()>,
+}
 
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        for addr in self.addresses.by_ref() {
-            if addr.chunk_idx == self.chunk_idx {
-                let row = self.row_idx;
-                self.row_idx += 1;
-                return Some(RowToStateMapping {
-                    from_row: row,
-                    to_state: addr.row_idx as usize,
-                });
+// TODO: State naming.
+pub trait AggregateFunction: Debug + Copy + Sync + Send + Sized + 'static {
+    /// Bind state passed to update, combine, and finalize functions.
+    type BindState: Sync + Send;
+
+    /// The type for aggregate values for a single group.
+    type GroupState: Sync + Send;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>>;
+
+    /// Compute the return type from the expression inputs and return a function
+    /// state.
+    ///
+    /// This will only be called with expressions that match the signature this
+    /// function was registered with.
+    fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState;
+
+    /// Update states using rows from `inputs`.
+    ///
+    /// Note that `states` is a slice of pointers instead of state references as
+    /// we may be updating the same state for different rows (e.g. rows
+    /// corresponding to the same group).
+    ///
+    /// Implementations must ensure there only exists a single reference per
+    /// state at a time.
+    fn update(
+        state: &Self::BindState,
+        inputs: &[Array],
+        num_rows: usize,
+        states: &mut [*mut Self::GroupState],
+    ) -> Result<()>;
+
+    /// Combine states from `src` into `dest`.
+    fn combine(
+        state: &Self::BindState,
+        src: &mut [&mut Self::GroupState],
+        dest: &mut [&mut Self::GroupState],
+    ) -> Result<()>;
+
+    /// Finalize `states`, writing the final output to the output array.
+    fn finalize(
+        state: &Self::BindState,
+        states: &mut [&mut Self::GroupState],
+        output: &mut Array,
+    ) -> Result<()>;
+}
+
+// TODO: More comprehensive drop checking (specifically we need to drop
+// arbitrarily on query errors).
+// TODO: Explicit drop function.
+trait AggregateFunctionVTable: AggregateFunction {
+    const VTABLE: &'static RawAggregateFunctionVTable = &RawAggregateFunctionVTable {
+        bind_fn: |function: *const (), inputs: Vec<Expression>| -> Result<RawBindState> {
+            let function = unsafe { function.cast::<Self>().as_ref().unwrap() };
+            let state = function.bind(inputs)?;
+
+            Ok(RawBindState {
+                state: Arc::new(state.state),
+                return_type: state.return_type,
+                inputs: state.inputs,
+            })
+        },
+        new_aggregate_state_fn: |state, out_ptr| {
+            let state = state.downcast_ref::<Self::BindState>().unwrap();
+            let agg_state = Self::new_aggregate_state(state);
+            unsafe { out_ptr.cast::<Self::GroupState>().write(agg_state) };
+        },
+        update_fn: |state, inputs, num_rows, states| {
+            let state = state.downcast_ref::<Self::BindState>().unwrap();
+            let agg_states: &mut [*mut Self::GroupState] = unsafe {
+                std::slice::from_raw_parts_mut(
+                    states.as_mut_ptr() as *mut *mut Self::GroupState,
+                    states.len(),
+                )
+            };
+            Self::update(state, inputs, num_rows, agg_states)
+        },
+        combine_fn: |state, src_ptrs, dest_ptrs| {
+            let state = state.downcast_ref::<Self::BindState>().unwrap();
+            let src: &mut [&mut Self::GroupState] = unsafe {
+                std::slice::from_raw_parts_mut(
+                    src_ptrs.as_mut_ptr() as *mut &mut Self::GroupState,
+                    src_ptrs.len(),
+                )
+            };
+
+            let dest: &mut [&mut Self::GroupState] = unsafe {
+                std::slice::from_raw_parts_mut(
+                    dest_ptrs.as_mut_ptr() as *mut &mut Self::GroupState,
+                    dest_ptrs.len(),
+                )
+            };
+
+            Self::combine(state, src, dest)?;
+
+            // Drop src states.
+            for src_ptr in src_ptrs {
+                unsafe {
+                    src_ptr.drop_in_place();
+                }
             }
-            self.row_idx += 1;
-        }
-        None
-    }
+
+            Ok(())
+        },
+        finalize_fn: |state, states, output| {
+            let state = state.downcast_ref::<Self::BindState>().unwrap();
+            let typed_states: &mut [&mut Self::GroupState] = unsafe {
+                std::slice::from_raw_parts_mut(
+                    states.as_mut_ptr() as *mut &mut Self::GroupState,
+                    states.len(),
+                )
+            };
+            Self::finalize(state, typed_states, output)?;
+
+            // Drop all states, they'll never be read from again.
+            for state_ptr in states {
+                unsafe {
+                    state_ptr.drop_in_place();
+                }
+            }
+
+            Ok(())
+        },
+    };
 }
+
+impl<F> AggregateFunctionVTable for F where F: AggregateFunction {}

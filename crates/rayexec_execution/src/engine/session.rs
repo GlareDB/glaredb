@@ -1,33 +1,25 @@
 use std::sync::Arc;
 
 use hashbrown::HashMap;
-use rayexec_error::{OptionExt, RayexecError, Result};
+use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::parser;
 use rayexec_parser::statement::RawStatement;
 use uuid::Uuid;
 
 use super::profiler::PlanningProfileData;
-use super::result::{new_results_sinks, ExecutionResult, ResultErrorSink, ResultStream};
-use super::verifier::QueryVerifier;
-use super::DataSourceRegistry;
-use crate::arrays::field::{Field, Schema};
-use crate::config::execution::{ExecutablePlanConfig, IntermediatePlanConfig};
+use super::query_result::{Output, QueryResult};
+use crate::arrays::field::{ColumnSchema, Field};
+use crate::catalog::context::DatabaseContext;
+use crate::config::execution::OperatorPlanConfig;
 use crate::config::session::SessionConfig;
-use crate::database::catalog::CatalogTx;
-use crate::database::memory_catalog::MemoryCatalog;
-use crate::database::{AttachInfo, Database, DatabaseContext};
-use crate::execution::executable::pipeline::ExecutablePipeline;
-use crate::execution::executable::planner::{ExecutablePipelinePlanner, PlanLocationState};
-use crate::execution::intermediate::pipeline::{
-    IntermediateMaterializationGroup,
-    IntermediatePipelineGroup,
-};
-use crate::execution::intermediate::planner::IntermediatePipelinePlanner;
-use crate::hybrid::client::HybridClient;
+use crate::execution::operators::results::streaming::{PhysicalStreamingResults, ResultStream};
+use crate::execution::operators::{ExecutionProperties, PushOperator};
+use crate::execution::pipeline::ExecutablePipelineGraph;
+use crate::execution::planner::{OperatorPlanner, PlannedQueryGraph};
+use crate::explain::node::ExplainNode;
 use crate::logical::binder::bind_statement::StatementBinder;
-use crate::logical::logical_attach::LogicalAttachDatabase;
 use crate::logical::logical_set::VariableOrAll;
-use crate::logical::operator::{LogicalOperator, Node};
+use crate::logical::operator::LogicalOperator;
 use crate::logical::planner::plan_statement::StatementPlanner;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::{ResolveConfig, ResolveMode, ResolvedStatement, Resolver};
@@ -65,33 +57,22 @@ pub struct Session<P: PipelineExecutor, R: Runtime> {
     /// Context containg everything in the "database" that's visible to this
     /// session.
     context: DatabaseContext,
-
     /// Variables for this session.
     config: SessionConfig,
-
-    /// Reference configured data source implementations.
-    registry: Arc<DataSourceRegistry>,
-
     /// Runtime for accessing external resources like the filesystem or http
     /// clients.
     runtime: R,
-
     /// Pipeline executor.
     executor: P,
-
     /// Prepared statements.
     prepared: HashMap<String, PreparedStatement>,
-
     /// Portals for statements ready to be executed.
     portals: HashMap<String, ExecutablePortal>,
-
-    /// Client for hybrid execution if enabled.
-    hybrid_client: Option<Arc<HybridClient<R::HttpClient>>>,
 }
 
 #[derive(Debug)]
 struct PreparedStatement {
-    verifier: Option<QueryVerifier>,
+    verifier: Option<()>,
     statement: RawStatement,
 }
 
@@ -110,9 +91,8 @@ enum ExecutionMode {
 struct IntermediatePortal {
     query_id: Uuid,
     execution_mode: ExecutionMode,
-    intermediate_pipelines: IntermediatePipelineGroup,
-    intermediate_materializations: IntermediateMaterializationGroup,
-    output_schema: Schema,
+    query_graph: PlannedQueryGraph,
+    output_schema: ColumnSchema,
 }
 
 /// Portal containing executable pipelines.
@@ -120,6 +100,7 @@ struct IntermediatePortal {
 struct ExecutablePortal {
     /// Query id for this query. Used to begin execution on the remote side if
     /// needed.
+    #[expect(unused)]
     query_id: Uuid,
     /// Execution mode of the query.
     ///
@@ -128,17 +109,17 @@ struct ExecutablePortal {
     /// execution.
     execution_mode: ExecutionMode,
     /// Pipelines we'll be executing on this node.
-    executable_pipelines: Vec<ExecutablePipeline>,
+    executable_graph: ExecutablePipelineGraph,
     /// Output schema of the query.
-    output_schema: Schema,
-    /// Where results will be sent to.
+    output_schema: ColumnSchema,
+    /// Output result stream.
     result_stream: ResultStream,
-    /// Where errors will be sent do.
-    error_sink: ResultErrorSink,
     /// Profile data we've collected during resolving/binding/planning.
+    #[expect(unused)]
     profile: PlanningProfileData,
     /// Optional verifier that we're carrying through planning.
-    verifier: Option<QueryVerifier>,
+    #[expect(unused)]
+    verifier: Option<()>,
 }
 
 impl<P, R> Session<P, R>
@@ -146,28 +127,17 @@ where
     P: PipelineExecutor,
     R: Runtime,
 {
-    pub fn new(
-        context: DatabaseContext,
-        executor: P,
-        runtime: R,
-        registry: Arc<DataSourceRegistry>,
-    ) -> Self {
+    pub fn new(context: DatabaseContext, executor: P, runtime: R) -> Self {
         let config = SessionConfig::new(&executor, &runtime);
 
         Session {
             context,
             runtime,
             executor,
-            registry,
             config,
             prepared: HashMap::new(),
             portals: HashMap::new(),
-            hybrid_client: None,
         }
-    }
-
-    pub(crate) fn config_mut(&mut self) -> &mut SessionConfig {
-        &mut self.config
     }
 
     /// Get execution results from one or more sql queries.
@@ -178,7 +148,7 @@ where
     /// Execution result streams should be read in order.
     ///
     /// Uses the unnamed ("") keys for prepared statements and portals.
-    pub async fn simple(&mut self, sql: &str) -> Result<Vec<ExecutionResult>> {
+    pub async fn simple(&mut self, sql: &str) -> Result<Vec<QueryResult>> {
         let stmts = parser::parse(sql)?;
         let mut results = Vec::with_capacity(stmts.len());
 
@@ -197,7 +167,7 @@ where
     // TODO: Typed parameters at some point.
     pub fn prepare(&mut self, prepared_name: impl Into<String>, stmt: RawStatement) -> Result<()> {
         let verifier = if self.config.verify_optimized_plan {
-            Some(QueryVerifier::new(stmt.clone()))
+            not_implemented!("Query verification")
         } else {
             None
         };
@@ -224,25 +194,16 @@ where
                 "Missing named prepared statement: '{prepared_name}'"
             ))
         })?;
-        let verifier = stmt.verifier.clone();
+        let verifier = stmt.verifier;
 
         let mut profile = PlanningProfileData::default();
 
-        // TODO: Store tx state on session.
-        let tx = CatalogTx::new();
-
-        let resolve_mode = if self.hybrid_client.is_some() {
-            ResolveMode::Hybrid
-        } else {
-            ResolveMode::Normal
-        };
+        let resolve_mode = ResolveMode::Normal;
 
         let timer = Timer::<R::Instant>::start();
         let (resolved_stmt, resolve_context) = Resolver::new(
             resolve_mode,
-            &tx,
             &self.context,
-            self.registry.get_file_handlers(),
             ResolveConfig {
                 enable_function_chaining: self.config.enable_function_chaining,
             },
@@ -251,27 +212,24 @@ where
         .await?;
         profile.resolve_step = Some(timer.stop());
 
+        let stream = ResultStream::new();
+
         let intermediate_portal = self
-            .plan_intermediate(resolved_stmt, resolve_context, resolve_mode, &mut profile)
+            .plan_intermediate(
+                resolved_stmt,
+                resolve_context,
+                resolve_mode,
+                &mut profile,
+                PhysicalStreamingResults::new(stream.sink()),
+            )
             .await?;
 
-        let (stream, sink, errors) = new_results_sinks();
-
-        let mut planner = ExecutablePipelinePlanner::<R>::new(
-            &self.context,
-            ExecutablePlanConfig {
-                partitions: self.config.partitions as usize,
-            },
-            PlanLocationState::Client {
-                output_sink: Some(sink),
-                hybrid_client: self.hybrid_client.as_ref(),
-            },
-        );
-
         let timer = Timer::<R::Instant>::start();
-        let pipelines = planner.plan_from_intermediate(
-            intermediate_portal.intermediate_pipelines,
-            intermediate_portal.intermediate_materializations,
+        let pipeline_graph = ExecutablePipelineGraph::plan_from_graph(
+            ExecutionProperties {
+                batch_size: self.config.batch_size as usize,
+            },
+            intermediate_portal.query_graph,
         )?;
         profile.plan_executable_step = Some(timer.stop());
 
@@ -280,14 +238,14 @@ where
             ExecutablePortal {
                 query_id: intermediate_portal.query_id,
                 execution_mode: intermediate_portal.execution_mode,
-                executable_pipelines: pipelines,
+                executable_graph: pipeline_graph,
                 output_schema: intermediate_portal.output_schema,
                 result_stream: stream,
-                error_sink: errors,
                 profile,
                 verifier,
             },
         );
+
         Ok(())
     }
 
@@ -295,28 +253,33 @@ where
     ///
     /// If the resolve context indicates that not all objects were resolved,
     /// we'll call out to the remote side to complete planning.
-    async fn plan_intermediate(
+    async fn plan_intermediate<O>(
         &mut self,
         stmt: ResolvedStatement,
         resolve_context: ResolveContext,
         resolve_mode: ResolveMode,
         profile: &mut PlanningProfileData,
-    ) -> Result<IntermediatePortal> {
+        sink: O,
+    ) -> Result<IntermediatePortal>
+    where
+        O: PushOperator,
+    {
         match resolve_mode {
             ResolveMode::Hybrid if resolve_context.any_unresolved() => {
-                // Hybrid planning, send to remote to complete planning.
-                let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
-                let resp = hybrid_client
-                    .remote_plan(stmt, resolve_context, &self.context)
-                    .await?;
+                // // Hybrid planning, send to remote to complete planning.
+                // let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
+                // let resp = hybrid_client
+                //     .remote_plan(stmt, resolve_context, &self.context)
+                //     .await?;
 
-                Ok(IntermediatePortal {
-                    query_id: resp.query_id,
-                    execution_mode: ExecutionMode::Hybrid,
-                    intermediate_pipelines: resp.pipelines,
-                    intermediate_materializations: IntermediateMaterializationGroup::default(), // TODO: Need to get these somehow.
-                    output_schema: resp.schema,
-                })
+                unimplemented!()
+                // Ok(IntermediatePortal {
+                //     query_id: resp.query_id,
+                //     execution_mode: ExecutionMode::Hybrid,
+                //     intermediate_pipelines: resp.pipelines,
+                //     intermediate_materializations: IntermediateMaterializationGroup::default(), // TODO: Need to get these somehow.
+                //     output_schema: resp.schema,
+                // })
             }
             _ => {
                 // Normal all-local planning.
@@ -346,10 +309,15 @@ where
                         .children
                         .first()
                         .ok_or_else(|| RayexecError::new("Missing explain child"))?;
-                    explain.node.logical_optimized = Some(Box::new(child.clone()));
+
+                    explain.node.logical_optimized = Some(ExplainNode::new_from_logical_plan(
+                        &bind_context,
+                        explain.node.verbose,
+                        child,
+                    ));
                 }
 
-                let schema = Schema::new(
+                let schema = ColumnSchema::new(
                     bind_context
                         .iter_tables_in_scope(bind_context.root_scope_ref())?
                         .flat_map(|t| {
@@ -361,22 +329,24 @@ where
                 );
 
                 let query_id = Uuid::new_v4();
-                let planner = IntermediatePipelinePlanner::new(
-                    IntermediatePlanConfig {
-                        allow_nested_loop_join: self.config.allow_nested_loop_join,
+                let planner = OperatorPlanner::new(
+                    OperatorPlanConfig {
+                        per_partition_counts: self.config.per_partition_counts,
                     },
                     query_id,
                 );
 
-                let pipelines = match logical {
-                    LogicalOperator::AttachDatabase(attach) => {
-                        self.handle_attach_database(attach).await?;
-                        planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
+                let query_graph = match logical {
+                    LogicalOperator::AttachDatabase(_) => {
+                        not_implemented!("Attach database")
+                        // self.handle_attach_database(attach).await?;
+                        // planner.plan(LogicalOperator::EMPTY, bind_context, sink)?
                     }
-                    LogicalOperator::DetachDatabase(detach) => {
-                        let empty = planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?; // Here to avoid lifetime issues.
-                        self.context.detach_database(&detach.as_ref().name)?;
-                        empty
+                    LogicalOperator::DetachDatabase(_) => {
+                        not_implemented!("Detach database")
+                        // let empty = planner.plan(LogicalOperator::EMPTY, bind_context, sink)?; // Here to avoid lifetime issues.
+                        // self.context.detach_database(&detach.as_ref().name)?;
+                        // empty
                     }
                     LogicalOperator::SetVar(set_var) => {
                         // TODO: Do we want this logic to exist here?
@@ -391,7 +361,7 @@ where
                         // distributed execution.
                         self.config
                             .set_from_scalar(&set_var.node.name, set_var.node.value)?;
-                        planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
+                        planner.plan(LogicalOperator::EMPTY, &self.context, bind_context, sink)?
                     }
                     LogicalOperator::ResetVar(reset) => {
                         // Same TODO as above.
@@ -403,27 +373,20 @@ where
                                 self.config.reset_all(&self.executor, &self.runtime)
                             }
                         }
-                        planner.plan_pipelines(LogicalOperator::EMPTY, bind_context)?
+                        planner.plan(LogicalOperator::EMPTY, &self.context, bind_context, sink)?
                     }
                     root => {
                         let timer = Timer::<R::Instant>::start();
-                        let pipelines = planner.plan_pipelines(root, bind_context)?;
+                        let pipelines = planner.plan(root, &self.context, bind_context, sink)?;
                         profile.plan_intermediate_step = Some(timer.stop());
                         pipelines
                     }
                 };
 
-                if !pipelines.remote.is_empty() {
-                    return Err(RayexecError::new(
-                        "Remote pipelines should not have been planned",
-                    ));
-                }
-
                 Ok(IntermediatePortal {
                     query_id,
                     execution_mode: ExecutionMode::LocalOnly,
-                    intermediate_pipelines: pipelines.local,
-                    intermediate_materializations: pipelines.materializations,
+                    query_graph,
                     output_schema: schema,
                 })
             }
@@ -434,105 +397,37 @@ where
     ///
     /// This will go through the final phase of planning (producing executable
     /// pipelines) then spawn those on the executor.
-    pub async fn execute(&mut self, portal_name: &str) -> Result<ExecutionResult> {
+    pub async fn execute(&mut self, portal_name: &str) -> Result<QueryResult> {
         let portal = self
             .portals
             .remove(portal_name)
             .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal_name}'")))?;
 
         if portal.execution_mode == ExecutionMode::Hybrid {
-            // Need to begin execution on the remote side.
-            let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
-            hybrid_client.remote_execute(portal.query_id).await?;
+            not_implemented!("Hybrid exec")
+            // // Need to begin execution on the remote side.
+            // let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
+            // hybrid_client.remote_execute(portal.query_id).await?;
         }
+
+        let props = ExecutionProperties {
+            batch_size: self.config.batch_size as usize,
+        };
+        let partitions = self.config.partitions as usize;
+        let pipelines = portal
+            .executable_graph
+            .create_partition_pipelines(props, partitions)?;
 
         let handle = self
             .executor
-            .spawn_pipelines(portal.executable_pipelines, Arc::new(portal.error_sink));
+            .spawn_pipelines(pipelines, Arc::new(portal.result_stream.error_sink()));
 
-        let exec_result = ExecutionResult {
-            planning_profile: portal.profile,
+        let output = Output::Stream(portal.result_stream);
+
+        Ok(QueryResult {
+            handle,
+            output,
             output_schema: portal.output_schema,
-            stream: portal.result_stream,
-            handle: handle.into(),
-        };
-
-        match portal.verifier {
-            Some(verifier) => {
-                // TODO: Try to avoid the box pin here. `verify` should probably
-                // be split up into to functions, one for creating a stream from
-                // the session, the other for actually executing the stream and
-                // doing the checking.
-                let new_exec_result = Box::pin(verifier.verify(self, exec_result)).await?;
-                Ok(new_exec_result)
-            }
-            None => Ok(exec_result),
-        }
-    }
-
-    async fn handle_attach_database(&mut self, attach: Node<LogicalAttachDatabase>) -> Result<()> {
-        // TODO: This should always be client local. Is there a case where we
-        // want to have that not be the cases? What would the behavior be.
-        let attach = attach.into_inner();
-
-        let database = match self.registry.get_datasource(&attach.datasource) {
-            Some(datasource) => {
-                // We have data source implementation on the client. Try to
-                // connect locally.
-                let connection = datasource.connect(attach.options.clone()).await?;
-                let catalog = Arc::new(MemoryCatalog::default());
-                if let Some(catalog_storage) = connection.catalog_storage.as_ref() {
-                    catalog_storage.initial_load(&catalog).await?;
-                }
-
-                Database {
-                    catalog,
-                    catalog_storage: connection.catalog_storage,
-                    table_storage: Some(connection.table_storage),
-                    attach_info: Some(AttachInfo {
-                        datasource: attach.datasource.clone(),
-                        options: attach.options,
-                    }),
-                }
-            }
-            None => {
-                // We don't have a data source implementation on the client.
-                let _client = match &self.hybrid_client {
-                    Some(client) => client,
-                    None => {
-                        return Err(RayexecError::new(format!(
-                        "Hybrid execution not enabled. Cannot verify attaching a '{}' data source",
-                        attach.datasource,
-                    )))
-                    }
-                };
-
-                // TODO: Verify connection options using hybrid client.
-
-                // Having no catalog storage will result in resolving always
-                // kicking out to hybrid execution.
-                Database {
-                    catalog: Arc::new(MemoryCatalog::default()),
-                    catalog_storage: None,
-                    table_storage: None,
-                    attach_info: Some(AttachInfo {
-                        datasource: attach.datasource.clone(),
-                        options: attach.options,
-                    }),
-                }
-            }
-        };
-
-        self.context.attach_database(&attach.name, database)?;
-
-        Ok(())
-    }
-
-    pub fn set_hybrid(&mut self, client: HybridClient<R::HttpClient>) {
-        self.hybrid_client = Some(Arc::new(client));
-    }
-
-    pub fn unset_hybrid(&mut self) {
-        self.hybrid_client = None;
+        })
     }
 }

@@ -14,8 +14,9 @@ use super::logical_distinct::LogicalDistinct;
 use super::logical_drop::LogicalDrop;
 use super::logical_empty::LogicalEmpty;
 use super::logical_explain::LogicalExplain;
+use super::logical_expression_list::LogicalExpressionList;
 use super::logical_filter::LogicalFilter;
-use super::logical_inout::LogicalInOut;
+use super::logical_inout::LogicalTableExecute;
 use super::logical_insert::LogicalInsert;
 use super::logical_join::{
     LogicalArbitraryJoin,
@@ -270,6 +271,7 @@ pub enum LogicalOperator {
     Aggregate(Node<LogicalAggregate>),
     SetOp(Node<LogicalSetop>),
     Scan(Node<LogicalScan>),
+    ExpressionList(Node<LogicalExpressionList>),
     MaterializationScan(Node<LogicalMaterializationScan>),
     MagicMaterializationScan(Node<LogicalMagicMaterializationScan>),
     Empty(Node<LogicalEmpty>),
@@ -292,7 +294,7 @@ pub enum LogicalOperator {
     MagicJoin(Node<LogicalMagicJoin>),
     Unnest(Node<LogicalUnnest>),
     Window(Node<LogicalWindow>),
-    InOut(Node<LogicalInOut>),
+    TableExecute(Node<LogicalTableExecute>),
 }
 
 impl LogicalOperator {
@@ -364,6 +366,7 @@ impl LogicalOperator {
             Self::Filter(n) => &n.children,
             Self::Distinct(n) => &n.children,
             Self::Scan(n) => &n.children,
+            Self::ExpressionList(n) => &n.children,
             Self::MaterializationScan(n) => &n.children,
             Self::MagicMaterializationScan(n) => &n.children,
             Self::Aggregate(n) => &n.children,
@@ -390,7 +393,7 @@ impl LogicalOperator {
             Self::MagicJoin(n) => &n.children,
             Self::Unnest(n) => &n.children,
             Self::Window(n) => &n.children,
-            Self::InOut(n) => &n.children,
+            Self::TableExecute(n) => &n.children,
         }
     }
 
@@ -401,6 +404,7 @@ impl LogicalOperator {
             Self::Filter(n) => &mut n.children,
             Self::Distinct(n) => &mut n.children,
             Self::Scan(n) => &mut n.children,
+            Self::ExpressionList(n) => &mut n.children,
             Self::MaterializationScan(n) => &mut n.children,
             Self::MagicMaterializationScan(n) => &mut n.children,
             Self::Aggregate(n) => &mut n.children,
@@ -427,7 +431,7 @@ impl LogicalOperator {
             Self::MagicJoin(n) => &mut n.children,
             Self::Unnest(n) => &mut n.children,
             Self::Window(n) => &mut n.children,
-            Self::InOut(n) => &mut n.children,
+            Self::TableExecute(n) => &mut n.children,
         }
     }
 
@@ -442,6 +446,7 @@ impl LogicalOperator {
             LogicalOperator::Filter(n) => n.estimated_cardinality,
             LogicalOperator::Distinct(n) => n.estimated_cardinality,
             LogicalOperator::Scan(n) => n.estimated_cardinality,
+            LogicalOperator::ExpressionList(n) => n.estimated_cardinality,
             LogicalOperator::MaterializationScan(n) => n.estimated_cardinality,
             LogicalOperator::MagicMaterializationScan(n) => n.estimated_cardinality,
             LogicalOperator::Aggregate(n) => n.estimated_cardinality,
@@ -468,7 +473,7 @@ impl LogicalOperator {
             LogicalOperator::MagicJoin(n) => n.estimated_cardinality,
             LogicalOperator::Unnest(n) => n.estimated_cardinality,
             LogicalOperator::Window(n) => n.estimated_cardinality,
-            LogicalOperator::InOut(n) => n.estimated_cardinality,
+            LogicalOperator::TableExecute(n) => n.estimated_cardinality,
         }
     }
 }
@@ -481,6 +486,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::Filter(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::Distinct(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::Scan(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::ExpressionList(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::MaterializationScan(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::MagicMaterializationScan(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::Aggregate(n) => n.get_output_table_refs(bind_context),
@@ -507,7 +513,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::MagicJoin(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::Unnest(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::Window(n) => n.get_output_table_refs(bind_context),
-            LogicalOperator::InOut(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::TableExecute(n) => n.get_output_table_refs(bind_context),
         }
     }
 
@@ -521,6 +527,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::Filter(n) => n.for_each_expr(func),
             LogicalOperator::Distinct(n) => n.for_each_expr(func),
             LogicalOperator::Scan(n) => n.for_each_expr(func),
+            LogicalOperator::ExpressionList(n) => n.for_each_expr(func),
             LogicalOperator::MaterializationScan(n) => n.for_each_expr(func),
             LogicalOperator::MagicMaterializationScan(n) => n.for_each_expr(func),
             LogicalOperator::Aggregate(n) => n.for_each_expr(func),
@@ -547,7 +554,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::MagicJoin(n) => n.for_each_expr(func),
             LogicalOperator::Unnest(n) => n.for_each_expr(func),
             LogicalOperator::Window(n) => n.for_each_expr(func),
-            LogicalOperator::InOut(n) => n.for_each_expr(func),
+            LogicalOperator::TableExecute(n) => n.for_each_expr(func),
         }
     }
 
@@ -561,6 +568,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::Filter(n) => n.for_each_expr_mut(func),
             LogicalOperator::Distinct(n) => n.for_each_expr_mut(func),
             LogicalOperator::Scan(n) => n.for_each_expr_mut(func),
+            LogicalOperator::ExpressionList(n) => n.for_each_expr_mut(func),
             LogicalOperator::MaterializationScan(n) => n.for_each_expr_mut(func),
             LogicalOperator::MagicMaterializationScan(n) => n.for_each_expr_mut(func),
             LogicalOperator::Aggregate(n) => n.for_each_expr_mut(func),
@@ -587,7 +595,7 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::MagicJoin(n) => n.for_each_expr_mut(func),
             LogicalOperator::Unnest(n) => n.for_each_expr_mut(func),
             LogicalOperator::Window(n) => n.for_each_expr_mut(func),
-            LogicalOperator::InOut(n) => n.for_each_expr_mut(func),
+            LogicalOperator::TableExecute(n) => n.for_each_expr_mut(func),
         }
     }
 }

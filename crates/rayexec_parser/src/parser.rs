@@ -27,7 +27,8 @@ use crate::tokens::{Token, TokenWithLocation, Tokenizer};
 /// Parse a sql query into statements.
 pub fn parse(sql: &str) -> Result<Vec<Statement<Raw>>> {
     trace!(%sql, "parsing sql statement");
-    let toks = Tokenizer::new(sql).tokenize()?;
+    let mut toks = Vec::new();
+    Tokenizer::new(sql).tokenize(&mut toks)?;
     Parser::with_tokens(toks, sql).parse_statements()
 }
 
@@ -404,7 +405,7 @@ impl<'a> Parser<'a> {
 
     /// Get the next token.
     ///
-    /// Ignores whitespace.
+    /// Ignores whitespace and comments.
     pub(crate) fn next(&mut self) -> Option<&TokenWithLocation> {
         loop {
             if self.idx >= self.toks.len() {
@@ -414,7 +415,7 @@ impl<'a> Parser<'a> {
             let tok = &self.toks[self.idx];
             self.idx += 1;
 
-            if matches!(&tok.token, Token::Whitespace) {
+            if matches!(&tok.token, Token::Whitespace | Token::Comment(_)) {
                 continue;
             }
 
@@ -439,7 +440,7 @@ impl<'a> Parser<'a> {
 
     /// Get the nth next token without altering the current index.
     ///
-    /// Ignores whitespace.
+    /// Ignores whitespace and comments.
     pub(crate) fn peek_nth(&self, mut n: usize) -> Option<&TokenWithLocation> {
         let mut idx = self.idx;
         loop {
@@ -450,7 +451,7 @@ impl<'a> Parser<'a> {
             let tok = &self.toks[idx];
             idx += 1;
 
-            if matches!(&tok.token, Token::Whitespace) {
+            if matches!(&tok.token, Token::Whitespace | Token::Comment(_)) {
                 continue;
             }
 

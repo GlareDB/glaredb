@@ -2,108 +2,91 @@ use rayexec_error::Result;
 use rayexec_parser::ast;
 
 use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::compute::date::{self, extract_date_part};
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::scalar::decimal::{Decimal64Type, DecimalType};
 use crate::expr::Expression;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+
+pub const FUNCTION_SET_DATE_PART: ScalarFunctionSet = ScalarFunctionSet {
+    name: "date_part",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::Date,
+        description: "Get a subfield.",
+        arguments: &["part", "date"],
+        example: Some(Example {
+            example: "date_part('day', DATE '2024-12-17')",
+            output: "17.000", // TODO: Gotta fix the trailing zeros.
+        }),
+    }),
+    // TODO: Optional third arg for timezone.
+    functions: &[
+        RawScalarFunction::new(
+            &Signature::new(
+                &[DataTypeId::Utf8, DataTypeId::Date32],
+                DataTypeId::Decimal64,
+            ),
+            &DatePart,
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
+                &[DataTypeId::Utf8, DataTypeId::Date64],
+                DataTypeId::Decimal64,
+            ),
+            &DatePart,
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
+                &[DataTypeId::Utf8, DataTypeId::Timestamp],
+                DataTypeId::Decimal64,
+            ),
+            &DatePart,
+        ),
+    ],
+};
+
+#[derive(Debug)]
+pub struct DatePartState {
+    part: date::DatePart,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DatePart;
 
-impl FunctionInfo for DatePart {
-    fn name(&self) -> &'static str {
-        "date_part"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        // TODO: Specific docs for each.
-        const DOC: &Documentation = &Documentation {
-            category: Category::Date,
-            description: "Get a subfield.",
-            arguments: &["part", "date"],
-            example: Some(Example {
-                example: "date_part('day', DATE '2024-12-17')",
-                output: "17.000", // TODO: Gotta fix the trailing zeros.
-            }),
-        };
-
-        &[
-            Signature {
-                positional_args: &[DataTypeId::Utf8, DataTypeId::Date32],
-                variadic_arg: None,
-                return_type: DataTypeId::Decimal64,
-                doc: Some(DOC),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Utf8, DataTypeId::Date64],
-                variadic_arg: None,
-                return_type: DataTypeId::Decimal64,
-                doc: Some(DOC),
-            },
-            Signature {
-                positional_args: &[DataTypeId::Utf8, DataTypeId::Timestamp],
-                variadic_arg: None,
-                return_type: DataTypeId::Decimal64,
-                doc: Some(DOC),
-            },
-        ]
-    }
-}
-
 impl ScalarFunction for DatePart {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        let datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype(table_list))
-            .collect::<Result<Vec<_>>>()?;
+    type State = DatePartState;
 
-        // TODO: 3rd arg for optional timezone
-        plan_check_num_args(self, &datatypes, 2)?;
-
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         // Requires first argument to be constant (for now)
-        let part = ConstFold::rewrite(table_list, inputs[0].clone())?
+        let part = ConstFold::rewrite(inputs[0].clone())?
             .try_into_scalar()?
             .try_into_string()?;
 
         let part = part.parse::<ast::DatePart>()?;
         let part = convert_ast_date_part(part);
 
-        match &datatypes[1] {
-            DataType::Date32 | DataType::Date64 | DataType::Timestamp(_) => {
-                Ok(PlannedScalarFunction {
-                    function: Box::new(*self),
-                    return_type: DataType::Decimal64(DecimalTypeMeta::new(
-                        Decimal64Type::MAX_PRECISION,
-                        Decimal64Type::DEFAULT_SCALE,
-                    )),
-                    inputs,
-                    function_impl: Box::new(DatePartImpl { part }),
-                })
-            }
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
+        Ok(BindState {
+            state: DatePartState { part },
+            return_type: DataType::Decimal64(DecimalTypeMeta::new(
+                Decimal64Type::MAX_PRECISION,
+                Decimal64Type::DEFAULT_SCALE,
+            )),
+            inputs,
+        })
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DatePartImpl {
-    part: date::DatePart,
-}
-
-impl ScalarFunctionImpl for DatePartImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
+    fn execute(state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
         // First input ignored (the constant "part" to extract)
-        extract_date_part(self.part, inputs[1])
+        let input = &input.arrays()[1];
+        extract_date_part(state.part, input, sel, output)
     }
 }
 

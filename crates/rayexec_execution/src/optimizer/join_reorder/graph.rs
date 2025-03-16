@@ -32,7 +32,8 @@ use super::edge::{EdgeId, EdgeType, HyperEdges, NeighborEdge};
 use super::statistics::propagate_estimated_cardinality;
 use super::subgraph::Subgraph;
 use super::ReorderableCondition;
-use crate::expr;
+use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_filter::LogicalFilter;
@@ -692,8 +693,13 @@ impl Graph {
         // in a filter.
         match input {
             LogicalOperator::Filter(filter) => {
-                let filter_expr =
-                    expr::and(input_filters.into_iter().chain([filter.node.filter])).unwrap();
+                let filter_expr = Expression::Conjunction(ConjunctionExpr {
+                    op: ConjunctionOperator::And,
+                    expressions: input_filters
+                        .into_iter()
+                        .chain([filter.node.filter])
+                        .collect(),
+                });
 
                 Ok(LogicalOperator::Filter(Node {
                     node: LogicalFilter {
@@ -705,8 +711,13 @@ impl Graph {
                 }))
             }
             LogicalOperator::ArbitraryJoin(join) if join.node.join_type == JoinType::Inner => {
-                let condition =
-                    expr::and(input_filters.into_iter().chain([join.node.condition])).unwrap();
+                let condition = Expression::Conjunction(ConjunctionExpr {
+                    op: ConjunctionOperator::And,
+                    expressions: input_filters
+                        .into_iter()
+                        .chain([join.node.condition])
+                        .collect(),
+                });
 
                 Ok(LogicalOperator::ArbitraryJoin(Node {
                     node: LogicalArbitraryJoin {
@@ -718,23 +729,35 @@ impl Graph {
                     estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
-            LogicalOperator::CrossJoin(join) => Ok(LogicalOperator::ArbitraryJoin(Node {
-                node: LogicalArbitraryJoin {
-                    join_type: JoinType::Inner,
-                    condition: expr::and(input_filters).unwrap(),
-                },
-                location: join.location,
-                children: join.children,
-                estimated_cardinality: StatisticsValue::Unknown,
-            })),
-            other => Ok(LogicalOperator::Filter(Node {
-                node: LogicalFilter {
-                    filter: expr::and(input_filters).unwrap(),
-                },
-                location: LocationRequirement::Any,
-                children: vec![other],
-                estimated_cardinality: StatisticsValue::Unknown,
-            })),
+            LogicalOperator::CrossJoin(join) => {
+                let condition = Expression::Conjunction(ConjunctionExpr {
+                    op: ConjunctionOperator::And,
+                    expressions: input_filters,
+                });
+
+                Ok(LogicalOperator::ArbitraryJoin(Node {
+                    node: LogicalArbitraryJoin {
+                        join_type: JoinType::Inner,
+                        condition,
+                    },
+                    location: join.location,
+                    children: join.children,
+                    estimated_cardinality: StatisticsValue::Unknown,
+                }))
+            }
+            other => {
+                let filter = Expression::Conjunction(ConjunctionExpr {
+                    op: ConjunctionOperator::And,
+                    expressions: input_filters,
+                });
+
+                Ok(LogicalOperator::Filter(Node {
+                    node: LogicalFilter { filter },
+                    location: LocationRequirement::Any,
+                    children: vec![other],
+                    estimated_cardinality: StatisticsValue::Unknown,
+                }))
+            }
         }
     }
 
@@ -858,7 +881,7 @@ impl Graph {
             }))
         } else {
             let join_type = if any_semi {
-                JoinType::Semi
+                JoinType::LeftSemi
             } else {
                 JoinType::Inner
             };

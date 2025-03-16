@@ -26,7 +26,7 @@ SELECT GROUPING(make) + 4, sum(sales), make FROM items_sold GROUP BY make ORDER 
 4  20  Bar
 4  30  Foo
 
-# TODO
+# TODO: '#0.0' was not found in the GROUP BY and cannot be used as an argument to GROUPING
 # query TTII
 # select make as m2, model, sum(sales), grouping(make) from items_sold group by m2, model order by 1,2;
 # ----

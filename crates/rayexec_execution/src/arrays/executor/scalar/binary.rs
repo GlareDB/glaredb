@@ -1,187 +1,302 @@
 use rayexec_error::Result;
+use stdutil::iter::IntoExactSizeIterator;
 
-use super::check_validity;
-use crate::arrays::array::physical_type::PhysicalStorage;
+use crate::arrays::array::flat::FlattenedArray;
+use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::Array;
-use crate::arrays::bitmap::Bitmap;
-use crate::arrays::executor::builder::{ArrayBuilder, ArrayDataBuffer, OutputBuffer};
-use crate::arrays::executor::scalar::validate_logical_len;
-use crate::arrays::selection;
-use crate::arrays::storage::AddressableStorage;
+use crate::arrays::executor::{OutBuffer, PutBuffer};
 
 #[derive(Debug, Clone, Copy)]
 pub struct BinaryExecutor;
 
 impl BinaryExecutor {
-    pub fn execute<'a, S1, S2, B, Op>(
-        array1: &'a Array,
-        array2: &'a Array,
-        builder: ArrayBuilder<B>,
+    pub fn execute<S1, S2, O, Op>(
+        array1: &Array,
+        sel1: impl IntoExactSizeIterator<Item = usize>,
+        array2: &Array,
+        sel2: impl IntoExactSizeIterator<Item = usize>,
+        out: OutBuffer,
         mut op: Op,
-    ) -> Result<Array>
+    ) -> Result<()>
     where
-        Op: FnMut(S1::Type<'a>, S2::Type<'a>, &mut OutputBuffer<B>),
-        S1: PhysicalStorage,
-        S2: PhysicalStorage,
-        B: ArrayDataBuffer,
+        S1: ScalarStorage,
+        S2: ScalarStorage,
+        O: MutableScalarStorage,
+        for<'a> Op: FnMut(&S1::StorageType, &S2::StorageType, PutBuffer<O::AddressableMut<'a>>),
     {
-        let len = validate_logical_len(&builder.buffer, array1)?;
-        let _ = validate_logical_len(&builder.buffer, array2)?;
+        if array1.should_flatten_for_execution() || array2.should_flatten_for_execution() {
+            let view1 = FlattenedArray::from_array(array1)?;
+            let view2 = FlattenedArray::from_array(array2)?;
 
-        let selection1 = array1.selection_vector();
-        let selection2 = array2.selection_vector();
+            return Self::execute_flat::<S1, S2, _, _>(view1, sel1, view2, sel2, out, op);
+        }
 
-        let validity1 = array1.validity();
-        let validity2 = array2.validity();
+        // TODO: length validation
 
-        let mut out_validity = None;
+        let input1 = S1::get_addressable(&array1.data)?;
+        let input2 = S2::get_addressable(&array2.data)?;
 
-        let mut output_buffer = OutputBuffer {
-            idx: 0,
-            buffer: builder.buffer,
-        };
+        let mut output = O::get_addressable_mut(out.buffer)?;
 
-        if validity1.is_some() || validity2.is_some() {
-            let values1 = S1::get_storage(&array1.data2)?;
-            let values2 = S2::get_storage(&array2.data2)?;
+        let validity1 = &array1.validity;
+        let validity2 = &array2.validity;
 
-            let mut out_validity_builder = Bitmap::new_with_all_true(len);
+        if validity1.all_valid() && validity2.all_valid() {
+            for (output_idx, (input1_idx, input2_idx)) in sel1
+                .into_exact_size_iter()
+                .zip(sel2.into_exact_size_iter())
+                .enumerate()
+            {
+                let val1 = input1.get(input1_idx).unwrap();
+                let val2 = input2.get(input2_idx).unwrap();
 
-            for idx in 0..len {
-                let sel1 = unsafe { selection::get_unchecked(selection1, idx) };
-                let sel2 = unsafe { selection::get_unchecked(selection2, idx) };
-
-                if check_validity(sel1, validity1) && check_validity(sel2, validity2) {
-                    let val1 = unsafe { values1.get_unchecked(sel1) };
-                    let val2 = unsafe { values2.get_unchecked(sel2) };
-
-                    output_buffer.idx = idx;
-                    op(val1, val2, &mut output_buffer);
-                } else {
-                    out_validity_builder.set_unchecked(idx, false);
-                }
+                op(
+                    val1,
+                    val2,
+                    PutBuffer::new(output_idx, &mut output, out.validity),
+                );
             }
-
-            out_validity = Some(out_validity_builder.into())
         } else {
-            let values1 = S1::get_storage(&array1.data2)?;
-            let values2 = S2::get_storage(&array2.data2)?;
+            for (output_idx, (input1_idx, input2_idx)) in sel1
+                .into_exact_size_iter()
+                .zip(sel2.into_exact_size_iter())
+                .enumerate()
+            {
+                if validity1.is_valid(input1_idx) && validity2.is_valid(input2_idx) {
+                    let val1 = input1.get(input1_idx).unwrap();
+                    let val2 = input2.get(input2_idx).unwrap();
 
-            for idx in 0..len {
-                let sel1 = unsafe { selection::get_unchecked(selection1, idx) };
-                let sel2 = unsafe { selection::get_unchecked(selection2, idx) };
-
-                let val1 = unsafe { values1.get_unchecked(sel1) };
-                let val2 = unsafe { values2.get_unchecked(sel2) };
-
-                output_buffer.idx = idx;
-                op(val1, val2, &mut output_buffer);
+                    op(
+                        val1,
+                        val2,
+                        PutBuffer::new(output_idx, &mut output, out.validity),
+                    );
+                } else {
+                    out.validity.set_invalid(output_idx);
+                }
             }
         }
 
-        let data = output_buffer.buffer.into_data();
+        Ok(())
+    }
 
-        Ok(Array {
-            datatype: builder.datatype,
-            selection2: None,
-            validity2: out_validity,
-            data2: data,
-            next: None,
-        })
+    pub fn execute_flat<'a, S1, S2, O, Op>(
+        array1: FlattenedArray<'a>,
+        sel1: impl IntoExactSizeIterator<Item = usize>,
+        array2: FlattenedArray<'a>,
+        sel2: impl IntoExactSizeIterator<Item = usize>,
+        out: OutBuffer,
+        mut op: Op,
+    ) -> Result<()>
+    where
+        S1: ScalarStorage,
+        S2: ScalarStorage,
+        O: MutableScalarStorage,
+        for<'b> Op: FnMut(&S1::StorageType, &S2::StorageType, PutBuffer<O::AddressableMut<'b>>),
+    {
+        // TODO: length validation
+
+        let input1 = S1::get_addressable(array1.array_buffer)?;
+        let input2 = S2::get_addressable(array2.array_buffer)?;
+
+        let mut output = O::get_addressable_mut(out.buffer)?;
+
+        let validity1 = &array1.validity;
+        let validity2 = &array2.validity;
+
+        if validity1.all_valid() && validity2.all_valid() {
+            for (output_idx, (input1_idx, input2_idx)) in sel1
+                .into_exact_size_iter()
+                .zip(sel2.into_exact_size_iter())
+                .enumerate()
+            {
+                let sel1 = array1.selection.get(input1_idx).unwrap();
+                let sel2 = array2.selection.get(input2_idx).unwrap();
+
+                let val1 = input1.get(sel1).unwrap();
+                let val2 = input2.get(sel2).unwrap();
+
+                op(
+                    val1,
+                    val2,
+                    PutBuffer::new(output_idx, &mut output, out.validity),
+                );
+            }
+        } else {
+            for (output_idx, (input1_idx, input2_idx)) in sel1
+                .into_exact_size_iter()
+                .zip(sel2.into_exact_size_iter())
+                .enumerate()
+            {
+                let sel1 = array1.selection.get(input1_idx).unwrap();
+                let sel2 = array2.selection.get(input2_idx).unwrap();
+
+                if validity1.is_valid(input1_idx) && validity2.is_valid(input2_idx) {
+                    let val1 = input1.get(sel1).unwrap();
+                    let val2 = input2.get(sel2).unwrap();
+
+                    op(
+                        val1,
+                        val2,
+                        PutBuffer::new(output_idx, &mut output, out.validity),
+                    );
+                } else {
+                    out.validity.set_invalid(output_idx);
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use selection::SelectionVector;
+    use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
     use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
+    use crate::arrays::array::Array;
     use crate::arrays::datatype::DataType;
-    use crate::arrays::executor::builder::{GermanVarlenBuffer, PrimitiveBuffer};
-    use crate::arrays::scalar::ScalarValue;
+    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
     fn binary_simple_add() {
-        let left = Array::from_iter([1, 2, 3]);
-        let right = Array::from_iter([4, 5, 6]);
+        let left = Array::try_from_iter([1, 2, 3]).unwrap();
+        let right = Array::try_from_iter([4, 5, 6]).unwrap();
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Int32,
-            buffer: PrimitiveBuffer::<i32>::with_len(3),
-        };
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
             &left,
+            0..3,
             &right,
-            builder,
-            |a, b, buf| buf.put(&(a + b)),
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |&a, &b, buf| buf.put(&(a + b)),
         )
         .unwrap();
 
-        assert_eq!(ScalarValue::from(5), got.physical_scalar(0).unwrap());
-        assert_eq!(ScalarValue::from(7), got.physical_scalar(1).unwrap());
-        assert_eq!(ScalarValue::from(9), got.physical_scalar(2).unwrap());
-    }
-
-    #[test]
-    fn binary_string_repeat() {
-        let left = Array::from_iter([1, 2, 3]);
-        let right = Array::from_iter(["hello", "world", "goodbye!"]);
-
-        let builder = ArrayBuilder {
-            datatype: DataType::Utf8,
-            buffer: GermanVarlenBuffer::<str>::with_len(3),
-        };
-
-        let mut string_buf = String::new();
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalUtf8, _, _>(
-            &left,
-            &right,
-            builder,
-            |repeat, s, buf| {
-                string_buf.clear();
-                for _ in 0..repeat {
-                    string_buf.push_str(s);
-                }
-                buf.put(string_buf.as_str())
-            },
-        )
-        .unwrap();
-
-        assert_eq!(ScalarValue::from("hello"), got.physical_scalar(0).unwrap());
-        assert_eq!(
-            ScalarValue::from("worldworld"),
-            got.physical_scalar(1).unwrap()
-        );
-        assert_eq!(
-            ScalarValue::from("goodbye!goodbye!goodbye!"),
-            got.physical_scalar(2).unwrap()
-        );
+        let expected = Array::try_from_iter([5, 7, 9]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn binary_add_with_invalid() {
-        // Make left constant null.
-        let mut left = Array::from_iter([1]);
-        left.put_selection(SelectionVector::repeated(3, 0));
-        left.set_physical_validity(0, false);
+        let left = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
+        let right = Array::try_from_iter([4, 5, 6]).unwrap();
 
-        let right = Array::from_iter([2, 3, 4]);
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
 
-        let got = BinaryExecutor::execute::<PhysicalI32, PhysicalI32, _, _>(
+        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
             &left,
+            0..3,
             &right,
-            ArrayBuilder {
-                datatype: DataType::Int32,
-                buffer: PrimitiveBuffer::with_len(3),
-            },
-            |a, b, buf| buf.put(&(a + b)),
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |&a, &b, buf| buf.put(&(a + b)),
         )
         .unwrap();
 
-        assert_eq!(ScalarValue::Null, got.logical_value(0).unwrap());
-        assert_eq!(ScalarValue::Null, got.logical_value(1).unwrap());
-        assert_eq!(ScalarValue::Null, got.logical_value(2).unwrap());
+        let expected = Array::try_from_iter([Some(5), None, Some(9)]).unwrap();
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_add_with_constant() {
+        let left = Array::try_from_iter([1, 2, 3]).unwrap();
+        let right = Array::new_constant(&NopBufferManager, &4.into(), 3).unwrap();
+
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+
+        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
+            &left,
+            0..3,
+            &right,
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |&a, &b, buf| buf.put(&(a + b)),
+        )
+        .unwrap();
+
+        let expected = Array::try_from_iter([5, 6, 7]).unwrap();
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_simple_add_with_constant_selection() {
+        let mut left = Array::try_from_iter([2]).unwrap();
+        // [2, 2, 2]
+        left.select(&NopBufferManager, [0, 0, 0]).unwrap();
+
+        let right = Array::try_from_iter([4, 5, 6]).unwrap();
+
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+
+        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
+            &left,
+            0..3,
+            &right,
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |&a, &b, buf| buf.put(&(a + b)),
+        )
+        .unwrap();
+
+        let expected = Array::try_from_iter([6, 7, 8]).unwrap();
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_simple_with_selection_invalid() {
+        let mut left = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
+        // => [NULL, 3, 1]
+        left.select(&NopBufferManager, [1, 2, 0]).unwrap();
+        let right = Array::try_from_iter([4, 5, 6]).unwrap();
+
+        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+
+        BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
+            &left,
+            0..3,
+            &right,
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |&a, &b, buf| buf.put(&(a + b)),
+        )
+        .unwrap();
+
+        let expected = Array::try_from_iter([None, Some(8), Some(7)]).unwrap();
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_string_repeat() {
+        let left = Array::try_from_iter([1, 2, 3]).unwrap();
+        let right = Array::try_from_iter(["hello", "world", "goodbye!"]).unwrap();
+
+        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+
+        let mut string_buf = String::new();
+        BinaryExecutor::execute::<PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(
+            &left,
+            0..3,
+            &right,
+            0..3,
+            OutBuffer::from_array(&mut out).unwrap(),
+            |&repeat, s, buf| {
+                string_buf.clear();
+                for _ in 0..repeat {
+                    string_buf.push_str(s);
+                }
+                buf.put(&string_buf);
+            },
+        )
+        .unwrap();
+
+        let expected =
+            Array::try_from_iter(["hello", "worldworld", "goodbye!goodbye!goodbye!"]).unwrap();
+        assert_arrays_eq(&expected, &out);
     }
 }

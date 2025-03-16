@@ -9,7 +9,7 @@ use rayexec_execution::arrays::datatype::{
     TimeUnit,
     TimestampTypeMeta,
 };
-use rayexec_execution::arrays::field::{Field, Schema as BulletSchema};
+use rayexec_execution::arrays::field::{ColumnSchema as BulletSchema, Field};
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
 

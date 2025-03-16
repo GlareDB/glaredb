@@ -2,9 +2,9 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use futures::future::{BoxFuture, FutureExt};
-use futures::stream::{BoxStream, StreamExt};
-use futures::Future;
+use futures::future::FutureExt;
+use futures::stream::StreamExt;
+use futures::{Future, Stream};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_io::http::{HttpClient, HttpResponse};
 use reqwest::header::HeaderMap;
@@ -52,8 +52,8 @@ impl HttpClient for TokioWrappedHttpClient {
 pub struct BoxingResponse(pub reqwest::Response);
 
 impl HttpResponse for BoxingResponse {
-    type BytesFuture = BoxFuture<'static, Result<Bytes>>;
-    type BytesStream = BoxStream<'static, Result<Bytes>>;
+    type BytesFuture = Pin<Box<dyn Future<Output = Result<Bytes>> + Sync + Send + 'static>>;
+    type BytesStream = Pin<Box<dyn Stream<Item = Result<Bytes>> + Sync + Send + 'static>>;
 
     fn status(&self) -> StatusCode {
         self.0.status()
@@ -64,17 +64,19 @@ impl HttpResponse for BoxingResponse {
     }
 
     fn bytes(self) -> Self::BytesFuture {
-        self.0
-            .bytes()
-            .map(|r| r.context("failed to get byte response"))
-            .boxed()
+        Box::pin(
+            self.0
+                .bytes()
+                .map(|r| r.context("failed to get byte response")),
+        )
     }
 
     fn bytes_stream(self) -> Self::BytesStream {
-        self.0
-            .bytes_stream()
-            .map(|r| r.context("failed to get byte stream"))
-            .boxed()
+        Box::pin(
+            self.0
+                .bytes_stream()
+                .map(|r| r.context("failed to get byte stream")),
+        )
     }
 }
 

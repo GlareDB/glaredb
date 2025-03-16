@@ -6,11 +6,11 @@ use rayexec_parser::ast;
 
 use super::{BoundQuery, QueryBinder};
 use crate::arrays::datatype::DataType;
-use crate::database::catalog_entry::CatalogEntry;
-use crate::expr::column_expr::ColumnExpr;
-use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
-use crate::expr::Expression;
-use crate::functions::table::{PlannedTableFunction, TableFunctionPlanner};
+use crate::catalog::entry::CatalogEntry;
+use crate::expr::column_expr::ColumnReference;
+use crate::expr::comparison_expr::ComparisonOperator;
+use crate::expr::{self, Expression};
+use crate::functions::table::{PlannedTableFunction, TableFunctionInput};
 use crate::logical::binder::bind_context::{
     BindContext,
     BindScopeRef,
@@ -27,8 +27,6 @@ use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_table::ResolvedTableOrCteReference;
 use crate::logical::resolver::resolved_table_function::ResolvedTableFunctionReference;
 use crate::logical::resolver::{ResolvedMeta, ResolvedSubqueryOptions};
-use crate::optimizer::expr_rewrite::const_fold::ConstFold;
-use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundFrom {
@@ -46,14 +44,28 @@ pub enum BoundFromItem {
     Empty,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// References a table in the catalog.
+#[derive(Debug, Clone)]
 pub struct BoundBaseTable {
     pub table_ref: TableRef,
     pub location: LocationRequirement,
     pub catalog: String,
     pub schema: String,
     pub entry: Arc<CatalogEntry>,
+    pub scan_function: PlannedTableFunction,
 }
+
+impl PartialEq for BoundBaseTable {
+    fn eq(&self, other: &Self) -> bool {
+        self.table_ref == other.table_ref
+            && self.location == other.location
+            && self.catalog == other.catalog
+            && self.schema == other.schema
+            && self.entry.name == other.entry.name
+    }
+}
+
+impl Eq for BoundBaseTable {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundTableFunction {
@@ -233,6 +245,7 @@ impl<'a> FromBinder<'a> {
                         catalog: table.catalog.clone(),
                         schema: table.schema.clone(),
                         entry: table.entry.clone(),
+                        scan_function: table.scan_function.clone(),
                     }),
                 })
             }
@@ -240,6 +253,9 @@ impl<'a> FromBinder<'a> {
                 // TODO: Does location matter here?
                 self.bind_cte(bind_context, name, alias)
             }
+            (ResolvedTableOrCteReference::View(_), _location) => Err(RayexecError::new(
+                "View should have been inlined during resolve",
+            )),
         }
     }
 
@@ -395,7 +411,7 @@ impl<'a> FromBinder<'a> {
             .try_get_bound(function.reference)?;
 
         let planned = match reference {
-            ResolvedTableFunctionReference::InOut(inout) => {
+            ResolvedTableFunctionReference::Delayed(resolved) => {
                 // Handle in/out function planning now. We have everything we
                 // need to plan its inputs.
                 let expr_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
@@ -428,52 +444,35 @@ impl<'a> FromBinder<'a> {
                                 ));
                             }
                         },
-                        ast::FunctionArg::Named { name, arg } => {
-                            match arg {
-                                ast::FunctionArgExpr::Expr(expr) => {
-                                    // Constants required.
-                                    let expr = expr_binder.bind_expression(
-                                        bind_context,
-                                        expr,
-                                        &mut DefaultColumnBinder,
-                                        recur,
-                                    )?;
+                        ast::FunctionArg::Named { name, arg } => match arg {
+                            ast::FunctionArgExpr::Expr(expr) => {
+                                let expr = expr_binder.bind_expression(
+                                    bind_context,
+                                    expr,
+                                    &mut DefaultColumnBinder,
+                                    recur,
+                                )?;
 
-                                    let val =
-                                        ConstFold::rewrite(bind_context.get_table_list(), expr)?
-                                            .try_into_scalar()?;
-                                    named.insert(name.as_normalized_string(), val);
-                                }
-                                ast::FunctionArgExpr::Wildcard => {
-                                    return Err(RayexecError::new(
-                                        "Cannot plan a function with '*' as an argument",
-                                    ));
-                                }
+                                named.insert(name.as_normalized_string(), expr);
                             }
-                        }
+                            ast::FunctionArgExpr::Wildcard => {
+                                return Err(RayexecError::new(
+                                    "Cannot plan a function with '*' as an argument",
+                                ));
+                            }
+                        },
                     }
                 }
 
-                // Note only positional input casts for now. Signatures don't
-                // have a notion of named arguments yet.
-                let positional = expr_binder.apply_casts_for_table_function(
-                    bind_context,
-                    inout.as_ref(),
-                    positional,
-                )?;
-
-                match inout.planner() {
-                    TableFunctionPlanner::InOut(planner) => {
-                        planner.plan(bind_context.get_table_list(), positional, named)?
-                    }
-                    TableFunctionPlanner::Scan(_) => {
-                        return Err(RayexecError::new(
-                            "Expected in/out planner, got scan planner",
-                        ))
-                    }
-                }
+                // TODO: This currently assumes that delayed binding indicates
+                // that this function is a table execute function (which is
+                // correct), but may change in the future.
+                expr::bind_table_execute_function(
+                    resolved,
+                    TableFunctionInput { positional, named },
+                )?
             }
-            ResolvedTableFunctionReference::Scan(planned) => planned.clone(),
+            ResolvedTableFunctionReference::Planned(planned) => planned.clone(),
         };
 
         // TODO: For table funcs that are reading files, it'd be nice to have
@@ -485,6 +484,7 @@ impl<'a> FromBinder<'a> {
         };
 
         let (names, types) = planned
+            .bind_state
             .schema
             .fields
             .iter()
@@ -593,7 +593,7 @@ impl<'a> FromBinder<'a> {
             ast::JoinType::Inner => JoinType::Inner,
             ast::JoinType::Left => JoinType::Left,
             ast::JoinType::Right => JoinType::Right,
-            ast::JoinType::LeftSemi => JoinType::Semi,
+            ast::JoinType::LeftSemi => JoinType::LeftSemi,
             other => not_implemented!("plan join type: {other:?}"),
         };
 
@@ -632,8 +632,8 @@ impl<'a> FromBinder<'a> {
                 JoinType::Left
                 | JoinType::Inner
                 | JoinType::Full
-                | JoinType::Semi
-                | JoinType::Anti
+                | JoinType::LeftSemi
+                | JoinType::LeftAnti
                 | JoinType::LeftMark { .. } => UsingColumn {
                     column: using,
                     table_ref: left_table,
@@ -658,31 +658,30 @@ impl<'a> FromBinder<'a> {
             }
 
             // Generate additional equality condition.
-            // TODO: Probably make this a method on the expr binder. Easy to miss the cast.
-            let [left, right] = condition_binder.apply_cast_for_operator(
-                bind_context,
+            let left_reference = ColumnReference {
+                table_scope: left_table,
+                column: left_col_idx,
+            };
+            let right_reference = ColumnReference {
+                table_scope: right_table,
+                column: right_col_idx,
+            };
+
+            let condition = expr::compare(
                 ComparisonOperator::Eq,
-                [
-                    Expression::Column(ColumnExpr {
-                        table_scope: left_table,
-                        column: left_col_idx,
-                    }),
-                    Expression::Column(ColumnExpr {
-                        table_scope: right_table,
-                        column: right_col_idx,
-                    }),
-                ],
+                bind_context
+                    .get_table_list()
+                    .column_as_expr(left_reference)?,
+                bind_context
+                    .get_table_list()
+                    .column_as_expr(right_reference)?,
             )?;
 
-            conditions.push(Expression::Comparison(ComparisonExpr {
-                left: Box::new(left),
-                right: Box::new(right),
-                op: ComparisonOperator::Eq,
-            }))
+            conditions.push(condition.into());
         }
 
         // Remove right columns from scope for semi joins.
-        if join_type == JoinType::Semi {
+        if join_type == JoinType::LeftSemi {
             let right_tables: Vec<_> = bind_context
                 .iter_tables_in_scope(right_idx)?
                 .map(|t| t.reference)

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
@@ -7,25 +8,28 @@ use tracing::error;
 use super::resolved_table::{
     ResolvedTableOrCteReference,
     ResolvedTableReference,
+    ResolvedViewReference,
     UnresolvedTableReference,
 };
 use super::ResolveContext;
-use crate::database::catalog::CatalogTx;
-use crate::database::catalog_entry::{CatalogEntry, CatalogEntryType};
-use crate::database::create::{CreateSchemaInfo, CreateTableInfo, OnConflict};
-use crate::database::memory_catalog::MemorySchema;
-use crate::database::{Database, DatabaseContext};
-use crate::functions::table::TableFunction;
+use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
+use crate::catalog::database::Database;
+use crate::catalog::entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType};
+use crate::catalog::memory::MemorySchema;
+use crate::catalog::system::BUILTIN_SCHEMA;
+use crate::catalog::{Catalog, Schema};
+use crate::expr;
+use crate::functions::function_set::TableFunctionSet;
+use crate::functions::table::TableFunctionInput;
 
 pub fn create_user_facing_resolve_err(
-    tx: &CatalogTx,
     schema_ent: Option<&MemorySchema>,
     object_types: &[CatalogEntryType],
     name: &str,
 ) -> RayexecError {
     // Find similar function to include in error message.
     let similar = match schema_ent {
-        Some(schema_ent) => match schema_ent.find_similar_entry(tx, object_types, name) {
+        Some(schema_ent) => match schema_ent.find_similar_entry(object_types, name) {
             Ok(maybe_similar) => maybe_similar,
             Err(e) => {
                 // Error shouldn't happen, but if it does, it shouldn't be user-facing.
@@ -47,7 +51,7 @@ pub fn create_user_facing_resolve_err(
     match similar {
         Some(similar) => RayexecError::new(format!(
             "Cannot resolve {} with name '{}', did you mean '{}'?",
-            formatted_object_types, name, similar.entry.name,
+            formatted_object_types, name, similar.name,
         )),
         None => RayexecError::new(format!(
             "Cannot resolve {} with name '{}'",
@@ -70,31 +74,30 @@ pub enum MaybeResolvedTable {
 // TODO: Search path
 #[derive(Debug)]
 pub struct NormalResolver<'a> {
-    pub tx: &'a CatalogTx,
     pub context: &'a DatabaseContext,
 }
 
 impl<'a> NormalResolver<'a> {
-    pub fn new(tx: &'a CatalogTx, context: &'a DatabaseContext) -> Self {
-        NormalResolver { tx, context }
+    pub fn new(context: &'a DatabaseContext) -> Self {
+        NormalResolver { context }
     }
 
     /// Resolve a table function.
     pub fn resolve_table_function(
         &self,
         reference: &ast::ObjectReference,
-    ) -> Result<Option<Box<dyn TableFunction>>> {
+    ) -> Result<Option<TableFunctionSet>> {
         // TODO: Search path.
         let [catalog, schema, name] = match reference.0.len() {
             1 => [
-                "system".to_string(),
-                "glare_catalog".to_string(),
+                SYSTEM_CATALOG.to_string(),
+                BUILTIN_SCHEMA.to_string(),
                 reference.0[0].as_normalized_string(),
             ],
             2 => {
                 let name = reference.0[1].as_normalized_string();
                 let schema = reference.0[0].as_normalized_string();
-                ["system".to_string(), schema, name]
+                [SYSTEM_CATALOG.to_string(), schema, name]
             }
             3 => {
                 let name = reference.0[2].as_normalized_string();
@@ -111,16 +114,16 @@ impl<'a> NormalResolver<'a> {
 
         let schema_ent = match self
             .context
-            .get_database(&catalog)?
+            .require_get_database(&catalog)?
             .catalog
-            .get_schema(self.tx, &schema)?
+            .get_schema(&schema)?
         {
             Some(ent) => ent,
             None => return Ok(None),
         };
 
-        if let Some(entry) = schema_ent.get_table_function(self.tx, &name)? {
-            Ok(Some(entry.try_as_table_function_entry()?.function.clone()))
+        if let Some(entry) = schema_ent.get_table_function(&name)? {
+            Ok(Some(entry.try_as_table_function_entry()?.function))
         } else {
             Ok(None)
         }
@@ -129,7 +132,7 @@ impl<'a> NormalResolver<'a> {
     pub fn require_resolve_table_function(
         &self,
         reference: &ast::ObjectReference,
-    ) -> Result<Box<dyn TableFunction>> {
+    ) -> Result<TableFunctionSet> {
         self.resolve_table_function(reference)?.ok_or_else(|| {
             RayexecError::new(format!(
                 "Missing table function for reference '{}'",
@@ -177,89 +180,65 @@ impl<'a> NormalResolver<'a> {
             }
         };
 
-        let database = self.context.get_database(&catalog)?;
+        let database = self.context.require_get_database(&catalog)?;
 
         // Try reading from in-memory catalog first.
         if let Some(entry) = self.resolve_from_memory_catalog(database, &schema, &table)? {
-            return Ok(MaybeResolvedTable::Resolved(
-                ResolvedTableOrCteReference::Table(ResolvedTableReference {
-                    catalog,
-                    schema,
-                    entry,
-                }),
-            ));
-        }
+            match &entry.entry {
+                CatalogEntryInner::Table(table_ent) => {
+                    // Base table, get the table scan function and use that.
+                    //
+                    // Arguments are (catalog, schema, table)
+                    let inputs = TableFunctionInput {
+                        positional: vec![
+                            expr::lit(catalog.clone()).into(),
+                            expr::lit(schema.clone()).into(),
+                            expr::lit(table.clone()).into(),
+                        ],
+                        named: HashMap::new(),
+                    };
 
-        // If we don't have it, try loading from external catalog.
-        match database.catalog_storage.as_ref() {
-            Some(storage) => {
-                let ent = match storage.load_table(&schema, &table).await? {
-                    Some(ent) => ent,
-                    None => {
-                        return Ok(MaybeResolvedTable::UnresolvedWithCatalog(
-                            UnresolvedTableReference {
-                                catalog: catalog.to_string(),
-                                reference: reference.clone(),
-                                attach_info: database.attach_info.clone(),
-                            },
-                        ))
-                    }
-                };
+                    let planned =
+                        expr::bind_table_scan_function(&table_ent.function, self.context, inputs)
+                            .await?;
 
-                // We may need to create a schema in memory as well if we've
-                // successfully loaded the table.
-                let schema_ent = match database.catalog.get_schema(self.tx, &schema)? {
-                    Some(schema) => schema,
-                    None => database.catalog.create_schema(
-                        self.tx,
-                        &CreateSchemaInfo {
-                            name: schema.clone(),
-                            on_conflict: OnConflict::Error,
-                        },
-                    )?,
-                };
-
-                schema_ent.create_table(
-                    self.tx,
-                    &CreateTableInfo {
-                        name: table.clone(),
-                        columns: ent.columns,
-                        on_conflict: OnConflict::Error,
-                    },
-                )?;
-            }
-            None => {
-                // Nothing to load from. Return None instead of an error to the
-                // remote side in hybrid execution to potentially load from
-                // external source.
-                return Ok(MaybeResolvedTable::UnresolvedWithCatalog(
-                    UnresolvedTableReference {
-                        catalog: catalog.to_string(),
-                        reference: reference.clone(),
-                        attach_info: database.attach_info.clone(),
-                    },
-                ));
+                    return Ok(MaybeResolvedTable::Resolved(
+                        ResolvedTableOrCteReference::Table(ResolvedTableReference {
+                            catalog,
+                            schema,
+                            entry,
+                            scan_function: planned,
+                        }),
+                    ));
+                }
+                CatalogEntryInner::View(_) => {
+                    return Ok(MaybeResolvedTable::Resolved(
+                        ResolvedTableOrCteReference::View(ResolvedViewReference {
+                            catalog,
+                            schema,
+                            entry,
+                        }),
+                    ))
+                }
+                _ => {
+                    return Err(RayexecError::new(format!(
+                        "Unexpected catalog entry type: {:?}",
+                        entry.entry_type()
+                    )))
+                }
             }
         }
 
-        // Read from catalog again.
-        if let Some(entry) = self.resolve_from_memory_catalog(database, &schema, &table)? {
-            Ok(MaybeResolvedTable::Resolved(
-                ResolvedTableOrCteReference::Table(ResolvedTableReference {
-                    catalog,
-                    schema,
-                    entry,
-                }),
-            ))
-        } else {
-            Ok(MaybeResolvedTable::UnresolvedWithCatalog(
-                UnresolvedTableReference {
-                    catalog: catalog.to_string(),
-                    reference: reference.clone(),
-                    attach_info: database.attach_info.clone(),
-                },
-            ))
-        }
+        // Nothing to load from. Return None instead of an error to the
+        // remote side in hybrid execution to potentially load from
+        // external source.
+        Ok(MaybeResolvedTable::UnresolvedWithCatalog(
+            UnresolvedTableReference {
+                catalog: catalog.to_string(),
+                reference: reference.clone(),
+                attach_info: database.attach_info.clone(),
+            },
+        ))
     }
 
     fn resolve_from_memory_catalog(
@@ -268,12 +247,12 @@ impl<'a> NormalResolver<'a> {
         schema: &str,
         table: &str,
     ) -> Result<Option<Arc<CatalogEntry>>> {
-        let schema_ent = match database.catalog.get_schema(self.tx, schema)? {
+        let schema_ent = match database.catalog.get_schema(schema)? {
             Some(ent) => ent,
             None => return Ok(None),
         };
 
-        schema_ent.get_table_or_view(self.tx, table)
+        schema_ent.get_table_or_view(table)
     }
 
     pub async fn require_resolve_table_or_cte(

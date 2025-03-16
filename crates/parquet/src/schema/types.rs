@@ -30,7 +30,7 @@ use crate::basic::{
     TimeUnit,
     Type as PhysicalType,
 };
-use crate::errors::Result;
+use crate::errors::{general_err, ParquetResult};
 use crate::format::SchemaElement;
 
 // ----------------------------------------------------------------------
@@ -273,7 +273,7 @@ impl<'a> PrimitiveTypeBuilder<'a> {
 
     /// Creates a new `PrimitiveType` instance from the collected attributes.
     /// Returns `Err` in case of any building conditions are not met.
-    pub fn build(self) -> Result<Type> {
+    pub fn build(self) -> ParquetResult<Type> {
         let mut basic_info = BasicTypeInfo {
             name: String::from(self.name),
             repetition: Some(self.repetition),
@@ -467,7 +467,7 @@ impl<'a> PrimitiveTypeBuilder<'a> {
     }
 
     #[inline]
-    fn check_decimal_precision_scale(&self) -> Result<()> {
+    fn check_decimal_precision_scale(&self) -> ParquetResult<()> {
         match self.physical_type {
             PhysicalType::INT32
             | PhysicalType::INT64
@@ -599,7 +599,7 @@ impl<'a> GroupTypeBuilder<'a> {
     }
 
     /// Creates a new `GroupType` instance from the gathered attributes.
-    pub fn build(self) -> Result<Type> {
+    pub fn build(self) -> ParquetResult<Type> {
         let mut basic_info = BasicTypeInfo {
             name: String::from(self.name),
             repetition: self.repetition,
@@ -772,16 +772,13 @@ impl AsRef<[String]> for ColumnPath {
 #[derive(Debug, PartialEq)]
 pub struct ColumnDescriptor {
     /// The "leaf" primitive type of this column
-    primitive_type: TypePtr,
-
+    pub primitive_type: TypePtr,
     /// The maximum definition level for this column
-    max_def_level: i16,
-
+    pub max_def_level: i16,
     /// The maximum repetition level for this column
-    max_rep_level: i16,
-
+    pub max_rep_level: i16,
     /// The path of this column. For instance, "a.b.c.d".
-    path: ColumnPath,
+    pub path: ColumnPath,
 }
 
 impl ColumnDescriptor {
@@ -802,13 +799,13 @@ impl ColumnDescriptor {
 
     /// Returns maximum definition level for this column.
     #[inline]
-    pub fn max_def_level(&self) -> i16 {
+    pub const fn max_def_level(&self) -> i16 {
         self.max_def_level
     }
 
     /// Returns maximum repetition level for this column.
     #[inline]
-    pub fn max_rep_level(&self) -> i16 {
+    pub const fn max_rep_level(&self) -> i16 {
         self.max_rep_level
     }
 
@@ -1066,7 +1063,7 @@ fn build_tree<'a>(
 }
 
 /// Method to convert from Thrift.
-pub fn from_thrift(elements: &[SchemaElement]) -> Result<TypePtr> {
+pub fn from_thrift(elements: &[SchemaElement]) -> ParquetResult<TypePtr> {
     let mut index = 0;
     let mut schema_nodes = Vec::new();
     while index < elements.len() {
@@ -1088,7 +1085,7 @@ pub fn from_thrift(elements: &[SchemaElement]) -> Result<TypePtr> {
 /// The first result is the starting index for the next Type after this one. If it is
 /// equal to `elements.len()`, then this Type is the last one.
 /// The second result is the result Type.
-fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> Result<(usize, TypePtr)> {
+fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> ParquetResult<(usize, TypePtr)> {
     // Whether or not the current node is root (message type).
     // There is only one message type node in the schema tree.
     let is_root_node = index == 0;
@@ -1193,7 +1190,7 @@ fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> Result<(usize
 }
 
 /// Method to convert to Thrift.
-pub fn to_thrift(schema: &Type) -> Result<Vec<SchemaElement>> {
+pub fn to_thrift(schema: &Type) -> ParquetResult<Vec<SchemaElement>> {
     if !schema.is_group() {
         return Err(general_err!("Root schema must be Group type"));
     }
@@ -1664,7 +1661,7 @@ mod tests {
         );
     }
 
-    fn test_column_descriptor_helper() -> Result<()> {
+    fn test_column_descriptor_helper() -> ParquetResult<()> {
         let tp = Type::primitive_type_builder("name", PhysicalType::BYTE_ARRAY)
             .with_converted_type(ConvertedType::UTF8)
             .build()?;
@@ -1695,7 +1692,7 @@ mod tests {
     }
 
     // A helper fn to avoid handling the results from type creation
-    fn test_schema_descriptor_helper() -> Result<()> {
+    fn test_schema_descriptor_helper() -> ParquetResult<()> {
         let mut fields = vec![];
 
         let inta = Type::primitive_type_builder("a", PhysicalType::INT32)

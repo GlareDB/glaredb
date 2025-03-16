@@ -1,3 +1,5 @@
+//! Pretty batch formatting.
+
 pub mod components;
 pub mod table;
 

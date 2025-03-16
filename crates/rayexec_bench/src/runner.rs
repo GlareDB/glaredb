@@ -1,9 +1,10 @@
 use std::time::Instant;
 
 use rayexec_error::Result;
+use rayexec_execution::arrays::format::pretty::table::PrettyTable;
+use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_execution::runtime::{Runtime, TokioHandlerProvider};
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-use rayexec_shell::session::SingleUserEngine;
 
 use crate::benchmark::Benchmark;
 
@@ -48,7 +49,8 @@ impl BenchmarkRunner {
         let setup_start = Instant::now();
         for setup_query in &self.benchmark.setup {
             for pending in self.engine.session().query_many(setup_query)? {
-                let _ = pending.execute().await?.collect().await?;
+                let mut q_res = pending.execute().await?;
+                let _ = q_res.output.collect().await?;
             }
         }
 
@@ -66,10 +68,19 @@ impl BenchmarkRunner {
 
                 if idx == 0 && conf.print_explain {
                     let sql = format!("EXPLAIN VERBOSE {query}");
+
                     match self.engine.session().query(&sql).await {
-                        Ok(table) => match table.collect().await {
-                            Ok(results) => {
-                                println!("{}", results.pretty_table(100, None)?);
+                        Ok(mut q_res) => match q_res.output.collect().await {
+                            Ok(batches) => {
+                                println!(
+                                    "{}",
+                                    PrettyTable::try_new(
+                                        &q_res.output_schema,
+                                        &batches,
+                                        100,
+                                        None
+                                    )?
+                                );
                             }
                             Err(_) => {
                                 println!("explain not available");
@@ -87,33 +98,33 @@ impl BenchmarkRunner {
 
                 for pending in pending {
                     let start = Instant::now();
-                    let results = if conf.print_profile_data {
-                        pending
-                            .execute()
-                            .await?
-                            .collect_with_execution_profile()
-                            .await?
-                    } else {
-                        pending.execute().await?.collect().await?
-                    };
+
+                    // TODO: Profile data.
+
+                    let mut q_res = pending.execute().await?;
+                    let batches = q_res.output.collect().await?;
+
                     query_time_ms += Instant::now().duration_since(start).as_millis();
 
                     if conf.print_results {
-                        println!("{}", results.pretty_table(100, None)?)
+                        println!(
+                            "{}",
+                            PrettyTable::try_new(&q_res.output_schema, &batches, 100, None)?
+                        );
                     }
 
-                    if conf.print_profile_data {
-                        println!("PLANNING PROFILE DATA");
-                        match results.planning_profile_data() {
-                            Some(data) => println!("{data}"),
-                            None => println!("missing planning profile data"),
-                        }
-                        println!("EXECUTION PROFILE DATA");
-                        match results.execution_profile_data() {
-                            Some(data) => println!("{data}"),
-                            None => println!("missing execution profile data"),
-                        }
-                    }
+                    // if conf.print_profile_data {
+                    //     println!("PLANNING PROFILE DATA");
+                    //     match results.planning_profile_data() {
+                    //         Some(data) => println!("{data}"),
+                    //         None => println!("missing planning profile data"),
+                    //     }
+                    //     println!("EXECUTION PROFILE DATA");
+                    //     match results.execution_profile_data() {
+                    //         Some(data) => println!("{data}"),
+                    //         None => println!("missing execution profile data"),
+                    //     }
+                    // }
                 }
             }
 

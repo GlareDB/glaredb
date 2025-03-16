@@ -35,11 +35,11 @@ impl Subgraph {
                 let mut denom = self.selectivity_denom * other.selectivity_denom;
 
                 match op {
-                    ComparisonOperator::Eq => {
+                    ComparisonOperator::Eq | ComparisonOperator::IsNotDistinctFrom => {
                         // =
                         denom *= edge.min_ndv
                     }
-                    ComparisonOperator::NotEq => {
+                    ComparisonOperator::NotEq | ComparisonOperator::IsDistinctFrom => {
                         denom *= 0.1 // Assuming 10% selectivity for !=
                     }
                     ComparisonOperator::Lt

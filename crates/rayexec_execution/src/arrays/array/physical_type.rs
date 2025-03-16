@@ -1,37 +1,13 @@
 use std::fmt::{self, Debug};
 
 use half::f16;
-use rayexec_error::{RayexecError, Result, ResultExt};
+use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
-use super::array_buffer::{ArrayBuffer, ListItemMetadata};
-use super::buffer_manager::BufferManager;
-use super::string_view::{
-    BinaryViewAddressable,
-    BinaryViewAddressableMut,
-    StringViewAddressable,
-    StringViewAddressableMut,
-    StringViewMetadataUnion,
-};
-use crate::arrays::array::{Array, ArrayData2, BinaryData};
-use crate::arrays::executor::builder::{
-    ArrayDataBuffer,
-    BooleanBuffer,
-    GermanVarlenBuffer,
-    PrimitiveBuffer,
-};
+use super::array_buffer::{ArrayBuffer, ListItemMetadata, StringViewBuffer};
+use crate::arrays::array::array_buffer::ArrayBufferType;
 use crate::arrays::scalar::interval::Interval;
-use crate::arrays::storage::{
-    AddressableStorage,
-    BooleanStorageRef,
-    ContiguousVarlenStorageSlice,
-    GermanVarlenStorageSlice,
-    ListItemMetadata2,
-    ListStorage,
-    PrimitiveStorageSlice,
-    UntypedNull2,
-    UntypedNullStorage,
-};
+use crate::arrays::string::StringView;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {
@@ -55,69 +31,9 @@ pub enum PhysicalType {
     Utf8,
     List,
     Struct,
-    Dictionary,
 }
 
 impl PhysicalType {
-    // TODO: Remove
-    pub fn zeroed_array_data(&self, len: usize) -> ArrayData2 {
-        match self {
-            Self::UntypedNull => UntypedNullStorage(len).into(),
-            Self::Boolean => BooleanBuffer::with_len(len).into_data(),
-            Self::Int8 => PrimitiveBuffer::<i8>::with_len(len).into_data(),
-            Self::Int16 => PrimitiveBuffer::<i16>::with_len(len).into_data(),
-            Self::Int32 => PrimitiveBuffer::<i32>::with_len(len).into_data(),
-            Self::Int64 => PrimitiveBuffer::<i64>::with_len(len).into_data(),
-            Self::Int128 => PrimitiveBuffer::<i128>::with_len(len).into_data(),
-            Self::UInt8 => PrimitiveBuffer::<u8>::with_len(len).into_data(),
-            Self::UInt16 => PrimitiveBuffer::<u16>::with_len(len).into_data(),
-            Self::UInt32 => PrimitiveBuffer::<u32>::with_len(len).into_data(),
-            Self::UInt64 => PrimitiveBuffer::<u64>::with_len(len).into_data(),
-            Self::UInt128 => PrimitiveBuffer::<u128>::with_len(len).into_data(),
-            Self::Float16 => PrimitiveBuffer::<f16>::with_len(len).into_data(),
-            Self::Float32 => PrimitiveBuffer::<f32>::with_len(len).into_data(),
-            Self::Float64 => PrimitiveBuffer::<f64>::with_len(len).into_data(),
-            Self::Interval => PrimitiveBuffer::<Interval>::with_len(len).into_data(),
-            Self::Binary => GermanVarlenBuffer::<[u8]>::with_len(len).into_data(),
-            Self::Utf8 => GermanVarlenBuffer::<str>::with_len(len).into_data(),
-            Self::List => ListStorage {
-                metadata: vec![ListItemMetadata2::default(); len].into(),
-                array: Array::new_untyped_null_array(0),
-            }
-            .into(),
-            _ => unimplemented!(),
-        }
-    }
-
-    /// Get the size in bytes of the type that gets placed into the primary
-    /// buffer.
-    pub const fn primary_buffer_mem_size(&self) -> usize {
-        match self {
-            Self::UntypedNull => PhysicalUntypedNull::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Boolean => PhysicalBool::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Int8 => PhysicalI8::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Int16 => PhysicalI16::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Int32 => PhysicalI32::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Int64 => PhysicalI64::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Int128 => PhysicalI128::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::UInt8 => PhysicalU8::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::UInt16 => PhysicalU16::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::UInt32 => PhysicalU32::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::UInt64 => PhysicalU64::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::UInt128 => PhysicalU128::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Float16 => PhysicalF16::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Float32 => PhysicalF32::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Float64 => PhysicalF64::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Interval => PhysicalInterval::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Utf8 => PhysicalUtf8::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::List => PhysicalList::PRIMARY_BUFFER_TYPE_SIZE,
-            Self::Dictionary => PhysicalDictionary::PRIMARY_BUFFER_TYPE_SIZE,
-
-            // TODO: Struct should zero.
-            _ => unimplemented!(),
-        }
-    }
-
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::UntypedNull => "UntypedNull",
@@ -140,7 +56,6 @@ impl PhysicalType {
             Self::Utf8 => "Utf8",
             Self::List => "List",
             Self::Struct => "Struct",
-            Self::Dictionary => "Dictionary",
         }
     }
 }
@@ -176,7 +91,6 @@ impl ProtoConv for PhysicalType {
             Self::Binary => Self::ProtoType::Binary,
             Self::List => Self::ProtoType::List,
             Self::Struct => Self::ProtoType::Struct,
-            Self::Dictionary => Self::ProtoType::Dictionary,
         })
     }
 
@@ -203,7 +117,6 @@ impl ProtoConv for PhysicalType {
             Self::ProtoType::Binary => Self::Binary,
             Self::ProtoType::List => Self::List,
             Self::ProtoType::Struct => Self::Struct,
-            Self::ProtoType::Dictionary => Self::Dictionary,
         })
     }
 }
@@ -213,40 +126,19 @@ pub trait Addressable<'a>: Debug {
     /// The type that get's returned.
     type T: Send + Debug + ?Sized;
 
+    /// Get a value at the given index.
+    fn get(&self, idx: usize) -> Option<&'a Self::T>;
+
     fn len(&self) -> usize;
 
     fn is_empty(&self) -> bool {
         self.len() == 0
-    }
-
-    /// Get a value at the given index.
-    fn get(&self, idx: usize) -> Option<&'a Self::T>;
-}
-
-impl<'a, T> Addressable<'a> for &'a [T]
-where
-    T: Debug + Send,
-{
-    type T = T;
-
-    fn len(&self) -> usize {
-        (**self).len()
-    }
-
-    fn get(&self, idx: usize) -> Option<&'a Self::T> {
-        (**self).get(idx)
     }
 }
 
 /// Represents in-memory storage that we can get mutable references to.
 pub trait AddressableMut: Debug {
     type T: Debug + ?Sized;
-
-    fn len(&self) -> usize;
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
 
     /// Get a mutable reference to a value at the given index.
     fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T>;
@@ -255,169 +147,94 @@ pub trait AddressableMut: Debug {
     ///
     /// Should panic if index is out of bounds.
     fn put(&mut self, idx: usize, val: &Self::T);
+
+    fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
-impl<T> AddressableMut for &mut [T]
+/// Thin wrapper around a slice implementing `Addressable`.
+#[derive(Debug, Clone, Copy)]
+pub struct PrimitiveSlice<'a, T> {
+    pub slice: &'a [T],
+}
+
+impl<'a, T> Addressable<'a> for PrimitiveSlice<'a, T>
+where
+    T: Debug + Send,
+{
+    type T = T;
+
+    fn get(&self, idx: usize) -> Option<&'a Self::T> {
+        self.slice.get(idx)
+    }
+
+    fn len(&self) -> usize {
+        self.slice.len()
+    }
+}
+
+/// Thin wrapper around a mutable slice.
+#[derive(Debug)]
+pub struct PrimitiveSliceMut<'a, T> {
+    pub slice: &'a mut [T],
+}
+
+impl<T> AddressableMut for PrimitiveSliceMut<'_, T>
 where
     T: Debug + Send + Copy,
 {
     type T = T;
 
-    fn len(&self) -> usize {
-        (**self).len()
-    }
-
     fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
-        (**self).get_mut(idx)
+        self.slice.get_mut(idx)
     }
 
     fn put(&mut self, idx: usize, val: &Self::T) {
-        self[idx] = *val;
+        self.slice[idx] = *val
+    }
+
+    fn len(&self) -> usize {
+        self.slice.len()
     }
 }
 
-// TODO: Remove
-/// Types able to convert themselves to byte slices.
-pub trait AsBytes {
-    fn as_bytes(&self) -> &[u8];
+pub trait AsSliceMut<T> {
+    fn as_slice_mut(&mut self) -> &mut [T];
 }
 
-impl AsBytes for str {
-    fn as_bytes(&self) -> &[u8] {
-        self.as_bytes()
-    }
-}
-
-impl AsBytes for &str {
-    fn as_bytes(&self) -> &[u8] {
-        (*self).as_bytes()
-    }
-}
-
-impl AsBytes for [u8] {
-    fn as_bytes(&self) -> &[u8] {
-        self
-    }
-}
-
-impl AsBytes for &[u8] {
-    fn as_bytes(&self) -> &[u8] {
-        self
-    }
-}
-
-// TODO: Remove
-/// Types that can be converted from bytes.
-///
-/// This should not be implemented for `&str`/`&[u8]`.
-pub trait VarlenType: Debug + PartialEq + Eq {
-    fn try_from_bytes(bytes: &[u8]) -> Result<&Self>;
-}
-
-impl VarlenType for str {
-    fn try_from_bytes(bytes: &[u8]) -> Result<&Self> {
-        std::str::from_utf8(bytes).context("Bytes not valid utf8")
-    }
-}
-
-impl VarlenType for [u8] {
-    fn try_from_bytes(bytes: &[u8]) -> Result<&Self> {
-        Ok(bytes)
+impl<T> AsSliceMut<T> for PrimitiveSliceMut<'_, T> {
+    fn as_slice_mut(&mut self) -> &mut [T] {
+        self.slice
     }
 }
 
 /// Helper trait for getting the underlying data for an array.
-pub trait PhysicalStorage: Debug + Sync + Send + Clone + Copy + 'static {
-    // TODO: Remove
-    /// The type that gets returned from the underlying array storage.
-    type Type<'a>: Sync + Send;
-    // TODO: Remove
-    /// The type of the underlying array storage.
-    type Storage<'a>: AddressableStorage<T = Self::Type<'a>>;
-
-    // TODO: Remove
-    /// Gets the storage for the array that we can access directly.
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>>;
-
+pub trait ScalarStorage: Debug + Default + Sync + Send + Clone + Copy + 'static {
     const PHYSICAL_TYPE: PhysicalType;
-
-    /// Size in bytes of the type being stored in the primary buffer.
-    const PRIMARY_BUFFER_TYPE_SIZE: usize = std::mem::size_of::<Self::PrimaryBufferType>();
-
-    /// The type that's stored in the primary buffer.
-    ///
-    /// This should be small and fixed sized.
-    type PrimaryBufferType: Sized + Debug + Default + Sync + Send + Clone + Copy;
 
     /// The logical type being stored that can be accessed.
     ///
     /// For primitive buffers, this will be the same as the primary buffer type.
-    type StorageType: Sync + Send + ?Sized;
+    type StorageType: Debug + Sync + Send + ?Sized;
 
     /// The type of the addressable storage.
     type Addressable<'a>: Addressable<'a, T = Self::StorageType>;
 
     /// Get addressable storage for indexing into the array.
-    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>>;
+    fn get_addressable(buffer: &ArrayBuffer) -> Result<Self::Addressable<'_>>;
 }
 
-pub trait MutablePhysicalStorage: PhysicalStorage {
+pub trait MutableScalarStorage: ScalarStorage {
     type AddressableMut<'a>: AddressableMut<T = Self::StorageType>;
 
     /// Get mutable addressable storage for the array.
-    fn get_addressable_mut<B: BufferManager>(
-        buffer: &mut ArrayBuffer<B>,
-    ) -> Result<Self::AddressableMut<'_>>;
-}
+    fn get_addressable_mut(buffer: &mut ArrayBuffer) -> Result<Self::AddressableMut<'_>>;
 
-// TODO: Remove
-/// Type that's able to be used for any physical type.
-///
-/// While this allows any array type to used in the executors, there's no way to
-/// actually get the underlying values. This is useful if the values aren't
-/// actually needed (e.g. COUNT(*)).
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalAny;
-
-impl PhysicalStorage for PhysicalAny {
-    type Type<'a> = ();
-    type Storage<'a> = UnitStorage;
-
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        Ok(UnitStorage(data.len()))
-    }
-
-    const PHYSICAL_TYPE: PhysicalType = PhysicalType::UntypedNull;
-    type PrimaryBufferType = ();
-    type StorageType = Self::PrimaryBufferType;
-    type Addressable<'a> = &'a [()];
-    fn get_addressable<B: BufferManager>(
-        _buffer: &ArrayBuffer<B>,
-    ) -> Result<Self::Addressable<'_>> {
-        unimplemented!()
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct UnitStorage(usize);
-
-impl AddressableStorage for UnitStorage {
-    type T = ();
-
-    fn len(&self) -> usize {
-        self.0
-    }
-
-    fn get(&self, idx: usize) -> Option<Self::T> {
-        if idx >= self.0 {
-            return None;
-        }
-        Some(())
-    }
-
-    unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
-        self.get(idx).unwrap()
-    }
+    /// Try to reserve the buffer to hold `addition` number of elements.
+    fn try_reserve(buffer: &mut ArrayBuffer, additional: usize) -> Result<()>;
 }
 
 /// Marker type representing a null value without an associated type.
@@ -427,119 +244,46 @@ impl AddressableStorage for UnitStorage {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UntypedNull;
 
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalUntypedNull;
-
-impl PhysicalStorage for PhysicalUntypedNull {
-    type Type<'a> = UntypedNull2;
-    type Storage<'a> = UntypedNullStorage;
-
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData2::UntypedNull(s) => Ok(*s),
-            _ => Err(RayexecError::new("invalid storage")),
-        }
-    }
-
-    const PHYSICAL_TYPE: PhysicalType = PhysicalType::UntypedNull;
-
-    type PrimaryBufferType = UntypedNull;
-    type StorageType = UntypedNull;
-
-    type Addressable<'a> = &'a [UntypedNull];
-
-    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
-        buffer.try_as_slice::<Self>()
-    }
-}
-
-impl MutablePhysicalStorage for PhysicalUntypedNull {
-    type AddressableMut<'a> = &'a mut [UntypedNull];
-
-    fn get_addressable_mut<B: BufferManager>(
-        buffer: &mut ArrayBuffer<B>,
-    ) -> Result<Self::AddressableMut<'_>> {
-        buffer.try_as_slice_mut::<Self>()
-    }
-}
-
-// TODO: Use primitive macro
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicalBool;
-
-impl PhysicalStorage for PhysicalBool {
-    type Type<'a> = bool;
-    type Storage<'a> = BooleanStorageRef<'a>;
-
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData2::Boolean(storage) => Ok(storage.as_boolean_storage_ref()),
-            _ => Err(RayexecError::new("invalid storage, expected boolean")),
-        }
-    }
-
-    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Boolean;
-
-    type PrimaryBufferType = bool;
-    type StorageType = bool;
-
-    type Addressable<'a> = &'a [bool];
-
-    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
-        buffer.try_as_slice::<Self>()
-    }
-}
-
-impl MutablePhysicalStorage for PhysicalBool {
-    type AddressableMut<'a> = &'a mut [bool];
-
-    fn get_addressable_mut<B: BufferManager>(
-        buffer: &mut ArrayBuffer<B>,
-    ) -> Result<Self::AddressableMut<'_>> {
-        buffer.try_as_slice_mut::<Self>()
-    }
-}
-
 macro_rules! generate_primitive {
     ($prim:ty, $name:ident, $variant:ident) => {
         #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
         pub struct $name;
 
-        impl PhysicalStorage for $name {
-            type Type<'a> = $prim;
-            type Storage<'a> = PrimitiveStorageSlice<'a, $prim>;
-
-            fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-                match data {
-                    ArrayData2::$variant(storage) => Ok(storage.as_primitive_storage_slice()),
-                    _ => Err(RayexecError::new("invalid storage, expected int8")),
-                }
-            }
-
+        impl ScalarStorage for $name {
             const PHYSICAL_TYPE: PhysicalType = PhysicalType::$variant;
 
-            type PrimaryBufferType = $prim;
-            type StorageType = Self::PrimaryBufferType;
-            type Addressable<'a> = &'a [Self::StorageType];
+            type StorageType = $prim;
+            type Addressable<'a> = PrimitiveSlice<'a, Self::StorageType>;
 
-            fn get_addressable<B: BufferManager>(
-                buffer: &ArrayBuffer<B>,
-            ) -> Result<Self::Addressable<'_>> {
-                buffer.try_as_slice::<Self>()
+            fn get_addressable(buffer: &ArrayBuffer) -> Result<Self::Addressable<'_>> {
+                let s = buffer.get_scalar_buffer()?.try_as_slice::<Self>()?;
+                Ok(PrimitiveSlice { slice: s })
             }
         }
 
-        impl MutablePhysicalStorage for $name {
-            type AddressableMut<'a> = &'a mut [Self::StorageType];
+        impl MutableScalarStorage for $name {
+            type AddressableMut<'a> = PrimitiveSliceMut<'a, Self::StorageType>;
 
-            fn get_addressable_mut<B: BufferManager>(
-                buffer: &mut ArrayBuffer<B>,
-            ) -> Result<Self::AddressableMut<'_>> {
-                buffer.try_as_slice_mut::<Self>()
+            fn get_addressable_mut(buffer: &mut ArrayBuffer) -> Result<Self::AddressableMut<'_>> {
+                let s = buffer.get_scalar_buffer_mut()?.try_as_slice_mut::<Self>()?;
+                Ok(PrimitiveSliceMut { slice: s })
+            }
+
+            fn try_reserve(buffer: &mut ArrayBuffer, additional: usize) -> Result<()> {
+                match buffer.as_mut() {
+                    ArrayBufferType::Scalar(buf) => buf.try_reserve::<Self>(additional),
+                    _ => Err(RayexecError::new(
+                        "invalid buffer type, expected scalar buffer",
+                    )),
+                }
             }
         }
     };
 }
+
+generate_primitive!(UntypedNull, PhysicalUntypedNull, UntypedNull);
+
+generate_primitive!(bool, PhysicalBool, Boolean);
 
 generate_primitive!(i8, PhysicalI8, Int8);
 generate_primitive!(i16, PhysicalI16, Int16);
@@ -559,221 +303,210 @@ generate_primitive!(f64, PhysicalF64, Float64);
 
 generate_primitive!(Interval, PhysicalInterval, Interval);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
+pub struct StringViewAddressable<'a> {
+    pub(crate) metadata: &'a [StringView],
+    pub(crate) buffer: &'a StringViewBuffer,
+}
+
+impl<'a> Addressable<'a> for StringViewAddressable<'a> {
+    type T = str;
+
+    fn get(&self, idx: usize) -> Option<&'a Self::T> {
+        let m = self.metadata.get(idx)?;
+        let bs = self.buffer.get(m);
+
+        Some(unsafe { std::str::from_utf8_unchecked(bs) })
+    }
+
+    fn len(&self) -> usize {
+        self.metadata.len()
+    }
+}
+
+#[derive(Debug)]
+pub struct StringViewAddressableMut<'a> {
+    pub(crate) metadata: &'a mut [StringView],
+    pub(crate) buffer: &'a mut StringViewBuffer,
+}
+
+impl AddressableMut for StringViewAddressableMut<'_> {
+    type T = str;
+
+    fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
+        let m = self.metadata.get_mut(idx)?;
+        let bs = self.buffer.get_mut(m);
+
+        Some(unsafe { std::str::from_utf8_unchecked_mut(bs) })
+    }
+
+    fn put(&mut self, idx: usize, val: &Self::T) {
+        let view = self.buffer.push_bytes(val.as_bytes()).unwrap(); // TODO
+        self.metadata[idx] = view;
+    }
+
+    fn len(&self) -> usize {
+        self.metadata.len()
+    }
+}
+
+#[derive(Debug)]
+pub struct BinaryViewAddressable<'a> {
+    pub(crate) metadata: &'a [StringView],
+    pub(crate) buffer: &'a StringViewBuffer,
+}
+
+impl<'a> Addressable<'a> for BinaryViewAddressable<'a> {
+    type T = [u8];
+
+    fn get(&self, idx: usize) -> Option<&'a Self::T> {
+        let m = self.metadata.get(idx)?;
+        let bs = self.buffer.get(m);
+        Some(bs)
+    }
+
+    fn len(&self) -> usize {
+        self.metadata.len()
+    }
+}
+
+#[derive(Debug)]
+pub struct BinaryViewAddressableMut<'a> {
+    pub(crate) metadata: &'a mut [StringView],
+    pub(crate) buffer: &'a mut StringViewBuffer,
+}
+
+impl BinaryViewAddressableMut<'_> {
+    /// Clears the underlying binary buffer.
+    ///
+    /// This does not modify or otherwise zero out the metadata objects.
+    /// Metadata must be overwritten with valid data to avoid out-of-bounds
+    /// access.
+    pub fn clear(&mut self) {
+        self.buffer.clear();
+    }
+}
+
+impl AddressableMut for BinaryViewAddressableMut<'_> {
+    type T = [u8];
+
+    fn get_mut(&mut self, idx: usize) -> Option<&mut Self::T> {
+        let m = self.metadata.get_mut(idx)?;
+        let bs = self.buffer.get_mut(m);
+        Some(bs)
+    }
+
+    fn put(&mut self, idx: usize, val: &Self::T) {
+        let view = self.buffer.push_bytes(val).unwrap(); // TODO
+        self.metadata[idx] = view;
+    }
+
+    fn len(&self) -> usize {
+        self.metadata.len()
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalBinary;
 
-impl PhysicalStorage for PhysicalBinary {
-    type Type<'a> = &'a [u8];
-    type Storage<'a> = BinaryDataStorage<'a>;
-
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData2::Binary(binary) => match binary {
-                BinaryData::Binary(b) => {
-                    Ok(BinaryDataStorage::Binary(b.as_contiguous_storage_slice()))
-                }
-                BinaryData::LargeBinary(b) => Ok(BinaryDataStorage::LargeBinary(
-                    b.as_contiguous_storage_slice(),
-                )),
-                BinaryData::German(b) => Ok(BinaryDataStorage::German(b.as_german_storage_slice())),
-            },
-            _ => Err(RayexecError::new("invalid storage, expected binary")),
-        }
-    }
-
+impl ScalarStorage for PhysicalBinary {
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::Binary;
 
-    type PrimaryBufferType = StringViewMetadataUnion;
     type StorageType = [u8];
-
     type Addressable<'a> = BinaryViewAddressable<'a>;
 
-    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
-        buffer.try_as_binary_view_addressable()
+    fn get_addressable(buffer: &ArrayBuffer) -> Result<Self::Addressable<'_>> {
+        match buffer.as_ref() {
+            ArrayBufferType::String(buf) => Ok(buf.as_binary_view()),
+            _ => Err(RayexecError::new(
+                "invalid buffer type, expected string buffer",
+            )),
+        }
     }
 }
 
-impl MutablePhysicalStorage for PhysicalBinary {
+impl MutableScalarStorage for PhysicalBinary {
     type AddressableMut<'a> = BinaryViewAddressableMut<'a>;
 
-    fn get_addressable_mut<B: BufferManager>(
-        buffer: &mut ArrayBuffer<B>,
-    ) -> Result<Self::AddressableMut<'_>> {
-        buffer.try_as_binary_view_addressable_mut()
+    fn get_addressable_mut(buffer: &mut ArrayBuffer) -> Result<Self::AddressableMut<'_>> {
+        match buffer.as_mut() {
+            ArrayBufferType::String(buf) => buf.try_as_binary_view_mut(),
+            _ => Err(RayexecError::new(
+                "invalid buffer type, expected string buffer",
+            )),
+        }
+    }
+
+    fn try_reserve(buffer: &mut ArrayBuffer, additional: usize) -> Result<()> {
+        match buffer.as_mut() {
+            ArrayBufferType::String(buf) => buf.try_reserve(additional),
+            _ => Err(RayexecError::new(
+                "invalid buffer type, expected string buffer",
+            )),
+        }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalUtf8;
 
-impl PhysicalStorage for PhysicalUtf8 {
-    type Type<'a> = &'a str;
-    type Storage<'a> = StrDataStorage<'a>;
-
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData2::Binary(binary) => match binary {
-                BinaryData::Binary(b) => {
-                    Ok(BinaryDataStorage::Binary(b.as_contiguous_storage_slice()).into())
-                }
-                BinaryData::LargeBinary(b) => {
-                    Ok(BinaryDataStorage::LargeBinary(b.as_contiguous_storage_slice()).into())
-                }
-                BinaryData::German(b) => {
-                    Ok(BinaryDataStorage::German(b.as_german_storage_slice()).into())
-                }
-            },
-            _ => Err(RayexecError::new("invalid storage")),
-        }
-    }
-
+impl ScalarStorage for PhysicalUtf8 {
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::Utf8;
 
-    type PrimaryBufferType = StringViewMetadataUnion;
     type StorageType = str;
-
     type Addressable<'a> = StringViewAddressable<'a>;
 
-    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
-        buffer.try_as_string_view_addressable()
+    fn get_addressable(buffer: &ArrayBuffer) -> Result<Self::Addressable<'_>> {
+        match buffer.as_ref() {
+            ArrayBufferType::String(buf) => buf.try_as_string_view(),
+            _ => Err(RayexecError::new(
+                "invalid buffer type, expected string buffer",
+            )),
+        }
     }
 }
 
-impl MutablePhysicalStorage for PhysicalUtf8 {
+impl MutableScalarStorage for PhysicalUtf8 {
     type AddressableMut<'a> = StringViewAddressableMut<'a>;
 
-    fn get_addressable_mut<B: BufferManager>(
-        buffer: &mut ArrayBuffer<B>,
-    ) -> Result<Self::AddressableMut<'_>> {
-        buffer.try_as_string_view_addressable_mut()
-    }
-}
-
-#[derive(Debug)]
-pub enum BinaryDataStorage<'a> {
-    Binary(ContiguousVarlenStorageSlice<'a, i32>),
-    LargeBinary(ContiguousVarlenStorageSlice<'a, i64>),
-    German(GermanVarlenStorageSlice<'a>),
-}
-
-impl<'a> AddressableStorage for BinaryDataStorage<'a> {
-    type T = &'a [u8];
-
-    fn len(&self) -> usize {
-        match self {
-            Self::Binary(s) => s.len(),
-            Self::LargeBinary(s) => s.len(),
-            Self::German(s) => s.len(),
+    fn get_addressable_mut(buffer: &mut ArrayBuffer) -> Result<Self::AddressableMut<'_>> {
+        match buffer.as_mut() {
+            ArrayBufferType::String(buf) => buf.try_as_string_view_mut(),
+            _ => Err(RayexecError::new(
+                "invalid buffer type, expected string buffer",
+            )),
         }
     }
 
-    fn get(&self, idx: usize) -> Option<Self::T> {
-        match self {
-            Self::Binary(s) => s.get(idx),
-            Self::LargeBinary(s) => s.get(idx),
-            Self::German(s) => s.get(idx),
-        }
-    }
-
-    #[inline]
-    unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
-        match self {
-            Self::Binary(s) => s.get_unchecked(idx),
-            Self::LargeBinary(s) => s.get_unchecked(idx),
-            Self::German(s) => s.get_unchecked(idx),
+    fn try_reserve(buffer: &mut ArrayBuffer, additional: usize) -> Result<()> {
+        match buffer.as_mut() {
+            ArrayBufferType::String(buf) => buf.try_reserve(additional),
+            _ => Err(RayexecError::new(
+                "invalid buffer type, expected string buffer",
+            )),
         }
     }
 }
 
-#[derive(Debug)]
-pub struct StrDataStorage<'a> {
-    inner: BinaryDataStorage<'a>,
-}
-
-impl<'a> AddressableStorage for StrDataStorage<'a> {
-    type T = &'a str;
-
-    fn len(&self) -> usize {
-        self.inner.len()
-    }
-
-    #[inline]
-    fn get(&self, idx: usize) -> Option<Self::T> {
-        let b = self.inner.get(idx)?;
-        // SAFETY: Construction of the vector should have already validated the data.
-        let s = unsafe { std::str::from_utf8_unchecked(b) };
-        Some(s)
-    }
-
-    #[inline]
-    unsafe fn get_unchecked(&self, idx: usize) -> Self::T {
-        let b = self.inner.get_unchecked(idx);
-        std::str::from_utf8_unchecked(b) // See above
-    }
-}
-
-impl<'a> From<BinaryDataStorage<'a>> for StrDataStorage<'a> {
-    fn from(value: BinaryDataStorage<'a>) -> Self {
-        StrDataStorage { inner: value }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalList;
 
-impl PhysicalStorage for PhysicalList {
-    type Type<'a> = ListItemMetadata2;
-    type Storage<'a> = PrimitiveStorageSlice<'a, ListItemMetadata2>;
-
-    fn get_storage(data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        match data {
-            ArrayData2::List(storage) => Ok(storage.metadata.as_primitive_storage_slice()),
-            _ => Err(RayexecError::new("invalid storage, expected list")),
-        }
-    }
-
+// TODO: Is this useful?
+impl ScalarStorage for PhysicalList {
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::List;
 
-    type PrimaryBufferType = ListItemMetadata;
-    type StorageType = Self::PrimaryBufferType;
+    type StorageType = ListItemMetadata;
+    type Addressable<'a> = PrimitiveSlice<'a, Self::StorageType>;
 
-    type Addressable<'a> = &'a [Self::StorageType];
-
-    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
-        buffer.try_as_slice::<Self>()
-    }
-}
-
-impl MutablePhysicalStorage for PhysicalList {
-    type AddressableMut<'a> = &'a mut [Self::StorageType];
-
-    fn get_addressable_mut<B: BufferManager>(
-        buffer: &mut ArrayBuffer<B>,
-    ) -> Result<Self::AddressableMut<'_>> {
-        buffer.try_as_slice_mut::<Self>()
-    }
-}
-
-/// Dictionary arrays have the selection vector as the primary data buffer.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct PhysicalDictionary;
-
-impl PhysicalStorage for PhysicalDictionary {
-    type Type<'a> = usize;
-    type Storage<'a> = PrimitiveStorageSlice<'a, usize>;
-
-    fn get_storage(_data: &ArrayData2) -> Result<Self::Storage<'_>> {
-        unimplemented!()
-    }
-
-    const PHYSICAL_TYPE: PhysicalType = PhysicalType::Dictionary;
-
-    type PrimaryBufferType = usize; // The index into the dictionary.
-    type StorageType = Self::PrimaryBufferType;
-
-    type Addressable<'a> = &'a [usize];
-
-    fn get_addressable<B: BufferManager>(buffer: &ArrayBuffer<B>) -> Result<Self::Addressable<'_>> {
-        buffer.try_as_slice::<Self>()
+    fn get_addressable(buffer: &ArrayBuffer) -> Result<Self::Addressable<'_>> {
+        match buffer.as_ref() {
+            ArrayBufferType::List(buf) => {
+                let s = buf.metadata.as_slice();
+                Ok(PrimitiveSlice { slice: s })
+            }
+            _ => Err(RayexecError::new(
+                "invalid buffer type, expected list buffer",
+            )),
+        }
     }
 }

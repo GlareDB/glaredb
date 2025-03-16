@@ -12,3 +12,6 @@ pub use mul::*;
 
 mod rem;
 pub use rem::*;
+
+mod decimal_arith;
+mod decimal_sigs;

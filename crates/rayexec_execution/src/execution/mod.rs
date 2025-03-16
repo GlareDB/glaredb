@@ -1,6 +1,9 @@
 //! Implementation of the "query graph" design.
-pub mod executable;
-pub mod intermediate;
 pub mod operators;
+pub mod planner;
 
-pub mod computed_batch;
+pub mod partition_pipeline;
+pub mod pipeline;
+
+mod execution_stack;
+mod partition_wakers;

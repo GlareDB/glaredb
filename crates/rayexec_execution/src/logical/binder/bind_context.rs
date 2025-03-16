@@ -6,6 +6,7 @@ use rayexec_error::{RayexecError, Result};
 use super::bind_query::BoundQuery;
 use super::table_list::{Table, TableAlias, TableList, TableRef};
 use crate::arrays::datatype::DataType;
+use crate::expr::column_expr::ColumnReference;
 use crate::expr::Expression;
 use crate::logical::operator::{LogicalNode, LogicalOperator};
 
@@ -15,6 +16,7 @@ pub struct BindScopeRef {
     pub context_idx: usize,
 }
 
+/// Reference to a materialization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MaterializationRef {
     pub materialization_idx: usize,
@@ -26,6 +28,7 @@ impl fmt::Display for MaterializationRef {
     }
 }
 
+/// Reference to a CTE.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CteRef {
     pub cte_idx: usize,
@@ -50,7 +53,7 @@ impl fmt::Display for CteRef {
 /// Physical planning will then use the bind context for determining physical
 /// column ordering.
 // TODO: Move more of the table/table list handling into TableList
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BindContext {
     /// All child scopes used for binding.
     ///
@@ -126,10 +129,12 @@ struct BindScope {
 
 /// A node in the logical plan that will be materialized to allow for multiple
 /// scans.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PlanMaterialization {
     pub mat_ref: MaterializationRef,
     /// Plan we'll be materializing.
+    // TODO: This should be an Option so we can take it once during physical
+    // planning instead of needing to clone it.
     pub plan: LogicalOperator,
     /// Number of scans against this plan.
     pub scan_count: usize,
@@ -310,7 +315,8 @@ impl BindContext {
             })
     }
 
-    pub fn iter_materializations(&self) -> impl Iterator<Item = &PlanMaterialization> {
+    /// Iterates plan materializations in the order they were planned.
+    pub fn iter_materializations(&mut self) -> impl Iterator<Item = &PlanMaterialization> + '_ {
         self.materializations.iter()
     }
 
@@ -452,7 +458,7 @@ impl BindContext {
         exprs_iter: impl Iterator<Item = &'a Expression>,
     ) -> Result<TableRef> {
         let column_types = exprs_iter
-            .map(|expr| expr.datatype(&self.tables))
+            .map(|expr| expr.datatype())
             .collect::<Result<Vec<_>>>()?;
 
         self.new_ephemeral_table_from_types(generated_prefix, column_types)
@@ -503,8 +509,12 @@ impl BindContext {
         Ok(idx)
     }
 
-    pub fn get_column(&self, table_ref: TableRef, col_idx: usize) -> Result<(&str, &DataType)> {
-        self.tables.get_column(table_ref, col_idx)
+    pub fn get_column(&self, reference: impl Into<ColumnReference>) -> Result<(&str, &DataType)> {
+        self.tables.get_column(reference)
+    }
+
+    pub fn get_column_type(&self, reference: impl Into<ColumnReference>) -> Result<DataType> {
+        self.tables.get_column_type(reference)
     }
 
     pub fn get_table(&self, table_ref: TableRef) -> Result<&Table> {

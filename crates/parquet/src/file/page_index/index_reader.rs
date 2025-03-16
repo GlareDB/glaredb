@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![allow(unused)]
+
 //! Support for reading [`Index`] and [`PageLocation`] from parquet metadata.
 
 use std::ops::Range;
@@ -22,9 +24,7 @@ use std::ops::Range;
 use crate::basic::Type;
 use crate::data_type::Int96;
 use crate::errors::ParquetError;
-use crate::file::metadata::ColumnChunkMetaData;
 use crate::file::page_index::index::{Index, NativeIndex};
-use crate::file::reader::ChunkReader;
 use crate::format::{ColumnIndex, OffsetIndex, PageLocation};
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 
@@ -36,78 +36,6 @@ pub(crate) fn acc_range(a: Option<Range<usize>>, b: Option<Range<usize>>) -> Opt
         (Some(a), Some(b)) => Some(a.start.min(b.start)..a.end.max(b.end)),
         (None, x) | (x, None) => x,
     }
-}
-
-/// Reads per-column [`Index`] for all columns of a row group by
-/// decoding [`ColumnIndex`] .
-///
-/// Returns a vector of `index[column_number]`.
-///
-/// Returns an empty vector if this row group does not contain a
-/// [`ColumnIndex`].
-///
-/// See [Column Index Documentation] for more details.
-///
-/// [Column Index Documentation]: https://github.com/apache/parquet-format/blob/master/PageIndex.md
-pub fn read_columns_indexes<R: ChunkReader>(
-    reader: &R,
-    chunks: &[ColumnChunkMetaData],
-) -> Result<Vec<Index>, ParquetError> {
-    let fetch = chunks
-        .iter()
-        .fold(None, |range, c| acc_range(range, c.column_index_range()));
-
-    let fetch = match fetch {
-        Some(r) => r,
-        None => return Ok(vec![Index::NONE; chunks.len()]),
-    };
-
-    let bytes = reader.get_bytes(fetch.start as _, fetch.end - fetch.start)?;
-    let get = |r: Range<usize>| &bytes[(r.start - fetch.start)..(r.end - fetch.start)];
-
-    chunks
-        .iter()
-        .map(|c| match c.column_index_range() {
-            Some(r) => decode_column_index(get(r), c.column_type()),
-            None => Ok(Index::NONE),
-        })
-        .collect()
-}
-
-/// Reads per-page [`PageLocation`] for all columns of a row group by
-/// decoding the [`OffsetIndex`].
-///
-/// Returns a vector of `location[column_number][page_number]`
-///
-/// Return an empty vector if this row group does not contain an
-/// [`OffsetIndex]`.
-///
-/// See [Column Index Documentation] for more details.
-///
-/// [Column Index Documentation]: https://github.com/apache/parquet-format/blob/master/PageIndex.md
-pub fn read_pages_locations<R: ChunkReader>(
-    reader: &R,
-    chunks: &[ColumnChunkMetaData],
-) -> Result<Vec<Vec<PageLocation>>, ParquetError> {
-    let fetch = chunks
-        .iter()
-        .fold(None, |range, c| acc_range(range, c.offset_index_range()));
-
-    let fetch = match fetch {
-        Some(r) => r,
-        None => return Ok(vec![]),
-    };
-
-    let bytes = reader.get_bytes(fetch.start as _, fetch.end - fetch.start)?;
-    let get = |r: Range<usize>| &bytes[(r.start - fetch.start)..(r.end - fetch.start)];
-
-    chunks
-        .iter()
-        .map(|c| match c.offset_index_range() {
-            Some(r) => decode_offset_index(get(r)),
-            None => Err(general_err!("missing offset index")),
-        })
-        .collect()
 }
 
 pub(crate) fn decode_offset_index(data: &[u8]) -> Result<Vec<PageLocation>, ParquetError> {

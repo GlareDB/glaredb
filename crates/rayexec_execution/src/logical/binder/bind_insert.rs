@@ -5,9 +5,8 @@ use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::BoundQuery;
 use super::table_list::TableRef;
 use crate::arrays::datatype::DataType;
-use crate::expr::cast_expr::CastExpr;
-use crate::expr::column_expr::ColumnExpr;
-use crate::expr::Expression;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
+use crate::expr::{cast, Expression};
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -23,7 +22,7 @@ pub struct InsertProjections {
     pub projection_table: TableRef,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct BoundInsert {
     /// Source of the insert.
     pub source: BoundQuery,
@@ -59,7 +58,7 @@ impl<'a> InsertBinder<'a> {
         bind_context.push_table(
             self.current,
             None,
-            vec![DataType::UInt64],
+            vec![DataType::Int64],
             vec!["rows_inserted".to_string()],
         )?;
 
@@ -73,6 +72,12 @@ impl<'a> InsertBinder<'a> {
             (ResolvedTableOrCteReference::Cte { .. }, _) => {
                 // Shouldn't be possible.
                 return Err(RayexecError::new("Cannot insert into CTE"));
+            }
+            (ResolvedTableOrCteReference::View(_), _) => {
+                // Also shouldn't be possible.
+                return Err(RayexecError::new(
+                    "View should have been inlined during resolve",
+                ));
             }
         };
 
@@ -114,15 +119,15 @@ impl<'a> InsertBinder<'a> {
 
         for (have, want) in source_types.into_iter().zip(table_types) {
             let mut expr = Expression::Column(ColumnExpr {
-                table_scope: have.0,
-                column: have.1,
+                reference: ColumnReference {
+                    table_scope: have.0,
+                    column: have.1,
+                },
+                datatype: have.2.clone(),
             });
 
             if have.2 != want {
-                expr = Expression::Cast(CastExpr {
-                    to: want.clone(),
-                    expr: Box::new(expr),
-                });
+                expr = cast(expr, want.clone()).into();
                 has_cast = true;
             }
 
@@ -134,7 +139,7 @@ impl<'a> InsertBinder<'a> {
             let projection_table = bind_context.new_ephemeral_table_with_columns(
                 projections
                     .iter()
-                    .map(|p| p.datatype(bind_context.get_table_list()))
+                    .map(|p| p.datatype())
                     .collect::<Result<Vec<_>>>()?,
                 (0..projections.len())
                     .map(|idx| format!("__generated_insert_project_{idx}"))

@@ -26,12 +26,10 @@ use bytes::Bytes;
 use half::f16;
 
 use crate::basic::Type;
-use crate::column::page::{PageReader, PageWriter};
-use crate::column::reader::basic::BasicColumnValueDecoder;
-use crate::column::reader::{ColumnReader, GenericColumnReader};
-use crate::column::writer::{ColumnWriter, GenericColumnWriter};
-use crate::errors::Result;
+use crate::errors::{general_err, ParquetResult};
 use crate::util::bit_util::FromBytes;
+
+// TODO: Delete me
 
 /// Rust representation for logical type INT96, value is backed by an array of `u32`.
 /// The type only takes 12 bytes, without extra padding.
@@ -199,7 +197,7 @@ impl ByteArray {
         )
     }
 
-    pub fn as_utf8(&self) -> Result<&str> {
+    pub fn as_utf8(&self) -> ParquetResult<&str> {
         self.data
             .as_ref()
             .map(|ptr| ptr.as_ref())
@@ -599,9 +597,10 @@ impl AsBytes for str {
 pub(crate) mod private {
     use bytes::Bytes;
 
-    use super::{Result, SliceAsBytes};
+    use super::{general_err, ParquetResult, SliceAsBytes};
     use crate::basic::Type;
     use crate::encodings::decoding::PlainDecoderDetails;
+    use crate::errors::eof_err;
     use crate::util::bit_util::{read_num_bytes, BitReader, BitWriter};
 
     /// Sealed trait to start to remove specialisation from implementations
@@ -630,15 +629,15 @@ pub(crate) mod private {
             values: &[Self],
             writer: &mut W,
             bit_writer: &mut BitWriter,
-        ) -> Result<()>;
+        ) -> ParquetResult<()>;
 
         /// Establish the data that will be decoded in a buffer
         fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize);
 
         /// Decode the value from a given buffer for a higher level decoder
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize>;
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize>;
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize>;
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize>;
 
         /// Return the encoded size for a type
         fn dict_encoding_size(&self) -> (usize, usize) {
@@ -649,7 +648,7 @@ pub(crate) mod private {
         ///
         /// This is essentially the same as `std::convert::TryInto<i64>` but can't be
         /// implemented for `f32` and `f64`, types that would fail orphan rules
-        fn as_i64(&self) -> Result<i64> {
+        fn as_i64(&self) -> ParquetResult<i64> {
             Err(general_err!("Type cannot be converted to i64"))
         }
 
@@ -657,7 +656,7 @@ pub(crate) mod private {
         ///
         /// This is essentially the same as `std::convert::TryInto<u64>` but can't be
         /// implemented for `f32` and `f64`, types that would fail orphan rules
-        fn as_u64(&self) -> Result<u64> {
+        fn as_u64(&self) -> ParquetResult<u64> {
             self.as_i64()
                 .map_err(|_| general_err!("Type cannot be converted to u64"))
                 .map(|x| x as u64)
@@ -678,7 +677,7 @@ pub(crate) mod private {
             values: &[Self],
             _: &mut W,
             bit_writer: &mut BitWriter,
-        ) -> Result<()> {
+        ) -> ParquetResult<()> {
             for value in values {
                 bit_writer.put_value(*value as u64, 1)
             }
@@ -692,7 +691,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
             let bit_reader = decoder.bit_reader.as_mut().unwrap();
             let num_values = std::cmp::min(buffer.len(), decoder.num_values);
             let values_read = bit_reader.get_batch(&mut buffer[..num_values], 1);
@@ -700,7 +699,7 @@ pub(crate) mod private {
             Ok(values_read)
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
             let bit_reader = decoder.bit_reader.as_mut().unwrap();
             let num_values = std::cmp::min(num_values, decoder.num_values);
             let values_read = bit_reader.skip(num_values, 1);
@@ -709,7 +708,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn as_i64(&self) -> Result<i64> {
+        fn as_i64(&self) -> ParquetResult<i64> {
             Ok(*self as i64)
         }
 
@@ -730,7 +729,7 @@ pub(crate) mod private {
                 const PHYSICAL_TYPE: Type = $physical_ty;
 
                 #[inline]
-                fn encode<W: std::io::Write>(values: &[Self], writer: &mut W, _: &mut BitWriter) -> Result<()> {
+                fn encode<W: std::io::Write>(values: &[Self], writer: &mut W, _: &mut BitWriter) -> ParquetResult<()> {
                     let raw = unsafe {
                         std::slice::from_raw_parts(
                             values.as_ptr() as *const u8,
@@ -750,14 +749,14 @@ pub(crate) mod private {
                 }
 
                 #[inline]
-                fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+                fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
                     let data = decoder.data.as_ref().expect("set_data should have been called");
                     let num_values = std::cmp::min(buffer.len(), decoder.num_values);
                     let bytes_left = data.len() - decoder.start;
                     let bytes_to_decode = std::mem::size_of::<Self>() * num_values;
 
                     if bytes_left < bytes_to_decode {
-                        return Err(eof_err!("Not enough bytes to decode"));
+                        return Err(crate::errors::eof_err!("Not enough bytes to decode"));
                     }
 
                     // SAFETY: Raw types should be as per the standard rust bit-vectors
@@ -774,14 +773,14 @@ pub(crate) mod private {
                 }
 
                 #[inline]
-                fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+                fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
                     let data = decoder.data.as_ref().expect("set_data should have been called");
                     let num_values = num_values.min(decoder.num_values);
                     let bytes_left = data.len() - decoder.start;
                     let bytes_to_skip = std::mem::size_of::<Self>() * num_values;
 
                     if bytes_left < bytes_to_skip {
-                        return Err(eof_err!("Not enough bytes to skip"));
+                        return Err(crate::errors::eof_err!("Not enough bytes to skip"));
                     }
 
                     decoder.start += bytes_to_skip;
@@ -791,7 +790,7 @@ pub(crate) mod private {
                 }
 
                 #[inline]
-                fn as_i64(&$self) -> Result<i64> {
+                fn as_i64(&$self) -> ParquetResult<i64> {
                     $as_i64
                 }
 
@@ -821,7 +820,7 @@ pub(crate) mod private {
             values: &[Self],
             writer: &mut W,
             _: &mut BitWriter,
-        ) -> Result<()> {
+        ) -> ParquetResult<()> {
             for value in values {
                 let raw = unsafe {
                     std::slice::from_raw_parts(value.data() as *const [u32] as *const u8, 12)
@@ -839,7 +838,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
             // TODO - Remove the duplication between this and the general slice method
             let data = decoder
                 .data
@@ -871,7 +870,7 @@ pub(crate) mod private {
             Ok(num_values)
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
             let data = decoder
                 .data
                 .as_ref()
@@ -908,7 +907,7 @@ pub(crate) mod private {
             values: &[Self],
             writer: &mut W,
             _: &mut BitWriter,
-        ) -> Result<()> {
+        ) -> ParquetResult<()> {
             for value in values {
                 let len: u32 = value.len().try_into().unwrap();
                 writer.write_all(&len.to_ne_bytes())?;
@@ -926,7 +925,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
             let data = decoder
                 .data
                 .as_mut()
@@ -951,7 +950,7 @@ pub(crate) mod private {
             Ok(num_values)
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
             let data = decoder
                 .data
                 .as_mut()
@@ -992,7 +991,7 @@ pub(crate) mod private {
             values: &[Self],
             writer: &mut W,
             _: &mut BitWriter,
-        ) -> Result<()> {
+        ) -> ParquetResult<()> {
             for value in values {
                 let raw = value.data();
                 writer.write_all(raw)?;
@@ -1008,7 +1007,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
             assert!(decoder.type_length > 0);
 
             let data = decoder
@@ -1032,7 +1031,7 @@ pub(crate) mod private {
             Ok(num_values)
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
             assert!(decoder.type_length > 0);
 
             let data = decoder
@@ -1083,89 +1082,15 @@ pub trait DataType: 'static + Send + fmt::Debug {
 
     /// Returns size in bytes for Rust representation of the physical type.
     fn get_type_size() -> usize;
-
-    fn get_column_reader<P: PageReader>(
-        column_writer: ColumnReader<P>,
-    ) -> Option<GenericColumnReader<BasicColumnValueDecoder<Self>, P>>
-    where
-        Self: Sized;
-
-    fn get_column_writer<P: PageWriter>(
-        column_writer: ColumnWriter<P>,
-    ) -> Option<GenericColumnWriter<Self, P>>
-    where
-        Self: Sized;
-
-    fn get_column_writer_ref<P: PageWriter>(
-        column_writer: &ColumnWriter<P>,
-    ) -> Option<&GenericColumnWriter<Self, P>>
-    where
-        Self: Sized;
-
-    fn get_column_writer_mut<P: PageWriter>(
-        column_writer: &mut ColumnWriter<P>,
-    ) -> Option<&mut GenericColumnWriter<Self, P>>
-    where
-        Self: Sized;
-}
-
-// Workaround bug in specialization
-pub trait SliceAsBytesDataType: DataType
-where
-    Self::T: SliceAsBytes,
-{
-}
-
-impl<T> SliceAsBytesDataType for T
-where
-    T: DataType,
-    <T as DataType>::T: SliceAsBytes,
-{
 }
 
 macro_rules! impl_data_type {
-    ($reader_ident: ident, $writer_ident: ident, $native_ty:ty, $size:expr) => {
+    ($writer_ident: ident, $native_ty:ty, $size:expr) => {
         impl DataType for $native_ty {
             type T = $native_ty;
 
             fn get_type_size() -> usize {
                 $size
-            }
-
-            fn get_column_reader<P: PageReader>(
-                column_reader: ColumnReader<P>,
-            ) -> Option<GenericColumnReader<BasicColumnValueDecoder<Self>, P>> {
-                match column_reader {
-                    ColumnReader::$reader_ident(w) => Some(w),
-                    _ => None,
-                }
-            }
-
-            fn get_column_writer<P: PageWriter>(
-                column_writer: ColumnWriter<P>,
-            ) -> Option<GenericColumnWriter<Self, P>> {
-                match column_writer {
-                    ColumnWriter::$writer_ident(w) => Some(w),
-                    _ => None,
-                }
-            }
-
-            fn get_column_writer_ref<P: PageWriter>(
-                column_writer: &ColumnWriter<P>,
-            ) -> Option<&GenericColumnWriter<Self, P>> {
-                match column_writer {
-                    ColumnWriter::$writer_ident(w) => Some(w),
-                    _ => None,
-                }
-            }
-
-            fn get_column_writer_mut<P: PageWriter>(
-                column_writer: &mut ColumnWriter<P>,
-            ) -> Option<&mut GenericColumnWriter<Self, P>> {
-                match column_writer {
-                    ColumnWriter::$writer_ident(w) => Some(w),
-                    _ => None,
-                }
             }
         }
     };
@@ -1173,25 +1098,18 @@ macro_rules! impl_data_type {
 
 // Generate struct definitions for all physical types
 
-impl_data_type!(BoolColumnReader, BoolColumnWriter, bool, 1);
-impl_data_type!(Int32ColumnReader, Int32ColumnWriter, i32, 4);
-impl_data_type!(Int64ColumnReader, Int64ColumnWriter, i64, 8);
+impl_data_type!(BoolColumnWriter, bool, 1);
+impl_data_type!(Int32ColumnWriter, i32, 4);
+impl_data_type!(Int64ColumnWriter, i64, 8);
+impl_data_type!(Int96ColumnWriter, Int96, mem::size_of::<Int96>());
+impl_data_type!(FloatColumnWriter, f32, 4);
+impl_data_type!(DoubleColumnWriter, f64, 8);
 impl_data_type!(
-    Int96ColumnReader,
-    Int96ColumnWriter,
-    Int96,
-    mem::size_of::<Int96>()
-);
-impl_data_type!(FloatColumnReader, FloatColumnWriter, f32, 4);
-impl_data_type!(DoubleColumnReader, DoubleColumnWriter, f64, 8);
-impl_data_type!(
-    ByteArrayColumnReader,
     ByteArrayColumnWriter,
     ByteArray,
     mem::size_of::<ByteArray>()
 );
 impl_data_type!(
-    FixedLenByteArrayColumnReader,
     FixedLenByteArrayColumnWriter,
     FixedLenByteArray,
     mem::size_of::<FixedLenByteArray>()

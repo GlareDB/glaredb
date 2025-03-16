@@ -4,7 +4,7 @@ use rayexec_parser::ast;
 use super::bind_modifier::{BoundLimit, BoundOrderBy};
 use super::bind_select_list::SelectListBinder;
 use super::BoundQuery;
-use crate::functions::implicit::implicit_cast_score;
+use crate::functions::implicit::{implicit_cast_score, ImplicitCastConfig};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::bind_query::bind_modifier::ModifierBinder;
 use crate::logical::binder::bind_query::QueryBinder;
@@ -117,8 +117,16 @@ impl<'a> SetOpBinder<'a> {
                 continue;
             }
 
-            let left_score = implicit_cast_score(&right, left.datatype_id());
-            let right_score = implicit_cast_score(&left, right.datatype_id());
+            let left_score = implicit_cast_score(
+                right.datatype_id(),
+                left.datatype_id(),
+                ImplicitCastConfig::UNION,
+            );
+            let right_score = implicit_cast_score(
+                left.datatype_id(),
+                right.datatype_id(),
+                ImplicitCastConfig::UNION,
+            );
 
             if left_score.is_none() && right_score.is_none() {
                 return Err(RayexecError::new(format!(

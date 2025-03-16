@@ -16,32 +16,8 @@
 // under the License.
 
 //! Parquet schema printer.
+//!
 //! Provides methods to print Parquet file schema and list file metadata.
-//!
-//! # Example
-//!
-//! ```rust
-//! use std::fs::File;
-//! use std::path::Path;
-//!
-//! use parquet::file::reader::{FileReader, SerializedFileReader};
-//! use parquet::schema::printer::{print_file_metadata, print_parquet_metadata, print_schema};
-//!
-//! // Open a file
-//! let path = Path::new("test.parquet");
-//! if let Ok(file) = File::open(&path) {
-//!     let reader = SerializedFileReader::new(file).unwrap();
-//!     let parquet_metadata = reader.metadata();
-//!
-//!     print_parquet_metadata(&mut std::io::stdout(), &parquet_metadata);
-//!     print_file_metadata(&mut std::io::stdout(), &parquet_metadata.file_metadata());
-//!
-//!     print_schema(
-//!         &mut std::io::stdout(),
-//!         &parquet_metadata.file_metadata().schema(),
-//!     );
-//! }
-//! ```
 
 use std::{fmt, io};
 
@@ -384,7 +360,7 @@ mod tests {
 
     use super::*;
     use crate::basic::{Repetition, Type as PhysicalType};
-    use crate::errors::Result;
+    use crate::errors::ParquetResult;
     use crate::schema::parser::parse_message_type;
 
     fn assert_print_parse_message(message: Type) {
@@ -420,7 +396,7 @@ mod tests {
         logical_type: Option<LogicalType>,
         converted_type: ConvertedType,
         repetition: Repetition,
-    ) -> Result<Type> {
+    ) -> ParquetResult<Type> {
         Type::primitive_type_builder(name, physical_type)
             .with_repetition(repetition)
             .with_logical_type(logical_type)

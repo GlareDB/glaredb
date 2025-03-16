@@ -1,4 +1,6 @@
+pub mod evaluator;
 pub mod planner;
+pub mod selection_evaluator;
 
 pub mod case_expr;
 pub mod cast_expr;
@@ -6,23 +8,18 @@ pub mod column_expr;
 pub mod literal_expr;
 pub mod scalar_function_expr;
 
-use std::borrow::Cow;
 use std::fmt;
 
 use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
+use evaluator::ExpressionState;
 use literal_expr::PhysicalLiteralExpr;
-use rayexec_error::{not_implemented, OptionExt, Result};
+use rayexec_error::Result;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
-use crate::arrays::array::Array;
-use crate::arrays::batch::Batch;
-use crate::arrays::executor::scalar::SelectExecutor;
-use crate::arrays::selection::SelectionVector;
-use crate::database::DatabaseContext;
+use crate::arrays::datatype::DataType;
 use crate::functions::aggregate::PlannedAggregateFunction;
-use crate::proto::DatabaseProtoConv;
 
 #[derive(Debug, Clone)]
 pub enum PhysicalScalarExpression {
@@ -33,28 +30,55 @@ pub enum PhysicalScalarExpression {
     ScalarFunction(PhysicalScalarFunctionExpr),
 }
 
+impl From<PhysicalCaseExpr> for PhysicalScalarExpression {
+    fn from(value: PhysicalCaseExpr) -> Self {
+        PhysicalScalarExpression::Case(value)
+    }
+}
+
+impl From<PhysicalCastExpr> for PhysicalScalarExpression {
+    fn from(value: PhysicalCastExpr) -> Self {
+        PhysicalScalarExpression::Cast(value)
+    }
+}
+
+impl From<PhysicalColumnExpr> for PhysicalScalarExpression {
+    fn from(value: PhysicalColumnExpr) -> Self {
+        PhysicalScalarExpression::Column(value)
+    }
+}
+
+impl From<PhysicalLiteralExpr> for PhysicalScalarExpression {
+    fn from(value: PhysicalLiteralExpr) -> Self {
+        PhysicalScalarExpression::Literal(value)
+    }
+}
+
+impl From<PhysicalScalarFunctionExpr> for PhysicalScalarExpression {
+    fn from(value: PhysicalScalarFunctionExpr) -> Self {
+        PhysicalScalarExpression::ScalarFunction(value)
+    }
+}
+
 impl PhysicalScalarExpression {
-    pub fn eval<'a>(&self, batch: &'a Batch) -> Result<Cow<'a, Array>> {
+    pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
         match self {
-            Self::Case(e) => e.eval(batch),
-            Self::Cast(e) => e.eval(batch),
-            Self::Column(e) => e.eval(batch),
-            Self::Literal(e) => e.eval(batch),
-            Self::ScalarFunction(e) => e.eval(batch),
+            Self::Case(expr) => expr.create_state(batch_size),
+            Self::Cast(expr) => expr.create_state(batch_size),
+            Self::Column(expr) => expr.create_state(batch_size),
+            Self::Literal(expr) => expr.create_state(batch_size),
+            Self::ScalarFunction(expr) => expr.create_state(batch_size),
         }
     }
 
-    /// Produce a selection vector for the batch using this expression.
-    ///
-    /// The selection vector will include row indices where the expression
-    /// evaluates to true.
-    pub fn select(&self, batch: &Batch) -> Result<SelectionVector> {
-        let selected = self.eval(batch)?;
-
-        let mut selection = SelectionVector::with_capacity(selected.logical_len());
-        SelectExecutor::select(&selected, &mut selection)?;
-
-        Ok(selection)
+    pub fn datatype(&self) -> DataType {
+        match self {
+            Self::Case(expr) => expr.datatype(),
+            Self::Cast(expr) => expr.datatype(),
+            Self::Column(expr) => expr.datatype(),
+            Self::Literal(expr) => expr.datatype(),
+            Self::ScalarFunction(expr) => expr.datatype(),
+        }
     }
 }
 
@@ -70,42 +94,7 @@ impl fmt::Display for PhysicalScalarExpression {
     }
 }
 
-impl DatabaseProtoConv for PhysicalScalarExpression {
-    type ProtoType = rayexec_proto::generated::physical_expr::PhysicalScalarExpression;
-
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::physical_expr::physical_scalar_expression::Value;
-
-        let value = match self {
-            Self::Case(_) => not_implemented!("proto encode CASE"),
-            Self::Cast(cast) => Value::Cast(Box::new(cast.to_proto_ctx(context)?)),
-            Self::Column(cast) => Value::Column(cast.to_proto_ctx(context)?),
-            Self::Literal(cast) => Value::Literal(cast.to_proto_ctx(context)?),
-            Self::ScalarFunction(cast) => Value::Function(cast.to_proto_ctx(context)?),
-        };
-
-        Ok(Self::ProtoType { value: Some(value) })
-    }
-
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        use rayexec_proto::generated::physical_expr::physical_scalar_expression::Value;
-
-        Ok(match proto.value.required("value")? {
-            Value::Column(proto) => {
-                Self::Column(DatabaseProtoConv::from_proto_ctx(proto, context)?)
-            }
-            Value::Cast(proto) => Self::Cast(DatabaseProtoConv::from_proto_ctx(*proto, context)?),
-            Value::Literal(proto) => {
-                Self::Literal(DatabaseProtoConv::from_proto_ctx(proto, context)?)
-            }
-            Value::Function(proto) => {
-                Self::ScalarFunction(DatabaseProtoConv::from_proto_ctx(proto, context)?)
-            }
-        })
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PhysicalAggregateExpression {
     /// The function we'll be calling to produce the aggregate states.
     pub function: PlannedAggregateFunction,
@@ -117,136 +106,28 @@ pub struct PhysicalAggregateExpression {
 }
 
 impl PhysicalAggregateExpression {
+    pub fn new<C>(function: PlannedAggregateFunction, columns: impl IntoIterator<Item = C>) -> Self
+    where
+        C: Into<PhysicalColumnExpr>,
+    {
+        PhysicalAggregateExpression {
+            function,
+            columns: columns.into_iter().map(|c| c.into()).collect(),
+            is_distinct: false,
+        }
+    }
+
     pub fn contains_column_idx(&self, column: usize) -> bool {
         self.columns.iter().any(|expr| expr.idx == column)
-    }
-}
-
-impl DatabaseProtoConv for PhysicalAggregateExpression {
-    type ProtoType = rayexec_proto::generated::physical_expr::PhysicalAggregateExpression;
-
-    fn to_proto_ctx(&self, _context: &DatabaseContext) -> Result<Self::ProtoType> {
-        unimplemented!()
-        // Ok(Self::ProtoType {
-        //     function: Some(self.function.to_proto_ctx(context)?),
-        //     columns: self
-        //         .columns
-        //         .iter()
-        //         .map(|c| c.to_proto_ctx(context))
-        //         .collect::<Result<Vec<_>>>()?,
-        //     output_type: Some(self.output_type.to_proto()?),
-        //     is_distinct: self.is_distinct,
-        // })
-    }
-
-    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        unimplemented!()
-        // Ok(Self {
-        //     function: DatabaseProtoConv::from_proto_ctx(
-        //         proto.function.required("function")?,
-        //         context,
-        //     )?,
-        //     columns: proto
-        //         .columns
-        //         .into_iter()
-        //         .map(|c| DatabaseProtoConv::from_proto_ctx(c, context))
-        //         .collect::<Result<Vec<_>>>()?,
-        //     output_type: ProtoConv::from_proto(proto.output_type.required("output_type")?)?,
-        //     is_distinct: proto.is_distinct,
-        // })
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct PhysicalSortExpression {
     /// Column this expression is for.
-    pub column: PhysicalColumnExpr,
+    pub column: PhysicalScalarExpression,
     /// If sort should be descending.
     pub desc: bool,
     /// If nulls should be ordered first.
     pub nulls_first: bool,
-}
-
-impl DatabaseProtoConv for PhysicalSortExpression {
-    type ProtoType = rayexec_proto::generated::physical_expr::PhysicalSortExpression;
-
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            column: Some(self.column.to_proto_ctx(context)?),
-            desc: self.desc,
-            nulls_first: self.nulls_first,
-        })
-    }
-
-    fn from_proto_ctx(proto: Self::ProtoType, context: &DatabaseContext) -> Result<Self> {
-        Ok(Self {
-            column: DatabaseProtoConv::from_proto_ctx(proto.column.required("column")?, context)?,
-            desc: proto.desc,
-            nulls_first: proto.nulls_first,
-        })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use planner::PhysicalExpressionPlanner;
-
-    use super::*;
-    use crate::arrays::datatype::DataType;
-    use crate::expr;
-    use crate::logical::binder::table_list::TableList;
-
-    #[test]
-    fn select_some() {
-        let batch = Batch::try_from_arrays([
-            Array::from_iter([1, 4, 6, 9, 12]),
-            Array::from_iter([2, 3, 8, 9, 10]),
-        ])
-        .unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Int32, DataType::Int32],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
-
-        let expr = expr::gt(expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1));
-        let planner = PhysicalExpressionPlanner::new(&table_list);
-        let physical = planner.plan_scalar(&[table_ref], &expr).unwrap();
-
-        let selection = physical.select(&batch).unwrap();
-        let expected = SelectionVector::from_iter([1, 4]);
-
-        assert_eq!(expected, selection)
-    }
-
-    #[test]
-    fn select_none() {
-        let batch = Batch::try_from_arrays([
-            Array::from_iter([1, 2, 6, 9, 9]),
-            Array::from_iter([2, 3, 8, 9, 10]),
-        ])
-        .unwrap();
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Int32, DataType::Int32],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
-
-        let expr = expr::gt(expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1));
-        let planner = PhysicalExpressionPlanner::new(&table_list);
-        let physical = planner.plan_scalar(&[table_ref], &expr).unwrap();
-
-        let selection = physical.select(&batch).unwrap();
-        let expected = SelectionVector::empty();
-
-        assert_eq!(expected, selection)
-    }
 }

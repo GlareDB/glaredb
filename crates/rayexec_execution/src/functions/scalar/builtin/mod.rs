@@ -2,6 +2,7 @@ pub mod arith;
 pub mod boolean;
 pub mod comparison;
 pub mod datetime;
+pub mod debug;
 pub mod is;
 pub mod list;
 pub mod negate;
@@ -11,91 +12,164 @@ pub mod similarity;
 pub mod string;
 pub mod struct_funcs;
 
-use std::sync::LazyLock;
+use arith::{
+    FUNCTION_SET_ADD,
+    FUNCTION_SET_DIV,
+    FUNCTION_SET_MUL,
+    FUNCTION_SET_REM,
+    FUNCTION_SET_SUB,
+};
+use boolean::{FUNCTION_SET_AND, FUNCTION_SET_OR};
+use comparison::{
+    FUNCTION_SET_EQ,
+    FUNCTION_SET_GT,
+    FUNCTION_SET_GT_EQ,
+    FUNCTION_SET_LT,
+    FUNCTION_SET_LT_EQ,
+    FUNCTION_SET_NEQ,
+};
+use datetime::{
+    FUNCTION_SET_DATE_PART,
+    FUNCTION_SET_DATE_TRUNC,
+    FUNCTION_SET_EPOCH,
+    FUNCTION_SET_EPOCH_MS,
+};
+use is::{
+    FUNCTION_SET_IS_FALSE,
+    FUNCTION_SET_IS_NOT_FALSE,
+    FUNCTION_SET_IS_NOT_NULL,
+    FUNCTION_SET_IS_NOT_TRUE,
+    FUNCTION_SET_IS_NULL,
+    FUNCTION_SET_IS_TRUE,
+};
+use list::{FUNCTION_SET_LIST_EXTRACT, FUNCTION_SET_LIST_VALUES};
+use negate::{FUNCTION_SET_NEGATE, FUNCTION_SET_NOT};
+use numeric::{
+    FUNCTION_SET_ABS,
+    FUNCTION_SET_ACOS,
+    FUNCTION_SET_ASIN,
+    FUNCTION_SET_ATAN,
+    FUNCTION_SET_CBRT,
+    FUNCTION_SET_CEIL,
+    FUNCTION_SET_COS,
+    FUNCTION_SET_DEGREES,
+    FUNCTION_SET_EXP,
+    FUNCTION_SET_FLOOR,
+    FUNCTION_SET_IS_NAN,
+    FUNCTION_SET_LN,
+    FUNCTION_SET_LOG,
+    FUNCTION_SET_LOG_2,
+    FUNCTION_SET_RADIANS,
+    FUNCTION_SET_SIN,
+    FUNCTION_SET_SQRT,
+    FUNCTION_SET_TAN,
+};
+use random::FUNCTION_SET_RANDOM;
+use similarity::FUNCTION_SET_L2_DISTANCE;
+use string::{
+    FUNCTION_SET_ASCII,
+    FUNCTION_SET_BIT_LENGTH,
+    FUNCTION_SET_BTRIM,
+    FUNCTION_SET_BYTE_LENGTH,
+    FUNCTION_SET_CONCAT,
+    FUNCTION_SET_CONTAINS,
+    FUNCTION_SET_ENDS_WITH,
+    FUNCTION_SET_LEFT_PAD,
+    FUNCTION_SET_LENGTH,
+    FUNCTION_SET_LIKE,
+    FUNCTION_SET_LOWER,
+    FUNCTION_SET_LTRIM,
+    FUNCTION_SET_REGEXP_REPLACE,
+    FUNCTION_SET_REPEAT,
+    FUNCTION_SET_RIGHT_PAD,
+    FUNCTION_SET_RTRIM,
+    FUNCTION_SET_STARTS_WITH,
+    FUNCTION_SET_SUBSTRING,
+    FUNCTION_SET_UPPER,
+};
+use struct_funcs::{FUNCTION_SET_STRUCT_EXTRACT, FUNCTION_SET_STRUCT_PACK};
 
-use super::ScalarFunction;
+use crate::functions::function_set::ScalarFunctionSet;
 
-// List of all scalar functions.
-pub static BUILTIN_SCALAR_FUNCTIONS: LazyLock<Vec<Box<dyn ScalarFunction>>> = LazyLock::new(|| {
-    vec![
-        // Arith
-        Box::new(arith::Add),
-        Box::new(arith::Sub),
-        Box::new(arith::Mul),
-        Box::new(arith::Div),
-        Box::new(arith::Rem),
-        // Boolean
-        Box::new(boolean::And),
-        Box::new(boolean::Or),
-        // Comparison
-        Box::new(comparison::Eq),
-        Box::new(comparison::Neq),
-        Box::new(comparison::Lt),
-        Box::new(comparison::LtEq),
-        Box::new(comparison::Gt),
-        Box::new(comparison::GtEq),
-        // Numeric
-        Box::new(numeric::Ceil::new()),
-        Box::new(numeric::Floor::new()),
-        Box::new(numeric::Abs::new()),
-        Box::new(numeric::Acos::new()),
-        Box::new(numeric::Asin::new()),
-        Box::new(numeric::Atan::new()),
-        Box::new(numeric::Cbrt::new()),
-        Box::new(numeric::Cos::new()),
-        Box::new(numeric::Exp::new()),
-        Box::new(numeric::Ln::new()),
-        Box::new(numeric::Log::new()),
-        Box::new(numeric::Log2::new()),
-        Box::new(numeric::Sin::new()),
-        Box::new(numeric::Sqrt::new()),
-        Box::new(numeric::Tan::new()),
-        Box::new(numeric::Degrees::new()),
-        Box::new(numeric::Radians::new()),
-        Box::new(numeric::IsNan),
-        // String
-        Box::new(string::Lower),
-        Box::new(string::Upper),
-        Box::new(string::Repeat),
-        Box::new(string::Substring),
-        Box::new(string::StartsWith),
-        Box::new(string::EndsWith),
-        Box::new(string::Contains),
-        Box::new(string::Length),
-        Box::new(string::ByteLength),
-        Box::new(string::BitLength),
-        Box::new(string::Concat),
-        Box::new(string::RegexpReplace),
-        Box::new(string::Ascii),
-        Box::new(string::LeftPad),
-        Box::new(string::RightPad),
-        Box::new(string::LeftTrim::new()),
-        Box::new(string::RightTrim::new()),
-        Box::new(string::BTrim::new()),
-        Box::new(string::Like),
-        // Struct
-        Box::new(struct_funcs::StructPack),
-        // Unary
-        Box::new(negate::Negate),
-        Box::new(negate::Not),
-        // Random
-        Box::new(random::Random),
-        // List
-        Box::new(list::ListExtract),
-        Box::new(list::ListValues),
-        // Datetime
-        Box::new(datetime::DatePart),
-        Box::new(datetime::DateTrunc),
-        Box::new(datetime::EpochMs),
-        Box::new(datetime::Epoch),
-        // Is
-        Box::new(is::IsNull),
-        Box::new(is::IsNotNull),
-        Box::new(is::IsTrue),
-        Box::new(is::IsNotTrue),
-        Box::new(is::IsFalse),
-        Box::new(is::IsNotFalse),
-        // Distance
-        Box::new(similarity::L2Distance),
-    ]
-});
+pub const BUILTIN_SCALAR_FUNCTION_SETS: &[ScalarFunctionSet] = &[
+    // Arith
+    FUNCTION_SET_ADD,
+    FUNCTION_SET_SUB,
+    FUNCTION_SET_DIV,
+    FUNCTION_SET_MUL,
+    FUNCTION_SET_REM,
+    // Boolean
+    FUNCTION_SET_AND,
+    FUNCTION_SET_OR,
+    // Comparison
+    FUNCTION_SET_EQ,
+    FUNCTION_SET_NEQ,
+    FUNCTION_SET_LT,
+    FUNCTION_SET_LT_EQ,
+    FUNCTION_SET_GT,
+    FUNCTION_SET_GT_EQ,
+    // Numeric
+    FUNCTION_SET_CEIL,
+    FUNCTION_SET_FLOOR,
+    FUNCTION_SET_ABS,
+    FUNCTION_SET_ACOS,
+    FUNCTION_SET_ASIN,
+    FUNCTION_SET_ATAN,
+    FUNCTION_SET_CBRT,
+    FUNCTION_SET_COS,
+    FUNCTION_SET_EXP,
+    FUNCTION_SET_LN,
+    FUNCTION_SET_LOG,
+    FUNCTION_SET_LOG_2,
+    FUNCTION_SET_SIN,
+    FUNCTION_SET_SQRT,
+    FUNCTION_SET_TAN,
+    FUNCTION_SET_DEGREES,
+    FUNCTION_SET_RADIANS,
+    FUNCTION_SET_IS_NAN,
+    // String
+    FUNCTION_SET_LOWER,
+    FUNCTION_SET_UPPER,
+    FUNCTION_SET_REPEAT,
+    FUNCTION_SET_SUBSTRING,
+    FUNCTION_SET_STARTS_WITH,
+    FUNCTION_SET_ENDS_WITH,
+    FUNCTION_SET_CONTAINS,
+    FUNCTION_SET_LENGTH,
+    FUNCTION_SET_BYTE_LENGTH,
+    FUNCTION_SET_BIT_LENGTH,
+    FUNCTION_SET_CONCAT,
+    FUNCTION_SET_REGEXP_REPLACE,
+    FUNCTION_SET_ASCII,
+    FUNCTION_SET_LEFT_PAD,
+    FUNCTION_SET_RIGHT_PAD,
+    FUNCTION_SET_LTRIM,
+    FUNCTION_SET_RTRIM,
+    FUNCTION_SET_BTRIM,
+    FUNCTION_SET_LIKE,
+    // Struct
+    FUNCTION_SET_STRUCT_PACK,
+    FUNCTION_SET_STRUCT_EXTRACT,
+    // Unary
+    FUNCTION_SET_NEGATE,
+    FUNCTION_SET_NOT,
+    // Random
+    FUNCTION_SET_RANDOM,
+    // List
+    FUNCTION_SET_LIST_VALUES,
+    FUNCTION_SET_LIST_EXTRACT,
+    // Date/time
+    FUNCTION_SET_DATE_PART,
+    FUNCTION_SET_DATE_TRUNC,
+    FUNCTION_SET_EPOCH,
+    FUNCTION_SET_EPOCH_MS,
+    // Is
+    FUNCTION_SET_IS_NULL,
+    FUNCTION_SET_IS_NOT_NULL,
+    FUNCTION_SET_IS_TRUE,
+    FUNCTION_SET_IS_NOT_TRUE,
+    FUNCTION_SET_IS_FALSE,
+    FUNCTION_SET_IS_NOT_FALSE,
+    // Distance
+    FUNCTION_SET_L2_DISTANCE,
+];

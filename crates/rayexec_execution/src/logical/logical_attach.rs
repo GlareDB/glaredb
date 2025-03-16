@@ -5,7 +5,7 @@ use rayexec_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::arrays::scalar::OwnedScalarValue;
+use crate::arrays::scalar::ScalarValue;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
@@ -13,7 +13,7 @@ use crate::expr::Expression;
 pub struct LogicalAttachDatabase {
     pub datasource: String,
     pub name: String,
-    pub options: HashMap<String, OwnedScalarValue>,
+    pub options: HashMap<String, ScalarValue>,
 }
 
 impl Explainable for LogicalAttachDatabase {

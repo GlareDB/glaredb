@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{
+    MutableScalarStorage,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
@@ -12,238 +13,148 @@ use crate::arrays::array::physical_type::{
     PhysicalI32,
     PhysicalI64,
     PhysicalI8,
-    PhysicalStorage,
     PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
     PhysicalU8,
 };
-use crate::arrays::array::{Array, ArrayData2};
+use crate::arrays::array::Array;
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
 use crate::arrays::executor::scalar::BinaryExecutor;
-use crate::arrays::storage::PrimitiveStorage;
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Rem;
-
-impl FunctionInfo for Rem {
-    fn name(&self) -> &'static str {
-        "%"
-    }
-
-    fn aliases(&self) -> &'static [&'static str] {
-        &["rem", "mod"]
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        const SIGS: &[Signature] = &[
-            Signature::new_positional(
+pub const FUNCTION_SET_REM: ScalarFunctionSet = ScalarFunctionSet {
+    name: "%",
+    aliases: &["rem"],
+    doc: None,
+    functions: &[
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Float16, DataTypeId::Float16],
                 DataTypeId::Float16,
             ),
-            Signature::new_positional(
+            &Rem::<PhysicalF16>::new(&DataType::Float16),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Float32, DataTypeId::Float32],
                 DataTypeId::Float32,
             ),
-            Signature::new_positional(
+            &Rem::<PhysicalF32>::new(&DataType::Float32),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Float64, DataTypeId::Float64],
                 DataTypeId::Float64,
             ),
-            Signature::new_positional(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
-            Signature::new_positional(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
-            Signature::new_positional(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
-            Signature::new_positional(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
-            Signature::new_positional(
+            &Rem::<PhysicalF64>::new(&DataType::Float64),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
+            &Rem::<PhysicalI8>::new(&DataType::Int8),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
+            &Rem::<PhysicalI16>::new(&DataType::Int16),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
+            &Rem::<PhysicalI32>::new(&DataType::Int32),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
+            &Rem::<PhysicalI64>::new(&DataType::Int64),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::Int128, DataTypeId::Int128],
                 DataTypeId::Int128,
             ),
-            Signature::new_positional(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
-            Signature::new_positional(
+            &Rem::<PhysicalI128>::new(&DataType::Int128),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
+            &Rem::<PhysicalU8>::new(&DataType::UInt8),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::UInt16, DataTypeId::UInt16],
                 DataTypeId::UInt16,
             ),
-            Signature::new_positional(
+            &Rem::<PhysicalU16>::new(&DataType::UInt16),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::UInt32, DataTypeId::UInt32],
                 DataTypeId::UInt32,
             ),
-            Signature::new_positional(
+            &Rem::<PhysicalU32>::new(&DataType::UInt32),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::UInt64, DataTypeId::UInt64],
                 DataTypeId::UInt64,
             ),
-            Signature::new_positional(
+            &Rem::<PhysicalU64>::new(&DataType::UInt64),
+        ),
+        RawScalarFunction::new(
+            &Signature::new(
                 &[DataTypeId::UInt128, DataTypeId::UInt128],
                 DataTypeId::UInt128,
             ),
-            // TODO
-            // Signature {
-            //     input: &[DataTypeId::Date32, DataTypeId::Int64],
-            //     variadic: None,
-            //     return_type: DataTypeId::Date32,
-            // },
-            // Signature {
-            //     input: &[DataTypeId::Interval, DataTypeId::Int64],
-            //     variadic: None,
-            //     return_type: DataTypeId::Interval,
-            // },
-            // Signature {
-            //     input: &[DataTypeId::Decimal64, DataTypeId::Decimal64],
-            //     variadic: None,
-            //     return_type: DataTypeId::Decimal64,
-            // },
-        ];
-        SIGS
-    }
-}
+            &Rem::<PhysicalU128>::new(&DataType::UInt128),
+        ),
+    ],
+};
 
-impl ScalarFunction for Rem {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        plan_check_num_args(self, &inputs, 2)?;
-
-        let (function_impl, return_type): (Box<dyn ScalarFunctionImpl>, _) = match (
-            inputs[0].datatype(table_list)?,
-            inputs[1].datatype(table_list)?,
-        ) {
-            (DataType::Float16, DataType::Float16) => (
-                Box::new(RemImpl::<PhysicalF16>::new(DataType::Float16)),
-                DataType::Float16,
-            ),
-            (DataType::Float32, DataType::Float32) => (
-                Box::new(RemImpl::<PhysicalF32>::new(DataType::Float32)),
-                DataType::Float32,
-            ),
-            (DataType::Float64, DataType::Float64) => (
-                Box::new(RemImpl::<PhysicalF64>::new(DataType::Float64)),
-                DataType::Float64,
-            ),
-            (DataType::Int8, DataType::Int8) => (
-                Box::new(RemImpl::<PhysicalI8>::new(DataType::Int8)),
-                DataType::Int8,
-            ),
-            (DataType::Int16, DataType::Int16) => (
-                Box::new(RemImpl::<PhysicalI16>::new(DataType::Int16)),
-                DataType::Int16,
-            ),
-            (DataType::Int32, DataType::Int32) => (
-                Box::new(RemImpl::<PhysicalI32>::new(DataType::Int32)),
-                DataType::Int32,
-            ),
-            (DataType::Int64, DataType::Int64) => (
-                Box::new(RemImpl::<PhysicalI64>::new(DataType::Int64)),
-                DataType::Int64,
-            ),
-            (DataType::Int128, DataType::Int128) => (
-                Box::new(RemImpl::<PhysicalI128>::new(DataType::Int128)),
-                DataType::Int128,
-            ),
-            (DataType::UInt8, DataType::UInt8) => (
-                Box::new(RemImpl::<PhysicalU8>::new(DataType::UInt8)),
-                DataType::UInt8,
-            ),
-            (DataType::UInt16, DataType::UInt16) => (
-                Box::new(RemImpl::<PhysicalU16>::new(DataType::UInt16)),
-                DataType::UInt16,
-            ),
-            (DataType::UInt32, DataType::UInt32) => (
-                Box::new(RemImpl::<PhysicalU32>::new(DataType::UInt32)),
-                DataType::UInt32,
-            ),
-            (DataType::UInt64, DataType::UInt64) => (
-                Box::new(RemImpl::<PhysicalU64>::new(DataType::UInt64)),
-                DataType::UInt64,
-            ),
-            (DataType::UInt128, DataType::UInt128) => (
-                Box::new(RemImpl::<PhysicalU128>::new(DataType::UInt128)),
-                DataType::UInt128,
-            ),
-
-            // TODO: Interval, date, decimal
-            (a, b) => return Err(invalid_input_types_error(self, &[a, b])),
-        };
-
-        Ok(PlannedScalarFunction {
-            function: Box::new(*self),
-            return_type,
-            inputs,
-            function_impl,
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct RemImpl<S> {
-    datatype: DataType,
+#[derive(Debug, Clone, Copy)]
+pub struct Rem<S> {
+    return_type: &'static DataType,
     _s: PhantomData<S>,
 }
 
-impl<S> RemImpl<S> {
-    fn new(datatype: DataType) -> Self {
-        RemImpl {
-            datatype,
+impl<S> Rem<S> {
+    pub const fn new(return_type: &'static DataType) -> Self {
+        Rem {
+            return_type,
             _s: PhantomData,
         }
     }
 }
 
-impl<S> ScalarFunctionImpl for RemImpl<S>
+impl<S> ScalarFunction for Rem<S>
 where
-    S: PhysicalStorage,
-    for<'a> S::Type<'a>: std::ops::Rem<Output = S::Type<'static>> + Default + Copy,
-    ArrayData2: From<PrimitiveStorage<S::Type<'static>>>,
+    S: MutableScalarStorage,
+    S::StorageType: std::ops::Rem<Output = S::StorageType> + Sized + Copy,
 {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let a = inputs[0];
-        let b = inputs[1];
+    type State = ();
 
-        let builder = ArrayBuilder {
-            datatype: self.datatype.clone(),
-            buffer: PrimitiveBuffer::with_len(a.logical_len()),
-        };
-
-        BinaryExecutor::execute::<S, S, _, _>(a, b, builder, |a, b, buf| buf.put(&(a % b)))
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: self.return_type.clone(),
+            inputs,
+        })
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::arrays::datatype::DataType;
-    use crate::expr;
-    use crate::functions::scalar::ScalarFunction;
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let a = &input.arrays()[0];
+        let b = &input.arrays()[1];
 
-    #[test]
-    fn rem_i32() {
-        let a = Array::from_iter([4, 5, 6]);
-        let b = Array::from_iter([1, 2, 3]);
-
-        let mut table_list = TableList::empty();
-        let table_ref = table_list
-            .push_table(
-                None,
-                vec![DataType::Int32, DataType::Int32],
-                vec!["a".to_string(), "b".to_string()],
-            )
-            .unwrap();
-
-        let planned = Rem
-            .plan(
-                &table_list,
-                vec![expr::col_ref(table_ref, 0), expr::col_ref(table_ref, 1)],
-            )
-            .unwrap();
-
-        let out = planned.function_impl.execute(&[&a, &b]).unwrap();
-        let expected = Array::from_iter([0, 1, 0]);
-
-        assert_eq!(expected, out);
+        BinaryExecutor::execute::<S, S, S, _>(
+            a,
+            sel,
+            b,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&a, &b, buf| buf.put(&(a % b)),
+        )
     }
 }

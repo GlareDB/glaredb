@@ -1,0 +1,41 @@
+# ADD on decimals
+
+query R
+DESCRIBE SELECT 8 + '4.20'::DECIMAL
+----
+?column?  Decimal64(18,3)
+
+query R
+SELECT 8 + '4.20'::DECIMAL
+----
+12.200
+
+query TT
+DESCRIBE SELECT 4.8 - '4.20'::DECIMAL(9,3);
+----
+?column?  Decimal64(10,3)
+
+query R
+SELECT 4.8 + '4.20'::DECIMAL(9,3);
+----
+9.000
+
+query TT
+DESCRIBE SELECT 4.8 + '4.15'::DECIMAL(9,3);
+----
+?column?  Decimal64(10,3)
+
+query R
+SELECT 4.8 + '4.15'::DECIMAL(9,3);
+----
+8.950
+
+query TT
+DESCRIBE SELECT 4.8 + '4.15'::DECIMAL(9,4);
+----
+?column?  Decimal64(10,4)
+
+query R
+SELECT 4.8 + '4.15'::DECIMAL(9,4);
+----
+8.9500

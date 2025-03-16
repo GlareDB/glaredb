@@ -11,11 +11,12 @@ use rayexec_error::Result;
 use super::filter_pushdown::extracted_filter::ExtractedFilter;
 use super::filter_pushdown::split::split_conjunction;
 use super::OptimizeRule;
-use crate::expr::column_expr::ColumnExpr;
+use crate::expr::column_expr::ColumnReference;
+use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
-use crate::logical::logical_join::{ComparisonCondition, JoinType};
+use crate::logical::logical_join::JoinType;
 use crate::logical::operator::{LogicalNode, LogicalOperator};
 
 /// Reorders joins in the plan.
@@ -38,16 +39,12 @@ impl OptimizeRule for JoinReorder {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ReorderableCondition {
-    Inner {
-        condition: ComparisonCondition,
-    },
-    Semi {
-        conditions: Vec<ComparisonCondition>,
-    },
+    Inner { condition: ComparisonExpr },
+    Semi { conditions: Vec<ComparisonExpr> },
 }
 
 impl ReorderableCondition {
-    pub fn get_column_refs(&self) -> HashSet<ColumnExpr> {
+    pub fn get_column_refs(&self) -> HashSet<ColumnReference> {
         match self {
             Self::Inner { condition } => condition
                 .left
@@ -151,7 +148,7 @@ impl InnerJoinReorder {
             }
             LogicalOperator::ComparisonJoin(join)
                 if join.node.join_type == JoinType::Inner
-                    || join.node.join_type == JoinType::Semi =>
+                    || join.node.join_type == JoinType::LeftSemi =>
             {
                 self.extract_filters_and_join_children(root)?;
             }
@@ -219,7 +216,7 @@ impl InnerJoinReorder {
                         for child in join.children.drain(..) {
                             queue.push_back(child);
                         }
-                    } else if join.node.join_type == JoinType::Semi {
+                    } else if join.node.join_type == JoinType::LeftSemi {
                         // Semi join conditions need to be kept together as
                         // they're not freely reorderable.
                         self.conditions.push(ReorderableCondition::Semi {

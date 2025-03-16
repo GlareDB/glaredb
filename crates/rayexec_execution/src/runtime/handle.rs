@@ -3,8 +3,6 @@ use std::fmt::Debug;
 use futures::future::BoxFuture;
 use rayexec_error::Result;
 
-use crate::execution::executable::profiler::ExecutionProfileData;
-
 /// A handle to a running or recently completed query.
 pub trait QueryHandle: Debug + Sync + Send {
     /// Cancel the query.
@@ -19,3 +17,6 @@ pub trait QueryHandle: Debug + Sync + Send {
     /// executing on remote nodes.
     fn generate_execution_profile_data(&self) -> BoxFuture<'_, Result<ExecutionProfileData>>;
 }
+
+#[derive(Debug)]
+pub struct ExecutionProfileData {}

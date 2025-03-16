@@ -5,8 +5,10 @@ use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::physical_type::{PhysicalI128, PhysicalI64, PhysicalStorage};
+use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalI128, PhysicalI64};
+use crate::arrays::datatype::{DataType, DecimalTypeMeta};
 
+/// Trait describing the underlying primivite representing the decimal.
 pub trait DecimalPrimitive:
     PrimInt + FromPrimitive + Signed + Default + Debug + Display + Sync + Send
 {
@@ -28,13 +30,12 @@ impl DecimalPrimitive for i128 {
     }
 }
 
-pub trait DecimalType: Debug + Sync + Send + Copy + 'static
-where
-    for<'a> Self::Storage: PhysicalStorage<Type<'a> = Self::Primitive>,
-{
+/// Describes a decimal type.
+pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
     /// The underlying primitive type storing the decimal's value.
     type Primitive: DecimalPrimitive;
-    type Storage: PhysicalStorage;
+    /// Storage type to use for accessing the primitives in a decimal array.
+    type Storage: MutableScalarStorage<StorageType = Self::Primitive>;
 
     /// Max precision for this decimal type.
     const MAX_PRECISION: u8;
@@ -64,8 +65,24 @@ where
 
         Ok(())
     }
+
+    /// Try to unwrap the decimal type metadata from a data type.
+    ///
+    /// Should return None if the datatype is not the correct type or size.
+    fn decimal_meta_opt(datatype: &DataType) -> Option<DecimalTypeMeta>;
+
+    /// Unwrap the decimal type metadata, returning an error if the datatype is
+    /// not the correct type.
+    fn decimal_meta(datatype: &DataType) -> Result<DecimalTypeMeta> {
+        Self::decimal_meta_opt(datatype)
+            .ok_or_else(|| RayexecError::new("Failed to unwrap decimal type meta"))
+    }
+
+    /// Create a new datatype using the provide precision and scale.
+    fn datatype_from_decimal_meta(meta: DecimalTypeMeta) -> DataType;
 }
 
+/// 64-bit decimal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Decimal64Type;
 
@@ -76,8 +93,20 @@ impl DecimalType for Decimal64Type {
     // Note that changing this would require changing some of the date functions
     // since they assume this is 3.
     const DEFAULT_SCALE: i8 = 3;
+
+    fn decimal_meta_opt(datatype: &DataType) -> Option<DecimalTypeMeta> {
+        match datatype {
+            DataType::Decimal64(m) => Some(*m),
+            _ => None,
+        }
+    }
+
+    fn datatype_from_decimal_meta(meta: DecimalTypeMeta) -> DataType {
+        DataType::Decimal64(meta)
+    }
 }
 
+/// 128-bit decimal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Decimal128Type;
 
@@ -86,6 +115,17 @@ impl DecimalType for Decimal128Type {
     type Storage = PhysicalI128;
     const MAX_PRECISION: u8 = 38;
     const DEFAULT_SCALE: i8 = 9;
+
+    fn decimal_meta_opt(datatype: &DataType) -> Option<DecimalTypeMeta> {
+        match datatype {
+            DataType::Decimal128(m) => Some(*m),
+            _ => None,
+        }
+    }
+
+    fn datatype_from_decimal_meta(meta: DecimalTypeMeta) -> DataType {
+        DataType::Decimal128(meta)
+    }
 }
 
 /// Represents a single decimal value.

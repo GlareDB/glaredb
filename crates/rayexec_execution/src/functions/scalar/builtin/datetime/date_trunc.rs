@@ -4,95 +4,30 @@ use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::array::physical_type::PhysicalI64;
 use crate::arrays::array::Array;
-use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit, TimestampTypeMeta};
-use crate::arrays::executor::builder::{ArrayBuilder, PrimitiveBuffer};
+use crate::arrays::batch::Batch;
+use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit};
 use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
-use crate::functions::scalar::{PlannedScalarFunction, ScalarFunction, ScalarFunctionImpl};
-use crate::functions::{invalid_input_types_error, plan_check_num_args, FunctionInfo, Signature};
-use crate::logical::binder::table_list::TableList;
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DateTrunc;
-
-impl FunctionInfo for DateTrunc {
-    fn name(&self) -> &'static str {
-        "date_trunc"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        // TODO: Need to fix
-        // const DOC: &Documentation = &Documentation {
-        //     category: Category::Date,
-        //     description: "Truncate to a specified precision.",
-        //     arguments: &["part", "date"],
-        //     example: Some(Example {
-        //         example: "date_trunc('month', DATE '2024-12-17')",
-        //         output: "17.000",
-        //     }),
-        // };
-
-        &[
-            Signature {
-                positional_args: &[DataTypeId::Utf8, DataTypeId::Date32],
-                variadic_arg: None,
-                return_type: DataTypeId::Decimal64,
-                doc: None,
-            },
-            Signature {
-                positional_args: &[DataTypeId::Utf8, DataTypeId::Date64],
-                variadic_arg: None,
-                return_type: DataTypeId::Decimal64,
-                doc: None,
-            },
-            Signature {
-                positional_args: &[DataTypeId::Utf8, DataTypeId::Timestamp],
-                variadic_arg: None,
-                return_type: DataTypeId::Decimal64,
-                doc: None,
-            },
-        ]
-    }
-}
-
-impl ScalarFunction for DateTrunc {
-    fn plan(
-        &self,
-        table_list: &TableList,
-        inputs: Vec<Expression>,
-    ) -> Result<PlannedScalarFunction> {
-        let datatypes = inputs
-            .iter()
-            .map(|expr| expr.datatype(table_list))
-            .collect::<Result<Vec<_>>>()?;
-
-        // TODO: 3rd arg for optional timezone
-        plan_check_num_args(self, &datatypes, 2)?;
-
-        // Requires first argument to be constant (for now)
-        let field = ConstFold::rewrite(table_list, inputs[0].clone())?
-            .try_into_scalar()?
-            .try_into_string()?
-            .to_lowercase();
-
-        let field = field.parse::<TruncField>()?;
-
-        match &datatypes[1] {
-            DataType::Timestamp(m) => Ok(PlannedScalarFunction {
-                function: Box::new(*self),
-                return_type: DataType::Timestamp(TimestampTypeMeta { unit: m.unit }),
-                inputs,
-                function_impl: Box::new(DateTruncImpl {
-                    input_unit: m.unit,
-                    field,
-                }),
-            }),
-            other => Err(invalid_input_types_error(self, &[other])),
-        }
-    }
-}
+pub const FUNCTION_SET_DATE_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
+    name: "date_trunc",
+    aliases: &[],
+    doc: None,
+    // TODO: Date32/64
+    functions: &[RawScalarFunction::new(
+        &Signature::new(
+            &[DataTypeId::Utf8, DataTypeId::Timestamp],
+            DataTypeId::Timestamp,
+        ),
+        &DateTrunc,
+    )],
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TruncField {
@@ -133,36 +68,67 @@ impl FromStr for TruncField {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DateTruncImpl {
+#[derive(Debug)]
+pub struct DateTruncState {
     input_unit: TimeUnit,
     field: TruncField,
 }
 
-impl ScalarFunctionImpl for DateTruncImpl {
-    fn execute(&self, inputs: &[&Array]) -> Result<Array> {
-        let input = &inputs[1];
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DateTrunc;
 
-        let trunc = match self.input_unit {
-            TimeUnit::Second => match self.field {
-                TruncField::Microseconds | TruncField::Milliseconds | TruncField::Second => {
-                    return Ok((*input).clone())
-                }
+impl ScalarFunction for DateTrunc {
+    type State = DateTruncState;
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        // Requires first argument to be constant (for now)
+        let field = ConstFold::rewrite(inputs[0].clone())?
+            .try_into_scalar()?
+            .try_into_string()?
+            .to_lowercase();
+
+        let field = field.parse::<TruncField>()?;
+
+        let time_m = match inputs[1].datatype()? {
+            DataType::Timestamp(m) => m,
+            other => {
+                return Err(RayexecError::new("Unexpected data type").with_field("datatype", other))
+            }
+        };
+
+        Ok(BindState {
+            state: DateTruncState {
+                input_unit: time_m.unit,
+                field,
+            },
+            return_type: DataType::Timestamp(time_m),
+            inputs,
+        })
+    }
+
+    fn execute(state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        // First element is field name, skip.
+        let input = &input.arrays()[0];
+
+        let trunc = match state.input_unit {
+            TimeUnit::Second => match state.field {
+                TruncField::Microseconds | TruncField::Milliseconds | TruncField::Second => 1,
                 TruncField::Minute => 60,
                 TruncField::Hour => 60 * 60,
                 TruncField::Day => 24 * 60 * 60,
                 other => not_implemented!("trunc field: {other:?}"),
             },
-            TimeUnit::Millisecond => match self.field {
-                TruncField::Microseconds | TruncField::Milliseconds => return Ok((*input).clone()),
+            TimeUnit::Millisecond => match state.field {
+                TruncField::Microseconds | TruncField::Milliseconds => 1,
                 TruncField::Second => 1000,
                 TruncField::Minute => 60 * 1000,
                 TruncField::Hour => 60 * 60 * 1000,
                 TruncField::Day => 24 * 60 * 60 * 1000,
                 other => not_implemented!("trunc field: {other:?}"),
             },
-            TimeUnit::Microsecond => match self.field {
-                TruncField::Microseconds => return Ok((*input).clone()),
+            TimeUnit::Microsecond => match state.field {
+                TruncField::Microseconds => 1,
                 TruncField::Milliseconds => 1000,
                 TruncField::Second => 1000 * 1000,
                 TruncField::Minute => 60 * 1000 * 1000,
@@ -170,7 +136,7 @@ impl ScalarFunctionImpl for DateTruncImpl {
                 TruncField::Day => 24 * 60 * 60 * 1000 * 1000,
                 other => not_implemented!("trunc field: {other:?}"),
             },
-            TimeUnit::Nanosecond => match self.field {
+            TimeUnit::Nanosecond => match state.field {
                 TruncField::Microseconds => 1000,
                 TruncField::Milliseconds => 1000 * 1000,
                 TruncField::Second => 1000 * 1000 * 1000,
@@ -181,16 +147,14 @@ impl ScalarFunctionImpl for DateTruncImpl {
             },
         };
 
-        let builder = ArrayBuilder {
-            datatype: DataType::Timestamp(TimestampTypeMeta {
-                unit: self.input_unit,
-            }),
-            buffer: PrimitiveBuffer::with_len(input.logical_len()),
-        };
-
-        UnaryExecutor::execute2::<PhysicalI64, _, _>(input, builder, |v, buf| {
-            let v = (v / trunc) * trunc;
-            buf.put(&v)
-        })
+        UnaryExecutor::execute::<PhysicalI64, PhysicalI64, _>(
+            input,
+            sel,
+            OutBuffer::from_array(output)?,
+            |&v, buf| {
+                let v = (v / trunc) * trunc;
+                buf.put(&v)
+            },
+        )
     }
 }

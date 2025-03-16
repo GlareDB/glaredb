@@ -21,240 +21,330 @@ use super::parse::{
 use crate::arrays::compute::cast::parse::{BoolParser, Date32Parser, IntervalParser};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
-use crate::arrays::scalar::{OwnedScalarValue, ScalarValue};
+use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 
 // TODO: Try to remove this.
-pub fn cast_scalar(scalar: ScalarValue, to: &DataType) -> Result<OwnedScalarValue> {
+pub fn cast_scalar(scalar: BorrowedScalarValue, to: &DataType) -> Result<ScalarValue> {
     if &scalar.datatype() == to {
         return Ok(scalar.into_owned());
     }
 
     Ok(match (scalar, to) {
-        (ScalarValue::UInt8(v), DataType::Int8) => ScalarValue::Int8(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt8(v), DataType::Int16) => ScalarValue::Int16(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt8(v), DataType::Int32) => ScalarValue::Int32(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt8(v), DataType::Int64) => ScalarValue::Int64(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt8(v), DataType::UInt8) => ScalarValue::UInt8(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt8(v), DataType::UInt16) => {
-            ScalarValue::UInt16(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt8(v), DataType::Int8) => {
+            BorrowedScalarValue::Int8(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt8(v), DataType::UInt32) => {
-            ScalarValue::UInt32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt8(v), DataType::Int16) => {
+            BorrowedScalarValue::Int16(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt8(v), DataType::UInt64) => {
-            ScalarValue::UInt64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt8(v), DataType::Int32) => {
+            BorrowedScalarValue::Int32(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt8(v), DataType::Float32) => {
-            ScalarValue::Float32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt8(v), DataType::Int64) => {
+            BorrowedScalarValue::Int64(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt8(v), DataType::Float64) => {
-            ScalarValue::Float64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt8(v), DataType::UInt8) => {
+            BorrowedScalarValue::UInt8(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt8(v), DataType::UInt16) => {
+            BorrowedScalarValue::UInt16(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt8(v), DataType::UInt32) => {
+            BorrowedScalarValue::UInt32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt8(v), DataType::UInt64) => {
+            BorrowedScalarValue::UInt64(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt8(v), DataType::Float32) => {
+            BorrowedScalarValue::Float32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt8(v), DataType::Float64) => {
+            BorrowedScalarValue::Float64(cast_primitive_numeric(v)?)
         }
         // From UInt16
-        (ScalarValue::UInt16(v), DataType::Int8) => ScalarValue::Int8(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt16(v), DataType::Int16) => ScalarValue::Int16(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt16(v), DataType::Int32) => ScalarValue::Int32(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt16(v), DataType::Int64) => ScalarValue::Int64(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt16(v), DataType::UInt8) => ScalarValue::UInt8(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt16(v), DataType::UInt16) => {
-            ScalarValue::UInt16(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt16(v), DataType::Int8) => {
+            BorrowedScalarValue::Int8(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt16(v), DataType::UInt32) => {
-            ScalarValue::UInt32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt16(v), DataType::Int16) => {
+            BorrowedScalarValue::Int16(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt16(v), DataType::UInt64) => {
-            ScalarValue::UInt64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt16(v), DataType::Int32) => {
+            BorrowedScalarValue::Int32(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt16(v), DataType::Float32) => {
-            ScalarValue::Float32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt16(v), DataType::Int64) => {
+            BorrowedScalarValue::Int64(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt16(v), DataType::Float64) => {
-            ScalarValue::Float64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt16(v), DataType::UInt8) => {
+            BorrowedScalarValue::UInt8(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt16(v), DataType::UInt16) => {
+            BorrowedScalarValue::UInt16(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt16(v), DataType::UInt32) => {
+            BorrowedScalarValue::UInt32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt16(v), DataType::UInt64) => {
+            BorrowedScalarValue::UInt64(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt16(v), DataType::Float32) => {
+            BorrowedScalarValue::Float32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt16(v), DataType::Float64) => {
+            BorrowedScalarValue::Float64(cast_primitive_numeric(v)?)
         }
         // From UInt32
-        (ScalarValue::UInt32(v), DataType::Int8) => ScalarValue::Int8(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt32(v), DataType::Int16) => ScalarValue::Int16(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt32(v), DataType::Int32) => ScalarValue::Int32(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt32(v), DataType::Int64) => ScalarValue::Int64(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt32(v), DataType::UInt8) => ScalarValue::UInt8(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt32(v), DataType::UInt16) => {
-            ScalarValue::UInt16(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt32(v), DataType::Int8) => {
+            BorrowedScalarValue::Int8(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt32(v), DataType::UInt32) => {
-            ScalarValue::UInt32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt32(v), DataType::Int16) => {
+            BorrowedScalarValue::Int16(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt32(v), DataType::UInt64) => {
-            ScalarValue::UInt64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt32(v), DataType::Int32) => {
+            BorrowedScalarValue::Int32(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt32(v), DataType::Float32) => {
-            ScalarValue::Float32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt32(v), DataType::Int64) => {
+            BorrowedScalarValue::Int64(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt32(v), DataType::Float64) => {
-            ScalarValue::Float64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt32(v), DataType::UInt8) => {
+            BorrowedScalarValue::UInt8(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt32(v), DataType::UInt16) => {
+            BorrowedScalarValue::UInt16(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt32(v), DataType::UInt32) => {
+            BorrowedScalarValue::UInt32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt32(v), DataType::UInt64) => {
+            BorrowedScalarValue::UInt64(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt32(v), DataType::Float32) => {
+            BorrowedScalarValue::Float32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt32(v), DataType::Float64) => {
+            BorrowedScalarValue::Float64(cast_primitive_numeric(v)?)
         }
         // From UInt64
-        (ScalarValue::UInt64(v), DataType::Int8) => ScalarValue::Int8(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt64(v), DataType::Int16) => ScalarValue::Int16(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt64(v), DataType::Int32) => ScalarValue::Int32(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt64(v), DataType::Int64) => ScalarValue::Int64(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt64(v), DataType::UInt8) => ScalarValue::UInt8(cast_primitive_numeric(v)?),
-        (ScalarValue::UInt64(v), DataType::UInt16) => {
-            ScalarValue::UInt16(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt64(v), DataType::Int8) => {
+            BorrowedScalarValue::Int8(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt64(v), DataType::UInt32) => {
-            ScalarValue::UInt32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt64(v), DataType::Int16) => {
+            BorrowedScalarValue::Int16(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt64(v), DataType::UInt64) => {
-            ScalarValue::UInt64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt64(v), DataType::Int32) => {
+            BorrowedScalarValue::Int32(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt64(v), DataType::Float32) => {
-            ScalarValue::Float32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt64(v), DataType::Int64) => {
+            BorrowedScalarValue::Int64(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::UInt64(v), DataType::Float64) => {
-            ScalarValue::Float64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::UInt64(v), DataType::UInt8) => {
+            BorrowedScalarValue::UInt8(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt64(v), DataType::UInt16) => {
+            BorrowedScalarValue::UInt16(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt64(v), DataType::UInt32) => {
+            BorrowedScalarValue::UInt32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt64(v), DataType::UInt64) => {
+            BorrowedScalarValue::UInt64(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt64(v), DataType::Float32) => {
+            BorrowedScalarValue::Float32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::UInt64(v), DataType::Float64) => {
+            BorrowedScalarValue::Float64(cast_primitive_numeric(v)?)
         }
         // From Int8
-        (ScalarValue::Int8(v), DataType::Int8) => ScalarValue::Int8(cast_primitive_numeric(v)?),
-        (ScalarValue::Int8(v), DataType::Int16) => ScalarValue::Int16(cast_primitive_numeric(v)?),
-        (ScalarValue::Int8(v), DataType::Int32) => ScalarValue::Int32(cast_primitive_numeric(v)?),
-        (ScalarValue::Int8(v), DataType::Int64) => ScalarValue::Int64(cast_primitive_numeric(v)?),
-        (ScalarValue::Int8(v), DataType::UInt8) => ScalarValue::UInt8(cast_primitive_numeric(v)?),
-        (ScalarValue::Int8(v), DataType::UInt16) => ScalarValue::UInt16(cast_primitive_numeric(v)?),
-        (ScalarValue::Int8(v), DataType::UInt32) => ScalarValue::UInt32(cast_primitive_numeric(v)?),
-        (ScalarValue::Int8(v), DataType::UInt64) => ScalarValue::UInt64(cast_primitive_numeric(v)?),
-        (ScalarValue::Int8(v), DataType::Float32) => {
-            ScalarValue::Float32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int8(v), DataType::Int8) => {
+            BorrowedScalarValue::Int8(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int8(v), DataType::Float64) => {
-            ScalarValue::Float64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int8(v), DataType::Int16) => {
+            BorrowedScalarValue::Int16(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int8(v), DataType::Int32) => {
+            BorrowedScalarValue::Int32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int8(v), DataType::Int64) => {
+            BorrowedScalarValue::Int64(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int8(v), DataType::UInt8) => {
+            BorrowedScalarValue::UInt8(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int8(v), DataType::UInt16) => {
+            BorrowedScalarValue::UInt16(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int8(v), DataType::UInt32) => {
+            BorrowedScalarValue::UInt32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int8(v), DataType::UInt64) => {
+            BorrowedScalarValue::UInt64(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int8(v), DataType::Float32) => {
+            BorrowedScalarValue::Float32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int8(v), DataType::Float64) => {
+            BorrowedScalarValue::Float64(cast_primitive_numeric(v)?)
         }
         // From Int16
-        (ScalarValue::Int16(v), DataType::Int8) => ScalarValue::Int8(cast_primitive_numeric(v)?),
-        (ScalarValue::Int16(v), DataType::Int16) => ScalarValue::Int16(cast_primitive_numeric(v)?),
-        (ScalarValue::Int16(v), DataType::Int32) => ScalarValue::Int32(cast_primitive_numeric(v)?),
-        (ScalarValue::Int16(v), DataType::Int64) => ScalarValue::Int64(cast_primitive_numeric(v)?),
-        (ScalarValue::Int16(v), DataType::UInt8) => ScalarValue::UInt8(cast_primitive_numeric(v)?),
-        (ScalarValue::Int16(v), DataType::UInt16) => {
-            ScalarValue::UInt16(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int16(v), DataType::Int8) => {
+            BorrowedScalarValue::Int8(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int16(v), DataType::UInt32) => {
-            ScalarValue::UInt32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int16(v), DataType::Int16) => {
+            BorrowedScalarValue::Int16(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int16(v), DataType::UInt64) => {
-            ScalarValue::UInt64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int16(v), DataType::Int32) => {
+            BorrowedScalarValue::Int32(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int16(v), DataType::Float32) => {
-            ScalarValue::Float32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int16(v), DataType::Int64) => {
+            BorrowedScalarValue::Int64(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int16(v), DataType::Float64) => {
-            ScalarValue::Float64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int16(v), DataType::UInt8) => {
+            BorrowedScalarValue::UInt8(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int16(v), DataType::UInt16) => {
+            BorrowedScalarValue::UInt16(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int16(v), DataType::UInt32) => {
+            BorrowedScalarValue::UInt32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int16(v), DataType::UInt64) => {
+            BorrowedScalarValue::UInt64(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int16(v), DataType::Float32) => {
+            BorrowedScalarValue::Float32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int16(v), DataType::Float64) => {
+            BorrowedScalarValue::Float64(cast_primitive_numeric(v)?)
         }
         // From Int32
-        (ScalarValue::Int32(v), DataType::Int8) => ScalarValue::Int8(cast_primitive_numeric(v)?),
-        (ScalarValue::Int32(v), DataType::Int16) => ScalarValue::Int16(cast_primitive_numeric(v)?),
-        (ScalarValue::Int32(v), DataType::Int32) => ScalarValue::Int32(cast_primitive_numeric(v)?),
-        (ScalarValue::Int32(v), DataType::Int64) => ScalarValue::Int64(cast_primitive_numeric(v)?),
-        (ScalarValue::Int32(v), DataType::UInt8) => ScalarValue::UInt8(cast_primitive_numeric(v)?),
-        (ScalarValue::Int32(v), DataType::UInt16) => {
-            ScalarValue::UInt16(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int32(v), DataType::Int8) => {
+            BorrowedScalarValue::Int8(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int32(v), DataType::UInt32) => {
-            ScalarValue::UInt32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int32(v), DataType::Int16) => {
+            BorrowedScalarValue::Int16(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int32(v), DataType::UInt64) => {
-            ScalarValue::UInt64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int32(v), DataType::Int32) => {
+            BorrowedScalarValue::Int32(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int32(v), DataType::Float32) => {
-            ScalarValue::Float32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int32(v), DataType::Int64) => {
+            BorrowedScalarValue::Int64(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int32(v), DataType::Float64) => {
-            ScalarValue::Float64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int32(v), DataType::UInt8) => {
+            BorrowedScalarValue::UInt8(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int32(v), DataType::UInt16) => {
+            BorrowedScalarValue::UInt16(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int32(v), DataType::UInt32) => {
+            BorrowedScalarValue::UInt32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int32(v), DataType::UInt64) => {
+            BorrowedScalarValue::UInt64(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int32(v), DataType::Float32) => {
+            BorrowedScalarValue::Float32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int32(v), DataType::Float64) => {
+            BorrowedScalarValue::Float64(cast_primitive_numeric(v)?)
         }
         // From Int64
-        (ScalarValue::Int64(v), DataType::Int8) => ScalarValue::Int8(cast_primitive_numeric(v)?),
-        (ScalarValue::Int64(v), DataType::Int16) => ScalarValue::Int16(cast_primitive_numeric(v)?),
-        (ScalarValue::Int64(v), DataType::Int32) => ScalarValue::Int32(cast_primitive_numeric(v)?),
-        (ScalarValue::Int64(v), DataType::Int64) => ScalarValue::Int64(cast_primitive_numeric(v)?),
-        (ScalarValue::Int64(v), DataType::UInt8) => ScalarValue::UInt8(cast_primitive_numeric(v)?),
-        (ScalarValue::Int64(v), DataType::UInt16) => {
-            ScalarValue::UInt16(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int64(v), DataType::Int8) => {
+            BorrowedScalarValue::Int8(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int64(v), DataType::UInt32) => {
-            ScalarValue::UInt32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int64(v), DataType::Int16) => {
+            BorrowedScalarValue::Int16(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int64(v), DataType::UInt64) => {
-            ScalarValue::UInt64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int64(v), DataType::Int32) => {
+            BorrowedScalarValue::Int32(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int64(v), DataType::Float32) => {
-            ScalarValue::Float32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int64(v), DataType::Int64) => {
+            BorrowedScalarValue::Int64(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Int64(v), DataType::Float64) => {
-            ScalarValue::Float64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Int64(v), DataType::UInt8) => {
+            BorrowedScalarValue::UInt8(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int64(v), DataType::UInt16) => {
+            BorrowedScalarValue::UInt16(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int64(v), DataType::UInt32) => {
+            BorrowedScalarValue::UInt32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int64(v), DataType::UInt64) => {
+            BorrowedScalarValue::UInt64(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int64(v), DataType::Float32) => {
+            BorrowedScalarValue::Float32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Int64(v), DataType::Float64) => {
+            BorrowedScalarValue::Float64(cast_primitive_numeric(v)?)
         }
         // From Float32
-        (ScalarValue::Float32(v), DataType::Int8) => ScalarValue::Int8(cast_primitive_numeric(v)?),
-        (ScalarValue::Float32(v), DataType::Int16) => {
-            ScalarValue::Int16(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float32(v), DataType::Int8) => {
+            BorrowedScalarValue::Int8(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float32(v), DataType::Int32) => {
-            ScalarValue::Int32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float32(v), DataType::Int16) => {
+            BorrowedScalarValue::Int16(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float32(v), DataType::Int64) => {
-            ScalarValue::Int64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float32(v), DataType::Int32) => {
+            BorrowedScalarValue::Int32(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float32(v), DataType::UInt8) => {
-            ScalarValue::UInt8(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float32(v), DataType::Int64) => {
+            BorrowedScalarValue::Int64(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float32(v), DataType::UInt16) => {
-            ScalarValue::UInt16(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float32(v), DataType::UInt8) => {
+            BorrowedScalarValue::UInt8(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float32(v), DataType::UInt32) => {
-            ScalarValue::UInt32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float32(v), DataType::UInt16) => {
+            BorrowedScalarValue::UInt16(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float32(v), DataType::UInt64) => {
-            ScalarValue::UInt64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float32(v), DataType::UInt32) => {
+            BorrowedScalarValue::UInt32(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float32(v), DataType::Float32) => {
-            ScalarValue::Float32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float32(v), DataType::UInt64) => {
+            BorrowedScalarValue::UInt64(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float32(v), DataType::Float64) => {
-            ScalarValue::Float64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float32(v), DataType::Float32) => {
+            BorrowedScalarValue::Float32(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Float32(v), DataType::Float64) => {
+            BorrowedScalarValue::Float64(cast_primitive_numeric(v)?)
         }
         // From Float64
-        (ScalarValue::Float64(v), DataType::Int8) => ScalarValue::Int8(cast_primitive_numeric(v)?),
-        (ScalarValue::Float64(v), DataType::Int16) => {
-            ScalarValue::Int16(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float64(v), DataType::Int8) => {
+            BorrowedScalarValue::Int8(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float64(v), DataType::Int32) => {
-            ScalarValue::Int32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float64(v), DataType::Int16) => {
+            BorrowedScalarValue::Int16(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float64(v), DataType::Int64) => {
-            ScalarValue::Int64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float64(v), DataType::Int32) => {
+            BorrowedScalarValue::Int32(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float64(v), DataType::UInt8) => {
-            ScalarValue::UInt8(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float64(v), DataType::Int64) => {
+            BorrowedScalarValue::Int64(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float64(v), DataType::UInt16) => {
-            ScalarValue::UInt16(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float64(v), DataType::UInt8) => {
+            BorrowedScalarValue::UInt8(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float64(v), DataType::UInt32) => {
-            ScalarValue::UInt32(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float64(v), DataType::UInt16) => {
+            BorrowedScalarValue::UInt16(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float64(v), DataType::UInt64) => {
-            ScalarValue::UInt64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float64(v), DataType::UInt32) => {
+            BorrowedScalarValue::UInt32(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float64(v), DataType::Float32) => {
-            ScalarValue::Float64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float64(v), DataType::UInt64) => {
+            BorrowedScalarValue::UInt64(cast_primitive_numeric(v)?)
         }
-        (ScalarValue::Float64(v), DataType::Float64) => {
-            ScalarValue::Float64(cast_primitive_numeric(v)?)
+        (BorrowedScalarValue::Float64(v), DataType::Float32) => {
+            BorrowedScalarValue::Float64(cast_primitive_numeric(v)?)
+        }
+        (BorrowedScalarValue::Float64(v), DataType::Float64) => {
+            BorrowedScalarValue::Float64(cast_primitive_numeric(v)?)
         }
 
         // From Utf8
-        (ScalarValue::Utf8(v), datatype) => cast_from_utf8_scalar(v.as_ref(), datatype)?,
+        (BorrowedScalarValue::Utf8(v), datatype) => cast_from_utf8_scalar(v.as_ref(), datatype)?,
 
         // To Utf8
-        (v, DataType::Utf8) => ScalarValue::Utf8(v.to_string().into()),
+        (v, DataType::Utf8) => BorrowedScalarValue::Utf8(v.to_string().into()),
 
         (scalar, to) => {
             return Err(RayexecError::new(format!(
@@ -265,7 +355,7 @@ pub fn cast_scalar(scalar: ScalarValue, to: &DataType) -> Result<OwnedScalarValu
     })
 }
 
-fn cast_from_utf8_scalar(v: &str, datatype: &DataType) -> Result<OwnedScalarValue> {
+fn cast_from_utf8_scalar(v: &str, datatype: &DataType) -> Result<ScalarValue> {
     fn parse<T, P: Parser<Type = T>>(mut parser: P, v: &str, datatype: &DataType) -> Result<T> {
         parser
             .parse(v)
@@ -273,18 +363,28 @@ fn cast_from_utf8_scalar(v: &str, datatype: &DataType) -> Result<OwnedScalarValu
     }
 
     Ok(match datatype {
-        DataType::Boolean => ScalarValue::Boolean(parse(BoolParser, v, datatype)?),
-        DataType::Int8 => ScalarValue::Int8(parse(Int8Parser::default(), v, datatype)?),
-        DataType::Int16 => ScalarValue::Int16(parse(Int16Parser::default(), v, datatype)?),
-        DataType::Int32 => ScalarValue::Int32(parse(Int32Parser::default(), v, datatype)?),
-        DataType::Int64 => ScalarValue::Int64(parse(Int64Parser::default(), v, datatype)?),
-        DataType::UInt8 => ScalarValue::UInt8(parse(UInt8Parser::default(), v, datatype)?),
-        DataType::UInt16 => ScalarValue::UInt16(parse(UInt16Parser::default(), v, datatype)?),
-        DataType::UInt32 => ScalarValue::UInt32(parse(UInt32Parser::default(), v, datatype)?),
-        DataType::UInt64 => ScalarValue::UInt64(parse(UInt64Parser::default(), v, datatype)?),
-        DataType::Float32 => ScalarValue::Float32(parse(Float32Parser::default(), v, datatype)?),
-        DataType::Float64 => ScalarValue::Float64(parse(Float64Parser::default(), v, datatype)?),
-        DataType::Decimal64(meta) => ScalarValue::Decimal64(Decimal64Scalar {
+        DataType::Boolean => BorrowedScalarValue::Boolean(parse(BoolParser, v, datatype)?),
+        DataType::Int8 => BorrowedScalarValue::Int8(parse(Int8Parser::default(), v, datatype)?),
+        DataType::Int16 => BorrowedScalarValue::Int16(parse(Int16Parser::default(), v, datatype)?),
+        DataType::Int32 => BorrowedScalarValue::Int32(parse(Int32Parser::default(), v, datatype)?),
+        DataType::Int64 => BorrowedScalarValue::Int64(parse(Int64Parser::default(), v, datatype)?),
+        DataType::UInt8 => BorrowedScalarValue::UInt8(parse(UInt8Parser::default(), v, datatype)?),
+        DataType::UInt16 => {
+            BorrowedScalarValue::UInt16(parse(UInt16Parser::default(), v, datatype)?)
+        }
+        DataType::UInt32 => {
+            BorrowedScalarValue::UInt32(parse(UInt32Parser::default(), v, datatype)?)
+        }
+        DataType::UInt64 => {
+            BorrowedScalarValue::UInt64(parse(UInt64Parser::default(), v, datatype)?)
+        }
+        DataType::Float32 => {
+            BorrowedScalarValue::Float32(parse(Float32Parser::default(), v, datatype)?)
+        }
+        DataType::Float64 => {
+            BorrowedScalarValue::Float64(parse(Float64Parser::default(), v, datatype)?)
+        }
+        DataType::Decimal64(meta) => BorrowedScalarValue::Decimal64(Decimal64Scalar {
             precision: meta.precision,
             scale: meta.scale,
             value: parse(
@@ -293,7 +393,7 @@ fn cast_from_utf8_scalar(v: &str, datatype: &DataType) -> Result<OwnedScalarValu
                 datatype,
             )?,
         }),
-        DataType::Decimal128(meta) => ScalarValue::Decimal128(Decimal128Scalar {
+        DataType::Decimal128(meta) => BorrowedScalarValue::Decimal128(Decimal128Scalar {
             precision: meta.precision,
             scale: meta.scale,
             value: parse(
@@ -302,8 +402,10 @@ fn cast_from_utf8_scalar(v: &str, datatype: &DataType) -> Result<OwnedScalarValu
                 datatype,
             )?,
         }),
-        DataType::Date32 => ScalarValue::Date32(parse(Date32Parser, v, datatype)?),
-        DataType::Interval => ScalarValue::Interval(parse(IntervalParser::default(), v, datatype)?),
+        DataType::Date32 => BorrowedScalarValue::Date32(parse(Date32Parser, v, datatype)?),
+        DataType::Interval => {
+            BorrowedScalarValue::Interval(parse(IntervalParser::default(), v, datatype)?)
+        }
         other => {
             return Err(RayexecError::new(format!(
                 "Unable to cast utf8 scalar to {other}"

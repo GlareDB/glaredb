@@ -1,184 +1,107 @@
-use std::fmt;
-use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
 
-use futures::future::BoxFuture;
-use futures::FutureExt;
-use rayexec_error::{RayexecError, Result};
+use rayexec_error::Result;
 
-use super::util::futures::make_static;
-use super::{
-    ExecutableOperator,
-    ExecutionStates,
-    InputOutputStates,
-    OperatorState,
-    PartitionState,
-    PollFinalize,
-    PollPull,
-    PollPush,
-};
+use super::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::arrays::batch::Batch;
-use crate::database::catalog::CatalogTx;
-use crate::database::catalog_entry::CatalogEntry;
-use crate::database::DatabaseContext;
+use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::proto::DatabaseProtoConv;
-use crate::storage::table_storage::{DataTableScan, Projections};
+use crate::functions::table::{
+    AnyTableOperatorState,
+    AnyTablePartitionState,
+    PlannedTableFunction,
+};
+use crate::storage::projections::Projections;
 
-pub struct ScanPartitionState {
-    scan: Box<dyn DataTableScan>,
-    /// In progress pull we're working on.
-    future: Option<BoxFuture<'static, Result<Option<Batch>>>>,
+#[derive(Debug)]
+pub struct ScanOperatorState {
+    state: AnyTableOperatorState,
 }
 
-impl fmt::Debug for ScanPartitionState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ScanPartitionState").finish_non_exhaustive()
-    }
+#[derive(Debug)]
+pub struct ScanPartitionState {
+    state: AnyTablePartitionState,
 }
 
 #[derive(Debug)]
 pub struct PhysicalScan {
-    catalog: String,
-    schema: String,
-    table: Arc<CatalogEntry>,
-    projections: Projections,
+    pub(crate) projections: Projections,
+    pub(crate) output_types: Vec<DataType>,
+    pub(crate) function: PlannedTableFunction,
 }
 
 impl PhysicalScan {
-    pub fn new(
-        catalog: impl Into<String>,
-        schema: impl Into<String>,
-        table: Arc<CatalogEntry>,
-        projections: Projections,
-    ) -> Self {
+    pub fn new(projections: Projections, function: PlannedTableFunction) -> Self {
+        let output_types = projections
+            .indices()
+            .iter()
+            .map(|&idx| function.bind_state.schema.fields[idx].datatype.clone())
+            .collect();
+
         PhysicalScan {
-            catalog: catalog.into(),
-            schema: schema.into(),
-            table,
             projections,
+            output_types,
+            function,
         }
     }
 }
 
-impl ExecutableOperator for PhysicalScan {
-    fn create_states(
+impl BaseOperator for PhysicalScan {
+    type OperatorState = ScanOperatorState;
+
+    fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
+        let op_state = self.function.raw.call_create_pull_operator_state(
+            &self.function.bind_state,
+            &self.projections,
+            props,
+        )?;
+
+        Ok(ScanOperatorState { state: op_state })
+    }
+
+    fn output_types(&self) -> &[DataType] {
+        &self.output_types
+    }
+}
+
+impl PullOperator for PhysicalScan {
+    type PartitionPullState = ScanPartitionState;
+
+    fn create_partition_pull_states(
         &self,
-        context: &DatabaseContext,
-        partitions: Vec<usize>,
-    ) -> Result<ExecutionStates> {
-        // TODO: Placeholder for now. Transaction info should probably go on the
-        // operator.
-        let _tx = CatalogTx::new();
-
-        let database = context.get_database(&self.catalog)?;
-        let data_table = database
-            .table_storage
-            .as_ref()
-            .ok_or_else(|| RayexecError::new("Missing table storage for scan"))?
-            .data_table(&self.schema, &self.table)?;
-
-        // TODO: Pushdown projections, filters
-        let scans = data_table.scan(self.projections.clone(), partitions[0])?;
-
-        let states = scans
+        operator_state: &Self::OperatorState,
+        props: ExecutionProperties,
+        partitions: usize,
+    ) -> Result<Vec<Self::PartitionPullState>> {
+        let states = self.function.raw.call_create_pull_partition_states(
+            &operator_state.state,
+            props,
+            partitions,
+        )?;
+        let states = states
             .into_iter()
-            .map(|scan| PartitionState::Scan(ScanPartitionState { scan, future: None }))
+            .map(|state| ScanPartitionState { state })
             .collect();
 
-        Ok(ExecutionStates {
-            operator_state: Arc::new(OperatorState::None),
-            partition_states: InputOutputStates::OneToOne {
-                partition_states: states,
-            },
-        })
-    }
-
-    fn poll_push(
-        &self,
-        _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-        _batch: Batch,
-    ) -> Result<PollPush> {
-        Err(RayexecError::new("Cannot push to physical scan"))
-    }
-
-    fn poll_finalize_push(
-        &self,
-        _cx: &mut Context,
-        _partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
-    ) -> Result<PollFinalize> {
-        Err(RayexecError::new("Cannot push to physical scan"))
+        Ok(states)
     }
 
     fn poll_pull(
         &self,
         cx: &mut Context,
-        partition_state: &mut PartitionState,
-        _operator_state: &OperatorState,
+        operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionPullState,
+        output: &mut Batch,
     ) -> Result<PollPull> {
-        match partition_state {
-            PartitionState::Scan(state) => {
-                if let Some(future) = &mut state.future {
-                    match future.poll_unpin(cx) {
-                        Poll::Ready(Ok(Some(batch))) => {
-                            state.future = None; // Future complete, next pull with create a new one.
-                            return Ok(PollPull::Computed(batch.into()));
-                        }
-                        Poll::Ready(Ok(None)) => return Ok(PollPull::Exhausted),
-                        Poll::Ready(Err(e)) => return Err(e),
-                        Poll::Pending => return Ok(PollPull::Pending),
-                    }
-                }
-
-                let mut future = state.scan.pull();
-                match future.poll_unpin(cx) {
-                    Poll::Ready(Ok(Some(batch))) => Ok(PollPull::Computed(batch.into())),
-                    Poll::Ready(Ok(None)) => Ok(PollPull::Exhausted),
-                    Poll::Ready(Err(e)) => Err(e),
-                    Poll::Pending => {
-                        // SAFETY: Scan lives on the partition state and
-                        // outlives this future.
-                        state.future = Some(unsafe { make_static(future) });
-                        Ok(PollPull::Pending)
-                    }
-                }
-            }
-
-            other => panic!("invalid partition state: {other:?}"),
-        }
+        output.reset_for_write()?;
+        self.function
+            .raw
+            .call_poll_pull(cx, &operator_state.state, &mut state.state, output)
     }
 }
 
 impl Explainable for PhysicalScan {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Scan").with_value("table", &self.table.name)
-    }
-}
-
-impl DatabaseProtoConv for PhysicalScan {
-    type ProtoType = rayexec_proto::generated::execution::PhysicalScan;
-
-    fn to_proto_ctx(&self, context: &DatabaseContext) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            catalog: self.catalog.clone(),
-            schema: self.schema.clone(),
-            table: Some(self.table.to_proto_ctx(context)?),
-        })
-    }
-
-    fn from_proto_ctx(_proto: Self::ProtoType, _context: &DatabaseContext) -> Result<Self> {
-        // TODO: https://github.com/GlareDB/rayexec/issues/278
-        unimplemented!()
-        // Ok(Self {
-        //     catalog: proto.catalog,
-        //     schema: proto.schema,
-        //     table: Arc::new(DatabaseProtoConv::from_proto_ctx(
-        //         proto.table.required("table")?,
-        //         context,
-        //     )?),
-        // })
+        ExplainEntry::new("Scan").with_value("source", self.function.name)
     }
 }
