@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use chrono::{Datelike, NaiveDate};
 use half::f16;
-use num::PrimInt;
+use num_traits::PrimInt;
 
 use crate::arrays::compute::date::EPOCH_DAYS_FROM_CE;
 use crate::arrays::scalar::interval::Interval;

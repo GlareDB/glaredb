@@ -1,8 +1,7 @@
 use std::ops::Mul;
 
-use num::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
+use num_traits::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
 use rayexec_error::{RayexecError, Result};
-use crate::util::iter::IntoExactSizeIterator;
 
 use super::behavior::CastFailBehavior;
 use super::format::{
@@ -76,6 +75,7 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::buffer::buffer_manager::NopBufferManager;
+use crate::util::iter::IntoExactSizeIterator;
 
 /// Casts an array to another array.
 ///
@@ -841,11 +841,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::util::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::datatype::DecimalTypeMeta;
     use crate::testutil::arrays::assert_arrays_eq;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn array_cast_i32_to_i32() {

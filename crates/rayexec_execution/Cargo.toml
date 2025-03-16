@@ -15,7 +15,6 @@ chrono = { workspace = true }
 futures = { workspace = true }
 hashbrown = { workspace = true, features = ["raw"] }
 num-traits = "0.2.19"
-num = "0.4.3"
 num_cpus = "1.16.0"
 parking_lot = { workspace = true }
 rayon = { workspace = true }
@@ -25,7 +24,7 @@ regex = { workspace = true }
 url = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-rand = "0.8.5"
+rand = { workspace = true }
 uuid = { workspace = true }
 strsim = "0.11.1"
 scc = { workspace = true }
