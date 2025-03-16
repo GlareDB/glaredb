@@ -207,11 +207,11 @@ name = "bench_bin"
 version = "0.0.95"
 dependencies = [
  "ext_csv",
+ "ext_delta",
  "glaredb_bench",
  "glaredb_error",
  "glaredb_execution",
  "glaredb_rt_native",
- "rayexec_delta",
  "rayexec_iceberg",
 ]
 
@@ -626,11 +626,11 @@ name = "docgen"
 version = "0.0.95"
 dependencies = [
  "ext_csv",
+ "ext_delta",
  "glaredb_error",
  "glaredb_execution",
  "glaredb_rt_native",
  "logutil",
- "rayexec_delta",
  "rayexec_iceberg",
  "regex",
  "tokio",
@@ -741,6 +741,24 @@ dependencies = [
  "glaredb_execution",
  "glaredb_proto",
  "regex",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "ext_delta"
+version = "0.0.95"
+dependencies = [
+ "bytes",
+ "ext_parquet",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_proto",
+ "rayexec_io",
+ "regex",
+ "serde",
+ "serde_json",
  "tracing",
  "url",
 ]
@@ -1090,13 +1108,13 @@ dependencies = [
  "bytes",
  "console_error_panic_hook",
  "ext_csv",
+ "ext_delta",
  "futures",
  "getrandom 0.2.14",
  "glaredb_error",
  "glaredb_execution",
  "js-sys",
  "parking_lot",
- "rayexec_delta",
  "rayexec_iceberg",
  "rayexec_io",
  "reqwest",
@@ -2107,24 +2125,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rayexec_delta"
-version = "0.0.95"
-dependencies = [
- "bytes",
- "ext_parquet",
- "futures",
- "glaredb_error",
- "glaredb_execution",
- "glaredb_proto",
- "rayexec_io",
- "regex",
- "serde",
- "serde_json",
- "tracing",
- "url",
-]
-
-[[package]]
 name = "rayexec_iceberg"
 version = "0.0.95"
 dependencies = [
@@ -2170,13 +2170,13 @@ name = "rayexec_python"
 version = "0.0.95"
 dependencies = [
  "ext_csv",
+ "ext_delta",
  "futures",
  "glaredb_error",
  "glaredb_execution",
  "glaredb_rt_native",
  "parking_lot",
  "pyo3",
- "rayexec_delta",
  "rayexec_io",
  "tokio",
  "tracing",

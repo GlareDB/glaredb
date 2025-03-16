@@ -9,7 +9,7 @@ glaredb_error = { path = '../glaredb_error' }
 glaredb_execution = { path = '../glaredb_execution' }
 glaredb_rt_native = { path = '../glaredb_rt_native' }
 ext_csv = { path = '../ext_csv' }
-rayexec_delta = { path = '../rayexec_delta' }
+ext_delta = { path = '../ext_delta' }
 rayexec_iceberg = { path = '../rayexec_iceberg' }
 regex = { workspace = true }
 tracing = { workspace = true }

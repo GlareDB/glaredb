@@ -18,7 +18,7 @@ web-sys = { version = "0.3.69", features = [
 glaredb_execution = { path = '../glaredb_execution' }
 glaredb_error = { path = '../glaredb_error' }
 ext_csv = { path = '../ext_csv' }
-rayexec_delta = { path = '../rayexec_delta' }
+ext_delta = { path = '../ext_delta' }
 rayexec_iceberg = { path = '../rayexec_iceberg' }
 rayexec_io = { path = '../rayexec_io' }
 futures = { workspace = true }

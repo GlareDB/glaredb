@@ -1,5 +1,5 @@
 [package]
-name = "rayexec_delta"
+name = "ext_delta"
 version.workspace = true
 edition.workspace = true
 
