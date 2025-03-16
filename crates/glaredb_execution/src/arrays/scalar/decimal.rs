@@ -1,8 +1,8 @@
 use std::fmt::{Debug, Display};
 
 use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_proto::ProtoConv;
 use num_traits::{FromPrimitive, PrimInt, Signed, Zero};
-use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalI128, PhysicalI64};
@@ -140,7 +140,7 @@ pub type Decimal64Scalar = DecimalScalar<Decimal64Type>;
 pub type Decimal128Scalar = DecimalScalar<Decimal128Type>;
 
 impl ProtoConv for Decimal64Scalar {
-    type ProtoType = rayexec_proto::generated::expr::Decimal64Scalar;
+    type ProtoType = glaredb_proto::generated::expr::Decimal64Scalar;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
@@ -163,7 +163,7 @@ impl ProtoConv for Decimal64Scalar {
 }
 
 impl ProtoConv for Decimal128Scalar {
-    type ProtoType = rayexec_proto::generated::expr::Decimal128Scalar;
+    type ProtoType = glaredb_proto::generated::expr::Decimal128Scalar;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {

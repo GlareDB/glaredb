@@ -2,7 +2,7 @@ use std::fmt;
 
 use glaredb_error::{RayexecError, Result};
 use glaredb_parser::ast::{self};
-use rayexec_proto::ProtoConv;
+use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use super::resolved_cte::ResolvedCte;
@@ -248,7 +248,7 @@ impl fmt::Display for ItemReference {
 }
 
 impl ProtoConv for ItemReference {
-    type ProtoType = rayexec_proto::generated::resolver::ItemReference;
+    type ProtoType = glaredb_proto::generated::resolver::ItemReference;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {

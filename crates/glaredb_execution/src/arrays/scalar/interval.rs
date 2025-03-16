@@ -1,7 +1,7 @@
 use std::fmt;
 
 use glaredb_error::Result;
-use rayexec_proto::ProtoConv;
+use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::compute::cast::format::{Formatter, IntervalFormatter};
@@ -90,7 +90,7 @@ impl fmt::Display for Interval {
 }
 
 impl ProtoConv for Interval {
-    type ProtoType = rayexec_proto::generated::expr::IntervalScalar;
+    type ProtoType = glaredb_proto::generated::expr::IntervalScalar;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {

@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 glaredb_error = { path = '../glaredb_error' }
-rayexec_proto = { path = '../rayexec_proto' }
+glaredb_proto = { path = '../glaredb_proto' }
 futures = { workspace = true }
 tracing = { workspace = true }
 reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls", "stream"] }

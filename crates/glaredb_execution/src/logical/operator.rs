@@ -1,7 +1,7 @@
 use std::fmt;
 
 use glaredb_error::{RayexecError, Result};
-use rayexec_proto::ProtoConv;
+use glaredb_proto::ProtoConv;
 
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
@@ -55,7 +55,7 @@ pub enum LocationRequirement {
 }
 
 impl ProtoConv for LocationRequirement {
-    type ProtoType = rayexec_proto::generated::logical::LocationRequirement;
+    type ProtoType = glaredb_proto::generated::logical::LocationRequirement;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(match self {

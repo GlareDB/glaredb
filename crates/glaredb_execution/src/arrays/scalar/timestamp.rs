@@ -1,5 +1,5 @@
 use glaredb_error::Result;
-use rayexec_proto::ProtoConv;
+use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::datatype::TimeUnit;
@@ -11,7 +11,7 @@ pub struct TimestampScalar {
 }
 
 impl ProtoConv for TimestampScalar {
-    type ProtoType = rayexec_proto::generated::expr::TimestampScalar;
+    type ProtoType = glaredb_proto::generated::expr::TimestampScalar;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {

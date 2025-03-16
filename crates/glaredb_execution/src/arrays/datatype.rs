@@ -1,7 +1,7 @@
 use std::fmt;
 
 use glaredb_error::{OptionExt, RayexecError, Result, ResultExt};
-use rayexec_proto::ProtoConv;
+use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::array::physical_type::PhysicalType;
@@ -195,7 +195,7 @@ impl DecimalTypeMeta {
 }
 
 impl ProtoConv for DecimalTypeMeta {
-    type ProtoType = rayexec_proto::generated::schema::DecimalTypeMeta;
+    type ProtoType = glaredb_proto::generated::schema::DecimalTypeMeta;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
@@ -225,7 +225,7 @@ impl TimestampTypeMeta {
 }
 
 impl ProtoConv for TimestampTypeMeta {
-    type ProtoType = rayexec_proto::generated::schema::TimestampTypeMeta;
+    type ProtoType = glaredb_proto::generated::schema::TimestampTypeMeta;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
@@ -249,7 +249,7 @@ pub enum TimeUnit {
 }
 
 impl ProtoConv for TimeUnit {
-    type ProtoType = rayexec_proto::generated::schema::TimeUnit;
+    type ProtoType = glaredb_proto::generated::schema::TimeUnit;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(match self {
@@ -293,7 +293,7 @@ pub struct StructTypeMeta {
 }
 
 impl ProtoConv for StructTypeMeta {
-    type ProtoType = rayexec_proto::generated::schema::StructTypeMeta;
+    type ProtoType = glaredb_proto::generated::schema::StructTypeMeta;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         let fields = self
@@ -330,7 +330,7 @@ impl ListTypeMeta {
 }
 
 impl ProtoConv for ListTypeMeta {
-    type ProtoType = rayexec_proto::generated::schema::ListTypeMeta;
+    type ProtoType = glaredb_proto::generated::schema::ListTypeMeta;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
@@ -610,11 +610,11 @@ impl DataType {
 }
 
 impl ProtoConv for DataType {
-    type ProtoType = rayexec_proto::generated::schema::DataType;
+    type ProtoType = glaredb_proto::generated::schema::DataType;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::schema::data_type::Value;
-        use rayexec_proto::generated::schema::EmptyMeta;
+        use glaredb_proto::generated::schema::data_type::Value;
+        use glaredb_proto::generated::schema::EmptyMeta;
 
         let value = match self {
             DataType::Null => Value::TypeNull(EmptyMeta {}),
@@ -647,7 +647,7 @@ impl ProtoConv for DataType {
     }
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        use rayexec_proto::generated::schema::data_type::Value;
+        use glaredb_proto::generated::schema::data_type::Value;
 
         Ok(match proto.value.required("value")? {
             Value::TypeNull(_) => DataType::Null,

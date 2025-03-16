@@ -2,7 +2,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use glaredb_error::{OptionExt, RayexecError, Result, ResultExt};
-use rayexec_proto::ProtoConv;
+use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -21,11 +21,11 @@ pub enum AccessConfig {
 }
 
 impl ProtoConv for AccessConfig {
-    type ProtoType = rayexec_proto::generated::access::AccessConfig;
+    type ProtoType = glaredb_proto::generated::access::AccessConfig;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::access::access_config::Value;
-        use rayexec_proto::generated::access::{AwsCredentials, EmptyAccessConfig, S3AccessConfig};
+        use glaredb_proto::generated::access::access_config::Value;
+        use glaredb_proto::generated::access::{AwsCredentials, EmptyAccessConfig, S3AccessConfig};
 
         let value = match self {
             Self::S3 {
@@ -45,7 +45,7 @@ impl ProtoConv for AccessConfig {
     }
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        use rayexec_proto::generated::access::access_config::Value;
+        use glaredb_proto::generated::access::access_config::Value;
 
         Ok(match proto.value.required("value")? {
             Value::None(_) => Self::None,
@@ -127,10 +127,10 @@ impl fmt::Display for FileLocation {
 }
 
 impl ProtoConv for FileLocation {
-    type ProtoType = rayexec_proto::generated::access::FileLocation;
+    type ProtoType = glaredb_proto::generated::access::FileLocation;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::access::file_location::Value;
+        use glaredb_proto::generated::access::file_location::Value;
 
         let value = match self {
             Self::Url(url) => Value::Url(url.to_string()),
@@ -144,7 +144,7 @@ impl ProtoConv for FileLocation {
     }
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        use rayexec_proto::generated::access::file_location::Value;
+        use glaredb_proto::generated::access::file_location::Value;
 
         Ok(match proto.value.required("value")? {
             Value::Url(url) => Self::Url(Url::parse(&url).context("failed to parse url")?),
@@ -155,7 +155,7 @@ impl ProtoConv for FileLocation {
 
 #[cfg(test)]
 mod tests {
-    use rayexec_proto::testutil::assert_proto_roundtrip;
+    use glaredb_proto::testutil::assert_proto_roundtrip;
 
     use super::*;
 

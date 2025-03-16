@@ -1,5 +1,5 @@
 [package]
-name = "rayexec_proto"
+name = "glaredb_proto"
 version.workspace = true
 edition.workspace = true
 

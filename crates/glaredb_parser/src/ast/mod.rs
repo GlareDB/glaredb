@@ -21,7 +21,7 @@ pub use query::*;
 pub mod modifiers;
 pub use modifiers::*;
 pub mod select;
-use rayexec_proto::ProtoConv;
+use glaredb_proto::ProtoConv;
 pub use select::*;
 pub mod explain;
 pub use explain::*;
@@ -131,7 +131,7 @@ impl From<Word> for Ident {
 }
 
 impl ProtoConv for Ident {
-    type ProtoType = rayexec_proto::generated::ast::raw::Ident;
+    type ProtoType = glaredb_proto::generated::ast::raw::Ident;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
@@ -209,7 +209,7 @@ impl AstParseable for ObjectReference {
 }
 
 impl ProtoConv for ObjectReference {
-    type ProtoType = rayexec_proto::generated::ast::raw::ObjectReference;
+    type ProtoType = glaredb_proto::generated::ast::raw::ObjectReference;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {

@@ -1,5 +1,5 @@
 use glaredb_error::{OptionExt, Result};
-use rayexec_proto::ProtoConv;
+use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::datatype::DataType;
@@ -23,7 +23,7 @@ impl Field {
 }
 
 impl ProtoConv for Field {
-    type ProtoType = rayexec_proto::generated::schema::Field;
+    type ProtoType = glaredb_proto::generated::schema::Field;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(Self::ProtoType {
@@ -96,7 +96,7 @@ impl ColumnSchema {
 }
 
 impl ProtoConv for ColumnSchema {
-    type ProtoType = rayexec_proto::generated::schema::Schema;
+    type ProtoType = glaredb_proto::generated::schema::Schema;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         let fields = self
@@ -143,7 +143,7 @@ impl TypeSchema {
 }
 
 impl ProtoConv for TypeSchema {
-    type ProtoType = rayexec_proto::generated::schema::TypeSchema;
+    type ProtoType = glaredb_proto::generated::schema::TypeSchema;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         let types = self

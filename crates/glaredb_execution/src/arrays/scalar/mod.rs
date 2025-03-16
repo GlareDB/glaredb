@@ -8,9 +8,9 @@ use std::hash::Hash;
 
 use decimal::{Decimal128Scalar, Decimal64Scalar};
 use glaredb_error::{OptionExt, RayexecError, Result};
+use glaredb_proto::ProtoConv;
 use half::f16;
 use interval::Interval;
-use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
@@ -413,11 +413,11 @@ impl From<Decimal128Scalar> for ScalarValue {
 }
 
 impl ProtoConv for ScalarValue {
-    type ProtoType = rayexec_proto::generated::expr::OwnedScalarValue;
+    type ProtoType = glaredb_proto::generated::expr::OwnedScalarValue;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use rayexec_proto::generated::expr::owned_scalar_value::Value;
-        use rayexec_proto::generated::expr::{EmptyScalar, ListScalar, StructScalar};
+        use glaredb_proto::generated::expr::owned_scalar_value::Value;
+        use glaredb_proto::generated::expr::{EmptyScalar, ListScalar, StructScalar};
 
         let value = match self {
             Self::Null => Value::ScalarNull(EmptyScalar {}),
@@ -456,7 +456,7 @@ impl ProtoConv for ScalarValue {
     }
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        use rayexec_proto::generated::expr::owned_scalar_value::Value;
+        use glaredb_proto::generated::expr::owned_scalar_value::Value;
 
         Ok(match proto.value.required("owned scalar value enum")? {
             Value::ScalarNull(_) => Self::Null,

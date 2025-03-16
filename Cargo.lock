@@ -950,6 +950,7 @@ dependencies = [
  "futures",
  "glaredb_error",
  "glaredb_parser",
+ "glaredb_proto",
  "half",
  "hashbrown 0.14.5",
  "indexmap",
@@ -958,7 +959,6 @@ dependencies = [
  "parking_lot",
  "rand",
  "rayexec_io",
- "rayexec_proto",
  "rayon",
  "regex",
  "scc",
@@ -978,11 +978,21 @@ name = "glaredb_parser"
 version = "0.0.95"
 dependencies = [
  "glaredb_error",
+ "glaredb_proto",
  "pretty_assertions",
- "rayexec_proto",
  "serde",
  "tracing",
  "unicase",
+]
+
+[[package]]
+name = "glaredb_proto"
+version = "0.0.95"
+dependencies = [
+ "glaredb_error",
+ "prost",
+ "prost-build",
+ "uuid",
 ]
 
 [[package]]
@@ -2090,7 +2100,7 @@ dependencies = [
  "futures",
  "glaredb_error",
  "glaredb_execution",
- "rayexec_proto",
+ "glaredb_proto",
  "regex",
  "tracing",
  "url",
@@ -2104,9 +2114,9 @@ dependencies = [
  "futures",
  "glaredb_error",
  "glaredb_execution",
+ "glaredb_proto",
  "parquet",
  "rayexec_io",
- "rayexec_proto",
  "regex",
  "serde",
  "serde_json",
@@ -2123,9 +2133,9 @@ dependencies = [
  "futures",
  "glaredb_error",
  "glaredb_execution",
+ "glaredb_proto",
  "parquet",
  "rayexec_io",
- "rayexec_proto",
  "regex",
  "serde",
  "serde_bytes",
@@ -2142,27 +2152,17 @@ dependencies = [
  "chrono",
  "futures",
  "glaredb_error",
+ "glaredb_proto",
  "hmac",
  "parking_lot",
  "percent-encoding",
  "quick-xml",
- "rayexec_proto",
  "reqwest",
  "serde",
  "serde_json",
  "sha2",
  "tracing",
  "url",
-]
-
-[[package]]
-name = "rayexec_proto"
-version = "0.0.95"
-dependencies = [
- "glaredb_error",
- "prost",
- "prost-build",
- "uuid",
 ]
 
 [[package]]

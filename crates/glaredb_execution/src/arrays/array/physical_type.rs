@@ -1,8 +1,8 @@
 use std::fmt::{self, Debug};
 
 use glaredb_error::{RayexecError, Result};
+use glaredb_proto::ProtoConv;
 use half::f16;
-use rayexec_proto::ProtoConv;
 
 use super::array_buffer::{ArrayBuffer, ListItemMetadata, StringViewBuffer};
 use crate::arrays::array::array_buffer::ArrayBufferType;
@@ -67,7 +67,7 @@ impl fmt::Display for PhysicalType {
 }
 
 impl ProtoConv for PhysicalType {
-    type ProtoType = rayexec_proto::generated::physical_type::PhysicalType;
+    type ProtoType = glaredb_proto::generated::physical_type::PhysicalType;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
         Ok(match self {
