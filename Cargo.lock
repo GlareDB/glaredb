@@ -910,6 +910,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4271d37baee1b8c7e4b708028c57d816cf9d2434acb33a549475f78c181f6253"
 
 [[package]]
+name = "glaredb"
+version = "0.0.95"
+dependencies = [
+ "clap",
+ "crossterm",
+ "futures",
+ "logutil",
+ "rayexec_error",
+ "rayexec_execution",
+ "rayexec_rt_native",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1951,21 +1966,6 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_rt_native",
-]
-
-[[package]]
-name = "rayexec_bin"
-version = "0.0.95"
-dependencies = [
- "clap",
- "crossterm",
- "futures",
- "logutil",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_rt_native",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

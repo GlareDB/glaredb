@@ -20,6 +20,20 @@ use super::{debug, vt100};
 
 // TODO: History currently a bit wonk.
 
+// TODO: Too many newlines for some wacky terminals (eshell) after each key.
+//
+// End up with something like:
+// ```
+// glaredb> select 'hello'
+// glaredb> select 'hello',
+// glaredb> select 'hello',
+// glaredb> select 'hello', '
+// glaredb> select 'hello', 'w
+// glaredb> select 'hello', 'wo
+// ```
+//
+// Seems to "fix" itself after using a hard line break.
+
 /// Incoming key event.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyEvent {

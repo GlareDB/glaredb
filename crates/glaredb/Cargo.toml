@@ -1,5 +1,5 @@
 [package]
-name = "rayexec_bin"
+name = "glaredb"
 version.workspace = true
 edition.workspace = true
 
