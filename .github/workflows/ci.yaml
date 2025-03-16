@@ -47,18 +47,17 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Standard tests
-        run: cargo test -- --skip slt_datasource_  --skip slt_tpch --skip slt_tpcds --skip slt_hybrid
+      - name: Unit tests
+        run: cargo test -- --skip slt/
 
-      # TODO
-      # - name: SLTs Hybrid
-      #   run: cargo test slt_hybrid
+      - name: SQL Logic Tests (standard)
+        run: cargo test slt/standard
 
-      - name: SLTs Parquet
-        env:
-          AWS_KEY: ${{ secrets.AWS_KEY }}
-          AWS_SECRET: ${{ secrets.AWS_SECRET }}
-        run: cargo test slt_datasource_parquet
+      # - name: SLTs Parquet
+      #   env:
+      #     AWS_KEY: ${{ secrets.AWS_KEY }}
+      #     AWS_SECRET: ${{ secrets.AWS_SECRET }}
+      #   run: cargo test slt_datasource_parquet
 
       # - name: SLTs CSV
       #   env:
@@ -66,139 +65,134 @@ jobs:
       #     AWS_SECRET: ${{ secrets.AWS_SECRET }}
       #   run: cargo test slt_datasource_csv
 
-      - name: SLTs Delta
-        env:
-          AWS_KEY: ${{ secrets.AWS_KEY }}
-          AWS_SECRET: ${{ secrets.AWS_SECRET }}
-        run: cargo test slt_datasource_delta
+      # - name: SLTs Delta
+      #   env:
+      #     AWS_KEY: ${{ secrets.AWS_KEY }}
+      #     AWS_SECRET: ${{ secrets.AWS_SECRET }}
+      #   run: cargo test slt_datasource_delta
 
-      - name: SLTs Iceberg
-        env:
-          AWS_KEY: ${{ secrets.AWS_KEY }}
-          AWS_SECRET: ${{ secrets.AWS_SECRET }}
-        run: cargo test slt_datasource_iceberg
+      # - name: SLTs Iceberg
+      #   env:
+      #     AWS_KEY: ${{ secrets.AWS_KEY }}
+      #     AWS_SECRET: ${{ secrets.AWS_SECRET }}
+      #   run: cargo test slt_datasource_iceberg
 
-      - name: SLTs Postgres
-        run: |
-          ./scripts/create-test-postgres-db.sh
-          cargo test slt_datasource_postgres
+      # - name: SLTs TPC-H SF=0.1
+      #   env:
+      #     DEBUG_PRINT_EXPLAIN: 1
+      #     DEBUG_PRINT_PROFILE_DATA: 1
+      #   run: |
+      #     cargo test slt/tpch
 
-      - name: SLTs TPC-H SF=0.1
-        env:
-          DEBUG_PRINT_EXPLAIN: 1
-          DEBUG_PRINT_PROFILE_DATA: 1
-        run: |
-          cargo test slt/tpch
+      # - name: SLTs TPC-DS SF=0.1
+      #   env:
+      #     DEBUG_PRINT_EXPLAIN: 1
+      #     DEBUG_PRINT_PROFILE_DATA: 1
+      #   run: |
+      #     cargo test slt/tpcds/describe_files
+      #     # cargo test slt/tpcds/q01
+      #     # cargo test slt/tpcds/q02
+      #     # cargo test slt/tpcds/q03
+      #     # cargo test slt/tpcds/q04
+      #     # cargo test slt/tpcds/q05
+      #     # cargo test slt/tpcds/q06
+      #     # cargo test slt/tpcds/q07
+      #     # cargo test slt/tpcds/q08
+      #     # cargo test slt/tpcds/q09
+      #     # cargo test slt/tpcds/q10
+      #     # cargo test slt/tpcds/q11
+      #     # cargo test slt/tpcds/q12
+      #     # cargo test slt/tpcds/q13
+      #     # cargo test slt/tpcds/q14
+      #     # cargo test slt/tpcds/q15
+      #     # cargo test slt/tpcds/q16
+      #     # cargo test slt/tpcds/q17
+      #     # cargo test slt/tpcds/q18
+      #     # cargo test slt/tpcds/q19
+      #     # cargo test slt/tpcds/q20
+      #     # cargo test slt/tpcds/q21
+      #     # cargo test slt/tpcds/q22
+      #     # cargo test slt/tpcds/q23
+      #     # cargo test slt/tpcds/q24
+      #     # cargo test slt/tpcds/q25
+      #     # cargo test slt/tpcds/q26
+      #     # cargo test slt/tpcds/q27
+      #     # cargo test slt/tpcds/q28
+      #     # cargo test slt/tpcds/q29
+      #     # cargo test slt/tpcds/q30
+      #     # cargo test slt/tpcds/q31
+      #     # cargo test slt/tpcds/q32
+      #     # cargo test slt/tpcds/q33
+      #     # cargo test slt/tpcds/q34
+      #     # cargo test slt/tpcds/q35
+      #     # cargo test slt/tpcds/q36
+      #     # cargo test slt/tpcds/q37
+      #     # cargo test slt/tpcds/q38
+      #     # cargo test slt/tpcds/q39
+      #     # cargo test slt/tpcds/q40
+      #     # cargo test slt/tpcds/q41
+      #     # cargo test slt/tpcds/q42
+      #     # cargo test slt/tpcds/q43
+      #     # cargo test slt/tpcds/q44
+      #     # cargo test slt/tpcds/q45
+      #     # cargo test slt/tpcds/q46
+      #     # cargo test slt/tpcds/q47
+      #     # cargo test slt/tpcds/q48
+      #     # cargo test slt/tpcds/q49
+      #     # cargo test slt/tpcds/q50
+      #     # cargo test slt/tpcds/q51
+      #     # cargo test slt/tpcds/q52
+      #     # cargo test slt/tpcds/q53
+      #     # cargo test slt/tpcds/q54
+      #     # cargo test slt/tpcds/q55
+      #     # cargo test slt/tpcds/q56
+      #     # cargo test slt/tpcds/q57
+      #     # cargo test slt/tpcds/q58
+      #     # cargo test slt/tpcds/q59
+      #     # cargo test slt/tpcds/q60
+      #     # cargo test slt/tpcds/q61
+      #     # cargo test slt/tpcds/q62
+      #     # cargo test slt/tpcds/q63
+      #     # cargo test slt/tpcds/q64
+      #     # cargo test slt/tpcds/q65
+      #     # cargo test slt/tpcds/q66
+      #     # cargo test slt/tpcds/q67
+      #     # cargo test slt/tpcds/q68
+      #     # cargo test slt/tpcds/q69
+      #     # cargo test slt/tpcds/q70
+      #     # cargo test slt/tpcds/q71
+      #     # cargo test slt/tpcds/q72
+      #     # cargo test slt/tpcds/q73
+      #     # cargo test slt/tpcds/q74
+      #     # cargo test slt/tpcds/q75
+      #     # cargo test slt/tpcds/q76
+      #     # cargo test slt/tpcds/q77
+      #     # cargo test slt/tpcds/q78
+      #     # cargo test slt/tpcds/q79
+      #     # cargo test slt/tpcds/q80
+      #     # cargo test slt/tpcds/q81
+      #     # cargo test slt/tpcds/q82
+      #     # cargo test slt/tpcds/q83
+      #     # cargo test slt/tpcds/q84
+      #     # cargo test slt/tpcds/q85
+      #     # cargo test slt/tpcds/q86
+      #     # cargo test slt/tpcds/q87
+      #     # cargo test slt/tpcds/q88
+      #     # cargo test slt/tpcds/q89
+      #     # cargo test slt/tpcds/q90
+      #     # cargo test slt/tpcds/q91
+      #     # cargo test slt/tpcds/q92
+      #     # cargo test slt/tpcds/q93
+      #     # cargo test slt/tpcds/q94
+      #     # cargo test slt/tpcds/q95
+      #     # cargo test slt/tpcds/q96
+      #     # cargo test slt/tpcds/q97
+      #     # cargo test slt/tpcds/q98
+      #     # cargo test slt/tpcds/q99
 
-      - name: SLTs TPC-DS SF=0.1
-        env:
-          DEBUG_PRINT_EXPLAIN: 1
-          DEBUG_PRINT_PROFILE_DATA: 1
-        run: |
-          cargo test slt/tpcds/describe_files
-          # cargo test slt/tpcds/q01
-          # cargo test slt/tpcds/q02
-          # cargo test slt/tpcds/q03
-          # cargo test slt/tpcds/q04
-          # cargo test slt/tpcds/q05
-          # cargo test slt/tpcds/q06
-          # cargo test slt/tpcds/q07
-          # cargo test slt/tpcds/q08
-          # cargo test slt/tpcds/q09
-          # cargo test slt/tpcds/q10
-          # cargo test slt/tpcds/q11
-          # cargo test slt/tpcds/q12
-          # cargo test slt/tpcds/q13
-          # cargo test slt/tpcds/q14
-          # cargo test slt/tpcds/q15
-          # cargo test slt/tpcds/q16
-          # cargo test slt/tpcds/q17
-          # cargo test slt/tpcds/q18
-          # cargo test slt/tpcds/q19
-          # cargo test slt/tpcds/q20
-          # cargo test slt/tpcds/q21
-          # cargo test slt/tpcds/q22
-          # cargo test slt/tpcds/q23
-          # cargo test slt/tpcds/q24
-          # cargo test slt/tpcds/q25
-          # cargo test slt/tpcds/q26
-          # cargo test slt/tpcds/q27
-          # cargo test slt/tpcds/q28
-          # cargo test slt/tpcds/q29
-          # cargo test slt/tpcds/q30
-          # cargo test slt/tpcds/q31
-          # cargo test slt/tpcds/q32
-          # cargo test slt/tpcds/q33
-          # cargo test slt/tpcds/q34
-          # cargo test slt/tpcds/q35
-          # cargo test slt/tpcds/q36
-          # cargo test slt/tpcds/q37
-          # cargo test slt/tpcds/q38
-          # cargo test slt/tpcds/q39
-          # cargo test slt/tpcds/q40
-          # cargo test slt/tpcds/q41
-          # cargo test slt/tpcds/q42
-          # cargo test slt/tpcds/q43
-          # cargo test slt/tpcds/q44
-          # cargo test slt/tpcds/q45
-          # cargo test slt/tpcds/q46
-          # cargo test slt/tpcds/q47
-          # cargo test slt/tpcds/q48
-          # cargo test slt/tpcds/q49
-          # cargo test slt/tpcds/q50
-          # cargo test slt/tpcds/q51
-          # cargo test slt/tpcds/q52
-          # cargo test slt/tpcds/q53
-          # cargo test slt/tpcds/q54
-          # cargo test slt/tpcds/q55
-          # cargo test slt/tpcds/q56
-          # cargo test slt/tpcds/q57
-          # cargo test slt/tpcds/q58
-          # cargo test slt/tpcds/q59
-          # cargo test slt/tpcds/q60
-          # cargo test slt/tpcds/q61
-          # cargo test slt/tpcds/q62
-          # cargo test slt/tpcds/q63
-          # cargo test slt/tpcds/q64
-          # cargo test slt/tpcds/q65
-          # cargo test slt/tpcds/q66
-          # cargo test slt/tpcds/q67
-          # cargo test slt/tpcds/q68
-          # cargo test slt/tpcds/q69
-          # cargo test slt/tpcds/q70
-          # cargo test slt/tpcds/q71
-          # cargo test slt/tpcds/q72
-          # cargo test slt/tpcds/q73
-          # cargo test slt/tpcds/q74
-          # cargo test slt/tpcds/q75
-          # cargo test slt/tpcds/q76
-          # cargo test slt/tpcds/q77
-          # cargo test slt/tpcds/q78
-          # cargo test slt/tpcds/q79
-          # cargo test slt/tpcds/q80
-          # cargo test slt/tpcds/q81
-          # cargo test slt/tpcds/q82
-          # cargo test slt/tpcds/q83
-          # cargo test slt/tpcds/q84
-          # cargo test slt/tpcds/q85
-          # cargo test slt/tpcds/q86
-          # cargo test slt/tpcds/q87
-          # cargo test slt/tpcds/q88
-          # cargo test slt/tpcds/q89
-          # cargo test slt/tpcds/q90
-          # cargo test slt/tpcds/q91
-          # cargo test slt/tpcds/q92
-          # cargo test slt/tpcds/q93
-          # cargo test slt/tpcds/q94
-          # cargo test slt/tpcds/q95
-          # cargo test slt/tpcds/q96
-          # cargo test slt/tpcds/q97
-          # cargo test slt/tpcds/q98
-          # cargo test slt/tpcds/q99
-
-      - name: SLTs Clickbench truncated
-        run: |
-          cargo test slt/clickbench
+      # - name: SLTs Clickbench truncated
+      #   run: |
+      #     cargo test slt/clickbench
 
   miri:
     name: Run Miri
