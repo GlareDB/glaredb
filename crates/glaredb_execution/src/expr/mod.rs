@@ -28,7 +28,6 @@ use cast_expr::CastExpr;
 use column_expr::{ColumnExpr, ColumnReference};
 use comparison_expr::{ComparisonExpr, ComparisonOperator};
 use conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
-use fmtutil::IntoDisplayableSlice;
 use glaredb_error::{RayexecError, Result};
 use grouping_set_expr::GroupingSetExpr;
 use is_expr::IsExpr;
@@ -60,6 +59,7 @@ use crate::functions::table::{
     TableFunctionType,
 };
 use crate::logical::binder::table_list::TableRef;
+use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 /// A logical expression.
 ///

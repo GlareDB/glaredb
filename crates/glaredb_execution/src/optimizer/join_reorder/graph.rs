@@ -25,7 +25,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use fmtutil::IntoDisplayableSlice;
 use glaredb_error::{RayexecError, Result};
 
 use super::edge::{EdgeId, EdgeType, HyperEdges, NeighborEdge};
@@ -47,6 +46,7 @@ use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator
 use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
 use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;
+use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 /// Unique id for identifying base relations in the graph.
 pub type RelId = usize;

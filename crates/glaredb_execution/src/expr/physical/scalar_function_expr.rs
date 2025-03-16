@@ -1,6 +1,5 @@
 use std::fmt;
 
-use fmtutil::IntoDisplayableSlice;
 use glaredb_error::Result;
 
 use super::evaluator::ExpressionEvaluator;
@@ -10,6 +9,7 @@ use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::functions::scalar::PlannedScalarFunction;
+use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalScalarFunctionExpr {

@@ -26,10 +26,10 @@ use std::fmt::Display;
 
 use candidate::CandidateSignature;
 use documentation::Documentation;
-use fmtutil::IntoDisplayableSlice;
 use glaredb_error::{RayexecError, Result};
 
 use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 /// Function signature.
 // TODO: Include named args. Also make sure to update PartialEq too.

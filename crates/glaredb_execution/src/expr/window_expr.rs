@@ -1,6 +1,5 @@
 use std::fmt;
 
-use fmtutil::IntoDisplayableSlice;
 use glaredb_error::Result;
 
 use super::Expression;
@@ -8,6 +7,7 @@ use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
+use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WindowFrameUnit {

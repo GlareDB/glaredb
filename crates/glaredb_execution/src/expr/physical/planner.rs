@@ -1,4 +1,3 @@
-use fmtutil::IntoDisplayableSlice;
 use glaredb_error::{RayexecError, Result};
 
 use super::case_expr::PhysicalCaseExpr;
@@ -14,6 +13,7 @@ use crate::expr::{AsScalarFunctionSet, Expression};
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::binder::table_list::{TableList, TableRef};
+use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 /// Plans logical expressions into their physical equivalents.
 #[derive(Debug)]

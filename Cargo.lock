@@ -841,10 +841,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fmtutil"
-version = "0.0.95"
-
-[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1035,7 +1031,6 @@ version = "0.0.95"
 dependencies = [
  "ahash",
  "chrono",
- "fmtutil",
  "futures",
  "glaredb_error",
  "glaredb_parser",

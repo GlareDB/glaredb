@@ -1,9 +1,8 @@
 use std::fmt;
 
-use fmtutil::IntoDisplayableSlice;
-
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::scalar::PlannedScalarFunction;
+use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScalarFunctionExpr {

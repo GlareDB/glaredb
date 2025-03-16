@@ -1,10 +1,9 @@
 use std::fmt;
 
-use fmtutil::IntoDisplayableSlice;
-
 use super::Expression;
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 /// Expression that corresponds to a GROUPING call.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
