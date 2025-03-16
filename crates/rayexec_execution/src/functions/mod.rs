@@ -1,3 +1,17 @@
+// Allow `new` constructors for functions without an associated Default
+// implementations.
+//
+// Functions must be able to be created via a constant context, and some
+// functions defualt a `const fn new` to accomplish this. Functions are never
+// created outside of a const context, so the Default implementation is useless.
+#![allow(clippy::new_without_default)]
+// Clippy produces false positives here.
+//
+// Table scan functions can return futures, and those futures are tied to the
+// lifetime of the passed in database context. Clippy seems to think that
+// they're tied to the lifetime of `&self`, which is not the case.
+#![allow(clippy::manual_async_fn)]
+
 pub mod aggregate;
 pub mod bind_state;
 pub mod candidate;

@@ -22,7 +22,6 @@ description = "Apache Parquet implementation in Rust. Forked from github.com/apa
 keywords = ["arrow", "parquet", "hadoop"]
 readme = "README.md"
 edition = { workspace = true }
-rust-version = "1.70.0"
 
 [dependencies]
 rayexec_error = { path = "../rayexec_error" }

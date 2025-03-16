@@ -139,11 +139,8 @@ impl FileOpener for NativeFileProvider {
     type AccessConfig = StubAccess;
     type ReadFile = LocalFile;
 
-    fn list_prefix(
-        &self,
-        _prefix: &str,
-    ) -> impl std::future::Future<Output = Result<Vec<String>>> + Send {
-        async { Ok(Vec::new()) }
+    async fn list_prefix(&self, _prefix: &str) -> Result<Vec<String>> {
+        Ok(Vec::new())
     }
 
     fn open_for_read(&self, _conf: &Self::AccessConfig) -> Result<Self::ReadFile> {

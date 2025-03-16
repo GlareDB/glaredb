@@ -109,7 +109,7 @@ impl<C> AsyncReadStream for HttpRead<C>
 where
     C: HttpClient,
 {
-    fn poll_read(self: &mut Self, cx: &mut Context, buf: &mut [u8]) -> Result<Poll<Option<usize>>> {
+    fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Result<Poll<Option<usize>>> {
         let this = &mut *self;
 
         loop {

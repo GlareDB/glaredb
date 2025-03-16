@@ -1,5 +1,4 @@
 use std::fs::{self, File as StdFile};
-use std::future::Future;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::task::{Context, Poll};
@@ -40,8 +39,8 @@ impl FileSource for LocalFile {
     type ReadStream = LocalFileRead;
     type ReadRangeStream = LocalFileRead;
 
-    fn size(&self) -> impl Future<Output = Result<usize>> + Send {
-        async { Ok(self.len) }
+    async fn size(&self) -> Result<usize> {
+        Ok(self.len)
     }
 
     fn read(&mut self) -> Self::ReadStream {
@@ -76,11 +75,7 @@ pub enum LocalFileRead {
 }
 
 impl AsyncReadStream for LocalFileRead {
-    fn poll_read(
-        self: &mut Self,
-        _cx: &mut Context,
-        mut buf: &mut [u8],
-    ) -> Result<Poll<Option<usize>>> {
+    fn poll_read(&mut self, _cx: &mut Context, mut buf: &mut [u8]) -> Result<Poll<Option<usize>>> {
         let this = &mut *self;
 
         loop {

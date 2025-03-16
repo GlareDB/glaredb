@@ -118,6 +118,13 @@ impl RowLayout {
     ///
     /// Same as `validity_buffer`, and the pointer must not have been
     /// invalidated.
+    ///
+    /// # Clippy lint
+    ///
+    /// Clippy thinks we're producing a mut ref from `&self`, but we're not.
+    /// We're producing a mut ref from the pointer, and `&self` is just letting
+    /// us know how long the slice is.
+    #[allow(clippy::mut_from_ref)]
     unsafe fn validity_buffer_mut(&self, row_ptr: *mut u8) -> &mut [u8] {
         std::slice::from_raw_parts_mut(row_ptr, self.validity_width)
     }

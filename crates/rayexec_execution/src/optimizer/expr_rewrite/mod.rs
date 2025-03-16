@@ -31,7 +31,7 @@ pub struct ExpressionRewriter;
 impl OptimizeRule for ExpressionRewriter {
     fn optimize(
         &mut self,
-        bind_context: &mut BindContext,
+        _bind_context: &mut BindContext,
         plan: LogicalOperator,
     ) -> Result<LogicalOperator> {
         let mut plan = match plan {
@@ -61,7 +61,7 @@ impl OptimizeRule for ExpressionRewriter {
             }
         };
 
-        plan.modify_replace_children(&mut |child| self.optimize(bind_context, child))?;
+        plan.modify_replace_children(&mut |child| self.optimize(_bind_context, child))?;
 
         Ok(plan)
     }
@@ -71,7 +71,7 @@ impl ExpressionRewriter {
     pub fn apply_rewrites_all(exprs: Vec<Expression>) -> Result<Vec<Expression>> {
         exprs
             .into_iter()
-            .map(|expr| Self::apply_rewrites(expr))
+            .map(Self::apply_rewrites)
             .collect::<Result<Vec<_>>>()
     }
 

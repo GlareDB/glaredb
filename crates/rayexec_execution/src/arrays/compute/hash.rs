@@ -192,7 +192,7 @@ where
     let sel = sel.into_exact_size_iter();
     debug_assert_eq!(sel.len(), hashes.len());
 
-    let values = S::get_addressable(&arr.array_buffer)?;
+    let values = S::get_addressable(arr.array_buffer)?;
 
     if arr.validity.all_valid() {
         for (idx, hash) in sel.zip(hashes.iter_mut()) {
@@ -328,9 +328,9 @@ mod tests {
     use stdutil::iter::TryFromExactSizeIterator;
 
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::{DataType, ListTypeMeta};
+    use crate::buffer::buffer_manager::NopBufferManager;
 
     #[test]
     fn combine_hashes_not_zero() {

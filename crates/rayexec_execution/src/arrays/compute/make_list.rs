@@ -147,11 +147,11 @@ fn make_list_from_values_inner<S: MutableScalarStorage>(
     let metadata = metadata.as_slice_mut();
     let len = inputs.len() as i32;
 
-    for output_idx in 0..num_rows {
-        metadata[output_idx] = ListItemMetadata {
+    for (output_idx, metadata) in metadata.iter_mut().enumerate().take(num_rows) {
+        *metadata = ListItemMetadata {
             offset: (output_idx as i32) * len,
             len,
-        };
+        }
     }
 
     Ok(())

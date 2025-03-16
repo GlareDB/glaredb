@@ -168,7 +168,7 @@ pub struct ExplainConfig<'a> {
     pub verbose: bool,
 }
 
-impl<'a> ExplainConfig<'a> {
+impl ExplainConfig<'_> {
     pub const RAW_VERBOSE: Self = Self {
         context_mode: ContextDisplayMode::Raw,
         verbose: true,

@@ -150,7 +150,7 @@ pub struct ByteRecord<'a> {
     ends: &'a [usize],
 }
 
-impl<'a> ByteRecord<'a> {
+impl ByteRecord<'_> {
     pub fn num_fields(&self) -> usize {
         self.ends.len()
     }

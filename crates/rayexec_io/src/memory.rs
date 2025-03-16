@@ -167,11 +167,7 @@ impl MemoryRead {
 }
 
 impl AsyncReadStream for MemoryRead {
-    fn poll_read(
-        self: &mut Self,
-        _cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Result<Poll<Option<usize>>> {
+    fn poll_read(&mut self, _cx: &mut Context, buf: &mut [u8]) -> Result<Poll<Option<usize>>> {
         if self.offset >= self.bytes.len() {
             return Ok(Poll::Ready(None));
         }

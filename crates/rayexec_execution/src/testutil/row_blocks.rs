@@ -128,7 +128,7 @@ impl TestSortedRowBlock {
         let keys: Vec<_> = keys.into_iter().map(|idx| &batch.arrays[idx]).collect();
         // This is just for typing, `from_arrays` takes a single `A` generic, so
         // we need `&Array`.
-        let data: Vec<_> = batch.arrays.iter().map(|arr| arr).collect();
+        let data: Vec<_> = batch.arrays.iter().collect();
 
         Self::from_arrays(&keys, &data, batch.num_rows())
     }

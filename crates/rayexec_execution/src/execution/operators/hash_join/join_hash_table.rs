@@ -397,16 +397,14 @@ impl JoinHashTable {
         }
 
         // Attempt to swap out the entry that we expect to be empty.
-        let did_write = atomic_ent
+        atomic_ent
             .compare_exchange(
                 std::ptr::null_mut(),
                 new_ent.cast_mut(),
                 atomic::Ordering::Acquire,
                 atomic::Ordering::Relaxed,
             )
-            .is_ok();
-
-        did_write
+            .is_ok()
     }
 
     /// Attempts to insert a new row entry at the beginning of the chain.

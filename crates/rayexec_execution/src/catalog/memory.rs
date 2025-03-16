@@ -268,7 +268,7 @@ impl Schema for MemorySchema {
         let ent = CatalogEntry {
             name: create.name.clone(),
             entry: CatalogEntryInner::ScalarFunction(ScalarFunctionEntry {
-                function: create.implementation.clone(),
+                function: create.implementation,
             }),
             child: None,
         };
@@ -283,7 +283,7 @@ impl Schema for MemorySchema {
         let ent = CatalogEntry {
             name: create.name.clone(),
             entry: CatalogEntryInner::AggregateFunction(AggregateFunctionEntry {
-                function: create.implementation.clone(),
+                function: create.implementation,
             }),
             child: None,
         };
@@ -295,7 +295,7 @@ impl Schema for MemorySchema {
         let ent = CatalogEntry {
             name: create.name.clone(),
             entry: CatalogEntryInner::TableFunction(TableFunctionEntry {
-                function: create.implementation.clone(),
+                function: create.implementation,
             }),
             child: None,
         };

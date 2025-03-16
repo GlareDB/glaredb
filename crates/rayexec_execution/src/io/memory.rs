@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
@@ -37,8 +36,8 @@ impl FileSource for MemoryFileSource {
     type ReadStream = MemoryFileRead;
     type ReadRangeStream = MemoryFileRead;
 
-    fn size(&self) -> impl Future<Output = Result<usize>> + Send {
-        async { Ok(self.data.capacity()) }
+    async fn size(&self) -> Result<usize> {
+        Ok(self.data.capacity())
     }
 
     fn read(&mut self) -> Self::ReadStream {
@@ -66,11 +65,7 @@ pub struct MemoryFileRead {
 }
 
 impl AsyncReadStream for MemoryFileRead {
-    fn poll_read(
-        self: &mut Self,
-        _cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Result<Poll<Option<usize>>> {
+    fn poll_read(&mut self, _cx: &mut Context, buf: &mut [u8]) -> Result<Poll<Option<usize>>> {
         if self.remaining == 0 {
             return Ok(Poll::Ready(None));
         }

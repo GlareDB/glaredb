@@ -44,7 +44,7 @@ impl ExecutablePipelineGraph {
                 ));
             }
 
-            let mut mat_pipeline = ExecutablePipeline::new();
+            let mut mat_pipeline = ExecutablePipeline::default();
 
             let child = mat_operator.children.pop().unwrap();
             child.build_pipeline(props, &mut pipeline_graph, &mut mat_pipeline)?;
@@ -73,7 +73,7 @@ impl ExecutablePipelineGraph {
 
         // Now plan the query root, it should have access to all materializations.
 
-        let mut current = ExecutablePipeline::new();
+        let mut current = ExecutablePipeline::default();
 
         let root = query_graph.root;
         root.build_pipeline(props, &mut pipeline_graph, &mut current)?;
@@ -103,7 +103,7 @@ impl ExecutablePipelineGraph {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ExecutablePipeline {
     /// Operators just in this pipeline.
     pub(crate) operators: Vec<PlannedOperator>,
@@ -112,13 +112,6 @@ pub struct ExecutablePipeline {
 }
 
 impl ExecutablePipeline {
-    pub fn new() -> Self {
-        ExecutablePipeline {
-            operators: Vec::new(),
-            operator_states: Vec::new(),
-        }
-    }
-
     pub fn push_operator_and_state(&mut self, operator: PlannedOperator, state: AnyOperatorState) {
         self.operators.push(operator);
         self.operator_states.push(state);

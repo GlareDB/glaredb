@@ -45,6 +45,12 @@ struct ResultStreamInner {
     remaining_inputs: usize,
 }
 
+impl Default for ResultStream {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ResultStream {
     pub fn new() -> Self {
         ResultStream {

@@ -189,13 +189,13 @@ where
             KeyEvent::ShiftEnter => {
                 self.edit_move_to_end()?;
                 self.history.push_item(self.buffer.as_ref());
-                return Ok(Signal::InputCompleted(&self.buffer.as_ref()));
+                return Ok(Signal::InputCompleted(self.buffer.as_ref()));
             }
             KeyEvent::Enter => {
                 if self.is_complete() {
                     self.edit_move_to_end()?;
                     self.history.push_item(self.buffer.as_ref());
-                    return Ok(Signal::InputCompleted(&self.buffer.as_ref()));
+                    return Ok(Signal::InputCompleted(self.buffer.as_ref()));
                 }
                 self.edit_enter()?;
             }

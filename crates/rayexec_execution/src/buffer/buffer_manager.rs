@@ -63,7 +63,7 @@ pub struct BufferManagerVTable {
 
 impl RawBufferManager {
     // TODO: Lifetime constraints.
-    pub fn from_buffer_manager<B>(manager: &B) -> Self
+    pub(crate) fn from_buffer_manager<B>(manager: &B) -> Self
     where
         B: BufferManager,
     {
@@ -74,11 +74,11 @@ impl RawBufferManager {
         }
     }
 
-    pub unsafe fn call_drop(&self, reservation: &Reservation) {
+    pub(crate) unsafe fn call_drop(&self, reservation: &Reservation) {
         (self.vtable.drop_fn)(self.manager, reservation)
     }
 
-    pub unsafe fn call_reserve(&self, num_bytes: usize) -> Result<Reservation> {
+    pub(crate) unsafe fn call_reserve(&self, num_bytes: usize) -> Result<Reservation> {
         (self.vtable.reserve_fn)(self.manager, num_bytes)
     }
 }

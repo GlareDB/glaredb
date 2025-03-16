@@ -16,7 +16,7 @@ pub fn plan_scalar(
     table_list: &TableList,
     expr: impl Into<Expression>,
 ) -> PhysicalScalarExpression {
-    let planner = PhysicalExpressionPlanner::new(&table_list);
+    let planner = PhysicalExpressionPlanner::new(table_list);
     let expr = expr.into();
 
     let mut table_refs: Vec<_> = expr.get_table_references().into_iter().collect();

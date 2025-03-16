@@ -220,7 +220,7 @@ pub trait BaseOperator: Sync + Send + Debug + Explainable + 'static {
             }
             OperatorType::PushExecute => {
                 // Create new pipeline for left/push child.
-                let mut left_pipeline = ExecutablePipeline::new();
+                let mut left_pipeline = ExecutablePipeline::default();
                 let left_child = &children[0];
                 left_child.build_pipeline(props, graph, &mut left_pipeline)?;
 
@@ -577,6 +577,7 @@ impl PlannedOperator {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[allow(clippy::type_complexity)]
 pub(crate) struct RawOperatorVTable {
     create_operator_state_fn:
         unsafe fn(operator: &dyn Any, props: ExecutionProperties) -> Result<AnyOperatorState>,

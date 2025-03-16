@@ -53,7 +53,7 @@ where
     }
 }
 
-impl<'a, S> Future for ReadInto<'a, S>
+impl<S> Future for ReadInto<'_, S>
 where
     S: AsyncReadStream,
 {

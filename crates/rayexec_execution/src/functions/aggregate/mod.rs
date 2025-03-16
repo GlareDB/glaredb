@@ -29,18 +29,18 @@ pub struct PlannedAggregateFunction {
 }
 
 impl PlannedAggregateFunction {
-    pub const fn aggregate_state_info(&self) -> AggregateStateInfo {
+    pub(crate) const fn aggregate_state_info(&self) -> AggregateStateInfo {
         AggregateStateInfo {
             size: self.raw.state_size,
             align: self.raw.state_align,
         }
     }
 
-    pub unsafe fn call_new_aggregate_state(&self, agg_state_out: *mut u8) {
+    pub(crate) unsafe fn call_new_aggregate_state(&self, agg_state_out: *mut u8) {
         (self.raw.vtable.new_aggregate_state_fn)(self.state.state_as_any(), agg_state_out)
     }
 
-    pub unsafe fn call_update(
+    pub(crate) unsafe fn call_update(
         &self,
         inputs: &[Array],
         num_rows: usize,
@@ -49,11 +49,17 @@ impl PlannedAggregateFunction {
         (self.raw.vtable.update_fn)(self.state.state_as_any(), inputs, num_rows, agg_states)
     }
 
-    pub unsafe fn call_combine(&self, src: &mut [*mut u8], dest: &mut [*mut u8]) -> Result<()> {
+    /// Combines `src` pointers into `dest` pointers, consuming the source
+    /// values.
+    pub(crate) unsafe fn call_combine(
+        &self,
+        src: &mut [*mut u8],
+        dest: &mut [*mut u8],
+    ) -> Result<()> {
         (self.raw.vtable.combine_fn)(self.state.state_as_any(), src, dest)
     }
 
-    pub unsafe fn call_finalize(
+    pub(crate) unsafe fn call_finalize(
         &self,
         agg_states: &mut [*mut u8],
         output: &mut Array,
@@ -127,6 +133,7 @@ impl RawAggregateFunction {
 ///
 /// This collection ensures pointers are aligned.
 #[derive(Debug, Clone, Copy)]
+#[allow(clippy::type_complexity)]
 pub struct RawAggregateFunctionVTable {
     bind_fn: unsafe fn(function: *const (), inputs: Vec<Expression>) -> Result<RawBindState>,
     new_aggregate_state_fn: unsafe fn(state: &dyn Any, state: *mut u8),

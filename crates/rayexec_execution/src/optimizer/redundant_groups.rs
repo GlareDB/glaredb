@@ -146,9 +146,7 @@ impl RemoveRedundantGroups {
         for (idx, group_expr) in agg.node.group_exprs.iter().enumerate() {
             if let Expression::Column(expr) = group_expr {
                 // Only store one group index per column expr.
-                if !base_col_map.contains_key(&expr.reference) {
-                    base_col_map.insert(expr.reference, idx);
-                }
+                base_col_map.entry(expr.reference).or_insert(idx);
             }
         }
 

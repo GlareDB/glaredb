@@ -207,7 +207,7 @@ impl AggregateHashTable {
         let cap = self.directory.capacity();
         let entries = self.directory.entries.as_slice_mut();
 
-        while needs_insert.len() > 0 {
+        while !needs_insert.is_empty() {
             new_groups.clear();
 
             for &row_idx in needs_insert.iter() {

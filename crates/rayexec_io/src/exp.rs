@@ -46,7 +46,7 @@ pub trait AsyncReadStream: Debug + Sync + Send {
     ///
     /// `Poll::Ready(None)` indicates the stream is complete. No data is written
     /// to the buffer.
-    fn poll_read(self: &mut Self, cx: &mut Context, buf: &mut [u8]) -> Result<Poll<Option<usize>>>;
+    fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Result<Poll<Option<usize>>>;
 }
 
 pub trait AsyncWriteSink: Send {

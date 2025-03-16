@@ -68,17 +68,17 @@ impl AggregateFunction for Count {
             let input = input.flatten()?;
 
             if input.validity.all_valid() {
-                for idx in 0..num_rows {
-                    let state = unsafe { &mut *states[idx] };
+                for &mut state_ptr in states {
+                    let state = unsafe { &mut *state_ptr };
                     state.count += 1;
                 }
             } else {
-                for idx in 0..num_rows {
+                for (idx, &mut state_ptr) in states.iter_mut().enumerate() {
                     if !input.validity.is_valid(idx) {
                         continue;
                     }
 
-                    let state = unsafe { &mut *states[idx] };
+                    let state = unsafe { &mut *state_ptr };
                     state.count += 1;
                 }
             }
@@ -87,17 +87,17 @@ impl AggregateFunction for Count {
         }
 
         if input.validity.all_valid() {
-            for idx in 0..num_rows {
-                let state = unsafe { &mut *states[idx] };
+            for &mut state_ptr in states {
+                let state = unsafe { &mut *state_ptr };
                 state.count += 1;
             }
         } else {
-            for idx in 0..num_rows {
+            for (idx, &mut state_ptr) in states.iter_mut().enumerate() {
                 if !input.validity.is_valid(idx) {
                     continue;
                 }
 
-                let state = unsafe { &mut *states[idx] };
+                let state = unsafe { &mut *state_ptr };
                 state.count += 1;
             }
         }

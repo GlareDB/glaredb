@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::io;
+use std::{cmp, io};
 
 use rayexec_error::Result;
 use rayexec_parser::tokens::{Token, TokenWithLocation, Tokenizer};
@@ -37,8 +37,14 @@ pub struct HighlightState {
     toks: Vec<TokenWithLocation>,
 }
 
+impl Default for HighlightState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HighlightState {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         HighlightState {
             highlight_toks: VecDeque::new(),
             toks: Vec::new(),
@@ -132,7 +138,7 @@ pub struct HighlightedStr<'a> {
     pub s: &'a str,
 }
 
-impl<'a> HighlightedStr<'a> {
+impl HighlightedStr<'_> {
     /// Write the the string to the writer using the correct term code for
     /// highlight.
     ///
@@ -184,38 +190,42 @@ impl<'a> Iterator for HighlightedStrIterMut<'a> {
         match self.tokens.front() {
             Some(second) => {
                 let tok_len = second.offset - tok.offset;
-                if self.s.len() < tok_len {
-                    // This token applies to this string and followup string.
-                    // Use to highlight, and push an updated value in the queue
-                    // with an adjusted offset.
-                    self.tokens.push_front(HighlightToken {
-                        token_type: tok.token_type,
-                        offset: tok.offset + self.s.len(),
-                    });
+                match self.s.len().cmp(&tok_len) {
+                    cmp::Ordering::Less => {
+                        // This token applies to this string and followup string.
+                        // Use to highlight, and push an updated value in the queue
+                        // with an adjusted offset.
+                        self.tokens.push_front(HighlightToken {
+                            token_type: tok.token_type,
+                            offset: tok.offset + self.s.len(),
+                        });
 
-                    let highlight = HighlightedStr {
-                        token_type: tok.token_type,
-                        s: self.s,
-                    };
-                    self.s = "";
-                    Some(highlight)
-                } else if self.s.len() > tok_len {
-                    // Token only highlights a portion of this string.
-                    let (h_str, rem) = self.s.split_at(tok_len);
-                    let highlight = HighlightedStr {
-                        token_type: tok.token_type,
-                        s: h_str,
-                    };
-                    self.s = rem;
-                    Some(highlight)
-                } else {
-                    // Token highlights this string exactly.
-                    let highlight = HighlightedStr {
-                        token_type: tok.token_type,
-                        s: self.s,
-                    };
-                    self.s = "";
-                    Some(highlight)
+                        let highlight = HighlightedStr {
+                            token_type: tok.token_type,
+                            s: self.s,
+                        };
+                        self.s = "";
+                        Some(highlight)
+                    }
+                    cmp::Ordering::Greater => {
+                        // Token only highlights a portion of this string.
+                        let (h_str, rem) = self.s.split_at(tok_len);
+                        let highlight = HighlightedStr {
+                            token_type: tok.token_type,
+                            s: h_str,
+                        };
+                        self.s = rem;
+                        Some(highlight)
+                    }
+                    cmp::Ordering::Equal => {
+                        // Token highlights this string exactly.
+                        let highlight = HighlightedStr {
+                            token_type: tok.token_type,
+                            s: self.s,
+                        };
+                        self.s = "";
+                        Some(highlight)
+                    }
                 }
             }
             None => {

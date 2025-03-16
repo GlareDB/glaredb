@@ -30,6 +30,7 @@ impl SortedBlock {
     /// Create a sorted block from the given key/data blocks.
     ///
     /// Returns None if the number of rows in the block is zero.
+    #[allow(clippy::too_many_arguments)] // I know
     pub fn sort_from_blocks(
         manager: &impl AsRawBufferManager,
         key_layout: &SortLayout,
@@ -121,7 +122,7 @@ impl SortedBlock {
                 );
             }
 
-            if tied_with_next.iter().all(|&v| v == false) {
+            if tied_with_next.iter().all(|&v| !v) {
                 // No ties, we're done.
                 break;
             }
@@ -140,7 +141,7 @@ impl SortedBlock {
             Block::try_new_reserve_none(manager, heap_keys.reserved_bytes, None)?;
         if key_layout.any_requires_heap() {
             sorted_heap_keys.reserved_bytes = heap_keys.reserved_bytes;
-            let row_idx_iter = BlockRowIndexIter::new(&key_layout, &keys, num_rows);
+            let row_idx_iter = BlockRowIndexIter::new(key_layout, &keys, num_rows);
             apply_sort_indices(
                 &heap_keys,
                 &mut sorted_heap_keys,
@@ -153,7 +154,7 @@ impl SortedBlock {
         let mut sorted_data = Block::try_new_reserve_none(manager, data.reserved_bytes, None)?;
         if data_layout.num_columns() > 0 {
             sorted_data.reserved_bytes = data.reserved_bytes;
-            let row_idx_iter = BlockRowIndexIter::new(&key_layout, &keys, num_rows);
+            let row_idx_iter = BlockRowIndexIter::new(key_layout, &keys, num_rows);
             apply_sort_indices(&data, &mut sorted_data, row_idx_iter, data_layout.row_width);
         }
 
@@ -202,8 +203,8 @@ unsafe fn fill_ties(
     col_ptr = col_ptr.byte_add(compare_offset);
 
     // Note that `ties` is 1 less than the number of rows we're checking.
-    for idx in 0..ties.len() {
-        if !ties[idx] {
+    for tie in ties {
+        if !*tie {
             continue;
         }
 
@@ -215,7 +216,7 @@ unsafe fn fill_ties(
 
         col_ptr = b_ptr;
 
-        ties[idx] = a == b
+        *tie = a == b
     }
 }
 
@@ -362,7 +363,7 @@ impl<'a> BlockRowIndexIter<'a> {
     }
 }
 
-impl<'a> Iterator for BlockRowIndexIter<'a> {
+impl Iterator for BlockRowIndexIter<'_> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -387,4 +388,4 @@ impl<'a> Iterator for BlockRowIndexIter<'a> {
     }
 }
 
-impl<'a> ExactSizeIterator for BlockRowIndexIter<'a> {}
+impl ExactSizeIterator for BlockRowIndexIter<'_> {}

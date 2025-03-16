@@ -70,8 +70,8 @@ where
 
         match definitions {
             Definitions::HasDefinitions { levels, max } => {
-                for idx in offset..(offset + count) {
-                    if levels[idx] == max {
+                for (idx, &level) in levels.iter().enumerate().skip(offset).take(count) {
+                    if level == max {
                         // Value is null.
                         validity.set_invalid(idx);
                         continue;

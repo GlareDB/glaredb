@@ -362,6 +362,7 @@ where
     /// `block_fn` returns the pointer to a block at the given index.
     ///
     /// Returns the output block, as well as an updated left/right scan state.
+    #[allow(clippy::too_many_arguments)] // I know
     fn merge_fixed_size_blocks(
         manager: &B,
         row_width: usize,

@@ -59,17 +59,14 @@ impl PartitionPipelineTask {
         {
             Poll::Ready(Ok(())) => {
                 // Pushing through the pipeline was successful.
-                return;
             }
             Poll::Ready(Err(e)) => {
                 self.state.errors.set_error(e);
-                return;
             }
             Poll::Pending => {
                 // Exit the loop. Waker was already stored in the pending
                 // sink/source, we'll be woken back up when there's more
                 // this operator chain can start executing.
-                return;
             }
         }
     }

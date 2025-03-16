@@ -1081,12 +1081,12 @@ impl<'a> BaseExpressionBinder<'a> {
                     ));
                 }
 
-                let function = expr::bind_scalar_function(&scalar, inputs)?;
+                let function = expr::bind_scalar_function(scalar, inputs)?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
             (ResolvedFunction::Aggregate(agg), _) => {
-                let agg = bind_aggregate_function(&agg, inputs)?;
+                let agg = bind_aggregate_function(agg, inputs)?;
                 match &func.over {
                     Some(over) => {
                         // Window

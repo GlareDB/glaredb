@@ -148,7 +148,7 @@ impl<'a> NotMatchIter<'a> {
     }
 }
 
-impl<'a> Iterator for NotMatchIter<'a> {
+impl Iterator for NotMatchIter<'_> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -173,7 +173,7 @@ impl<'a> Iterator for NotMatchIter<'a> {
     }
 }
 
-impl<'a> ExactSizeIterator for NotMatchIter<'a> {}
+impl ExactSizeIterator for NotMatchIter<'_> {}
 
 #[cfg(test)]
 mod tests {

@@ -42,9 +42,7 @@ impl OperatorPlanState<'_> {
             })
             .collect();
 
-        let projections = function_inputs
-            .into_iter()
-            .chain(projected_outputs.into_iter());
+        let projections = function_inputs.into_iter().chain(projected_outputs);
 
         // Project function inputs first.
         let child = PlannedOperatorWithChildren {

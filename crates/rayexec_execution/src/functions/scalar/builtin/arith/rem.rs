@@ -35,7 +35,7 @@ pub const FUNCTION_SET_REM: ScalarFunctionSet = ScalarFunctionSet {
     doc: None,
     functions: &[
         RawScalarFunction::new(
-            &&Signature::new(
+            &Signature::new(
                 &[DataTypeId::Float16, DataTypeId::Float16],
                 DataTypeId::Float16,
             ),

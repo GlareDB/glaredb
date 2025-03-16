@@ -34,6 +34,10 @@ impl WasmSession {
 
     // TODO: This copies `content`. Not sure if there's a good way to get around
     // that.
+    //
+    // Unsure if the clippy lint failure is because content is unused right now.
+    // If for sure needs to be boxed to cross the wasm boundary.
+    #[allow(clippy::boxed_local)]
     pub fn register_file(&self, name: String, _content: Box<[u8]>) -> Result<()> {
         trace!(%name, "registering local file with runtime");
         Err(RayexecError::new("register file not implemented").into())

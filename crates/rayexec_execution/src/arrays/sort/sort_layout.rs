@@ -233,6 +233,13 @@ impl SortLayout {
     ///
     /// The row pointer must be a pointer to a row with the correct width
     /// according to this layout.
+    ///
+    /// # Clippy lint
+    ///
+    /// Clippy thinks we're producing a mut ref from `&self`, but we're not.
+    /// We're producing a mut ref from the pointer, and `&self` is just letting
+    /// us know how long the slice is.
+    #[allow(clippy::mut_from_ref)]
     unsafe fn column_buffer_mut(&self, row_ptr: *mut u8, col: usize) -> &mut [u8] {
         let buf = std::slice::from_raw_parts_mut(row_ptr, self.row_width);
         let size = self.column_widths[col];
@@ -277,57 +284,43 @@ unsafe fn write_key_array(
     row_pointers: &[*mut u8],
     num_rows: usize,
 ) -> Result<()> {
+    debug_assert_eq!(num_rows, row_pointers.len());
+
     match phys_type {
         PhysicalType::UntypedNull => {
-            write_scalar::<PhysicalUntypedNull>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalUntypedNull>(layout, array_idx, array, row_pointers)
         }
         PhysicalType::Boolean => {
-            write_scalar::<PhysicalBool>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalBool>(layout, array_idx, array, row_pointers)
         }
-        PhysicalType::Int8 => {
-            write_scalar::<PhysicalI8>(layout, array_idx, array, row_pointers, num_rows)
-        }
-        PhysicalType::Int16 => {
-            write_scalar::<PhysicalI16>(layout, array_idx, array, row_pointers, num_rows)
-        }
-        PhysicalType::Int32 => {
-            write_scalar::<PhysicalI32>(layout, array_idx, array, row_pointers, num_rows)
-        }
-        PhysicalType::Int64 => {
-            write_scalar::<PhysicalI64>(layout, array_idx, array, row_pointers, num_rows)
-        }
+        PhysicalType::Int8 => write_scalar::<PhysicalI8>(layout, array_idx, array, row_pointers),
+        PhysicalType::Int16 => write_scalar::<PhysicalI16>(layout, array_idx, array, row_pointers),
+        PhysicalType::Int32 => write_scalar::<PhysicalI32>(layout, array_idx, array, row_pointers),
+        PhysicalType::Int64 => write_scalar::<PhysicalI64>(layout, array_idx, array, row_pointers),
         PhysicalType::Int128 => {
-            write_scalar::<PhysicalI128>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalI128>(layout, array_idx, array, row_pointers)
         }
-        PhysicalType::UInt8 => {
-            write_scalar::<PhysicalU8>(layout, array_idx, array, row_pointers, num_rows)
-        }
-        PhysicalType::UInt16 => {
-            write_scalar::<PhysicalU16>(layout, array_idx, array, row_pointers, num_rows)
-        }
-        PhysicalType::UInt32 => {
-            write_scalar::<PhysicalU32>(layout, array_idx, array, row_pointers, num_rows)
-        }
-        PhysicalType::UInt64 => {
-            write_scalar::<PhysicalU64>(layout, array_idx, array, row_pointers, num_rows)
-        }
+        PhysicalType::UInt8 => write_scalar::<PhysicalU8>(layout, array_idx, array, row_pointers),
+        PhysicalType::UInt16 => write_scalar::<PhysicalU16>(layout, array_idx, array, row_pointers),
+        PhysicalType::UInt32 => write_scalar::<PhysicalU32>(layout, array_idx, array, row_pointers),
+        PhysicalType::UInt64 => write_scalar::<PhysicalU64>(layout, array_idx, array, row_pointers),
         PhysicalType::UInt128 => {
-            write_scalar::<PhysicalU128>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalU128>(layout, array_idx, array, row_pointers)
         }
         PhysicalType::Float16 => {
-            write_scalar::<PhysicalF16>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalF16>(layout, array_idx, array, row_pointers)
         }
         PhysicalType::Float32 => {
-            write_scalar::<PhysicalF32>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalF32>(layout, array_idx, array, row_pointers)
         }
         PhysicalType::Float64 => {
-            write_scalar::<PhysicalF64>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalF64>(layout, array_idx, array, row_pointers)
         }
         PhysicalType::Interval => {
-            write_scalar::<PhysicalInterval>(layout, array_idx, array, row_pointers, num_rows)
+            write_scalar::<PhysicalInterval>(layout, array_idx, array, row_pointers)
         }
         PhysicalType::Utf8 | PhysicalType::Binary => {
-            write_binary_prefix(layout, array_idx, array, row_pointers, num_rows)
+            write_binary_prefix(layout, array_idx, array, row_pointers)
         }
         other => unimplemented!("other: {other}"),
     }
@@ -338,14 +331,11 @@ unsafe fn write_scalar<S>(
     array_idx: usize,
     array: FlattenedArray,
     row_pointers: &[*mut u8],
-    num_rows: usize,
 ) -> Result<()>
 where
     S: ScalarStorage,
     S::StorageType: ComparableEncode + Default + Copy + Sized,
 {
-    debug_assert_eq!(num_rows, row_pointers.len());
-
     let col = &layout.columns[array_idx];
     let valid_b = col.valid_byte();
     let invalid_b = col.invalid_byte();
@@ -355,8 +345,8 @@ where
     let data = S::get_addressable(array.array_buffer)?;
     let validity = array.validity;
 
-    for row_idx in 0..num_rows {
-        let col_buf = layout.column_buffer_mut(row_pointers[row_idx], array_idx);
+    for (row_idx, &row_ptr) in row_pointers.iter().enumerate() {
+        let col_buf = layout.column_buffer_mut(row_ptr, array_idx);
 
         if validity.is_valid(row_idx) {
             let sel_idx = array.selection.get(row_idx).unwrap();
@@ -380,10 +370,7 @@ unsafe fn write_binary_prefix(
     array_idx: usize,
     array: FlattenedArray,
     row_pointers: &[*mut u8],
-    num_rows: usize,
 ) -> Result<()> {
-    debug_assert_eq!(num_rows, row_pointers.len());
-
     let col = &layout.columns[array_idx];
     let valid_b = col.valid_byte();
     let invalid_b = col.invalid_byte();
@@ -391,8 +378,8 @@ unsafe fn write_binary_prefix(
     let data = PhysicalBinary::get_addressable(array.array_buffer)?;
     let validity = array.validity;
 
-    for row_idx in 0..num_rows {
-        let col_buf = layout.column_buffer_mut(row_pointers[row_idx], array_idx);
+    for (row_idx, &row_ptr) in row_pointers.iter().enumerate() {
+        let col_buf = layout.column_buffer_mut(row_ptr, array_idx);
 
         if validity.is_valid(row_idx) {
             let sel_idx = array.selection.get(row_idx).unwrap();
@@ -523,7 +510,7 @@ impl StringPrefix {
         let mut prefix = [0; 12];
         let count = usize::min(buf.len(), 12);
 
-        (&mut prefix[0..count]).copy_from_slice(&buf[0..count]);
+        prefix[0..count].copy_from_slice(&buf[0..count]);
 
         StringPrefix { prefix }
     }

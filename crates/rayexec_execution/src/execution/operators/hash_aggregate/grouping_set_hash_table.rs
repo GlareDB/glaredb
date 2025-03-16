@@ -58,7 +58,7 @@ pub struct HashTableBuildingOperatorState {
     /// Remaining inputs we're waiting on to finish.
     remaining: usize,
     /// The global hash table.
-    hash_table: AggregateHashTable,
+    hash_table: Box<AggregateHashTable>,
 }
 
 #[derive(Debug)]
@@ -124,7 +124,7 @@ impl GroupingSetHashTable {
         let op_state = GroupingSetOperatorState::Building(HashTableBuildingOperatorState {
             partitions,
             remaining: partitions,
-            hash_table: agg_hash_table,
+            hash_table: Box::new(agg_hash_table),
         });
 
         let build_states = (0..partitions)
@@ -245,7 +245,7 @@ impl GroupingSetHashTable {
                         _ => unreachable!(),
                     };
 
-                    let table = Arc::new(state.hash_table);
+                    let table = Arc::new(*state.hash_table);
 
                     let result_types = self
                         .layout

@@ -32,7 +32,7 @@ where
             name: SYSTEM_CATALOG.to_string(),
             mode: AccessMode::ReadOnly,
             catalog: Arc::new(new_system_catalog()?),
-            storage: Arc::new(StorageManager::new()),
+            storage: Arc::new(StorageManager::empty()),
             attach_info: None,
         });
 

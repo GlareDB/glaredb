@@ -16,7 +16,7 @@ pub struct StorageManager {
 }
 
 impl StorageManager {
-    pub fn new() -> Self {
+    pub fn empty() -> Self {
         StorageManager {
             next_id: AtomicUsize::new(0),
             tables: scc::HashMap::new(),

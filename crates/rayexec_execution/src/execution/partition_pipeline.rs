@@ -93,7 +93,7 @@ struct OperatorEffects<'a, 'b> {
     buffers: &'a mut [Batch],
 }
 
-impl<'a, 'b> Effects for OperatorEffects<'a, 'b> {
+impl Effects for OperatorEffects<'_, '_> {
     fn handle_execute(&mut self, op_idx: usize) -> Result<PollExecute> {
         if op_idx == 0 {
             // Pulling from pipeline source.

@@ -3,7 +3,18 @@ use rayexec_error::{RayexecError, Result};
 use super::read_buffer::ReadBuffer;
 
 /// All possible masks for an 8-byte wide value.
-pub const BITPACK_MASKS: [u64; 65] = compute_masks();
+///
+/// [0, 1, 3, 7, 15, ..., u64::MAX]
+pub const BITPACK_MASKS: [u64; 65] = {
+    let mut masks = [0; 65];
+    let mut i = 0;
+    while i < 64 {
+        masks[i] = (1 << i) - 1;
+        i += 1;
+    }
+    masks[64] = u64::MAX;
+    masks
+};
 
 pub const BYTE_WIDTH: u8 = 8;
 
@@ -25,10 +36,10 @@ impl BitUnpacker<'_> {
 
         let mask = BITPACK_MASKS[self.bit_width as usize];
 
-        for idx in 0..values.len() {
+        for value in values {
             // Read value across bytes.
             let mut v =
-                unsafe { self.buf.peek_next_unchecked::<u8>() } as u64 >> self.bit_pos & mask;
+                (unsafe { self.buf.peek_next_unchecked::<u8>() } as u64 >> self.bit_pos) & mask;
             self.bit_pos += self.bit_width;
 
             while self.bit_pos > BYTE_WIDTH {
@@ -44,7 +55,7 @@ impl BitUnpacker<'_> {
                 self.bit_pos -= BYTE_WIDTH;
             }
 
-            values[idx] = T::from_u64(v);
+            *value = T::from_u64(v);
         }
     }
 
@@ -110,21 +121,6 @@ impl BitPackEncodeable for bool {
     fn from_u64(v: u64) -> Self {
         v != 0
     }
-}
-
-/// Compute masks for all bit widths that can fit inside 8 bytes.
-///
-/// [0, 1, 3, 7, 15, ...]
-const fn compute_masks() -> [u64; 65] {
-    let mut masks = [0; 65];
-
-    seq_macro::seq!(s in 0..64 {
-        let mask = (1 << s) - 1;
-        masks[s] = mask;
-    });
-    masks[64] = u64::MAX;
-
-    masks
 }
 
 #[cfg(test)]

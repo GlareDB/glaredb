@@ -12,6 +12,7 @@ use crate::arrays::executor::{OutBuffer, PutBuffer};
 pub struct TernaryExecutor;
 
 impl TernaryExecutor {
+    #[allow(clippy::too_many_arguments)]
     pub fn execute<S1, S2, S3, O, Op>(
         array1: &Array,
         sel1: impl IntoExactSizeIterator<Item = usize>,
@@ -105,6 +106,7 @@ impl TernaryExecutor {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn execute_flat<'a, S1, S2, S3, O, Op>(
         array1: FlattenedArray<'a>,
         sel1: impl IntoExactSizeIterator<Item = usize>,

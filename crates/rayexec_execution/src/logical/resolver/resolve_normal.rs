@@ -123,7 +123,7 @@ impl<'a> NormalResolver<'a> {
         };
 
         if let Some(entry) = schema_ent.get_table_function(&name)? {
-            Ok(Some(entry.try_as_table_function_entry()?.function.clone()))
+            Ok(Some(entry.try_as_table_function_entry()?.function))
         } else {
             Ok(None)
         }
@@ -232,13 +232,13 @@ impl<'a> NormalResolver<'a> {
         // Nothing to load from. Return None instead of an error to the
         // remote side in hybrid execution to potentially load from
         // external source.
-        return Ok(MaybeResolvedTable::UnresolvedWithCatalog(
+        Ok(MaybeResolvedTable::UnresolvedWithCatalog(
             UnresolvedTableReference {
                 catalog: catalog.to_string(),
                 reference: reference.clone(),
                 attach_info: database.attach_info.clone(),
             },
-        ));
+        ))
     }
 
     fn resolve_from_memory_catalog(

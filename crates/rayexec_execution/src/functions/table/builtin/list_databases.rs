@@ -122,7 +122,7 @@ impl TableScanFunction for ListDatabases {
                 1 => {
                     let mut access_modes = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
-                        access_modes.put(idx, &state.databases[idx + state.offset].mode.as_str());
+                        access_modes.put(idx, state.databases[idx + state.offset].mode.as_str());
                     }
                     Ok(())
                 }

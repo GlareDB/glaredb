@@ -42,7 +42,7 @@ pub struct AggregateLayout {
 
 impl AggregateLayout {
     /// Create a new layout representing a row of group values and aggregates.
-    pub fn new<'a>(
+    pub fn new(
         group_types: impl IntoIterator<Item = DataType>,
         aggregates: impl IntoIterator<Item = PhysicalAggregateExpression>,
     ) -> Self {
@@ -244,7 +244,7 @@ impl AggregateLayout {
 /// Compute the new len to ensure alignment to some value.
 const fn align_len(curr_len: usize, alignment: usize) -> usize {
     assert!(alignment != 0, "alignment cannot be zero");
-    ((curr_len + (alignment - 1)) / alignment) * alignment
+    curr_len.div_ceil(alignment) * alignment
 }
 
 #[cfg(test)]

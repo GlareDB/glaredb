@@ -29,7 +29,7 @@ pub const FUNCTION_SET_ABS: ScalarFunctionSet = ScalarFunctionSet {
     }),
     functions: &[
         RawScalarFunction::new(
-            &&Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
+            &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
             &UnaryInputNumericScalar::<PhysicalF16, AbsOp>::new(&DataType::Float16),
         ),
         RawScalarFunction::new(

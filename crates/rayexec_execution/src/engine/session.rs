@@ -194,7 +194,7 @@ where
                 "Missing named prepared statement: '{prepared_name}'"
             ))
         })?;
-        let verifier = stmt.verifier.clone();
+        let verifier = stmt.verifier;
 
         let mut profile = PlanningProfileData::default();
 

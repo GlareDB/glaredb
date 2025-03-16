@@ -152,7 +152,7 @@ impl HashTableScanState {
 
             let match_count = table.row_matcher.find_matches(
                 table.data.layout(),
-                &lhs_rows,
+                lhs_rows,
                 &table.build_comparison_columns,
                 comparison_cols,
                 &mut self.selection,

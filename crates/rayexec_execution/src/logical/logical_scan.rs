@@ -99,7 +99,7 @@ impl Explainable for LogicalScan {
                 )
             }
             ScanSource::Function(func) => {
-                ent = ent.with_value("function", format!("{}", func.function.name))
+                ent = ent.with_value("function", func.function.name.to_string())
             }
         }
 

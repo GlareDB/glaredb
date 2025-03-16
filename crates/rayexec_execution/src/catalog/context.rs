@@ -28,7 +28,7 @@ impl DatabaseContext {
             name: TEMP_CATALOG.to_string(),
             mode: AccessMode::ReadWrite,
             catalog: Arc::new(MemoryCatalog::empty()),
-            storage: Arc::new(StorageManager::new()),
+            storage: Arc::new(StorageManager::empty()),
             attach_info: None,
         });
 
@@ -52,7 +52,7 @@ impl DatabaseContext {
             .ok_or_else(|| RayexecError::new(format!("Missing catalog '{name}'")))
     }
 
-    pub fn iter_databases<'a>(&'a self) -> impl Iterator<Item = &'a Arc<Database>> + 'a {
+    pub fn iter_databases(&self) -> impl Iterator<Item = &Arc<Database>> + '_ {
         self.databases.values()
     }
 }

@@ -109,22 +109,17 @@ impl WasmTaskState {
         let mut cx = Context::from_waker(&waker);
 
         let mut pipeline = self.pipeline.lock();
-        loop {
-            match pipeline.poll_execute::<PerformanceInstant>(&mut cx) {
-                Poll::Ready(Ok(())) => {
-                    // Pushing through the pipeline was successful.
-                    return;
-                }
-                Poll::Ready(Err(e)) => {
-                    self.errors.set_error(e);
-                    return;
-                }
-                Poll::Pending => {
-                    // Exit the loop. Waker was already stored in the pending
-                    // sink/source, we'll be woken back up when there's more
-                    // this operator chain can start executing.
-                    return;
-                }
+        match pipeline.poll_execute::<PerformanceInstant>(&mut cx) {
+            Poll::Ready(Ok(())) => {
+                // Pushing through the pipeline was successful.
+            }
+            Poll::Ready(Err(e)) => {
+                self.errors.set_error(e);
+            }
+            Poll::Pending => {
+                // Exit the loop. Waker was already stored in the pending
+                // sink/source, we'll be woken back up when there's more
+                // this operator chain can start executing.
             }
         }
     }
@@ -180,11 +175,8 @@ impl FileOpener for WasmFileProvider {
     type AccessConfig = StubAccess;
     type ReadFile = MemoryFileSource;
 
-    fn list_prefix(
-        &self,
-        _prefix: &str,
-    ) -> impl std::future::Future<Output = Result<Vec<String>>> + Send {
-        async { Ok(Vec::new()) }
+    async fn list_prefix(&self, _prefix: &str) -> Result<Vec<String>> {
+        Ok(Vec::new())
     }
 
     fn open_for_read(&self, _conf: &Self::AccessConfig) -> Result<Self::ReadFile> {

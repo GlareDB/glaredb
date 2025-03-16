@@ -605,7 +605,7 @@ impl<'a> ExpressionResolver<'a> {
         let is_qualified = func.reference.0.len() > 1;
         if self.resolver.config.enable_function_chaining
             && is_qualified
-            && (!context.get_database(&catalog).is_some()
+            && (context.get_database(&catalog).is_none()
                 || context
                     .require_get_database(&catalog)?
                     .catalog
@@ -678,7 +678,7 @@ impl<'a> ExpressionResolver<'a> {
             // TODO: This also assumes scalars (and aggs) are the same everywhere, which
             // they probably should be for now.
             let resolve_idx = resolve_context.functions.push_resolved(
-                ResolvedFunction::Scalar(scalar.try_as_scalar_function_entry()?.function.clone()),
+                ResolvedFunction::Scalar(scalar.try_as_scalar_function_entry()?.function),
                 LocationRequirement::Any,
             );
             return Ok(ast::Expr::Function(Box::new(ast::Function {
@@ -694,12 +694,7 @@ impl<'a> ExpressionResolver<'a> {
         if let Some(aggregate) = schema_ent.get_aggregate_function(&func_name)? {
             // TODO: Allow unresolved aggregates?
             let resolve_idx = resolve_context.functions.push_resolved(
-                ResolvedFunction::Aggregate(
-                    aggregate
-                        .try_as_aggregate_function_entry()?
-                        .function
-                        .clone(),
-                ),
+                ResolvedFunction::Aggregate(aggregate.try_as_aggregate_function_entry()?.function),
                 LocationRequirement::Any,
             );
             return Ok(ast::Expr::Function(Box::new(ast::Function {

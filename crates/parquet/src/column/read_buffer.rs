@@ -175,7 +175,7 @@ impl ReadBuffer {
     ///
     /// Panics if the output slice is larger than the remaining buffer.
     pub unsafe fn read_copy<T>(&mut self, out: &mut [T]) {
-        let byte_count = out.len() * std::mem::size_of::<T>();
+        let byte_count = std::mem::size_of_val(out);
         assert!(byte_count <= self.remaining);
 
         let dest_ptr = out.as_mut_ptr().cast::<u8>();

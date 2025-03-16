@@ -76,7 +76,7 @@ impl RowBlocks<ValidityInitializer> {
         row_capacity: usize,
     ) -> Self {
         let row_width = row_layout.row_width;
-        let initializer = ValidityInitializer::from_row_layout(&row_layout);
+        let initializer = ValidityInitializer::from_row_layout(row_layout);
         Self::new(manager, initializer, row_width, row_capacity, None)
     }
 }
@@ -317,7 +317,7 @@ pub struct RowMutPtrIter<'a, I: FixedSizedBlockInitializer> {
     row_idx: usize,
 }
 
-impl<'a, I> Iterator for RowMutPtrIter<'a, I>
+impl<I> Iterator for RowMutPtrIter<'_, I>
 where
     I: FixedSizedBlockInitializer,
 {
@@ -325,10 +325,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let block = match self.blocks.row_blocks.get(self.block_idx) {
-                Some(block) => block,
-                None => return None,
-            };
+            let block = self.blocks.row_blocks.get(self.block_idx)?;
 
             if self.row_idx >= block.num_rows(self.blocks.row_width) {
                 self.block_idx += 1;

@@ -41,10 +41,13 @@ pub struct ListSchemasOperatorState {
     databases: Vec<Arc<Database>>,
 }
 
+// TODO: Make simpler.
+type SchemaStream = Pin<Box<dyn Stream<Item = Result<Vec<Arc<MemorySchema>>>> + Sync + Send>>;
+
 pub struct ListSchemasPartitionState {
     db_offset: usize,
     databases: Vec<Arc<Database>>,
-    curr_stream: Option<Pin<Box<dyn Stream<Item = Result<Vec<Arc<MemorySchema>>>> + Sync + Send>>>,
+    curr_stream: Option<SchemaStream>,
     schemas_offset: usize,
     schemas: Vec<Arc<MemorySchema>>,
 }

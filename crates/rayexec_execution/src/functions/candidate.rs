@@ -86,10 +86,8 @@ impl CandidateSignature {
             if have.len() < want.len() {
                 return false;
             }
-        } else {
-            if have.len() != want.len() {
-                return false;
-            }
+        } else if have.len() != want.len() {
+            return false;
         }
 
         buf.clear();

@@ -56,7 +56,7 @@ pub trait AsyncReadStream: Debug + Sync + Send {
     ///
     /// `Poll::Ready(None)` indicates the stream is complete. No data is written
     /// to the buffer.
-    fn poll_read(self: &mut Self, cx: &mut Context, buf: &mut [u8]) -> Result<Poll<Option<usize>>>;
+    fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Result<Poll<Option<usize>>>;
 }
 
 pub trait AsyncWriteSink: Send {
@@ -65,8 +65,8 @@ pub trait AsyncWriteSink: Send {
     /// Returns the number of bytes from `buf` that were written. If this is
     /// less than the length of `buf`, then `buf` should be sliced to the
     /// remaining bytes and provided on the next poll.
-    fn poll_write(self: &mut Self, cx: &mut Context, buf: &[u8]) -> Result<Poll<usize>>;
+    fn poll_write(&mut self, cx: &mut Context, buf: &[u8]) -> Result<Poll<usize>>;
 
     /// Flushes data to the sink, ensuring it's been written.
-    fn poll_flush(self: &mut Self, cx: &mut Context) -> Result<Poll<()>>;
+    fn poll_flush(&mut self, cx: &mut Context) -> Result<Poll<()>>;
 }

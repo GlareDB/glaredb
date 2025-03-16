@@ -59,7 +59,7 @@ pub type Decimal128Formatter = DecimalFormatter<i128>;
 
 impl<T: DecimalPrimitive> DecimalFormatter<T> {
     pub fn new(precision: u8, scale: i8) -> Self {
-        let mask = T::pow(T::from(10).unwrap(), scale.abs() as _);
+        let mask = T::pow(T::from(10).unwrap(), scale.unsigned_abs() as _);
 
         DecimalFormatter {
             precision,

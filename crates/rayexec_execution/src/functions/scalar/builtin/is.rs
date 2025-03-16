@@ -183,7 +183,7 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunction for IsBool<NOT, BOOL> {
 
         let out = PhysicalBool::get_addressable_mut(&mut output.data)?;
         let flat = input.flatten()?;
-        let input = PhysicalBool::get_addressable(&flat.array_buffer)?;
+        let input = PhysicalBool::get_addressable(flat.array_buffer)?;
 
         for (output_idx, idx) in sel.into_iter().enumerate() {
             let is_valid = flat.validity.is_valid(idx);
