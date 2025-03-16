@@ -854,7 +854,6 @@ where
         }
     };
 
-
     Ok((*func, inputs))
 }
 
