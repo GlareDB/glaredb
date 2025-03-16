@@ -11,8 +11,7 @@
 set -e
 
 # Core crates.
-cargo +nightly miri test -p rayexec_execution
-cargo +nightly miri test -p stdutil
+cargo +nightly miri test -p glaredb_execution
 
 # Data source crates.
-cargo +nightly miri test -p rayexec_csv
+cargo +nightly miri test -p ext_csv

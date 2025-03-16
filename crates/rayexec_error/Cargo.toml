@@ -1,6 +1,0 @@
-[package]
-name = "rayexec_error"
-version = { workspace = true }
-edition = { workspace = true }
-
-[dependencies]

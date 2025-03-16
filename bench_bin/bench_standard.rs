@@ -1,8 +1,8 @@
-use rayexec_bench::DefaultEngineBuilder;
-use rayexec_error::Result;
+use glaredb_bench::DefaultEngineBuilder;
+use glaredb_error::Result;
 
 pub fn main() -> Result<()> {
     let builder = DefaultEngineBuilder::try_new()?;
-    rayexec_bench::run(builder, "./bench/standard")?;
+    glaredb_bench::run(builder, "./bench/standard")?;
     Ok(())
 }

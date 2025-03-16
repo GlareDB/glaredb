@@ -1,0 +1,36 @@
+[package]
+name = "glaredb_wasm"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+web-sys = { version = "0.3.69", features = [
+  "console",
+  "KeyboardEvent",
+  "Window",
+  "Performance",
+  "PerformanceTiming"
+] }
+
+glaredb_execution = { path = '../glaredb_execution' }
+glaredb_error = { path = '../glaredb_error' }
+ext_csv = { path = '../ext_csv' }
+ext_delta = { path = '../ext_delta' }
+ext_iceberg = { path = '../ext_iceberg' }
+rayexec_io = { path = '../rayexec_io' }
+futures = { workspace = true }
+parking_lot = { workspace = true }
+js-sys = "0.3.69"
+tracing = { workspace = true }
+tracing-subscriber = {version = "0.3", default-features = false, features = ["std", "fmt", "env-filter"] }
+wasm-bindgen = "=0.2.92"
+wasm-bindgen-futures = "0.4.42"
+getrandom = { version = "0.2", features = ["js"] }
+tokio = { workspace = true, default-features = false, features = [ "rt" ] } # TODO: Remove tokio from runtime interface
+console_error_panic_hook = "0.1.7"
+url = { workspace = true }
+bytes = { version = "1.10", default-features = false, features = ["std"] }
+reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls", "stream"] }

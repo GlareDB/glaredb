@@ -1,0 +1,12 @@
+[package]
+name = "glaredb_proto"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+glaredb_error = { path = "../glaredb_error" }
+prost = "0.13"
+uuid = { workspace = true }
+
+[build-dependencies]
+prost-build = "0.13"

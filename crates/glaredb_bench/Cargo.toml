@@ -1,0 +1,12 @@
+[package]
+name = "glaredb_bench"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+glaredb_error = { path = '../glaredb_error' }
+glaredb_execution = { path = '../glaredb_execution' }
+glaredb_rt_native = { path = '../glaredb_rt_native' }
+logutil = { path = '../logutil' }
+futures = { workspace = true }
+clap = { version = "4.5.9", features = ["derive", "env"] }

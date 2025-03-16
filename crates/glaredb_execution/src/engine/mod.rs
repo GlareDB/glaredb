@@ -1,0 +1,69 @@
+pub mod profiler;
+pub mod query_result;
+pub mod session;
+pub mod single_user;
+
+use std::sync::Arc;
+
+use glaredb_error::Result;
+use session::Session;
+
+use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
+use crate::catalog::database::{AccessMode, Database};
+use crate::catalog::system::new_system_catalog;
+use crate::extension::Extension;
+use crate::runtime::{PipelineExecutor, Runtime};
+use crate::storage::storage_manager::StorageManager;
+
+#[derive(Debug)]
+pub struct Engine<P: PipelineExecutor, R: Runtime> {
+    system_catalog: Arc<Database>,
+    executor: P,
+    runtime: R,
+}
+
+impl<P, R> Engine<P, R>
+where
+    P: PipelineExecutor,
+    R: Runtime,
+{
+    pub fn new(executor: P, runtime: R) -> Result<Self> {
+        let system_catalog = Arc::new(Database {
+            name: SYSTEM_CATALOG.to_string(),
+            mode: AccessMode::ReadOnly,
+            catalog: Arc::new(new_system_catalog()?),
+            storage: Arc::new(StorageManager::empty()),
+            attach_info: None,
+        });
+
+        Ok(Engine {
+            system_catalog,
+            executor,
+            runtime,
+        })
+    }
+
+    /// Creates a new database context that contains only the system catalog and
+    /// a temporary catalog.
+    ///
+    /// This should be the base of all session catalogs.
+    pub fn new_base_database_context(&self) -> Result<DatabaseContext> {
+        DatabaseContext::new(self.system_catalog.clone())
+    }
+
+    pub fn new_session(&self) -> Result<Session<P, R>> {
+        let context = self.new_base_database_context()?;
+        Ok(Session::new(
+            context,
+            self.executor.clone(),
+            self.runtime.clone(),
+        ))
+    }
+
+    pub fn register_extension<E>(&self, _ext: E) -> Result<()>
+    where
+        E: Extension,
+    {
+        unimplemented!()
+    }
+}

@@ -1,10 +1,10 @@
+use glaredb_error::RayexecError;
+use glaredb_execution::arrays::batch::Batch;
+use glaredb_execution::arrays::field::ColumnSchema;
+use glaredb_execution::arrays::format::pretty::table::PrettyTable;
+use glaredb_execution::engine::single_user::SingleUserEngine;
+use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use pyo3::{pyclass, pyfunction, pymethods, Python};
-use rayexec_error::RayexecError;
-use rayexec_execution::arrays::batch::Batch;
-use rayexec_execution::arrays::field::ColumnSchema;
-use rayexec_execution::arrays::format::pretty::table::PrettyTable;
-use rayexec_execution::engine::single_user::SingleUserEngine;
-use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 
 use crate::errors::Result;
 use crate::event_loop::run_until_complete;

@@ -6,9 +6,9 @@ mod session;
 use std::io;
 
 use file::DocFile;
-use rayexec_error::Result;
-use rayexec_execution::engine::single_user::SingleUserEngine;
-use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use glaredb_error::Result;
+use glaredb_execution::engine::single_user::SingleUserEngine;
+use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use section::{AggregateFunctionWriter, ScalarFunctionWriter, TableFunctionWriter};
 use session::DocsSession;
 use tracing::info;

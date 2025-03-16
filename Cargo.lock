@@ -206,13 +206,13 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 name = "bench_bin"
 version = "0.0.95"
 dependencies = [
- "rayexec_bench",
- "rayexec_csv",
- "rayexec_delta",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_iceberg",
- "rayexec_rt_native",
+ "ext_csv",
+ "ext_delta",
+ "ext_iceberg",
+ "glaredb_bench",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_rt_native",
 ]
 
 [[package]]
@@ -625,13 +625,13 @@ dependencies = [
 name = "docgen"
 version = "0.0.95"
 dependencies = [
+ "ext_csv",
+ "ext_delta",
+ "ext_iceberg",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_rt_native",
  "logutil",
- "rayexec_csv",
- "rayexec_delta",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_iceberg",
- "rayexec_rt_native",
  "regex",
  "tokio",
  "tracing",
@@ -730,6 +730,95 @@ dependencies = [
 ]
 
 [[package]]
+name = "ext_csv"
+version = "0.0.95"
+dependencies = [
+ "bytes",
+ "csv",
+ "csv-core",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_proto",
+ "regex",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "ext_delta"
+version = "0.0.95"
+dependencies = [
+ "bytes",
+ "ext_parquet",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_proto",
+ "rayexec_io",
+ "regex",
+ "serde",
+ "serde_json",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "ext_iceberg"
+version = "0.0.95"
+dependencies = [
+ "apache-avro",
+ "bytes",
+ "ext_parquet",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_proto",
+ "rayexec_io",
+ "regex",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "ext_parquet"
+version = "0.0.95"
+dependencies = [
+ "ahash",
+ "base64",
+ "brotli",
+ "bytes",
+ "chrono",
+ "clap",
+ "criterion",
+ "flate2",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "half",
+ "hashbrown 0.14.5",
+ "lz4_flex",
+ "num",
+ "num-bigint",
+ "paste",
+ "rand",
+ "rayexec_io",
+ "seq-macro",
+ "serde",
+ "serde_json",
+ "snap",
+ "tempfile",
+ "thrift",
+ "tokio",
+ "twox-hash",
+ "zstd",
+ "zstd-sys",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -750,10 +839,6 @@ dependencies = [
  "crc32fast",
  "miniz_oxide",
 ]
-
-[[package]]
-name = "fmtutil"
-version = "0.0.95"
 
 [[package]]
 name = "fnv"
@@ -908,6 +993,154 @@ name = "gimli"
 version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4271d37baee1b8c7e4b708028c57d816cf9d2434acb33a549475f78c181f6253"
+
+[[package]]
+name = "glaredb"
+version = "0.0.95"
+dependencies = [
+ "clap",
+ "crossterm",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_rt_native",
+ "logutil",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "glaredb_bench"
+version = "0.0.95"
+dependencies = [
+ "clap",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_rt_native",
+ "logutil",
+]
+
+[[package]]
+name = "glaredb_error"
+version = "0.0.95"
+
+[[package]]
+name = "glaredb_execution"
+version = "0.0.95"
+dependencies = [
+ "ahash",
+ "chrono",
+ "futures",
+ "glaredb_error",
+ "glaredb_parser",
+ "glaredb_proto",
+ "half",
+ "hashbrown 0.14.5",
+ "indexmap",
+ "num-traits",
+ "num_cpus",
+ "parking_lot",
+ "rand",
+ "rayexec_io",
+ "rayon",
+ "regex",
+ "scc",
+ "serde",
+ "serde_json",
+ "similar-asserts",
+ "strsim",
+ "textwrap",
+ "tokio",
+ "tracing",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "glaredb_parser"
+version = "0.0.95"
+dependencies = [
+ "glaredb_error",
+ "glaredb_proto",
+ "pretty_assertions",
+ "serde",
+ "tracing",
+ "unicase",
+]
+
+[[package]]
+name = "glaredb_proto"
+version = "0.0.95"
+dependencies = [
+ "glaredb_error",
+ "prost",
+ "prost-build",
+ "uuid",
+]
+
+[[package]]
+name = "glaredb_rt_native"
+version = "0.0.95"
+dependencies = [
+ "bytes",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "num_cpus",
+ "parking_lot",
+ "rayexec_io",
+ "rayon",
+ "reqwest",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "glaredb_slt"
+version = "0.0.95"
+dependencies = [
+ "async-trait",
+ "crossterm",
+ "env_logger",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_rt_native",
+ "libtest-mimic",
+ "rand",
+ "sqllogictest",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "glaredb_wasm"
+version = "0.0.95"
+dependencies = [
+ "bytes",
+ "console_error_panic_hook",
+ "ext_csv",
+ "ext_delta",
+ "ext_iceberg",
+ "futures",
+ "getrandom 0.2.14",
+ "glaredb_error",
+ "glaredb_execution",
+ "js-sys",
+ "parking_lot",
+ "rayexec_io",
+ "reqwest",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
 
 [[package]]
 name = "glob"
@@ -1636,41 +1869,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "parquet"
-version = "0.0.95"
-dependencies = [
- "ahash",
- "base64",
- "brotli",
- "bytes",
- "chrono",
- "clap",
- "criterion",
- "flate2",
- "futures",
- "half",
- "hashbrown 0.14.5",
- "lz4_flex",
- "num",
- "num-bigint",
- "paste",
- "rand",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_io",
- "seq-macro",
- "serde",
- "serde_json",
- "snap",
- "tempfile",
- "thrift",
- "tokio",
- "twox-hash",
- "zstd",
- "zstd-sys",
-]
-
-[[package]]
 name = "paste"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1942,136 +2140,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "rayexec_bench"
-version = "0.0.95"
-dependencies = [
- "clap",
- "futures",
- "logutil",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_rt_native",
-]
-
-[[package]]
-name = "rayexec_bin"
-version = "0.0.95"
-dependencies = [
- "clap",
- "crossterm",
- "futures",
- "logutil",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_rt_native",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "rayexec_csv"
-version = "0.0.95"
-dependencies = [
- "bytes",
- "csv",
- "csv-core",
- "futures",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_proto",
- "regex",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "rayexec_delta"
-version = "0.0.95"
-dependencies = [
- "bytes",
- "futures",
- "parquet",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_io",
- "rayexec_proto",
- "regex",
- "serde",
- "serde_json",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "rayexec_error"
-version = "0.0.95"
-
-[[package]]
-name = "rayexec_execution"
-version = "0.0.95"
-dependencies = [
- "ahash",
- "chrono",
- "fmtutil",
- "futures",
- "half",
- "hashbrown 0.14.5",
- "indexmap",
- "num-traits",
- "num_cpus",
- "parking_lot",
- "rand",
- "rayexec_error",
- "rayexec_io",
- "rayexec_parser",
- "rayexec_proto",
- "rayon",
- "regex",
- "scc",
- "serde",
- "serde_json",
- "similar-asserts",
- "strsim",
- "textwrap",
- "tokio",
- "tracing",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "rayexec_iceberg"
-version = "0.0.95"
-dependencies = [
- "apache-avro",
- "bytes",
- "futures",
- "parquet",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_io",
- "rayexec_proto",
- "regex",
- "serde",
- "serde_bytes",
- "serde_json",
- "tracing",
- "url",
-]
-
-[[package]]
 name = "rayexec_io"
 version = "0.0.95"
 dependencies = [
  "bytes",
  "chrono",
  "futures",
+ "glaredb_error",
+ "glaredb_proto",
  "hmac",
  "parking_lot",
  "percent-encoding",
  "quick-xml",
- "rayexec_error",
- "rayexec_proto",
  "reqwest",
  "serde",
  "serde_json",
@@ -2081,105 +2161,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "rayexec_parser"
-version = "0.0.95"
-dependencies = [
- "pretty_assertions",
- "rayexec_error",
- "rayexec_proto",
- "serde",
- "tracing",
- "unicase",
-]
-
-[[package]]
-name = "rayexec_proto"
-version = "0.0.95"
-dependencies = [
- "prost",
- "prost-build",
- "rayexec_error",
- "uuid",
-]
-
-[[package]]
 name = "rayexec_python"
 version = "0.0.95"
 dependencies = [
+ "ext_csv",
+ "ext_delta",
  "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_rt_native",
  "parking_lot",
  "pyo3",
- "rayexec_csv",
- "rayexec_delta",
- "rayexec_error",
- "rayexec_execution",
  "rayexec_io",
- "rayexec_rt_native",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "rayexec_rt_native"
-version = "0.0.95"
-dependencies = [
- "bytes",
- "futures",
- "num_cpus",
- "parking_lot",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_io",
- "rayon",
- "reqwest",
- "tokio",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "rayexec_slt"
-version = "0.0.95"
-dependencies = [
- "async-trait",
- "crossterm",
- "env_logger",
- "futures",
- "libtest-mimic",
- "rand",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_rt_native",
- "sqllogictest",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "rayexec_wasm"
-version = "0.0.95"
-dependencies = [
- "bytes",
- "console_error_panic_hook",
- "futures",
- "getrandom 0.2.14",
- "js-sys",
- "parking_lot",
- "rayexec_csv",
- "rayexec_delta",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_iceberg",
- "rayexec_io",
- "reqwest",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]
@@ -2737,10 +2732,10 @@ dependencies = [
 name = "test_bin"
 version = "0.0.95"
 dependencies = [
- "rayexec_error",
- "rayexec_execution",
- "rayexec_rt_native",
- "rayexec_slt",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_rt_native",
+ "glaredb_slt",
  "tokio",
 ]
 

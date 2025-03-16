@@ -1,0 +1,14 @@
+[package]
+name = "glaredb_parser"
+version = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+glaredb_error = { path = '../glaredb_error' }
+glaredb_proto = { path = '../glaredb_proto' }
+unicase = "2.8.1"
+tracing = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = "1.4.0"

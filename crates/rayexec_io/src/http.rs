@@ -3,7 +3,7 @@ use std::task::{Context, Poll};
 
 use bytes::Bytes;
 use futures::{Future, FutureExt, Stream, StreamExt};
-use rayexec_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{RayexecError, Result, ResultExt};
 pub use reqwest;
 use reqwest::header::{HeaderMap, RANGE};
 use reqwest::{Method, Request, StatusCode};

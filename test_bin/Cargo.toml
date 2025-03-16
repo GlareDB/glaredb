@@ -6,10 +6,10 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rayexec_error = { path = '../crates/rayexec_error' }
-rayexec_execution = { path = '../crates/rayexec_execution' }
-rayexec_rt_native = { path = '../crates/rayexec_rt_native' }
-rayexec_slt = { path = '../crates/rayexec_slt' }
+glaredb_error = { path = '../crates/glaredb_error' }
+glaredb_execution = { path = '../crates/glaredb_execution' }
+glaredb_rt_native = { path = '../crates/glaredb_rt_native' }
+glaredb_slt = { path = '../crates/glaredb_slt' }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
 
 [[test]]

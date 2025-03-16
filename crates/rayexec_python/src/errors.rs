@@ -1,9 +1,9 @@
 use std::error::Error;
 use std::fmt;
 
+use glaredb_error::RayexecError;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyErr;
-use rayexec_error::RayexecError;
 
 pub type Result<T, E = PythonError> = std::result::Result<T, E>;
 

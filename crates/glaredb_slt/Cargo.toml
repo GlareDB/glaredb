@@ -1,0 +1,21 @@
+[package]
+name = "glaredb_slt"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+glaredb_error = { path = '../glaredb_error' }
+glaredb_execution = { path = '../glaredb_execution' }
+glaredb_rt_native = { path = '../glaredb_rt_native' }
+libtest-mimic = "0.7.3"
+sqllogictest = "0.20.4"
+env_logger = "0.11.6"
+futures = { workspace = true, features = ["executor"] }
+async-trait = "0.1.86"
+tokio = { version = "1", features = ["full"] }
+tracing = { workspace = true }
+tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
+rand = { workspace = true }
+crossterm = "0.27.0"

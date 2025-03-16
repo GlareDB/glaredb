@@ -1,10 +1,10 @@
 use std::path::Path;
 use std::time::Duration;
 
-use rayexec_error::Result;
-use rayexec_execution::engine::single_user::SingleUserEngine;
-use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-use rayexec_slt::{ReplacementVars, RunConfig};
+use glaredb_error::Result;
+use glaredb_execution::engine::single_user::SingleUserEngine;
+use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use glaredb_slt::{ReplacementVars, RunConfig};
 
 pub fn main() -> Result<()> {
     run_multi_threaded()?;
@@ -16,8 +16,8 @@ pub fn main() -> Result<()> {
 fn run_with_executor(executor: ThreadedNativeExecutor, tag: &str) -> Result<()> {
     let rt = NativeRuntime::with_default_tokio()?;
 
-    let paths = rayexec_slt::find_files(Path::new("../slt/standard")).unwrap();
-    rayexec_slt::run(
+    let paths = glaredb_slt::find_files(Path::new("../slt/standard")).unwrap();
+    glaredb_slt::run(
         paths,
         move || {
             let executor = executor.clone();

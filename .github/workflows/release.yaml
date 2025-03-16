@@ -23,7 +23,7 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build wasm
-        run: wasm-pack build crates/rayexec_wasm/ --scope glaredb
+        run: wasm-pack build crates/glaredb_wasm/ --scope glaredb
 
       - name: Setup node
         uses: actions/setup-node@v4
@@ -34,7 +34,7 @@ jobs:
       - name: Publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: wasm-pack publish crates/rayexec_wasm/
+        run: wasm-pack publish crates/glaredb_wasm/
     
   python-macos-arm:
     name: Build Python (macOS ARM)
@@ -135,44 +135,4 @@ jobs:
           working-directory: wheels
           command: upload
           args: ./*.whl
-
-  docker:
-    name: Build, push, and deploy docker images
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
-
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Configure gcloud docker
-        run: gcloud auth configure-docker -q
-
-      - name: Build and push server docker image
-        run: |
-          docker build . -f Dockerfile.server -t gcr.io/glaredb-artifacts/rayexec-dev
-          docker push gcr.io/glaredb-artifacts/rayexec-dev
-
-      - name: Build and push lakefront docker image
-        run: |
-          docker build . -f Dockerfile.lakefront -t gcr.io/glaredb-artifacts/lakefront
-          docker push gcr.io/glaredb-artifacts/lakefront
-
-      # TODO: Remove deploy stuff, move to mono
-
-      - name: GKE Credentials
-        uses: 'google-github-actions/get-gke-credentials@v2'
-        with:
-          cluster_name: 'glaredb-gke-public'
-          location: 'us-central1'
-
-      - name: Rollout
-        run: kubectl rollout restart deployment/rayexec-dev-deployment
 

@@ -5,12 +5,12 @@ edition.workspace = true
 
 [dependencies]
 logutil = { path = '../logutil' }
-rayexec_error = { path = '../rayexec_error' }
-rayexec_execution = { path = '../rayexec_execution' }
-rayexec_rt_native = { path = '../rayexec_rt_native' }
-rayexec_csv = { path = '../rayexec_csv' }
-rayexec_delta = { path = '../rayexec_delta' }
-rayexec_iceberg = { path = '../rayexec_iceberg' }
+glaredb_error = { path = '../glaredb_error' }
+glaredb_execution = { path = '../glaredb_execution' }
+glaredb_rt_native = { path = '../glaredb_rt_native' }
+ext_csv = { path = '../ext_csv' }
+ext_delta = { path = '../ext_delta' }
+ext_iceberg = { path = '../ext_iceberg' }
 regex = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }

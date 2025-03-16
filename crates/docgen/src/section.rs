@@ -1,6 +1,6 @@
 use std::fmt::{self, Debug};
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::markdown_table::write_markdown_table;
 use crate::session::DocsSession;
