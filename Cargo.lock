@@ -213,9 +213,7 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_iceberg",
- "rayexec_parquet",
  "rayexec_rt_native",
- "rayexec_shell",
 ]
 
 [[package]]
@@ -649,9 +647,7 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_iceberg",
- "rayexec_parquet",
  "rayexec_rt_native",
- "rayexec_shell",
  "regex",
  "tokio",
  "tracing",
@@ -1999,7 +1995,6 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_rt_native",
- "rayexec_shell",
 ]
 
 [[package]]
@@ -2064,7 +2059,6 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
- "rayexec_parquet",
  "rayexec_proto",
  "regex",
  "serde",
@@ -2132,7 +2126,6 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
- "rayexec_parquet",
  "rayexec_proto",
  "regex",
  "serde",
@@ -2160,24 +2153,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "stdutil",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "rayexec_parquet"
-version = "0.0.95"
-dependencies = [
- "bytes",
- "erased-serde",
- "futures",
- "parquet",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_io",
- "rayexec_proto",
- "regex",
- "serde",
  "tracing",
  "url",
 ]
@@ -2216,9 +2191,7 @@ dependencies = [
  "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
- "rayexec_parquet",
  "rayexec_rt_native",
- "rayexec_shell",
  "tokio",
  "tracing",
 ]
@@ -2236,20 +2209,6 @@ dependencies = [
  "rayexec_io",
  "rayon",
  "reqwest",
- "tokio",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "rayexec_shell"
-version = "0.0.95"
-dependencies = [
- "futures",
- "parking_lot",
- "rayexec_error",
- "rayexec_execution",
- "rayexec_parser",
  "tokio",
  "tracing",
  "url",
@@ -2290,8 +2249,6 @@ dependencies = [
  "rayexec_execution",
  "rayexec_iceberg",
  "rayexec_io",
- "rayexec_parquet",
- "rayexec_shell",
  "reqwest",
  "tokio",
  "tracing",
