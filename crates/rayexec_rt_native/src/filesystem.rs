@@ -3,7 +3,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::task::{Context, Poll};
 
-use rayexec_error::{Result, ResultExt};
+use glaredb_error::{Result, ResultExt};
 use rayexec_execution::io::file::{AsyncReadStream, FileSource};
 
 #[derive(Debug)]

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 #[derive(Debug, Clone, Copy)]
 pub enum OptionValue<'a> {

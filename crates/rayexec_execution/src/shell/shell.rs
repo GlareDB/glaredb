@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::io::{self, Write};
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 use tracing::trace;
 
 use super::lineedit::{KeyEvent, LineEditor, Signal, TermSize};

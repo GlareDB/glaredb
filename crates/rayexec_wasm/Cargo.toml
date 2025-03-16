@@ -16,7 +16,7 @@ web-sys = { version = "0.3.69", features = [
 ] }
 
 rayexec_execution = { path = '../rayexec_execution' }
-rayexec_error = { path = '../rayexec_error' }
+glaredb_error = { path = '../glaredb_error' }
 rayexec_csv = { path = '../rayexec_csv' }
 rayexec_delta = { path = '../rayexec_delta' }
 rayexec_iceberg = { path = '../rayexec_iceberg' }

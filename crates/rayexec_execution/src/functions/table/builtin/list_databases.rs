@@ -2,7 +2,7 @@ use std::future::Future;
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
 use crate::arrays::batch::Batch;

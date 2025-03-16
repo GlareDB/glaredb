@@ -6,7 +6,7 @@ use bytes::Bytes;
 use futures::future::FutureExt;
 use futures::stream::StreamExt;
 use futures::Stream;
-use rayexec_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{RayexecError, Result, ResultExt};
 use rayexec_io::http::{HttpClient, HttpResponse};
 use reqwest::header::HeaderMap;
 use reqwest::{Request, StatusCode};

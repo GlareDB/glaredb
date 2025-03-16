@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::arrays::array::physical_type::{PhysicalBinary, PhysicalI64, PhysicalUtf8};
 use crate::arrays::array::Array;

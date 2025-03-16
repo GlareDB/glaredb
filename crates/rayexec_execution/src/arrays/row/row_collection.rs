@@ -1,6 +1,6 @@
 use std::borrow::{Borrow, BorrowMut};
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::block::ValidityInitializer;
 use super::block_scan::BlockScanState;

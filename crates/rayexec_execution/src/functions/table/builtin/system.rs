@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};

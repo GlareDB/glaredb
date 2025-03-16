@@ -6,7 +6,7 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rayexec_error = { path = '../crates/rayexec_error' }
+glaredb_error = { path = '../crates/glaredb_error' }
 rayexec_execution = { path = '../crates/rayexec_execution' }
 rayexec_rt_native = { path = '../crates/rayexec_rt_native' }
 rayexec_bench = { path = '../crates/rayexec_bench' }

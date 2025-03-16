@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::bind_query::BoundQuery;
 use super::table_list::{Table, TableAlias, TableList, TableRef};

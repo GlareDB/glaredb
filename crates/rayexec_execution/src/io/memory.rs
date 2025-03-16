@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::file::{AsyncReadStream, FileSource};
 use crate::buffer::buffer_manager::AsRawBufferManager;

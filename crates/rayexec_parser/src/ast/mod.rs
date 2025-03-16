@@ -39,7 +39,7 @@ use std::fmt;
 use std::hash::Hash;
 
 pub use attach::*;
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 pub use window::*;
 

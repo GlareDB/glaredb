@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::join_hash_table::JoinHashTable;
 use crate::arrays::array::Array;

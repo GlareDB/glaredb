@@ -4,9 +4,9 @@ mod task;
 use std::fmt;
 use std::sync::Arc;
 
+use glaredb_error::{RayexecError, Result};
 use handle::ThreadedQueryHandle;
 use parking_lot::Mutex;
-use rayexec_error::{RayexecError, Result};
 use rayexec_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use rayexec_execution::runtime::ErrorSink;
 use rayon::{ThreadPool, ThreadPoolBuilder};

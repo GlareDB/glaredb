@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use crate::execution::operators::{PollExecute, PollFinalize};
 

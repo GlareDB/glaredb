@@ -1,4 +1,4 @@
-use rayexec_error::{not_implemented, Result};
+use glaredb_error::{not_implemented, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::ast;
 

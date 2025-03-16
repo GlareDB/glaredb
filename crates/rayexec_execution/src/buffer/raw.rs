@@ -1,7 +1,7 @@
 use std::alloc::{self, Layout};
 use std::ptr::NonNull;
 
-use rayexec_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{RayexecError, Result, ResultExt};
 
 use super::buffer_manager::{AsRawBufferManager, RawBufferManager, Reservation};
 

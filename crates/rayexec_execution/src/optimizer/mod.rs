@@ -15,7 +15,7 @@ use expr_rewrite::ExpressionRewriter;
 use filter_pushdown::FilterPushdown;
 use join_reorder::JoinReorder;
 use limit_pushdown::LimitPushdown;
-use rayexec_error::Result;
+use glaredb_error::Result;
 use tracing::debug;
 
 use crate::logical::binder::bind_context::BindContext;

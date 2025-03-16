@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rayexec_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, FunctionArg, ReplaceColumn};
 use rayexec_parser::meta::Raw;
 

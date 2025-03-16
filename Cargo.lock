@@ -206,10 +206,10 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 name = "bench_bin"
 version = "0.0.95"
 dependencies = [
+ "glaredb_error",
  "rayexec_bench",
  "rayexec_csv",
  "rayexec_delta",
- "rayexec_error",
  "rayexec_execution",
  "rayexec_iceberg",
  "rayexec_rt_native",
@@ -625,10 +625,10 @@ dependencies = [
 name = "docgen"
 version = "0.0.95"
 dependencies = [
+ "glaredb_error",
  "logutil",
  "rayexec_csv",
  "rayexec_delta",
- "rayexec_error",
  "rayexec_execution",
  "rayexec_iceberg",
  "rayexec_rt_native",
@@ -916,13 +916,17 @@ dependencies = [
  "clap",
  "crossterm",
  "futures",
+ "glaredb_error",
  "logutil",
- "rayexec_error",
  "rayexec_execution",
  "rayexec_rt_native",
  "tracing",
  "tracing-subscriber",
 ]
+
+[[package]]
+name = "glaredb_error"
+version = "0.0.95"
 
 [[package]]
 name = "glob"
@@ -1663,6 +1667,7 @@ dependencies = [
  "criterion",
  "flate2",
  "futures",
+ "glaredb_error",
  "half",
  "hashbrown 0.14.5",
  "lz4_flex",
@@ -1670,7 +1675,6 @@ dependencies = [
  "num-bigint",
  "paste",
  "rand",
- "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
  "seq-macro",
@@ -1962,8 +1966,8 @@ version = "0.0.95"
 dependencies = [
  "clap",
  "futures",
+ "glaredb_error",
  "logutil",
- "rayexec_error",
  "rayexec_execution",
  "rayexec_rt_native",
 ]
@@ -1976,7 +1980,7 @@ dependencies = [
  "csv",
  "csv-core",
  "futures",
- "rayexec_error",
+ "glaredb_error",
  "rayexec_execution",
  "rayexec_proto",
  "regex",
@@ -1990,8 +1994,8 @@ version = "0.0.95"
 dependencies = [
  "bytes",
  "futures",
+ "glaredb_error",
  "parquet",
- "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
  "rayexec_proto",
@@ -2003,10 +2007,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rayexec_error"
-version = "0.0.95"
-
-[[package]]
 name = "rayexec_execution"
 version = "0.0.95"
 dependencies = [
@@ -2014,6 +2014,7 @@ dependencies = [
  "chrono",
  "fmtutil",
  "futures",
+ "glaredb_error",
  "half",
  "hashbrown 0.14.5",
  "indexmap",
@@ -2021,7 +2022,6 @@ dependencies = [
  "num_cpus",
  "parking_lot",
  "rand",
- "rayexec_error",
  "rayexec_io",
  "rayexec_parser",
  "rayexec_proto",
@@ -2046,8 +2046,8 @@ dependencies = [
  "apache-avro",
  "bytes",
  "futures",
+ "glaredb_error",
  "parquet",
- "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
  "rayexec_proto",
@@ -2066,11 +2066,11 @@ dependencies = [
  "bytes",
  "chrono",
  "futures",
+ "glaredb_error",
  "hmac",
  "parking_lot",
  "percent-encoding",
  "quick-xml",
- "rayexec_error",
  "rayexec_proto",
  "reqwest",
  "serde",
@@ -2084,8 +2084,8 @@ dependencies = [
 name = "rayexec_parser"
 version = "0.0.95"
 dependencies = [
+ "glaredb_error",
  "pretty_assertions",
- "rayexec_error",
  "rayexec_proto",
  "serde",
  "tracing",
@@ -2096,9 +2096,9 @@ dependencies = [
 name = "rayexec_proto"
 version = "0.0.95"
 dependencies = [
+ "glaredb_error",
  "prost",
  "prost-build",
- "rayexec_error",
  "uuid",
 ]
 
@@ -2107,11 +2107,11 @@ name = "rayexec_python"
 version = "0.0.95"
 dependencies = [
  "futures",
+ "glaredb_error",
  "parking_lot",
  "pyo3",
  "rayexec_csv",
  "rayexec_delta",
- "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
  "rayexec_rt_native",
@@ -2125,9 +2125,9 @@ version = "0.0.95"
 dependencies = [
  "bytes",
  "futures",
+ "glaredb_error",
  "num_cpus",
  "parking_lot",
- "rayexec_error",
  "rayexec_execution",
  "rayexec_io",
  "rayon",
@@ -2145,9 +2145,9 @@ dependencies = [
  "crossterm",
  "env_logger",
  "futures",
+ "glaredb_error",
  "libtest-mimic",
  "rand",
- "rayexec_error",
  "rayexec_execution",
  "rayexec_rt_native",
  "sqllogictest",
@@ -2164,11 +2164,11 @@ dependencies = [
  "console_error_panic_hook",
  "futures",
  "getrandom 0.2.14",
+ "glaredb_error",
  "js-sys",
  "parking_lot",
  "rayexec_csv",
  "rayexec_delta",
- "rayexec_error",
  "rayexec_execution",
  "rayexec_iceberg",
  "rayexec_io",
@@ -2737,7 +2737,7 @@ dependencies = [
 name = "test_bin"
 version = "0.0.95"
 dependencies = [
- "rayexec_error",
+ "glaredb_error",
  "rayexec_execution",
  "rayexec_rt_native",
  "rayexec_slt",

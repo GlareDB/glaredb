@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use glaredb_error::{RayexecError, Result};
 use num_traits::{NumCast, PrimInt};
-use rayexec_error::{RayexecError, Result};
 
 use super::decimal_sigs::D_SIGS;
 use crate::arrays::array::physical_type::{

@@ -5,7 +5,7 @@
 //! messages encoded into the buffer.
 
 use prost::Message;
-use rayexec_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{RayexecError, Result, ResultExt};
 
 #[derive(Debug)]
 pub struct PackedEncoder<'a> {

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rayexec_error::{Result, ResultExt};
+use glaredb_error::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
 
 use super::schema::StructType;

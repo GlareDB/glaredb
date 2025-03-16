@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::fmt::Debug;
 
-use rayexec_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{not_implemented, RayexecError, Result};
 
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;

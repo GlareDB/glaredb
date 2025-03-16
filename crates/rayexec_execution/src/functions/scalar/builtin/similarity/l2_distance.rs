@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 use std::ops::AddAssign;
 
+use glaredb_error::Result;
 use num_traits::{AsPrimitive, Float};
-use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,

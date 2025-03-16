@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::buffer_manager::AsRawBufferManager;
 use super::raw::RawBuffer;

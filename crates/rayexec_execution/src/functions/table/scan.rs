@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::future::Future;
 use std::task::Context;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::{TableFunctionBindState, TableFunctionInput};
 use crate::arrays::batch::Batch;

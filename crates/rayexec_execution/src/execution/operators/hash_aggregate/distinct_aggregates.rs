@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::grouping_set_hash_table::{
     GroupingSetBuildPartitionState,

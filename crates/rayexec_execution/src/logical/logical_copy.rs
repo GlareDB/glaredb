@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 use rayexec_io::location::FileLocation;
 
 use super::binder::bind_context::BindContext;

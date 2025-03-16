@@ -1,6 +1,6 @@
 use std::sync::atomic::{self, AtomicBool, AtomicPtr};
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::hash_table_scan::HashTableScanState;
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};

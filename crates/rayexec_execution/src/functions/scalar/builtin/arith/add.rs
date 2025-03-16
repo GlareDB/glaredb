@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::decimal_arith::common_add_sub_decimal_type_info;
 use super::decimal_sigs::D_SIGS;

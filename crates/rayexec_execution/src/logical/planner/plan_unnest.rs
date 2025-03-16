@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::arrays::datatype::DataType;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};

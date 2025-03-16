@@ -2,7 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::io::file::AsyncReadStream;
 

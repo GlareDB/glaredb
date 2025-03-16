@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Wake, Waker};
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::database_context::test_db_context;
 use crate::arrays::batch::Batch;

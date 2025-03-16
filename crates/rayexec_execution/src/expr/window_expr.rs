@@ -1,7 +1,7 @@
 use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::Expression;
 use crate::arrays::datatype::DataType;

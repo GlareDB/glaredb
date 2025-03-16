@@ -15,6 +15,7 @@ use array_buffer::{
     SharedOrOwned,
 };
 use flat::FlattenedArray;
+use glaredb_error::{not_implemented, RayexecError, Result};
 use half::f16;
 use physical_type::{
     Addressable,
@@ -40,7 +41,6 @@ use physical_type::{
     PhysicalUtf8,
     ScalarStorage,
 };
-use rayexec_error::{not_implemented, RayexecError, Result};
 use validity::Validity;
 
 use super::cache::MaybeCache;

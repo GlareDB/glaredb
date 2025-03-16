@@ -1,4 +1,4 @@
-use rayexec_error::{OptionExt, Result};
+use glaredb_error::{OptionExt, Result};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 

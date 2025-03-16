@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::ops::AddAssign;
 
 use num_traits::AsPrimitive;
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::arrays::array::physical_type::{
     AddressableMut,

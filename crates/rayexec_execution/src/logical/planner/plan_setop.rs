@@ -1,4 +1,4 @@
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use crate::expr::cast_expr::CastExpr;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};

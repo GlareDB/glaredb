@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::arrays::array::validity::Validity;
 use crate::arrays::batch::Batch;

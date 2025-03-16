@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use rayexec_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{RayexecError, Result, ResultExt};
 use rayexec_parser::ast;
 use regex::Regex;
 

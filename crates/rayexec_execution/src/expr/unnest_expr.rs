@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::Expression;
 use crate::arrays::datatype::DataType;

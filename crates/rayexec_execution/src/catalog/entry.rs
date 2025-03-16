@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use crate::arrays::field::Field;
 use crate::functions::function_set::{AggregateFunctionSet, ScalarFunctionSet, TableFunctionSet};

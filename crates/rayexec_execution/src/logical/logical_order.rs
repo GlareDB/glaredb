@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::binder::bind_context::BindContext;
 use super::binder::bind_query::bind_modifier::BoundOrderByExpr;

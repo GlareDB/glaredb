@@ -15,7 +15,7 @@ use futures::future::BoxFuture;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use location::{AccessConfig, FileLocation};
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 /// Provide file sources and sinks.
 ///

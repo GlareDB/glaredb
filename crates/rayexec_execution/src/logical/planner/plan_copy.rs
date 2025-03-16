@@ -1,4 +1,4 @@
-use rayexec_error::{not_implemented, Result};
+use glaredb_error::{not_implemented, Result};
 
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_copy::{BoundCopyTo, BoundCopyToSource};

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 use rayexec_parser::ast::{self};
 
 use super::bind_group_by::BoundGroupBy;

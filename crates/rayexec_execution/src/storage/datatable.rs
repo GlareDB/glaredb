@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::projections::Projections;
 use crate::arrays::batch::Batch;

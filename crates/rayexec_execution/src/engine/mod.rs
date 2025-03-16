@@ -5,7 +5,7 @@ pub mod single_user;
 
 use std::sync::Arc;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 use session::Session;
 
 use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};

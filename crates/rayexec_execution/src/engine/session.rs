@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
+use glaredb_error::{not_implemented, RayexecError, Result};
 use hashbrown::HashMap;
-use rayexec_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::parser;
 use rayexec_parser::statement::RawStatement;
 use uuid::Uuid;

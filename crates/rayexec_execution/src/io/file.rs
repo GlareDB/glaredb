@@ -8,7 +8,7 @@ use std::fmt::Debug;
 use std::future::Future;
 use std::task::{Context, Poll};
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::access::AccessConfig;
 

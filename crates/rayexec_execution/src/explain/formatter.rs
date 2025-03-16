@@ -1,4 +1,4 @@
-use rayexec_error::{Result, ResultExt};
+use glaredb_error::{Result, ResultExt};
 
 use crate::explain::node::ExplainNode;
 use crate::logical::logical_explain::ExplainFormat;

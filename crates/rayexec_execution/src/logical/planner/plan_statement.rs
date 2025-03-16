@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::plan_copy::CopyPlanner;
 use super::plan_create_table::CreateTablePlanner;

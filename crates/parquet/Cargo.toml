@@ -24,7 +24,7 @@ readme = "README.md"
 edition = { workspace = true }
 
 [dependencies]
-rayexec_error = { path = "../rayexec_error" }
+glaredb_error = { path = "../glaredb_error" }
 rayexec_io = { path = "../rayexec_io" }
 rayexec_execution = { path = "../rayexec_execution" }
 

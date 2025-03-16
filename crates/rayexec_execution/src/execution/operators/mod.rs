@@ -24,7 +24,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::task::Context;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::pipeline::{ExecutablePipeline, ExecutablePipelineGraph};
 use crate::arrays::batch::Batch;

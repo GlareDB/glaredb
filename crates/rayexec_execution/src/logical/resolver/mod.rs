@@ -9,7 +9,7 @@ pub mod resolved_table_function;
 use std::collections::HashMap;
 
 use expr_resolver::ExpressionResolver;
-use rayexec_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{not_implemented, RayexecError, Result};
 use rayexec_io::location::FileLocation;
 use rayexec_parser::ast::{self, ColumnDef, ObjectReference};
 use rayexec_parser::meta::{AstMeta, Raw};

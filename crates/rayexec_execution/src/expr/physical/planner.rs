@@ -1,5 +1,5 @@
 use fmtutil::IntoDisplayableSlice;
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::case_expr::PhysicalCaseExpr;
 use super::cast_expr::PhysicalCastExpr;

@@ -20,7 +20,7 @@ use create::{
 use drop::DropInfo;
 use entry::{CatalogEntry, CatalogEntryType};
 use futures::Stream;
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use crate::execution::operators::PlannedOperator;
 use crate::storage::storage_manager::{StorageManager, StorageTableId};

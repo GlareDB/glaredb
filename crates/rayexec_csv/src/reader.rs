@@ -19,7 +19,7 @@
 //! inferred types from the previous step. If it differs, assume a header.
 use std::task::{Context, Poll};
 
-use rayexec_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,

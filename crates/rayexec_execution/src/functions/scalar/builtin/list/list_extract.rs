@@ -1,4 +1,4 @@
-use rayexec_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::array::physical_type::{
     Addressable,

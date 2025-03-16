@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};

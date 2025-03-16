@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use rayexec_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{not_implemented, RayexecError, Result};
 use rayexec_execution::arrays::datatype::{
     DataType,
     DecimalTypeMeta,

@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
 use crate::arrays::array::Array;

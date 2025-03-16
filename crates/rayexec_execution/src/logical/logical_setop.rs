@@ -1,6 +1,6 @@
 use std::fmt;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;

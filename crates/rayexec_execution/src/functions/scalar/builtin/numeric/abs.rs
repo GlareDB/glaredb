@@ -1,5 +1,5 @@
+use glaredb_error::Result;
 use num_traits::Float;
-use rayexec_error::Result;
 
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
 use crate::arrays::array::physical_type::{

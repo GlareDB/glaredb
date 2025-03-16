@@ -1,10 +1,10 @@
 use std::future::Future;
 use std::sync::{Arc, OnceLock};
 
+use glaredb_error::RayexecError;
 use parking_lot::Mutex;
 use pyo3::types::PyAnyMethods;
 use pyo3::{pyclass, pymethods, Py, PyAny, Python};
-use rayexec_error::RayexecError;
 
 use crate::errors::Result;
 

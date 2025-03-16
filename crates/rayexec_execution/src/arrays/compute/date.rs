@@ -1,5 +1,5 @@
 use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc};
-use rayexec_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::array::physical_type::{PhysicalI32, PhysicalI64};
 use crate::arrays::array::Array;

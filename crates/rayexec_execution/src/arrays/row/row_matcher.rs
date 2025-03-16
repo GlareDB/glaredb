@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::row_layout::RowLayout;
 use crate::arrays::array::flat::FlattenedArray;

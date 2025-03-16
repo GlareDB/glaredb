@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use futures::lock::Mutex;
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 use rayexec_parser::parser;
 use rayexec_parser::statement::RawStatement;
 

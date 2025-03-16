@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalI64};
 use crate::arrays::array::Array;

@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::datatable::DataTable;
 

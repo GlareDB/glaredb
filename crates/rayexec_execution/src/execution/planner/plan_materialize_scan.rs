@@ -1,4 +1,4 @@
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::OperatorPlanState;
 use crate::execution::operators::PlannedOperatorWithChildren;

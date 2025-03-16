@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rayexec_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{RayexecError, Result, ResultExt};
 use rayexec_execution::buffer::typed::ByteBuffer;
 
 use super::encoding::rle_bp::RleBpDecoder;

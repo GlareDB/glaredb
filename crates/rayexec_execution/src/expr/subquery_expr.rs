@@ -1,7 +1,7 @@
 use std::fmt;
 use std::hash::Hash;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::comparison_expr::ComparisonOperator;
 use super::Expression;

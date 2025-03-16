@@ -1,6 +1,6 @@
 use std::task::Context;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::array::selection::Selection;

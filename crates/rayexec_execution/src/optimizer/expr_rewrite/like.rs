@@ -1,4 +1,4 @@
-use rayexec_error::{OptionExt, Result};
+use glaredb_error::{OptionExt, Result};
 
 use super::ExpressionRewriteRule;
 use crate::arrays::datatype::DataType;

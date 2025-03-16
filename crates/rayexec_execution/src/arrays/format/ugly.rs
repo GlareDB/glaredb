@@ -1,6 +1,6 @@
 use std::fmt::Write as _;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::arrays::batch::Batch;
 use crate::arrays::field::ColumnSchema;

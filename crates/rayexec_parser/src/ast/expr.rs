@@ -1,7 +1,7 @@
 use std::ops::Neg;
 use std::str::FromStr;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{

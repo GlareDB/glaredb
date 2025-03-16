@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};
 
+use glaredb_error::RayexecError;
 use parking_lot::Mutex;
-use rayexec_error::RayexecError;
 use rayexec_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use rayexec_execution::runtime::ErrorSink;
 use rayon::ThreadPool;

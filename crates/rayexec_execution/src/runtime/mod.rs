@@ -4,8 +4,8 @@ pub mod time;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use glaredb_error::{RayexecError, Result};
 use handle::QueryHandle;
-use rayexec_error::{RayexecError, Result};
 use rayexec_io::http::HttpClient;
 use time::RuntimeInstant;
 

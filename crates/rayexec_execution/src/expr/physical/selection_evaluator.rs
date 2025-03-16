@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::evaluator::ExpressionEvaluator;
 use super::PhysicalScalarExpression;

@@ -7,9 +7,9 @@ use std::fmt;
 use std::hash::Hash;
 
 use decimal::{Decimal128Scalar, Decimal64Scalar};
+use glaredb_error::{OptionExt, RayexecError, Result};
 use half::f16;
 use interval::Interval;
-use rayexec_error::{OptionExt, RayexecError, Result};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;

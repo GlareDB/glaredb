@@ -1,7 +1,7 @@
 use std::ops::Mul;
 
+use glaredb_error::{RayexecError, Result};
 use num_traits::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
-use rayexec_error::{RayexecError, Result};
 
 use super::behavior::CastFailBehavior;
 use super::format::{

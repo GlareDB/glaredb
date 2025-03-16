@@ -8,7 +8,7 @@ use futures::future::BoxFuture;
 use futures::stream::{self, BoxStream};
 use futures::{Stream, StreamExt, TryStreamExt};
 use list::{S3ListContents, S3ListResponse};
-use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use glaredb_error::{not_implemented, RayexecError, Result, ResultExt};
 use reqwest::header::{CONTENT_LENGTH, RANGE};
 use reqwest::{Method, Request, StatusCode};
 use serde::{Deserialize, Serialize};

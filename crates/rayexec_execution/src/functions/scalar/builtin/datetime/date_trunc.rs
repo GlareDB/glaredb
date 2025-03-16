@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use rayexec_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::array::physical_type::PhysicalI64;
 use crate::arrays::array::Array;

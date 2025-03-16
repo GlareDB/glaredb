@@ -13,7 +13,7 @@ pub mod select_list;
 use bind_select::{BoundSelect, SelectBinder};
 use bind_setop::{BoundSetOp, SetOpBinder};
 use bind_values::{BoundValues, ValuesBinder};
-use rayexec_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};

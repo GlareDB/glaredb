@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::covar::{CovarPopFinalize, CovarState};
 use super::stddev::{VariancePopFinalize, VarianceState};

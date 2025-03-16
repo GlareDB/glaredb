@@ -1,6 +1,6 @@
 use std::task::{Context, Poll};
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::execution_stack::{Effects, ExecutionStack};
 use super::operators::{

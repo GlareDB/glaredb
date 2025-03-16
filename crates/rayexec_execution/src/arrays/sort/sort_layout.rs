@@ -1,8 +1,8 @@
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 
+use glaredb_error::Result;
 use half::f16;
-use rayexec_error::Result;
 
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{

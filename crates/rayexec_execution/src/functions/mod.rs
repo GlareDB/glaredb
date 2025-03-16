@@ -27,7 +27,7 @@ use std::fmt::Display;
 use candidate::CandidateSignature;
 use documentation::Documentation;
 use fmtutil::IntoDisplayableSlice;
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use crate::arrays::datatype::{DataType, DataTypeId};
 

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo};
 use super::drop::DropInfo;

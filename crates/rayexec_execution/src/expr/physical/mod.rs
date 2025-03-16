@@ -15,7 +15,7 @@ use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use evaluator::ExpressionState;
 use literal_expr::PhysicalLiteralExpr;
-use rayexec_error::Result;
+use glaredb_error::Result;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
 use crate::arrays::datatype::DataType;

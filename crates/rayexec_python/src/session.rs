@@ -1,5 +1,5 @@
+use glaredb_error::RayexecError;
 use pyo3::{pyclass, pyfunction, pymethods, Python};
-use rayexec_error::RayexecError;
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::field::ColumnSchema;
 use rayexec_execution::arrays::format::pretty::table::PrettyTable;

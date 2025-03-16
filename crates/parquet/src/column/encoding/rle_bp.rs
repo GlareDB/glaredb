@@ -2,7 +2,7 @@
 //!
 //! See <https://parquet.apache.org/docs/file-format/data-pages/encodings/#run-length-encoding--bit-packing-hybrid-rle--3>
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::column::bitutil::{BitPackEncodeable, BitUnpacker};
 use crate::column::read_buffer::ReadBuffer;

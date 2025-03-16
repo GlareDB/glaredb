@@ -1,4 +1,4 @@
-use rayexec_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast::{self, QueryNode};
 
 use super::bind_context::{BindContext, BindScopeRef};

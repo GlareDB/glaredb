@@ -2,8 +2,8 @@ pub mod generated;
 pub mod packed;
 pub mod util_types;
 
+use glaredb_error::Result;
 pub use prost;
-use rayexec_error::Result;
 
 /// Convert type to/from their protobuf representations.
 ///
@@ -36,7 +36,7 @@ pub mod testutil {
 }
 
 pub mod foreign_impls {
-    use rayexec_error::{Result, ResultExt};
+    use glaredb_error::{Result, ResultExt};
     use uuid::Uuid;
 
     use crate::ProtoConv;

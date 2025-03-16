@@ -1,4 +1,4 @@
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use crate::arrays::array::array_buffer::ArrayBuffer;
 use crate::arrays::array::physical_type::{

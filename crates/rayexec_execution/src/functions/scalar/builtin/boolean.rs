@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalBool};

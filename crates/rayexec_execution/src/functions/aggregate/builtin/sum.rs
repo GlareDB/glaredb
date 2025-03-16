@@ -2,8 +2,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::AddAssign;
 
+use glaredb_error::Result;
 use num_traits::CheckedAdd;
-use rayexec_error::Result;
 
 use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64, PhysicalI64};
 use crate::arrays::datatype::{DataType, DataTypeId};

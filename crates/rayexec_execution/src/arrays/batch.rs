@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::array::selection::Selection;
 use super::cache::{BufferCache, NopCache};

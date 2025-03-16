@@ -1,4 +1,4 @@
-use rayexec_error::{Result, ResultExt};
+use glaredb_error::{Result, ResultExt};
 use regex::{escape, Regex};
 
 use crate::arrays::array::physical_type::{PhysicalBool, PhysicalUtf8};

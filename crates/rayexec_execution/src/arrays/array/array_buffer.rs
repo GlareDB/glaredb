@@ -2,7 +2,7 @@ use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::physical_type::{
     BinaryViewAddressable,

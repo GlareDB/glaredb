@@ -1,4 +1,4 @@
-use rayexec_error::{not_implemented, Result};
+use glaredb_error::{not_implemented, Result};
 
 use super::OperatorPlanState;
 use crate::execution::operators::empty::PhysicalEmpty;

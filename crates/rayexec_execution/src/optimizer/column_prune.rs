@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::OptimizeRule;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};

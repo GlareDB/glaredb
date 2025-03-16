@@ -14,7 +14,7 @@ use grouping_set_hash_table::{
     GroupingSetScanPartitionState,
 };
 use parking_lot::Mutex;
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;

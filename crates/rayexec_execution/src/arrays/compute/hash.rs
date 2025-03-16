@@ -1,8 +1,8 @@
 use std::borrow::Borrow;
 
 use ahash::RandomState;
+use glaredb_error::{not_implemented, RayexecError, Result};
 use half::f16;
-use rayexec_error::{not_implemented, RayexecError, Result};
 
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{

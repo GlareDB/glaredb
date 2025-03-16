@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use futures::future::BoxFuture;
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 /// A handle to a running or recently completed query.
 pub trait QueryHandle: Debug + Sync + Send {

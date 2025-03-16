@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_create_table::BoundCreateTable;

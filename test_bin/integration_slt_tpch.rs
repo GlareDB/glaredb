@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};

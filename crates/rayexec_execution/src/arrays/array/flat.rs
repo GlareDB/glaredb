@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::array_buffer::ArrayBuffer;
 use super::physical_type::PhysicalType;

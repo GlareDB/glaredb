@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 use rayexec_execution::arrays::array::physical_type::{AddressableMut, MutableScalarStorage};
 use rayexec_execution::arrays::array::Array;
 use rayexec_execution::util::marker::PhantomCovariant;

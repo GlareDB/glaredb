@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use rayexec_error::{not_implemented, Result, ResultExt};
+use glaredb_error::{not_implemented, Result, ResultExt};
 use rayexec_execution::arrays::scalar::ScalarValue;
 use rayexec_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use rayexec_execution::io::access::AccessConfig;

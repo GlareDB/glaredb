@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use rayexec_error::RayexecError;
+use glaredb_error::RayexecError;
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::field::ColumnSchema;
 use rayexec_execution::engine::single_user::SingleUserEngine;

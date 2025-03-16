@@ -3,7 +3,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use apache_avro::{from_value, Reader};
-use rayexec_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{RayexecError, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 
 use super::{PartitionField, Schema};

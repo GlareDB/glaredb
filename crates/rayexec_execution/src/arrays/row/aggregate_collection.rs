@@ -1,6 +1,6 @@
 use std::borrow::{Borrow, BorrowMut};
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::aggregate_layout::AggregateLayout;
 use super::block::ValidityInitializer;

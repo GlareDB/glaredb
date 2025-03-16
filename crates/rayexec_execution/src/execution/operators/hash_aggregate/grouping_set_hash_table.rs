@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::aggregate_hash_table::{AggregateHashTable, AggregateHashTableInsertState};
 use super::Aggregates;

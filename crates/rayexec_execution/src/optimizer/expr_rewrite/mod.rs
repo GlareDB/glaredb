@@ -6,9 +6,9 @@ pub mod unnest_conjunction;
 
 use const_fold::ConstFold;
 use distributive_or::DistributiveOrRewrite;
+use glaredb_error::Result;
 use join_filter_or::JoinFilterOrRewrite;
 use like::LikeRewrite;
-use rayexec_error::Result;
 use unnest_conjunction::UnnestConjunctionRewrite;
 
 use super::OptimizeRule;

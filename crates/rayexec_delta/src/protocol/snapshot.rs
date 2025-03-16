@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 use tracing::trace;
 
 use super::action::{Action, ActionAddFile, ActionChangeMetadata, ActionRemoveFile};

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures::{stream, Stream};
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 use scc::ebr::Guard;
 use scc::HashIndex;
 

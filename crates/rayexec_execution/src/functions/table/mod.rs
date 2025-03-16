@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::task::Context;
 
 use execute::TableExecuteFunction;
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 use scan::TableScanFunction;
 
 use super::Signature;

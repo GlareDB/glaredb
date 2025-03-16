@@ -1,7 +1,7 @@
 use std::task::Context;
 
 use join_hash_table::{BuildState, HashJoinCondition, JoinHashTable};
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::{
     BaseOperator,

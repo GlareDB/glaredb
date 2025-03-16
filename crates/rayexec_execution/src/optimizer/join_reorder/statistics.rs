@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_filter::LogicalFilter;

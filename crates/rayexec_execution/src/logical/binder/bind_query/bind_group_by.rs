@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use rayexec_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{not_implemented, RayexecError, Result};
 use rayexec_parser::ast;
 
 use super::select_list::SelectList;

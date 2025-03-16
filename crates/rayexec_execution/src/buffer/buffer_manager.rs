@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 pub trait BufferManager: Debug + Sync + Clone + Send + Sized {
     const VTABLE: &'static BufferManagerVTable = &BufferManagerVTable {

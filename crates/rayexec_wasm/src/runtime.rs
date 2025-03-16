@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};
 
 use futures::future::BoxFuture;
+use glaredb_error::{not_implemented, Result};
 use parking_lot::Mutex;
-use rayexec_error::{not_implemented, Result};
 use rayexec_execution::arrays::scalar::ScalarValue;
 use rayexec_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use rayexec_execution::io::access::AccessConfig;

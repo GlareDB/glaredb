@@ -1,7 +1,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use rayexec_error::{OptionExt, RayexecError, Result, ResultExt};
+use glaredb_error::{OptionExt, RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use url::Url;

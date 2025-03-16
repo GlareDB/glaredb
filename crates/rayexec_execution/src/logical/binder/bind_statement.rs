@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 use rayexec_parser::statement::Statement;
 
 use super::bind_attach::{AttachBinder, BoundAttach, BoundDetach};

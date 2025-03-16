@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use parking_lot::Mutex;
-use rayexec_error::{not_implemented, Result};
+use glaredb_error::{not_implemented, Result};
 use rayexec_execution::runtime::handle::{ExecutionProfileData, QueryHandle};
 
 use super::task::{PartitionPipelineTask, TaskState};

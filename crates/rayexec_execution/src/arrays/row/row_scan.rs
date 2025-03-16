@@ -1,7 +1,7 @@
 use std::borrow::BorrowMut;
 use std::collections::VecDeque;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::block::ValidityInitializer;
 use super::block_scan::BlockScanState;

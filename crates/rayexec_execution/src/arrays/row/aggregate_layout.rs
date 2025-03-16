@@ -1,6 +1,6 @@
 use std::borrow::BorrowMut;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::row_layout::RowLayout;
 use crate::arrays::array::Array;

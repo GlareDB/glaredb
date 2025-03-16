@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::datatype::DataType;
 use rayexec_execution::arrays::field::ColumnSchema;

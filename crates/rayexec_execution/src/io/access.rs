@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::arrays::scalar::ScalarValue;
 

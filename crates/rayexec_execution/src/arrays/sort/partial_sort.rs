@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::sort_layout::SortLayout;
 use super::sorted_block::SortedBlock;

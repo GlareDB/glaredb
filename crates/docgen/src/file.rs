@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::sync::LazyLock;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 use regex::Regex;
 use tracing::info;
 

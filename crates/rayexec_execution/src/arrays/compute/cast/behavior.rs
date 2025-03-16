@@ -1,4 +1,4 @@
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 /// Behavior when a cast fail due to under/overflow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

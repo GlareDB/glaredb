@@ -8,8 +8,8 @@ use bytes::Bytes;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::BoxStream;
 use futures::{Stream, StreamExt};
+use glaredb_error::{RayexecError, Result};
 use parking_lot::Mutex;
-use rayexec_error::{RayexecError, Result};
 
 use crate::exp::AsyncReadStream;
 use crate::{FileSink, FileSource};

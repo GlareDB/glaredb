@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::bind_state::{BindState, RawBindState};
 use super::Signature;

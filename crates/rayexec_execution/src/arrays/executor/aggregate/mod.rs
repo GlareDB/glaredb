@@ -6,7 +6,7 @@ pub use binary::*;
 mod unary;
 use std::fmt::Debug;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 pub use unary::*;
 
 use super::PutBuffer;

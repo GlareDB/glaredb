@@ -1,7 +1,7 @@
 use std::fmt::{self, Debug};
 
+use glaredb_error::{RayexecError, Result};
 use half::f16;
-use rayexec_error::{RayexecError, Result};
 use rayexec_proto::ProtoConv;
 
 use super::array_buffer::{ArrayBuffer, ListItemMetadata, StringViewBuffer};

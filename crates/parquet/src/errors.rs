@@ -144,4 +144,4 @@ macro_rules! eof_err {
     ($fmt:expr, $($args:expr),*) => (crate::errors::ParquetError::EOF(format!($fmt, $($args),*)));
 }
 pub(crate) use eof_err;
-use rayexec_error::RayexecError;
+use glaredb_error::RayexecError;

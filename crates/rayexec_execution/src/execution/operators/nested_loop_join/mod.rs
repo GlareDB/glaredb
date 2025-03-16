@@ -6,7 +6,7 @@ use std::task::Context;
 use cross_product::CrossProductState;
 use match_tracker::MatchTracker;
 use parking_lot::Mutex;
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::{
     BaseOperator,

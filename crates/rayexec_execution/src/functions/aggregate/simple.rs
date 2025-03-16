@@ -3,7 +3,7 @@
 
 use std::fmt::Debug;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::AggregateFunction;
 use crate::arrays::array::physical_type::{MutableScalarStorage, ScalarStorage};

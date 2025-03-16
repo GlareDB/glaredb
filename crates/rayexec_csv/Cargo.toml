@@ -6,7 +6,7 @@ edition.workspace = true
 [dependencies]
 rayexec_proto = { path = '../rayexec_proto' }
 rayexec_execution = { path = '../rayexec_execution' }
-rayexec_error = { path = '../rayexec_error' }
+glaredb_error = { path = '../glaredb_error' }
 futures = { workspace = true }
 tracing = { workspace = true }
 regex = { workspace = true }

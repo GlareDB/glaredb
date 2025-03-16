@@ -6,7 +6,7 @@ mod subgraph;
 use std::collections::{HashSet, VecDeque};
 
 use graph::Graph;
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::filter_pushdown::extracted_filter::ExtractedFilter;
 use super::filter_pushdown::split::split_conjunction;

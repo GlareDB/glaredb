@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 use regex::Regex;
 use serde::{de, Deserialize, Deserializer};
 

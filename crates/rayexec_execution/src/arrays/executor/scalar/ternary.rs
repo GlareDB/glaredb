@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};

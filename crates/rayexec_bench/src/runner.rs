@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 use rayexec_execution::arrays::format::pretty::table::PrettyTable;
 use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_execution::runtime::{Runtime, TokioHandlerProvider};

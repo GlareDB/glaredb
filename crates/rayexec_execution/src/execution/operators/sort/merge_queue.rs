@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::task::Context;
 
 use parking_lot::Mutex;
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::sort::binary_merge::BinaryMerger;

@@ -1,4 +1,4 @@
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use crate::arrays::datatype::{DataType, DecimalTypeMeta};
 use crate::arrays::scalar::decimal::DecimalType;

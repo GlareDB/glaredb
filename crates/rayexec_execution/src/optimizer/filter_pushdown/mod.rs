@@ -6,7 +6,7 @@ pub mod split;
 use condition_extractor::{ExprJoinSide, JoinConditionExtractor};
 use extracted_filter::ExtractedFilter;
 use generator::FilterGenerator;
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 use split::split_conjunction;
 
 use super::OptimizeRule;

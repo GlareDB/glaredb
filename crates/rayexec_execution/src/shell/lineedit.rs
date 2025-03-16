@@ -1,6 +1,6 @@
 use std::{fmt, io};
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::highlighter::HighlightState;
 use super::{debug, vt100};

@@ -1,7 +1,7 @@
 use std::io::Write as _;
 
 use csv::ByteRecord;
-use rayexec_error::{Result, ResultExt};
+use glaredb_error::{Result, ResultExt};
 use rayexec_execution::arrays::batch::Batch;
 use rayexec_execution::arrays::field::ColumnSchema;
 use rayexec_execution::arrays::format::{FormatOptions, Formatter};

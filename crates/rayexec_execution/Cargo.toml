@@ -4,7 +4,7 @@ version = { workspace = true }
 edition = { workspace = true }
 
 [dependencies]
-rayexec_error = { path = "../rayexec_error" }
+glaredb_error = { path = "../glaredb_error" }
 rayexec_proto = { path = "../rayexec_proto" }
 rayexec_parser = { path = "../rayexec_parser" }
 rayexec_io = { path = "../rayexec_io" }

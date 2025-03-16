@@ -33,7 +33,7 @@ pub use ln::*;
 pub use log::*;
 use num_traits::Float;
 pub use radians::*;
-use rayexec_error::Result;
+use glaredb_error::Result;
 pub use sin::*;
 pub use sqrt::*;
 pub use tan::*;

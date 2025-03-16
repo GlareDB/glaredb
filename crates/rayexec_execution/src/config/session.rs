@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::runtime::{PipelineExecutor, Runtime};

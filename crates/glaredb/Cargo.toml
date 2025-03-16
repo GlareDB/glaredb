@@ -7,7 +7,7 @@ edition.workspace = true
 
 [dependencies]
 logutil = { path = '../logutil' }
-rayexec_error = { path = '../rayexec_error' }
+glaredb_error = { path = '../glaredb_error' }
 rayexec_execution = { path = '../rayexec_execution' }
 rayexec_rt_native = { path = '../rayexec_rt_native' }
 tracing = { workspace = true }

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::operators::{AnyOperatorState, ExecutionProperties, PlannedOperator};
 use super::partition_pipeline::ExecutablePartitionPipeline;

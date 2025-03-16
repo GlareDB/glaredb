@@ -1,7 +1,7 @@
 use std::borrow::{Borrow, BorrowMut};
 
+use glaredb_error::Result;
 use half::f16;
-use rayexec_error::Result;
 
 use super::row_blocks::{BlockAppendState, HeapMutPtr};
 use crate::arrays::array::flat::FlattenedArray;

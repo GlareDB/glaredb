@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::explain::node::ExplainNode;
 use crate::logical::binder::bind_context::BindContext;

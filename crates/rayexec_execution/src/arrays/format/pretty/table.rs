@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::{self, Write as _};
 use std::ops::Range;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 use textwrap::core::display_width;
 use textwrap::{fill_inplace, wrap};
 

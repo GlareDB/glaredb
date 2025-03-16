@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops::ControlFlow;
 
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::graph::{BaseRelation, RelId, RelationSet};
 use super::ReorderableCondition;

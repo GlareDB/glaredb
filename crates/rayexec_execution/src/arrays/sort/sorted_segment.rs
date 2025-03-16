@@ -1,4 +1,4 @@
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::sorted_block::SortedBlock;
 use crate::arrays::batch::Batch;

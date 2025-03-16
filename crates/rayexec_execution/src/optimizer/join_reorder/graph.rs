@@ -26,7 +26,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use fmtutil::IntoDisplayableSlice;
-use rayexec_error::{RayexecError, Result};
+use glaredb_error::{RayexecError, Result};
 
 use super::edge::{EdgeId, EdgeType, HyperEdges, NeighborEdge};
 use super::statistics::propagate_estimated_cardinality;

@@ -1,4 +1,4 @@
-use rayexec_error::{Result, ResultExt};
+use glaredb_error::{Result, ResultExt};
 
 use super::OperatorPlanState;
 use crate::execution::operators::project::PhysicalProject;

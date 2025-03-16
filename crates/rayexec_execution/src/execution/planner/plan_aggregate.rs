@@ -1,4 +1,4 @@
-use rayexec_error::{not_implemented, RayexecError, Result, ResultExt};
+use glaredb_error::{not_implemented, RayexecError, Result, ResultExt};
 
 use super::OperatorPlanState;
 use crate::execution::operators::hash_aggregate::{Aggregates, PhysicalHashAggregate};

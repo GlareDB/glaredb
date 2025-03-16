@@ -3,7 +3,7 @@ pub mod ugly;
 
 use std::fmt;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use crate::arrays::array::Array;
 use crate::arrays::scalar::BorrowedScalarValue;

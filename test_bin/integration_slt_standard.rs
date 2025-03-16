@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use rayexec_error::Result;
+use glaredb_error::Result;
 use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_slt::{ReplacementVars, RunConfig};

@@ -2,7 +2,7 @@ use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-use rayexec_error::Result;
+use glaredb_error::Result;
 
 use super::segment::ColumnCollectionSegment;
 use crate::arrays::batch::Batch;
