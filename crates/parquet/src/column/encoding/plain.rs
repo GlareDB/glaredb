@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use rayexec_error::Result;
 use rayexec_execution::arrays::array::physical_type::{AddressableMut, MutableScalarStorage};
 use rayexec_execution::arrays::array::Array;
-use stdutil::marker::PhantomCovariant;
+use rayexec_execution::util::marker::PhantomCovariant;
 
 use super::Definitions;
 use crate::column::converter::ValueConverter;

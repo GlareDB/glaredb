@@ -1,7 +1,6 @@
 use std::borrow::{Borrow, BorrowMut};
 
 use rayexec_error::Result;
-use stdutil::iter::IntoExactSizeIterator;
 
 use super::aggregate_layout::AggregateLayout;
 use super::block::ValidityInitializer;
@@ -9,6 +8,7 @@ use super::row_blocks::{BlockAppendState, RowBlocks};
 use super::row_scan::RowScanState;
 use crate::arrays::array::Array;
 use crate::buffer::buffer_manager::NopBufferManager;
+use crate::util::iter::IntoExactSizeIterator;
 
 #[derive(Debug)]
 pub struct AggregateAppendState {
@@ -198,14 +198,13 @@ impl AggregateCollection {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::expr::physical::PhysicalAggregateExpression;
     use crate::expr::{self, bind_aggregate_function};
     use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::testutil::arrays::assert_arrays_eq;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn append_groups_finalize_no_update() {

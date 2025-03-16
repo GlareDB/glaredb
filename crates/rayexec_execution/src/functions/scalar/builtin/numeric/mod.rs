@@ -36,7 +36,6 @@ pub use radians::*;
 use rayexec_error::Result;
 pub use sin::*;
 pub use sqrt::*;
-use stdutil::iter::IntoExactSizeIterator;
 pub use tan::*;
 
 use crate::arrays::array::physical_type::MutableScalarStorage;
@@ -45,6 +44,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
 use crate::functions::scalar::{BindState, ScalarFunction};
+use crate::util::iter::IntoExactSizeIterator;
 
 /// Helper trait for defining math functions on floats.
 pub trait UnaryInputNumericOperation: Debug + Clone + Copy + Sync + Send + 'static {

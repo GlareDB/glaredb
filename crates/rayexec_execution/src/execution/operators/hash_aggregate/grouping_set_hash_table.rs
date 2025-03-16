@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
 
 use super::aggregate_hash_table::{AggregateHashTable, AggregateHashTableInsertState};
 use super::Aggregates;
@@ -16,6 +15,7 @@ use crate::arrays::scalar::ScalarValue;
 use crate::buffer::buffer_manager::NopBufferManager;
 use crate::execution::operators::hash_aggregate::grouping_value::compute_grouping_value;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
+use crate::util::iter::IntoExactSizeIterator;
 
 #[derive(Debug)]
 pub struct GroupingSetBuildPartitionState {

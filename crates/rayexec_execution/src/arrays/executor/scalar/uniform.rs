@@ -1,10 +1,10 @@
 use rayexec_error::Result;
-use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::Array;
 use crate::arrays::executor::{OutBuffer, PutBuffer};
+use crate::util::iter::IntoExactSizeIterator;
 
 #[derive(Debug, Clone, Copy)]
 pub struct UniformExecutor;
@@ -146,13 +146,12 @@ impl UniformExecutor {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::array::physical_type::{PhysicalBool, PhysicalUtf8};
     use crate::arrays::datatype::DataType;
     use crate::buffer::buffer_manager::NopBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn uniform_and_simple() {

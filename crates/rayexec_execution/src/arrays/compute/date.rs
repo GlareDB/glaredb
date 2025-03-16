@@ -1,6 +1,5 @@
 use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc};
 use rayexec_error::{not_implemented, RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::{PhysicalI32, PhysicalI64};
 use crate::arrays::array::Array;
@@ -8,6 +7,7 @@ use crate::arrays::datatype::{DataType, TimeUnit};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::scalar::decimal::{Decimal64Type, DecimalType};
+use crate::util::iter::IntoExactSizeIterator;
 
 pub const EPOCH_NAIVE_DATE: NaiveDate = match NaiveDate::from_ymd_opt(1970, 1, 1) {
     Some(date) => date,

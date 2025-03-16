@@ -1,5 +1,4 @@
 use rayexec_error::Result;
-use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::PhysicalUtf8;
 use crate::arrays::array::Array;
@@ -12,6 +11,7 @@ use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
+use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_LOWER: ScalarFunctionSet = ScalarFunctionSet {
     name: "lower",

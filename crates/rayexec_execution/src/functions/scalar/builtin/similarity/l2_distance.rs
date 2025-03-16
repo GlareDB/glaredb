@@ -116,7 +116,7 @@ where
 // #[cfg(test)]
 // mod tests {
 
-//     use stdutil::iter::TryFromExactSizeIterator;
+//     use crate::util::iter::TryFromExactSizeIterator;
 
 //     use super::*;
 //     use crate::arrays::compute::make_list::make_list_from_values;

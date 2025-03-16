@@ -27,7 +27,6 @@ edition = { workspace = true }
 rayexec_error = { path = "../rayexec_error" }
 rayexec_io = { path = "../rayexec_io" }
 rayexec_execution = { path = "../rayexec_execution" }
-stdutil = { path = "../stdutil" }
 
 ahash = { workspace = true }
 bytes = { version = "1.10", default-features = false, features = ["std"] }

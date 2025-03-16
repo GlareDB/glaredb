@@ -1,5 +1,4 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -35,6 +34,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::functions::Signature;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_LIST_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
     name: "list_extract",
@@ -191,13 +191,12 @@ where
 #[cfg(test)]
 mod tests {
 
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::ListTypeMeta;
     use crate::buffer::buffer_manager::NopBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn list_extract_primitive() {

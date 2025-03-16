@@ -1,10 +1,10 @@
 use rayexec_error::{RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
 
 use super::AggregateState;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{Addressable, ScalarStorage};
 use crate::arrays::array::Array;
+use crate::util::iter::IntoExactSizeIterator;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BinaryNonNullUpdater;
@@ -134,12 +134,11 @@ impl BinaryNonNullUpdater {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::array::physical_type::{AddressableMut, PhysicalI32};
     use crate::arrays::executor::PutBuffer;
     use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     // SUM(col) + PRODUCT(col)
     #[derive(Debug)]

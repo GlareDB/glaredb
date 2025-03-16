@@ -1,6 +1,5 @@
 use num_traits::Float;
 use rayexec_error::Result;
-use stdutil::iter::IntoExactSizeIterator;
 
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
 use crate::arrays::array::physical_type::{
@@ -17,6 +16,7 @@ use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::RawScalarFunction;
 use crate::functions::Signature;
+use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_SIN: ScalarFunctionSet = ScalarFunctionSet {
     name: "sin",

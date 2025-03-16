@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 
-use num::{FromPrimitive, PrimInt, Signed, Zero};
+use num_traits::{FromPrimitive, PrimInt, Signed, Zero};
 use rayexec_error::{RayexecError, Result, ResultExt};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};

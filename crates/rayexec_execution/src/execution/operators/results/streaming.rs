@@ -255,12 +255,12 @@ impl Explainable for PhysicalStreamingResults {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use stdutil::task::noop_context;
 
     use super::*;
     use crate::generate_batch;
     use crate::testutil::arrays::assert_batches_eq;
     use crate::testutil::operator::{CountingWaker, OperatorWrapper};
+    use crate::util::task::noop_context;
 
     #[test]
     fn single_partition_stream() {

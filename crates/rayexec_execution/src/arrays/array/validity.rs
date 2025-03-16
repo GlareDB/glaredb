@@ -1,6 +1,5 @@
-use stdutil::iter::IntoExactSizeIterator;
-
 use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMut};
+use crate::util::iter::IntoExactSizeIterator;
 
 /// Validity mask for an array.
 #[derive(Debug, Clone)]

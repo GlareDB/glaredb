@@ -16,6 +16,5 @@ url = { workspace = true }
 bytes = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-erased-serde = { workspace = true }
 
 # TODO: zstd feature for parquet?

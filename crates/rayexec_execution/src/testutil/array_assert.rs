@@ -3,8 +3,6 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
-use stdutil::iter::IntoExactSizeIterator;
-
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     PhysicalBool,
@@ -29,6 +27,7 @@ use crate::arrays::array::physical_type::{
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::util::iter::IntoExactSizeIterator;
 
 /// Assert two arrays are logically equal.
 ///
@@ -202,10 +201,9 @@ pub fn assert_batches_eq(batch1: &Batch, batch2: &Batch) {
 mod tests {
     use std::sync::Arc;
 
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn assert_i32_arrays_eq_simple() {

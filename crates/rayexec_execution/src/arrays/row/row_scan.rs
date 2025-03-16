@@ -2,13 +2,13 @@ use std::borrow::BorrowMut;
 use std::collections::VecDeque;
 
 use rayexec_error::Result;
-use stdutil::iter::IntoExactSizeIterator;
 
 use super::block::ValidityInitializer;
 use super::block_scan::BlockScanState;
 use super::row_blocks::RowBlocks;
 use super::row_layout::RowLayout;
 use crate::arrays::array::Array;
+use crate::util::iter::IntoExactSizeIterator;
 
 /// State for resumable scanning of a set of row blocks conforming to some row
 /// layout.

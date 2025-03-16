@@ -8,7 +8,7 @@
 #[macro_export]
 macro_rules! generate_batch {
     ( $( $array_values:expr ),+ $(,)? ) => {{
-        use stdutil::iter::TryFromExactSizeIterator;
+        use $crate::util::iter::TryFromExactSizeIterator;
         $crate::arrays::batch::Batch::from_arrays([
             $(
                 $crate::arrays::array::Array::try_from_iter($array_values).unwrap()
@@ -20,11 +20,10 @@ pub(crate) use generate_batch;
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use crate::arrays::array::Array;
     use crate::arrays::batch::Batch;
     use crate::testutil::arrays::assert_batches_eq;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn generate_batch_single_column() {

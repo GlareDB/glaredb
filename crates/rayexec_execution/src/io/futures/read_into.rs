@@ -85,9 +85,9 @@ where
 #[cfg(test)]
 mod tests {
     use futures::FutureExt;
-    use stdutil::task::noop_context;
 
     use super::*;
+    use crate::util::task::noop_context;
 
     #[derive(Debug)]
     struct TestReadStream {

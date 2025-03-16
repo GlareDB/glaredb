@@ -1,13 +1,13 @@
 use std::fmt::Debug;
 
 use rayexec_error::{RayexecError, Result};
-use stdutil::iter::IntoExactSizeIterator;
 
 use super::array::selection::Selection;
 use super::cache::{BufferCache, NopCache};
 use super::datatype::DataType;
 use crate::arrays::array::Array;
 use crate::buffer::buffer_manager::NopBufferManager;
+use crate::util::iter::IntoExactSizeIterator;
 
 /// A batch of owned same-length arrays.
 #[derive(Debug)]
@@ -380,10 +380,9 @@ fn check_num_arrays(b1: &Batch, b2: &Batch) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use stdutil::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::testutil::arrays::assert_batches_eq;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn new_from_other() {
