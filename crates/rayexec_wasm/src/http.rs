@@ -11,6 +11,9 @@ use rayexec_io::http::{HttpClient, HttpResponse};
 use reqwest::header::HeaderMap;
 use reqwest::{Request, StatusCode};
 
+// TODO: Figure this shit out. How many layers of boxing do we actually need?
+// Can we alter types/traits to be a bit more sane?
+
 #[derive(Debug, Clone)]
 pub struct WasmHttpClient {
     client: reqwest::Client,
@@ -27,7 +30,7 @@ impl HttpClient for WasmHttpClient {
     // TODO: Rust is disgusting
     type RequestFuture = FakeSyncSendFuture<
         Result<Self::Response>,
-        Pin<Box<dyn Future<Output = Result<Self::Response>> + Sync + Send + 'static>>,
+        Pin<Box<dyn Future<Output = Result<Self::Response>> + 'static>>,
     >;
 
     fn do_request(&self, request: Request) -> Self::RequestFuture {
@@ -70,7 +73,7 @@ impl HttpResponse for WasmBoxingResponse {
 
     fn bytes_stream(self) -> Self::BytesStream {
         let stream = Box::pin(self.0.bytes_stream());
-        let stream = unsafe { FakeSendStream::new(stream) };
+        let stream = unsafe { FakeSyncSendStream::new(stream) };
         Box::pin(stream.map(|r| r.context("failed to get byte stream")))
     }
 }
@@ -119,19 +122,20 @@ impl<O, F: Future<Output = O> + Unpin> Future for FakeSyncSendFuture<O, F> {
 
 /// Similar to `FakeSendFuture`, this unsafely makes a stream send.
 #[derive(Debug)]
-pub struct FakeSendStream<O, S: Stream<Item = O> + Unpin> {
+pub struct FakeSyncSendStream<O, S: Stream<Item = O> + Unpin> {
     stream: S,
 }
 
-unsafe impl<O, S: Stream<Item = O> + Unpin> Send for FakeSendStream<O, S> {}
+unsafe impl<O, S: Stream<Item = O> + Unpin> Send for FakeSyncSendStream<O, S> {}
+unsafe impl<O, S: Stream<Item = O> + Unpin> Sync for FakeSyncSendStream<O, S> {}
 
-impl<O, S: Stream<Item = O> + Unpin> FakeSendStream<O, S> {
+impl<O, S: Stream<Item = O> + Unpin> FakeSyncSendStream<O, S> {
     pub unsafe fn new(stream: S) -> Self {
-        FakeSendStream { stream }
+        FakeSyncSendStream { stream }
     }
 }
 
-impl<O, S: Stream<Item = O> + Unpin> Stream for FakeSendStream<O, S> {
+impl<O, S: Stream<Item = O> + Unpin> Stream for FakeSyncSendStream<O, S> {
     type Item = O;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.stream.poll_next_unpin(cx)

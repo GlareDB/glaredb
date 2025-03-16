@@ -85,7 +85,7 @@ impl<I> RowBlocks<I>
 where
     I: FixedSizedBlockInitializer,
 {
-    const MAX_HEAP_SIZE: usize = 1024 * 1024 * 1024 * 32; // 32GB
+    const MAX_HEAP_SIZE: usize = 1024 * 1024 * 1024 * 2; // 2GB
 
     pub fn new(
         manager: &impl AsRawBufferManager,
