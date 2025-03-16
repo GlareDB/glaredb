@@ -14,8 +14,8 @@ use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use location::{AccessConfig, FileLocation};
 use glaredb_error::Result;
+use location::{AccessConfig, FileLocation};
 
 /// Provide file sources and sinks.
 ///

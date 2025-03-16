@@ -5,8 +5,8 @@ mod subgraph;
 
 use std::collections::{HashSet, VecDeque};
 
-use graph::Graph;
 use glaredb_error::Result;
+use graph::Graph;
 
 use super::filter_pushdown::extracted_filter::ExtractedFilter;
 use super::filter_pushdown::split::split_conjunction;

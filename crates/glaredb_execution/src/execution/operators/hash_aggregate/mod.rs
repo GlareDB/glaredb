@@ -7,6 +7,7 @@ mod grouping_value;
 use std::collections::BTreeSet;
 use std::task::{Context, Waker};
 
+use glaredb_error::{RayexecError, Result};
 use grouping_set_hash_table::{
     GroupingSetBuildPartitionState,
     GroupingSetHashTable,
@@ -14,7 +15,6 @@ use grouping_set_hash_table::{
     GroupingSetScanPartitionState,
 };
 use parking_lot::Mutex;
-use glaredb_error::{RayexecError, Result};
 
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;

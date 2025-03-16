@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::task::Context;
 
-use parking_lot::Mutex;
 use glaredb_error::Result;
+use parking_lot::Mutex;
 
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;

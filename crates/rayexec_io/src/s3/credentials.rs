@@ -3,9 +3,9 @@ use std::fmt;
 use std::fmt::Write as _;
 
 use chrono::{DateTime, Utc};
+use glaredb_error::{not_implemented, Result};
 use hmac::{Hmac, Mac};
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
-use glaredb_error::{not_implemented, Result};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, HOST};
 use reqwest::Request;
 use serde::{Deserialize, Serialize};

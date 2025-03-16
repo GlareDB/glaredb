@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 use std::task::Context;
 
-use parking_lot::Mutex;
 use glaredb_error::{RayexecError, Result};
+use parking_lot::Mutex;
 
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;

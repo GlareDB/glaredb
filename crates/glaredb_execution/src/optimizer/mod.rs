@@ -13,9 +13,9 @@ use std::time::Duration;
 use column_prune::ColumnPrune;
 use expr_rewrite::ExpressionRewriter;
 use filter_pushdown::FilterPushdown;
+use glaredb_error::Result;
 use join_reorder::JoinReorder;
 use limit_pushdown::LimitPushdown;
-use glaredb_error::Result;
 use tracing::debug;
 
 use crate::logical::binder::bind_context::BindContext;

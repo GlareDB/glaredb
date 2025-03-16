@@ -1,7 +1,7 @@
 use std::task::Context;
 
-use parking_lot::Mutex;
 use glaredb_error::Result;
+use parking_lot::Mutex;
 
 use super::{
     BaseOperator,

@@ -2,8 +2,8 @@ mod merge_queue;
 
 use std::task::Context;
 
-use merge_queue::{MergeQueue, PollMerge};
 use glaredb_error::{RayexecError, Result};
+use merge_queue::{MergeQueue, PollMerge};
 
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;

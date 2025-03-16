@@ -4,8 +4,8 @@
 //! schemas are runtime only concepts are defined by the order and types of
 //! messages encoded into the buffer.
 
-use prost::Message;
 use glaredb_error::{RayexecError, Result, ResultExt};
+use prost::Message;
 
 #[derive(Debug)]
 pub struct PackedEncoder<'a> {

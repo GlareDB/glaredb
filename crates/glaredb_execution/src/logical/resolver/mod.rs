@@ -10,11 +10,11 @@ use std::collections::HashMap;
 
 use expr_resolver::ExpressionResolver;
 use glaredb_error::{not_implemented, RayexecError, Result};
-use rayexec_io::location::FileLocation;
 use glaredb_parser::ast::{self, ColumnDef, ObjectReference};
 use glaredb_parser::meta::{AstMeta, Raw};
 use glaredb_parser::parser;
 use glaredb_parser::statement::{RawStatement, Statement};
+use rayexec_io::location::FileLocation;
 use resolve_context::{ItemReference, MaybeResolved, ResolveContext, ResolveListIdx};
 use resolve_normal::{MaybeResolvedTable, NormalResolver};
 use resolved_cte::ResolvedCte;

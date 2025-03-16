@@ -1,5 +1,5 @@
-use indexmap::IndexSet;
 use glaredb_error::{RayexecError, Result};
+use indexmap::IndexSet;
 
 use super::ExpressionRewriteRule;
 use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};

@@ -1,8 +1,8 @@
 use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
 
-use parking_lot::Mutex;
 use glaredb_error::Result;
+use parking_lot::Mutex;
 
 use super::segment::ColumnCollectionSegment;
 use crate::arrays::batch::Batch;

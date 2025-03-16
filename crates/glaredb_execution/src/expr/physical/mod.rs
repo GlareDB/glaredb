@@ -14,8 +14,8 @@ use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
 use evaluator::ExpressionState;
-use literal_expr::PhysicalLiteralExpr;
 use glaredb_error::Result;
+use literal_expr::PhysicalLiteralExpr;
 use scalar_function_expr::PhysicalScalarFunctionExpr;
 
 use crate::arrays::datatype::DataType;

@@ -2,8 +2,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::AddAssign;
 
-use num_traits::AsPrimitive;
 use glaredb_error::Result;
+use num_traits::AsPrimitive;
 
 use crate::arrays::array::physical_type::{
     AddressableMut,

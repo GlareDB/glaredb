@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use parking_lot::Mutex;
 use glaredb_error::{not_implemented, Result};
 use glaredb_execution::runtime::handle::{ExecutionProfileData, QueryHandle};
+use parking_lot::Mutex;
 
 use super::task::{PartitionPipelineTask, TaskState};
 

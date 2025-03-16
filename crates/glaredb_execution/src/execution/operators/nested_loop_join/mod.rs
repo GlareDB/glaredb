@@ -4,9 +4,9 @@ mod match_tracker;
 use std::task::Context;
 
 use cross_product::CrossProductState;
+use glaredb_error::{RayexecError, Result};
 use match_tracker::MatchTracker;
 use parking_lot::Mutex;
-use glaredb_error::{RayexecError, Result};
 
 use super::{
     BaseOperator,
