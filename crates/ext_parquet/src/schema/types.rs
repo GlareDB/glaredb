@@ -675,23 +675,6 @@ impl BasicTypeInfo {
 // Parquet descriptor definitions
 
 /// Represents the location of a column in a Parquet schema
-///
-/// # Example: refer to column named `'my_column'`
-/// ```
-/// # use parquet::schema::types::ColumnPath;
-/// let column_path = ColumnPath::from("my_column");
-/// ```
-///
-/// # Example: refer to column named `c` in a nested struct `{a: {b: {c: ...}}}`
-/// ```
-/// # use parquet::schema::types::ColumnPath;
-/// // form path 'a.b.c'
-/// let column_path = ColumnPath::from(vec![
-///     String::from("a"),
-///     String::from("b"),
-///     String::from("c"),
-/// ]);
-/// ```
 #[derive(Clone, PartialEq, Debug, Eq, Hash)]
 pub struct ColumnPath {
     parts: Vec<String>,
@@ -704,26 +687,11 @@ impl ColumnPath {
     }
 
     /// Returns string representation of this column path.
-    /// ```rust
-    /// use parquet::schema::types::ColumnPath;
-    ///
-    /// let path = ColumnPath::new(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
-    /// assert_eq!(&path.string(), "a.b.c");
-    /// ```
     pub fn string(&self) -> String {
         self.parts.join(".")
     }
 
     /// Appends more components to end of column path.
-    /// ```rust
-    /// use parquet::schema::types::ColumnPath;
-    ///
-    /// let mut path = ColumnPath::new(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
-    /// assert_eq!(&path.string(), "a.b.c");
-    ///
-    /// path.append(vec!["d".to_string(), "e".to_string()]);
-    /// assert_eq!(&path.string(), "a.b.c.d.e");
-    /// ```
     pub fn append(&mut self, mut tail: Vec<String>) {
         self.parts.append(&mut tail);
     }

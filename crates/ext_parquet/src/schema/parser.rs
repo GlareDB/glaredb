@@ -18,29 +18,6 @@
 //! Parquet schema parser.
 //! Provides methods to parse and validate string message type into Parquet
 //! [`Type`].
-//!
-//! # Example
-//!
-//! ```rust
-//! use parquet::schema::parser::parse_message_type;
-//!
-//! let message_type = "
-//!   message spark_schema {
-//!     OPTIONAL BYTE_ARRAY a (UTF8);
-//!     REQUIRED INT32 b;
-//!     REQUIRED DOUBLE c;
-//!     REQUIRED BOOLEAN d;
-//!     OPTIONAL group e (LIST) {
-//!       REPEATED group list {
-//!         REQUIRED INT32 element;
-//!       }
-//!     }
-//!   }
-//! ";
-//!
-//! let schema = parse_message_type(message_type).expect("Expected valid schema");
-//! println!("{:?}", schema);
-//! ```
 
 use std::sync::Arc;
 

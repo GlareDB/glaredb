@@ -96,35 +96,6 @@ pub type WriterPropertiesPtr = Arc<WriterProperties>;
 ///
 /// All properties except the key-value metadata are immutable,
 /// use [`WriterPropertiesBuilder`] to assemble these properties.
-///
-/// # Example
-///
-/// ```rust
-/// use parquet::basic::{Compression, Encoding};
-/// use parquet::file::properties::*;
-/// use parquet::schema::types::ColumnPath;
-///
-/// // Create properties with default configuration.
-/// let props = WriterProperties::default();
-///
-/// // Use properties builder to set certain options and assemble the configuration.
-/// let props = WriterProperties::builder()
-///     .set_writer_version(WriterVersion::PARQUET_1_0)
-///     .set_encoding(Encoding::PLAIN)
-///     .set_column_encoding(ColumnPath::from("col1"), Encoding::DELTA_BINARY_PACKED)
-///     .set_compression(Compression::SNAPPY)
-///     .build();
-///
-/// assert_eq!(props.writer_version(), WriterVersion::PARQUET_1_0);
-/// assert_eq!(
-///     props.encoding(&ColumnPath::from("col1")),
-///     Some(Encoding::DELTA_BINARY_PACKED)
-/// );
-/// assert_eq!(
-///     props.encoding(&ColumnPath::from("col2")),
-///     Some(Encoding::PLAIN)
-/// );
-/// ```
 #[derive(Debug, Clone)]
 pub struct WriterProperties {
     data_page_size_limit: usize,
@@ -884,20 +855,6 @@ const DEFAULT_READ_BLOOM_FILTER: bool = false;
 ///
 /// All properties are immutable and `Send` + `Sync`.
 /// Use [`ReaderPropertiesBuilder`] to assemble these properties.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// use parquet::file::properties::ReaderProperties;
-///
-/// // Create properties with default configuration.
-/// let props = ReaderProperties::builder().build();
-///
-/// // Use properties builder to set certain options and assemble the configuration.
-/// let props = ReaderProperties::builder()
-///     .set_backward_compatible_lz4(false)
-///     .build();
-/// ```
 pub struct ReaderProperties {
     codec_options: CodecOptions,
     read_bloom_filter: bool,

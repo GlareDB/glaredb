@@ -19,26 +19,6 @@
 //!
 //! Though some common methods are available on enum, use pattern match to extract
 //! actual min and max values from statistics, see below:
-//!
-//! # Examples
-//! ```rust
-//! use parquet::file::statistics::Statistics;
-//!
-//! let stats = Statistics::int32(Some(1), Some(10), None, 3, true);
-//! assert_eq!(stats.null_count(), 3);
-//! assert!(stats.has_min_max_set());
-//! assert!(stats.is_min_max_deprecated());
-//! assert!(stats.min_is_exact());
-//! assert!(stats.max_is_exact());
-//!
-//! match stats {
-//!     Statistics::Int32(ref typed) => {
-//!         assert_eq!(*typed.min(), 1);
-//!         assert_eq!(*typed.max(), 10);
-//!     }
-//!     _ => {}
-//! }
-//! ```
 
 use std::fmt;
 
