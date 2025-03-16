@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use glaredb_error::{RayexecError, Result};
-use rayexec_parser::ast::{self};
+use glaredb_parser::ast::{self};
 
 use super::bind_group_by::BoundGroupBy;
 use super::bind_select_list::SelectListBinder;

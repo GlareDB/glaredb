@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use glaredb_error::{not_implemented, RayexecError, Result};
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 
 use super::select_list::SelectList;
 use crate::expr::Expression;

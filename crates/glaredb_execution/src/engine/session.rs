@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use glaredb_error::{not_implemented, RayexecError, Result};
+use glaredb_parser::parser;
+use glaredb_parser::statement::RawStatement;
 use hashbrown::HashMap;
-use rayexec_parser::parser;
-use rayexec_parser::statement::RawStatement;
 use uuid::Uuid;
 
 use super::profiler::PlanningProfileData;

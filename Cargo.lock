@@ -949,6 +949,7 @@ dependencies = [
  "fmtutil",
  "futures",
  "glaredb_error",
+ "glaredb_parser",
  "half",
  "hashbrown 0.14.5",
  "indexmap",
@@ -957,7 +958,6 @@ dependencies = [
  "parking_lot",
  "rand",
  "rayexec_io",
- "rayexec_parser",
  "rayexec_proto",
  "rayon",
  "regex",
@@ -971,6 +971,18 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "glaredb_parser"
+version = "0.0.95"
+dependencies = [
+ "glaredb_error",
+ "pretty_assertions",
+ "rayexec_proto",
+ "serde",
+ "tracing",
+ "unicase",
 ]
 
 [[package]]
@@ -2078,18 +2090,6 @@ dependencies = [
  "sha2",
  "tracing",
  "url",
-]
-
-[[package]]
-name = "rayexec_parser"
-version = "0.0.95"
-dependencies = [
- "glaredb_error",
- "pretty_assertions",
- "rayexec_proto",
- "serde",
- "tracing",
- "unicase",
 ]
 
 [[package]]

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use glaredb_error::{RayexecError, Result};
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 
 use super::select_list::SelectList;
 use crate::expr::Expression;

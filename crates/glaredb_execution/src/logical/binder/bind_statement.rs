@@ -1,5 +1,5 @@
 use glaredb_error::Result;
-use rayexec_parser::statement::Statement;
+use glaredb_parser::statement::Statement;
 
 use super::bind_attach::{AttachBinder, BoundAttach, BoundDetach};
 use super::bind_context::BindContext;

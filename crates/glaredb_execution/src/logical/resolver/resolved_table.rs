@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 
 use crate::catalog::database::AttachInfo;
 use crate::catalog::entry::CatalogEntry;

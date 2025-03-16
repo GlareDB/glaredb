@@ -1,7 +1,7 @@
 use std::fmt;
 
 use glaredb_error::{RayexecError, Result};
-use rayexec_parser::ast::{self};
+use glaredb_parser::ast::{self};
 use rayexec_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 

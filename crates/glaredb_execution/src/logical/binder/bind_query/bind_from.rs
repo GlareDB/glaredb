@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use glaredb_error::{not_implemented, RayexecError, Result};
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 
 use super::{BoundQuery, QueryBinder};
 use crate::arrays::datatype::DataType;

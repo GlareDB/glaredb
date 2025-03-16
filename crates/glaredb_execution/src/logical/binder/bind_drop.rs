@@ -1,5 +1,5 @@
 use glaredb_error::{not_implemented, Result};
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use crate::catalog::drop::{DropInfo, DropObject};

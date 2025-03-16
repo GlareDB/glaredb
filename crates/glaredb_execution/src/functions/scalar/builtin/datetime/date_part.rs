@@ -1,5 +1,5 @@
 use glaredb_error::Result;
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;

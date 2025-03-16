@@ -1,5 +1,5 @@
 use glaredb_error::{RayexecError, Result};
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn};
 use super::expr_binder::RecursionContext;

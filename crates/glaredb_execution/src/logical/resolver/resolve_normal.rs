@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use glaredb_error::{RayexecError, Result};
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 use tracing::error;
 
 use super::resolved_table::{

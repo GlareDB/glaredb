@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use futures::lock::Mutex;
 use glaredb_error::{RayexecError, Result};
-use rayexec_parser::parser;
-use rayexec_parser::statement::RawStatement;
+use glaredb_parser::parser;
+use glaredb_parser::statement::RawStatement;
 
 use super::query_result::QueryResult;
 use super::session::Session;

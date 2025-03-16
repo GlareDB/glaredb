@@ -1,5 +1,5 @@
 use glaredb_error::{not_implemented, RayexecError, Result};
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 
 use super::bind_modifier::{BoundLimit, BoundOrderBy};
 use super::bind_select_list::SelectListBinder;

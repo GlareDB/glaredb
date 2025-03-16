@@ -6,7 +6,7 @@ edition = { workspace = true }
 [dependencies]
 glaredb_error = { path = "../glaredb_error" }
 rayexec_proto = { path = "../rayexec_proto" }
-rayexec_parser = { path = "../rayexec_parser" }
+glaredb_parser = { path = "../glaredb_parser" }
 rayexec_io = { path = "../rayexec_io" }
 fmtutil = { path = "../fmtutil" }
 

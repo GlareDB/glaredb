@@ -14,7 +14,7 @@ use bind_select::{BoundSelect, SelectBinder};
 use bind_setop::{BoundSetOp, SetOpBinder};
 use bind_values::{BoundValues, ValuesBinder};
 use glaredb_error::{not_implemented, RayexecError, Result};
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::table_list::TableRef;

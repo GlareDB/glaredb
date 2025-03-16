@@ -1,5 +1,5 @@
 use glaredb_error::{RayexecError, Result};
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 
 use super::bind_from::{BoundFrom, FromBinder};
 use super::bind_group_by::{BoundGroupBy, GroupByBinder};

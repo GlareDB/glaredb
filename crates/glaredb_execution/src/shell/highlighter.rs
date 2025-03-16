@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::{cmp, io};
 
 use glaredb_error::Result;
-use rayexec_parser::tokens::{Token, TokenWithLocation, Tokenizer};
+use glaredb_parser::tokens::{Token, TokenWithLocation, Tokenizer};
 
 use super::vt100;
 

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use glaredb_error::{not_implemented, RayexecError, Result};
-use rayexec_parser::ast::{self, FunctionArg, ReplaceColumn};
-use rayexec_parser::meta::Raw;
+use glaredb_parser::ast::{self, FunctionArg, ReplaceColumn};
+use glaredb_parser::meta::Raw;
 
 use super::resolve_normal::create_user_facing_resolve_err;
 use super::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};

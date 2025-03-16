@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 
 use crate::arrays::scalar::ScalarValue;
 use crate::functions::function_set::TableFunctionSet;

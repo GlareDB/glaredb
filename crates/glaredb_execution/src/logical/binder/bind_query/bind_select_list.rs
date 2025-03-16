@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use glaredb_error::{RayexecError, Result};
-use rayexec_parser::ast;
+use glaredb_parser::ast;
 
 use super::select_expr_expander::ExpandedSelectExpr;
 use super::select_list::SelectList;
