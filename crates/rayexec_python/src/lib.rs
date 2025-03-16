@@ -2,7 +2,6 @@ mod errors;
 mod event_loop;
 mod print;
 mod session;
-mod table;
 
 use pyo3::types::{PyModule, PyModuleMethods};
 use pyo3::{pymodule, wrap_pyfunction, Bound, PyResult};

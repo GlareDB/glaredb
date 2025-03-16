@@ -4,6 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "rayexec"
+dynamic = ["version"]
 description = "Next engine for GlareDB"
 requires-python = ">=3.7"
 classifiers = [

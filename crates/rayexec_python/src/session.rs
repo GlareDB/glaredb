@@ -1,14 +1,16 @@
 use pyo3::{pyclass, pyfunction, pymethods, Python};
-use rayexec_csv::CsvDataSource;
-use rayexec_delta::DeltaDataSource;
 use rayexec_error::RayexecError;
-use rayexec_execution::datasource::{DataSourceBuilder, DataSourceRegistry, MemoryDataSource};
+use rayexec_execution::arrays::batch::Batch;
+use rayexec_execution::arrays::field::ColumnSchema;
+use rayexec_execution::arrays::format::pretty::table::PrettyTable;
 use rayexec_execution::engine::single_user::SingleUserEngine;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 
 use crate::errors::Result;
 use crate::event_loop::run_until_complete;
-use crate::table::PythonMaterializedResultTable;
+use crate::print::pyprint;
+
+const DEFAULT_TABLE_WIDTH: usize = 100;
 
 #[pyfunction]
 pub fn connect() -> Result<PythonSession> {
@@ -42,17 +44,18 @@ impl PythonSession {
         py: Python,
         sql: String,
         collect_profile_data: bool,
-    ) -> Result<PythonMaterializedResultTable> {
+    ) -> Result<PythonQueryResult> {
+        let _ = collect_profile_data; // TODO
+
         let session = self.try_get_engine()?.session().clone();
         let table = run_until_complete(py, async move {
-            let table = session.query(&sql).await?;
-            let table = if collect_profile_data {
-                table.collect_with_execution_profile().await?
-            } else {
-                table.collect().await?
-            };
+            let mut q_res = session.query(&sql).await?;
+            let batches = q_res.output.collect().await?;
 
-            Ok(PythonMaterializedResultTable { table })
+            Ok(PythonQueryResult {
+                schema: q_res.output_schema,
+                batches,
+            })
         })?;
 
         Ok(table)
@@ -77,5 +80,25 @@ impl PythonSession {
             RayexecError::new("Attempted to reuse session after it's already been closed")
         })?;
         Ok(engine)
+    }
+}
+
+#[pyclass]
+#[derive(Debug)]
+pub struct PythonQueryResult {
+    pub(crate) schema: ColumnSchema,
+    pub(crate) batches: Vec<Batch>,
+}
+
+#[pymethods]
+impl PythonQueryResult {
+    fn __repr__(&self) -> Result<String> {
+        let pretty = PrettyTable::try_new(&self.schema, &self.batches, DEFAULT_TABLE_WIDTH, None)?;
+        Ok(format!("{pretty}"))
+    }
+
+    fn show(&self, py: Python) -> Result<()> {
+        let pretty = PrettyTable::try_new(&self.schema, &self.batches, DEFAULT_TABLE_WIDTH, None)?;
+        pyprint(pretty, py)
     }
 }
