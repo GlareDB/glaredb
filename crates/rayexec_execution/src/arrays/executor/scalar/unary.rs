@@ -1,5 +1,4 @@
 use rayexec_error::Result;
-use crate::util::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
@@ -11,6 +10,7 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::array::Array;
 use crate::arrays::executor::{OutBuffer, PutBuffer};
+use crate::util::iter::IntoExactSizeIterator;
 
 #[derive(Debug, Clone)]
 pub struct UnaryExecutor;
@@ -216,8 +216,6 @@ impl UnaryExecutor {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::array::physical_type::{
         PhysicalI32,
@@ -228,6 +226,7 @@ mod tests {
     use crate::arrays::datatype::DataType;
     use crate::buffer::buffer_manager::NopBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn int32_inc_by_2() {

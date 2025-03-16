@@ -3,7 +3,6 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use rayexec_error::{RayexecError, Result};
-use crate::util::convert::TryAsMut;
 
 use super::physical_type::{
     BinaryViewAddressable,
@@ -39,6 +38,7 @@ use crate::arrays::string::{StringView, MAX_INLINE_LEN};
 use crate::buffer::buffer_manager::AsRawBufferManager;
 use crate::buffer::raw::RawBuffer;
 use crate::buffer::typed::TypedBuffer;
+use crate::util::convert::TryAsMut;
 
 /// Abstraction layer for holding shared or owned array data.
 ///

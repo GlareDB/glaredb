@@ -1,10 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
 use rayexec_error::Result;
-use crate::util::marker::PhantomCovariant;
 
 use super::buffer_manager::AsRawBufferManager;
 use super::raw::RawBuffer;
+use crate::util::marker::PhantomCovariant;
 
 /// Type alias to a raw buffer storing bytes.
 pub type ByteBuffer = TypedBuffer<u8>;

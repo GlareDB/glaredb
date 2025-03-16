@@ -201,11 +201,10 @@ impl TableExecuteFunction for GenerateSeriesI64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::task::noop_context;
-
     use super::*;
     use crate::generate_batch;
     use crate::testutil::arrays::assert_batches_eq;
+    use crate::util::task::noop_context;
 
     #[test]
     fn generate_series_single_row() {

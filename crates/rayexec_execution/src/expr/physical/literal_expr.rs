@@ -54,11 +54,10 @@ impl fmt::Display for PhysicalLiteralExpr {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::testutil::arrays::assert_arrays_eq;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn literal_eval() {

@@ -231,11 +231,10 @@ impl RowCollection {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::testutil::arrays::{assert_arrays_eq, assert_batches_eq, generate_batch};
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn append_single_batch_i32() {

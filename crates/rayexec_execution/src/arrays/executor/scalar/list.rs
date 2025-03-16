@@ -1,5 +1,4 @@
 use rayexec_error::{not_implemented, RayexecError, Result};
-use crate::util::iter::IntoExactSizeIterator;
 
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -9,6 +8,7 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::array::Array;
 use crate::arrays::executor::OutBuffer;
+use crate::util::iter::IntoExactSizeIterator;
 
 /// Trait for reducing two same size lists into a single value.
 pub trait BinaryReducer<T1, T2, O>: Default {

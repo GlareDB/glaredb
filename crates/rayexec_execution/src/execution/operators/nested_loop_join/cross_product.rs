@@ -1,5 +1,4 @@
 use rayexec_error::Result;
-use crate::util::iter::IntoExactSizeIterator;
 
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
@@ -9,6 +8,7 @@ use crate::arrays::collection::concurrent::{
 };
 use crate::arrays::datatype::DataType;
 use crate::storage::projections::Projections;
+use crate::util::iter::IntoExactSizeIterator;
 
 // TODO: `batch` and `projections` are pub so we can reuse them when draining
 // the collection for left outer.

@@ -769,12 +769,11 @@ const fn elide_index<T>(v: &[T]) -> usize {
 #[cfg(test)]
 mod tests {
 
-    use crate::util::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::array::selection::Selection;
     use crate::arrays::field::Field;
     use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn test_truncate_string() {

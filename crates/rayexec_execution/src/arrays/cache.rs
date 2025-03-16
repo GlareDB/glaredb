@@ -1,11 +1,11 @@
 use rayexec_error::Result;
-use crate::util::convert::TryAsMut;
 
 use super::array::array_buffer::{ArrayBuffer, ArrayBufferType, ScalarBuffer, StringBuffer};
 use super::array::Array;
 use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::array::validity::Validity;
 use crate::buffer::buffer_manager::{BufferManager, RawBufferManager};
+use crate::util::convert::TryAsMut;
 
 /// Maybe cache a buffer.
 pub trait MaybeCache {

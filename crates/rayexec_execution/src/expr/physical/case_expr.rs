@@ -187,14 +187,13 @@ impl fmt::Display for PhysicalCaseExpr {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::buffer::buffer_manager::NopBufferManager;
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
     use crate::testutil::arrays::assert_arrays_eq;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn case_simple() {

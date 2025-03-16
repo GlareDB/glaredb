@@ -295,11 +295,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::util::iter::TryFromExactSizeIterator;
-
     use super::*;
     use crate::buffer::buffer_manager::NopBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
+    use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn copy_rows_simple() {
