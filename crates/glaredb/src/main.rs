@@ -9,10 +9,10 @@ use glaredb_execution::engine::single_user::SingleUserEngine;
 use glaredb_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
 use glaredb_execution::shell::lineedit::{KeyEvent, TermSize};
 use glaredb_execution::shell::shell::{RawModeTerm, Shell, ShellSignal};
-use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 
 #[derive(Parser)]
-#[clap(name = "rayexec_bin")]
+#[clap(name = "glaredb")]
 struct Arguments {
     /// Execute file containing sql statements then exit.
     #[clap(short = 'f', long)]

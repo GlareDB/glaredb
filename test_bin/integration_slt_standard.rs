@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use glaredb_error::Result;
 use glaredb_execution::engine::single_user::SingleUserEngine;
+use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use glaredb_slt::{ReplacementVars, RunConfig};
-use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 
 pub fn main() -> Result<()> {
     run_multi_threaded()?;

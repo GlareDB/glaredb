@@ -1,5 +1,5 @@
 [package]
-name = "rayexec_rt_native"
+name = "glaredb_rt_native"
 version.workspace = true
 edition.workspace = true
 

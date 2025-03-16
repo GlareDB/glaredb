@@ -9,7 +9,7 @@ use benchmark::Benchmark;
 use clap::Parser;
 use glaredb_error::{RayexecError, Result, ResultExt};
 use glaredb_execution::engine::single_user::SingleUserEngine;
-use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use runner::{BenchmarkRunner, BenchmarkTimes, RunnerConfig};
 
 #[derive(Parser)]

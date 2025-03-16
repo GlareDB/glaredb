@@ -209,10 +209,10 @@ dependencies = [
  "glaredb_bench",
  "glaredb_error",
  "glaredb_execution",
+ "glaredb_rt_native",
  "rayexec_csv",
  "rayexec_delta",
  "rayexec_iceberg",
- "rayexec_rt_native",
 ]
 
 [[package]]
@@ -627,11 +627,11 @@ version = "0.0.95"
 dependencies = [
  "glaredb_error",
  "glaredb_execution",
+ "glaredb_rt_native",
  "logutil",
  "rayexec_csv",
  "rayexec_delta",
  "rayexec_iceberg",
- "rayexec_rt_native",
  "regex",
  "tokio",
  "tracing",
@@ -918,8 +918,8 @@ dependencies = [
  "futures",
  "glaredb_error",
  "glaredb_execution",
+ "glaredb_rt_native",
  "logutil",
- "rayexec_rt_native",
  "tracing",
  "tracing-subscriber",
 ]
@@ -932,8 +932,8 @@ dependencies = [
  "futures",
  "glaredb_error",
  "glaredb_execution",
+ "glaredb_rt_native",
  "logutil",
- "rayexec_rt_native",
 ]
 
 [[package]]
@@ -986,6 +986,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "glaredb_rt_native"
+version = "0.0.95"
+dependencies = [
+ "bytes",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "num_cpus",
+ "parking_lot",
+ "rayexec_io",
+ "rayon",
+ "reqwest",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "glaredb_slt"
 version = "0.0.95"
 dependencies = [
@@ -995,9 +1013,9 @@ dependencies = [
  "futures",
  "glaredb_error",
  "glaredb_execution",
+ "glaredb_rt_native",
  "libtest-mimic",
  "rand",
- "rayexec_rt_native",
  "sqllogictest",
  "tokio",
  "tracing",
@@ -2154,32 +2172,14 @@ dependencies = [
  "futures",
  "glaredb_error",
  "glaredb_execution",
+ "glaredb_rt_native",
  "parking_lot",
  "pyo3",
  "rayexec_csv",
  "rayexec_delta",
  "rayexec_io",
- "rayexec_rt_native",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "rayexec_rt_native"
-version = "0.0.95"
-dependencies = [
- "bytes",
- "futures",
- "glaredb_error",
- "glaredb_execution",
- "num_cpus",
- "parking_lot",
- "rayexec_io",
- "rayon",
- "reqwest",
- "tokio",
- "tracing",
- "url",
 ]
 
 [[package]]
@@ -2739,8 +2739,8 @@ version = "0.0.95"
 dependencies = [
  "glaredb_error",
  "glaredb_execution",
+ "glaredb_rt_native",
  "glaredb_slt",
- "rayexec_rt_native",
  "tokio",
 ]
 

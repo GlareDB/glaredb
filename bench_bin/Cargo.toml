@@ -8,7 +8,7 @@ edition.workspace = true
 [dependencies]
 glaredb_error = { path = '../crates/glaredb_error' }
 glaredb_execution = { path = '../crates/glaredb_execution' }
-rayexec_rt_native = { path = '../crates/rayexec_rt_native' }
+glaredb_rt_native = { path = '../crates/glaredb_rt_native' }
 glaredb_bench = { path = '../crates/glaredb_bench' }
 rayexec_csv = { path = '../crates/rayexec_csv' }
 rayexec_delta = { path = '../crates/rayexec_delta' }

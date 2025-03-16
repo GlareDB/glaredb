@@ -12,9 +12,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use convert::{batches_to_rows, schema_to_types};
-use libtest_mimic::{Arguments, Trial};
 use glaredb_error::{RayexecError, Result, ResultExt};
-use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use libtest_mimic::{Arguments, Trial};
 use sqllogictest::DefaultColumnType;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};

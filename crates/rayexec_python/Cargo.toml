@@ -13,7 +13,7 @@ glaredb_error = { path = '../glaredb_error' }
 rayexec_csv = { path = '../rayexec_csv' }
 rayexec_delta = { path = '../rayexec_delta' }
 rayexec_io = { path = '../rayexec_io' }
-rayexec_rt_native = { path = '../rayexec_rt_native' }
+glaredb_rt_native = { path = '../glaredb_rt_native' }
 futures = { workspace = true }
 parking_lot = { workspace = true }
 tracing = { workspace = true }

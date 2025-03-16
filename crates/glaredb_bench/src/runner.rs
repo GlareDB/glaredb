@@ -4,7 +4,7 @@ use glaredb_error::Result;
 use glaredb_execution::arrays::format::pretty::table::PrettyTable;
 use glaredb_execution::engine::single_user::SingleUserEngine;
 use glaredb_execution::runtime::{Runtime, TokioHandlerProvider};
-use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 
 use crate::benchmark::Benchmark;
 
