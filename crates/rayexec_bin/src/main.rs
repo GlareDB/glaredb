@@ -186,11 +186,10 @@ async fn inner(
                 Event::Key(event::KeyEvent {
                     code, modifiers, ..
                 }) => {
-                    let key = if modifiers.contains(KeyModifiers::CONTROL) {
-                        match code {
-                            event::KeyCode::Char('c') => KeyEvent::CtrlC,
-                            _ => KeyEvent::Unknown,
-                        }
+                    let key = if modifiers.contains(KeyModifiers::CONTROL)
+                        && matches!(code, event::KeyCode::Char('c'))
+                    {
+                        KeyEvent::CtrlC
                     } else {
                         from_crossterm_keycode(code)
                     };

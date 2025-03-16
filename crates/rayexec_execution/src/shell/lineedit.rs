@@ -5,10 +5,28 @@ use rayexec_error::Result;
 use super::highlighter::HighlightState;
 use super::{debug, vt100};
 
+// TODO: Bug in refresh.
+//
+// ```
+// glaredb> select 1,
+//      ... 'oh hey this is a long line, what
+//      ... happens when we wrap'
+// ```
+//
+// The second select item above is soft-wrapped. When we position the cursor
+// anywhere in the overflow (wrapped) line, then press up, we move to the first
+// line. Then moving back down positions the cursor at the wrong offset,
+// probably not taking into account prompt width somewhere.
+
+// TODO: History
+//
+// Just need to add the logic to the relevant up/down methods.
+
 /// Incoming key event.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyEvent {
     Backspace,
+    ShiftEnter, // Don't have native support in terminals for detecting this.
     Enter,
     Left,
     Right,
@@ -41,6 +59,52 @@ pub struct TermSize {
     pub cols: usize,
 }
 
+// TODO: Ring buffer, persistence.
+#[derive(Debug)]
+struct History {
+    cursor: usize,
+    items: Vec<String>,
+}
+
+impl History {
+    fn new() -> Self {
+        History {
+            cursor: 0,
+            items: Vec::new(),
+        }
+    }
+
+    fn push_item(&mut self, item: &str) {
+        if let Some(last) = self.items.last() {
+            if last == item {
+                // Deduplicate, don't store in history.
+                return;
+            }
+        }
+
+        self.items.push(item.into());
+        self.cursor = self.items.len() - 1;
+    }
+
+    fn next_item_back(&mut self) -> Option<&str> {
+        let item = self.items[self.cursor].as_str();
+        if self.cursor > 0 {
+            self.cursor -= 1;
+        }
+
+        Some(item)
+    }
+
+    fn next_item_front(&mut self) -> Option<&str> {
+        let item = self.items[self.cursor].as_str();
+        if self.cursor < self.items.len() - 1 {
+            self.cursor += 1;
+        }
+
+        Some(item)
+    }
+}
+
 /// Line editor inspired by linenoise.
 #[derive(Debug)]
 pub struct LineEditor<W: io::Write> {
@@ -67,6 +131,8 @@ pub struct LineEditor<W: io::Write> {
     did_ctrl_c: bool,
     /// Highlight keywords.
     highlighter: HighlightState,
+    /// History buffer.
+    history: History,
 }
 
 impl<W> LineEditor<W>
@@ -91,6 +157,7 @@ where
             max_lines: 1, // We never have less than one line.
             did_ctrl_c: false,
             highlighter: HighlightState::new(),
+            history: History::new(),
         }
     }
 
@@ -119,31 +186,26 @@ where
         }
 
         match key {
-            KeyEvent::Char(c) => {
-                self.edit_insert_char(c, true)?;
-            }
-            KeyEvent::Backspace => {
-                self.edit_backspace()?;
+            KeyEvent::Char(c) => self.edit_insert_char(c, true)?,
+            KeyEvent::Backspace => self.edit_backspace()?,
+            KeyEvent::ShiftEnter => {
+                self.edit_move_to_end()?;
+                self.history.push_item(self.buffer.as_ref());
+                return Ok(Signal::InputCompleted(&self.buffer.as_ref()));
             }
             KeyEvent::Enter => {
                 if self.is_complete() {
                     self.edit_move_to_end()?;
+                    self.history.push_item(self.buffer.as_ref());
                     return Ok(Signal::InputCompleted(&self.buffer.as_ref()));
                 }
                 self.edit_enter()?;
             }
-            KeyEvent::Left => {
-                self.edit_move_left()?;
-            }
-            KeyEvent::Right => {
-                self.edit_move_right()?;
-            }
-            KeyEvent::Up => {
-                self.edit_move_up()?;
-            }
-            KeyEvent::Down => {
-                self.edit_move_down()?;
-            }
+            KeyEvent::Left => self.edit_move_left()?,
+            KeyEvent::Right => self.edit_move_right()?,
+            KeyEvent::Up => self.edit_move_up()?,
+            KeyEvent::Down => self.edit_move_down()?,
+            KeyEvent::End => self.edit_move_to_end()?,
             KeyEvent::CtrlC => {
                 self.did_ctrl_c = true;
 
@@ -163,6 +225,18 @@ where
             self.edit_insert_char(ch, false)?;
         }
         self.refresh()
+    }
+
+    fn consume_history(&mut self, text: &str) -> Result<()> {
+        self.buffer.clear();
+        self.text_pos = 0;
+        self.rendered_cursor_row = 0;
+
+        // Note we don't want to reset max lines, as we want to properly
+        // overwrite all lines. The resulting query might be fewer lines, but we
+        // won't see anything from the previous query.
+
+        self.consume_text(text)
     }
 
     pub fn edit_start(&mut self) -> Result<()> {
@@ -192,7 +266,14 @@ where
     fn edit_move_up(&mut self) -> Result<()> {
         let line = self.buffer.current_line(self.text_pos);
         if line == 0 {
-            // TODO: History
+            if let Some(item) = self.history.next_item_back() {
+                // TODO: Avoid the clone.
+                let item = item.to_string();
+                self.consume_history(&item)?;
+                return Ok(());
+            }
+
+            // No more history in that direction.
             return Ok(());
         }
 
@@ -213,7 +294,14 @@ where
     fn edit_move_down(&mut self) -> Result<()> {
         let line = self.buffer.current_line(self.text_pos);
         if line == self.buffer.spans.len() - 1 {
-            // TODO: History
+            if let Some(item) = self.history.next_item_front() {
+                // TODO: Avoid the clone.
+                let item = item.to_string();
+                self.consume_history(&item)?;
+                return Ok(());
+            }
+
+            // No more history in that direction, do nothing.
             return Ok(());
         }
 
@@ -296,73 +384,109 @@ where
         write!(self.writer, "{}", vt100::CR)?;
         write!(self.writer, "{}", vt100::CLEAR_LINE_CURSOR_RIGHT)?;
 
-        let buffer = &mut self.buffer;
+        let buffer = &self.buffer;
         // Tokenize the current query for highlighting.
         self.highlighter.tokenize(&buffer.current);
 
-        let mut lines = buffer.lines();
+        // Lines broken up by literal newlines in the input.
+        let lines = buffer.lines();
 
-        // Write the prompt with the first line.
-        debug::log(|| "printing first line");
-        Self::write_prompt(&mut self.writer, self.prompt)?;
-        let first = lines.next().unwrap();
-        let h_first = self.highlighter.next_chunk_highlight(first);
-        for h_str in h_first {
-            h_str.write_vt100_trim_nl(&mut self.writer)?;
+        // Now get the cursor line/col relative to the text input.
+        let (pos_line, pos_col) = buffer.current_line_and_column(self.text_pos);
+        debug::log(|| format!("position: line: {pos_line}, col: {pos_col}"));
+
+        let mut visual_line_count = 0;
+        let mut vis_line = pos_line;
+        let mut vis_col = pos_col;
+
+        // Move the visual column to account for the prompt width.
+        if pos_line == 0 {
+            vis_col += self.prompt.len();
+        } else {
+            vis_col += self.continuation.len();
         }
 
-        // Now write each following line with a continuation string.
-        debug::log(|| "printing remaining lines");
-        for line in lines {
-            write!(self.writer, "{}", vt100::CRLF)?;
-            write!(
-                self.writer,
-                "{}{}",
-                vt100::COLOR_FG_BRIGHT_BLACK,
-                self.continuation
-            )?;
+        // Write all the lines.
+        for (line_idx, hard_line) in lines.enumerate() {
+            let prompt_width = if line_idx == 0 {
+                // Write prompt for first line.
+                Self::write_prompt(&mut self.writer, self.prompt)?;
+                self.prompt.len()
+            } else {
+                // Write continuation markers for hard line breaks.
+                write!(self.writer, "{}", vt100::CRLF)?;
+                write!(
+                    self.writer,
+                    "{}{}",
+                    vt100::COLOR_FG_BRIGHT_BLACK,
+                    self.continuation
+                )?;
+                self.continuation.len()
+            };
 
-            // Highlight each line
-            let h_line = self.highlighter.next_chunk_highlight(line);
-            for h_str in h_line {
-                h_str.write_vt100_trim_nl(&mut self.writer)?;
+            let content_width = self.size.cols - prompt_width;
+
+            // Split lines to ensure they fit in the terminal.
+            let split = LineSplitter::new(hard_line, content_width);
+            for (soft_line_idx, soft_line) in split.enumerate() {
+                if soft_line_idx > 0 {
+                    // Contiuation for soft line breaks.
+                    write!(self.writer, "{}", vt100::CRLF)?;
+                    write!(
+                        self.writer,
+                        "{}{}",
+                        vt100::COLOR_FG_BRIGHT_BLACK,
+                        self.continuation
+                    )?;
+
+                    if pos_line > line_idx {
+                        // We added a soft line break, adjust the visual line to
+                        // account for it.
+                        vis_line += 1;
+                    }
+
+                    if pos_line == line_idx && vis_col > content_width {
+                        // Adjust column to be relative to this line.
+                        //
+                        // Note that if we have multiple softbreaks, this will
+                        // be called multiple times until the column is lined up
+                        // correctly.
+                        vis_col -= content_width;
+                        // Adjust visual line as well since we're wrapping here.
+                        vis_line += 1;
+                    }
+                }
+
+                // Highlight each line
+                let h_line = self.highlighter.next_chunk_highlight(soft_line);
+                for h_str in h_line {
+                    h_str.write_vt100_trim_nl(&mut self.writer)?;
+                }
+
+                visual_line_count += 1;
             }
         }
+
+        debug::log(|| format!("visual_line_count: {visual_line_count}"));
 
         // We're done highlighting.
         self.highlighter.clear_highlight(&mut self.writer)?;
 
-        // Now get the cursor line/col relative to the text input.
-        let (pos_line, pos_col) = self.buffer.current_line_and_column(self.text_pos);
-        debug::log(|| format!("position: line: {pos_line}, col: {pos_col}"));
+        self.max_lines = usize::max(visual_line_count, self.max_lines);
+        self.rendered_cursor_row = vis_line;
 
-        // TODO: Need to account for automatic wrapping for lines longer than
-        // terminal width.
-        self.max_lines = usize::max(self.buffer.spans.len(), self.max_lines);
-
-        // Now move cursor to correct line/column
-        let line = pos_line; // TODO: Compute overflow.
-        self.rendered_cursor_row = line;
-
-        let col = if line == 0 {
-            // Adjust using width of "normal" prompt.
-            pos_col + self.prompt.len()
-        } else {
-            // Adjust using width of continuation.
-            pos_col + self.continuation.len()
-        };
-        debug::log(|| format!("updated: line: {line}, col: {col}"));
+        debug::log(|| format!("vis_line: {vis_line}, vis_col: {vis_col}"));
 
         // Row diff relative to the last line indicating how many lines to move
         // up.
-        let row_diff = self.buffer.spans.len() - 1 - line;
+        let row_diff = visual_line_count - vis_line - 1;
         if row_diff > 0 {
             vt100::cursor_up(&mut self.writer, row_diff)?;
         }
 
         // Column
         write!(self.writer, "{}", vt100::CR)?;
-        vt100::cursor_right(&mut self.writer, col)?;
+        vt100::cursor_right(&mut self.writer, vis_col)?;
 
         self.writer.flush()?;
 
@@ -617,6 +741,50 @@ impl<'a> Iterator for LineIter<'a> {
     }
 }
 
+/// Splits a line into multiple lines if it exceeds a width.
+#[derive(Debug)]
+struct LineSplitter<'a> {
+    /// Separate bool for indicating if we're finished to allow emitting out
+    /// empty strings.
+    finished: bool,
+    width: usize,
+    rem: &'a str,
+}
+
+impl<'a> LineSplitter<'a> {
+    fn new(line: &'a str, width: usize) -> Self {
+        LineSplitter {
+            finished: false,
+            width,
+            rem: line,
+        }
+    }
+}
+
+impl<'a> Iterator for LineSplitter<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+
+        if self.rem.len() <= self.width {
+            // Line fits into the desired width, nothing more for us to do.
+            let s = self.rem;
+            self.rem = "";
+            self.finished = true;
+            return Some(s);
+        }
+
+        // Split the line.
+        let (line, rem) = self.rem.split_at(self.width);
+        self.rem = rem;
+
+        Some(line)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -779,5 +947,36 @@ mod tests {
         assert_eq!((3, 0), buf.current_line_and_column(12));
         assert_eq!((4, 0), buf.current_line_and_column(13)); // '2'
         assert_eq!((4, 1), buf.current_line_and_column(14)); // ';'
+    }
+
+    #[test]
+    fn line_splitter_fits_in_single_line() {
+        let s = "mario luigi";
+        let split = LineSplitter::new(s, 80);
+
+        let got: Vec<_> = split.collect();
+        let expected = vec!["mario luigi"];
+
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn line_splitter_split_into_multiple_lines() {
+        let s = "mario luigi";
+        let split = LineSplitter::new(s, 3);
+
+        let got: Vec<_> = split.collect();
+        let expected = vec!["mar", "io ", "lui", "gi"];
+
+        assert_eq!(expected, got);
+    }
+
+    #[test]
+    fn line_split_emit_empty_string() {
+        // If provided an empty string to begin with.
+        let split = LineSplitter::new("", 80);
+
+        let got: Vec<_> = split.collect();
+        assert_eq!(vec![""], got);
     }
 }
