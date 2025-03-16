@@ -1,5 +1,5 @@
 [package]
-name = "rayexec_wasm"
+name = "glaredb_wasm"
 version.workspace = true
 edition.workspace = true
 

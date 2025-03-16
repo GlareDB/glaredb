@@ -5,5 +5,5 @@
 Create package.
 
 ```sh
-$ wasm-pack build crates/rayexec_wasm/ --scope glaredb
+$ wasm-pack build crates/glaredb_wasm/ --scope glaredb
 ```

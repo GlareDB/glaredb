@@ -986,6 +986,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "glaredb_wasm"
+version = "0.0.95"
+dependencies = [
+ "bytes",
+ "console_error_panic_hook",
+ "futures",
+ "getrandom 0.2.14",
+ "glaredb_error",
+ "glaredb_execution",
+ "js-sys",
+ "parking_lot",
+ "rayexec_csv",
+ "rayexec_delta",
+ "rayexec_iceberg",
+ "rayexec_io",
+ "reqwest",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2154,32 +2180,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "rayexec_wasm"
-version = "0.0.95"
-dependencies = [
- "bytes",
- "console_error_panic_hook",
- "futures",
- "getrandom 0.2.14",
- "glaredb_error",
- "glaredb_execution",
- "js-sys",
- "parking_lot",
- "rayexec_csv",
- "rayexec_delta",
- "rayexec_iceberg",
- "rayexec_io",
- "reqwest",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]
