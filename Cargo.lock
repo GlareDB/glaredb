@@ -206,8 +206,8 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 name = "bench_bin"
 version = "0.0.95"
 dependencies = [
+ "glaredb_bench",
  "glaredb_error",
- "rayexec_bench",
  "rayexec_csv",
  "rayexec_delta",
  "rayexec_execution",
@@ -922,6 +922,18 @@ dependencies = [
  "rayexec_rt_native",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "glaredb_bench"
+version = "0.0.95"
+dependencies = [
+ "clap",
+ "futures",
+ "glaredb_error",
+ "logutil",
+ "rayexec_execution",
+ "rayexec_rt_native",
 ]
 
 [[package]]
@@ -1958,18 +1970,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom 0.2.14",
-]
-
-[[package]]
-name = "rayexec_bench"
-version = "0.0.95"
-dependencies = [
- "clap",
- "futures",
- "glaredb_error",
- "logutil",
- "rayexec_execution",
- "rayexec_rt_native",
 ]
 
 [[package]]

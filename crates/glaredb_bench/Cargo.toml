@@ -1,5 +1,5 @@
 [package]
-name = "rayexec_bench"
+name = "glaredb_bench"
 version.workspace = true
 edition.workspace = true
 
