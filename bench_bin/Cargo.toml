@@ -12,7 +12,7 @@ glaredb_rt_native = { path = '../crates/glaredb_rt_native' }
 glaredb_bench = { path = '../crates/glaredb_bench' }
 ext_csv = { path = '../crates/ext_csv' }
 ext_delta = { path = '../crates/ext_delta' }
-rayexec_iceberg = { path = '../crates/rayexec_iceberg' }
+ext_iceberg = { path = '../crates/ext_iceberg' }
 
 # TODO: Figure out the bench harness stuff.
 

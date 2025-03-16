@@ -208,11 +208,11 @@ version = "0.0.95"
 dependencies = [
  "ext_csv",
  "ext_delta",
+ "ext_iceberg",
  "glaredb_bench",
  "glaredb_error",
  "glaredb_execution",
  "glaredb_rt_native",
- "rayexec_iceberg",
 ]
 
 [[package]]
@@ -627,11 +627,11 @@ version = "0.0.95"
 dependencies = [
  "ext_csv",
  "ext_delta",
+ "ext_iceberg",
  "glaredb_error",
  "glaredb_execution",
  "glaredb_rt_native",
  "logutil",
- "rayexec_iceberg",
  "regex",
  "tokio",
  "tracing",
@@ -758,6 +758,26 @@ dependencies = [
  "rayexec_io",
  "regex",
  "serde",
+ "serde_json",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "ext_iceberg"
+version = "0.0.95"
+dependencies = [
+ "apache-avro",
+ "bytes",
+ "ext_parquet",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "glaredb_proto",
+ "rayexec_io",
+ "regex",
+ "serde",
+ "serde_bytes",
  "serde_json",
  "tracing",
  "url",
@@ -1109,13 +1129,13 @@ dependencies = [
  "console_error_panic_hook",
  "ext_csv",
  "ext_delta",
+ "ext_iceberg",
  "futures",
  "getrandom 0.2.14",
  "glaredb_error",
  "glaredb_execution",
  "js-sys",
  "parking_lot",
- "rayexec_iceberg",
  "rayexec_io",
  "reqwest",
  "tokio",
@@ -2122,26 +2142,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom 0.2.14",
-]
-
-[[package]]
-name = "rayexec_iceberg"
-version = "0.0.95"
-dependencies = [
- "apache-avro",
- "bytes",
- "ext_parquet",
- "futures",
- "glaredb_error",
- "glaredb_execution",
- "glaredb_proto",
- "rayexec_io",
- "regex",
- "serde",
- "serde_bytes",
- "serde_json",
- "tracing",
- "url",
 ]
 
 [[package]]

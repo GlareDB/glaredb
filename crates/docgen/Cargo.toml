@@ -10,7 +10,7 @@ glaredb_execution = { path = '../glaredb_execution' }
 glaredb_rt_native = { path = '../glaredb_rt_native' }
 ext_csv = { path = '../ext_csv' }
 ext_delta = { path = '../ext_delta' }
-rayexec_iceberg = { path = '../rayexec_iceberg' }
+ext_iceberg = { path = '../ext_iceberg' }
 regex = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }

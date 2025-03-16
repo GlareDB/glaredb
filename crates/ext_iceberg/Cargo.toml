@@ -1,5 +1,5 @@
 [package]
-name = "rayexec_iceberg"
+name = "ext_iceberg"
 version.workspace = true
 edition.workspace = true
 

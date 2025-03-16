@@ -19,7 +19,7 @@ glaredb_execution = { path = '../glaredb_execution' }
 glaredb_error = { path = '../glaredb_error' }
 ext_csv = { path = '../ext_csv' }
 ext_delta = { path = '../ext_delta' }
-rayexec_iceberg = { path = '../rayexec_iceberg' }
+ext_iceberg = { path = '../ext_iceberg' }
 rayexec_io = { path = '../rayexec_io' }
 futures = { workspace = true }
 parking_lot = { workspace = true }
