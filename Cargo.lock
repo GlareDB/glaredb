@@ -594,20 +594,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04d2cd9c18b9f454ed67da600630b021a8a80bf33f8c95896ab33aaf1c26b728"
 
 [[package]]
-name = "dashmap"
-version = "6.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "804c8821570c3f8b70230c2ba75ffa5c0f9a4189b9a432b6656c536712acae28"
-dependencies = [
- "cfg-if",
- "crossbeam-utils",
- "hashbrown 0.14.5",
- "lock_api",
- "once_cell",
- "parking_lot_core",
-]
-
-[[package]]
 name = "diff"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -650,12 +636,6 @@ dependencies = [
  "tokio",
  "tracing",
 ]
-
-[[package]]
-name = "dyn-clone"
-version = "1.0.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "feeef44e73baff3a26d371801df019877a9866a8c493d315ab00177843314f35"
 
 [[package]]
 name = "educe"
@@ -729,16 +709,6 @@ name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
-
-[[package]]
-name = "erased-serde"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24e2389d65ab4fab27dc2a5de7b191e1f6617d1f1c8855c0dc569c94a4cbb18d"
-dependencies = [
- "serde",
- "typeid",
-]
 
 [[package]]
 name = "errno"
@@ -2007,13 +1977,11 @@ dependencies = [
  "bytes",
  "csv",
  "csv-core",
- "erased-serde",
  "futures",
  "rayexec_error",
  "rayexec_execution",
  "rayexec_proto",
  "regex",
- "serde",
  "tracing",
  "url",
 ]
@@ -2023,7 +1991,6 @@ name = "rayexec_delta"
 version = "0.0.95"
 dependencies = [
  "bytes",
- "erased-serde",
  "futures",
  "parquet",
  "rayexec_error",
@@ -2040,10 +2007,6 @@ dependencies = [
 [[package]]
 name = "rayexec_error"
 version = "0.0.95"
-dependencies = [
- "erased-serde",
- "serde",
-]
 
 [[package]]
 name = "rayexec_execution"
@@ -2051,9 +2014,6 @@ version = "0.0.95"
 dependencies = [
  "ahash",
  "chrono",
- "dashmap",
- "dyn-clone",
- "erased-serde",
  "fmtutil",
  "futures",
  "half",
@@ -2072,10 +2032,8 @@ dependencies = [
  "regex",
  "scc",
  "serde",
- "serde_bytes",
  "serde_json",
  "similar-asserts",
- "smallvec",
  "strsim",
  "textwrap",
  "tokio",
@@ -3057,12 +3015,6 @@ dependencies = [
  "quote",
  "syn",
 ]
-
-[[package]]
-name = "typeid"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "059d83cc991e7a42fc37bd50941885db0888e34209f8cfd9aab07ddec03bc9cf"
 
 [[package]]
 name = "typenum"

@@ -115,12 +115,6 @@ impl From<std::io::Error> for RayexecError {
     }
 }
 
-impl From<erased_serde::Error> for RayexecError {
-    fn from(value: erased_serde::Error) -> Self {
-        Self::with_source("Serialization error", Box::new(value))
-    }
-}
-
 // TODO: This loses a bit of context surrounding the source of the error. What
 // was the value? What were we converting to?
 //
