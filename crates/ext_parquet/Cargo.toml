@@ -16,9 +16,9 @@
 # under the License.
 
 [package]
-name = "parquet"
+name = "ext_parquet"
 version = { workspace = true }
-description = "Apache Parquet implementation in Rust. Forked from github.com/apache/arrow-rs"
+description = "Apache Parquet extension for GlareDB. Originally forked from github.com/apache/arrow-rs"
 keywords = ["arrow", "parquet", "hadoop"]
 readme = "README.md"
 edition = { workspace = true }

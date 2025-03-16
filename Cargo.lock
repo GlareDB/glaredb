@@ -730,6 +730,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "ext_parquet"
+version = "0.0.95"
+dependencies = [
+ "ahash",
+ "base64",
+ "brotli",
+ "bytes",
+ "chrono",
+ "clap",
+ "criterion",
+ "flate2",
+ "futures",
+ "glaredb_error",
+ "glaredb_execution",
+ "half",
+ "hashbrown 0.14.5",
+ "lz4_flex",
+ "num",
+ "num-bigint",
+ "paste",
+ "rand",
+ "rayexec_io",
+ "seq-macro",
+ "serde",
+ "serde_json",
+ "snap",
+ "tempfile",
+ "thrift",
+ "tokio",
+ "twox-hash",
+ "zstd",
+ "zstd-sys",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1785,41 +1820,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "parquet"
-version = "0.0.95"
-dependencies = [
- "ahash",
- "base64",
- "brotli",
- "bytes",
- "chrono",
- "clap",
- "criterion",
- "flate2",
- "futures",
- "glaredb_error",
- "glaredb_execution",
- "half",
- "hashbrown 0.14.5",
- "lz4_flex",
- "num",
- "num-bigint",
- "paste",
- "rand",
- "rayexec_io",
- "seq-macro",
- "serde",
- "serde_json",
- "snap",
- "tempfile",
- "thrift",
- "tokio",
- "twox-hash",
- "zstd",
- "zstd-sys",
-]
-
-[[package]]
 name = "paste"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2111,11 +2111,11 @@ name = "rayexec_delta"
 version = "0.0.95"
 dependencies = [
  "bytes",
+ "ext_parquet",
  "futures",
  "glaredb_error",
  "glaredb_execution",
  "glaredb_proto",
- "parquet",
  "rayexec_io",
  "regex",
  "serde",
@@ -2130,11 +2130,11 @@ version = "0.0.95"
 dependencies = [
  "apache-avro",
  "bytes",
+ "ext_parquet",
  "futures",
  "glaredb_error",
  "glaredb_execution",
  "glaredb_proto",
- "parquet",
  "rayexec_io",
  "regex",
  "serde",
