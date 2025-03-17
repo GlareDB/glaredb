@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::io::{self, Write};
 
 use glaredb_error::{RayexecError, Result};
@@ -52,8 +51,8 @@ pub enum ShellSignal<T: RawModeTerm> {
 
 #[derive(Debug)]
 pub struct Shell<W: io::Write, P: PipelineExecutor, R: Runtime, T: RawModeTerm> {
-    editor: RefCell<LineEditor<W>>,
-    engine: RefCell<Option<EngineWithConfig<P, R>>>,
+    editor: LineEditor<W>,
+    engine: Option<EngineWithConfig<P, R>>,
     term: T,
 }
 
@@ -76,21 +75,19 @@ where
 
         let editor = LineEditor::new(writer, PROMPT, CONTIN, TermSize { cols: 80 });
         Shell {
-            editor: RefCell::new(editor),
-            engine: RefCell::new(None),
+            editor,
+            engine: None,
             term,
         }
     }
 
-    pub fn attach(&self, engine: SingleUserEngine<P, R>, shell_msg: &str) -> Result<()> {
-        let mut current = self.engine.borrow_mut();
-        *current = Some(EngineWithConfig {
+    pub fn attach(&mut self, engine: SingleUserEngine<P, R>, shell_msg: &str) -> Result<()> {
+        self.engine = Some(EngineWithConfig {
             engine,
             pending: None,
         });
 
-        let mut editor = self.editor.borrow_mut();
-        let mut writer = RawTerminalWriter::new(editor.writer_mut());
+        let mut writer = RawTerminalWriter::new(self.editor.writer_mut());
         writeln!(writer, "{}{shell_msg}{}", MODE_BOLD, MODES_OFF)?;
         let version = env!("CARGO_PKG_VERSION");
         writeln!(writer, "Preview ({version}) - There will be bugs!")?;
@@ -98,35 +95,30 @@ where
         Ok(())
     }
 
-    pub fn edit_start(&self) -> Result<RawModeGuard<T>> {
+    pub fn edit_start(&mut self) -> Result<RawModeGuard<T>> {
+        trace!("edit start");
         let guard = RawModeGuard::enable_raw_mode(self.term);
-        let mut editor = self.editor.borrow_mut();
-        editor.edit_start()?;
+        self.editor.edit_start()?;
 
         Ok(guard)
     }
 
-    pub fn set_size(&self, size: TermSize) {
-        let mut editor = self.editor.borrow_mut();
-        editor.set_size(size);
+    pub fn set_size(&mut self, size: TermSize) {
+        self.editor.set_size(size);
     }
 
     // TODO: Should this allow signalling the end?
-    pub fn consume_text(&self, text: &str) -> Result<()> {
-        let mut editor = self.editor.borrow_mut();
-        editor.consume_text(text)?;
+    pub fn consume_text(&mut self, text: &str) -> Result<()> {
+        self.editor.consume_text(text)?;
         Ok(())
     }
 
-    pub fn consume_key(&self, guard: RawModeGuard<T>, key: KeyEvent) -> Result<ShellSignal<T>> {
-        let mut editor = self.editor.borrow_mut();
-
-        match editor.consume_key(key)? {
+    pub fn consume_key(&mut self, guard: RawModeGuard<T>, key: KeyEvent) -> Result<ShellSignal<T>> {
+        match self.editor.consume_key(key)? {
             Signal::KeepEditing => Ok(ShellSignal::Continue(guard)),
             Signal::InputCompleted(query) => {
                 let query = query.to_string();
-                let mut session = self.engine.borrow_mut();
-                match session.as_mut() {
+                match self.engine.as_mut() {
                     Some(session) => {
                         session.pending = Some(query);
                     }
@@ -142,24 +134,17 @@ where
         }
     }
 
-    // TODO: The refcell stuff here is definitely prone to erroring. I'd prefer
-    // some sort of message passing approach.
-    #[allow(clippy::await_holding_refcell_ref)]
-    pub async fn execute_pending(&self, _guard: RawModeGuard<T>) -> Result<()> {
-        let mut editor = self.editor.borrow_mut();
-        let width = editor.get_size().cols;
+    pub async fn execute_pending(&mut self, _guard: RawModeGuard<T>) -> Result<()> {
+        let width = self.editor.get_size().cols;
+        trace!(%width, "using editor reported width");
 
-        let mut engine = self.engine.borrow_mut();
-        match engine.as_mut() {
+        match self.engine.as_mut() {
             Some(engine) => {
                 let query = match engine.pending.take() {
                     Some(query) => query,
                     None => return Ok(()), // Nothing to execute.
                 };
-                let mut writer = RawTerminalWriter::new(editor.writer_mut());
-                writer.write_all(b"\n")?;
-                // Flush here too so xtermjs gets the newline...
-                writer.flush()?;
+                let mut writer = RawTerminalWriter::new(self.editor.writer_mut());
 
                 // TODO: What would really be cool is if we disabled raw mode
                 // during execution, then re-enabled it before writing the
@@ -212,6 +197,9 @@ where
                         writeln!(writer, "{e}")?;
                     }
                 }
+
+                // Flush here too idk.
+                writer.flush()?;
 
                 Ok(())
             }

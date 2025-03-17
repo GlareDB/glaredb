@@ -149,11 +149,19 @@ where
             KeyEvent::Backspace => self.edit_backspace()?,
             KeyEvent::ShiftEnter => {
                 self.edit_move_to_end()?;
+
+                write!(self.writer, "{}", vt100::CRLF)?;
+                self.writer.flush()?;
+
                 return Ok(Signal::InputCompleted(self.buffer.as_ref()));
             }
             KeyEvent::Enter => {
                 if self.is_complete() {
                     self.edit_move_to_end()?;
+
+                    write!(self.writer, "{}", vt100::CRLF)?;
+                    self.writer.flush()?;
+
                     return Ok(Signal::InputCompleted(self.buffer.as_ref()));
                 }
                 self.edit_enter()?;
@@ -170,7 +178,7 @@ where
                 self.edit_move_to_end()?;
 
                 write!(self.writer, "{}", vt100::CRLF)?;
-                self.edit_start()?;
+                self.edit_start()?
             }
             _ => (),
         }
@@ -203,7 +211,14 @@ where
         self.rendered_cursor_row = 0;
         self.max_lines = 1;
 
-        Self::write_prompt(&mut self.writer, self.prompt)?;
+        write!(
+            self.writer,
+            "{}{}{}",
+            vt100::MODE_BOLD,
+            self.prompt,
+            vt100::MODES_OFF
+        )?;
+
         self.writer.flush()?;
 
         Ok(())
@@ -319,14 +334,22 @@ where
         // Clear previous rows.
         for _ in 0..self.max_lines - 1 {
             // Clear current line.
-            write!(self.writer, "{}", vt100::CR)?;
-            write!(self.writer, "{}", vt100::CLEAR_LINE_CURSOR_RIGHT)?;
+            write!(
+                self.writer,
+                "{}{}",
+                vt100::CR,
+                vt100::CLEAR_LINE_CURSOR_RIGHT
+            )?;
             vt100::cursor_up(&mut self.writer, 1)?;
         }
 
         // Clear current/top line.
-        write!(self.writer, "{}", vt100::CR)?;
-        write!(self.writer, "{}", vt100::CLEAR_LINE_CURSOR_RIGHT)?;
+        write!(
+            self.writer,
+            "{}{}",
+            vt100::CR,
+            vt100::CLEAR_LINE_CURSOR_RIGHT
+        )?;
 
         let buffer = &self.buffer;
         // Tokenize the current query for highlighting.
@@ -354,14 +377,20 @@ where
         for (line_idx, hard_line) in lines.enumerate() {
             let prompt_width = if line_idx == 0 {
                 // Write prompt for first line.
-                Self::write_prompt(&mut self.writer, self.prompt)?;
+                write!(
+                    self.writer,
+                    "{}{}{}",
+                    vt100::MODE_BOLD,
+                    self.prompt,
+                    vt100::MODES_OFF
+                )?;
                 self.prompt.len()
             } else {
                 // Write continuation markers for hard line breaks.
-                write!(self.writer, "{}", vt100::CRLF)?;
                 write!(
                     self.writer,
-                    "{}{}",
+                    "{}{}{}",
+                    vt100::CRLF,
                     vt100::COLOR_FG_BRIGHT_BLACK,
                     self.continuation
                 )?;
@@ -375,10 +404,10 @@ where
             for (soft_line_idx, soft_line) in split.enumerate() {
                 if soft_line_idx > 0 {
                     // Contiuation for soft line breaks.
-                    write!(self.writer, "{}", vt100::CRLF)?;
                     write!(
                         self.writer,
-                        "{}{}",
+                        "{}{}{}",
+                        vt100::CRLF,
                         vt100::COLOR_FG_BRIGHT_BLACK,
                         self.continuation
                     )?;
@@ -440,11 +469,6 @@ where
     fn is_complete(&self) -> bool {
         let trimmed = self.buffer.as_ref().trim();
         trimmed.ends_with(';') || trimmed.starts_with('/')
-    }
-
-    fn write_prompt(writer: &mut W, prompt: &str) -> Result<()> {
-        write!(writer, "{}{prompt}{}", vt100::MODE_BOLD, vt100::MODES_OFF)?;
-        Ok(())
     }
 }
 

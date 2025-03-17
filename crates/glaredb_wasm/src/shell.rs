@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::io::{self, BufWriter};
+use std::io;
 use std::rc::Rc;
 
 use glaredb_execution::engine::single_user::SingleUserEngine;
@@ -24,7 +24,10 @@ extern "C" {
     pub type Terminal;
 
     #[wasm_bindgen(method)]
-    pub fn write(this: &Terminal, data: &[u8]);
+    pub fn write(this: &Terminal, text: &str);
+
+    #[wasm_bindgen(method)]
+    pub fn writeln(this: &Terminal, text: &str);
 
     #[wasm_bindgen(js_name = "IDisposable")]
     pub type Disposable;
@@ -48,25 +51,53 @@ extern "C" {
 }
 
 #[derive(Debug)]
-pub struct TerminalWrapper {
+pub struct TerminalBuffer {
+    buf: Vec<u8>,
     terminal: Terminal,
 }
 
-impl TerminalWrapper {
+impl TerminalBuffer {
     pub fn new(terminal: Terminal) -> Self {
-        TerminalWrapper { terminal }
+        const DEFAULT_CAPACITY: usize = 1024;
+
+        TerminalBuffer {
+            buf: Vec::with_capacity(DEFAULT_CAPACITY),
+            terminal,
+        }
     }
 }
 
-impl io::Write for TerminalWrapper {
+impl io::Write for TerminalBuffer {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let n = buf.len();
-        self.terminal.write(buf);
-
-        Ok(n)
+        self.buf.extend_from_slice(buf);
+        Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        if self.buf.is_empty() {
+            return Ok(());
+        }
+
+        // Note that while the `write` method for xtermjs accepts either bytes
+        // or a string, they behave suitably different in that we can't just
+        // pass the bytes directly.
+        //
+        // I don't know what exactly the issue is, since the docs say that bytes
+        // are treated as utf8, and we're only ever generating valid utf8, but
+        // we still end up with some weird rendering (missing newlines, lines
+        // out of order, etc). Unfortunately it works "just enough" to make you
+        // think it's a bug in your code, and you end up spending hours trying
+        // to figure it out.
+        //
+        // String works, so whatever.
+        //
+        // `write` doc: https://xtermjs.org/docs/api/terminal/classes/terminal/#write
+        let s = std::str::from_utf8(&self.buf)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        self.terminal.write(s);
+
+        self.buf.clear();
+
         Ok(())
     }
 }
@@ -78,20 +109,14 @@ impl io::Write for TerminalWrapper {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct WasmShell {
-    // TODO: For some reason, without the buf writer, the output gets all messed
-    // up. The buf writer is a good thing since we're calling flush where
-    // appropriate, but it'd be nice to know what's going wrong when it's not
-    // used.
-    pub(crate) shell: Rc<Shell<BufWriter<TerminalWrapper>, WasmExecutor, WasmRuntime, NopRawMode>>,
-    /// Updateable guard used for shell inputs.
+    /// Shareable inner logic for the shell.
+    pub(crate) inner: Rc<RefCell<WasmShellInner>>,
+}
+
+#[derive(Debug)]
+pub(crate) struct WasmShellInner {
+    shell: Shell<TerminalBuffer, WasmExecutor, WasmRuntime, NopRawMode>,
     edit_guard: Option<WasmEditGuard>,
-    /// Guard set after executing a query that should be used for upcoming shell
-    /// input.
-    ///
-    /// This is done instead of setting the edit guard directly to avoid need to
-    /// wrap the "fast path" guard in a rc+refcell and do all the borrowing.
-    // TODO: Is perf really a concern here?
-    post_execute_guard: Rc<RefCell<Option<WasmEditGuard>>>,
 }
 
 type WasmEditGuard = RawModeGuard<NopRawMode>;
@@ -115,30 +140,40 @@ impl WasmShell {
         let runtime = WasmRuntime::try_new()?;
         let engine = SingleUserEngine::try_new(WasmExecutor, runtime)?;
 
-        let terminal = TerminalWrapper::new(terminal);
-        let shell = Rc::new(Shell::new(BufWriter::new(terminal), NopRawMode));
+        let terminal = TerminalBuffer::new(terminal);
+        let mut shell = Shell::new(terminal, NopRawMode);
 
         shell.attach(engine, "GlareDB WASM Shell")?;
+
         let edit_guard = shell.edit_start()?;
 
-        Ok(WasmShell {
+        let inner = WasmShellInner {
             shell,
             edit_guard: Some(edit_guard),
-            post_execute_guard: Rc::new(RefCell::new(None)),
+        };
+
+        Ok(WasmShell {
+            inner: Rc::new(RefCell::new(inner)),
         })
     }
 
     /// Notify on terminal resize.
     pub fn on_resize(&self, cols: usize) {
         trace!(%cols, "setting columns");
-        self.shell.set_size(TermSize { cols });
+        if let Ok(mut inner) = self.inner.try_borrow_mut() {
+            inner.shell.set_size(TermSize { cols });
+        }
     }
 
     /// Consume a string verbatim.
     ///
     /// This should be hooked up to xterm's `onData` method to enable pasting.
     pub fn on_data(&self, text: String) -> Result<()> {
-        self.shell.consume_text(&text)?;
+        trace!("consuming data");
+        // TODO: Not sure what we want to do yet if this errors.
+        if let Ok(mut inner) = self.inner.try_borrow_mut() {
+            inner.shell.consume_text(&text)?;
+        }
         Ok(())
     }
 
@@ -147,7 +182,7 @@ impl WasmShell {
     /// This should be hooked up to xterm's `attachCustomKeyEventHandler`. This
     /// will handle _all_ input, so `false` should be returned to xterm after
     /// calling this for an event.
-    pub fn on_key(&mut self, event: KeyboardEvent) -> Result<()> {
+    pub fn on_key(&self, event: KeyboardEvent) -> Result<()> {
         // Pulled out into a separate method since the procmacro doesn't handle
         // active code editing very well.
         self.on_key_inner(event)
@@ -155,7 +190,7 @@ impl WasmShell {
 }
 
 impl WasmShell {
-    fn on_key_inner(&mut self, event: KeyboardEvent) -> Result<()> {
+    fn on_key_inner(&self, event: KeyboardEvent) -> Result<()> {
         if event.type_() != "keydown" {
             return Ok(());
         }
@@ -165,6 +200,10 @@ impl WasmShell {
         let key = match key.as_str() {
             "Backspace" => KeyEvent::Backspace,
             "Enter" => KeyEvent::Enter,
+            "ArrowLeft" => KeyEvent::Left,
+            "ArrowRight" => KeyEvent::Right,
+            "ArrowUp" => KeyEvent::Up,
+            "ArrowDown" => KeyEvent::Down,
             other if other.chars().count() != 1 => {
                 warn!(%other, "unhandled input");
                 return Ok(());
@@ -193,56 +232,71 @@ impl WasmShell {
             },
         };
 
-        let guard = match self.edit_guard.take() {
-            Some(guard) => guard,
-            None => {
-                match self.post_execute_guard.try_borrow_mut() {
-                    Ok(mut guard) => {
-                        match guard.take() {
-                            Some(guard) => guard,
-                            None => {
-                                // TODO: ???
-                                warn!("missing post execute guard");
-                                return Ok(());
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        // Only other borrow would be us setting the guard after
-                        // an execute completes.
-                        // TODO: Is that actually possible?
-                        error!(%e, "post execute guard has more than one borrow");
-                        return Ok(());
-                    }
-                }
+        let mut inner = match self.inner.try_borrow_mut() {
+            Ok(inner) => inner,
+            Err(_) => {
+                // TODO: Not sure what to do yet.
+                error!("multiple mutable borrws inner shell");
+                return Ok(());
             }
         };
 
-        match self.shell.consume_key(guard, key)? {
+        let guard = match inner.edit_guard.take() {
+            Some(guard) => guard,
+            None => {
+                // TODO: ???
+                warn!("missing post execute guard");
+                return Ok(());
+            }
+        };
+
+        match inner.shell.consume_key(guard, key)? {
             ShellSignal::Continue(guard) => {
-                self.edit_guard = Some(guard);
+                inner.edit_guard = Some(guard);
                 // Continue with normal editing.
             }
             ShellSignal::ExecutePending(guard) => {
-                let shell = self.shell.clone();
-                let post_execute_guard = self.post_execute_guard.clone();
-                spawn_local(async move {
-                    if let Err(e) = shell.execute_pending(guard).await {
-                        error!(%e, "error executing pending query");
-                    }
+                // Clone inner, we'll get a new mutable ref in the spawn.
+                //
+                // Needed since the spawn closure needs to be static.
+                let inner = self.inner.clone();
 
-                    if let Ok(mut post_execute) = post_execute_guard.try_borrow_mut() {
-                        match shell.edit_start() {
-                            Ok(guard) => *post_execute = Some(guard),
+                spawn_local(
+                    // Holding the ref through the await here is fine, it
+                    // essentially acts as a lock preventing additional input to
+                    // the shell.
+                    //
+                    // TODO: We will want a way to cancel a running query
+                    // though. That'll probably happen through a separate
+                    // rc+refcell bool.
+                    #[allow(clippy::await_holding_refcell_ref)]
+                    async move {
+                        let mut inner = match inner.try_borrow_mut() {
+                            Ok(inner) => inner,
+                            Err(e) => {
+                                error!(%e, "error getting mut ref to inner for query execute");
+                                return;
+                            }
+                        };
+
+                        if let Err(e) = inner.shell.execute_pending(guard).await {
+                            error!(%e, "error executing pending query");
+                        }
+
+                        match inner.shell.edit_start() {
+                            Ok(guard) => inner.edit_guard = Some(guard),
                             Err(e) => {
                                 // Nothing we can really do.
                                 error!(%e, "error calling edit start for shell");
                             }
                         }
-                    }
-                });
+                    },
+                );
             }
-            ShellSignal::Exit => (), // Can't exit out of the web shell.
+            ShellSignal::Exit => {
+                // Can't exit out of the web shell.
+                inner.edit_guard = Some(inner.shell.edit_start()?);
+            }
         }
 
         Ok(())
