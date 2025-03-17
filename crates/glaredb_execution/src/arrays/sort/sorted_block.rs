@@ -183,10 +183,10 @@ impl SortedBlock {
         state: &mut BlockScanState,
         data_layout: &RowLayout,
         selection: impl IntoIterator<Item = usize>,
-    ) -> Result<()> {
+    ) -> Result<()> { unsafe {
         state.prepare_block_scan(&self.data, data_layout.row_width, selection, true);
         Ok(())
-    }
+    }}
 }
 
 /// Compares subquent rows for tied values and writes the result to `ties`.
@@ -198,7 +198,7 @@ unsafe fn fill_ties(
     compare_offset: usize,
     compare_width: usize,
     ties: &mut [bool],
-) {
+) { unsafe {
     let mut col_ptr = block.as_ptr();
     col_ptr = col_ptr.byte_add(compare_offset);
 
@@ -218,7 +218,7 @@ unsafe fn fill_ties(
 
         *tie = a == b
     }
-}
+}}
 
 unsafe fn sort_tied_keys_in_place(
     manager: &impl AsRawBufferManager,
@@ -227,7 +227,7 @@ unsafe fn sort_tied_keys_in_place(
     ties: &[bool],
     compare_offset: usize,
     compare_width: usize,
-) -> Result<()> {
+) -> Result<()> { unsafe {
     let mut row_offset = 0;
 
     while row_offset < ties.len() {
@@ -264,7 +264,7 @@ unsafe fn sort_tied_keys_in_place(
     }
 
     Ok(())
-}
+}}
 
 /// Sorts a contiguous slice of keys in the keys blocks.
 unsafe fn sort_keys_in_place(
@@ -275,7 +275,7 @@ unsafe fn sort_keys_in_place(
     row_count: usize,
     compare_offset: usize,
     compare_width: usize,
-) -> Result<()> {
+) -> Result<()> { unsafe {
     debug_assert!(layout.row_width >= compare_offset + compare_width);
 
     let start_ptr = keys.as_mut_ptr().byte_add(row_offset * layout.row_width);
@@ -313,7 +313,7 @@ unsafe fn sort_keys_in_place(
     start_ptr.copy_from_nonoverlapping(temp_ptr, layout.row_width * row_count);
 
     Ok(())
-}
+}}
 
 fn apply_sort_indices(
     src: &Block,

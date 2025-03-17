@@ -218,7 +218,7 @@ where
         rhs_column: FlattenedArray,
         selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
-    ) -> Result<()> {
+    ) -> Result<()> { unsafe {
         let rhs_data = S::get_addressable(rhs_column.array_buffer)?;
 
         let mut matches = 0;
@@ -248,7 +248,7 @@ where
         selection.truncate(matches);
 
         Ok(())
-    }
+    }}
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -277,7 +277,7 @@ where
         rhs_column: FlattenedArray,
         selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
-    ) -> Result<()> {
+    ) -> Result<()> { unsafe {
         let rhs_data = PhysicalBinary::get_addressable(rhs_column.array_buffer)?;
 
         let mut matches = 0;
@@ -309,7 +309,7 @@ where
         selection.truncate(matches);
 
         Ok(())
-    }
+    }}
 }
 
 #[cfg(test)]

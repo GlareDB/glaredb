@@ -108,9 +108,9 @@ impl RowLayout {
     ///
     /// `row_ptr` must point the beginning of the row, and the row must conform
     /// to this row layout.
-    pub(crate) unsafe fn validity_buffer(&self, row_ptr: *const u8) -> &[u8] {
+    pub(crate) unsafe fn validity_buffer(&self, row_ptr: *const u8) -> &[u8] { unsafe {
         std::slice::from_raw_parts(row_ptr, self.validity_width)
-    }
+    }}
 
     /// Returns a mutable validity buffer for a row.
     ///
@@ -125,9 +125,9 @@ impl RowLayout {
     /// We're producing a mut ref from the pointer, and `&self` is just letting
     /// us know how long the slice is.
     #[allow(clippy::mut_from_ref)]
-    unsafe fn validity_buffer_mut(&self, row_ptr: *mut u8) -> &mut [u8] {
+    unsafe fn validity_buffer_mut(&self, row_ptr: *mut u8) -> &mut [u8] { unsafe {
         std::slice::from_raw_parts_mut(row_ptr, self.validity_width)
-    }
+    }}
 
     /// Computes the heap sizes needed for each row.
     ///
@@ -183,7 +183,7 @@ impl RowLayout {
     ) -> Result<()>
     where
         A: Borrow<Array>,
-    {
+    { unsafe {
         for (array_idx, array) in arrays.iter().enumerate() {
             let rows = rows.clone();
             let array = array.borrow().flatten()?;
@@ -199,7 +199,7 @@ impl RowLayout {
         }
 
         Ok(())
-    }
+    }}
 
     pub(crate) unsafe fn read_arrays<'a, A>(
         &self,
@@ -209,7 +209,7 @@ impl RowLayout {
     ) -> Result<()>
     where
         A: BorrowMut<Array> + 'a,
-    {
+    { unsafe {
         for (array_idx, array) in arrays {
             let array = array.borrow_mut();
             let phys_type = array.data.physical_type();
@@ -224,7 +224,7 @@ impl RowLayout {
         }
 
         Ok(())
-    }
+    }}
 }
 
 pub(crate) const fn row_encoding_requires_heap(phys_type: PhysicalType) -> bool {
@@ -271,7 +271,7 @@ unsafe fn write_array(
     row_pointers: &[*mut u8],
     heap_pointers: &mut [HeapMutPtr],
     rows: impl IntoExactSizeIterator<Item = usize>,
-) -> Result<()> {
+) -> Result<()> { unsafe {
     match phys_type {
         PhysicalType::UntypedNull => {
             write_scalar::<PhysicalUntypedNull>(layout, array_idx, array, row_pointers, rows)
@@ -326,7 +326,7 @@ unsafe fn write_array(
         }
         _ => unimplemented!(),
     }
-}
+}}
 
 /// Write a string/binary array ot the given row pointers.
 ///
@@ -343,7 +343,7 @@ unsafe fn write_binary(
     row_pointers: &[*mut u8],
     heap_pointers: &mut [HeapMutPtr],
     rows: impl IntoExactSizeIterator<Item = usize>,
-) -> Result<()> {
+) -> Result<()> { unsafe {
     let rows = rows.into_exact_size_iter();
 
     debug_assert_eq!(rows.len(), row_pointers.len());
@@ -426,7 +426,7 @@ unsafe fn write_binary(
     }
 
     Ok(())
-}
+}}
 
 /// Write a scalar array to the specified row pointers.
 unsafe fn write_scalar<S>(
@@ -439,7 +439,7 @@ unsafe fn write_scalar<S>(
 where
     S: ScalarStorage,
     S::StorageType: Default + Copy + Sized,
-{
+{ unsafe {
     let rows = rows.into_exact_size_iter();
     debug_assert_eq!(rows.len(), row_pointers.len());
 
@@ -477,7 +477,7 @@ where
     }
 
     Ok(())
-}
+}}
 
 unsafe fn read_array(
     layout: &RowLayout,
@@ -486,7 +486,7 @@ unsafe fn read_array(
     array_idx: usize,
     out: &mut Array,
     write_offset: usize,
-) -> Result<()> {
+) -> Result<()> { unsafe {
     match phys_type {
         PhysicalType::UntypedNull => {
             read_scalar::<PhysicalUntypedNull>(layout, row_pointers, array_idx, out, write_offset)
@@ -541,7 +541,7 @@ unsafe fn read_array(
         }
         _ => unimplemented!(),
     }
-}
+}}
 
 unsafe fn read_scalar<S>(
     layout: &RowLayout,
@@ -553,7 +553,7 @@ unsafe fn read_scalar<S>(
 where
     S: MutableScalarStorage,
     S::StorageType: Copy + Sized,
-{
+{ unsafe {
     let mut data = S::get_addressable_mut(&mut out.data)?;
     let validity = &mut out.validity;
 
@@ -572,7 +572,7 @@ where
     }
 
     Ok(())
-}
+}}
 
 unsafe fn read_binary(
     layout: &RowLayout,
@@ -580,7 +580,7 @@ unsafe fn read_binary(
     array_idx: usize,
     out: &mut Array,
     write_offset: usize,
-) -> Result<()> {
+) -> Result<()> { unsafe {
     let mut data = PhysicalBinary::get_addressable_mut(&mut out.data)?;
     let validity = &mut out.validity;
 
@@ -600,7 +600,7 @@ unsafe fn read_binary(
     }
 
     Ok(())
-}
+}}
 
 #[cfg(test)]
 mod tests {

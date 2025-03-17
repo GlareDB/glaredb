@@ -833,7 +833,7 @@ impl<'a> Resolver<'a> {
                             .require_resolve_table_or_cte(&reference, resolve_context)
                             .await?;
 
-                        if let ResolvedTableOrCteReference::View(ent) = table {
+                        match table { ResolvedTableOrCteReference::View(ent) => {
                             // Special case for view. If we resolved, then we'll go
                             // ahead and parse the sql and treat it as a subquery.
 
@@ -874,14 +874,14 @@ impl<'a> Resolver<'a> {
                                 },
                                 query,
                             })
-                        } else {
+                        } _ => {
                             // Either a table or cte, we can stick these on the
                             // context directly.
                             let idx = resolve_context.tables.push_maybe_resolved(
                                 MaybeResolved::Resolved(table, LocationRequirement::ClientLocal),
                             );
                             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference: idx })
-                        }
+                        }}
                     }
                     ResolveMode::Hybrid => {
                         not_implemented!("resolve table hybrid")

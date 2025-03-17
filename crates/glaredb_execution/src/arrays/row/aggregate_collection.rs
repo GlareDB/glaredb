@@ -176,7 +176,7 @@ impl AggregateCollection {
     ) -> Result<()>
     where
         A: BorrowMut<Array>,
-    {
+    { unsafe {
         debug_assert_eq!(groups.len(), self.layout.groups.num_columns());
         debug_assert_eq!(results.len(), self.layout.aggregates.len());
 
@@ -193,7 +193,7 @@ impl AggregateCollection {
         self.layout.finalize_states(group_ptrs, results)?;
 
         Ok(())
-    }
+    }}
 }
 
 #[cfg(test)]

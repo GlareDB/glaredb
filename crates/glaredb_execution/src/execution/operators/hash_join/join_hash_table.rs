@@ -448,7 +448,7 @@ impl JoinHashTable {
     /// The 'matches' column data must not be concurrently accessed outside of
     /// this function. This should hold as probing never touches this column,
     /// even when executing predicates.
-    pub unsafe fn write_rows_matched(&self, row_ptrs: impl IntoIterator<Item = *const u8>) {
+    pub unsafe fn write_rows_matched(&self, row_ptrs: impl IntoIterator<Item = *const u8>) { unsafe {
         let match_offset = *self
             .data
             .layout()
@@ -465,22 +465,22 @@ impl JoinHashTable {
             let match_bool = AtomicBool::from_ptr(match_ptr);
             match_bool.store(true, atomic::Ordering::Relaxed);
         }
-    }
+    }}
 
-    unsafe fn write_next_entry_ptr(&self, row_ptr: *const u8, next_ent: *const u8) {
+    unsafe fn write_next_entry_ptr(&self, row_ptr: *const u8, next_ent: *const u8) { unsafe {
         let next_ent_ptr = row_ptr
             .byte_add(self.build_hash_byte_offset)
             .cast::<*const u8>()
             .cast_mut();
         next_ent_ptr.write_unaligned(next_ent);
-    }
+    }}
 
-    pub unsafe fn read_next_entry_ptr(&self, row_ptr: *const u8) -> *const u8 {
+    pub unsafe fn read_next_entry_ptr(&self, row_ptr: *const u8) -> *const u8 { unsafe {
         let next_ent_ptr = row_ptr
             .byte_add(self.build_hash_byte_offset)
             .cast::<*const u8>();
         next_ent_ptr.read_unaligned()
-    }
+    }}
 }
 
 /// (Chained) hash table directory.

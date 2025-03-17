@@ -598,8 +598,8 @@ impl Graph {
 
         // New node is better. Create it and insert into plans.
 
-        let left_filters: HashSet<_> = left_filters.iter().map(|(&id, _)| id).collect();
-        let right_filters: HashSet<_> = right_filters.iter().map(|(&id, _)| id).collect();
+        let left_filters: HashSet<_> = left_filters.iter().map(|&(&id, _)| id).collect();
+        let right_filters: HashSet<_> = right_filters.iter().map(|&(&id, _)| id).collect();
 
         let edges: HashSet<_> = edges.iter().map(|edge| edge.edge_id).collect();
 

@@ -119,7 +119,7 @@ impl AggregateLayout {
         group_ptrs: &mut [*mut u8],
         mut inputs: &[Array],
         num_rows: usize,
-    ) -> Result<()> {
+    ) -> Result<()> { unsafe {
         debug_assert_eq!(num_rows, group_ptrs.len());
 
         let mut prev_offset = 0;
@@ -146,7 +146,7 @@ impl AggregateLayout {
         }
 
         Ok(())
-    }
+    }}
 
     /// Combines aggregate states, consuming states in `src_ptrs` into
     /// `dest_ptrs`.
@@ -164,7 +164,7 @@ impl AggregateLayout {
         &self,
         src_ptrs: &mut [*mut u8],
         dest_ptrs: &mut [*mut u8],
-    ) -> Result<()> {
+    ) -> Result<()> { unsafe {
         debug_assert_eq!(src_ptrs.len(), dest_ptrs.len());
 
         let mut prev_offset = 0;
@@ -194,7 +194,7 @@ impl AggregateLayout {
         }
 
         Ok(())
-    }
+    }}
 
     /// Finalizes states and writes the output the arrays.
     ///
@@ -216,7 +216,7 @@ impl AggregateLayout {
     ) -> Result<()>
     where
         A: BorrowMut<Array>,
-    {
+    { unsafe {
         debug_assert_eq!(outputs.len(), self.aggregates.len());
 
         let mut prev_offset = 0;
@@ -238,7 +238,7 @@ impl AggregateLayout {
         }
 
         Ok(())
-    }
+    }}
 }
 
 /// Compute the new len to ensure alignment to some value.

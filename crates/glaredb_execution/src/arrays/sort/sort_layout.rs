@@ -211,7 +211,7 @@ impl SortLayout {
     ) -> Result<()>
     where
         A: Borrow<Array>,
-    {
+    { unsafe {
         for (array_idx, array) in arrays.iter().enumerate() {
             let array = array.borrow().flatten()?;
             write_key_array(
@@ -225,7 +225,7 @@ impl SortLayout {
         }
 
         Ok(())
-    }
+    }}
 
     /// Get a mutable buffer of the exact size for a column in a row.
     ///
@@ -240,12 +240,12 @@ impl SortLayout {
     /// We're producing a mut ref from the pointer, and `&self` is just letting
     /// us know how long the slice is.
     #[allow(clippy::mut_from_ref)]
-    unsafe fn column_buffer_mut(&self, row_ptr: *mut u8, col: usize) -> &mut [u8] {
+    unsafe fn column_buffer_mut(&self, row_ptr: *mut u8, col: usize) -> &mut [u8] { unsafe {
         let buf = std::slice::from_raw_parts_mut(row_ptr, self.row_width);
         let size = self.column_widths[col];
         let offset = self.offsets[col];
         &mut buf[offset..offset + size]
-    }
+    }}
 }
 
 /// Get the sort key width for a physical type.
@@ -283,7 +283,7 @@ unsafe fn write_key_array(
     array: FlattenedArray,
     row_pointers: &[*mut u8],
     num_rows: usize,
-) -> Result<()> {
+) -> Result<()> { unsafe {
     debug_assert_eq!(num_rows, row_pointers.len());
 
     match phys_type {
@@ -324,7 +324,7 @@ unsafe fn write_key_array(
         }
         other => unimplemented!("other: {other}"),
     }
-}
+}}
 
 unsafe fn write_scalar<S>(
     layout: &SortLayout,
@@ -335,7 +335,7 @@ unsafe fn write_scalar<S>(
 where
     S: ScalarStorage,
     S::StorageType: ComparableEncode + Default + Copy + Sized,
-{
+{ unsafe {
     let col = &layout.columns[array_idx];
     let valid_b = col.valid_byte();
     let invalid_b = col.invalid_byte();
@@ -363,14 +363,14 @@ where
     }
 
     Ok(())
-}
+}}
 
 unsafe fn write_binary_prefix(
     layout: &SortLayout,
     array_idx: usize,
     array: FlattenedArray,
     row_pointers: &[*mut u8],
-) -> Result<()> {
+) -> Result<()> { unsafe {
     let col = &layout.columns[array_idx];
     let valid_b = col.valid_byte();
     let invalid_b = col.invalid_byte();
@@ -398,7 +398,7 @@ unsafe fn write_binary_prefix(
     }
 
     Ok(())
-}
+}}
 
 /// Trait for types that can encode themselves into a comparable binary
 /// representation.

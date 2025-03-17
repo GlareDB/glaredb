@@ -30,7 +30,7 @@ pub fn pretty_format_batches(
     batches: &[Batch],
     max_width: usize,
     max_rows: Option<usize>,
-) -> Result<impl fmt::Display> {
+) -> Result<impl fmt::Display + use<>> {
     PrettyTable::try_new(schema, batches, max_width, max_rows)
 }
 

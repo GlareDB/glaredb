@@ -51,7 +51,7 @@ impl BlockScanState {
         row_width: usize,
         selection: impl IntoIterator<Item = usize>,
         clear: bool,
-    ) {
+    ) { unsafe {
         if clear {
             self.row_pointers.clear();
         }
@@ -64,5 +64,5 @@ impl BlockScanState {
 
             self.row_pointers.push(ptr);
         }
-    }
+    }}
 }

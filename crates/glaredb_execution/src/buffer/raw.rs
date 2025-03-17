@@ -129,7 +129,7 @@ impl RawBuffer {
         self.ptr.as_ptr()
     }
 
-    pub unsafe fn as_slice<T>(&self) -> &[T] {
+    pub unsafe fn as_slice<T>(&self) -> &[T] { unsafe {
         debug_assert_eq!(0, self.align % std::mem::align_of::<T>());
         debug_assert_eq!(
             0,
@@ -145,9 +145,9 @@ impl RawBuffer {
         );
 
         std::slice::from_raw_parts(self.ptr.as_ptr().cast::<T>().cast_const(), self.capacity)
-    }
+    }}
 
-    pub unsafe fn as_slice_mut<T>(&mut self) -> &mut [T] {
+    pub unsafe fn as_slice_mut<T>(&mut self) -> &mut [T] { unsafe {
         debug_assert_eq!(0, self.align % std::mem::align_of::<T>());
         debug_assert_eq!(
             0,
@@ -163,7 +163,7 @@ impl RawBuffer {
         );
 
         std::slice::from_raw_parts_mut(self.ptr.as_ptr().cast::<T>(), self.capacity)
-    }
+    }}
 
     /// Reserves memory for holding `additional` number of `T` elements.
     ///

@@ -122,11 +122,11 @@ impl<'a> NormalResolver<'a> {
             None => return Ok(None),
         };
 
-        if let Some(entry) = schema_ent.get_table_function(&name)? {
+        match schema_ent.get_table_function(&name)? { Some(entry) => {
             Ok(Some(entry.try_as_table_function_entry()?.function))
-        } else {
+        } _ => {
             Ok(None)
-        }
+        }}
     }
 
     pub fn require_resolve_table_function(
