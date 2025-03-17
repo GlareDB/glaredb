@@ -284,7 +284,7 @@ unsafe fn sort_keys_in_place(
 ) -> Result<()> {
     debug_assert!(layout.row_width >= compare_offset + compare_width);
 
-    let start_ptr = keys.as_mut_ptr().byte_add(row_offset * layout.row_width);
+    let start_ptr = unsafe { keys.as_mut_ptr().byte_add(row_offset * layout.row_width) };
 
     // Generate sorted indices for the subset of rows we're sorting.
     let mut sort_indices: Vec<_> = (0..row_count).collect();
