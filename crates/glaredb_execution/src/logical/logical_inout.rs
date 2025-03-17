@@ -46,11 +46,14 @@ impl Explainable for LogicalTableExecute {
 
 impl LogicalNode for Node<LogicalTableExecute> {
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
-        match self.node.projected_table_ref { Some(projected_table_ref) => {
-            vec![self.node.function_table_ref, projected_table_ref]
-        } _ => {
-            vec![self.node.function_table_ref]
-        }}
+        match self.node.projected_table_ref {
+            Some(projected_table_ref) => {
+                vec![self.node.function_table_ref, projected_table_ref]
+            }
+            _ => {
+                vec![self.node.function_table_ref]
+            }
+        }
     }
 
     fn for_each_expr<F>(&self, func: &mut F) -> Result<()>

@@ -6,8 +6,8 @@ use glaredb_error::{RayexecError, Result};
 
 use super::database::{AccessMode, Database};
 use super::memory::MemoryCatalog;
-use crate::catalog::create::{CreateSchemaInfo, OnConflict};
 use crate::catalog::Catalog;
+use crate::catalog::create::{CreateSchemaInfo, OnConflict};
 use crate::storage::storage_manager::StorageManager;
 
 pub const SYSTEM_CATALOG: &str = "system";

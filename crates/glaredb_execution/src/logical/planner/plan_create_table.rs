@@ -16,11 +16,12 @@ impl CreateTablePlanner {
         bind_context: &mut BindContext,
         create: BoundCreateTable,
     ) -> Result<LogicalOperator> {
-        let children = match create.source { Some(source) => {
-            vec![QueryPlanner.plan(bind_context, source)?]
-        } _ => {
-            Vec::new()
-        }};
+        let children = match create.source {
+            Some(source) => {
+                vec![QueryPlanner.plan(bind_context, source)?]
+            }
+            _ => Vec::new(),
+        };
 
         Ok(LogicalOperator::CreateTable(Node {
             node: LogicalCreateTable {

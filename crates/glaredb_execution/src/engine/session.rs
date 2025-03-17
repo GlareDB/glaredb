@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use glaredb_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{RayexecError, Result, not_implemented};
 use glaredb_parser::parser;
 use glaredb_parser::statement::RawStatement;
 use hashbrown::HashMap;

@@ -1,10 +1,10 @@
 use glaredb_error::Result;
 
+use super::Array;
 use super::array_buffer::ArrayBuffer;
 use super::physical_type::PhysicalType;
 use super::selection::Selection;
 use super::validity::Validity;
-use super::Array;
 use crate::arrays::array::array_buffer::ArrayBufferType;
 
 /// A view on top of normal arrays flattening some parts of the nested

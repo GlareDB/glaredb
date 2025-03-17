@@ -68,7 +68,7 @@ impl ProtoConv for LocationRequirement {
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         Ok(match proto {
             Self::ProtoType::InvalidLocationRequirement => {
-                return Err(RayexecError::new("invalid"))
+                return Err(RayexecError::new("invalid"));
             }
             Self::ProtoType::ClientLocal => Self::ClientLocal,
             Self::ProtoType::Remote => Self::Remote,

@@ -4,6 +4,7 @@ use glaredb_error::Result;
 use half::f16;
 
 use super::row_blocks::{BlockAppendState, HeapMutPtr};
+use crate::arrays::array::Array;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -14,24 +15,23 @@ use crate::arrays::array::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI8,
+    PhysicalI128,
     PhysicalInterval,
     PhysicalType,
-    PhysicalU128,
+    PhysicalU8,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU8,
+    PhysicalU128,
     PhysicalUntypedNull,
     ScalarStorage,
     UntypedNull,
 };
-use crate::arrays::array::Array;
-use crate::arrays::bitmap::view::{num_bytes_for_bitmap, BitmapView, BitmapViewMut};
+use crate::arrays::bitmap::view::{BitmapView, BitmapViewMut, num_bytes_for_bitmap};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::string::StringPtr;
@@ -108,9 +108,9 @@ impl RowLayout {
     ///
     /// `row_ptr` must point the beginning of the row, and the row must conform
     /// to this row layout.
-    pub(crate) unsafe fn validity_buffer(&self, row_ptr: *const u8) -> &[u8] { unsafe {
-        std::slice::from_raw_parts(row_ptr, self.validity_width)
-    }}
+    pub(crate) unsafe fn validity_buffer(&self, row_ptr: *const u8) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(row_ptr, self.validity_width) }
+    }
 
     /// Returns a mutable validity buffer for a row.
     ///
@@ -125,9 +125,9 @@ impl RowLayout {
     /// We're producing a mut ref from the pointer, and `&self` is just letting
     /// us know how long the slice is.
     #[allow(clippy::mut_from_ref)]
-    unsafe fn validity_buffer_mut(&self, row_ptr: *mut u8) -> &mut [u8] { unsafe {
-        std::slice::from_raw_parts_mut(row_ptr, self.validity_width)
-    }}
+    unsafe fn validity_buffer_mut(&self, row_ptr: *mut u8) -> &mut [u8] {
+        unsafe { std::slice::from_raw_parts_mut(row_ptr, self.validity_width) }
+    }
 
     /// Computes the heap sizes needed for each row.
     ///
@@ -183,23 +183,25 @@ impl RowLayout {
     ) -> Result<()>
     where
         A: Borrow<Array>,
-    { unsafe {
-        for (array_idx, array) in arrays.iter().enumerate() {
-            let rows = rows.clone();
-            let array = array.borrow().flatten()?;
-            write_array(
-                self,
-                array.physical_type(),
-                array_idx,
-                array,
-                &state.row_pointers,
-                &mut state.heap_pointers,
-                rows,
-            )?;
-        }
+    {
+        unsafe {
+            for (array_idx, array) in arrays.iter().enumerate() {
+                let rows = rows.clone();
+                let array = array.borrow().flatten()?;
+                write_array(
+                    self,
+                    array.physical_type(),
+                    array_idx,
+                    array,
+                    &state.row_pointers,
+                    &mut state.heap_pointers,
+                    rows,
+                )?;
+            }
 
-        Ok(())
-    }}
+            Ok(())
+        }
+    }
 
     pub(crate) unsafe fn read_arrays<'a, A>(
         &self,
@@ -209,22 +211,24 @@ impl RowLayout {
     ) -> Result<()>
     where
         A: BorrowMut<Array> + 'a,
-    { unsafe {
-        for (array_idx, array) in arrays {
-            let array = array.borrow_mut();
-            let phys_type = array.data.physical_type();
-            read_array(
-                self,
-                phys_type,
-                row_ptrs.clone(),
-                array_idx,
-                array,
-                write_offset,
-            )?;
-        }
+    {
+        unsafe {
+            for (array_idx, array) in arrays {
+                let array = array.borrow_mut();
+                let phys_type = array.data.physical_type();
+                read_array(
+                    self,
+                    phys_type,
+                    row_ptrs.clone(),
+                    array_idx,
+                    array,
+                    write_offset,
+                )?;
+            }
 
-        Ok(())
-    }}
+            Ok(())
+        }
+    }
 }
 
 pub(crate) const fn row_encoding_requires_heap(phys_type: PhysicalType) -> bool {
@@ -271,62 +275,64 @@ unsafe fn write_array(
     row_pointers: &[*mut u8],
     heap_pointers: &mut [HeapMutPtr],
     rows: impl IntoExactSizeIterator<Item = usize>,
-) -> Result<()> { unsafe {
-    match phys_type {
-        PhysicalType::UntypedNull => {
-            write_scalar::<PhysicalUntypedNull>(layout, array_idx, array, row_pointers, rows)
+) -> Result<()> {
+    unsafe {
+        match phys_type {
+            PhysicalType::UntypedNull => {
+                write_scalar::<PhysicalUntypedNull>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::Boolean => {
+                write_scalar::<PhysicalBool>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::Int8 => {
+                write_scalar::<PhysicalI8>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::Int16 => {
+                write_scalar::<PhysicalI16>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::Int32 => {
+                write_scalar::<PhysicalI32>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::Int64 => {
+                write_scalar::<PhysicalI64>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::Int128 => {
+                write_scalar::<PhysicalI128>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::UInt8 => {
+                write_scalar::<PhysicalU8>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::UInt16 => {
+                write_scalar::<PhysicalU16>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::UInt32 => {
+                write_scalar::<PhysicalU32>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::UInt64 => {
+                write_scalar::<PhysicalU64>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::UInt128 => {
+                write_scalar::<PhysicalU128>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::Float16 => {
+                write_scalar::<PhysicalF16>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::Float32 => {
+                write_scalar::<PhysicalF32>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::Float64 => {
+                write_scalar::<PhysicalF64>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::Interval => {
+                write_scalar::<PhysicalInterval>(layout, array_idx, array, row_pointers, rows)
+            }
+            PhysicalType::Utf8 | PhysicalType::Binary => {
+                write_binary(layout, array_idx, array, row_pointers, heap_pointers, rows)
+            }
+            _ => unimplemented!(),
         }
-        PhysicalType::Boolean => {
-            write_scalar::<PhysicalBool>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::Int8 => {
-            write_scalar::<PhysicalI8>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::Int16 => {
-            write_scalar::<PhysicalI16>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::Int32 => {
-            write_scalar::<PhysicalI32>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::Int64 => {
-            write_scalar::<PhysicalI64>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::Int128 => {
-            write_scalar::<PhysicalI128>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::UInt8 => {
-            write_scalar::<PhysicalU8>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::UInt16 => {
-            write_scalar::<PhysicalU16>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::UInt32 => {
-            write_scalar::<PhysicalU32>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::UInt64 => {
-            write_scalar::<PhysicalU64>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::UInt128 => {
-            write_scalar::<PhysicalU128>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::Float16 => {
-            write_scalar::<PhysicalF16>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::Float32 => {
-            write_scalar::<PhysicalF32>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::Float64 => {
-            write_scalar::<PhysicalF64>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::Interval => {
-            write_scalar::<PhysicalInterval>(layout, array_idx, array, row_pointers, rows)
-        }
-        PhysicalType::Utf8 | PhysicalType::Binary => {
-            write_binary(layout, array_idx, array, row_pointers, heap_pointers, rows)
-        }
-        _ => unimplemented!(),
     }
-}}
+}
 
 /// Write a string/binary array ot the given row pointers.
 ///
@@ -343,45 +349,18 @@ unsafe fn write_binary(
     row_pointers: &[*mut u8],
     heap_pointers: &mut [HeapMutPtr],
     rows: impl IntoExactSizeIterator<Item = usize>,
-) -> Result<()> { unsafe {
-    let rows = rows.into_exact_size_iter();
+) -> Result<()> {
+    unsafe {
+        let rows = rows.into_exact_size_iter();
 
-    debug_assert_eq!(rows.len(), row_pointers.len());
-    debug_assert_eq!(rows.len(), heap_pointers.len());
+        debug_assert_eq!(rows.len(), row_pointers.len());
+        debug_assert_eq!(rows.len(), heap_pointers.len());
 
-    let data = PhysicalBinary::get_addressable(array.array_buffer)?;
-    let validity = array.validity;
+        let data = PhysicalBinary::get_addressable(array.array_buffer)?;
+        let validity = array.validity;
 
-    if validity.all_valid() {
-        for (output, row_idx) in rows.into_iter().enumerate() {
-            let sel_idx = array.selection.get(row_idx).unwrap();
-            let view = data.metadata.get(sel_idx).unwrap();
-
-            if !view.is_inline() {
-                let heap_ptr = &mut heap_pointers[output];
-
-                // Write data to heap, inline an updated string view reference.
-                let value = data.get(sel_idx).unwrap();
-                std::ptr::copy_nonoverlapping(value.as_ptr(), heap_ptr.ptr, value.len());
-                let bs = std::slice::from_raw_parts(heap_ptr.ptr, value.len());
-
-                // Create new view that we write to the row.
-                let string_ptr = StringPtr::new_reference(bs);
-                let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
-                ptr.cast::<StringPtr>().write_unaligned(string_ptr);
-
-                // Update heap offset for next column.
-                heap_ptr.byte_add(value.len());
-            } else {
-                // Otherwise we can just write the inline string directly.
-                let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
-                ptr.cast::<StringPtr>()
-                    .write_unaligned(StringPtr::from(*view.as_inline()));
-            }
-        }
-    } else {
-        for (output, row_idx) in rows.into_iter().enumerate() {
-            if validity.is_valid(row_idx) {
+        if validity.all_valid() {
+            for (output, row_idx) in rows.into_iter().enumerate() {
                 let sel_idx = array.selection.get(row_idx).unwrap();
                 let view = data.metadata.get(sel_idx).unwrap();
 
@@ -406,27 +385,56 @@ unsafe fn write_binary(
                     ptr.cast::<StringPtr>()
                         .write_unaligned(StringPtr::from(*view.as_inline()));
                 }
-            } else {
-                // Write an empty value.
-                //
-                // We do this since we want to be able to read the value _and_
-                // validity during row matching as it makes comparison logic
-                // easier.
-                //
-                // If we didn't write an empty value, we might read in garbage
-                // data which could lead to out of bounds access if we try to
-                // interpret it.
-                let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
-                ptr.cast::<StringPtr>().write_unaligned(StringPtr::EMPTY);
+            }
+        } else {
+            for (output, row_idx) in rows.into_iter().enumerate() {
+                if validity.is_valid(row_idx) {
+                    let sel_idx = array.selection.get(row_idx).unwrap();
+                    let view = data.metadata.get(sel_idx).unwrap();
 
-                let validity_buf = layout.validity_buffer_mut(row_pointers[output]);
-                BitmapViewMut::new(validity_buf, layout.num_columns()).unset(array_idx);
+                    if !view.is_inline() {
+                        let heap_ptr = &mut heap_pointers[output];
+
+                        // Write data to heap, inline an updated string view reference.
+                        let value = data.get(sel_idx).unwrap();
+                        std::ptr::copy_nonoverlapping(value.as_ptr(), heap_ptr.ptr, value.len());
+                        let bs = std::slice::from_raw_parts(heap_ptr.ptr, value.len());
+
+                        // Create new view that we write to the row.
+                        let string_ptr = StringPtr::new_reference(bs);
+                        let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
+                        ptr.cast::<StringPtr>().write_unaligned(string_ptr);
+
+                        // Update heap offset for next column.
+                        heap_ptr.byte_add(value.len());
+                    } else {
+                        // Otherwise we can just write the inline string directly.
+                        let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
+                        ptr.cast::<StringPtr>()
+                            .write_unaligned(StringPtr::from(*view.as_inline()));
+                    }
+                } else {
+                    // Write an empty value.
+                    //
+                    // We do this since we want to be able to read the value _and_
+                    // validity during row matching as it makes comparison logic
+                    // easier.
+                    //
+                    // If we didn't write an empty value, we might read in garbage
+                    // data which could lead to out of bounds access if we try to
+                    // interpret it.
+                    let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
+                    ptr.cast::<StringPtr>().write_unaligned(StringPtr::EMPTY);
+
+                    let validity_buf = layout.validity_buffer_mut(row_pointers[output]);
+                    BitmapViewMut::new(validity_buf, layout.num_columns()).unset(array_idx);
+                }
             }
         }
-    }
 
-    Ok(())
-}}
+        Ok(())
+    }
+}
 
 /// Write a scalar array to the specified row pointers.
 unsafe fn write_scalar<S>(
@@ -439,45 +447,47 @@ unsafe fn write_scalar<S>(
 where
     S: ScalarStorage,
     S::StorageType: Default + Copy + Sized,
-{ unsafe {
-    let rows = rows.into_exact_size_iter();
-    debug_assert_eq!(rows.len(), row_pointers.len());
+{
+    unsafe {
+        let rows = rows.into_exact_size_iter();
+        debug_assert_eq!(rows.len(), row_pointers.len());
 
-    let null_val = <S::StorageType>::default();
+        let null_val = <S::StorageType>::default();
 
-    let data = S::get_addressable(array.array_buffer)?;
-    let validity = array.validity;
+        let data = S::get_addressable(array.array_buffer)?;
+        let validity = array.validity;
 
-    if validity.all_valid() {
-        for (output, row_idx) in rows.into_iter().enumerate() {
-            let sel_idx = array.selection.get(row_idx).unwrap();
-            let v = data.get(sel_idx).unwrap();
-
-            let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
-            ptr.cast::<S::StorageType>().write_unaligned(*v);
-        }
-    } else {
-        for (output, row_idx) in rows.into_iter().enumerate() {
-            if validity.is_valid(row_idx) {
+        if validity.all_valid() {
+            for (output, row_idx) in rows.into_iter().enumerate() {
                 let sel_idx = array.selection.get(row_idx).unwrap();
                 let v = data.get(sel_idx).unwrap();
 
                 let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
                 ptr.cast::<S::StorageType>().write_unaligned(*v);
-            } else {
-                // Ensure memory is initialized since we always read it in the
-                // row matcher.
-                let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
-                ptr.cast::<S::StorageType>().write_unaligned(null_val);
+            }
+        } else {
+            for (output, row_idx) in rows.into_iter().enumerate() {
+                if validity.is_valid(row_idx) {
+                    let sel_idx = array.selection.get(row_idx).unwrap();
+                    let v = data.get(sel_idx).unwrap();
 
-                let validity_buf = layout.validity_buffer_mut(row_pointers[output]);
-                BitmapViewMut::new(validity_buf, layout.num_columns()).unset(array_idx);
+                    let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
+                    ptr.cast::<S::StorageType>().write_unaligned(*v);
+                } else {
+                    // Ensure memory is initialized since we always read it in the
+                    // row matcher.
+                    let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
+                    ptr.cast::<S::StorageType>().write_unaligned(null_val);
+
+                    let validity_buf = layout.validity_buffer_mut(row_pointers[output]);
+                    BitmapViewMut::new(validity_buf, layout.num_columns()).unset(array_idx);
+                }
             }
         }
-    }
 
-    Ok(())
-}}
+        Ok(())
+    }
+}
 
 unsafe fn read_array(
     layout: &RowLayout,
@@ -486,62 +496,68 @@ unsafe fn read_array(
     array_idx: usize,
     out: &mut Array,
     write_offset: usize,
-) -> Result<()> { unsafe {
-    match phys_type {
-        PhysicalType::UntypedNull => {
-            read_scalar::<PhysicalUntypedNull>(layout, row_pointers, array_idx, out, write_offset)
+) -> Result<()> {
+    unsafe {
+        match phys_type {
+            PhysicalType::UntypedNull => read_scalar::<PhysicalUntypedNull>(
+                layout,
+                row_pointers,
+                array_idx,
+                out,
+                write_offset,
+            ),
+            PhysicalType::Boolean => {
+                read_scalar::<PhysicalBool>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::Int8 => {
+                read_scalar::<PhysicalI8>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::Int16 => {
+                read_scalar::<PhysicalI16>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::Int32 => {
+                read_scalar::<PhysicalI32>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::Int64 => {
+                read_scalar::<PhysicalI64>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::Int128 => {
+                read_scalar::<PhysicalI128>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::UInt8 => {
+                read_scalar::<PhysicalU8>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::UInt16 => {
+                read_scalar::<PhysicalU16>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::UInt32 => {
+                read_scalar::<PhysicalU32>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::UInt64 => {
+                read_scalar::<PhysicalU64>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::UInt128 => {
+                read_scalar::<PhysicalU128>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::Float16 => {
+                read_scalar::<PhysicalF16>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::Float32 => {
+                read_scalar::<PhysicalF32>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::Float64 => {
+                read_scalar::<PhysicalF64>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::Interval => {
+                read_scalar::<PhysicalInterval>(layout, row_pointers, array_idx, out, write_offset)
+            }
+            PhysicalType::Utf8 | PhysicalType::Binary => {
+                read_binary(layout, row_pointers, array_idx, out, write_offset)
+            }
+            _ => unimplemented!(),
         }
-        PhysicalType::Boolean => {
-            read_scalar::<PhysicalBool>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::Int8 => {
-            read_scalar::<PhysicalI8>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::Int16 => {
-            read_scalar::<PhysicalI16>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::Int32 => {
-            read_scalar::<PhysicalI32>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::Int64 => {
-            read_scalar::<PhysicalI64>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::Int128 => {
-            read_scalar::<PhysicalI128>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::UInt8 => {
-            read_scalar::<PhysicalU8>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::UInt16 => {
-            read_scalar::<PhysicalU16>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::UInt32 => {
-            read_scalar::<PhysicalU32>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::UInt64 => {
-            read_scalar::<PhysicalU64>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::UInt128 => {
-            read_scalar::<PhysicalU128>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::Float16 => {
-            read_scalar::<PhysicalF16>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::Float32 => {
-            read_scalar::<PhysicalF32>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::Float64 => {
-            read_scalar::<PhysicalF64>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::Interval => {
-            read_scalar::<PhysicalInterval>(layout, row_pointers, array_idx, out, write_offset)
-        }
-        PhysicalType::Utf8 | PhysicalType::Binary => {
-            read_binary(layout, row_pointers, array_idx, out, write_offset)
-        }
-        _ => unimplemented!(),
     }
-}}
+}
 
 unsafe fn read_scalar<S>(
     layout: &RowLayout,
@@ -553,26 +569,28 @@ unsafe fn read_scalar<S>(
 where
     S: MutableScalarStorage,
     S::StorageType: Copy + Sized,
-{ unsafe {
-    let mut data = S::get_addressable_mut(&mut out.data)?;
-    let validity = &mut out.validity;
+{
+    unsafe {
+        let mut data = S::get_addressable_mut(&mut out.data)?;
+        let validity = &mut out.validity;
 
-    for (row_ptr, output_idx) in row_pointers.into_iter().zip(write_offset..) {
-        let validity_buf = layout.validity_buffer(row_ptr);
-        let is_valid = BitmapView::new(validity_buf, layout.num_columns()).value(array_idx);
+        for (row_ptr, output_idx) in row_pointers.into_iter().zip(write_offset..) {
+            let validity_buf = layout.validity_buffer(row_ptr);
+            let is_valid = BitmapView::new(validity_buf, layout.num_columns()).value(array_idx);
 
-        if is_valid {
-            let ptr = row_ptr.byte_add(layout.offsets[array_idx]);
-            let v = ptr.cast::<S::StorageType>().read_unaligned();
+            if is_valid {
+                let ptr = row_ptr.byte_add(layout.offsets[array_idx]);
+                let v = ptr.cast::<S::StorageType>().read_unaligned();
 
-            data.put(output_idx, &v);
-        } else {
-            validity.set_invalid(output_idx);
+                data.put(output_idx, &v);
+            } else {
+                validity.set_invalid(output_idx);
+            }
         }
-    }
 
-    Ok(())
-}}
+        Ok(())
+    }
+}
 
 unsafe fn read_binary(
     layout: &RowLayout,
@@ -580,27 +598,29 @@ unsafe fn read_binary(
     array_idx: usize,
     out: &mut Array,
     write_offset: usize,
-) -> Result<()> { unsafe {
-    let mut data = PhysicalBinary::get_addressable_mut(&mut out.data)?;
-    let validity = &mut out.validity;
+) -> Result<()> {
+    unsafe {
+        let mut data = PhysicalBinary::get_addressable_mut(&mut out.data)?;
+        let validity = &mut out.validity;
 
-    for (row_ptr, output_idx) in row_pointers.into_iter().zip(write_offset..) {
-        let validity_buf = layout.validity_buffer(row_ptr);
-        let is_valid = BitmapView::new(validity_buf, layout.num_columns()).value(array_idx);
+        for (row_ptr, output_idx) in row_pointers.into_iter().zip(write_offset..) {
+            let validity_buf = layout.validity_buffer(row_ptr);
+            let is_valid = BitmapView::new(validity_buf, layout.num_columns()).value(array_idx);
 
-        if is_valid {
-            let ptr = row_ptr.byte_add(layout.offsets[array_idx]);
-            let string_ptr = ptr.cast::<StringPtr>().read_unaligned();
+            if is_valid {
+                let ptr = row_ptr.byte_add(layout.offsets[array_idx]);
+                let string_ptr = ptr.cast::<StringPtr>().read_unaligned();
 
-            let bs = string_ptr.as_bytes();
-            data.put(output_idx, bs);
-        } else {
-            validity.set_invalid(output_idx);
+                let bs = string_ptr.as_bytes();
+                data.put(output_idx, bs);
+            } else {
+                validity.set_invalid(output_idx);
+            }
         }
-    }
 
-    Ok(())
-}}
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod tests {

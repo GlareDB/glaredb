@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 
-use crate::expr::column_expr::ColumnReference;
 use crate::expr::Expression;
+use crate::expr::column_expr::ColumnReference;
 use crate::logical::binder::table_list::TableRef;
 
 /// Holds a filtering expression and all table refs the expression references.

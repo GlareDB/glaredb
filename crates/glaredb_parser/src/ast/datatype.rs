@@ -67,7 +67,7 @@ impl AstParseable for DataType {
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected keyword for data type: {other:?}",
-                )))
+                )));
             }
         })
     }

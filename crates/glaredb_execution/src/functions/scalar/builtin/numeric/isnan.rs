@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use glaredb_error::Result;
 use num_traits::Float;
 
+use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     PhysicalBool,
     PhysicalF16,
@@ -10,16 +11,15 @@ use crate::arrays::array::physical_type::{
     PhysicalF64,
     ScalarStorage,
 };
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
+use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_IS_NAN: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_nan",

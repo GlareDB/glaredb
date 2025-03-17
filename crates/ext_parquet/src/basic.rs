@@ -24,7 +24,7 @@ use std::str::FromStr;
 use std::{fmt, str};
 
 pub use crate::compression::{BrotliLevel, GzipLevel, ZstdLevel};
-use crate::errors::{general_err, ParquetError, ParquetResult};
+use crate::errors::{ParquetError, ParquetResult, general_err};
 use crate::format as parquet;
 // Re-export crate::format types used in this module
 pub use crate::format::{
@@ -724,7 +724,7 @@ impl TryFrom<Option<parquet::ConvertedType>> for ConvertedType {
                     return Err(general_err!(
                         "unexpected parquet converted type: {}",
                         value.0
-                    ))
+                    ));
                 }
             },
         })
@@ -907,7 +907,7 @@ impl TryFrom<parquet::FieldRepetitionType> for Repetition {
                 return Err(general_err!(
                     "unexpected parquet repetition type: {}",
                     value.0
-                ))
+                ));
             }
         })
     }
@@ -983,7 +983,7 @@ impl TryFrom<parquet::CompressionCodec> for Compression {
                 return Err(general_err!(
                     "unexpected parquet compression codec: {}",
                     value.0
-                ))
+                ));
             }
         })
     }

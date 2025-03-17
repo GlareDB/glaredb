@@ -2,11 +2,11 @@ use std::fmt;
 
 use glaredb_error::Result;
 
-use super::evaluator::{ExpressionEvaluator, ExpressionState};
 use super::PhysicalScalarExpression;
+use super::evaluator::{ExpressionEvaluator, ExpressionState};
+use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::PhysicalBool;
 use crate::arrays::array::selection::Selection;
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::scalar::UnaryExecutor;

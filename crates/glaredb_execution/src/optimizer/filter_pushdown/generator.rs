@@ -1,5 +1,5 @@
-use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::Expression;
+use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 
 /// Generates additional filters based on input expressions.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

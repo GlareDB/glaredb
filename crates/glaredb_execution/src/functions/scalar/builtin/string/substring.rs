@@ -1,25 +1,25 @@
 use glaredb_error::Result;
 
-use crate::arrays::array::physical_type::{PhysicalI64, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::{PhysicalI64, PhysicalUtf8};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use crate::arrays::executor::OutBuffer;
+use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_SUBSTRING: ScalarFunctionSet = ScalarFunctionSet {
     name: "substring",
     aliases: &["substr"],
-    doc: Some(&Documentation{
+    doc: Some(&Documentation {
         category: Category::String,
         description: "Get a substring of a string starting at an index until the end of the string. The index is 1-based.",
         arguments: &["string", "index"],
-        example: Some(Example{
+        example: Some(Example {
             example: "substring('alphabet', 3)",
             output: "phabet",
         }),
@@ -28,11 +28,14 @@ pub const FUNCTION_SET_SUBSTRING: ScalarFunctionSet = ScalarFunctionSet {
         // substring(<string>, <from>)
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
-            &SubstringFrom
+            &SubstringFrom,
         ),
         // substring(<string>, <from>, <to>)
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Utf8),
+            &Signature::new(
+                &[DataTypeId::Utf8, DataTypeId::Int64, DataTypeId::Int64],
+                DataTypeId::Utf8,
+            ),
             &SubstringFromTo,
         ),
     ],
@@ -147,7 +150,7 @@ mod tests {
         ];
 
         for case in test_cases {
-            let out = substring_from(case.0 .0, case.0 .1);
+            let out = substring_from(case.0.0, case.0.1);
             assert_eq!(case.1, out);
         }
     }
@@ -169,7 +172,7 @@ mod tests {
         ];
 
         for case in test_cases {
-            let out = substring_from_count(case.0 .0, case.0 .1, case.0 .2);
+            let out = substring_from_count(case.0.0, case.0.1, case.0.2);
             assert_eq!(case.1, out);
         }
     }

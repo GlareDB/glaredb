@@ -1,24 +1,23 @@
 use glaredb_error::Result;
 
-use crate::arrays::array::physical_type::{PhysicalI64, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::{PhysicalI64, PhysicalUtf8};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use crate::arrays::executor::OutBuffer;
+use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_LEFT_PAD: ScalarFunctionSet = ScalarFunctionSet {
     name: "lpad",
     aliases: &[],
     doc: Some(&Documentation {
         category: Category::String,
-        description:
-            "Left pad a string with spaces until the resulting string contains 'count' characters.",
+        description: "Left pad a string with spaces until the resulting string contains 'count' characters.",
         arguments: &["string", "count"],
         example: Some(Example {
             example: "lpad('house', 8)",
@@ -98,8 +97,7 @@ pub const FUNCTION_SET_RIGHT_PAD: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: Some(&Documentation {
         category: Category::String,
-        description:
-            "Right pad a string with spaces until the resulting string contains 'count' characters.",
+        description: "Right pad a string with spaces until the resulting string contains 'count' characters.",
         arguments: &["string", "count"],
         example: Some(Example {
             example: "rpad('house', 8)",

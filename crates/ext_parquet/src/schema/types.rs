@@ -30,7 +30,7 @@ use crate::basic::{
     TimeUnit,
     Type as PhysicalType,
 };
-use crate::errors::{general_err, ParquetResult};
+use crate::errors::{ParquetResult, general_err};
 use crate::format::SchemaElement;
 
 // ----------------------------------------------------------------------
@@ -309,84 +309,83 @@ impl<'a> PrimitiveTypeBuilder<'a> {
             }
             // Check that logical type and physical type are compatible
             match (logical_type, self.physical_type) {
-                 (LogicalType::Map, _) | (LogicalType::List, _) => {
-                     return Err(general_err!(
-                         "{:?} cannot be applied to a primitive type for field '{}'",
-                         logical_type,
-                         self.name
-                     ));
-                 }
-                 (LogicalType::Enum, PhysicalType::BYTE_ARRAY) => {}
-                 (LogicalType::Decimal { scale, precision }, _) => {
-                     // Check that scale and precision are consistent with legacy values
-                     if *scale != self.scale {
-                         return Err(general_err!(
-                             "DECIMAL logical type scale {} must match self.scale {} for field '{}'",
-                             scale,
-                             self.scale,
-                             self.name
-                         ));
-                     }
-                     if *precision != self.precision {
-                         return Err(general_err!(
-                             "DECIMAL logical type precision {} must match self.precision {} for field '{}'",
-                             precision,
-                             self.precision,
-                             self.name
-                         ));
-                     }
-                     self.check_decimal_precision_scale()?;
-                 }
-                 (LogicalType::Date, PhysicalType::INT32) => {}
-                 (
-                     LogicalType::Time {
-                         unit: TimeUnit::MILLIS(_),
-                         ..
-                     },
-                     PhysicalType::INT32,
-                 ) => {}
-                 (LogicalType::Time { unit, .. }, PhysicalType::INT64) => {
-                     if *unit == TimeUnit::MILLIS(Default::default()) {
-                         return Err(general_err!(
-                             "Cannot use millisecond unit on INT64 type for field '{}'",
-                             self.name
-                         ));
-                     }
-                 }
-                 (LogicalType::Timestamp { .. }, PhysicalType::INT64) => {}
-                 (LogicalType::Integer { bit_width, .. }, PhysicalType::INT32)
-                     if *bit_width <= 32 => {}
-                 (LogicalType::Integer { bit_width, .. }, PhysicalType::INT64)
-                     if *bit_width == 64 => {}
-                 // Null type
-                 (LogicalType::Unknown, PhysicalType::INT32) => {}
-                 (LogicalType::String, PhysicalType::BYTE_ARRAY) => {}
-                 (LogicalType::Json, PhysicalType::BYTE_ARRAY) => {}
-                 (LogicalType::Bson, PhysicalType::BYTE_ARRAY) => {}
-                 (LogicalType::Uuid, PhysicalType::FIXED_LEN_BYTE_ARRAY) if self.length == 16 => {}
-                 (LogicalType::Uuid, PhysicalType::FIXED_LEN_BYTE_ARRAY) => {
-                     return Err(general_err!(
-                         "UUID cannot annotate field '{}' because it is not a FIXED_LEN_BYTE_ARRAY(16) field",
-                         self.name
-                     ))
-                 }
-                 (LogicalType::Float16, PhysicalType::FIXED_LEN_BYTE_ARRAY)
-                     if self.length == 2 => {}
-                 (LogicalType::Float16, PhysicalType::FIXED_LEN_BYTE_ARRAY) => {
-                     return Err(general_err!(
-                         "FLOAT16 cannot annotate field '{}' because it is not a FIXED_LEN_BYTE_ARRAY(2) field",
-                         self.name
-                     ))
-                 }
-                 (a, b) => {
-                     return Err(general_err!(
-                         "Cannot annotate {:?} from {} for field '{}'",
-                         a,
-                         b,
-                         self.name
-                     ))
-                 }
-             }
+                (LogicalType::Map, _) | (LogicalType::List, _) => {
+                    return Err(general_err!(
+                        "{:?} cannot be applied to a primitive type for field '{}'",
+                        logical_type,
+                        self.name
+                    ));
+                }
+                (LogicalType::Enum, PhysicalType::BYTE_ARRAY) => {}
+                (LogicalType::Decimal { scale, precision }, _) => {
+                    // Check that scale and precision are consistent with legacy values
+                    if *scale != self.scale {
+                        return Err(general_err!(
+                            "DECIMAL logical type scale {} must match self.scale {} for field '{}'",
+                            scale,
+                            self.scale,
+                            self.name
+                        ));
+                    }
+                    if *precision != self.precision {
+                        return Err(general_err!(
+                            "DECIMAL logical type precision {} must match self.precision {} for field '{}'",
+                            precision,
+                            self.precision,
+                            self.name
+                        ));
+                    }
+                    self.check_decimal_precision_scale()?;
+                }
+                (LogicalType::Date, PhysicalType::INT32) => {}
+                (
+                    LogicalType::Time {
+                        unit: TimeUnit::MILLIS(_),
+                        ..
+                    },
+                    PhysicalType::INT32,
+                ) => {}
+                (LogicalType::Time { unit, .. }, PhysicalType::INT64) => {
+                    if *unit == TimeUnit::MILLIS(Default::default()) {
+                        return Err(general_err!(
+                            "Cannot use millisecond unit on INT64 type for field '{}'",
+                            self.name
+                        ));
+                    }
+                }
+                (LogicalType::Timestamp { .. }, PhysicalType::INT64) => {}
+                (LogicalType::Integer { bit_width, .. }, PhysicalType::INT32)
+                    if *bit_width <= 32 => {}
+                (LogicalType::Integer { bit_width, .. }, PhysicalType::INT64)
+                    if *bit_width == 64 => {}
+                // Null type
+                (LogicalType::Unknown, PhysicalType::INT32) => {}
+                (LogicalType::String, PhysicalType::BYTE_ARRAY) => {}
+                (LogicalType::Json, PhysicalType::BYTE_ARRAY) => {}
+                (LogicalType::Bson, PhysicalType::BYTE_ARRAY) => {}
+                (LogicalType::Uuid, PhysicalType::FIXED_LEN_BYTE_ARRAY) if self.length == 16 => {}
+                (LogicalType::Uuid, PhysicalType::FIXED_LEN_BYTE_ARRAY) => {
+                    return Err(general_err!(
+                        "UUID cannot annotate field '{}' because it is not a FIXED_LEN_BYTE_ARRAY(16) field",
+                        self.name
+                    ));
+                }
+                (LogicalType::Float16, PhysicalType::FIXED_LEN_BYTE_ARRAY) if self.length == 2 => {}
+                (LogicalType::Float16, PhysicalType::FIXED_LEN_BYTE_ARRAY) => {
+                    return Err(general_err!(
+                        "FLOAT16 cannot annotate field '{}' because it is not a FIXED_LEN_BYTE_ARRAY(2) field",
+                        self.name
+                    ));
+                }
+                (a, b) => {
+                    return Err(general_err!(
+                        "Cannot annotate {:?} from {} for field '{}'",
+                        a,
+                        b,
+                        self.name
+                    ));
+                }
+            }
         }
 
         match self.converted_type {
@@ -1907,9 +1906,11 @@ mod tests {
         let f2 = test_new_group_type(
             "f",
             Repetition::REPEATED,
-            vec![Type::primitive_type_builder("f2", PhysicalType::INT64)
-                .build()
-                .unwrap()],
+            vec![
+                Type::primitive_type_builder("f2", PhysicalType::INT64)
+                    .build()
+                    .unwrap(),
+            ],
         );
         assert!(f1.check_contains(&f2));
 
@@ -1972,9 +1973,11 @@ mod tests {
         let f2 = test_new_group_type(
             "f",
             Repetition::REPEATED,
-            vec![Type::primitive_type_builder("f3", PhysicalType::INT32)
-                .build()
-                .unwrap()],
+            vec![
+                Type::primitive_type_builder("f3", PhysicalType::INT32)
+                    .build()
+                    .unwrap(),
+            ],
         );
         assert!(!f1.check_contains(&f2));
     }
@@ -1993,9 +1996,11 @@ mod tests {
         let f1 = test_new_group_type(
             "f",
             Repetition::REPEATED,
-            vec![Type::primitive_type_builder("f1", PhysicalType::INT32)
-                .build()
-                .unwrap()],
+            vec![
+                Type::primitive_type_builder("f1", PhysicalType::INT32)
+                    .build()
+                    .unwrap(),
+            ],
         );
         let f2 = Type::primitive_type_builder("f1", PhysicalType::INT32)
             .build()
@@ -2011,9 +2016,11 @@ mod tests {
                 test_new_group_type(
                     "b",
                     Repetition::REPEATED,
-                    vec![Type::primitive_type_builder("c", PhysicalType::INT32)
-                        .build()
-                        .unwrap()],
+                    vec![
+                        Type::primitive_type_builder("c", PhysicalType::INT32)
+                            .build()
+                            .unwrap(),
+                    ],
                 ),
                 Type::primitive_type_builder("d", PhysicalType::INT64)
                     .build()
@@ -2029,9 +2036,11 @@ mod tests {
             vec![test_new_group_type(
                 "b",
                 Repetition::REPEATED,
-                vec![Type::primitive_type_builder("c", PhysicalType::INT32)
-                    .build()
-                    .unwrap()],
+                vec![
+                    Type::primitive_type_builder("c", PhysicalType::INT32)
+                        .build()
+                        .unwrap(),
+                ],
             )],
         );
         assert!(f1.check_contains(&f2)); // should match

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};
 
 use futures::future::BoxFuture;
-use glaredb_error::{not_implemented, Result};
+use glaredb_error::{Result, not_implemented};
 use glaredb_execution::arrays::scalar::ScalarValue;
 use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_execution::io::access::AccessConfig;

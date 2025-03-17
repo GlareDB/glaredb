@@ -5,35 +5,35 @@ use glaredb_error::{RayexecError, Result};
 use num_traits::{NumCast, PrimInt};
 
 use super::decimal_sigs::D_SIGS;
+use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI8,
+    PhysicalI128,
     PhysicalInterval,
-    PhysicalU128,
+    PhysicalU8,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU8,
+    PhysicalU128,
     ScalarStorage,
 };
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
-use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::arrays::executor::OutBuffer;
-use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::arrays::executor::scalar::BinaryExecutor;
+use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
 use crate::arrays::scalar::interval::Interval;
 use crate::expr::{self, Expression};
+use crate::functions::Signature;
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_MUL: ScalarFunctionSet = ScalarFunctionSet {
     name: "*",

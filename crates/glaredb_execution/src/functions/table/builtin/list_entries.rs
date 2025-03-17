@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::task::Context;
 
 use futures::Stream;
-use glaredb_error::{not_implemented, Result};
+use glaredb_error::{Result, not_implemented};
 
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;

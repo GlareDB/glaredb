@@ -6,8 +6,8 @@ use super::binder::bind_context::{BindContext, MaterializationRef};
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::Expression;
+use crate::expr::comparison_expr::ComparisonExpr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {

@@ -14,7 +14,7 @@ use glaredb_execution::buffer::buffer_manager::BufferManager;
 
 use super::Encoding;
 use crate::encodings::rle::RleDecoder;
-use crate::errors::{general_err, ParquetError, ParquetResult};
+use crate::errors::{ParquetError, ParquetResult, general_err};
 
 #[derive(Debug)]
 pub struct ViewBuffer<'a, B: BufferManager> {
@@ -96,7 +96,7 @@ impl ViewDecoder {
                 return Err(general_err!(
                     "unsupported encoding for byte array: {}",
                     encoding
-                ))
+                ));
             }
         };
 

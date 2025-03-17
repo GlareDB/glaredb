@@ -3,8 +3,8 @@ use std::fmt;
 use glaredb_error::Result;
 
 use super::ExpressionState;
-use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
+use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::ScalarValue;

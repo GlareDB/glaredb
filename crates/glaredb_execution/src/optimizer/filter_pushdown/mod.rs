@@ -415,7 +415,7 @@ impl FilterPushdown {
                     other => {
                         return Err(RayexecError::new(format!(
                             "Unexpected operator on left side of magic join: {other:?}"
-                        )))
+                        )));
                     }
                 }
 

@@ -1,9 +1,9 @@
 use glaredb_error::{RayexecError, Result};
 
 use super::AggregateState;
+use crate::arrays::array::Array;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{Addressable, ScalarStorage};
-use crate::arrays::array::Array;
 use crate::util::iter::IntoExactSizeIterator;
 
 #[derive(Debug, Clone, Copy)]

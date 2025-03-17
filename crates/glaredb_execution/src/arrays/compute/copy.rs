@@ -1,5 +1,6 @@
 use glaredb_error::{RayexecError, Result};
 
+use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::ArrayBuffer;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -10,24 +11,23 @@ use crate::arrays::array::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI8,
+    PhysicalI128,
     PhysicalInterval,
     PhysicalType,
-    PhysicalU128,
+    PhysicalU8,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU8,
+    PhysicalU128,
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::validity::Validity;
-use crate::arrays::array::Array;
 
 /// Copy rows from `src` to `dest` using mapping providing (from, to) indices.
 pub fn copy_rows_array(

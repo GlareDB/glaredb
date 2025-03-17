@@ -26,7 +26,7 @@ use bytes::Bytes;
 use half::f16;
 
 use crate::basic::Type;
-use crate::errors::{general_err, ParquetResult};
+use crate::errors::{ParquetResult, general_err};
 use crate::util::bit_util::FromBytes;
 
 // TODO: Delete me
@@ -505,12 +505,14 @@ macro_rules! gen_as_bytes {
 
             #[inline]
             #[allow(clippy::size_of_in_element_count)]
-            unsafe fn slice_as_bytes_mut(self_: &mut [Self]) -> &mut [u8] { unsafe {
-                std::slice::from_raw_parts_mut(
-                    self_.as_mut_ptr() as *mut u8,
-                    std::mem::size_of_val(self_),
-                )
-            }}
+            unsafe fn slice_as_bytes_mut(self_: &mut [Self]) -> &mut [u8] {
+                unsafe {
+                    std::slice::from_raw_parts_mut(
+                        self_.as_mut_ptr() as *mut u8,
+                        std::mem::size_of_val(self_),
+                    )
+                }
+            }
         }
     };
 }
@@ -597,11 +599,11 @@ impl AsBytes for str {
 pub(crate) mod private {
     use bytes::Bytes;
 
-    use super::{general_err, ParquetResult, SliceAsBytes};
+    use super::{ParquetResult, SliceAsBytes, general_err};
     use crate::basic::Type;
     use crate::encodings::decoding::PlainDecoderDetails;
     use crate::errors::eof_err;
-    use crate::util::bit_util::{read_num_bytes, BitReader, BitWriter};
+    use crate::util::bit_util::{BitReader, BitWriter, read_num_bytes};
 
     /// Sealed trait to start to remove specialisation from implementations
     ///

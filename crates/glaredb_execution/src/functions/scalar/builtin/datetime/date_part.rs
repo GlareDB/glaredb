@@ -7,12 +7,12 @@ use crate::arrays::compute::date::{self, extract_date_part};
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::scalar::decimal::{Decimal64Type, DecimalType};
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
-use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 pub const FUNCTION_SET_DATE_PART: ScalarFunctionSet = ScalarFunctionSet {
     name: "date_part",

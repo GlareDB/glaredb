@@ -1,8 +1,8 @@
 use glaredb_error::Result;
 
 use super::ExpressionRewriteRule;
-use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use crate::expr::Expression;
+use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 
 /// Unnest nested AND or OR expressions.
 ///

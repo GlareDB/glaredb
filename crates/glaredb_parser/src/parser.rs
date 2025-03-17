@@ -1,4 +1,4 @@
-use glaredb_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{RayexecError, Result, not_implemented};
 use tracing::trace;
 
 use crate::ast::{
@@ -99,7 +99,7 @@ impl<'a> Parser<'a> {
                         return Err(RayexecError::new(format!(
                             "Expected a keyword, got {}",
                             word.value,
-                        )))
+                        )));
                     }
                 };
 
@@ -218,7 +218,7 @@ impl<'a> Parser<'a> {
 
             match tok {
                 Token::RightParen | Token::SemiColon | Token::RightBrace | Token::RightBracket => {
-                    break
+                    break;
                 }
                 Token::Word(w) => {
                     if let Some(kw) = &w.keyword {
@@ -389,7 +389,7 @@ impl<'a> Parser<'a> {
                         return Err(RayexecError::new(format!(
                             "Expected a keyword, got {}",
                             word.value,
-                        )))
+                        )));
                     }
                 };
 

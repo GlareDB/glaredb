@@ -8,8 +8,8 @@ use crate::config::session::SessionConfig;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
 use crate::logical::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar, VariableOrAll};
 use crate::logical::operator::{LocationRequirement, Node};
-use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]

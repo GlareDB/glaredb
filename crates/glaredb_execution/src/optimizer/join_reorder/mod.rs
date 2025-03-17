@@ -8,12 +8,12 @@ use std::collections::{HashSet, VecDeque};
 use glaredb_error::Result;
 use graph::Graph;
 
+use super::OptimizeRule;
 use super::filter_pushdown::extracted_filter::ExtractedFilter;
 use super::filter_pushdown::split::split_conjunction;
-use super::OptimizeRule;
+use crate::expr::Expression;
 use crate::expr::column_expr::ColumnReference;
 use crate::expr::comparison_expr::ComparisonExpr;
-use crate::expr::Expression;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_join::JoinType;

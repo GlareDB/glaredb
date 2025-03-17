@@ -25,14 +25,14 @@ use std::marker::PhantomData;
 use std::{cmp, mem};
 
 use bytes::Bytes;
-use num::traits::WrappingAdd;
 use num::FromPrimitive;
+use num::traits::WrappingAdd;
 
 use super::rle::RleDecoder;
 use crate::basic::*;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
-use crate::errors::{eof_err, general_err, ParquetResult};
+use crate::errors::{ParquetResult, eof_err, general_err};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{self, BitReader};
 
@@ -1109,7 +1109,7 @@ mod tests {
 
     use super::super::encoding::*;
     use super::*;
-    use crate::errors::{nyi_err, ParquetError};
+    use crate::errors::{ParquetError, nyi_err};
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::testutil::rand_gen::RandGen;
 

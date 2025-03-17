@@ -38,8 +38,8 @@ pub use sin::*;
 pub use sqrt::*;
 pub use tan::*;
 
-use crate::arrays::array::physical_type::MutableScalarStorage;
 use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::MutableScalarStorage;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::expr::Expression;

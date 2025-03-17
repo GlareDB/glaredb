@@ -21,8 +21,8 @@ use std::mem::size_of;
 use bytes::Bytes;
 
 use crate::data_type::{AsBytes, ByteArray, FixedLenByteArray, Int96};
-use crate::errors::{general_err, ParquetResult};
-use crate::util::bit_pack::{unpack16, unpack32, unpack64, unpack8};
+use crate::errors::{ParquetResult, general_err};
+use crate::util::bit_pack::{unpack8, unpack16, unpack32, unpack64};
 
 #[inline]
 pub fn from_le_slice<T: FromBytes>(bs: &[u8]) -> T {

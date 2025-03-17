@@ -3,32 +3,32 @@ use std::marker::PhantomData;
 
 use glaredb_error::Result;
 
+use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI8,
-    PhysicalU128,
+    PhysicalI128,
+    PhysicalU8,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU8,
+    PhysicalU128,
 };
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::arrays::executor::OutBuffer;
-use crate::expr::cast_expr::CastExpr;
+use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::expr::Expression;
+use crate::expr::cast_expr::CastExpr;
+use crate::functions::Signature;
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_DIV: ScalarFunctionSet = ScalarFunctionSet {
     name: "/",

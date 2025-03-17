@@ -1,16 +1,16 @@
-use glaredb_error::{not_implemented, Result};
+use glaredb_error::{Result, not_implemented};
 use glaredb_parser::ast;
 use rayexec_io::location::FileLocation;
 
 use super::bind_context::{BindContext, BindScopeRef};
-use super::bind_query::bind_from::BoundFrom;
 use super::bind_query::BoundQuery;
+use super::bind_query::bind_from::BoundFrom;
 use crate::arrays::datatype::DataType;
 use crate::arrays::field::{ColumnSchema, Field};
-use crate::logical::binder::bind_query::bind_from::FromBinder;
 use crate::logical::binder::bind_query::QueryBinder;
-use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::binder::bind_query::bind_from::FromBinder;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::resolver::resolve_context::ResolveContext;
 
 #[derive(Debug)]
 pub enum BoundCopyToSource {

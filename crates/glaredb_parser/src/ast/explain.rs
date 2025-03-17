@@ -55,7 +55,7 @@ impl AstParseable for ExplainNode<Raw> {
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected body in EXPLAIN: {other:?}"
-                )))
+                )));
             }
         };
 

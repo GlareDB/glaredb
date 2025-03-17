@@ -20,8 +20,8 @@ use crate::logical::logical_describe::LogicalDescribe;
 use crate::logical::logical_drop::LogicalDrop;
 use crate::logical::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar};
 use crate::logical::operator::Node;
-use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::resolver::resolve_context::ResolveContext;
 
 /// "Bound" variants for SQL statements that we support.
 ///

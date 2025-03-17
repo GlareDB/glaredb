@@ -74,13 +74,13 @@ impl RawBufferManager {
         }
     }
 
-    pub(crate) unsafe fn call_drop(&self, reservation: &Reservation) { unsafe {
-        (self.vtable.drop_fn)(self.manager, reservation)
-    }}
+    pub(crate) unsafe fn call_drop(&self, reservation: &Reservation) {
+        unsafe { (self.vtable.drop_fn)(self.manager, reservation) }
+    }
 
-    pub(crate) unsafe fn call_reserve(&self, num_bytes: usize) -> Result<Reservation> { unsafe {
-        (self.vtable.reserve_fn)(self.manager, num_bytes)
-    }}
+    pub(crate) unsafe fn call_reserve(&self, num_bytes: usize) -> Result<Reservation> {
+        unsafe { (self.vtable.reserve_fn)(self.manager, num_bytes) }
+    }
 }
 
 #[derive(Debug)]

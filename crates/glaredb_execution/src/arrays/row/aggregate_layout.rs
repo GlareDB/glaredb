@@ -119,34 +119,36 @@ impl AggregateLayout {
         group_ptrs: &mut [*mut u8],
         mut inputs: &[Array],
         num_rows: usize,
-    ) -> Result<()> { unsafe {
-        debug_assert_eq!(num_rows, group_ptrs.len());
+    ) -> Result<()> {
+        unsafe {
+            debug_assert_eq!(num_rows, group_ptrs.len());
 
-        let mut prev_offset = 0;
+            let mut prev_offset = 0;
 
-        for (offset, agg) in self.iter_offsets_and_aggregates() {
-            let (agg_inputs, remaining_inputs) = inputs.split_at(agg.columns.len());
+            for (offset, agg) in self.iter_offsets_and_aggregates() {
+                let (agg_inputs, remaining_inputs) = inputs.split_at(agg.columns.len());
 
-            // Update pointers to point to the start of this aggregate's state.
-            let rel_offset = offset - prev_offset;
-            for row_ptr in group_ptrs.iter_mut() {
-                *row_ptr = row_ptr.byte_add(rel_offset);
-                debug_assert_eq!(
-                    0,
-                    row_ptr.addr() % agg.function.aggregate_state_info().align
-                );
+                // Update pointers to point to the start of this aggregate's state.
+                let rel_offset = offset - prev_offset;
+                for row_ptr in group_ptrs.iter_mut() {
+                    *row_ptr = row_ptr.byte_add(rel_offset);
+                    debug_assert_eq!(
+                        0,
+                        row_ptr.addr() % agg.function.aggregate_state_info().align
+                    );
+                }
+                prev_offset = offset; // To get the next offset relative to this pointer on the next iteration.
+
+                // Update states.
+                agg.function.call_update(agg_inputs, num_rows, group_ptrs)?;
+
+                // Next aggregate starts with the remaining inputs.
+                inputs = remaining_inputs;
             }
-            prev_offset = offset; // To get the next offset relative to this pointer on the next iteration.
 
-            // Update states.
-            agg.function.call_update(agg_inputs, num_rows, group_ptrs)?;
-
-            // Next aggregate starts with the remaining inputs.
-            inputs = remaining_inputs;
+            Ok(())
         }
-
-        Ok(())
-    }}
+    }
 
     /// Combines aggregate states, consuming states in `src_ptrs` into
     /// `dest_ptrs`.
@@ -164,37 +166,39 @@ impl AggregateLayout {
         &self,
         src_ptrs: &mut [*mut u8],
         dest_ptrs: &mut [*mut u8],
-    ) -> Result<()> { unsafe {
-        debug_assert_eq!(src_ptrs.len(), dest_ptrs.len());
+    ) -> Result<()> {
+        unsafe {
+            debug_assert_eq!(src_ptrs.len(), dest_ptrs.len());
 
-        let mut prev_offset = 0;
+            let mut prev_offset = 0;
 
-        for (offset, agg) in self.iter_offsets_and_aggregates() {
-            let rel_offset = offset - prev_offset;
+            for (offset, agg) in self.iter_offsets_and_aggregates() {
+                let rel_offset = offset - prev_offset;
 
-            // Move both sets of pointers to the right state.
-            for row_ptr in src_ptrs.iter_mut() {
-                *row_ptr = row_ptr.byte_add(rel_offset);
-                debug_assert_eq!(
-                    0,
-                    row_ptr.addr() % agg.function.aggregate_state_info().align
-                );
+                // Move both sets of pointers to the right state.
+                for row_ptr in src_ptrs.iter_mut() {
+                    *row_ptr = row_ptr.byte_add(rel_offset);
+                    debug_assert_eq!(
+                        0,
+                        row_ptr.addr() % agg.function.aggregate_state_info().align
+                    );
+                }
+                for row_ptr in dest_ptrs.iter_mut() {
+                    *row_ptr = row_ptr.byte_add(rel_offset);
+                    debug_assert_eq!(
+                        0,
+                        row_ptr.addr() % agg.function.aggregate_state_info().align
+                    );
+                }
+                prev_offset = offset;
+
+                // Combine states.
+                agg.function.call_combine(src_ptrs, dest_ptrs)?;
             }
-            for row_ptr in dest_ptrs.iter_mut() {
-                *row_ptr = row_ptr.byte_add(rel_offset);
-                debug_assert_eq!(
-                    0,
-                    row_ptr.addr() % agg.function.aggregate_state_info().align
-                );
-            }
-            prev_offset = offset;
 
-            // Combine states.
-            agg.function.call_combine(src_ptrs, dest_ptrs)?;
+            Ok(())
         }
-
-        Ok(())
-    }}
+    }
 
     /// Finalizes states and writes the output the arrays.
     ///
@@ -216,29 +220,31 @@ impl AggregateLayout {
     ) -> Result<()>
     where
         A: BorrowMut<Array>,
-    { unsafe {
-        debug_assert_eq!(outputs.len(), self.aggregates.len());
+    {
+        unsafe {
+            debug_assert_eq!(outputs.len(), self.aggregates.len());
 
-        let mut prev_offset = 0;
+            let mut prev_offset = 0;
 
-        for ((offset, agg), output) in self.iter_offsets_and_aggregates().zip(outputs) {
-            let rel_offset = offset - prev_offset;
-            for row_ptr in group_ptrs.iter_mut() {
-                *row_ptr = row_ptr.byte_add(rel_offset);
-                debug_assert_eq!(
-                    0,
-                    row_ptr.addr() % agg.function.aggregate_state_info().align
-                );
+            for ((offset, agg), output) in self.iter_offsets_and_aggregates().zip(outputs) {
+                let rel_offset = offset - prev_offset;
+                for row_ptr in group_ptrs.iter_mut() {
+                    *row_ptr = row_ptr.byte_add(rel_offset);
+                    debug_assert_eq!(
+                        0,
+                        row_ptr.addr() % agg.function.aggregate_state_info().align
+                    );
+                }
+                prev_offset = offset;
+
+                // Finalize states.
+                agg.function
+                    .call_finalize(group_ptrs, output.borrow_mut())?;
             }
-            prev_offset = offset;
 
-            // Finalize states.
-            agg.function
-                .call_finalize(group_ptrs, output.borrow_mut())?;
+            Ok(())
         }
-
-        Ok(())
-    }}
+    }
 }
 
 /// Compute the new len to ensure alignment to some value.

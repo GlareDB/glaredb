@@ -26,8 +26,8 @@ use crate::arrays::collection::concurrent::{
 use crate::arrays::datatype::DataType;
 use crate::execution::partition_wakers::PartitionWakers;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::physical::selection_evaluator::SelectionEvaluator;
 use crate::expr::physical::PhysicalScalarExpression;
+use crate::expr::physical::selection_evaluator::SelectionEvaluator;
 use crate::logical::logical_join::JoinType;
 
 #[derive(Debug)]

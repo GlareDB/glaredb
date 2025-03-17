@@ -3,8 +3,8 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use glaredb_error::{RayexecError, Result};
 
 use super::OptimizeRule;
-use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, LogicalOperator, Node};
@@ -271,7 +271,7 @@ impl PruneState {
                     other => {
                         return Err(RayexecError::new(format!(
                             "unexpected left child for magic join: {other:?}"
-                        )))
+                        )));
                     }
                 }
 
@@ -330,7 +330,7 @@ impl PruneState {
                             other => {
                                 return Err(RayexecError::new(format!(
                                     "Unexpected expression: {other}"
-                                )))
+                                )));
                             }
                         };
 

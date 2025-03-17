@@ -5,13 +5,13 @@ use glaredb_error::{RayexecError, Result};
 use glaredb_parser::ast;
 use tracing::error;
 
+use super::ResolveContext;
 use super::resolved_table::{
     ResolvedTableOrCteReference,
     ResolvedTableReference,
     ResolvedViewReference,
     UnresolvedTableReference,
 };
-use super::ResolveContext;
 use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
 use crate::catalog::database::Database;
 use crate::catalog::entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType};
@@ -108,7 +108,7 @@ impl<'a> NormalResolver<'a> {
             _ => {
                 return Err(RayexecError::new(
                     "Unexpected number of identifiers in table function reference",
-                ))
+                ));
             }
         };
 
@@ -122,11 +122,10 @@ impl<'a> NormalResolver<'a> {
             None => return Ok(None),
         };
 
-        match schema_ent.get_table_function(&name)? { Some(entry) => {
-            Ok(Some(entry.try_as_table_function_entry()?.function))
-        } _ => {
-            Ok(None)
-        }}
+        match schema_ent.get_table_function(&name)? {
+            Some(entry) => Ok(Some(entry.try_as_table_function_entry()?.function)),
+            _ => Ok(None),
+        }
     }
 
     pub fn require_resolve_table_function(
@@ -176,7 +175,7 @@ impl<'a> NormalResolver<'a> {
             _ => {
                 return Err(RayexecError::new(
                     "Unexpected number of identifiers in table reference",
-                ))
+                ));
             }
         };
 
@@ -218,13 +217,13 @@ impl<'a> NormalResolver<'a> {
                             schema,
                             entry,
                         }),
-                    ))
+                    ));
                 }
                 _ => {
                     return Err(RayexecError::new(format!(
                         "Unexpected catalog entry type: {:?}",
                         entry.entry_type()
-                    )))
+                    )));
                 }
             }
         }

@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use glaredb_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{RayexecError, Result, not_implemented};
 use glaredb_parser::ast;
 
 use super::select_list::SelectList;
@@ -9,8 +9,8 @@ use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::{DefaultColumnBinder, ExpressionColumnBinder};
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
 use crate::logical::binder::table_list::TableRef;
-use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::resolver::resolve_context::ResolveContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundGroupBy {

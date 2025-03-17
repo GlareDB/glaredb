@@ -105,7 +105,7 @@ impl SortedSegment {
 mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::testutil::arrays::{assert_batches_eq, generate_batch, TestSortedRowBlock};
+    use crate::testutil::arrays::{TestSortedRowBlock, assert_batches_eq, generate_batch};
 
     #[test]
     fn scan_data_single_block_exact_capacity() {

@@ -3,8 +3,8 @@ use std::hash::Hash;
 
 use glaredb_error::Result;
 
-use super::comparison_expr::ComparisonOperator;
 use super::Expression;
+use super::comparison_expr::ComparisonOperator;
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};

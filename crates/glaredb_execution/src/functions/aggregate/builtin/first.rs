@@ -11,28 +11,28 @@ use crate::arrays::array::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI8,
+    PhysicalI128,
     PhysicalInterval,
-    PhysicalU128,
+    PhysicalU8,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU8,
+    PhysicalU128,
 };
 use crate::arrays::datatype::DataTypeId;
-use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
+use crate::arrays::executor::aggregate::AggregateState;
 use crate::expr::Expression;
-use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
+use crate::functions::Signature;
 use crate::functions::aggregate::RawAggregateFunction;
+use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::AggregateFunctionSet;
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_FIRST: AggregateFunctionSet = AggregateFunctionSet {
     name: "first",

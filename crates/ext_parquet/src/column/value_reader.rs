@@ -48,11 +48,13 @@ where
 {
     type T = T;
 
-    unsafe fn read_unchecked(&mut self, data: &mut ReadBuffer) -> Self::T { unsafe {
-        data.read_next_unchecked::<Self::T>()
-    }}
+    unsafe fn read_unchecked(&mut self, data: &mut ReadBuffer) -> Self::T {
+        unsafe { data.read_next_unchecked::<Self::T>() }
+    }
 
-    unsafe fn skip_unchecked(&mut self, data: &mut ReadBuffer) { unsafe {
-        data.skip_bytes_unchecked(std::mem::size_of::<Self::T>());
-    }}
+    unsafe fn skip_unchecked(&mut self, data: &mut ReadBuffer) {
+        unsafe {
+            data.skip_bytes_unchecked(std::mem::size_of::<Self::T>());
+        }
+    }
 }

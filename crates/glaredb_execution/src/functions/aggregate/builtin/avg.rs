@@ -12,16 +12,16 @@ use crate::arrays::array::physical_type::{
     ScalarStorage,
 };
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
-use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
 use crate::expr::Expression;
-use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
+use crate::functions::Signature;
 use crate::functions::aggregate::RawAggregateFunction;
+use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::AggregateFunctionSet;
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_AVG: AggregateFunctionSet = AggregateFunctionSet {
     name: "avg",

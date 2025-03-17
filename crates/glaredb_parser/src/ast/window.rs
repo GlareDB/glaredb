@@ -80,7 +80,7 @@ impl AstParseable for WindowFrameUnit {
                 _ => {
                     return Err(RayexecError::new(
                         "Expected ROWS, RANGE, or GROUPS for window frame unit",
-                    ))
+                    ));
                 }
             },
         )
@@ -112,8 +112,8 @@ impl AstParseable for WindowFrameExclusion {
                 WindowFrameExclusion::ExcludeNoOthers
             } else {
                 return Err(RayexecError::new(
-                    "Expected EXLUDE CURRENT ROW, EXCLUDE GROUP, EXCLUDE TIES, EXCLUDE NO OTHERS for window frame exclusion"
-                    ));
+                    "Expected EXLUDE CURRENT ROW, EXCLUDE GROUP, EXCLUDE TIES, EXCLUDE NO OTHERS for window frame exclusion",
+                ));
             },
         )
     }
@@ -142,9 +142,11 @@ impl AstParseable for WindowFrameBound<Raw> {
                 match parser.parse_one_of_keywords(&[Keyword::PRECEDING, Keyword::FOLLOWING]) {
                     Some(Keyword::PRECEDING) => WindowFrameBound::Preceding(Box::new(expr)),
                     Some(Keyword::FOLLOWING) => WindowFrameBound::Following(Box::new(expr)),
-                    _ => return Err(RayexecError::new(
-                        "Expected <expr> PRECEDING, UNBOUNDED PRECEDING, CURRENT ROW, UNBOUNDED FOLLOWING, or <expr> FOLLOWING for window frame bound"
-                    )),
+                    _ => {
+                        return Err(RayexecError::new(
+                            "Expected <expr> PRECEDING, UNBOUNDED PRECEDING, CURRENT ROW, UNBOUNDED FOLLOWING, or <expr> FOLLOWING for window frame bound",
+                        ));
+                    }
                 }
             },
         )
@@ -196,8 +198,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::ast::testutil::parse_ast;
     use crate::ast::Literal;
+    use crate::ast::testutil::parse_ast;
 
     #[test]
     fn window_range_unbounded_preceding() {

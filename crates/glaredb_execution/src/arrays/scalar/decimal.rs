@@ -5,7 +5,7 @@ use glaredb_proto::ProtoConv;
 use num_traits::{FromPrimitive, PrimInt, Signed, Zero};
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalI128, PhysicalI64};
+use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalI64, PhysicalI128};
 use crate::arrays::datatype::{DataType, DecimalTypeMeta};
 
 /// Trait describing the underlying primivite representing the decimal.

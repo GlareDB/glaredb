@@ -11,9 +11,9 @@ mod util;
 use std::fmt::Debug;
 
 use bytes::Bytes;
+use futures::StreamExt;
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
-use futures::StreamExt;
 use glaredb_error::Result;
 use location::{AccessConfig, FileLocation};
 
@@ -34,7 +34,7 @@ pub trait FileProvider2: Sync + Send + Debug {
 
     /// Gets a file sink at some location
     fn file_sink(&self, location: FileLocation, config: &AccessConfig)
-        -> Result<Box<dyn FileSink>>;
+    -> Result<Box<dyn FileSink>>;
 
     /// Return a stream of paths relative to `prefix`.
     ///

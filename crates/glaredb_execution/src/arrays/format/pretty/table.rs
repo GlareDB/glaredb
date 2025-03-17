@@ -7,8 +7,8 @@ use glaredb_error::Result;
 use textwrap::core::display_width;
 use textwrap::{fill_inplace, wrap};
 
-use super::components::{TableComponents, PRETTY_COMPONENTS};
-use super::display::{table_width, Alignment, PrettyFooter, PrettyHeader, PrettyValues};
+use super::components::{PRETTY_COMPONENTS, TableComponents};
+use super::display::{Alignment, PrettyFooter, PrettyHeader, PrettyValues, table_width};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
@@ -759,11 +759,7 @@ fn truncate_or_wrap_string(s: &mut String, width: usize) -> usize {
 /// Return the index where a '...' should be inserted.
 const fn elide_index<T>(v: &[T]) -> usize {
     let mid = v.len() / 2;
-    if v.len() % 2 == 0 {
-        mid
-    } else {
-        mid + 1
-    }
+    if v.len() % 2 == 0 { mid } else { mid + 1 }
 }
 
 #[cfg(test)]
@@ -1020,11 +1016,13 @@ mod tests {
         let a_vals = (0..10).map(|v| v.to_string());
         let b_vals = (0..10).map(Some);
 
-        let batches = vec![Batch::from_arrays(vec![
-            Array::try_from_iter(a_vals).unwrap(),
-            Array::try_from_iter(b_vals).unwrap(),
-        ])
-        .unwrap()];
+        let batches = vec![
+            Batch::from_arrays(vec![
+                Array::try_from_iter(a_vals).unwrap(),
+                Array::try_from_iter(b_vals).unwrap(),
+            ])
+            .unwrap(),
+        ];
 
         let table = pretty_format_batches(&schema, &batches, 80, Some(4)).unwrap();
 
@@ -1057,11 +1055,13 @@ mod tests {
         let a_vals: Vec<_> = (0..10).map(|v| Some(v.to_string())).collect();
         let b_vals: Vec<_> = (0..10).map(Some).collect();
 
-        let batches = vec![Batch::from_arrays(vec![
-            Array::try_from_iter(a_vals).unwrap(),
-            Array::try_from_iter(b_vals).unwrap(),
-        ])
-        .unwrap()];
+        let batches = vec![
+            Batch::from_arrays(vec![
+                Array::try_from_iter(a_vals).unwrap(),
+                Array::try_from_iter(b_vals).unwrap(),
+            ])
+            .unwrap(),
+        ];
 
         let table = pretty_format_batches(&schema, &batches, 80, Some(3)).unwrap();
 

@@ -5,8 +5,8 @@ use glaredb_parser::ast::{self};
 
 use super::bind_group_by::BoundGroupBy;
 use super::bind_select_list::SelectListBinder;
-use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_aggregate::GroupingFunction;
@@ -193,7 +193,9 @@ impl SelectList {
                         .any(|table_ref| &col.reference.table_scope == table_ref)
                     {
                         let (col_name, _) = bind_context.get_column(col.reference)?;
-                        return Err(RayexecError::new(format!("Column '{col_name}' must appear in the GROUP BY clause or be used in an aggregate function")));
+                        return Err(RayexecError::new(format!(
+                            "Column '{col_name}' must appear in the GROUP BY clause or be used in an aggregate function"
+                        )));
                     }
                 }
                 other => other.for_each_child(&mut |child| inner(bind_context, child, refs))?,
@@ -350,7 +352,7 @@ impl SelectList {
                 other => {
                     return Err(RayexecError::new(format!(
                         "Expected grouping set expression, got {other}"
-                    )))
+                    )));
                 }
             };
 
@@ -358,7 +360,11 @@ impl SelectList {
             for input in &grouping_expr.inputs {
                 let idx = match group_by.expressions.iter().position(|expr| expr == input) {
                     Some(idx) => idx,
-                    None => return Err(RayexecError::new(format!("'{input}' was not found in the GROUP BY and cannot be used as an argument to GROUPING"))),
+                    None => {
+                        return Err(RayexecError::new(format!(
+                            "'{input}' was not found in the GROUP BY and cannot be used as an argument to GROUPING"
+                        )));
+                    }
                 };
 
                 expr_indices.push(idx);

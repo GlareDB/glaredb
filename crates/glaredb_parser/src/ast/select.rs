@@ -172,7 +172,7 @@ impl AstParseable for WildcardExpr<Raw> {
             None => {
                 return Err(RayexecError::new(
                     "Expected wild card expression, found end of statement",
-                ))
+                ));
             }
         };
 
@@ -198,13 +198,14 @@ impl AstParseable for WildcardExpr<Raw> {
                 let mut idents = vec![ident];
 
                 while parser.consume_token(&Token::Period) {
-                    let next =
-                        match parser.next() {
-                            Some(tok) => &tok.token,
-                            None => return Err(RayexecError::new(
+                    let next = match parser.next() {
+                        Some(tok) => &tok.token,
+                        None => {
+                            return Err(RayexecError::new(
                                 "Expected an identifier or '*' after '.', found end of statement",
-                            )),
-                        };
+                            ));
+                        }
+                    };
 
                     match next {
                         Token::Word(w) => idents.push(w.clone().into()),
@@ -213,12 +214,12 @@ impl AstParseable for WildcardExpr<Raw> {
                             quoted: false,
                         }),
                         Token::Mul => {
-                            return Ok(WildcardExpr::QualifiedWildcard(ObjectReference(idents)))
+                            return Ok(WildcardExpr::QualifiedWildcard(ObjectReference(idents)));
                         }
                         other => {
                             return Err(RayexecError::new(format!(
                                 "Expected an identifier or '*' after '.', found {other:?}"
-                            )))
+                            )));
                         }
                     }
                 }
@@ -286,7 +287,7 @@ impl AstParseable for GroupByExpr<Raw> {
             None => {
                 return Err(RayexecError::new(
                     "Expected expression for GROUP BY, found end of statement",
-                ))
+                ));
             }
         };
 

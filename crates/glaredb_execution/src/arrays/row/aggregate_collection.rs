@@ -176,24 +176,26 @@ impl AggregateCollection {
     ) -> Result<()>
     where
         A: BorrowMut<Array>,
-    { unsafe {
-        debug_assert_eq!(groups.len(), self.layout.groups.num_columns());
-        debug_assert_eq!(results.len(), self.layout.aggregates.len());
+    {
+        unsafe {
+            debug_assert_eq!(groups.len(), self.layout.groups.num_columns());
+            debug_assert_eq!(results.len(), self.layout.aggregates.len());
 
-        // Read out groups first. Pointer should aready point to the right
-        // spot.
-        {
-            let group_ptrs = group_ptrs.iter().copied().map(|ptr| ptr as _);
-            self.layout
-                .groups
-                .read_arrays(group_ptrs, groups.iter_mut().enumerate(), 0)?;
+            // Read out groups first. Pointer should aready point to the right
+            // spot.
+            {
+                let group_ptrs = group_ptrs.iter().copied().map(|ptr| ptr as _);
+                self.layout
+                    .groups
+                    .read_arrays(group_ptrs, groups.iter_mut().enumerate(), 0)?;
+            }
+
+            // Now read out the results from the aggreate. This modifies pointers.
+            self.layout.finalize_states(group_ptrs, results)?;
+
+            Ok(())
         }
-
-        // Now read out the results from the aggreate. This modifies pointers.
-        self.layout.finalize_states(group_ptrs, results)?;
-
-        Ok(())
-    }}
+    }
 }
 
 #[cfg(test)]

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 
-use apache_avro::{from_value, Reader};
+use apache_avro::{Reader, from_value};
 use glaredb_error::{RayexecError, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 
@@ -128,7 +128,7 @@ impl FromStr for ManifestContent {
             other => {
                 return Err(RayexecError::new(format!(
                     "'{other}' is not valid content for manifest"
-                )))
+                )));
             }
         })
     }
@@ -251,7 +251,7 @@ impl TryFrom<i32> for ManifestEntryStatus {
             i => {
                 return Err(RayexecError::new(format!(
                     "unknown manifest entry status: {i}"
-                )))
+                )));
             }
         })
     }

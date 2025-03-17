@@ -19,7 +19,7 @@ use std::marker::PhantomData;
 
 use bytes::Bytes;
 
-use super::{general_err, Encoder};
+use super::{Encoder, general_err};
 use crate::basic::{Encoding, Type};
 use crate::data_type::{DataType, SliceAsBytes};
 use crate::errors::ParquetResult;

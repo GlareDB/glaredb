@@ -48,7 +48,7 @@ impl CaseExpr {
             None => {
                 return Err(RayexecError::new(
                     "Case expression must have at least one condition",
-                ))
+                ));
             }
         };
 

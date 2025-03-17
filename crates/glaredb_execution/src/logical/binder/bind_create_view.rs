@@ -6,8 +6,8 @@ use crate::catalog::create::OnConflict;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::logical_create::LogicalCreateView;
 use crate::logical::operator::{LocationRequirement, Node};
-use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::statistics::StatisticsValue;
 
 pub struct CreateViewBinder<'a> {

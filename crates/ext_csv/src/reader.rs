@@ -20,6 +20,7 @@
 use std::task::{Context, Poll};
 
 use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_execution::arrays::array::Array;
 use glaredb_execution::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
@@ -28,7 +29,6 @@ use glaredb_execution::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalUtf8,
 };
-use glaredb_execution::arrays::array::Array;
 use glaredb_execution::arrays::batch::Batch;
 use glaredb_execution::arrays::compute::cast::parse::{
     BoolParser,
@@ -188,7 +188,7 @@ impl CsvReader {
                     }
                     other => {
                         return Err(RayexecError::new("Unhandled datatype for csv scanning")
-                            .with_field("datatype", other.clone()))
+                            .with_field("datatype", other.clone()));
                     }
                 }
                 Ok(())

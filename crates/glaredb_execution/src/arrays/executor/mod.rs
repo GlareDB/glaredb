@@ -3,10 +3,10 @@ pub mod scalar;
 
 use glaredb_error::Result;
 
+use super::array::Array;
 use super::array::array_buffer::ArrayBuffer;
 use super::array::physical_type::AddressableMut;
 use super::array::validity::Validity;
-use super::array::Array;
 
 /// Wrapper around an array buffer and validity buffer that will be used to
 /// construct a full array.

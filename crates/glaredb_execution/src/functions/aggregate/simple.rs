@@ -6,14 +6,14 @@ use std::fmt::Debug;
 use glaredb_error::{RayexecError, Result};
 
 use super::AggregateFunction;
-use crate::arrays::array::physical_type::{MutableScalarStorage, ScalarStorage};
 use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::{MutableScalarStorage, ScalarStorage};
+use crate::arrays::executor::PutBuffer;
 use crate::arrays::executor::aggregate::{
     AggregateState,
     BinaryNonNullUpdater,
     UnaryNonNullUpdater,
 };
-use crate::arrays::executor::PutBuffer;
 use crate::expr::Expression;
 use crate::functions::bind_state::BindState;
 
@@ -24,10 +24,10 @@ pub trait UnaryAggregate: Debug + Copy + Sync + Send + Sized + 'static {
     type BindState: Sync + Send;
 
     type GroupState: for<'a> AggregateState<
-        &'a <Self::Input as ScalarStorage>::StorageType,
-        <Self::Output as ScalarStorage>::StorageType,
-        BindState = Self::BindState,
-    >;
+            &'a <Self::Input as ScalarStorage>::StorageType,
+            <Self::Output as ScalarStorage>::StorageType,
+            BindState = Self::BindState,
+        >;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>>;
     fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState;
@@ -120,13 +120,13 @@ pub trait BinaryAggregate: Debug + Copy + Sync + Send + Sized + 'static {
     type BindState: Sync + Send;
 
     type GroupState: for<'a> AggregateState<
-        (
-            &'a <Self::Input1 as ScalarStorage>::StorageType,
-            &'a <Self::Input2 as ScalarStorage>::StorageType,
-        ),
-        <Self::Output as ScalarStorage>::StorageType,
-        BindState = Self::BindState,
-    >;
+            (
+                &'a <Self::Input1 as ScalarStorage>::StorageType,
+                &'a <Self::Input2 as ScalarStorage>::StorageType,
+            ),
+            <Self::Output as ScalarStorage>::StorageType,
+            BindState = Self::BindState,
+        >;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>>;
     fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState;

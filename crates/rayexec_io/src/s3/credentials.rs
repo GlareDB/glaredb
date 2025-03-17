@@ -3,11 +3,11 @@ use std::fmt;
 use std::fmt::Write as _;
 
 use chrono::{DateTime, Utc};
-use glaredb_error::{not_implemented, Result};
+use glaredb_error::{Result, not_implemented};
 use hmac::{Hmac, Mac};
-use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, HOST};
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 use reqwest::Request;
+use reqwest::header::{AUTHORIZATION, HOST, HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use url::Url;

@@ -4,8 +4,8 @@ use glaredb_error::Result;
 
 use super::evaluator::ExpressionEvaluator;
 use super::{ExpressionState, PhysicalScalarExpression};
-use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
+use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::cast::array::cast_array;
 use crate::arrays::compute::cast::behavior::CastFailBehavior;

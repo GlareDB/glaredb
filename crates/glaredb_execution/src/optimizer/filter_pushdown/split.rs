@@ -1,5 +1,5 @@
-use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use crate::expr::Expression;
+use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 
 /// Recursively split an expression on AND, putting the split expressions in
 /// `out`.

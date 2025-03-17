@@ -16,8 +16,8 @@
 // under the License.
 
 use ahash::RandomState;
-use hashbrown::hash_map::RawEntryMut;
 use hashbrown::HashMap;
+use hashbrown::hash_map::RawEntryMut;
 
 use crate::data_type::AsBytes;
 

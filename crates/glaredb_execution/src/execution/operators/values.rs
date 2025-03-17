@@ -6,8 +6,8 @@ use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, Pol
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::PhysicalScalarExpression;
+use crate::expr::physical::evaluator::ExpressionEvaluator;
 
 #[derive(Debug)]
 pub struct ValuesPartitionState {
@@ -31,7 +31,7 @@ impl PhysicalValues {
                 return PhysicalValues {
                     expressions: Vec::new(),
                     output_types: Vec::new(),
-                }
+                };
             }
         };
 

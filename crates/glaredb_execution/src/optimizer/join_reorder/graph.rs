@@ -27,12 +27,12 @@ use std::fmt;
 
 use glaredb_error::{RayexecError, Result};
 
+use super::ReorderableCondition;
 use super::edge::{EdgeId, EdgeType, HyperEdges, NeighborEdge};
 use super::statistics::propagate_estimated_cardinality;
 use super::subgraph::Subgraph;
-use super::ReorderableCondition;
-use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use crate::expr::Expression;
+use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_filter::LogicalFilter;
@@ -43,8 +43,8 @@ use crate::logical::logical_join::{
     LogicalCrossJoin,
 };
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
-use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
 use crate::logical::statistics::StatisticsValue;
+use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
 use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;
 use crate::util::fmt::displayable::IntoDisplayableSlice;
 

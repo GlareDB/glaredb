@@ -1,6 +1,6 @@
 use std::fmt::Debug;
-use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
+use std::sync::atomic::{self, AtomicUsize};
 
 use glaredb_error::{RayexecError, Result};
 

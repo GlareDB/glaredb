@@ -2,13 +2,13 @@ use glaredb_error::{RayexecError, Result};
 use glaredb_parser::ast;
 
 use crate::arrays::datatype::DataType;
-use crate::expr::{cast, Expression};
+use crate::expr::{Expression, cast};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
 use crate::logical::binder::table_list::TableRef;
-use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::resolver::resolve_context::ResolveContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundValues {
