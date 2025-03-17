@@ -37,19 +37,19 @@ pub trait RandGen<T: DataType> {
 
 impl RandGen<bool> for bool {
     fn generate(_: i32) -> bool {
-        thread_rng().gen::<bool>()
+        thread_rng().r#gen::<bool>()
     }
 }
 
 impl RandGen<i32> for i32 {
     fn generate(_: i32) -> i32 {
-        thread_rng().gen::<i32>()
+        thread_rng().r#gen::<i32>()
     }
 }
 
 impl RandGen<i64> for i64 {
     fn generate(_: i32) -> i64 {
-        thread_rng().gen::<i64>()
+        thread_rng().r#gen::<i64>()
     }
 }
 
@@ -57,20 +57,20 @@ impl RandGen<Int96> for Int96 {
     fn generate(_: i32) -> Int96 {
         let mut rng = thread_rng();
         let mut result = Int96::new();
-        result.set_data(rng.gen::<u32>(), rng.gen::<u32>(), rng.gen::<u32>());
+        result.set_data(rng.r#gen::<u32>(), rng.r#gen::<u32>(), rng.r#gen::<u32>());
         result
     }
 }
 
 impl RandGen<f32> for f32 {
     fn generate(_: i32) -> f32 {
-        thread_rng().gen::<f32>()
+        thread_rng().r#gen::<f32>()
     }
 }
 
 impl RandGen<f64> for f64 {
     fn generate(_: i32) -> f64 {
-        thread_rng().gen::<f64>()
+        thread_rng().r#gen::<f64>()
     }
 }
 
