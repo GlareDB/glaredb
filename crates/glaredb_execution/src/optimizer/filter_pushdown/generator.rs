@@ -134,11 +134,11 @@ mod tests {
         let input1 = expr::eq(c0.clone(), c1.clone()).unwrap();
         let input2 = expr::eq(c1.clone(), c2.clone()).unwrap();
 
-        let mut r#gen = FilterGenerator::default();
-        r#gen.add_expression(input1.into());
-        r#gen.add_expression(input2.into());
+        let mut f_gen = FilterGenerator::default();
+        f_gen.add_expression(input1.into());
+        f_gen.add_expression(input2.into());
 
-        let out = r#gen.into_expressions();
+        let out = f_gen.into_expressions();
 
         // Order assumes knowledge of internals.
         let expected: Vec<Expression> = vec![
@@ -160,11 +160,11 @@ mod tests {
         let input1 = expr::lt(c0.clone(), c1.clone()).unwrap();
         let input2 = expr::lt(c1.clone(), c2.clone()).unwrap();
 
-        let mut r#gen = FilterGenerator::default();
-        r#gen.add_expression(input1.into());
-        r#gen.add_expression(input2.into());
+        let mut f_gen = FilterGenerator::default();
+        f_gen.add_expression(input1.into());
+        f_gen.add_expression(input2.into());
 
-        let out = r#gen.into_expressions();
+        let out = f_gen.into_expressions();
 
         let expected: Vec<Expression> = vec![
             expr::lt(c0, c1.clone()).unwrap().into(),

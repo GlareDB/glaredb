@@ -7,7 +7,7 @@
 // the root).
 #[macro_export]
 macro_rules! generate_batch {
-    ( $( $array_values:expr_2021 ),+ $(,)? ) => {{
+    ( $( $array_values:expr ),+ $(,)? ) => {{
         use $crate::util::iter::TryFromExactSizeIterator;
         $crate::arrays::batch::Batch::from_arrays([
             $(

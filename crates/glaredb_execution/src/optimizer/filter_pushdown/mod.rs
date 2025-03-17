@@ -80,8 +80,9 @@ impl FilterPushdown {
     }
 
     fn drain_filters(&mut self) -> impl Iterator<Item = ExtractedFilter> + use<> {
-        let r#gen = std::mem::take(&mut self.filter_gen);
-        r#gen.into_expressions()
+        let f_gen = std::mem::take(&mut self.filter_gen);
+        f_gen
+            .into_expressions()
             .into_iter()
             .map(ExtractedFilter::from_expr)
     }

@@ -183,10 +183,12 @@ impl SortedBlock {
         state: &mut BlockScanState,
         data_layout: &RowLayout,
         selection: impl IntoIterator<Item = usize>,
-    ) -> Result<()> { unsafe {
-        state.prepare_block_scan(&self.data, data_layout.row_width, selection, true);
-        Ok(())
-    }}
+    ) -> Result<()> {
+        unsafe {
+            state.prepare_block_scan(&self.data, data_layout.row_width, selection, true);
+            Ok(())
+        }
+    }
 }
 
 /// Compares subquent rows for tied values and writes the result to `ties`.
@@ -198,27 +200,29 @@ unsafe fn fill_ties(
     compare_offset: usize,
     compare_width: usize,
     ties: &mut [bool],
-) { unsafe {
-    let mut col_ptr = block.as_ptr();
-    col_ptr = col_ptr.byte_add(compare_offset);
+) {
+    unsafe {
+        let mut col_ptr = block.as_ptr();
+        col_ptr = col_ptr.byte_add(compare_offset);
 
-    // Note that `ties` is 1 less than the number of rows we're checking.
-    for tie in ties {
-        if !*tie {
-            continue;
+        // Note that `ties` is 1 less than the number of rows we're checking.
+        for tie in ties {
+            if !*tie {
+                continue;
+            }
+
+            let a_ptr = col_ptr;
+            let b_ptr = a_ptr.byte_add(layout.row_width);
+
+            let a = std::slice::from_raw_parts(a_ptr, compare_width);
+            let b = std::slice::from_raw_parts(b_ptr, compare_width);
+
+            col_ptr = b_ptr;
+
+            *tie = a == b
         }
-
-        let a_ptr = col_ptr;
-        let b_ptr = a_ptr.byte_add(layout.row_width);
-
-        let a = std::slice::from_raw_parts(a_ptr, compare_width);
-        let b = std::slice::from_raw_parts(b_ptr, compare_width);
-
-        col_ptr = b_ptr;
-
-        *tie = a == b
     }
-}}
+}
 
 unsafe fn sort_tied_keys_in_place(
     manager: &impl AsRawBufferManager,
@@ -227,7 +231,7 @@ unsafe fn sort_tied_keys_in_place(
     ties: &[bool],
     compare_offset: usize,
     compare_width: usize,
-) -> Result<()> { unsafe {
+) -> Result<()> {
     let mut row_offset = 0;
 
     while row_offset < ties.len() {
@@ -250,21 +254,23 @@ unsafe fn sort_tied_keys_in_place(
         let row_count = next_row_offset - row_offset + 1;
 
         // Sort the subset.
-        sort_keys_in_place(
-            manager,
-            layout,
-            keys,
-            row_offset,
-            row_count,
-            compare_offset,
-            compare_width,
-        )?;
+        unsafe {
+            sort_keys_in_place(
+                manager,
+                layout,
+                keys,
+                row_offset,
+                row_count,
+                compare_offset,
+                compare_width,
+            )?;
+        }
 
         row_offset = next_row_offset
     }
 
     Ok(())
-}}
+}
 
 /// Sorts a contiguous slice of keys in the keys blocks.
 unsafe fn sort_keys_in_place(
@@ -275,7 +281,7 @@ unsafe fn sort_keys_in_place(
     row_count: usize,
     compare_offset: usize,
     compare_width: usize,
-) -> Result<()> { unsafe {
+) -> Result<()> {
     debug_assert!(layout.row_width >= compare_offset + compare_width);
 
     let start_ptr = keys.as_mut_ptr().byte_add(row_offset * layout.row_width);
@@ -302,18 +308,21 @@ unsafe fn sort_keys_in_place(
     let mut temp_ptr = temp_keys.as_mut_ptr();
 
     for sort_idx in sort_indices {
-        let src_ptr = start_ptr.byte_add(sort_idx * layout.row_width);
-        temp_ptr.copy_from_nonoverlapping(src_ptr, layout.row_width);
-
-        temp_ptr = temp_ptr.byte_add(layout.row_width);
+        unsafe {
+            let src_ptr = start_ptr.byte_add(sort_idx * layout.row_width);
+            temp_ptr.copy_from_nonoverlapping(src_ptr, layout.row_width);
+            temp_ptr = temp_ptr.byte_add(layout.row_width);
+        }
     }
 
     // Now copy from the temp block back into the original keys block.
     let temp_ptr = temp_keys.as_ptr();
-    start_ptr.copy_from_nonoverlapping(temp_ptr, layout.row_width * row_count);
+    unsafe {
+        start_ptr.copy_from_nonoverlapping(temp_ptr, layout.row_width * row_count);
+    }
 
     Ok(())
-}}
+}
 
 fn apply_sort_indices(
     src: &Block,
