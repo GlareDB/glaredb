@@ -106,7 +106,7 @@ impl Batch {
                     arrays: Vec::new(),
                     num_rows: 0,
                     cache: None,
-                })
+                });
             }
         };
 

@@ -3,17 +3,17 @@ use std::fmt::Debug;
 use glaredb_error::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalBool};
 use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalBool};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor, UniformExecutor};
 use crate::arrays::executor::OutBuffer;
+use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor, UniformExecutor};
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_AND: ScalarFunctionSet = ScalarFunctionSet {
     name: "and",

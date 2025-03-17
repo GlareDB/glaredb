@@ -9,10 +9,10 @@ use crate::functions::table::TableFunctionInput;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::column_binder::ErroringColumnBinder;
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
-use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
-use crate::optimizer::expr_rewrite::const_fold::ConstFold;
+use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 #[derive(Debug)]
 pub struct ConstantBinder<'a> {

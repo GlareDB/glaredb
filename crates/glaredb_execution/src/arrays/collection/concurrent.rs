@@ -1,5 +1,5 @@
-use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
+use std::sync::atomic::{self, AtomicUsize};
 
 use glaredb_error::Result;
 use parking_lot::Mutex;

@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use glaredb_error::Result;
 
-use super::bind_state::{BindState, RawBindState};
 use super::Signature;
+use super::bind_state::{BindState, RawBindState};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::expr::Expression;

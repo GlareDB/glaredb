@@ -29,8 +29,8 @@ use crate::basic::*;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
 use crate::encodings::rle::RleEncoder;
-use crate::errors::{general_err, nyi_err, ParquetResult};
-use crate::util::bit_util::{num_required_bits, BitWriter};
+use crate::errors::{ParquetResult, general_err, nyi_err};
+use crate::util::bit_util::{BitWriter, num_required_bits};
 
 mod byte_stream_split_encoder;
 mod dict_encoder;
@@ -723,10 +723,10 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::encodings::decoding::{get_decoder, Decoder, DictDecoder, PlainDecoder};
+    use crate::encodings::decoding::{Decoder, DictDecoder, PlainDecoder, get_decoder};
     use crate::errors::ParquetError;
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
-    use crate::testutil::rand_gen::{random_bytes, RandGen};
+    use crate::testutil::rand_gen::{RandGen, random_bytes};
     use crate::util::bit_util;
 
     const TEST_SET_SIZE: usize = 1024;

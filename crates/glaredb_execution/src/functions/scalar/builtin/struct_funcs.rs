@@ -1,8 +1,8 @@
 use super::debug::ScalarNotImplemented;
 use crate::arrays::datatype::DataTypeId;
+use crate::functions::Signature;
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::RawScalarFunction;
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_STRUCT_PACK: ScalarFunctionSet = ScalarFunctionSet {
     name: "struct_pack",

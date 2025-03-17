@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use glaredb_error::{not_implemented, Result};
+use glaredb_error::{Result, not_implemented};
 use glaredb_execution::runtime::handle::{ExecutionProfileData, QueryHandle};
 use parking_lot::Mutex;
 

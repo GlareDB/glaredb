@@ -2,24 +2,24 @@ use std::task::Context;
 
 use glaredb_error::{RayexecError, Result};
 
-use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalI64};
 use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalI64};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::field::{ColumnSchema, Field};
 use crate::execution::operators::{ExecutionProperties, PollExecute, PollFinalize};
 use crate::expr;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::execute::TableExecuteFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
-use crate::functions::Signature;
 use crate::logical::statistics::StatisticsValue;
 
 pub const FUNCTION_SET_GENERATE_SERIES: TableFunctionSet = TableFunctionSet {
     name: "generate_series",
     aliases: &[],
-    doc: Some(&Documentation{
+    doc: Some(&Documentation {
         category: Category::Table,
         description: "Generate a series of values from 'start' to 'end' incrementing by a step of 1. 'start' and 'end' are both inclusive.",
         arguments: &["start", "end"],
@@ -27,9 +27,18 @@ pub const FUNCTION_SET_GENERATE_SERIES: TableFunctionSet = TableFunctionSet {
     }),
     functions: &[
         // generate_series(start, stop)
-        RawTableFunction::new_execute(&Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Table), &GenerateSeriesI64),
+        RawTableFunction::new_execute(
+            &Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Table),
+            &GenerateSeriesI64,
+        ),
         // generate_series(start, stop, step)
-        RawTableFunction::new_execute(&Signature::new(&[DataTypeId::Int64, DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Table), &GenerateSeriesI64),
+        RawTableFunction::new_execute(
+            &Signature::new(
+                &[DataTypeId::Int64, DataTypeId::Int64, DataTypeId::Int64],
+                DataTypeId::Table,
+            ),
+            &GenerateSeriesI64,
+        ),
     ],
 };
 

@@ -6,15 +6,15 @@ use super::covar::{CovarPopFinalize, CovarState};
 use super::stddev::{StddevPopFinalize, VarianceState};
 use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64};
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
+use crate::arrays::executor::aggregate::AggregateState;
 use crate::expr::Expression;
-use crate::functions::aggregate::simple::{BinaryAggregate, SimpleBinaryAggregate};
+use crate::functions::Signature;
 use crate::functions::aggregate::RawAggregateFunction;
+use crate::functions::aggregate::simple::{BinaryAggregate, SimpleBinaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::AggregateFunctionSet;
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_CORR: AggregateFunctionSet = AggregateFunctionSet {
     name: "corr",

@@ -102,7 +102,7 @@ impl AstParseable for FromNode<Raw> {
                             _ => {
                                 return Err(RayexecError::new(
                                     "Expected one of OUTER, SEMI, or JOIN",
-                                ))
+                                ));
                             }
                         }
                     }
@@ -131,7 +131,7 @@ impl AstParseable for FromNode<Raw> {
                             _ => {
                                 return Err(RayexecError::new(
                                     "Expected one of OUTER, SEMI, or JOIN",
-                                ))
+                                ));
                             }
                         }
                     }
@@ -265,7 +265,9 @@ impl FromNode<Raw> {
                 }
                 _ => {
                     if lateral {
-                        return Err(RayexecError::new("LATERAL can only be used with subqueries and table functions on the right side"));
+                        return Err(RayexecError::new(
+                            "LATERAL can only be used with subqueries and table functions on the right side",
+                        ));
                     }
 
                     FromNodeBody::BaseTable(FromBaseTable { reference })

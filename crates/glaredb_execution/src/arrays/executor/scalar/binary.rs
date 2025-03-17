@@ -1,8 +1,8 @@
 use glaredb_error::Result;
 
+use crate::arrays::array::Array;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
-use crate::arrays::array::Array;
 use crate::arrays::executor::{OutBuffer, PutBuffer};
 use crate::util::iter::IntoExactSizeIterator;
 
@@ -153,8 +153,8 @@ impl BinaryExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::array::Array;
+    use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::datatype::DataType;
     use crate::buffer::buffer_manager::NopBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;

@@ -7,8 +7,8 @@ use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::physical::selection_evaluator::SelectionEvaluator;
 use crate::expr::physical::PhysicalScalarExpression;
+use crate::expr::physical::selection_evaluator::SelectionEvaluator;
 
 #[derive(Debug)]
 pub struct PhysicalFilter {

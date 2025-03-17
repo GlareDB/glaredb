@@ -1,19 +1,19 @@
 use glaredb_error::Result;
 
+use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalBool,
     PhysicalType,
     ScalarStorage,
 };
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_IS_NULL: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_null",

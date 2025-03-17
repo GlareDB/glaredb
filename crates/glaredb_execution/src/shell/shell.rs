@@ -5,7 +5,7 @@ use tracing::trace;
 
 use super::lineedit::{KeyEvent, LineEditor, Signal, TermSize};
 use super::raw::RawTerminalWriter;
-use super::vt100::{MODES_OFF, MODE_BOLD};
+use super::vt100::{MODE_BOLD, MODES_OFF};
 use crate::arrays::format::pretty::table::PrettyTable;
 use crate::engine::single_user::SingleUserEngine;
 use crate::runtime::{PipelineExecutor, Runtime};
@@ -125,7 +125,7 @@ where
                     None => {
                         return Err(RayexecError::new(
                             "Attempted to run a query without a session",
-                        ))
+                        ));
                     }
                 }
                 Ok(ShellSignal::ExecutePending(guard))

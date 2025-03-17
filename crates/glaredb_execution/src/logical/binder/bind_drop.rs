@@ -1,4 +1,4 @@
-use glaredb_error::{not_implemented, Result};
+use glaredb_error::{Result, not_implemented};
 use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};

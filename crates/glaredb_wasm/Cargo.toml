@@ -26,7 +26,7 @@ parking_lot = { workspace = true }
 js-sys = "0.3.69"
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", default-features = false, features = ["std", "fmt", "env-filter"] }
-wasm-bindgen = "=0.2.92"
+wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4.42"
 getrandom = { version = "0.2", features = ["js"] }
 tokio = { workspace = true, default-features = false, features = [ "rt" ] } # TODO: Remove tokio from runtime interface

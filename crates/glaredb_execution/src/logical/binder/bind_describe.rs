@@ -4,12 +4,12 @@ use glaredb_parser::ast;
 use super::bind_context::{BindContext, BindScopeRef};
 use crate::arrays::datatype::DataType;
 use crate::arrays::field::{ColumnSchema, Field};
-use crate::logical::binder::bind_query::bind_from::FromBinder;
 use crate::logical::binder::bind_query::QueryBinder;
+use crate::logical::binder::bind_query::bind_from::FromBinder;
 use crate::logical::logical_describe::LogicalDescribe;
 use crate::logical::operator::{LocationRequirement, Node};
-use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]

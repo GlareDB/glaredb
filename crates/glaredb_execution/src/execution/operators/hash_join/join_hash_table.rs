@@ -3,9 +3,9 @@ use std::sync::atomic::{self, AtomicBool, AtomicPtr};
 use glaredb_error::Result;
 
 use super::hash_table_scan::HashTableScanState;
+use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
 use crate::arrays::array::selection::Selection;
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
@@ -449,37 +449,43 @@ impl JoinHashTable {
     /// this function. This should hold as probing never touches this column,
     /// even when executing predicates.
     pub unsafe fn write_rows_matched(&self, row_ptrs: impl IntoIterator<Item = *const u8>) {
-        let match_offset = *self
-            .data
-            .layout()
-            .offsets
-            .last()
-            .expect("match offset to exist");
+        unsafe {
+            let match_offset = *self
+                .data
+                .layout()
+                .offsets
+                .last()
+                .expect("match offset to exist");
 
-        for row_ptr in row_ptrs {
-            // Note the morsels paper says it's advantageous to check the bool
-            // before setting it to avoid contention. I'm assuming they mean
-            // without atomic access. That's technically UB, and miri would
-            // complain. So just do it atomically.
-            let match_ptr = row_ptr.byte_add(match_offset).cast_mut().cast::<bool>();
-            let match_bool = AtomicBool::from_ptr(match_ptr);
-            match_bool.store(true, atomic::Ordering::Relaxed);
+            for row_ptr in row_ptrs {
+                // Note the morsels paper says it's advantageous to check the bool
+                // before setting it to avoid contention. I'm assuming they mean
+                // without atomic access. That's technically UB, and miri would
+                // complain. So just do it atomically.
+                let match_ptr = row_ptr.byte_add(match_offset).cast_mut().cast::<bool>();
+                let match_bool = AtomicBool::from_ptr(match_ptr);
+                match_bool.store(true, atomic::Ordering::Relaxed);
+            }
         }
     }
 
     unsafe fn write_next_entry_ptr(&self, row_ptr: *const u8, next_ent: *const u8) {
-        let next_ent_ptr = row_ptr
-            .byte_add(self.build_hash_byte_offset)
-            .cast::<*const u8>()
-            .cast_mut();
-        next_ent_ptr.write_unaligned(next_ent);
+        unsafe {
+            let next_ent_ptr = row_ptr
+                .byte_add(self.build_hash_byte_offset)
+                .cast::<*const u8>()
+                .cast_mut();
+            next_ent_ptr.write_unaligned(next_ent);
+        }
     }
 
     pub unsafe fn read_next_entry_ptr(&self, row_ptr: *const u8) -> *const u8 {
-        let next_ent_ptr = row_ptr
-            .byte_add(self.build_hash_byte_offset)
-            .cast::<*const u8>();
-        next_ent_ptr.read_unaligned()
+        unsafe {
+            let next_ent_ptr = row_ptr
+                .byte_add(self.build_hash_byte_offset)
+                .cast::<*const u8>();
+            next_ent_ptr.read_unaligned()
+        }
     }
 }
 

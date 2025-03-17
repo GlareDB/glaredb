@@ -79,9 +79,10 @@ impl FilterPushdown {
         }
     }
 
-    fn drain_filters(&mut self) -> impl Iterator<Item = ExtractedFilter> {
-        let gen = std::mem::take(&mut self.filter_gen);
-        gen.into_expressions()
+    fn drain_filters(&mut self) -> impl Iterator<Item = ExtractedFilter> + use<> {
+        let f_gen = std::mem::take(&mut self.filter_gen);
+        f_gen
+            .into_expressions()
             .into_iter()
             .map(ExtractedFilter::from_expr)
     }
@@ -414,7 +415,7 @@ impl FilterPushdown {
                     other => {
                         return Err(RayexecError::new(format!(
                             "Unexpected operator on left side of magic join: {other:?}"
-                        )))
+                        )));
                     }
                 }
 

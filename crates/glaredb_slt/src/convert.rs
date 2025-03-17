@@ -93,11 +93,7 @@ pub fn schema_to_types(schema: &ColumnSchema) -> Vec<DefaultColumnType> {
 fn transform_multiline_cols_to_rows<S: AsRef<str>>(cols: &[S]) -> Option<Vec<Vec<String>>> {
     let max = cols.iter().fold(0, |curr, col| {
         let col_lines = col.as_ref().lines().count();
-        if col_lines > curr {
-            col_lines
-        } else {
-            curr
-        }
+        if col_lines > curr { col_lines } else { curr }
     });
 
     if max > 1 {

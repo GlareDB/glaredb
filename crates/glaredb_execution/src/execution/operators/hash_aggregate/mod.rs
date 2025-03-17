@@ -20,8 +20,8 @@ use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, Pol
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::expr::physical::PhysicalAggregateExpression;
+use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::logical::logical_aggregate::GroupingFunction;
 
 #[derive(Debug)]

@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use glaredb_error::Result;
 
-use super::bind_state::{BindState, RawBindState};
 use super::Signature;
+use super::bind_state::{BindState, RawBindState};
 use crate::arrays::array::Array;
 use crate::expr::Expression;
 
@@ -37,7 +37,9 @@ impl PlannedAggregateFunction {
     }
 
     pub(crate) unsafe fn call_new_aggregate_state(&self, agg_state_out: *mut u8) {
-        (self.raw.vtable.new_aggregate_state_fn)(self.state.state_as_any(), agg_state_out)
+        unsafe {
+            (self.raw.vtable.new_aggregate_state_fn)(self.state.state_as_any(), agg_state_out)
+        }
     }
 
     pub(crate) unsafe fn call_update(
@@ -46,7 +48,9 @@ impl PlannedAggregateFunction {
         num_rows: usize,
         agg_states: &mut [*mut u8],
     ) -> Result<()> {
-        (self.raw.vtable.update_fn)(self.state.state_as_any(), inputs, num_rows, agg_states)
+        unsafe {
+            (self.raw.vtable.update_fn)(self.state.state_as_any(), inputs, num_rows, agg_states)
+        }
     }
 
     /// Combines `src` pointers into `dest` pointers, consuming the source
@@ -56,7 +60,7 @@ impl PlannedAggregateFunction {
         src: &mut [*mut u8],
         dest: &mut [*mut u8],
     ) -> Result<()> {
-        (self.raw.vtable.combine_fn)(self.state.state_as_any(), src, dest)
+        unsafe { (self.raw.vtable.combine_fn)(self.state.state_as_any(), src, dest) }
     }
 
     pub(crate) unsafe fn call_finalize(
@@ -64,7 +68,7 @@ impl PlannedAggregateFunction {
         agg_states: &mut [*mut u8],
         output: &mut Array,
     ) -> Result<()> {
-        (self.raw.vtable.finalize_fn)(self.state.state_as_any(), agg_states, output)
+        unsafe { (self.raw.vtable.finalize_fn)(self.state.state_as_any(), agg_states, output) }
     }
 }
 

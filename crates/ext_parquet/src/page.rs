@@ -1,7 +1,7 @@
 //! Sane page types.
 
 use crate::basic::{Encoding, Type};
-use crate::errors::{nyi_err, ParquetError, ParquetResult};
+use crate::errors::{ParquetError, ParquetResult, nyi_err};
 use crate::file::statistics::{self, Statistics};
 use crate::format;
 

@@ -17,24 +17,24 @@ use crate::arrays::array::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI8,
+    PhysicalI128,
     PhysicalInterval,
     PhysicalType,
-    PhysicalU128,
+    PhysicalU8,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU8,
+    PhysicalU128,
     PhysicalUntypedNull,
     PhysicalUtf8,
     ScalarStorage,
 };
 use crate::arrays::datatype::DataType;
-use crate::arrays::string::{StringView, MAX_INLINE_LEN};
+use crate::arrays::string::{MAX_INLINE_LEN, StringView};
 use crate::buffer::buffer_manager::AsRawBufferManager;
 use crate::buffer::raw::RawBuffer;
 use crate::buffer::typed::TypedBuffer;
@@ -108,7 +108,7 @@ impl ArrayBuffer {
                     other => {
                         return Err(RayexecError::new(format!(
                             "Expected list datatype, got {other}"
-                        )))
+                        )));
                     }
                 };
                 ListBuffer::try_new(manager, inner, capacity)?.into()
@@ -562,7 +562,7 @@ impl StringBuffer {
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected physical type for string buffer: {other}",
-                )))
+                )));
             }
         };
         let buffer = StringViewBuffer::with_capacity(manager, 0)?;

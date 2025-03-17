@@ -1,9 +1,9 @@
 use std::io::{self, Write};
 
 use tracing::Level;
+use tracing_subscriber::FmtSubscriber;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::fmt::MakeWriter;
-use tracing_subscriber::FmtSubscriber;
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 use web_sys::js_sys::Array;

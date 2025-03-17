@@ -34,7 +34,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use crate::basic::{ColumnOrder, Compression, Encoding, Type};
-use crate::errors::{general_err, ParquetResult};
+use crate::errors::{ParquetResult, general_err};
 use crate::file::page_encoding_stats::{self, PageEncodingStats};
 use crate::file::page_index::index::Index;
 use crate::file::statistics::{self, Statistics};

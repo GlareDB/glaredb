@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glaredb_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{RayexecError, Result, not_implemented};
 use glaredb_parser::ast::{self, FunctionArg, ReplaceColumn};
 use glaredb_parser::meta::Raw;
 
@@ -114,7 +114,7 @@ impl<'a> ExpressionResolver<'a> {
                         ast::FunctionArgExpr::Wildcard => {
                             return Err(RayexecError::new(
                                 "Cannot use '*' as an argument to a table function",
-                            ))
+                            ));
                         }
                         ast::FunctionArgExpr::Expr(expr) => {
                             match Box::pin(self.resolve_expression(expr, resolve_context)).await? {
@@ -124,7 +124,7 @@ impl<'a> ExpressionResolver<'a> {
                                 other => {
                                     return Err(RayexecError::new(format!(
                                         "Table function arguments must be constant, got {other:?}"
-                                    )))
+                                    )));
                                 }
                             }
                         }
@@ -140,7 +140,7 @@ impl<'a> ExpressionResolver<'a> {
                         ast::FunctionArgExpr::Wildcard => {
                             return Err(RayexecError::new(
                                 "Cannot use '*' as an argument to a table function",
-                            ))
+                            ));
                         }
                         ast::FunctionArgExpr::Expr(expr) => {
                             match Box::pin(self.resolve_expression(expr, resolve_context)).await? {
@@ -150,7 +150,7 @@ impl<'a> ExpressionResolver<'a> {
                                 other => {
                                     return Err(RayexecError::new(format!(
                                         "Table function arguments must be constant, got {other:?}"
-                                    )))
+                                    )));
                                 }
                             }
                         }

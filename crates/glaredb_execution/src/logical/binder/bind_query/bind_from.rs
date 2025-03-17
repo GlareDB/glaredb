@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use glaredb_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{RayexecError, Result, not_implemented};
 use glaredb_parser::ast;
 
 use super::{BoundQuery, QueryBinder};
@@ -130,7 +130,7 @@ impl<'a> FromBinder<'a> {
                 return Ok(BoundFrom {
                     bind_ref: self.current,
                     item: BoundFromItem::Empty,
-                })
+                });
             }
         };
 

@@ -1,4 +1,4 @@
-use glaredb_error::{not_implemented, Result};
+use glaredb_error::{Result, not_implemented};
 
 use super::OperatorPlanState;
 use crate::execution::operators::empty::PhysicalEmpty;
@@ -6,8 +6,8 @@ use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::explain::formatter::ExplainFormatter;
 use crate::explain::node::ExplainNode;
-use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
 use crate::expr::physical::PhysicalScalarExpression;
+use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
 use crate::logical::logical_explain::LogicalExplain;
 use crate::logical::operator::Node;
 

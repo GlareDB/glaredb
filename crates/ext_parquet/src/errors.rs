@@ -49,7 +49,7 @@ impl std::fmt::Display for ParquetError {
             }
             ParquetError::NYI(message) => write!(fmt, "NYI: {message}"),
             ParquetError::EOF(message) => write!(fmt, "EOF: {message}"),
-            ParquetError::IndexOutOfBound(index, ref bound) => {
+            ParquetError::IndexOutOfBound(index, bound) => {
                 write!(fmt, "Index {index} out of bound: {bound}")
             }
             ParquetError::External(e) => write!(fmt, "External: {e}"),

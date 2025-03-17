@@ -16,8 +16,8 @@
 // under the License.
 
 use criterion::*;
-use parquet::basic::{BrotliLevel, Compression, GzipLevel, ZstdLevel};
-use parquet::compression::create_codec;
+use ext_parquet::basic::{BrotliLevel, Compression, GzipLevel, ZstdLevel};
+use ext_parquet::compression::create_codec;
 use rand::distributions::Alphanumeric;
 use rand::prelude::*;
 
@@ -55,10 +55,8 @@ fn do_bench(c: &mut Criterion, name: &str, uncompressed: &[u8]) {
 
         c.bench_function(&format!("decompress {compression} - {name}"), |b| {
             b.iter(|| {
-                let mut out = Vec::new();
-                codec
-                    .decompress(black_box(&compressed), &mut out, Some(uncompressed.len()))
-                    .unwrap();
+                let mut out = vec![0; uncompressed.len()];
+                codec.decompress(black_box(&compressed), &mut out).unwrap();
                 out
             });
         });

@@ -5,9 +5,9 @@ use glaredb_error::Result;
 
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
+use crate::catalog::Catalog;
 use crate::catalog::create::CreateSchemaInfo;
 use crate::catalog::memory::MemoryCatalog;
-use crate::catalog::Catalog;
 use crate::execution::operators::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 

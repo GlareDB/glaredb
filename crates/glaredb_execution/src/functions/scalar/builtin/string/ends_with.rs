@@ -1,18 +1,18 @@
 use glaredb_error::Result;
 
-use crate::arrays::array::physical_type::{PhysicalBool, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::{PhysicalBool, PhysicalUtf8};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use crate::arrays::executor::OutBuffer;
+use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
-use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 pub const FUNCTION_SET_ENDS_WITH: ScalarFunctionSet = ScalarFunctionSet {
     name: "ends_with",

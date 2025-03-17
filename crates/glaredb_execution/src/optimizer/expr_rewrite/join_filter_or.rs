@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use glaredb_error::Result;
 
 use super::ExpressionRewriteRule;
-use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use crate::expr::Expression;
+use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use crate::logical::binder::table_list::TableRef;
 
 /// Rewrites join filter expressions containing ORs that reference both sides of

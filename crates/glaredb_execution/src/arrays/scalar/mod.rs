@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::hash::Hash;
 
-use decimal::{Decimal128Scalar, Decimal64Scalar};
+use decimal::{Decimal64Scalar, Decimal128Scalar};
 use glaredb_error::{OptionExt, RayexecError, Result};
 use glaredb_proto::ProtoConv;
 use half::f16;
@@ -19,27 +19,27 @@ use crate::arrays::compute::cast::format::{
     BoolFormatter,
     Date32Formatter,
     Date64Formatter,
-    Decimal128Formatter,
     Decimal64Formatter,
+    Decimal128Formatter,
     Float16Formatter,
     Float32Formatter,
     Float64Formatter,
     Formatter,
-    Int128Formatter,
+    Int8Formatter,
     Int16Formatter,
     Int32Formatter,
     Int64Formatter,
-    Int8Formatter,
+    Int128Formatter,
     IntervalFormatter,
     TimestampMicrosecondsFormatter,
     TimestampMillisecondsFormatter,
     TimestampNanosecondsFormatter,
     TimestampSecondsFormatter,
-    UInt128Formatter,
+    UInt8Formatter,
     UInt16Formatter,
     UInt32Formatter,
     UInt64Formatter,
-    UInt8Formatter,
+    UInt128Formatter,
 };
 use crate::arrays::datatype::{
     DataType,

@@ -2,18 +2,18 @@ use std::fmt::Debug;
 
 use glaredb_error::Result;
 
+use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::PhysicalUtf8;
 use crate::arrays::array::selection::Selection;
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use crate::arrays::executor::OutBuffer;
+use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
 
 pub trait StringTrimOp: Sync + Send + Debug + Clone + Copy + PartialEq + Eq + 'static {
     fn trim_func<'a>(input: &'a str, pattern: &str) -> &'a str;

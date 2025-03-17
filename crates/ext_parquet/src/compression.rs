@@ -23,7 +23,7 @@
 use std::fmt::Debug;
 
 use crate::basic::Compression as CodecType;
-use crate::errors::{nyi_err, ParquetError, ParquetResult};
+use crate::errors::{ParquetError, ParquetResult, nyi_err};
 
 /// Parquet compression codec interface.
 pub trait Codec: Debug + Sync + Send {
@@ -172,7 +172,7 @@ pub fn create_codec(
 
 #[cfg(any(feature = "snap", test))]
 mod snappy_codec {
-    use snap::raw::{max_compress_len, Decoder, Encoder};
+    use snap::raw::{Decoder, Encoder, max_compress_len};
 
     use crate::compression::Codec;
     use crate::errors::ParquetResult;
@@ -218,7 +218,7 @@ pub use snappy_codec::*;
 mod gzip_codec {
     use std::io::{self, Cursor, Write};
 
-    use flate2::{read, write, Compression};
+    use flate2::{Compression, read, write};
 
     use super::GzipLevel;
     use crate::compression::Codec;
@@ -526,9 +526,9 @@ pub use lz4_raw_codec::*;
 mod lz4_hadoop_codec {
     use std::io;
 
+    use crate::compression::Codec;
     use crate::compression::lz4_codec::LZ4Codec;
     use crate::compression::lz4_raw_codec::LZ4RawCodec;
-    use crate::compression::Codec;
     use crate::errors::{ParquetError, ParquetResult};
 
     /// Size of u32 type.

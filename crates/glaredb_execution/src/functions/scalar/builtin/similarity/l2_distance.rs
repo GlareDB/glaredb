@@ -4,6 +4,7 @@ use std::ops::AddAssign;
 use glaredb_error::Result;
 use num_traits::{AsPrimitive, Float};
 
+use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalF16,
@@ -11,40 +12,57 @@ use crate::arrays::array::physical_type::{
     PhysicalF64,
     ScalarStorage,
 };
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::scalar::{BinaryListReducer, BinaryReducer};
 use crate::arrays::executor::OutBuffer;
+use crate::arrays::executor::scalar::{BinaryListReducer, BinaryReducer};
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_L2_DISTANCE: ScalarFunctionSet = ScalarFunctionSet {
     name: "l2_distance",
     aliases: &["array_distance"],
-    doc: Some(&Documentation{
+    doc: Some(&Documentation {
         category: Category::List,
         description: "Compute the Euclidean distance between two lists. Both lists must be the same length and cannot contain NULLs.",
         arguments: &["list1", "list2"],
-        example: Some(Example{
+        example: Some(Example {
             example: "l2_distance([1.0, 1.0], [2.0, 4.0])",
             output: "3.1622776601683795",
         }),
     }),
     functions: &[
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::List(&DataTypeId::Float16),DataTypeId::List(&DataTypeId::Float16)], DataTypeId::Float64),
+            &Signature::new(
+                &[
+                    DataTypeId::List(&DataTypeId::Float16),
+                    DataTypeId::List(&DataTypeId::Float16),
+                ],
+                DataTypeId::Float64,
+            ),
             &L2Distance::<PhysicalF16>::new(),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::List(&DataTypeId::Float32),DataTypeId::List(&DataTypeId::Float32)], DataTypeId::Float64),
+            &Signature::new(
+                &[
+                    DataTypeId::List(&DataTypeId::Float32),
+                    DataTypeId::List(&DataTypeId::Float32),
+                ],
+                DataTypeId::Float64,
+            ),
             &L2Distance::<PhysicalF32>::new(),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::List(&DataTypeId::Float64),DataTypeId::List(&DataTypeId::Float64)], DataTypeId::Float64),
+            &Signature::new(
+                &[
+                    DataTypeId::List(&DataTypeId::Float64),
+                    DataTypeId::List(&DataTypeId::Float64),
+                ],
+                DataTypeId::Float64,
+            ),
             &L2Distance::<PhysicalF64>::new(),
         ),
     ],

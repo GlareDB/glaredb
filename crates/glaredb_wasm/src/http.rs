@@ -3,9 +3,9 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
+use futures::Stream;
 use futures::future::FutureExt;
 use futures::stream::StreamExt;
-use futures::Stream;
 use glaredb_error::{RayexecError, Result, ResultExt};
 use rayexec_io::http::{HttpClient, HttpResponse};
 use reqwest::header::HeaderMap;

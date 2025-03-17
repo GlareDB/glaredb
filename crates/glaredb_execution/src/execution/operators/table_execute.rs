@@ -272,8 +272,8 @@ impl Explainable for PhysicalTableExecute {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::functions::table::builtin::series::FUNCTION_SET_GENERATE_SERIES;
     use crate::functions::table::TableFunctionInput;
+    use crate::functions::table::builtin::series::FUNCTION_SET_GENERATE_SERIES;
     use crate::testutil::arrays::assert_batches_eq;
     use crate::testutil::operator::OperatorWrapper;
     use crate::{expr, generate_batch};

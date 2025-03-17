@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use super::PARQUET_MAGIC_ENC;
 use crate::basic::ColumnOrder;
-use crate::errors::{general_err, ParquetError, ParquetResult};
+use crate::errors::{ParquetError, ParquetResult, general_err};
 use crate::file::metadata::*;
 use crate::file::{FOOTER_SIZE, PARQUET_MAGIC};
 use crate::format::{ColumnOrder as TColumnOrder, FileMetaData as TFileMetaData};

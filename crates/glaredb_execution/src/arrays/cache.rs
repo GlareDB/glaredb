@@ -1,7 +1,7 @@
 use glaredb_error::Result;
 
-use super::array::array_buffer::{ArrayBuffer, ArrayBufferType, ScalarBuffer, StringBuffer};
 use super::array::Array;
+use super::array::array_buffer::{ArrayBuffer, ArrayBufferType, ScalarBuffer, StringBuffer};
 use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::array::validity::Validity;
 use crate::buffer::buffer_manager::{BufferManager, RawBufferManager};

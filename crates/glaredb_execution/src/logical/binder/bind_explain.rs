@@ -6,8 +6,8 @@ use super::bind_query::BoundQuery;
 use crate::arrays::datatype::DataType;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::logical_explain::ExplainFormat;
-use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::resolver::resolve_context::ResolveContext;
 
 #[derive(Debug)]
 pub struct BoundExplain {

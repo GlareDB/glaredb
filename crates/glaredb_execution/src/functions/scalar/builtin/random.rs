@@ -1,15 +1,15 @@
 use glaredb_error::Result;
 
-use crate::arrays::array::physical_type::PhysicalF64;
 use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::PhysicalF64;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, FunctionVolatility, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_RANDOM: ScalarFunctionSet = ScalarFunctionSet {
     name: "random",

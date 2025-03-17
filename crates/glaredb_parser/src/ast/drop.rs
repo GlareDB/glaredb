@@ -43,7 +43,7 @@ impl AstParseable for DropStatement<Raw> {
             other => {
                 return Err(RayexecError::new(format!(
                     "Got unexpected keyword for drop type: {other}"
-                )))
+                )));
             }
         };
 

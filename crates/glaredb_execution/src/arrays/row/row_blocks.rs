@@ -21,10 +21,12 @@ pub struct HeapMutPtr {
 
 impl HeapMutPtr {
     pub unsafe fn byte_add(self, count: usize) -> Self {
-        HeapMutPtr {
-            ptr: self.ptr.byte_add(count),
-            heap_idx: self.heap_idx,
-            offset: self.offset + count,
+        unsafe {
+            HeapMutPtr {
+                ptr: self.ptr.byte_add(count),
+                heap_idx: self.heap_idx,
+                offset: self.offset + count,
+            }
         }
     }
 }

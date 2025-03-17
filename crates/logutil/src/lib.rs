@@ -1,6 +1,6 @@
+use tracing_subscriber::FmtSubscriber;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::fmt::MakeWriter;
-use tracing_subscriber::FmtSubscriber;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub enum LogFormat {

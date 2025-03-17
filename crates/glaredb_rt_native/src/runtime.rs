@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use glaredb_error::{not_implemented, Result, ResultExt};
+use glaredb_error::{Result, ResultExt, not_implemented};
 use glaredb_execution::arrays::scalar::ScalarValue;
 use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_execution::io::access::AccessConfig;

@@ -1,8 +1,8 @@
 use glaredb_error::{RayexecError, Result};
 
 use super::PhysicalScalarExpression;
-use crate::arrays::array::selection::Selection;
 use crate::arrays::array::Array;
+use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::scalar::ScalarValue;
 use crate::buffer::buffer_manager::NopBufferManager;

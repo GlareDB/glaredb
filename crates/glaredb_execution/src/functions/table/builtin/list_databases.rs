@@ -11,10 +11,10 @@ use crate::arrays::field::{ColumnSchema, Field};
 use crate::catalog::context::DatabaseContext;
 use crate::catalog::database::Database;
 use crate::execution::operators::{ExecutionProperties, PollPull};
+use crate::functions::Signature;
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::TableScanFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
-use crate::functions::Signature;
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::projections::Projections;
 

@@ -1,10 +1,10 @@
 use glaredb_error::Result;
 
 use super::ExpressionRewriteRule;
+use crate::expr::Expression;
 use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
-use crate::expr::Expression;
 use crate::logical::binder::table_list::TableList;
 
 /// Pre-compute constant expressions.

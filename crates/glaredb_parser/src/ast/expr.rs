@@ -13,7 +13,7 @@ use super::{
     WindowDefinition,
     WindowSpec,
 };
-use crate::keywords::{keyword_from_str, Keyword};
+use crate::keywords::{Keyword, keyword_from_str};
 use crate::meta::{AstMeta, Raw};
 use crate::parser::Parser;
 use crate::tokens::{Token, Word};
@@ -381,7 +381,7 @@ impl Expr<Raw> {
             None => {
                 return Err(RayexecError::new(
                     "Expected prefix expression, found end of statement",
-                ))
+                ));
             }
         };
 
@@ -558,7 +558,7 @@ impl Expr<Raw> {
             other => {
                 return Err(RayexecError::new(format!(
                     "Unexpected token '{other:?}'. Expected expression."
-                )))
+                )));
             }
         };
 
@@ -571,7 +571,7 @@ impl Expr<Raw> {
             None => {
                 return Err(RayexecError::new(
                     "Expected infix expression, found end of statement",
-                ))
+                ));
             }
         };
 
@@ -634,7 +634,7 @@ impl Expr<Raw> {
                 None => {
                     return Err(RayexecError::new(format!(
                         "Unexpected token in infix expression: {w}"
-                    )))
+                    )));
                 }
             };
 
@@ -712,7 +712,7 @@ impl Expr<Raw> {
                     other => {
                         return Err(RayexecError::new(format!(
                             "Unexpected keyword in infix expression: {other}"
-                        )))
+                        )));
                     }
                 },
                 Keyword::IN => {
@@ -759,7 +759,7 @@ impl Expr<Raw> {
                 other => {
                     return Err(RayexecError::new(format!(
                         "Unexpected keyword in infix expression: {other}"
-                    )))
+                    )));
                 }
             }
         } else if tok == &Token::LeftBracket {
@@ -887,7 +887,7 @@ impl Expr<Raw> {
                     other => {
                         return Err(RayexecError::new(format!(
                             "Unexpected token in compound identifier: {other:?}"
-                        )))
+                        )));
                     }
                 },
                 None => return Err(RayexecError::new("Expected identifier after '.'")),
@@ -1052,7 +1052,7 @@ impl AstParseable for IntervalUnit {
             other => {
                 return Err(RayexecError::new(format!(
                     "Expected interval unit, got '{other}'"
-                )))
+                )));
             }
         })
     }
@@ -1114,7 +1114,7 @@ impl AstParseable for DatePart {
             None => {
                 return Err(RayexecError::new(
                     "Expected keyword or string, got end of statement",
-                ))
+                ));
             }
         };
 
@@ -1126,7 +1126,7 @@ impl AstParseable for DatePart {
                         return Err(RayexecError::new(format!(
                             "Expected a keyword, got {}",
                             word.value,
-                        )))
+                        )));
                     }
                 };
                 let _ = parser.next(); // Consume

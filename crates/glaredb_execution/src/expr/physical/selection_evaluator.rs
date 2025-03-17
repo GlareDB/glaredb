@@ -1,7 +1,7 @@
 use glaredb_error::Result;
 
-use super::evaluator::ExpressionEvaluator;
 use super::PhysicalScalarExpression;
+use super::evaluator::ExpressionEvaluator;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::arrays::executor::scalar::UnaryExecutor;

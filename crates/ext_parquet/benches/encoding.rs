@@ -18,11 +18,11 @@
 use std::sync::Arc;
 
 use criterion::*;
+use ext_parquet::data_type::{DataType, f32, f64};
+use ext_parquet::decoding::{Decoder, get_decoder};
+use ext_parquet::encoding::get_encoder;
+use ext_parquet::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type};
 use parquet::basic::Encoding;
-use parquet::data_type::{f32, f64, DataType};
-use parquet::decoding::{get_decoder, Decoder};
-use parquet::encoding::get_encoder;
-use parquet::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type};
 use rand::prelude::*;
 
 fn bench_typed<T: DataType>(c: &mut Criterion, values: &[T::T], encoding: Encoding) {
@@ -72,8 +72,8 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut f32s = Vec::new();
     let mut f64s = Vec::new();
     for _ in 0..n {
-        f32s.push(rng.gen::<f32>());
-        f64s.push(rng.gen::<f64>());
+        f32s.push(rng.r#gen::<f32>());
+        f64s.push(rng.r#gen::<f64>());
     }
 
     bench_typed::<f32>(c, &f32s, Encoding::BYTE_STREAM_SPLIT);

@@ -102,7 +102,7 @@ impl OwnedReadBuffer {
     /// This must not be called with concurrent reads by any of the previously
     /// take read buffers.
     pub unsafe fn remaining_as_slice_mut(&mut self) -> &mut [u8] {
-        std::slice::from_raw_parts_mut(self.curr.cast_mut(), self.remaining)
+        unsafe { std::slice::from_raw_parts_mut(self.curr.cast_mut(), self.remaining) }
     }
 
     /// Resets and resizes the underlying buffer to `size`.
@@ -146,9 +146,11 @@ pub struct ReadBuffer {
 impl ReadBuffer {
     /// Skips the pointer forward some number of bytes.
     pub unsafe fn skip_bytes_unchecked(&mut self, num_bytes: usize) {
-        debug_assert!(self.remaining >= num_bytes);
-        self.curr = self.curr.byte_add(num_bytes);
-        self.remaining -= num_bytes;
+        unsafe {
+            debug_assert!(self.remaining >= num_bytes);
+            self.curr = self.curr.byte_add(num_bytes);
+            self.remaining -= num_bytes;
+        }
     }
 
     /// Reads the next value from the buffer, incrementing the internal pointer.
@@ -157,12 +159,14 @@ impl ReadBuffer {
     ///
     /// This buffer must have enough bytes to read the next value fully.
     pub unsafe fn read_next_unchecked<T>(&mut self) -> T {
-        debug_assert!(self.remaining >= std::mem::size_of::<T>());
+        unsafe {
+            debug_assert!(self.remaining >= std::mem::size_of::<T>());
 
-        let v = self.curr.cast::<T>().read_unaligned();
-        self.skip_bytes_unchecked(std::mem::size_of::<T>());
+            let v = self.curr.cast::<T>().read_unaligned();
+            self.skip_bytes_unchecked(std::mem::size_of::<T>());
 
-        v
+            v
+        }
     }
 
     /// Copies bytes from this buffer into the output slice. The output slice
@@ -175,19 +179,23 @@ impl ReadBuffer {
     ///
     /// Panics if the output slice is larger than the remaining buffer.
     pub unsafe fn read_copy<T>(&mut self, out: &mut [T]) {
-        let byte_count = std::mem::size_of_val(out);
-        assert!(byte_count <= self.remaining);
+        unsafe {
+            let byte_count = std::mem::size_of_val(out);
+            assert!(byte_count <= self.remaining);
 
-        let dest_ptr = out.as_mut_ptr().cast::<u8>();
-        self.curr.copy_to_nonoverlapping(dest_ptr, byte_count);
+            let dest_ptr = out.as_mut_ptr().cast::<u8>();
+            self.curr.copy_to_nonoverlapping(dest_ptr, byte_count);
 
-        self.skip_bytes_unchecked(byte_count);
+            self.skip_bytes_unchecked(byte_count);
+        }
     }
 
     /// Peeks the next value without incrementing the internal pointer.
     pub unsafe fn peek_next_unchecked<T>(&self) -> T {
-        debug_assert!(self.remaining >= std::mem::size_of::<T>());
-        self.curr.cast::<T>().read_unaligned()
+        unsafe {
+            debug_assert!(self.remaining >= std::mem::size_of::<T>());
+            self.curr.cast::<T>().read_unaligned()
+        }
     }
 }
 

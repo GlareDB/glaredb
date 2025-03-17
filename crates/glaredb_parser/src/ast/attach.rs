@@ -34,7 +34,7 @@ impl AstParseable for Attach<Raw> {
             other => {
                 return Err(RayexecError::new(format!(
                     "Expected DATABASE or TABLE for attach type, got '{other}'"
-                )))
+                )));
             }
         };
 
@@ -84,7 +84,7 @@ impl AstParseable for Detach<Raw> {
             other => {
                 return Err(RayexecError::new(format!(
                     "Expected DATABASE or TABLE for attach type, got '{other}'"
-                )))
+                )));
             }
         };
 
@@ -99,8 +99,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::ast::testutil::parse_ast;
     use crate::ast::Literal;
+    use crate::ast::testutil::parse_ast;
 
     #[test]
     fn attach_pg_database() {

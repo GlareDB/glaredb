@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use glaredb_error::{not_implemented, RayexecError, Result};
+use glaredb_error::{RayexecError, Result, not_implemented};
 use glaredb_execution::arrays::datatype::{
     DataType,
     DecimalTypeMeta,
@@ -11,7 +11,7 @@ use glaredb_execution::arrays::datatype::{
 };
 use glaredb_execution::arrays::field::{ColumnSchema as BulletSchema, Field};
 use regex::Regex;
-use serde::{de, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de};
 
 /// Primitive types supported in iceberg tables.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

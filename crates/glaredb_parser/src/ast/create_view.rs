@@ -48,7 +48,7 @@ impl AstParseable for CreateView<Raw> {
             None => {
                 return Err(RayexecError::new(
                     "Unexpected end of statement, expect view body",
-                ))
+                ));
             }
         };
 

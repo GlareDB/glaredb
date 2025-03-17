@@ -130,39 +130,43 @@ impl RawBuffer {
     }
 
     pub unsafe fn as_slice<T>(&self) -> &[T] {
-        debug_assert_eq!(0, self.align % std::mem::align_of::<T>());
-        debug_assert_eq!(
-            0,
-            if std::mem::size_of::<T>() > 0 {
-                self.reservation.size % std::mem::size_of::<T>()
-            } else {
-                0
-            }
-        );
-        debug_assert_eq!(
-            self.reservation.size,
-            self.capacity * std::mem::size_of::<T>()
-        );
+        unsafe {
+            debug_assert_eq!(0, self.align % std::mem::align_of::<T>());
+            debug_assert_eq!(
+                0,
+                if std::mem::size_of::<T>() > 0 {
+                    self.reservation.size % std::mem::size_of::<T>()
+                } else {
+                    0
+                }
+            );
+            debug_assert_eq!(
+                self.reservation.size,
+                self.capacity * std::mem::size_of::<T>()
+            );
 
-        std::slice::from_raw_parts(self.ptr.as_ptr().cast::<T>().cast_const(), self.capacity)
+            std::slice::from_raw_parts(self.ptr.as_ptr().cast::<T>().cast_const(), self.capacity)
+        }
     }
 
     pub unsafe fn as_slice_mut<T>(&mut self) -> &mut [T] {
-        debug_assert_eq!(0, self.align % std::mem::align_of::<T>());
-        debug_assert_eq!(
-            0,
-            if std::mem::size_of::<T>() > 0 {
-                self.reservation.size % std::mem::size_of::<T>()
-            } else {
-                0
-            }
-        );
-        debug_assert_eq!(
-            self.reservation.size,
-            self.capacity * std::mem::size_of::<T>()
-        );
+        unsafe {
+            debug_assert_eq!(0, self.align % std::mem::align_of::<T>());
+            debug_assert_eq!(
+                0,
+                if std::mem::size_of::<T>() > 0 {
+                    self.reservation.size % std::mem::size_of::<T>()
+                } else {
+                    0
+                }
+            );
+            debug_assert_eq!(
+                self.reservation.size,
+                self.capacity * std::mem::size_of::<T>()
+            );
 
-        std::slice::from_raw_parts_mut(self.ptr.as_ptr().cast::<T>(), self.capacity)
+            std::slice::from_raw_parts_mut(self.ptr.as_ptr().cast::<T>(), self.capacity)
+        }
     }
 
     /// Reserves memory for holding `additional` number of `T` elements.

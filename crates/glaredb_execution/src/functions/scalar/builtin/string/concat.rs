@@ -1,16 +1,16 @@
 use glaredb_error::Result;
 
-use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
 use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor, UniformExecutor};
 use crate::arrays::executor::OutBuffer;
+use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor, UniformExecutor};
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
 
 // TODO: Currently '||' aliases to this, however there should be two separate
 // concat functions. One that should return null on any null arguments (||), and

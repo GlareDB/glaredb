@@ -210,7 +210,7 @@ pub trait BaseOperator: Sync + Send + Debug + Explainable + 'static {
                     None => {
                         return Err(RayexecError::new(format!(
                             "Missing executable materialization for ref: {mat_ref}"
-                        )))
+                        )));
                     }
                 };
 

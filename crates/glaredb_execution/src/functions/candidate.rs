@@ -1,5 +1,5 @@
-use super::implicit::{implicit_cast_score, ImplicitCastConfig, NO_CAST_SCORE};
 use super::Signature;
+use super::implicit::{ImplicitCastConfig, NO_CAST_SCORE, implicit_cast_score};
 use crate::arrays::datatype::{DataType, DataTypeId};
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,8 +1,8 @@
 use glaredb_error::Result;
 
+use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::ArrayBuffer;
 use crate::arrays::array::validity::Validity;
-use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::copy::copy_rows_raw;
 use crate::arrays::datatype::DataType;
@@ -75,10 +75,12 @@ impl ColumnChunk {
     ///
     /// Projections indicates which columns to scan.
     pub fn scan(&self, projections: &Projections, output: &mut Batch) -> Result<usize> {
-        debug_assert!(projections
-            .indices()
-            .iter()
-            .all(|&idx| idx < self.buffers.len()));
+        debug_assert!(
+            projections
+                .indices()
+                .iter()
+                .all(|&idx| idx < self.buffers.len())
+        );
 
         projections.for_each_column(output, &mut |col_idx, output| {
             self.buffers[col_idx].clone_to_array(output)

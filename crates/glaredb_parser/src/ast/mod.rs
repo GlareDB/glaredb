@@ -108,7 +108,7 @@ impl AstParseable for Ident {
             None => {
                 return Err(RayexecError::new(
                     "Expected identifier, found end of statement",
-                ))
+                ));
             }
         };
 
@@ -192,7 +192,7 @@ impl AstParseable for ObjectReference {
                 other => {
                     return Err(RayexecError::new(format!(
                         "Unexpected token: {other:?}. Expected an object reference.",
-                    )))
+                    )));
                 }
             };
             idents.push(ident);
