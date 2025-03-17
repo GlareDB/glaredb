@@ -145,11 +145,7 @@ where
     // TODO: The refcell stuff here is definitely prone to erroring. I'd prefer
     // some sort of message passing approach.
     #[allow(clippy::await_holding_refcell_ref)]
-    pub async fn execute_pending(&self, guard: RawModeGuard<T>) -> Result<()> {
-        // Drop the guard, we want to leave raw mode so that printing, etc works
-        // as normal during execution (aka debug printing).
-        std::mem::drop(guard);
-
+    pub async fn execute_pending(&self, _guard: RawModeGuard<T>) -> Result<()> {
         let mut editor = self.editor.borrow_mut();
         let width = editor.get_size().cols;
 
@@ -162,7 +158,12 @@ where
                 };
                 let mut writer = RawTerminalWriter::new(editor.writer_mut());
                 writer.write_all(b"\n")?;
+                // Flush here too so xtermjs gets the newline...
+                writer.flush()?;
 
+                // TODO: What would really be cool is if we disabled raw mode
+                // during execution, then re-enabled it before writing the
+                // results. That would enable nicer println debugging.
                 match engine.engine.session().query_many(&query) {
                     Ok(pending_queries) => {
                         trace!("writing results");
@@ -197,6 +198,11 @@ where
                                     break;
                                 }
                             }
+
+                            // Flush after every table write so that user
+                            // doesn't have to wait for all queries to complete
+                            // before getting output (xterm.js).
+                            writer.flush()?;
                         }
                     }
                     Err(e) => {

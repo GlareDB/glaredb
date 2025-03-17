@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::io::{self, BufWriter};
 use std::rc::Rc;
 
@@ -83,8 +84,17 @@ pub struct WasmShell {
     // used.
     pub(crate) shell: Rc<Shell<BufWriter<TerminalWrapper>, WasmExecutor, WasmRuntime, NopRawMode>>,
     /// Updateable guard used for shell inputs.
-    edit_guard: Option<RawModeGuard<NopRawMode>>,
+    edit_guard: Option<WasmEditGuard>,
+    /// Guard set after executing a query that should be used for upcoming shell
+    /// input.
+    ///
+    /// This is done instead of setting the edit guard directly to avoid need to
+    /// wrap the "fast path" guard in a rc+refcell and do all the borrowing.
+    // TODO: Is perf really a concern here?
+    post_execute_guard: Rc<RefCell<Option<WasmEditGuard>>>,
 }
+
+type WasmEditGuard = RawModeGuard<NopRawMode>;
 
 /// Implementation of raw mode term that does nothing.
 ///
@@ -114,6 +124,7 @@ impl WasmShell {
         Ok(WasmShell {
             shell,
             edit_guard: Some(edit_guard),
+            post_execute_guard: Rc::new(RefCell::new(None)),
         })
     }
 
@@ -137,6 +148,14 @@ impl WasmShell {
     /// will handle _all_ input, so `false` should be returned to xterm after
     /// calling this for an event.
     pub fn on_key(&mut self, event: KeyboardEvent) -> Result<()> {
+        // Pulled out into a separate method since the procmacro doesn't handle
+        // active code editing very well.
+        self.on_key_inner(event)
+    }
+}
+
+impl WasmShell {
+    fn on_key_inner(&mut self, event: KeyboardEvent) -> Result<()> {
         if event.type_() != "keydown" {
             return Ok(());
         }
@@ -176,7 +195,27 @@ impl WasmShell {
 
         let guard = match self.edit_guard.take() {
             Some(guard) => guard,
-            None => self.shell.edit_start()?, // TODO: Shouldn't happen.
+            None => {
+                match self.post_execute_guard.try_borrow_mut() {
+                    Ok(mut guard) => {
+                        match guard.take() {
+                            Some(guard) => guard,
+                            None => {
+                                // TODO: ???
+                                warn!("missing post execute guard");
+                                return Ok(());
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        // Only other borrow would be us setting the guard after
+                        // an execute completes.
+                        // TODO: Is that actually possible?
+                        error!(%e, "post execute guard has more than one borrow");
+                        return Ok(());
+                    }
+                }
+            }
         };
 
         match self.shell.consume_key(guard, key)? {
@@ -186,12 +225,22 @@ impl WasmShell {
             }
             ShellSignal::ExecutePending(guard) => {
                 let shell = self.shell.clone();
+                let post_execute_guard = self.post_execute_guard.clone();
                 spawn_local(async move {
                     if let Err(e) = shell.execute_pending(guard).await {
                         error!(%e, "error executing pending query");
                     }
+
+                    if let Ok(mut post_execute) = post_execute_guard.try_borrow_mut() {
+                        match shell.edit_start() {
+                            Ok(guard) => *post_execute = Some(guard),
+                            Err(e) => {
+                                // Nothing we can really do.
+                                error!(%e, "error calling edit start for shell");
+                            }
+                        }
+                    }
                 });
-                self.edit_guard = Some(self.shell.edit_start()?);
             }
             ShellSignal::Exit => (), // Can't exit out of the web shell.
         }

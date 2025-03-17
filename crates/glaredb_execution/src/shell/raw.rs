@@ -1,26 +1,5 @@
 use std::io;
 
-#[derive(Debug)]
-pub struct OwnedRawTerminalWriter<W> {
-    pub writer: W,
-}
-
-impl<W: io::Write> OwnedRawTerminalWriter<W> {
-    pub const fn new(writer: W) -> Self {
-        OwnedRawTerminalWriter { writer }
-    }
-}
-
-impl<W: io::Write> io::Write for OwnedRawTerminalWriter<W> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        write_raw(&mut self.writer, buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.writer.flush()
-    }
-}
-
 /// A wrapper around a writer that will replace '\n' with '\r\n' when writing
 /// bytes.
 #[derive(Debug)]
