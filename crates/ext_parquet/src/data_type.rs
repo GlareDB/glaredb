@@ -505,12 +505,12 @@ macro_rules! gen_as_bytes {
 
             #[inline]
             #[allow(clippy::size_of_in_element_count)]
-            unsafe fn slice_as_bytes_mut(self_: &mut [Self]) -> &mut [u8] {
+            unsafe fn slice_as_bytes_mut(self_: &mut [Self]) -> &mut [u8] { unsafe {
                 std::slice::from_raw_parts_mut(
                     self_.as_mut_ptr() as *mut u8,
                     std::mem::size_of_val(self_),
                 )
-            }
+            }}
         }
     };
 }
@@ -724,7 +724,7 @@ pub(crate) mod private {
     }
 
     macro_rules! impl_from_raw {
-        ($ty: ty, $physical_ty: expr, $self: ident => $as_i64: block) => {
+        ($ty: ty, $physical_ty: expr_2021, $self: ident => $as_i64: block) => {
             impl ParquetValueType for $ty {
                 const PHYSICAL_TYPE: Type = $physical_ty;
 
@@ -1085,7 +1085,7 @@ pub trait DataType: 'static + Send + fmt::Debug {
 }
 
 macro_rules! impl_data_type {
-    ($writer_ident: ident, $native_ty:ty, $size:expr) => {
+    ($writer_ident: ident, $native_ty:ty, $size:expr_2021) => {
         impl DataType for $native_ty {
             type T = $native_ty;
 

@@ -18,11 +18,11 @@
 use std::sync::Arc;
 
 use criterion::*;
+use ext_parquet::data_type::{f32, f64, DataType};
+use ext_parquet::decoding::{get_decoder, Decoder};
+use ext_parquet::encoding::get_encoder;
+use ext_parquet::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type};
 use parquet::basic::Encoding;
-use parquet::data_type::{f32, f64, DataType};
-use parquet::decoding::{get_decoder, Decoder};
-use parquet::encoding::get_encoder;
-use parquet::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type};
 use rand::prelude::*;
 
 fn bench_typed<T: DataType>(c: &mut Criterion, values: &[T::T], encoding: Encoding) {

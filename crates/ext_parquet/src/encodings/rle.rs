@@ -320,11 +320,11 @@ impl RleDecoder {
 
     #[inline]
     pub fn set_data(&mut self, data: Bytes) {
-        if let Some(ref mut bit_reader) = self.bit_reader {
+        match self.bit_reader { Some(ref mut bit_reader) => {
             bit_reader.reset(data);
-        } else {
+        } _ => {
             self.bit_reader = Some(BitReader::new(data));
-        }
+        }}
 
         let _ = self.reload();
     }
@@ -1021,11 +1021,11 @@ mod tests {
             let seed_vec: Vec<u8> = rng.sample_iter::<u8, _>(&Standard).take(seed_len).collect();
             let mut seed = [0u8; 32];
             seed.copy_from_slice(&seed_vec[0..seed_len]);
-            let mut gen = rand::rngs::StdRng::from_seed(seed);
+            let mut r#gen = rand::rngs::StdRng::from_seed(seed);
 
             let mut parity = false;
             for _ in 0..ngroups {
-                let mut group_size = gen.gen_range(1..20);
+                let mut group_size = r#gen.gen_range(1..20);
                 if group_size > max_group_size {
                     group_size = 1;
                 }

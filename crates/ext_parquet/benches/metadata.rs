@@ -17,8 +17,8 @@
 
 use bytes::Bytes;
 use criterion::*;
-use parquet::file::reader::SerializedFileReader;
-use parquet::file::serialized_reader::ReadOptionsBuilder;
+use ext_parquet::file::reader::SerializedFileReader;
+use ext_parquet::file::serialized_reader::ReadOptionsBuilder;
 
 fn criterion_benchmark(c: &mut Criterion) {
     // Read file into memory to isolate filesystem performance
