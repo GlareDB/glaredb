@@ -1,26 +1,5 @@
 use std::io;
 
-#[derive(Debug)]
-pub struct OwnedRawTerminalWriter<W> {
-    pub writer: W,
-}
-
-impl<W: io::Write> OwnedRawTerminalWriter<W> {
-    pub const fn new(writer: W) -> Self {
-        OwnedRawTerminalWriter { writer }
-    }
-}
-
-impl<W: io::Write> io::Write for OwnedRawTerminalWriter<W> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        write_raw(&mut self.writer, buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.writer.flush()
-    }
-}
-
 /// A wrapper around a writer that will replace '\n' with '\r\n' when writing
 /// bytes.
 #[derive(Debug)]
@@ -56,7 +35,8 @@ fn write_raw(writer: &mut impl io::Write, buf: &[u8]) -> io::Result<usize> {
 
         // Write the part that doesn't have a new line.
         let to_write = &current[0..pos];
-        n += writer.write(to_write)?;
+        writer.write_all(to_write)?;
+        n += to_write.len();
 
         if pos == current.len() {
             return Ok(n);
@@ -83,36 +63,40 @@ mod tests {
     fn no_newlines() {
         let mut dest = Vec::new();
 
-        let n = RawTerminalWriter::new(&mut dest)
-            .write(&[b'h', b'e', b'l', b'l', b'o'])
-            .unwrap();
+        let n = RawTerminalWriter::new(&mut dest).write(b"hello").unwrap();
 
         assert_eq!(5, n);
-        assert_eq!(vec![b'h', b'e', b'l', b'l', b'o'], dest);
+        assert_eq!(b"hello".as_slice(), &dest);
     }
 
     #[test]
     fn newline_in_middle() {
         let mut dest = Vec::new();
 
-        let n = RawTerminalWriter::new(&mut dest)
-            .write(&[b'h', b'e', b'\n', b'l', b'l', b'o'])
-            .unwrap();
+        let n = RawTerminalWriter::new(&mut dest).write(b"he\nllo").unwrap();
 
         assert_eq!(6, n);
-        assert_eq!(vec![b'h', b'e', b'\r', b'\n', b'l', b'l', b'o'], dest);
+        assert_eq!(b"he\r\nllo".as_slice(), &dest);
+    }
+
+    #[test]
+    fn newline_at_start() {
+        let mut dest = Vec::new();
+
+        let n = RawTerminalWriter::new(&mut dest).write(b"\nhello").unwrap();
+
+        assert_eq!(6, n);
+        assert_eq!(b"\r\nhello".as_slice(), &dest);
     }
 
     #[test]
     fn newline_at_end() {
         let mut dest = Vec::new();
 
-        let n = RawTerminalWriter::new(&mut dest)
-            .write(&[b'h', b'e', b'l', b'l', b'o', b'\n'])
-            .unwrap();
+        let n = RawTerminalWriter::new(&mut dest).write(b"hello\n").unwrap();
 
         assert_eq!(6, n);
-        assert_eq!(vec![b'h', b'e', b'l', b'l', b'o', b'\r', b'\n'], dest);
+        assert_eq!(b"hello\r\n".as_slice(), &dest);
     }
 
     #[test]
@@ -120,13 +104,61 @@ mod tests {
         let mut dest = Vec::new();
 
         let n = RawTerminalWriter::new(&mut dest)
-            .write(&[b'h', b'\n', b'e', b'l', b'l', b'o', b'\n'])
+            .write(b"h\nello\n")
             .unwrap();
 
         assert_eq!(7, n);
-        assert_eq!(
-            vec![b'h', b'\r', b'\n', b'e', b'l', b'l', b'o', b'\r', b'\n'],
-            dest
-        );
+        assert_eq!(b"h\r\nello\r\n".as_slice(), &dest);
+    }
+
+    #[test]
+    fn single_newline() {
+        let mut dest = Vec::new();
+
+        let n = RawTerminalWriter::new(&mut dest).write(b"\n").unwrap();
+
+        assert_eq!(1, n);
+        assert_eq!(b"\r\n".as_slice(), &dest);
+    }
+
+    #[test]
+    fn only_newlines() {
+        let mut dest = Vec::new();
+
+        let n = RawTerminalWriter::new(&mut dest).write(b"\n\n\n").unwrap();
+
+        assert_eq!(3, n);
+        assert_eq!(b"\r\n\r\n\r\n".as_slice(), &dest);
+    }
+
+    #[test]
+    fn inner_writer_does_not_conume_everything() {
+        struct PickyWriter {
+            val: Vec<u8>,
+        }
+
+        impl io::Write for PickyWriter {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                if buf.len() > 0 {
+                    self.val.push(buf[0]);
+                    Ok(1)
+                } else {
+                    Ok(0)
+                }
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let mut inner = PickyWriter { val: Vec::new() };
+
+        let n = RawTerminalWriter::new(&mut inner)
+            .write(b"h\nello\n")
+            .unwrap();
+
+        assert_eq!(7, n);
+        assert_eq!(b"h\r\nello\r\n".as_slice(), &inner.val);
     }
 }

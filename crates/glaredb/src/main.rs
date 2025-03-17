@@ -152,7 +152,7 @@ async fn inner(
 
     // Otherwise continue on with interactive shell.
 
-    let shell = Shell::new(stdout, CrosstermRawModeTerm);
+    let mut shell = Shell::new(stdout, CrosstermRawModeTerm);
     shell.set_size(TermSize {
         cols: cols as usize,
     });

@@ -19,3 +19,6 @@ profile.json
 
 # Coverage reports
 lcov.info
+
+# Debug for lineedit
+lineedit.log

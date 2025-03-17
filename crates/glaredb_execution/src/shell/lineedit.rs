@@ -5,6 +5,16 @@ use glaredb_error::Result;
 use super::highlighter::HighlightState;
 use super::{debug, vt100};
 
+/// Minimum number of columns before we won't shrink anymore.
+///
+/// This does lead to suboptimal rendering with repeated lines, but this will
+/// prevent substracting underflow.
+///
+/// What we should do is if the size is less than the current prompt width,
+/// switch out the prompt with an empty string. By doing this, we support all
+/// sizes.
+const MIN_COLS: usize = 10;
+
 // TODO: Bug in refresh.
 //
 // ```
@@ -17,22 +27,6 @@ use super::{debug, vt100};
 // anywhere in the overflow (wrapped) line, then press up, we move to the first
 // line. Then moving back down positions the cursor at the wrong offset,
 // probably not taking into account prompt width somewhere.
-
-// TODO: History currently a bit wonk.
-
-// TODO: Too many newlines for some wacky terminals (eshell) after each key.
-//
-// End up with something like:
-// ```
-// glaredb> select 'hello'
-// glaredb> select 'hello',
-// glaredb> select 'hello',
-// glaredb> select 'hello', '
-// glaredb> select 'hello', 'w
-// glaredb> select 'hello', 'wo
-// ```
-//
-// Seems to "fix" itself after using a hard line break.
 
 /// Incoming key event.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,52 +65,6 @@ pub struct TermSize {
     pub cols: usize,
 }
 
-// TODO: Ring buffer, persistence.
-#[derive(Debug)]
-struct History {
-    cursor: usize,
-    items: Vec<String>,
-}
-
-impl History {
-    fn new() -> Self {
-        History {
-            cursor: 0,
-            items: Vec::new(),
-        }
-    }
-
-    fn push_item(&mut self, item: &str) {
-        if let Some(last) = self.items.last() {
-            if last == item {
-                // Deduplicate, don't store in history.
-                return;
-            }
-        }
-
-        self.items.push(item.into());
-        self.cursor = self.items.len() - 1;
-    }
-
-    fn next_item_back(&mut self) -> Option<&str> {
-        let item = self.items[self.cursor].as_str();
-        if self.cursor > 0 {
-            self.cursor -= 1;
-        }
-
-        Some(item)
-    }
-
-    fn next_item_front(&mut self) -> Option<&str> {
-        let item = self.items[self.cursor].as_str();
-        if self.cursor < self.items.len() - 1 {
-            self.cursor += 1;
-        }
-
-        Some(item)
-    }
-}
-
 /// Line editor inspired by linenoise.
 #[derive(Debug)]
 pub struct LineEditor<W: io::Write> {
@@ -143,8 +91,6 @@ pub struct LineEditor<W: io::Write> {
     did_ctrl_c: bool,
     /// Highlight keywords.
     highlighter: HighlightState,
-    /// History buffer.
-    history: History,
 }
 
 impl<W> LineEditor<W>
@@ -169,12 +115,13 @@ where
             max_lines: 1, // We never have less than one line.
             did_ctrl_c: false,
             highlighter: HighlightState::new(),
-            history: History::new(),
         }
     }
 
     pub fn set_size(&mut self, size: TermSize) {
-        self.size = size;
+        self.size = TermSize {
+            cols: usize::max(size.cols, MIN_COLS),
+        }
     }
 
     pub fn get_size(&self) -> TermSize {
@@ -202,13 +149,19 @@ where
             KeyEvent::Backspace => self.edit_backspace()?,
             KeyEvent::ShiftEnter => {
                 self.edit_move_to_end()?;
-                self.history.push_item(self.buffer.as_ref());
+
+                write!(self.writer, "{}", vt100::CRLF)?;
+                self.writer.flush()?;
+
                 return Ok(Signal::InputCompleted(self.buffer.as_ref()));
             }
             KeyEvent::Enter => {
                 if self.is_complete() {
                     self.edit_move_to_end()?;
-                    self.history.push_item(self.buffer.as_ref());
+
+                    write!(self.writer, "{}", vt100::CRLF)?;
+                    self.writer.flush()?;
+
                     return Ok(Signal::InputCompleted(self.buffer.as_ref()));
                 }
                 self.edit_enter()?;
@@ -225,7 +178,7 @@ where
                 self.edit_move_to_end()?;
 
                 write!(self.writer, "{}", vt100::CRLF)?;
-                self.edit_start()?;
+                self.edit_start()?
             }
             _ => (),
         }
@@ -239,6 +192,7 @@ where
         self.refresh()
     }
 
+    #[allow(unused)]
     fn consume_history(&mut self, text: &str) -> Result<()> {
         self.buffer.clear();
         self.text_pos = 0;
@@ -257,7 +211,14 @@ where
         self.rendered_cursor_row = 0;
         self.max_lines = 1;
 
-        Self::write_prompt(&mut self.writer, self.prompt)?;
+        write!(
+            self.writer,
+            "{}{}{}",
+            vt100::MODE_BOLD,
+            self.prompt,
+            vt100::MODES_OFF
+        )?;
+
         self.writer.flush()?;
 
         Ok(())
@@ -278,14 +239,7 @@ where
     fn edit_move_up(&mut self) -> Result<()> {
         let line = self.buffer.current_line(self.text_pos);
         if line == 0 {
-            if let Some(item) = self.history.next_item_back() {
-                // TODO: Avoid the clone.
-                let item = item.to_string();
-                self.consume_history(&item)?;
-                return Ok(());
-            }
-
-            // No more history in that direction.
+            // TODO: History
             return Ok(());
         }
 
@@ -306,14 +260,7 @@ where
     fn edit_move_down(&mut self) -> Result<()> {
         let line = self.buffer.current_line(self.text_pos);
         if line == self.buffer.spans.len() - 1 {
-            if let Some(item) = self.history.next_item_front() {
-                // TODO: Avoid the clone.
-                let item = item.to_string();
-                self.consume_history(&item)?;
-                return Ok(());
-            }
-
-            // No more history in that direction, do nothing.
+            // TODO: History
             return Ok(());
         }
 
@@ -377,7 +324,7 @@ where
             )
         });
         // First clear out the previous lines.
-        let row_diff = self.max_lines - self.rendered_cursor_row;
+        let row_diff = self.max_lines - self.rendered_cursor_row - 1;
         debug::log(|| format!("row_diff: {row_diff}"));
         if row_diff > 0 {
             // Cursor not on the last line, need to move it to the end.
@@ -387,14 +334,22 @@ where
         // Clear previous rows.
         for _ in 0..self.max_lines - 1 {
             // Clear current line.
-            write!(self.writer, "{}", vt100::CR)?;
-            write!(self.writer, "{}", vt100::CLEAR_LINE_CURSOR_RIGHT)?;
+            write!(
+                self.writer,
+                "{}{}",
+                vt100::CR,
+                vt100::CLEAR_LINE_CURSOR_RIGHT
+            )?;
             vt100::cursor_up(&mut self.writer, 1)?;
         }
 
         // Clear current/top line.
-        write!(self.writer, "{}", vt100::CR)?;
-        write!(self.writer, "{}", vt100::CLEAR_LINE_CURSOR_RIGHT)?;
+        write!(
+            self.writer,
+            "{}{}",
+            vt100::CR,
+            vt100::CLEAR_LINE_CURSOR_RIGHT
+        )?;
 
         let buffer = &self.buffer;
         // Tokenize the current query for highlighting.
@@ -422,14 +377,20 @@ where
         for (line_idx, hard_line) in lines.enumerate() {
             let prompt_width = if line_idx == 0 {
                 // Write prompt for first line.
-                Self::write_prompt(&mut self.writer, self.prompt)?;
+                write!(
+                    self.writer,
+                    "{}{}{}",
+                    vt100::MODE_BOLD,
+                    self.prompt,
+                    vt100::MODES_OFF
+                )?;
                 self.prompt.len()
             } else {
                 // Write continuation markers for hard line breaks.
-                write!(self.writer, "{}", vt100::CRLF)?;
                 write!(
                     self.writer,
-                    "{}{}",
+                    "{}{}{}",
+                    vt100::CRLF,
                     vt100::COLOR_FG_BRIGHT_BLACK,
                     self.continuation
                 )?;
@@ -443,10 +404,10 @@ where
             for (soft_line_idx, soft_line) in split.enumerate() {
                 if soft_line_idx > 0 {
                     // Contiuation for soft line breaks.
-                    write!(self.writer, "{}", vt100::CRLF)?;
                     write!(
                         self.writer,
-                        "{}{}",
+                        "{}{}{}",
+                        vt100::CRLF,
                         vt100::COLOR_FG_BRIGHT_BLACK,
                         self.continuation
                     )?;
@@ -508,11 +469,6 @@ where
     fn is_complete(&self) -> bool {
         let trimmed = self.buffer.as_ref().trim();
         trimmed.ends_with(';') || trimmed.starts_with('/')
-    }
-
-    fn write_prompt(writer: &mut W, prompt: &str) -> Result<()> {
-        write!(writer, "{}{prompt}{}", vt100::MODE_BOLD, vt100::MODES_OFF)?;
-        Ok(())
     }
 }
 

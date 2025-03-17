@@ -1,7 +1,7 @@
 //! Debug module for printing to stderr for development purposes.
 //!
 //! ```text
-//! cargo build --bin rayexec_bin && ./target/debug/rayexec_bin 2> lineedit.log
+//! cargo build --bin glaredb && ./target/debug/glaredb 2> lineedit.log
 //! ```
 
 use std::io::Write;
