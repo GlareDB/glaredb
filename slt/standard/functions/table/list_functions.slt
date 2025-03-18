@@ -1,0 +1,6 @@
+# list_functions function
+
+query TT
+SELECT function_name, function_type FROM list_functions() WHERE function_name = 'regr_count';
+----
+regr_count  aggregate

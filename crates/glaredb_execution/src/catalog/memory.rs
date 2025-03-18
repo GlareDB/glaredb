@@ -371,6 +371,45 @@ impl Schema for MemorySchema {
         Ok(similar.map(|similar| similar.entry))
     }
 
+    fn list_entries(
+        self: &Arc<Self>,
+    ) -> impl Stream<Item = Result<Vec<Arc<CatalogEntry>>>> + Sync + Send + 'static {
+        // TODO: Dont' really care about efficiency right now for the memory
+        // catalog, these are all cheap and it's only used for the various
+        // `list_...` functions.
+        //
+        // Alternative catalog impls (e.g. iceberg) will have their only
+        // implementations with proper async streaming.
+
+        let g = Guard::new();
+
+        let tables: Vec<_> = self
+            .tables
+            .entries
+            .iter(&g)
+            .map(|(_, v)| v)
+            .cloned()
+            .collect();
+
+        let functions: Vec<_> = self
+            .functions
+            .entries
+            .iter(&g)
+            .map(|(_, v)| v)
+            .cloned()
+            .collect();
+
+        let table_functions: Vec<_> = self
+            .table_functions
+            .entries
+            .iter(&g)
+            .map(|(_, v)| v)
+            .cloned()
+            .collect();
+
+        stream::iter([Ok(tables), Ok(functions), Ok(table_functions)])
+    }
+
     fn list_tables(
         self: &Arc<Self>,
     ) -> impl Stream<Item = Result<Vec<Arc<CatalogEntry>>>> + Sync + Send + 'static {
