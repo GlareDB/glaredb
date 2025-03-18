@@ -14,6 +14,7 @@ pub mod scan;
 pub mod sort;
 pub mod table_execute;
 pub mod ungrouped_aggregate;
+pub mod union;
 pub mod values;
 
 pub(crate) mod util;
@@ -163,6 +164,16 @@ pub trait BaseOperator: Sync + Send + Debug + Explainable + 'static {
 
     fn output_types(&self) -> &[DataType];
 
+    /// Pushes this operator on the current pipeline being built, handling the
+    /// building of children as well.
+    ///
+    /// The default implementation should be suitable for most operators.
+    ///
+    /// For operators that have two children (PushExecute operators), the left
+    /// (push) side will be built first, followed by the right (execute) side.
+    /// While this guarantees the order in which operators and operator states
+    /// are created, it does not guarantee the order in which partition states
+    /// are built.
     fn build_pipeline(
         operator: &PlannedOperator,
         children: &[PlannedOperatorWithChildren],
