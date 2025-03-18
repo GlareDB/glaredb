@@ -1,0 +1,31 @@
+# Tests to ensure UNION (without ALL) properly make rows distinct.
+
+query I rowsort
+SELECT * FROM (VALUES (1), (2)) UNION SELECT * FROM generate_series(1, 5);
+----
+1
+2
+3
+4
+5
+
+query II rowsort
+SELECT * FROM (VALUES (1, 1), (2, 2)) UNION SELECT a, a FROM generate_series(1, 5) g(a);
+----
+1  1
+2  2
+3  3
+4  4
+5  5
+
+query II rowsort
+SELECT * FROM (VALUES (1), (2)) UNION SELECT 1 FROM generate_series(1, 10000);
+----
+1
+2
+
+query III
+SELECT count(*), min(v), max(v)
+FROM (SELECT * FROM generate_series(1, 100000) UNION SELECT a+2 FROM generate_series(1, 100000) g(a)) AS s(v)
+----
+100002  1 100002

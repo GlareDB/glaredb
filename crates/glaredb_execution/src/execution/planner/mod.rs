@@ -24,7 +24,7 @@ mod plan_unnest;
 
 use std::collections::BTreeMap;
 
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{not_implemented, RayexecError, Result};
 use uuid::Uuid;
 
 use super::operators::materialize::PhysicalMaterialize;
@@ -186,14 +186,14 @@ impl<'a> OperatorPlanState<'a> {
             LogicalOperator::Order(node) => self.plan_sort(node),
             LogicalOperator::Aggregate(node) => self.plan_aggregate(node),
             LogicalOperator::Limit(node) => self.plan_limit(node),
-            LogicalOperator::MagicJoin(join) => self.plan_magic_join(join),
-            LogicalOperator::CrossJoin(join) => self.plan_cross_join(join),
-            LogicalOperator::ArbitraryJoin(join) => self.plan_arbitrary_join(join),
-            LogicalOperator::ComparisonJoin(join) => self.plan_comparison_join(join),
-            LogicalOperator::TableExecute(join) => self.plan_table_execute(join),
-            LogicalOperator::SetOp(join) => self.plan_set_operation(join),
-            LogicalOperator::Unnest(join) => self.plan_unnest(join),
-            LogicalOperator::Distinct(join) => self.plan_distinct(join),
+            LogicalOperator::MagicJoin(node) => self.plan_magic_join(node),
+            LogicalOperator::CrossJoin(node) => self.plan_cross_join(node),
+            LogicalOperator::ArbitraryJoin(node) => self.plan_arbitrary_join(node),
+            LogicalOperator::ComparisonJoin(node) => self.plan_comparison_join(node),
+            LogicalOperator::TableExecute(node) => self.plan_table_execute(node),
+            LogicalOperator::SetOp(node) => self.plan_set_operation(node),
+            LogicalOperator::Unnest(node) => self.plan_unnest(node),
+            LogicalOperator::Distinct(node) => self.plan_distinct(node),
             LogicalOperator::Describe(node) => self.plan_describe(node),
             LogicalOperator::ShowVar(node) => self.plan_show_var(node),
             LogicalOperator::Scan(node) => self.plan_scan(node),

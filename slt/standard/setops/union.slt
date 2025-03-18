@@ -52,10 +52,15 @@ select count(*) from (select * from generate_series(1, 10000) union select * fro
 ----
 10000
 
+query TT
+DESCRIBE SELECT 2.1 UNION ALL SELECT 1;
+----
+?column?  Decimal64(2,1)
+
 query R rowsort
 SELECT 2.1 UNION ALL SELECT 1;
 ----
-1
+1.0
 2.1
 
 query I rowsort
@@ -68,12 +73,12 @@ query I rowsort
 SELECT 1.1 AS two UNION SELECT 2;
 ----
 1.1
-2
+2.0
 
 query I rowsort
 SELECT 1 AS two UNION SELECT 2.2;
 ----
-1
+1.0
 2.2
 
 query I rowsort
@@ -85,7 +90,7 @@ query I rowsort
 SELECT 1.1 AS two UNION ALL SELECT 2 ;
 ----
 1.1
-2
+2.0
 
 query I rowsort
 SELECT 1.0::float8 AS two UNION ALL SELECT 1 ;
@@ -97,8 +102,8 @@ query I rowsort
 SELECT 1.1 AS three UNION SELECT 2 UNION SELECT 3 ;
 ----
 1.1
-2
-3
+2.0
+3.0
 
 query I rowsort
 SELECT 1.1::float8 AS two UNION SELECT 2 UNION SELECT 2.0::float8 ;
@@ -110,12 +115,12 @@ query I rowsort
 SELECT 1.1 AS three UNION SELECT 2 UNION ALL SELECT 2 ;
 ----
 1.1
-2
-2
+2.0
+2.0
 
 query I rowsort
 SELECT 1.1 AS two UNION (SELECT 2 UNION ALL SELECT 2) ;
 ----
 1.1
-2
+2.0
 

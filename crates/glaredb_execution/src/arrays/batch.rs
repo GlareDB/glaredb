@@ -156,6 +156,28 @@ impl Batch {
         Ok(())
     }
 
+    /// Swap all arrays between both batches, swapping row counts as well.
+    ///
+    /// Both batches must have the same number of arrays, and each array must be
+    /// holding the same data type.
+    pub fn swap(&mut self, other: &mut Self) -> Result<()> {
+        if self.arrays.len() != other.arrays.len() {
+            return Err(RayexecError::new(
+                "Batches have different number of arrays, cannot swap between them",
+            )
+            .with_field("self", self.arrays.len())
+            .with_field("other", other.arrays.len()));
+        }
+
+        for (a, b) in self.arrays.iter_mut().zip(&mut other.arrays) {
+            a.swap(b)?;
+        }
+
+        (self.num_rows, other.num_rows) = (other.num_rows, self.num_rows);
+
+        Ok(())
+    }
+
     /// Swap a pair of arrays between two batches.
     ///
     /// This does not alter the cache for either batch.
@@ -381,6 +403,7 @@ fn check_num_arrays(b1: &Batch, b2: &Batch) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::generate_batch;
     use crate::testutil::arrays::assert_batches_eq;
     use crate::util::iter::TryFromExactSizeIterator;
 
@@ -451,5 +474,45 @@ mod tests {
 
         assert_batches_eq(&expected, &batch1);
         assert_batches_eq(&expected, &batch2);
+    }
+
+    #[test]
+    fn swap_batch_simple() {
+        let mut a = generate_batch!([1, 2, 3], ["a", "b", "c"]);
+        let mut b = generate_batch!([4, 5, 6], ["d", "e", "f"]);
+        a.swap(&mut b).unwrap();
+
+        let expected_a = generate_batch!([4, 5, 6], ["d", "e", "f"]);
+        let expected_b = generate_batch!([1, 2, 3], ["a", "b", "c"]);
+
+        assert_batches_eq(&expected_a, &a);
+        assert_batches_eq(&expected_b, &b);
+    }
+
+    #[test]
+    fn swap_batch_different_num_rows() {
+        let mut a = generate_batch!([1, 2, 3], ["a", "b", "c"]);
+        let mut b = generate_batch!([4, 5], ["d", "e"]);
+        a.swap(&mut b).unwrap();
+
+        let expected_a = generate_batch!([4, 5], ["d", "e"]);
+        let expected_b = generate_batch!([1, 2, 3], ["a", "b", "c"]);
+
+        assert_batches_eq(&expected_a, &a);
+        assert_batches_eq(&expected_b, &b);
+    }
+
+    #[test]
+    fn swap_batch_array_count_err() {
+        let mut a = generate_batch!(["a", "b", "c"]);
+        let mut b = generate_batch!([4, 5, 6], ["d", "e", "f"]);
+        a.swap(&mut b).unwrap_err();
+    }
+
+    #[test]
+    fn swap_batch_type_err() {
+        let mut a = generate_batch!(["1", "2", "3"], ["a", "b", "c"]);
+        let mut b = generate_batch!([4, 5, 6], ["d", "e", "f"]);
+        a.swap(&mut b).unwrap_err();
     }
 }
