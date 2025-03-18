@@ -7,8 +7,8 @@ use crate::arrays::datatype::DataType;
 use crate::arrays::field::Field;
 use crate::catalog::create::OnConflict;
 use crate::logical::binder::bind_query::QueryBinder;
-use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::resolver::resolve_context::ResolveContext;
 
 #[derive(Debug)]
 pub struct BoundCreateTable {

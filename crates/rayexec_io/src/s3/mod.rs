@@ -7,15 +7,15 @@ use credentials::{AwsCredentials, AwsRequestAuthorizer};
 use futures::future::BoxFuture;
 use futures::stream::{self, BoxStream};
 use futures::{Stream, StreamExt, TryStreamExt};
-use glaredb_error::{not_implemented, DbError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt, not_implemented};
 use list::{S3ListContents, S3ListResponse};
 use reqwest::header::{CONTENT_LENGTH, RANGE};
 use reqwest::{Method, Request, StatusCode};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::http::{format_range_header, read_text, HttpClient, HttpResponse};
 use crate::FileSource;
+use crate::http::{HttpClient, HttpResponse, format_range_header, read_text};
 
 // TODO: Lots of cloning...
 

@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use glaredb_error::{DbError, Result};
 
+use super::Catalog;
 use super::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo};
 use super::drop::DropInfo;
 use super::entry::CatalogEntry;
 use super::memory::MemoryCatalog;
-use super::Catalog;
 use crate::arrays::scalar::ScalarValue;
 use crate::execution::operators::PlannedOperator;
 use crate::storage::storage_manager::StorageManager;

@@ -5,13 +5,13 @@ use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 use tracing::error;
 
+use super::ResolveContext;
 use super::resolved_table::{
     ResolvedTableOrCteReference,
     ResolvedTableReference,
     ResolvedViewReference,
     UnresolvedTableReference,
 };
-use super::ResolveContext;
 use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
 use crate::catalog::database::Database;
 use crate::catalog::entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType};

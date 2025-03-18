@@ -6,15 +6,15 @@ use super::bind_query::BoundQuery;
 use super::table_list::TableRef;
 use crate::arrays::datatype::DataType;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
-use crate::expr::{cast, Expression};
+use crate::expr::{Expression, cast};
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::operator::LocationRequirement;
+use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_table::{
     ResolvedTableOrCteReference,
     ResolvedTableReference,
 };
-use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct InsertProjections {

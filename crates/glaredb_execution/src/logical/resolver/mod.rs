@@ -9,7 +9,7 @@ pub mod resolved_table_function;
 use std::collections::HashMap;
 
 use expr_resolver::ExpressionResolver;
-use glaredb_error::{not_implemented, DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::ast::{self, ColumnDef, ObjectReference};
 use glaredb_parser::meta::{AstMeta, Raw};
 use glaredb_parser::parser;
@@ -26,8 +26,8 @@ use super::binder::constant_binder::ConstantBinder;
 use super::binder::expr_binder::BaseExpressionBinder;
 use super::binder::table_list::TableAlias;
 use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
-use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::scalar::ScalarValue;
+use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
 use crate::catalog::context::DatabaseContext;
 use crate::expr;
 use crate::logical::operator::LocationRequirement;

@@ -2,8 +2,8 @@ use glaredb_error::{DbError, Result};
 use indexmap::IndexSet;
 
 use super::ExpressionRewriteRule;
-use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 use crate::expr::Expression;
+use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
 
 /// Tries to lift up AND expressions through OR expressions
 ///

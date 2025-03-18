@@ -15,7 +15,7 @@ use array_buffer::{
     SharedOrOwned,
 };
 use flat::FlattenedArray;
-use glaredb_error::{not_implemented, DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use half::f16;
 use physical_type::{
     Addressable,
@@ -26,18 +26,18 @@ use physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI8,
+    PhysicalI128,
     PhysicalInterval,
     PhysicalType,
-    PhysicalU128,
+    PhysicalU8,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU8,
+    PhysicalU128,
     PhysicalUtf8,
     ScalarStorage,
 };
@@ -46,10 +46,10 @@ use validity::Validity;
 use super::cache::MaybeCache;
 use super::compute::copy::copy_rows_array;
 use crate::arrays::datatype::DataType;
-use crate::arrays::scalar::decimal::{Decimal128Scalar, Decimal64Scalar};
+use crate::arrays::scalar::BorrowedScalarValue;
+use crate::arrays::scalar::decimal::{Decimal64Scalar, Decimal128Scalar};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::timestamp::TimestampScalar;
-use crate::arrays::scalar::BorrowedScalarValue;
 use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager, NopBufferManager};
 use crate::buffer::typed::TypedBuffer;
 use crate::util::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};

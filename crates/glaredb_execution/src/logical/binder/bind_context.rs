@@ -6,8 +6,8 @@ use glaredb_error::{DbError, Result};
 use super::bind_query::BoundQuery;
 use super::table_list::{Table, TableAlias, TableList, TableRef};
 use crate::arrays::datatype::DataType;
-use crate::expr::column_expr::ColumnReference;
 use crate::expr::Expression;
+use crate::expr::column_expr::ColumnReference;
 use crate::logical::operator::{LogicalNode, LogicalOperator};
 
 /// Reference to a child bind scope.

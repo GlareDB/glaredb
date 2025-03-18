@@ -4,8 +4,8 @@ use std::ops::ControlFlow;
 
 use glaredb_error::{DbError, Result};
 
-use super::graph::{BaseRelation, RelId, RelationSet};
 use super::ReorderableCondition;
+use super::graph::{BaseRelation, RelId, RelationSet};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::expr::column_expr::ColumnReference;
 use crate::expr::comparison_expr::ComparisonOperator;

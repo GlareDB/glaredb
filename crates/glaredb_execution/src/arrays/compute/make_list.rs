@@ -1,5 +1,6 @@
-use glaredb_error::{not_implemented, DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 
+use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::{ArrayBufferType, ListItemMetadata, SharedOrOwned};
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -10,23 +11,22 @@ use crate::arrays::array::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI8,
+    PhysicalI128,
     PhysicalInterval,
     PhysicalType,
-    PhysicalU128,
+    PhysicalU8,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU8,
+    PhysicalU128,
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
 use crate::arrays::array::validity::Validity;
-use crate::arrays::array::Array;
 use crate::arrays::datatype::DataType;
 use crate::util::convert::TryAsMut;
 use crate::util::iter::IntoExactSizeIterator;

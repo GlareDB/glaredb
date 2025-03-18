@@ -3,8 +3,8 @@ use std::sync::Arc;
 use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_execution::buffer::typed::ByteBuffer;
 
-use super::encoding::rle_bp::RleBpDecoder;
 use super::encoding::PageDecoder;
+use super::encoding::rle_bp::RleBpDecoder;
 use super::read_buffer::{OwnedReadBuffer, ReadBuffer};
 use crate::basic::Encoding;
 use crate::compression::Codec;

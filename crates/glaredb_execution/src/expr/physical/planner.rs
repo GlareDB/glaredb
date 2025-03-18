@@ -1,14 +1,14 @@
 use glaredb_error::{DbError, Result};
 
+use super::PhysicalSortExpression;
 use super::case_expr::PhysicalCaseExpr;
 use super::cast_expr::PhysicalCastExpr;
 use super::column_expr::PhysicalColumnExpr;
 use super::literal_expr::PhysicalLiteralExpr;
 use super::scalar_function_expr::PhysicalScalarFunctionExpr;
-use super::PhysicalSortExpression;
 use crate::arrays::scalar::BorrowedScalarValue;
-use crate::expr::physical::case_expr::PhysicalWhenThen;
 use crate::expr::physical::PhysicalScalarExpression;
+use crate::expr::physical::case_expr::PhysicalWhenThen;
 use crate::expr::{AsScalarFunctionSet, Expression};
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;

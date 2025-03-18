@@ -12,8 +12,8 @@ use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
-use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::resolver::resolve_context::ResolveContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundSelect {

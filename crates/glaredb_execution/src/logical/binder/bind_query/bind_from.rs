@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use glaredb_error::{not_implemented, DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::ast;
 
 use super::{BoundQuery, QueryBinder};

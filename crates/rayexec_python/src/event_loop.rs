@@ -4,7 +4,7 @@ use std::sync::{Arc, OnceLock};
 use glaredb_error::DbError;
 use parking_lot::Mutex;
 use pyo3::types::PyAnyMethods;
-use pyo3::{pyclass, pymethods, Py, PyAny, Python};
+use pyo3::{Py, PyAny, Python, pyclass, pymethods};
 
 use crate::errors::Result;
 

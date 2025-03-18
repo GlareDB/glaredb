@@ -76,7 +76,7 @@ impl<'a> PackedDecoder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::generated::schema::{data_type, DataType, DecimalTypeMeta, EmptyMeta, Field};
+    use crate::generated::schema::{DataType, DecimalTypeMeta, EmptyMeta, Field, data_type};
 
     #[test]
     fn single_message() {

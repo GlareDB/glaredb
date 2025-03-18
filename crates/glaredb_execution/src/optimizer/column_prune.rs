@@ -3,8 +3,8 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use glaredb_error::{DbError, Result};
 
 use super::OptimizeRule;
-use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, LogicalOperator, Node};

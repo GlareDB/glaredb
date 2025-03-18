@@ -5,10 +5,10 @@ use crate::arrays::batch::Batch;
 use crate::arrays::compute::make_list::make_list_from_values;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_LIST_VALUES: ScalarFunctionSet = ScalarFunctionSet {
     name: "list_values",

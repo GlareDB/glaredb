@@ -1,12 +1,12 @@
-use glaredb_error::{not_implemented, DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 
+use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     Addressable,
     AddressableMut,
     MutableScalarStorage,
     ScalarStorage,
 };
-use crate::arrays::array::Array;
 use crate::arrays::executor::OutBuffer;
 use crate::util::iter::IntoExactSizeIterator;
 

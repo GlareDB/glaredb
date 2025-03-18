@@ -1,4 +1,4 @@
-use glaredb_error::{not_implemented, DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use tracing::trace;
 
 use crate::ast::{

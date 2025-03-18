@@ -2,7 +2,7 @@ use std::fmt;
 
 use glaredb_error::{DbError, Result};
 
-use crate::keywords::{keyword_from_str, Keyword};
+use crate::keywords::{Keyword, keyword_from_str};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Comment {

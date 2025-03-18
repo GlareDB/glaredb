@@ -20,6 +20,7 @@
 use std::task::{Context, Poll};
 
 use glaredb_error::{DbError, Result, ResultExt};
+use glaredb_execution::arrays::array::Array;
 use glaredb_execution::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
@@ -28,7 +29,6 @@ use glaredb_execution::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalUtf8,
 };
-use glaredb_execution::arrays::array::Array;
 use glaredb_execution::arrays::batch::Batch;
 use glaredb_execution::arrays::compute::cast::parse::{
     BoolParser,

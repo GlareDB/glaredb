@@ -1,15 +1,15 @@
-use glaredb_error::{not_implemented, DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::ast::{self, QueryNode};
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ExpressionColumnBinder;
-use crate::arrays::compute::cast::parse::{Decimal128Parser, Decimal64Parser, Parser};
+use crate::arrays::compute::cast::parse::{Decimal64Parser, Decimal128Parser, Parser};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::decimal::{
-    Decimal128Scalar,
-    Decimal128Type,
     Decimal64Scalar,
     Decimal64Type,
+    Decimal128Scalar,
+    Decimal128Type,
     DecimalType,
 };
 use crate::arrays::scalar::interval::Interval;
@@ -27,7 +27,7 @@ use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
-use crate::expr::{self, bind_aggregate_function, Expression};
+use crate::expr::{self, Expression, bind_aggregate_function};
 use crate::functions::scalar::builtin::datetime::FUNCTION_SET_DATE_PART;
 use crate::functions::scalar::builtin::is::{
     FUNCTION_SET_IS_FALSE,
@@ -47,11 +47,11 @@ use crate::functions::scalar::builtin::string::{
     FUNCTION_SET_STARTS_WITH,
     FUNCTION_SET_SUBSTRING,
 };
-use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::binder::bind_query::QueryBinder;
+use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
+use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
-use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecursionContext {

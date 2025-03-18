@@ -6,74 +6,74 @@ use num_traits::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
 use super::behavior::CastFailBehavior;
 use super::format::{
     BoolFormatter,
-    Decimal128Formatter,
     Decimal64Formatter,
+    Decimal128Formatter,
     Float32Formatter,
     Float64Formatter,
     Formatter,
-    Int128Formatter,
+    Int8Formatter,
     Int16Formatter,
     Int32Formatter,
     Int64Formatter,
-    Int8Formatter,
+    Int128Formatter,
     TimestampMicrosecondsFormatter,
     TimestampMillisecondsFormatter,
     TimestampNanosecondsFormatter,
     TimestampSecondsFormatter,
-    UInt128Formatter,
+    UInt8Formatter,
     UInt16Formatter,
     UInt32Formatter,
     UInt64Formatter,
-    UInt8Formatter,
+    UInt128Formatter,
 };
 use super::parse::{
     BoolParser,
     Date32Parser,
-    Decimal128Parser,
     Decimal64Parser,
+    Decimal128Parser,
     Float16Parser,
     Float32Parser,
     Float64Parser,
-    Int128Parser,
+    Int8Parser,
     Int16Parser,
     Int32Parser,
     Int64Parser,
-    Int8Parser,
+    Int128Parser,
     IntervalParser,
     Parser,
-    UInt128Parser,
+    UInt8Parser,
     UInt16Parser,
     UInt32Parser,
     UInt64Parser,
-    UInt8Parser,
+    UInt128Parser,
 };
+use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalBool,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI8,
+    PhysicalI128,
     PhysicalInterval,
-    PhysicalU128,
+    PhysicalU8,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU8,
+    PhysicalU128,
     PhysicalUtf8,
     ScalarStorage,
 };
 use crate::arrays::array::validity::Validity;
-use crate::arrays::array::Array;
 use crate::arrays::cache::NopCache;
 use crate::arrays::datatype::{DataType, TimeUnit};
-use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
-use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
 use crate::buffer::buffer_manager::NopBufferManager;
 use crate::util::iter::IntoExactSizeIterator;
 

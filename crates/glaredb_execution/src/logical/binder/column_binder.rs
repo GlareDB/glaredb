@@ -4,8 +4,8 @@ use glaredb_parser::ast;
 use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn};
 use super::expr_binder::RecursionContext;
 use super::table_list::TableAlias;
-use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::Expression;
+use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::logical::resolver::ResolvedMeta;
 
 /// Defined behavior of how to bind idents to actual columns.

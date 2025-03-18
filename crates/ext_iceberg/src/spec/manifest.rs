@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 
-use apache_avro::{from_value, Reader};
+use apache_avro::{Reader, from_value};
 use glaredb_error::{DbError, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 

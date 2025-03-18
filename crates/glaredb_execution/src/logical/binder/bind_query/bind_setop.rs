@@ -1,17 +1,17 @@
-use glaredb_error::{not_implemented, DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::ast;
 
+use super::BoundQuery;
 use super::bind_modifier::{BoundLimit, BoundOrderBy};
 use super::bind_select_list::SelectListBinder;
-use super::BoundQuery;
-use crate::functions::implicit::{implicit_cast_score, ImplicitCastConfig};
+use crate::functions::implicit::{ImplicitCastConfig, implicit_cast_score};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
-use crate::logical::binder::bind_query::bind_modifier::ModifierBinder;
 use crate::logical::binder::bind_query::QueryBinder;
+use crate::logical::binder::bind_query::bind_modifier::ModifierBinder;
 use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_setop::SetOpKind;
-use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::ResolvedMeta;
+use crate::logical::resolver::resolve_context::ResolveContext;
 
 /// Cast requirements for the set operation.
 ///

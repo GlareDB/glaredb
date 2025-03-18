@@ -2,8 +2,8 @@ use std::error::Error;
 use std::fmt;
 
 use glaredb_error::DbError;
-use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyErr;
+use pyo3::exceptions::PyRuntimeError;
 
 pub type Result<T, E = PythonError> = std::result::Result<T, E>;
 

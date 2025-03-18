@@ -1,9 +1,9 @@
 use glaredb_error::{DbError, Result};
 
 use super::AggregateState;
+use crate::arrays::array::Array;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{Addressable, ScalarStorage};
-use crate::arrays::array::Array;
 use crate::util::iter::IntoExactSizeIterator;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,10 +22,10 @@ impl BinaryNonNullUpdater {
         S2: ScalarStorage,
         Output: ?Sized,
         for<'a> State: AggregateState<
-            (&'a S1::StorageType, &'a S2::StorageType),
-            Output,
-            BindState = BindState,
-        >,
+                (&'a S1::StorageType, &'a S2::StorageType),
+                Output,
+                BindState = BindState,
+            >,
     {
         let selection = selection.into_exact_size_iter();
         if selection.len() != states.len() {
@@ -89,10 +89,10 @@ impl BinaryNonNullUpdater {
         S2: ScalarStorage,
         Output: ?Sized,
         for<'a> State: AggregateState<
-            (&'a S1::StorageType, &'a S2::StorageType),
-            Output,
-            BindState = BindState,
-        >,
+                (&'a S1::StorageType, &'a S2::StorageType),
+                Output,
+                BindState = BindState,
+            >,
     {
         let input1 = S1::get_addressable(array1.array_buffer)?;
         let input2 = S2::get_addressable(array2.array_buffer)?;

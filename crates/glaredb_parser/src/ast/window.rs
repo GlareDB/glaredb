@@ -198,8 +198,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::ast::testutil::parse_ast;
     use crate::ast::Literal;
+    use crate::ast::testutil::parse_ast;
 
     #[test]
     fn window_range_unbounded_preceding() {

@@ -2,17 +2,17 @@ use std::fmt::Debug;
 
 use glaredb_error::{DbError, Result};
 
-use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalI64};
 use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalI64};
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::executor::PutBuffer;
+use crate::arrays::executor::aggregate::AggregateState;
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::aggregate::{AggregateFunction, RawAggregateFunction};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::AggregateFunctionSet;
-use crate::functions::Signature;
 
 pub const FUNCTION_SET_COUNT: AggregateFunctionSet = AggregateFunctionSet {
     name: "count",

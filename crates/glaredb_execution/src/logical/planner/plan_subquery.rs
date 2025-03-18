@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
-use glaredb_error::{not_implemented, DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::arrays::datatype::DataType;
 use crate::expr::aggregate_expr::AggregateExpr;
@@ -8,7 +8,7 @@ use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::negate_expr::NegateOperator;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
-use crate::expr::{self, bind_aggregate_function, Expression};
+use crate::expr::{self, Expression, bind_aggregate_function};
 use crate::functions::aggregate::builtin::count::FUNCTION_SET_COUNT;
 use crate::logical::binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef};
 use crate::logical::logical_aggregate::LogicalAggregate;

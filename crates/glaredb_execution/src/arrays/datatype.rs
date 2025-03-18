@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::field::Field;
-use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
+use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
 
 /// The 'type' of the dataype.
 ///
@@ -613,8 +613,8 @@ impl ProtoConv for DataType {
     type ProtoType = glaredb_proto::generated::schema::DataType;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use glaredb_proto::generated::schema::data_type::Value;
         use glaredb_proto::generated::schema::EmptyMeta;
+        use glaredb_proto::generated::schema::data_type::Value;
 
         let value = match self {
             DataType::Null => Value::TypeNull(EmptyMeta {}),

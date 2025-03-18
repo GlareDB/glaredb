@@ -4,7 +4,7 @@ use std::sync::LazyLock;
 
 use glaredb_error::{DbError, Result};
 use regex::Regex;
-use serde::{de, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de};
 
 use super::Schema;
 

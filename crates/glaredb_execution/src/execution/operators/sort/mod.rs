@@ -13,8 +13,8 @@ use crate::arrays::sort::partial_sort::{PartialSortedRowCollection, SortedRowApp
 use crate::arrays::sort::sort_layout::{SortColumn, SortLayout};
 use crate::arrays::sort::sorted_segment::{SortedSegment, SortedSegmentScanState};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::expr::physical::PhysicalSortExpression;
+use crate::expr::physical::evaluator::ExpressionEvaluator;
 
 #[derive(Debug)]
 pub enum SortPartitionState {

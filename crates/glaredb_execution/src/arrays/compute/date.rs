@@ -1,11 +1,11 @@
 use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc};
-use glaredb_error::{not_implemented, DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 
-use crate::arrays::array::physical_type::{PhysicalI32, PhysicalI64};
 use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::{PhysicalI32, PhysicalI64};
 use crate::arrays::datatype::{DataType, TimeUnit};
-use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::executor::OutBuffer;
+use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::scalar::decimal::{Decimal64Type, DecimalType};
 use crate::util::iter::IntoExactSizeIterator;
 

@@ -24,7 +24,7 @@ mod plan_unnest;
 
 use std::collections::BTreeMap;
 
-use glaredb_error::{not_implemented, DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use uuid::Uuid;
 
 use super::operators::materialize::PhysicalMaterialize;

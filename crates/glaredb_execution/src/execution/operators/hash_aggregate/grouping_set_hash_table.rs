@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use glaredb_error::{DbError, Result};
 
-use super::aggregate_hash_table::{AggregateHashTable, AggregateHashTableInsertState};
 use super::Aggregates;
-use crate::arrays::array::validity::Validity;
+use super::aggregate_hash_table::{AggregateHashTable, AggregateHashTableInsertState};
 use crate::arrays::array::Array;
+use crate::arrays::array::validity::Validity;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_layout::AggregateLayout;

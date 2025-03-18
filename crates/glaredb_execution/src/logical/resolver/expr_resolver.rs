@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glaredb_error::{not_implemented, DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::ast::{self, FunctionArg, ReplaceColumn};
 use glaredb_parser::meta::Raw;
 

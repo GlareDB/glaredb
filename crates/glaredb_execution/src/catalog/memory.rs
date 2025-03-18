@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use futures::{stream, Stream};
+use futures::{Stream, stream};
 use glaredb_error::{DbError, Result};
-use scc::ebr::Guard;
 use scc::HashIndex;
+use scc::ebr::Guard;
 
 use super::create::{
     CreateAggregateFunctionInfo,
@@ -27,13 +27,13 @@ use super::entry::{
 };
 use super::{Catalog, Schema};
 use crate::catalog::entry::SchemaEntry;
+use crate::execution::operators::PlannedOperator;
 use crate::execution::operators::catalog::create_schema::PhysicalCreateSchema;
 use crate::execution::operators::catalog::create_table::PhysicalCreateTable;
 use crate::execution::operators::catalog::create_table_as::PhysicalCreateTableAs;
 use crate::execution::operators::catalog::create_view::PhysicalCreateView;
 use crate::execution::operators::catalog::drop::PhysicalDrop;
 use crate::execution::operators::catalog::insert::PhysicalInsert;
-use crate::execution::operators::PlannedOperator;
 use crate::functions::table::builtin::memory_scan::FUNCTION_SET_MEMORY_SCAN;
 use crate::storage::storage_manager::{StorageManager, StorageTableId};
 

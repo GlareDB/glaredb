@@ -1,13 +1,13 @@
-use glaredb_error::{not_implemented, DbError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt, not_implemented};
 
 use super::OperatorPlanState;
 use crate::execution::operators::hash_aggregate::{Aggregates, PhysicalHashAggregate};
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::ungrouped_aggregate::PhysicalUngroupedAggregate;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
-use crate::expr::physical::column_expr::PhysicalColumnExpr;
-use crate::expr::physical::PhysicalAggregateExpression;
 use crate::expr::Expression;
+use crate::expr::physical::PhysicalAggregateExpression;
+use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::operator::{LogicalNode, Node};
 

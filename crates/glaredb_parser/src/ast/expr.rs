@@ -13,7 +13,7 @@ use super::{
     WindowDefinition,
     WindowSpec,
 };
-use crate::keywords::{keyword_from_str, Keyword};
+use crate::keywords::{Keyword, keyword_from_str};
 use crate::meta::{AstMeta, Raw};
 use crate::parser::Parser;
 use crate::tokens::{Token, Word};
