@@ -9,6 +9,7 @@ use glaredb_parser::statement::RawStatement;
 use super::Engine;
 use super::query_result::QueryResult;
 use super::session::Session;
+use crate::extension::Extension;
 use crate::runtime::{PipelineExecutor, Runtime};
 
 /// A wrapper around a session and an engine for when running the database in a
@@ -41,6 +42,13 @@ where
 
     pub fn session(&self) -> &SingleUserSession<P, R> {
         &self.session
+    }
+
+    pub fn register_extension<E>(&self, ext: E) -> Result<()>
+    where
+        E: Extension,
+    {
+        self.engine.register_extension(ext)
     }
 }
 

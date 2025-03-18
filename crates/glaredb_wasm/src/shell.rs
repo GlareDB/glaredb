@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
 
-use glaredb_execution::engine::single_user::SingleUserEngine;
 use glaredb_execution::shell::lineedit::{KeyEvent, TermSize};
 use glaredb_execution::shell::shell::{RawModeGuard, RawModeTerm, Shell, ShellSignal};
 use js_sys::Function;
@@ -13,6 +12,7 @@ use web_sys::KeyboardEvent;
 
 use crate::errors::Result;
 use crate::runtime::{WasmExecutor, WasmRuntime};
+use crate::session::WasmSession;
 
 #[wasm_bindgen]
 extern "C" {
@@ -137,13 +137,12 @@ impl RawModeTerm for NopRawMode {
 impl WasmShell {
     /// Create a new shell that writes its output to the provided terminal.
     pub fn try_new(terminal: Terminal) -> Result<WasmShell> {
-        let runtime = WasmRuntime::try_new()?;
-        let engine = SingleUserEngine::try_new(WasmExecutor, runtime)?;
+        let session = WasmSession::try_new()?;
 
         let terminal = TerminalBuffer::new(terminal);
         let mut shell = Shell::new(terminal, NopRawMode);
 
-        shell.attach(engine, "GlareDB WASM Shell")?;
+        shell.attach(session.engine, "GlareDB WASM Shell")?;
 
         let edit_guard = shell.edit_start()?;
 

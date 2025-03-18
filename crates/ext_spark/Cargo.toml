@@ -1,0 +1,9 @@
+[package]
+name = "ext_spark"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+glaredb_execution = { path = '../glaredb_execution' }
+glaredb_error = { path = '../glaredb_error' }
+
