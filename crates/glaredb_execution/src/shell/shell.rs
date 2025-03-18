@@ -5,7 +5,7 @@ use tracing::trace;
 
 use super::lineedit::{KeyEvent, LineEditor, Signal, TermSize};
 use super::raw::RawTerminalWriter;
-use super::vt100::{MODE_BOLD, MODES_OFF};
+use super::vt100::{MODES_OFF, MODE_BOLD};
 use crate::arrays::format::pretty::table::PrettyTable;
 use crate::engine::single_user::SingleUserEngine;
 use crate::runtime::{PipelineExecutor, Runtime};
@@ -90,7 +90,7 @@ where
         let mut writer = RawTerminalWriter::new(self.editor.writer_mut());
         writeln!(writer, "{}{shell_msg}{}", MODE_BOLD, MODES_OFF)?;
         let version = env!("CARGO_PKG_VERSION");
-        writeln!(writer, "Preview ({version}) - There will be bugs!")?;
+        writeln!(writer, "Preview ({version})")?;
 
         Ok(())
     }
