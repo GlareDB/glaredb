@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::array::selection::Selection;
 use super::cache::{BufferCache, NopCache};
@@ -112,7 +112,7 @@ impl Batch {
 
         for array in &arrays {
             if array.logical_len() != num_rows {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Attempted to create batch from arrays with different lengths",
                 )
                 .with_field("expected", num_rows)
@@ -162,7 +162,7 @@ impl Batch {
     /// holding the same data type.
     pub fn swap(&mut self, other: &mut Self) -> Result<()> {
         if self.arrays.len() != other.arrays.len() {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Batches have different number of arrays, cannot swap between them",
             )
             .with_field("self", self.arrays.len())
@@ -265,7 +265,7 @@ impl Batch {
                 self.num_rows = 0;
                 Ok(())
             }
-            None => Err(RayexecError::new(
+            None => Err(DbError::new(
                 "No buffer cache configured for batch, cannot reset for write",
             )),
         }
@@ -279,7 +279,7 @@ impl Batch {
         I: IntoIterator<Item = (usize, usize)> + Clone,
     {
         if self.arrays.len() != dest.arrays.len() {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Attempted to copy rows to another batch with invalid number of columns",
             ));
         }
@@ -300,7 +300,7 @@ impl Batch {
         let capacity = self.write_capacity()?;
         if self.num_rows() + other.num_rows() > capacity {
             return Err(
-                RayexecError::new("Batch doesn't have sufficient capacity for append")
+                DbError::new("Batch doesn't have sufficient capacity for append")
                     .with_field("self_rows", self.num_rows())
                     .with_field("other_rows", other.num_rows())
                     .with_field("self_capacity", capacity),
@@ -365,7 +365,7 @@ impl Batch {
     pub fn write_capacity(&self) -> Result<usize> {
         match &self.cache {
             Some(cache) => Ok(cache.capacity()),
-            None => Err(RayexecError::new(
+            None => Err(DbError::new(
                 "Batch doesn't have a buffer cache and cannot be written to",
             )),
         }
@@ -393,7 +393,7 @@ impl Batch {
 /// Check that two batches have the same number of arrays.
 fn check_num_arrays(b1: &Batch, b2: &Batch) -> Result<()> {
     if b1.arrays.len() != b2.arrays.len() {
-        return Err(RayexecError::new("Batches have different number of arrays")
+        return Err(DbError::new("Batches have different number of arrays")
             .with_field("batch1", b1.arrays.len())
             .with_field("batch2", b2.arrays.len()));
     }

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use glaredb_error::RayexecError;
+use glaredb_error::DbError;
 use glaredb_execution::arrays::batch::Batch;
 use glaredb_execution::arrays::field::ColumnSchema;
 use glaredb_execution::engine::single_user::SingleUserEngine;
@@ -29,7 +29,7 @@ impl WasmSession {
     }
 
     pub async fn query(&self, _sql: &str) -> Result<WasmQueryResults> {
-        Err(RayexecError::new("query not implemented").into())
+        Err(DbError::new("query not implemented").into())
     }
 
     // TODO: This copies `content`. Not sure if there's a good way to get around
@@ -40,7 +40,7 @@ impl WasmSession {
     #[allow(clippy::boxed_local)]
     pub fn register_file(&self, name: String, _content: Box<[u8]>) -> Result<()> {
         trace!(%name, "registering local file with runtime");
-        Err(RayexecError::new("register file not implemented").into())
+        Err(DbError::new("register file not implemented").into())
     }
 
     /// Return a list of registered file names.
@@ -51,7 +51,7 @@ impl WasmSession {
     }
 
     pub async fn connect_hybrid(&self, _connection_string: String) -> Result<()> {
-        Err(RayexecError::new("connect hybrid not implemented").into())
+        Err(DbError::new("connect hybrid not implemented").into())
     }
 
     pub fn version(&self) -> String {

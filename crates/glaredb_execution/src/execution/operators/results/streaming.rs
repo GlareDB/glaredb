@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
 use futures::Stream;
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use parking_lot::Mutex;
 
 use crate::arrays::batch::Batch;
@@ -38,7 +38,7 @@ struct ResultStreamInner {
     /// Resized when we create the partition states.
     push_wakers: Vec<Option<Waker>>,
     /// Query error.
-    error: Option<RayexecError>,
+    error: Option<DbError>,
     /// Number of inputs we're waiting on to finish.
     ///
     /// Set when we create partition states.
@@ -125,7 +125,7 @@ pub struct ResultErrorSink {
 }
 
 impl ErrorSink for ResultErrorSink {
-    fn set_error(&self, error: RayexecError) {
+    fn set_error(&self, error: DbError) {
         let mut inner = self.inner.lock();
         inner.error = Some(error);
 

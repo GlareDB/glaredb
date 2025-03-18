@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 use tracing::error;
 
-use super::ResolveContext;
 use super::resolved_table::{
     ResolvedTableOrCteReference,
     ResolvedTableReference,
     ResolvedViewReference,
     UnresolvedTableReference,
 };
+use super::ResolveContext;
 use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
 use crate::catalog::database::Database;
 use crate::catalog::entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType};
@@ -26,7 +26,7 @@ pub fn create_user_facing_resolve_err(
     schema_ent: Option<&MemorySchema>,
     object_types: &[CatalogEntryType],
     name: &str,
-) -> RayexecError {
+) -> DbError {
     // Find similar function to include in error message.
     let similar = match schema_ent {
         Some(schema_ent) => match schema_ent.find_similar_entry(object_types, name) {
@@ -49,11 +49,11 @@ pub fn create_user_facing_resolve_err(
         .join(" or ");
 
     match similar {
-        Some(similar) => RayexecError::new(format!(
+        Some(similar) => DbError::new(format!(
             "Cannot resolve {} with name '{}', did you mean '{}'?",
             formatted_object_types, name, similar.name,
         )),
-        None => RayexecError::new(format!(
+        None => DbError::new(format!(
             "Cannot resolve {} with name '{}'",
             formatted_object_types, name
         )),
@@ -106,7 +106,7 @@ impl<'a> NormalResolver<'a> {
                 [catalog, schema, name]
             }
             _ => {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Unexpected number of identifiers in table function reference",
                 ));
             }
@@ -133,7 +133,7 @@ impl<'a> NormalResolver<'a> {
         reference: &ast::ObjectReference,
     ) -> Result<TableFunctionSet> {
         self.resolve_table_function(reference)?.ok_or_else(|| {
-            RayexecError::new(format!(
+            DbError::new(format!(
                 "Missing table function for reference '{}'",
                 reference
             ))
@@ -173,7 +173,7 @@ impl<'a> NormalResolver<'a> {
                 [catalog, schema, table]
             }
             _ => {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Unexpected number of identifiers in table reference",
                 ));
             }
@@ -220,7 +220,7 @@ impl<'a> NormalResolver<'a> {
                     ));
                 }
                 _ => {
-                    return Err(RayexecError::new(format!(
+                    return Err(DbError::new(format!(
                         "Unexpected catalog entry type: {:?}",
                         entry.entry_type()
                     )));
@@ -264,7 +264,7 @@ impl<'a> NormalResolver<'a> {
             .await?
         {
             MaybeResolvedTable::Resolved(table) => Ok(table),
-            _ => Err(RayexecError::new(format!(
+            _ => Err(DbError::new(format!(
                 "Missing table or view for reference '{}'",
                 reference
             ))),

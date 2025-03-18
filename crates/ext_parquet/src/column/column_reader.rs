@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_execution::arrays::array::Array;
 
 use super::page_reader::PageReader;
@@ -52,7 +52,7 @@ impl ColumnReader {
             // Read the actual data.
             let decoder = match self.page_reader.state.page_decoder.as_mut() {
                 Some(decoder) => decoder,
-                None => return Err(RayexecError::new("Missing page decoder")),
+                None => return Err(DbError::new("Missing page decoder")),
             };
             let page_buf = &mut self.page_reader.state.page_buffer;
             match decoder {

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_proto::ProtoConv;
 
 use super::binder::bind_context::BindContext;
@@ -68,7 +68,7 @@ impl ProtoConv for LocationRequirement {
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         Ok(match proto {
             Self::ProtoType::InvalidLocationRequirement => {
-                return Err(RayexecError::new("invalid"));
+                return Err(DbError::new("invalid"));
             }
             Self::ProtoType::ClientLocal => Self::ClientLocal,
             Self::ProtoType::Remote => Self::Remote,
@@ -148,7 +148,7 @@ impl<N> Node<N> {
 
     pub fn take_one_child_exact(&mut self) -> Result<LogicalOperator> {
         if self.children.len() != 1 {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Expected 1 child to operator, have {}",
                 self.children.len()
             )));
@@ -158,7 +158,7 @@ impl<N> Node<N> {
 
     pub fn take_two_children_exact(&mut self) -> Result<[LogicalOperator; 2]> {
         if self.children.len() != 2 {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Expected 2 children to operator, have {}",
                 self.children.len()
             )));
@@ -172,7 +172,7 @@ impl<N> Node<N> {
 
     pub fn get_one_child_exact(&self) -> Result<&LogicalOperator> {
         if self.children.len() != 1 {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Expected 1 child to operator, have {}",
                 self.children.len()
             )));
@@ -182,7 +182,7 @@ impl<N> Node<N> {
 
     pub fn get_nth_child(&self, n: usize) -> Result<&LogicalOperator> {
         if self.children.len() < n + 1 {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Expected at least {} children, got {}",
                 n + 1,
                 self.children.len()
@@ -194,7 +194,7 @@ impl<N> Node<N> {
 
     pub fn get_nth_child_mut(&mut self, n: usize) -> Result<&mut LogicalOperator> {
         if self.children.len() < n + 1 {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Expected at least {} children, got {}",
                 n + 1,
                 self.children.len()

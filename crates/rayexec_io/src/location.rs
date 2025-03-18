@@ -1,7 +1,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use glaredb_error::{OptionExt, RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, OptionExt, Result, ResultExt};
 use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -104,7 +104,7 @@ impl FileLocation {
         match self {
             Self::Url(url) => {
                 url.path_segments_mut()
-                    .map_err(|_| RayexecError::new("Failed to get path segments for url"))?
+                    .map_err(|_| DbError::new("Failed to get path segments for url"))?
                     .extend(segments);
             }
             Self::Path(path) => {
@@ -136,7 +136,7 @@ impl ProtoConv for FileLocation {
             Self::Url(url) => Value::Url(url.to_string()),
             Self::Path(path) => Value::Path(
                 path.to_str()
-                    .ok_or_else(|| RayexecError::new("path not utf8"))?
+                    .ok_or_else(|| DbError::new("path not utf8"))?
                     .to_string(),
             ),
         };

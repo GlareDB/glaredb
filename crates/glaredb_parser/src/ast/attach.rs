@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr, Ident, ObjectReference};
@@ -32,7 +32,7 @@ impl AstParseable for Attach<Raw> {
             Keyword::DATABASE => AttachType::Database,
             Keyword::TABLE => AttachType::Table,
             other => {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Expected DATABASE or TABLE for attach type, got '{other}'"
                 )));
             }
@@ -46,7 +46,7 @@ impl AstParseable for Attach<Raw> {
             loop {
                 let key = match Ident::parse(parser) {
                     Ok(ident) => ident,
-                    Err(_) => return Err(RayexecError::new("Expected identifier for option key")),
+                    Err(_) => return Err(DbError::new("Expected identifier for option key")),
                 };
 
                 let val = Expr::parse(parser)?;
@@ -82,7 +82,7 @@ impl AstParseable for Detach<Raw> {
             Keyword::DATABASE => AttachType::Database,
             Keyword::TABLE => AttachType::Table,
             other => {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Expected DATABASE or TABLE for attach type, got '{other}'"
                 )));
             }
@@ -99,8 +99,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::ast::Literal;
     use crate::ast::testutil::parse_ast;
+    use crate::ast::Literal;
 
     #[test]
     fn attach_pg_database() {

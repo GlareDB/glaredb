@@ -1,6 +1,6 @@
 use std::fmt;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::Expression;
 use crate::arrays::datatype::DataType;
@@ -20,7 +20,7 @@ impl UnnestExpr {
         match child_datatype {
             DataType::Null => Ok(DataType::Null),
             DataType::List(list) => Ok(list.datatype.as_ref().clone()),
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Unsupported datatype for UNNEST: {other}"
             ))),
         }

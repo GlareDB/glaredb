@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
@@ -6,8 +6,8 @@ use crate::catalog::create::OnConflict;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::logical_create::LogicalCreateView;
 use crate::logical::operator::{LocationRequirement, Node};
-use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 use crate::logical::statistics::StatisticsValue;
 
 pub struct CreateViewBinder<'a> {
@@ -55,7 +55,7 @@ impl<'a> CreateViewBinder<'a> {
         if let Some(column_aliases) = &column_aliases {
             let table = bind_context.get_table(query.output_table_ref())?;
             if column_aliases.len() > table.num_columns() {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Expected at most {} column aliases for view, got {}",
                     table.num_columns(),
                     column_aliases.len()

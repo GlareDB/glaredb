@@ -1,11 +1,11 @@
 use std::io::{self, Write};
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use tracing::trace;
 
 use super::lineedit::{KeyEvent, LineEditor, Signal, TermSize};
 use super::raw::RawTerminalWriter;
-use super::vt100::{MODE_BOLD, MODES_OFF};
+use super::vt100::{MODES_OFF, MODE_BOLD};
 use crate::arrays::format::pretty::table::PrettyTable;
 use crate::engine::single_user::SingleUserEngine;
 use crate::runtime::{PipelineExecutor, Runtime};
@@ -123,9 +123,7 @@ where
                         session.pending = Some(query);
                     }
                     None => {
-                        return Err(RayexecError::new(
-                            "Attempted to run a query without a session",
-                        ));
+                        return Err(DbError::new("Attempted to run a query without a session"));
                     }
                 }
                 Ok(ShellSignal::ExecutePending(guard))
@@ -203,7 +201,7 @@ where
 
                 Ok(())
             }
-            None => Err(RayexecError::new(
+            None => Err(DbError::new(
                 "Attempted to run query without attached engine",
             )),
         }

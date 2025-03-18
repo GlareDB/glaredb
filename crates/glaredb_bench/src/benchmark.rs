@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 
 /// Describes a benchmark to run.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,7 +67,7 @@ impl Benchmark {
                     // that by not allowing a setup to happen after reading in a
                     // 'run' query.
                     if setup_finished {
-                        return Err(RayexecError::new(
+                        return Err(DbError::new(
                             "'setup' queries must come before 'run' queries",
                         ));
                     }
@@ -95,7 +95,7 @@ impl Benchmark {
 
         // Setup can be empty, but benchmark queries cannot.
         if queries.is_empty() {
-            return Err(RayexecError::new("No benchmark queries"));
+            return Err(DbError::new("No benchmark queries"));
         }
 
         Ok(Benchmark { setup, queries })
@@ -112,7 +112,7 @@ fn flush_query_buffer(
             section.push(query_buffer.trim().to_string());
             query_buffer.clear();
         } else {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Query found outside of any section: {query_buffer}",
             )));
         }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::file::{AsyncReadStream, FileSource};
 use crate::buffer::buffer_manager::AsRawBufferManager;
@@ -71,7 +71,7 @@ impl AsyncReadStream for MemoryFileRead {
         }
 
         if (self.data.capacity() - self.idx) < self.remaining {
-            return Err(RayexecError::new("Invalid range"));
+            return Err(DbError::new("Invalid range"));
         }
 
         let count = usize::min(buf.len(), self.remaining);

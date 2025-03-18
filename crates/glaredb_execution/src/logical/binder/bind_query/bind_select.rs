@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::bind_from::{BoundFrom, FromBinder};
@@ -12,8 +12,8 @@ use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
-use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundSelect {
@@ -65,7 +65,7 @@ impl<'a> SelectBinder<'a> {
             .expand_all_select_exprs(select.projections)?;
 
         if projections.is_empty() {
-            return Err(RayexecError::new("Cannot SELECT * without a FROM clause"));
+            return Err(DbError::new("Cannot SELECT * without a FROM clause"));
         }
 
         let mut select_list = SelectListBinder::new(from_bind_ref, self.resolve_context)

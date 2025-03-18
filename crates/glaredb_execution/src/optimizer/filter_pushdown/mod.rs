@@ -6,7 +6,7 @@ pub mod split;
 use condition_extractor::{ExprJoinSide, JoinConditionExtractor};
 use extracted_filter::ExtractedFilter;
 use generator::FilterGenerator;
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use split::split_conjunction;
 
 use super::OptimizeRule;
@@ -396,7 +396,7 @@ impl FilterPushdown {
                     LogicalOperator::MaterializationScan(scan) => {
                         // Sanity check.
                         if scan.node.mat != plan.node.mat_ref {
-                            return Err(RayexecError::new(format!(
+                            return Err(DbError::new(format!(
                                 "Different materialization refs: {} and {}",
                                 scan.node.mat, plan.node.mat_ref
                             )));
@@ -413,7 +413,7 @@ impl FilterPushdown {
                         mat.plan = optimized;
                     }
                     other => {
-                        return Err(RayexecError::new(format!(
+                        return Err(DbError::new(format!(
                             "Unexpected operator on left side of magic join: {other:?}"
                         )));
                     }
@@ -598,14 +598,10 @@ impl FilterPushdown {
         // filters that get pushed to the left/right ops. Both of these should
         // be empty.
         if !conditions.left_filter.is_empty() {
-            return Err(RayexecError::new(
-                "Left filters unexpectedly has expression",
-            ));
+            return Err(DbError::new("Left filters unexpectedly has expression"));
         }
         if !conditions.right_filter.is_empty() {
-            return Err(RayexecError::new(
-                "Right filters unexpectedly has expression",
-            ));
+            return Err(DbError::new("Right filters unexpectedly has expression"));
         }
 
         // Create the join using the extracted conditions.
@@ -634,13 +630,13 @@ fn replace_references(
     match expr {
         Expression::Column(col) => {
             if col.reference.table_scope != table_ref {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Unexpected table ref, expected {}, got {}",
                     table_ref, col.reference.table_scope
                 )));
             }
             if col.reference.column >= columns.len() {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Column reference outside of expected columns, ref: {col}, columns len: {}",
                     columns.len()
                 )));

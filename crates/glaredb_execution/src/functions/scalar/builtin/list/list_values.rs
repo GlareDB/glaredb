@@ -1,14 +1,14 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::make_list::make_list_from_values;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::expr::Expression;
-use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 
 pub const FUNCTION_SET_LIST_VALUES: ScalarFunctionSet = ScalarFunctionSet {
     name: "list_values",
@@ -52,7 +52,7 @@ impl ScalarFunction for ListValues {
             let dt = input.datatype()?;
             // TODO: We can add casts here.
             if dt != first {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Not all inputs are the same type, got {dt}, expected {first}"
                 )));
             }

@@ -4,7 +4,7 @@
 //! schemas are runtime only concepts are defined by the order and types of
 //! messages encoded into the buffer.
 
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 use prost::Message;
 
 #[derive(Debug)]
@@ -56,7 +56,7 @@ impl<'a> PackedDecoder<'a> {
         let msg_len_buf: [u8; 8] = self
             .buf
             .get(self.n..self.n + 8)
-            .ok_or_else(|| RayexecError::new("buffer too small to contain message"))?
+            .ok_or_else(|| DbError::new("buffer too small to contain message"))?
             .try_into()
             .unwrap();
 
@@ -76,7 +76,7 @@ impl<'a> PackedDecoder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::generated::schema::{DataType, DecimalTypeMeta, EmptyMeta, Field, data_type};
+    use crate::generated::schema::{data_type, DataType, DecimalTypeMeta, EmptyMeta, Field};
 
     #[test]
     fn single_message() {

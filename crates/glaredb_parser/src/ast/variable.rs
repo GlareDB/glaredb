@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr, ObjectReference};
@@ -26,7 +26,7 @@ impl AstParseable for SetVariable<Raw> {
             });
         }
 
-        Err(RayexecError::new(format!(
+        Err(DbError::new(format!(
             "Expected 'SET {name} TO <value>' or SET {name} = <value>'"
         )))
     }

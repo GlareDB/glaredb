@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, DistinctModifier, Expr, FromNode, Ident, ObjectReference};
@@ -170,7 +170,7 @@ impl AstParseable for WildcardExpr<Raw> {
         let tok = match parser.next() {
             Some(tok) => &tok.token,
             None => {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Expected wild card expression, found end of statement",
                 ));
             }
@@ -201,7 +201,7 @@ impl AstParseable for WildcardExpr<Raw> {
                     let next = match parser.next() {
                         Some(tok) => &tok.token,
                         None => {
-                            return Err(RayexecError::new(
+                            return Err(DbError::new(
                                 "Expected an identifier or '*' after '.', found end of statement",
                             ));
                         }
@@ -217,7 +217,7 @@ impl AstParseable for WildcardExpr<Raw> {
                             return Ok(WildcardExpr::QualifiedWildcard(ObjectReference(idents)));
                         }
                         other => {
-                            return Err(RayexecError::new(format!(
+                            return Err(DbError::new(format!(
                                 "Expected an identifier or '*' after '.', found {other:?}"
                             )));
                         }
@@ -244,7 +244,7 @@ impl AstParseable for ReplaceColumn<Raw> {
         let expr = Expr::parse(parser)?;
         let alias = match parser.parse_alias(RESERVED_FOR_COLUMN_ALIAS)? {
             Some(alias) => alias,
-            None => return Err(RayexecError::new("REPLACE requires column name")),
+            None => return Err(DbError::new("REPLACE requires column name")),
         };
 
         Ok(ReplaceColumn { col: alias, expr })
@@ -285,7 +285,7 @@ impl AstParseable for GroupByExpr<Raw> {
         let tok = match parser.peek() {
             Some(tok) => tok,
             None => {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Expected expression for GROUP BY, found end of statement",
                 ));
             }

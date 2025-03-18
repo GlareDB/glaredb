@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::block::{Block, FixedSizedBlockInitializer, ValidityInitializer};
 use super::block_scan::BlockScanState;
@@ -251,7 +251,7 @@ where
             // rows. Not sure if we want to try to be smarter about that.
 
             if total_heap_size > Self::MAX_HEAP_SIZE {
-                return Err(RayexecError::new("Required heap allocation exceeds max")
+                return Err(DbError::new("Required heap allocation exceeds max")
                     .with_field("wanted", total_heap_size)
                     .with_field("max", Self::MAX_HEAP_SIZE));
             }

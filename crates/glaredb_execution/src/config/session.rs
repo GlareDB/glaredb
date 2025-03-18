@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::runtime::{PipelineExecutor, Runtime};
@@ -40,7 +40,7 @@ impl SessionConfig {
     pub fn set_from_scalar(&mut self, name: &str, value: BorrowedScalarValue) -> Result<()> {
         let func = GET_SET_FUNCTIONS
             .get(name)
-            .ok_or_else(|| RayexecError::new("Missing setting for '{name}'"))?;
+            .ok_or_else(|| DbError::new("Missing setting for '{name}'"))?;
 
         (func.set)(value, self)
     }
@@ -48,7 +48,7 @@ impl SessionConfig {
     pub fn get_as_scalar(&self, name: &str) -> Result<ScalarValue> {
         let func = GET_SET_FUNCTIONS
             .get(name)
-            .ok_or_else(|| RayexecError::new("Missing setting for '{name}'"))?;
+            .ok_or_else(|| DbError::new("Missing setting for '{name}'"))?;
 
         let val = (func.get)(self);
         Ok(val)
@@ -64,7 +64,7 @@ impl SessionConfig {
 
         let func = GET_SET_FUNCTIONS
             .get(name)
-            .ok_or_else(|| RayexecError::new("Missing setting for '{name}'"))?;
+            .ok_or_else(|| DbError::new("Missing setting for '{name}'"))?;
 
         let scalar = (func.get)(&def_conf);
         (func.set)(scalar, self)

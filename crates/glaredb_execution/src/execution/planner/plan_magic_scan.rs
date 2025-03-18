@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 
 use super::OperatorPlanState;
 use crate::execution::operators::project::PhysicalProject;
@@ -12,7 +12,7 @@ impl OperatorPlanState<'_> {
         scan: Node<LogicalMagicMaterializationScan>,
     ) -> Result<PlannedOperatorWithChildren> {
         let mat_op = self.materializations.get(&scan.node.mat).ok_or_else(|| {
-            RayexecError::new(format!(
+            DbError::new(format!(
                 "Missing materialization for ref: {}",
                 scan.node.mat
             ))

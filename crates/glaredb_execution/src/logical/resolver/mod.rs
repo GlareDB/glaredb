@@ -9,7 +9,7 @@ pub mod resolved_table_function;
 use std::collections::HashMap;
 
 use expr_resolver::ExpressionResolver;
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{not_implemented, DbError, Result};
 use glaredb_parser::ast::{self, ColumnDef, ObjectReference};
 use glaredb_parser::meta::{AstMeta, Raw};
 use glaredb_parser::parser;
@@ -26,8 +26,8 @@ use super::binder::constant_binder::ConstantBinder;
 use super::binder::expr_binder::BaseExpressionBinder;
 use super::binder::table_list::TableAlias;
 use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::scalar::ScalarValue;
-use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
 use crate::catalog::context::DatabaseContext;
 use crate::expr;
 use crate::logical::operator::LocationRequirement;
@@ -300,7 +300,7 @@ impl<'a> Resolver<'a> {
                                 MaybeResolved::Unresolved(unbound)
                             }
                             MaybeResolvedTable::Unresolved => {
-                                return Err(RayexecError::new(format!(
+                                return Err(DbError::new(format!(
                                     "Missing table or view for reference '{}'",
                                     reference
                                 )));
@@ -328,7 +328,7 @@ impl<'a> Resolver<'a> {
                 // Ident allows for example `(FORMAT parquet)`, the user doesn't need to quote parquet.
                 ast::Expr::Ident(ident) => ScalarValue::Utf8(ident.into_normalized_string().into()),
                 other => {
-                    return Err(RayexecError::new(format!(
+                    return Err(DbError::new(format!(
                         "COPY TO options must be constant, got: {other:?}"
                     )));
                 }
@@ -457,7 +457,7 @@ impl<'a> Resolver<'a> {
                 name.0.insert(0, "temp".to_string()); // Catalog
             }
         } else {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Persistent tables not yet supported, use CREATE TEMP TABLE",
             ));
         }
@@ -506,7 +506,7 @@ impl<'a> Resolver<'a> {
                 name.0.insert(0, "temp".to_string()); // Catalog
             }
         } else {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Persistent views not yet supported, use CREATE TEMP VIEW",
             ));
         }
@@ -548,7 +548,7 @@ impl<'a> Resolver<'a> {
                         MaybeResolved::Unresolved(unbound)
                     }
                     MaybeResolvedTable::Unresolved => {
-                        return Err(RayexecError::new(format!(
+                        return Err(DbError::new(format!(
                             "Missing table or view for reference '{}'",
                             insert.table
                         )));
@@ -844,7 +844,7 @@ impl<'a> Resolver<'a> {
                                 let statement = match statements.len() {
                                     1 => statements.pop().unwrap(),
                                     other => {
-                                        return Err(RayexecError::new(format!(
+                                        return Err(DbError::new(format!(
                                             "Unexpected number of statements inside view body, expected 1, got {other}"
                                         )));
                                     }
@@ -856,7 +856,7 @@ impl<'a> Resolver<'a> {
                                         Box::pin(self.resolve_query(query, resolve_context)).await?
                                     }
                                     other => {
-                                        return Err(RayexecError::new(format!(
+                                        return Err(DbError::new(format!(
                                             "Unexpected statement type for view: {other:?}"
                                         )));
                                     }
@@ -1022,22 +1022,22 @@ impl<'a> Resolver<'a> {
                 // - Defaults to decimal64 prec and scale if neither provided.
                 match prec {
                     Some(prec) if prec < 0 => {
-                        return Err(RayexecError::new("Precision cannot be negative"));
+                        return Err(DbError::new("Precision cannot be negative"));
                     }
                     Some(prec) => {
-                        let prec: u8 = prec.try_into().map_err(|_| {
-                            RayexecError::new(format!("Precision too high: {prec}"))
-                        })?;
+                        let prec: u8 = prec
+                            .try_into()
+                            .map_err(|_| DbError::new(format!("Precision too high: {prec}")))?;
 
                         let scale: i8 = match scale {
-                            Some(scale) => scale.try_into().map_err(|_| {
-                                RayexecError::new(format!("Scale too high: {scale}"))
-                            })?,
+                            Some(scale) => scale
+                                .try_into()
+                                .map_err(|_| DbError::new(format!("Scale too high: {scale}")))?,
                             None => 0, // TODO: I'm not sure what behavior we want here, but it seems to match postgres.
                         };
 
                         if scale as i16 > prec as i16 {
-                            return Err(RayexecError::new(
+                            return Err(DbError::new(
                                 "Decimal scale cannot be larger than precision",
                             ));
                         }
@@ -1047,7 +1047,7 @@ impl<'a> Resolver<'a> {
                         } else if prec <= Decimal128Type::MAX_PRECISION {
                             DataType::Decimal128(DecimalTypeMeta::new(prec, scale))
                         } else {
-                            return Err(RayexecError::new(
+                            return Err(DbError::new(
                                 "Decimal precision too big for max decimal size",
                             ));
                         }

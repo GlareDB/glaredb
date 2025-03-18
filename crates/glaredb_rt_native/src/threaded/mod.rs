@@ -4,7 +4,7 @@ mod task;
 use std::fmt;
 use std::sync::Arc;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_execution::runtime::ErrorSink;
 use handle::ThreadedQueryHandle;
@@ -37,7 +37,7 @@ impl Scheduler for ThreadedScheduler {
             .thread_name(|idx| format!("rayexec_compute_{idx}"))
             .num_threads(num_threads)
             .build()
-            .map_err(|e| RayexecError::with_source("Failed to build thread pool", Box::new(e)))?;
+            .map_err(|e| DbError::with_source("Failed to build thread pool", Box::new(e)))?;
 
         Ok(ThreadedScheduler {
             pool: Arc::new(thread_pool),

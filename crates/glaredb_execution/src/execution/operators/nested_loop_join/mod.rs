@@ -4,7 +4,7 @@ mod match_tracker;
 use std::task::Context;
 
 use cross_product::CrossProductState;
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use match_tracker::MatchTracker;
 use parking_lot::Mutex;
 
@@ -26,8 +26,8 @@ use crate::arrays::collection::concurrent::{
 use crate::arrays::datatype::DataType;
 use crate::execution::partition_wakers::PartitionWakers;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::selection_evaluator::SelectionEvaluator;
+use crate::expr::physical::PhysicalScalarExpression;
 use crate::logical::logical_join::JoinType;
 
 #[derive(Debug)]
@@ -98,7 +98,7 @@ impl PhysicalNestedLoopJoin {
             join_type,
             JoinType::Inner | JoinType::Right | JoinType::Left
         ) {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Unsupported join type for nested loop join: {join_type}",
             )));
         }
@@ -352,7 +352,7 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
                         // row at a time for the left.
                         let left_row =
                             state.cross_state.collection_scan_offset().ok_or_else(|| {
-                                RayexecError::new("Expected in-progress cross product scan")
+                                DbError::new("Expected in-progress cross product scan")
                             })?;
                         let mut inner = operator_state.inner.lock();
                         inner.left_matches.set_match(left_row);

@@ -1,10 +1,10 @@
 use std::future::Future;
 use std::sync::{Arc, OnceLock};
 
-use glaredb_error::RayexecError;
+use glaredb_error::DbError;
 use parking_lot::Mutex;
 use pyo3::types::PyAnyMethods;
-use pyo3::{Py, PyAny, Python, pyclass, pymethods};
+use pyo3::{pyclass, pymethods, Py, PyAny, Python};
 
 use crate::errors::Result;
 
@@ -61,7 +61,7 @@ where
     let mut output = output.lock();
     match output.take() {
         Some(output) => output,
-        None => Err(RayexecError::new("Missing output").into()),
+        None => Err(DbError::new("Missing output").into()),
     }
 }
 

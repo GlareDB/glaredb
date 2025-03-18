@@ -7,7 +7,7 @@ mod grouping_value;
 use std::collections::BTreeSet;
 use std::task::{Context, Waker};
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use grouping_set_hash_table::{
     GroupingSetBuildPartitionState,
     GroupingSetHashTable,
@@ -20,8 +20,8 @@ use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, Pol
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::physical::PhysicalAggregateExpression;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
+use crate::expr::physical::PhysicalAggregateExpression;
 use crate::logical::logical_aggregate::GroupingFunction;
 
 #[derive(Debug)]
@@ -309,9 +309,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
                 Ok(PollFinalize::NeedsDrain)
             }
-            _ => Err(RayexecError::new(
-                "Hash aggregate partition already finalized",
-            )),
+            _ => Err(DbError::new("Hash aggregate partition already finalized")),
         }
     }
 }

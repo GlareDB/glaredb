@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{not_implemented, DbError, Result};
 use glaredb_execution::arrays::datatype::{
     DataType,
     DecimalTypeMeta,
@@ -11,7 +11,7 @@ use glaredb_execution::arrays::datatype::{
 };
 use glaredb_execution::arrays::field::{ColumnSchema as BulletSchema, Field};
 use regex::Regex;
-use serde::{Deserialize, Deserializer, de};
+use serde::{de, Deserialize, Deserializer};
 
 /// Primitive types supported in iceberg tables.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,7 +40,7 @@ pub enum PrimitiveType {
 }
 
 impl TryFrom<PrimitiveType> for DataType {
-    type Error = RayexecError;
+    type Error = DbError;
 
     fn try_from(value: PrimitiveType) -> Result<Self> {
         Ok(match value {
@@ -80,7 +80,7 @@ impl<'de> Deserialize<'de> for PrimitiveType {
 }
 
 impl FromStr for PrimitiveType {
-    type Err = RayexecError;
+    type Err = DbError;
 
     fn from_str(s: &str) -> Result<Self> {
         Ok(match s {
@@ -105,21 +105,21 @@ impl FromStr for PrimitiveType {
 
                 let captures = DECIMAL_RE
                     .captures(other)
-                    .ok_or_else(|| RayexecError::new(format!("Invalid decimal type: {other}")))?;
+                    .ok_or_else(|| DbError::new(format!("Invalid decimal type: {other}")))?;
 
                 let p: u8 = captures
                     .name("p")
-                    .ok_or_else(|| RayexecError::new(format!("Invalid decimal type: {other}")))?
+                    .ok_or_else(|| DbError::new(format!("Invalid decimal type: {other}")))?
                     .as_str()
                     .parse()
-                    .map_err(|e| RayexecError::new(format!("Decimal precision not a u8: {e}")))?;
+                    .map_err(|e| DbError::new(format!("Decimal precision not a u8: {e}")))?;
 
                 let s: u8 = captures
                     .name("s")
-                    .ok_or_else(|| RayexecError::new(format!("Invalid decimal type: {other}")))?
+                    .ok_or_else(|| DbError::new(format!("Invalid decimal type: {other}")))?
                     .as_str()
                     .parse()
-                    .map_err(|e| RayexecError::new(format!("Decimal scale not a u8: {e}")))?;
+                    .map_err(|e| DbError::new(format!("Decimal scale not a u8: {e}")))?;
 
                 PrimitiveType::Decimal { p, s }
             }
@@ -131,18 +131,18 @@ impl FromStr for PrimitiveType {
 
                 let captures = FIXED_RE
                     .captures(other)
-                    .ok_or_else(|| RayexecError::new(format!("Invalid fixed type: {other}")))?;
+                    .ok_or_else(|| DbError::new(format!("Invalid fixed type: {other}")))?;
 
                 let l: usize = captures
                     .name("l")
-                    .ok_or_else(|| RayexecError::new(format!("Invalid fixed type: {other}")))?
+                    .ok_or_else(|| DbError::new(format!("Invalid fixed type: {other}")))?
                     .as_str()
                     .parse()
-                    .map_err(|e| RayexecError::new(format!("Fixed length not a usize: {e}")))?;
+                    .map_err(|e| DbError::new(format!("Fixed length not a usize: {e}")))?;
 
                 PrimitiveType::Fixed(l)
             }
-            other => return Err(RayexecError::new(format!("Invalid type: {other}"))),
+            other => return Err(DbError::new(format!("Invalid type: {other}"))),
         })
     }
 }
@@ -158,7 +158,7 @@ pub enum AnyType {
 }
 
 impl TryFrom<&AnyType> for DataType {
-    type Error = RayexecError;
+    type Error = DbError;
 
     fn try_from(value: &AnyType) -> Result<Self> {
         Ok(match value {
@@ -180,7 +180,7 @@ pub struct ListType {
 }
 
 impl TryFrom<&ListType> for DataType {
-    type Error = RayexecError;
+    type Error = DbError;
 
     fn try_from(value: &ListType) -> Result<Self> {
         let typ = DataType::try_from(value.element.as_ref())?;
@@ -200,10 +200,10 @@ pub struct MapType {
 }
 
 impl TryFrom<&MapType> for DataType {
-    type Error = RayexecError;
+    type Error = DbError;
 
     fn try_from(_value: &MapType) -> Result<Self> {
-        Err(RayexecError::new("Iceberg map type not yet implemented"))
+        Err(DbError::new("Iceberg map type not yet implemented"))
         // let key_field = ArrowField::new("key", value.key.as_ref().try_into()?, false);
         // let val_field = ArrowField::new(
         //     "value",
@@ -226,10 +226,10 @@ pub struct StructType {
 }
 
 impl TryFrom<&StructType> for DataType {
-    type Error = RayexecError;
+    type Error = DbError;
 
     fn try_from(_value: &StructType) -> Result<Self> {
-        Err(RayexecError::new("Iceberg struct type not yet implemented"))
+        Err(DbError::new("Iceberg struct type not yet implemented"))
         // let fields = value
         //     .fields
         //     .iter()

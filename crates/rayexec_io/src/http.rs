@@ -3,7 +3,7 @@ use std::task::{Context, Poll};
 
 use bytes::Bytes;
 use futures::{Future, FutureExt, Stream, StreamExt};
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 pub use reqwest;
 use reqwest::header::{HeaderMap, RANGE};
 use reqwest::{Method, Request, StatusCode};
@@ -120,7 +120,7 @@ where
                 } => match fut.poll_unpin(cx) {
                     Poll::Ready(Ok(resp)) => {
                         if resp.status() != *expected_status {
-                            return Err(RayexecError::new("Response status not what we expected")
+                            return Err(DbError::new("Response status not what we expected")
                                 .with_field("status", resp.status().to_string())
                                 .with_field("expected", expected_status.to_string()));
                         }

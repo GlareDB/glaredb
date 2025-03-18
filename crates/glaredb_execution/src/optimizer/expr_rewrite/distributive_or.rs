@@ -1,9 +1,9 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use indexmap::IndexSet;
 
 use super::ExpressionRewriteRule;
-use crate::expr::Expression;
 use crate::expr::conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
+use crate::expr::Expression;
 
 /// Tries to lift up AND expressions through OR expressions
 ///
@@ -47,7 +47,7 @@ fn maybe_rewrite_or(orig_expr: &mut ConjunctionExpr) -> Result<()> {
         Some(child) => {
             insert_children_to_common_set(child, &mut common_exprs);
         }
-        None => return Err(RayexecError::new("Missing child expression for OR")),
+        None => return Err(DbError::new("Missing child expression for OR")),
     }
 
     // For each additional child, find its candidates, then intersect with

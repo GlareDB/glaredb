@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 /// Behavior when a cast fail due to under/overflow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,7 +21,7 @@ impl CastFailBehavior {
 #[derive(Debug)]
 pub struct CastErrorState {
     behavior: CastFailBehavior,
-    error: Option<RayexecError>,
+    error: Option<DbError>,
 }
 
 impl CastErrorState {
@@ -31,7 +31,7 @@ impl CastErrorState {
     /// called.
     pub fn set_error<F>(&mut self, error_fn: F)
     where
-        F: FnOnce() -> RayexecError,
+        F: FnOnce() -> DbError,
     {
         if self.behavior == CastFailBehavior::Error && self.error.is_none() {
             self.error = Some(error_fn())

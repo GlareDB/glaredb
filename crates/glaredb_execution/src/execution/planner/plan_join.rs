@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 
 use super::OperatorPlanState;
 use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
@@ -108,7 +108,7 @@ impl OperatorPlanState<'_> {
             JoinType::Inner => filter,
             other => {
                 // TODO: Other join types.
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Unhandled join type for arbitrary join: {other:?}"
                 )));
             }

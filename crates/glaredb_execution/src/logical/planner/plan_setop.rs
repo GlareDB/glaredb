@@ -1,8 +1,8 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
-use crate::expr::Expression;
 use crate::expr::cast_expr::CastExpr;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
+use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::bind_query::bind_setop::{BoundSetOp, SetOpCastRequirement};
 use crate::logical::binder::table_list::{Table, TableRef};
@@ -114,12 +114,12 @@ impl SetOpPlanner {
         let mut iter = bind_context.iter_tables_in_scope(scope_ref)?;
         let table = match iter.next() {
             Some(table) => table,
-            None => return Err(RayexecError::new("No table is scope")),
+            None => return Err(DbError::new("No table is scope")),
         };
 
         if iter.next().is_some() {
             // TODO: Is this possible?
-            return Err(RayexecError::new("Too many tables in scope"));
+            return Err(DbError::new("Too many tables in scope"));
         }
 
         Ok(table)

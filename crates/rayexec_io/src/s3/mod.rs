@@ -7,15 +7,15 @@ use credentials::{AwsCredentials, AwsRequestAuthorizer};
 use futures::future::BoxFuture;
 use futures::stream::{self, BoxStream};
 use futures::{Stream, StreamExt, TryStreamExt};
-use glaredb_error::{RayexecError, Result, ResultExt, not_implemented};
+use glaredb_error::{not_implemented, DbError, Result, ResultExt};
 use list::{S3ListContents, S3ListResponse};
 use reqwest::header::{CONTENT_LENGTH, RANGE};
 use reqwest::{Method, Request, StatusCode};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::http::{format_range_header, read_text, HttpClient, HttpResponse};
 use crate::FileSource;
-use crate::http::{HttpClient, HttpResponse, format_range_header, read_text};
 
 // TODO: Lots of cloning...
 
@@ -39,8 +39,8 @@ impl S3Location {
             "s3" => {
                 let bucket = match url.host() {
                     Some(url::Host::Domain(host)) => host,
-                    Some(_) => return Err(RayexecError::new("Unexpected host")),
-                    None => return Err(RayexecError::new("Missing host")),
+                    Some(_) => return Err(DbError::new("Unexpected host")),
+                    None => return Err(DbError::new("Missing host")),
                 };
 
                 let object = url.path(); // Should include leading slash.
@@ -53,7 +53,7 @@ impl S3Location {
             "https" => {
                 not_implemented!("non-vanity s3 urls")
             }
-            scheme => Err(RayexecError::new(format!(
+            scheme => Err(DbError::new(format!(
                 "Invalid schema for s3 location: {scheme}"
             ))),
         }
@@ -165,7 +165,7 @@ impl<C: HttpClient + 'static> ListState<C> {
         let resp = self.client.client.do_request(request).await?;
         if resp.status() != StatusCode::OK {
             let text = read_text(resp).await?;
-            return Err(RayexecError::new(format!("List error: {text}")));
+            return Err(DbError::new(format!("List error: {text}")));
         }
 
         let bytes = resp.bytes().await?;
@@ -231,7 +231,7 @@ impl<C: HttpClient + 'static> FileSource for S3Reader<C> {
             let resp = client.do_request(request).await?;
 
             if resp.status() != StatusCode::PARTIAL_CONTENT {
-                return Err(RayexecError::new("Server does not support range requests"));
+                return Err(DbError::new("Server does not support range requests"));
             }
 
             resp.bytes().await.context("failed to get response body")
@@ -249,10 +249,10 @@ impl<C: HttpClient + 'static> FileSource for S3Reader<C> {
 
             if resp.status() != StatusCode::OK {
                 let text = read_text(resp).await?;
-                return Err(RayexecError::new(format!("Stream results: {text}")));
+                return Err(DbError::new(format!("Stream results: {text}")));
             }
 
-            Ok::<_, RayexecError>(resp.bytes_stream())
+            Ok::<_, DbError>(resp.bytes_stream())
         })
         .try_flatten();
 
@@ -269,7 +269,7 @@ impl<C: HttpClient + 'static> FileSource for S3Reader<C> {
 
             if !resp.status().is_success() {
                 let text = read_text(resp).await.unwrap_or_default();
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Failed to get content-length: {text}"
                 )));
             }
@@ -280,7 +280,7 @@ impl<C: HttpClient + 'static> FileSource for S3Reader<C> {
                     .context("failed to convert to string")?
                     .parse::<usize>()
                     .context("failed to parse content length")?,
-                None => return Err(RayexecError::new("Response missing content-length header")),
+                None => return Err(DbError::new("Response missing content-length header")),
             };
 
             Ok(len)

@@ -1,79 +1,79 @@
 use std::ops::Mul;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use num_traits::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
 
 use super::behavior::CastFailBehavior;
 use super::format::{
     BoolFormatter,
-    Decimal64Formatter,
     Decimal128Formatter,
+    Decimal64Formatter,
     Float32Formatter,
     Float64Formatter,
     Formatter,
-    Int8Formatter,
+    Int128Formatter,
     Int16Formatter,
     Int32Formatter,
     Int64Formatter,
-    Int128Formatter,
+    Int8Formatter,
     TimestampMicrosecondsFormatter,
     TimestampMillisecondsFormatter,
     TimestampNanosecondsFormatter,
     TimestampSecondsFormatter,
-    UInt8Formatter,
+    UInt128Formatter,
     UInt16Formatter,
     UInt32Formatter,
     UInt64Formatter,
-    UInt128Formatter,
+    UInt8Formatter,
 };
 use super::parse::{
     BoolParser,
     Date32Parser,
-    Decimal64Parser,
     Decimal128Parser,
+    Decimal64Parser,
     Float16Parser,
     Float32Parser,
     Float64Parser,
-    Int8Parser,
+    Int128Parser,
     Int16Parser,
     Int32Parser,
     Int64Parser,
-    Int128Parser,
+    Int8Parser,
     IntervalParser,
     Parser,
-    UInt8Parser,
+    UInt128Parser,
     UInt16Parser,
     UInt32Parser,
     UInt64Parser,
-    UInt128Parser,
+    UInt8Parser,
 };
-use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalBool,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI8,
+    PhysicalI128,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalInterval,
-    PhysicalU8,
+    PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU128,
+    PhysicalU8,
     PhysicalUtf8,
     ScalarStorage,
 };
 use crate::arrays::array::validity::Validity;
+use crate::arrays::array::Array;
 use crate::arrays::cache::NopCache;
 use crate::arrays::datatype::{DataType, TimeUnit};
-use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
-use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
+use crate::arrays::executor::OutBuffer;
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::buffer::buffer_manager::NopBufferManager;
 use crate::util::iter::IntoExactSizeIterator;
 
@@ -228,7 +228,7 @@ pub fn cast_array(
             DataType::Float64 => {
                 cast_decimal_to_float::<Decimal64Type, PhysicalF64>(arr, sel, out, behavior)
             }
-            other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
+            other => Err(DbError::new(format!("Unhandled data type: {other}"))),
         },
         DataType::Decimal128(_) if to.is_float() => match to {
             DataType::Float16 => {
@@ -240,13 +240,13 @@ pub fn cast_array(
             DataType::Float64 => {
                 cast_decimal_to_float::<Decimal128Type, PhysicalF64>(arr, sel, out, behavior)
             }
-            other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
+            other => Err(DbError::new(format!("Unhandled data type: {other}"))),
         },
 
         // Anything to string.
         _ if to.is_utf8() => cast_to_utf8(arr, sel, out, behavior),
 
-        other => Err(RayexecError::new(format!(
+        other => Err(DbError::new(format!(
             "Casting from {other} to {to} not implemented",
         ))),
     }
@@ -264,7 +264,7 @@ where
     match out.datatype() {
         DataType::Decimal64(_) => decimal_rescale::<D1, Decimal64Type>(arr, sel, out, behavior),
         DataType::Decimal128(_) => decimal_rescale::<D1, Decimal128Type>(arr, sel, out, behavior),
-        other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
+        other => Err(DbError::new(format!("Unhandled data type: {other}"))),
     }
 }
 
@@ -296,7 +296,7 @@ where
             let v = match <D2::Primitive as NumCast>::from(v) {
                 Some(v) => v,
                 None => {
-                    fail_state.set_error(|| RayexecError::new("Failed cast decimal"));
+                    fail_state.set_error(|| DbError::new("Failed cast decimal"));
                     buf.put_null();
                     return;
                 }
@@ -306,7 +306,7 @@ where
                 match v.checked_mul(&scale_amount) {
                     Some(v) => buf.put(&v),
                     None => {
-                        fail_state.set_error(|| RayexecError::new("Failed cast decimal"));
+                        fail_state.set_error(|| DbError::new("Failed cast decimal"));
                         buf.put_null();
                     }
                 }
@@ -314,7 +314,7 @@ where
                 match v.checked_div(&scale_amount) {
                     Some(v) => buf.put(&v),
                     None => {
-                        fail_state.set_error(|| RayexecError::new("Failed cast decimal"));
+                        fail_state.set_error(|| DbError::new("Failed cast decimal"));
                         buf.put_null();
                     }
                 }
@@ -342,7 +342,7 @@ where
         DataType::Decimal128(_) => {
             cast_float_to_decimal::<S, Decimal128Type>(arr, sel, out, behavior)
         }
-        other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
+        other => Err(DbError::new(format!("Unhandled data type: {other}"))),
     }
 }
 
@@ -362,7 +362,7 @@ where
     let precision = decimal_meta.precision;
 
     let scale = <S::StorageType as NumCast>::from(10.pow(scale.unsigned_abs() as u32))
-        .ok_or_else(|| RayexecError::new(format!("Failed to cast scale {scale} to float")))?;
+        .ok_or_else(|| DbError::new(format!("Failed to cast scale {scale} to float")))?;
 
     let mut fail_state = behavior.new_state();
     UnaryExecutor::execute::<S, D::Storage, _>(
@@ -383,7 +383,7 @@ where
                     buf.put(&v)
                 }
                 None => {
-                    fail_state.set_error(|| RayexecError::new("Failed cast decimal"));
+                    fail_state.set_error(|| DbError::new("Failed cast decimal"));
                     buf.put_null();
                 }
             }
@@ -408,7 +408,7 @@ where
 
     let scale = <S::StorageType as NumCast>::from((10.0).powi(decimal_meta.scale as i32))
         .ok_or_else(|| {
-            RayexecError::new(format!(
+            DbError::new(format!(
                 "Failed to cast scale {} to float",
                 decimal_meta.scale
             ))
@@ -425,7 +425,7 @@ where
                 buf.put(&scaled);
             }
             None => {
-                fail_state.set_error(|| RayexecError::new("Failed to cast float to decimal"));
+                fail_state.set_error(|| DbError::new("Failed to cast float to decimal"));
                 buf.put_null();
             }
         },
@@ -449,7 +449,7 @@ where
         DataType::Decimal128(_) => {
             cast_int_to_decimal::<S, Decimal128Type>(arr, sel, out, behavior)
         }
-        other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
+        other => Err(DbError::new(format!("Unhandled data type: {other}"))),
     }
 }
 
@@ -481,7 +481,7 @@ where
             let v = match <D::Primitive as NumCast>::from(v) {
                 Some(v) => v,
                 None => {
-                    fail_state.set_error(|| RayexecError::new("Failed to cast int to decimal"));
+                    fail_state.set_error(|| DbError::new("Failed to cast int to decimal"));
                     buf.put_null();
                     return;
                 }
@@ -492,7 +492,7 @@ where
                 match v.checked_mul(&scale_amount) {
                     Some(v) => v,
                     None => {
-                        fail_state.set_error(|| RayexecError::new("Failed to cast int to decimal"));
+                        fail_state.set_error(|| DbError::new("Failed to cast int to decimal"));
                         buf.put_null();
                         return;
                     }
@@ -501,7 +501,7 @@ where
                 match v.checked_div(&scale_amount) {
                     Some(v) => v,
                     None => {
-                        fail_state.set_error(|| RayexecError::new("Failed to cast int to decimal"));
+                        fail_state.set_error(|| DbError::new("Failed to cast int to decimal"));
                         buf.put_null();
                         return;
                     }
@@ -545,7 +545,7 @@ where
         DataType::Float16 => cast_primitive_numeric::<S, PhysicalF16>(arr, sel, out, behavior),
         DataType::Float32 => cast_primitive_numeric::<S, PhysicalF32>(arr, sel, out, behavior),
         DataType::Float64 => cast_primitive_numeric::<S, PhysicalF64>(arr, sel, out, behavior),
-        other => Err(RayexecError::new(format!("Unhandled data type: {other}"))),
+        other => Err(DbError::new(format!("Unhandled data type: {other}"))),
     }
 }
 
@@ -567,7 +567,7 @@ where
         match NumCast::from(v) {
             Some(v) => buf.put(&v),
             None => {
-                fail_state.set_error(|| RayexecError::new("Failed to cast primitive numeric"));
+                fail_state.set_error(|| DbError::new("Failed to cast primitive numeric"));
                 buf.put_null();
             }
         }
@@ -669,7 +669,7 @@ pub fn cast_from_utf8(
             behavior,
             IntervalParser::default(),
         ),
-        other => Err(RayexecError::new(format!(
+        other => Err(DbError::new(format!(
             "Unable to cast utf8 array to {other}"
         ))),
     }
@@ -765,7 +765,7 @@ pub fn cast_to_utf8(
                 behavior,
             ),
         },
-        other => Err(RayexecError::new(format!(
+        other => Err(DbError::new(format!(
             "Unable to cast {other} array to utf8"
         ))),
     }
@@ -795,7 +795,7 @@ where
             match formatter.write(v, &mut string_buf) {
                 Ok(_) => buf.put(string_buf.as_str()),
                 Err(_) => {
-                    fail_state.set_error(|| RayexecError::new("Failed to cast to utf8"));
+                    fail_state.set_error(|| DbError::new("Failed to cast to utf8"));
                     buf.put_null();
                 }
             }
@@ -829,8 +829,7 @@ where
         |v, buf| match parser.parse(v) {
             Some(v) => buf.put(&v),
             None => {
-                fail_state
-                    .set_error(|| RayexecError::new(format!("Failed to parse '{v}' into {id}")));
+                fail_state.set_error(|| DbError::new(format!("Failed to parse '{v}' into {id}")));
                 buf.put_null();
             }
         },

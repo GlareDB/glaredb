@@ -19,8 +19,7 @@
 //! inferred types from the previous step. If it differs, assume a header.
 use std::task::{Context, Poll};
 
-use glaredb_error::{RayexecError, Result, ResultExt};
-use glaredb_execution::arrays::array::Array;
+use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_execution::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
@@ -29,6 +28,7 @@ use glaredb_execution::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalUtf8,
 };
+use glaredb_execution::arrays::array::Array;
 use glaredb_execution::arrays::batch::Batch;
 use glaredb_execution::arrays::compute::cast::parse::{
     BoolParser,
@@ -187,7 +187,7 @@ impl CsvReader {
                         self.write_string(records_offset, col_idx, array, write_offset, count)?
                     }
                     other => {
-                        return Err(RayexecError::new("Unhandled datatype for csv scanning")
+                        return Err(DbError::new("Unhandled datatype for csv scanning")
                             .with_field("datatype", other.clone()));
                     }
                 }
@@ -226,7 +226,7 @@ impl CsvReader {
 
             let v = parser
                 .parse(field)
-                .ok_or_else(|| RayexecError::new("Failed to parse '{field}'"))?;
+                .ok_or_else(|| DbError::new("Failed to parse '{field}'"))?;
 
             output.put(write_idx, &v);
         }

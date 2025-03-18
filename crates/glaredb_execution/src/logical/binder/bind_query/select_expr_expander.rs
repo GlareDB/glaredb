@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_parser::ast;
 use regex::Regex;
 
@@ -133,7 +133,7 @@ impl<'a> SelectExprExpander<'a> {
             }
             ast::SelectExpr::QualifiedWildcard(reference, modifier) => {
                 if reference.0.len() > 1 {
-                    return Err(RayexecError::new(
+                    return Err(DbError::new(
                         "Qualified wildcard references with more than one ident not yet supported",
                     ));
                 }
@@ -154,9 +154,7 @@ impl<'a> SelectExprExpander<'a> {
                         None => false,
                     })
                     .ok_or_else(|| {
-                        RayexecError::new(format!(
-                            "Missing table '{alias}', cannot expand wildcard"
-                        ))
+                        DbError::new(format!("Missing table '{alias}', cannot expand wildcard"))
                     })?;
 
                 let mut exprs = Vec::new();
@@ -259,7 +257,7 @@ impl<'a> SelectExprExpander<'a> {
 
         for (name, visited) in normalized_excluded {
             if !visited {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Column \"{name}\" was in EXCLUDE list, but it's not a column being returned"
                 )));
             }
@@ -301,7 +299,7 @@ impl<'a> SelectExprExpander<'a> {
 
         for (name, (_, visited)) in normalized_replaces {
             if !visited {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Column \"{name}\" was in REPLACE list, but it's not a column being returned"
                 )));
             }

@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, QueryNode};
@@ -42,7 +42,7 @@ impl AstParseable for ExplainNode<Raw> {
             } else if parser.parse_keyword(Keyword::TEXT) {
                 ExplainOutput::Text
             } else {
-                return Err(RayexecError::new("Expect JSON or TEXT for explain format"));
+                return Err(DbError::new("Expect JSON or TEXT for explain format"));
             };
             parser.expect_token(&Token::RightParen)?;
             Some(format)
@@ -53,7 +53,7 @@ impl AstParseable for ExplainNode<Raw> {
         let body = match parser.parse_statement()? {
             Statement::Query(query) => ExplainBody::Query(query),
             other => {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Unexpected body in EXPLAIN: {other:?}"
                 )));
             }

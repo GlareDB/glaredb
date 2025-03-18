@@ -1,6 +1,6 @@
 use std::fmt;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::Expression;
 use crate::arrays::datatype::DataType;
@@ -46,7 +46,7 @@ impl CaseExpr {
         let datatype = match case_iter.next() {
             Some(case) => case.then.datatype()?,
             None => {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Case expression must have at least one condition",
                 ));
             }
@@ -56,7 +56,7 @@ impl CaseExpr {
             let next_datatype = case.then.datatype()?;
             // TODO: Union or cast.
             if next_datatype != datatype {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Case expression produces two different types: {} and {}",
                     datatype, next_datatype
                 )));

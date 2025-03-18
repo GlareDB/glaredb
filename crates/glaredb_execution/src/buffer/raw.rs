@@ -1,7 +1,7 @@
 use std::alloc::{self, Layout};
 use std::ptr::NonNull;
 
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 
 use super::buffer_manager::{AsRawBufferManager, RawBufferManager, Reservation};
 
@@ -77,7 +77,7 @@ impl RawBuffer {
     ) -> Result<Self> {
         let true_align = std::mem::align_of::<T>();
         if align % true_align != 0 {
-            return Err(RayexecError::new("Invalid alignment specified")
+            return Err(DbError::new("Invalid alignment specified")
                 .with_field("specified", align)
                 .with_field("true_alignment", true_align));
         }

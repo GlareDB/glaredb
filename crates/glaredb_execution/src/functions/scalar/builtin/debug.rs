@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -22,13 +22,13 @@ impl ScalarFunction for ScalarNotImplemented {
     type State = ();
 
     fn bind(&self, _inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
-        Err(RayexecError::new(format!(
+        Err(DbError::new(format!(
             "Scalar function '{}' not yet implemnted",
             self.name
         )))
     }
 
     fn execute(_state: &Self::State, _input: &Batch, _output: &mut Array) -> Result<()> {
-        Err(RayexecError::new("Scalar function not implemented"))
+        Err(DbError::new("Scalar function not implemented"))
     }
 }

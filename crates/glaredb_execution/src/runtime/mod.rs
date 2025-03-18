@@ -4,7 +4,7 @@ pub mod time;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use handle::QueryHandle;
 use rayexec_io::http::HttpClient;
 use time::RuntimeInstant;
@@ -71,7 +71,7 @@ pub trait TokioHandlerProvider {
 
     fn handle(&self) -> Result<tokio::runtime::Handle> {
         self.handle_opt()
-            .ok_or_else(|| RayexecError::new("Tokio runtime not configured"))
+            .ok_or_else(|| DbError::new("Tokio runtime not configured"))
     }
 }
 
@@ -92,5 +92,5 @@ impl TokioHandlerProvider for OptionalTokioRuntime {
 
 pub trait ErrorSink: Debug + Sync + Send {
     /// Push an error.
-    fn set_error(&self, error: RayexecError);
+    fn set_error(&self, error: DbError);
 }

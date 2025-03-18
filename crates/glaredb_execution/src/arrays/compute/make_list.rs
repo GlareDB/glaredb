@@ -1,6 +1,5 @@
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{not_implemented, DbError, Result};
 
-use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::{ArrayBufferType, ListItemMetadata, SharedOrOwned};
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -11,22 +10,23 @@ use crate::arrays::array::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI8,
+    PhysicalI128,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalInterval,
     PhysicalType,
-    PhysicalU8,
+    PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU128,
+    PhysicalU8,
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
 use crate::arrays::array::validity::Validity;
+use crate::arrays::array::Array;
 use crate::arrays::datatype::DataType;
 use crate::util::convert::TryAsMut;
 use crate::util::iter::IntoExactSizeIterator;
@@ -45,7 +45,7 @@ pub fn make_list_from_values(
     let inner_type = match output.datatype() {
         DataType::List(m) => m.datatype.physical_type(),
         other => {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Expected output to be list datatype, got {other}",
             )));
         }
@@ -96,7 +96,7 @@ fn make_list_from_values_inner<S: MutableScalarStorage>(
 
     let list_buf = match output.data.as_mut() {
         ArrayBufferType::List(list_buf) => list_buf,
-        _ => return Err(RayexecError::new("Expected list buffer")),
+        _ => return Err(DbError::new("Expected list buffer")),
     };
 
     let metadata = list_buf.metadata.try_as_mut()?;

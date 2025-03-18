@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::operators::{AnyOperatorState, ExecutionProperties, PlannedOperator};
 use super::partition_pipeline::ExecutablePartitionPipeline;
@@ -39,7 +39,7 @@ impl ExecutablePipelineGraph {
             // `build_pipeline` method on the operator to assume that
             // encountering a materialization node means it's a scan.
             if mat_operator.children.len() != 1 {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Invalid number of children for materialization operator",
                 ));
             }
@@ -125,7 +125,7 @@ impl ExecutablePipeline {
         debug_assert_eq!(self.operators.len(), self.operator_states.len());
 
         if self.operators.len() < 2 {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Cannot create partition pipeline for pipeline containing fewer than two operators (sink and source)",
             ));
         }
@@ -151,7 +151,7 @@ impl ExecutablePipeline {
 
         let mut append_partition_states = |mut states: Vec<_>| -> Result<()> {
             if states.len() != pipelines.len() {
-                return Err(RayexecError::new("Generated incorrect number of states")
+                return Err(DbError::new("Generated incorrect number of states")
                     .with_field("expected", pipelines.len())
                     .with_field("got", states.len()));
             }

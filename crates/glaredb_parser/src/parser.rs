@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{not_implemented, DbError, Result};
 use tracing::trace;
 
 use crate::ast::{
@@ -69,7 +69,7 @@ impl<'a> Parser<'a> {
                     None => "",
                 };
 
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Expected semicolon between statements. Unparsed SQL: '{}'",
                     unparsed,
                 )));
@@ -88,7 +88,7 @@ impl<'a> Parser<'a> {
     pub fn parse_statement(&mut self) -> Result<RawStatement> {
         let tok = match self.peek() {
             Some(tok) => tok,
-            None => return Err(RayexecError::new("Empty SQL statement")),
+            None => return Err(DbError::new("Empty SQL statement")),
         };
 
         match &tok.token {
@@ -96,7 +96,7 @@ impl<'a> Parser<'a> {
                 let keyword = match word.keyword {
                     Some(k) => k,
                     None => {
-                        return Err(RayexecError::new(format!(
+                        return Err(DbError::new(format!(
                             "Expected a keyword, got {}",
                             word.value,
                         )));
@@ -118,10 +118,10 @@ impl<'a> Parser<'a> {
                     }
                     Keyword::INSERT => Ok(RawStatement::Insert(Insert::parse(self)?)),
                     Keyword::EXPLAIN => Ok(RawStatement::Explain(ExplainNode::parse(self)?)),
-                    other => Err(RayexecError::new(format!("Unexpected keyword: {other:?}",))),
+                    other => Err(DbError::new(format!("Unexpected keyword: {other:?}",))),
                 }
             }
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Expected a SQL statement, got {other:?}"
             ))),
         }
@@ -185,7 +185,7 @@ impl<'a> Parser<'a> {
 
             _ => {
                 if has_as {
-                    return Err(RayexecError::new("Expected an identifier after AS"));
+                    return Err(DbError::new("Expected an identifier after AS"));
                 }
                 None
             }
@@ -323,7 +323,7 @@ impl<'a> Parser<'a> {
     /// error.
     pub(crate) fn expect_token(&mut self, expected: &Token) -> Result<()> {
         if !self.consume_token(expected) {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Expected {expected:?}, got {:?}",
                 self.peek()
             )));
@@ -337,7 +337,7 @@ impl<'a> Parser<'a> {
                 return Ok(());
             }
         }
-        Err(RayexecError::new(format!(
+        Err(DbError::new(format!(
             "Expected one of {expected:?}, got {:?}",
             self.peek()
         )))
@@ -347,7 +347,7 @@ impl<'a> Parser<'a> {
     /// error.
     pub(crate) fn expect_keyword(&mut self, expected: Keyword) -> Result<()> {
         if !self.parse_keyword(expected) {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Expected {expected:?}, got {:?}",
                 self.peek()
             )));
@@ -378,7 +378,7 @@ impl<'a> Parser<'a> {
     pub(crate) fn next_keyword(&mut self) -> Result<Keyword> {
         let tok = match self.peek() {
             Some(tok) => tok,
-            None => return Err(RayexecError::new("Expected keyword, got end of statement")),
+            None => return Err(DbError::new("Expected keyword, got end of statement")),
         };
 
         match &tok.token {
@@ -386,7 +386,7 @@ impl<'a> Parser<'a> {
                 let keyword = match word.keyword {
                     Some(k) => k,
                     None => {
-                        return Err(RayexecError::new(format!(
+                        return Err(DbError::new(format!(
                             "Expected a keyword, got {}",
                             word.value,
                         )));
@@ -397,9 +397,7 @@ impl<'a> Parser<'a> {
 
                 Ok(keyword)
             }
-            other => Err(RayexecError::new(format!(
-                "Expected a keyword: got {other:?}"
-            ))),
+            other => Err(DbError::new(format!("Expected a keyword: got {other:?}"))),
         }
     }
 
@@ -466,12 +464,14 @@ impl<'a> Parser<'a> {
     /// current position of the parser.
     pub(crate) fn sql_slice_starting_at(&self, start: &TokenWithLocation) -> Result<&str> {
         match self.peek() {
-            Some(end) => self.sql.get(start.start_idx..end.start_idx).ok_or_else(|| {
-                RayexecError::new("Unable to get string slice for original sql string")
-            }),
-            None => self.sql.get(start.start_idx..).ok_or_else(|| {
-                RayexecError::new("Unable to get string slice for original sql string")
-            }),
+            Some(end) => self
+                .sql
+                .get(start.start_idx..end.start_idx)
+                .ok_or_else(|| DbError::new("Unable to get string slice for original sql string")),
+            None => self
+                .sql
+                .get(start.start_idx..)
+                .ok_or_else(|| DbError::new("Unable to get string slice for original sql string")),
         }
     }
 }

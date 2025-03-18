@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{not_implemented, DbError, Result};
 use glaredb_parser::ast::{self, FunctionArg, ReplaceColumn};
 use glaredb_parser::meta::Raw;
 
@@ -112,7 +112,7 @@ impl<'a> ExpressionResolver<'a> {
                     let name = name.into_normalized_string();
                     let arg = match arg {
                         ast::FunctionArgExpr::Wildcard => {
-                            return Err(RayexecError::new(
+                            return Err(DbError::new(
                                 "Cannot use '*' as an argument to a table function",
                             ));
                         }
@@ -122,7 +122,7 @@ impl<'a> ExpressionResolver<'a> {
                                     BaseExpressionBinder::bind_literal(&lit)?.try_into_scalar()?
                                 }
                                 other => {
-                                    return Err(RayexecError::new(format!(
+                                    return Err(DbError::new(format!(
                                         "Table function arguments must be constant, got {other:?}"
                                     )));
                                 }
@@ -131,14 +131,14 @@ impl<'a> ExpressionResolver<'a> {
                     };
 
                     if named.contains_key(&name) {
-                        return Err(RayexecError::new(format!("Duplicate argument: {name}")));
+                        return Err(DbError::new(format!("Duplicate argument: {name}")));
                     }
                     named.insert(name, arg);
                 }
                 FunctionArg::Unnamed { arg } => {
                     let arg = match arg {
                         ast::FunctionArgExpr::Wildcard => {
-                            return Err(RayexecError::new(
+                            return Err(DbError::new(
                                 "Cannot use '*' as an argument to a table function",
                             ));
                         }
@@ -148,7 +148,7 @@ impl<'a> ExpressionResolver<'a> {
                                     BaseExpressionBinder::bind_literal(&lit)?.try_into_scalar()?
                                 }
                                 other => {
-                                    return Err(RayexecError::new(format!(
+                                    return Err(DbError::new(format!(
                                         "Table function arguments must be constant, got {other:?}"
                                     )));
                                 }
@@ -570,7 +570,7 @@ impl<'a> ExpressionResolver<'a> {
     ) -> Result<ast::Expr<ResolvedMeta>> {
         // TODO: Search path (with system being the first to check)
         let (catalog, schema, func_name) = match func.reference.0.len() {
-            0 => return Err(RayexecError::new("Missing idents for function reference")), // Shouldn't happen.
+            0 => return Err(DbError::new("Missing idents for function reference")), // Shouldn't happen.
             1 => (
                 SYSTEM_CATALOG.to_string(),
                 BUILTIN_SCHEMA.to_string(),
@@ -589,7 +589,7 @@ impl<'a> ExpressionResolver<'a> {
             _ => {
                 // TODO: This could technically be from chained syntax on a
                 // fully qualified column.
-                return Err(RayexecError::new("Too many idents for function reference")
+                return Err(DbError::new("Too many idents for function reference")
                     .with_field("idents", func.reference.to_string()));
             }
         };
@@ -655,7 +655,7 @@ impl<'a> ExpressionResolver<'a> {
             .require_get_database(&catalog)?
             .catalog
             .get_schema(&schema)?
-            .ok_or_else(|| RayexecError::new(format!("Missing schema: {schema}")))?;
+            .ok_or_else(|| DbError::new(format!("Missing schema: {schema}")))?;
 
         // Check if this is a special function.
         if let Some(special) = SpecialBuiltinFunction::try_from_name(&func_name) {

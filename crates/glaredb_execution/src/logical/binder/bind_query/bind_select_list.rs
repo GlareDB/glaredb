@@ -1,18 +1,18 @@
 use std::collections::HashMap;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::select_expr_expander::ExpandedSelectExpr;
 use super::select_list::SelectList;
-use crate::expr::Expression;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
+use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::{DefaultColumnBinder, ExpressionColumnBinder};
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
 use crate::logical::binder::table_list::TableRef;
-use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug)]
 pub struct SelectListBinder<'a> {
@@ -318,14 +318,14 @@ impl ExpressionColumnBinder for SelectAliasColumnBinder<'_> {
                             // Valid alias reference, use the existing expression.
                             let aliased_expr =
                                 self.previous_exprs.get(col_idx).ok_or_else(|| {
-                                    RayexecError::new("Missing select expression?")
+                                    DbError::new("Missing select expression?")
                                         .with_field("idx", col_idx)
                                 })?;
 
                             Ok(Some(aliased_expr.clone()))
                         } else {
                             // Not a valid alias expression.
-                            Err(RayexecError::new(format!(
+                            Err(DbError::new(format!(
                                 "'{col}' can only be referenced after it's been defined in the SELECT list"
                             )))
                         }

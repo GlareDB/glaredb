@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::read_buffer::ReadBuffer;
 
@@ -77,7 +77,7 @@ impl BitUnpacker<'_> {
             // TODO: Max VLQ width check.
 
             if shift > MAX_VLQ_BYTE_LEN_I64 * 7 {
-                return Err(RayexecError::new("VLQ decoding too large"));
+                return Err(DbError::new("VLQ decoding too large"));
             }
 
             if b & 128 == 0 {

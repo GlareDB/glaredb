@@ -1,12 +1,12 @@
 use std::fmt;
 
-use glaredb_error::{OptionExt, RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, OptionExt, Result, ResultExt};
 use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::field::Field;
-use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 
 /// The 'type' of the dataype.
 ///
@@ -262,7 +262,7 @@ impl ProtoConv for TimeUnit {
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         Ok(match proto {
-            Self::ProtoType::InvalidTimeUnit => return Err(RayexecError::new("invalid")),
+            Self::ProtoType::InvalidTimeUnit => return Err(DbError::new("invalid")),
             Self::ProtoType::Second => Self::Second,
             Self::ProtoType::Millisecond => Self::Millisecond,
             Self::ProtoType::Microsecond => Self::Microsecond,
@@ -398,10 +398,10 @@ impl DataType {
     pub fn try_default_datatype(id: DataTypeId) -> Result<Self> {
         Ok(match id {
             DataTypeId::Any => {
-                return Err(RayexecError::new("Cannot create a default Any datatype"));
+                return Err(DbError::new("Cannot create a default Any datatype"));
             }
             DataTypeId::Table => {
-                return Err(RayexecError::new("Cannot create a default Table datatype"));
+                return Err(DbError::new("Cannot create a default Table datatype"));
             }
             DataTypeId::Null => DataType::Null,
             DataTypeId::Boolean => DataType::Boolean,
@@ -435,10 +435,10 @@ impl DataType {
             DataTypeId::Utf8 => DataType::Utf8,
             DataTypeId::Binary => DataType::Binary,
             DataTypeId::Struct => {
-                return Err(RayexecError::new("Cannot create a default Struct datatype"));
+                return Err(DbError::new("Cannot create a default Struct datatype"));
             }
             DataTypeId::List(_) => {
-                return Err(RayexecError::new("Cannot create a default List datatype"));
+                return Err(DbError::new("Cannot create a default List datatype"));
             }
         })
     }
@@ -602,7 +602,7 @@ impl DataType {
         match self {
             Self::Decimal64(m) => Ok(*m),
             Self::Decimal128(m) => Ok(*m),
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Cannot get decimal type meta from type {other}"
             ))),
         }
@@ -613,8 +613,8 @@ impl ProtoConv for DataType {
     type ProtoType = glaredb_proto::generated::schema::DataType;
 
     fn to_proto(&self) -> Result<Self::ProtoType> {
-        use glaredb_proto::generated::schema::EmptyMeta;
         use glaredb_proto::generated::schema::data_type::Value;
+        use glaredb_proto::generated::schema::EmptyMeta;
 
         let value = match self {
             DataType::Null => Value::TypeNull(EmptyMeta {}),

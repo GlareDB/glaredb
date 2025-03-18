@@ -1,13 +1,13 @@
-use glaredb_error::{RayexecError, Result, ResultExt, not_implemented};
+use glaredb_error::{not_implemented, DbError, Result, ResultExt};
 
 use super::OperatorPlanState;
 use crate::execution::operators::hash_aggregate::{Aggregates, PhysicalHashAggregate};
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::ungrouped_aggregate::PhysicalUngroupedAggregate;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
-use crate::expr::Expression;
-use crate::expr::physical::PhysicalAggregateExpression;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
+use crate::expr::physical::PhysicalAggregateExpression;
+use crate::expr::Expression;
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::operator::{LogicalNode, Node};
 
@@ -49,9 +49,7 @@ impl OperatorPlanState<'_> {
             let agg = match agg_expr {
                 Expression::Aggregate(agg) => agg,
                 other => {
-                    return Err(RayexecError::new(format!(
-                        "Expected aggregate, got: {other}"
-                    )));
+                    return Err(DbError::new(format!("Expected aggregate, got: {other}")));
                 }
             };
 

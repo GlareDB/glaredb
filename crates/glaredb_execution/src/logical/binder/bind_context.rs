@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::bind_query::BoundQuery;
 use super::table_list::{Table, TableAlias, TableList, TableRef};
 use crate::arrays::datatype::DataType;
-use crate::expr::Expression;
 use crate::expr::column_expr::ColumnReference;
+use crate::expr::Expression;
 use crate::logical::operator::{LogicalNode, LogicalOperator};
 
 /// Reference to a child bind scope.
@@ -213,10 +213,7 @@ impl BindContext {
 
         let scope = self.get_scope_mut(current)?;
         if scope.ctes.contains_key(&cte.name) {
-            return Err(RayexecError::new(format!(
-                "Duplicate CTE name '{}'",
-                cte.name
-            )));
+            return Err(DbError::new(format!("Duplicate CTE name '{}'", cte.name)));
         }
 
         let cte_ref = CteRef { cte_idx: idx };
@@ -239,7 +236,7 @@ impl BindContext {
             None => {
                 let parent = match self.get_parent_ref(current)? {
                     Some(parent) => parent,
-                    None => return Err(RayexecError::new(format!("Missing CTE '{name}'"))),
+                    None => return Err(DbError::new(format!("Missing CTE '{name}'"))),
                 };
 
                 self.find_cte(parent, name)
@@ -250,13 +247,13 @@ impl BindContext {
     pub fn get_cte(&self, cte_ref: CteRef) -> Result<&BoundCte> {
         self.ctes
             .get(cte_ref.cte_idx)
-            .ok_or_else(|| RayexecError::new(format!("Missing CTE for ref: {cte_ref}")))
+            .ok_or_else(|| DbError::new(format!("Missing CTE for ref: {cte_ref}")))
     }
 
     pub fn get_cte_mut(&mut self, cte_ref: CteRef) -> Result<&mut BoundCte> {
         self.ctes
             .get_mut(cte_ref.cte_idx)
-            .ok_or_else(|| RayexecError::new(format!("Missing CTE for ref: {cte_ref}")))
+            .ok_or_else(|| DbError::new(format!("Missing CTE for ref: {cte_ref}")))
     }
 
     /// Adds a plan for materialization to the bind context.
@@ -297,7 +294,7 @@ impl BindContext {
         self.materializations
             .get_mut(mat_ref.materialization_idx)
             .ok_or_else(|| {
-                RayexecError::new(format!(
+                DbError::new(format!(
                     "Missing materialization for idx {}",
                     mat_ref.materialization_idx
                 ))
@@ -308,7 +305,7 @@ impl BindContext {
         self.materializations
             .get(mat_ref.materialization_idx)
             .ok_or_else(|| {
-                RayexecError::new(format!(
+                DbError::new(format!(
                     "Missing materialization for idx {}",
                     mat_ref.materialization_idx
                 ))
@@ -361,7 +358,7 @@ impl BindContext {
             .filter_map(|t| t.alias.as_ref())
         {
             if left_aliases.contains(right_alias) {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Duplicate table name: {}",
                     right_alias
                 )));
@@ -418,7 +415,7 @@ impl BindContext {
                     current_parent
                 }
                 None => {
-                    return Err(RayexecError::new(
+                    return Err(DbError::new(
                         "No connection between child and parent context",
                     ));
                 }
@@ -540,7 +537,7 @@ impl BindContext {
                 .filter_map(|t| t.alias.as_ref())
             {
                 if have_alias == alias {
-                    return Err(RayexecError::new(format!("Duplicate table name: {alias}")));
+                    return Err(DbError::new(format!("Duplicate table name: {alias}")));
                 }
             }
         }
@@ -620,9 +617,7 @@ impl BindContext {
             for (col_idx, col_name) in table.column_names.iter().enumerate() {
                 if col_name == column {
                     if found.is_some() {
-                        return Err(RayexecError::new(format!(
-                            "Ambiguous column name '{column}'"
-                        )));
+                        return Err(DbError::new(format!("Ambiguous column name '{column}'")));
                     }
                     found = Some((table.reference, col_idx));
                 }
@@ -659,13 +654,13 @@ impl BindContext {
     fn get_scope(&self, bind_ref: BindScopeRef) -> Result<&BindScope> {
         self.scopes
             .get(bind_ref.context_idx)
-            .ok_or_else(|| RayexecError::new("Missing child bind context"))
+            .ok_or_else(|| DbError::new("Missing child bind context"))
     }
 
     fn get_scope_mut(&mut self, bind_ref: BindScopeRef) -> Result<&mut BindScope> {
         self.scopes
             .get_mut(bind_ref.context_idx)
-            .ok_or_else(|| RayexecError::new("Missing child bind context"))
+            .ok_or_else(|| DbError::new("Missing child bind context"))
     }
 }
 

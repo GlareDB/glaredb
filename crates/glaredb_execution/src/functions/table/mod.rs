@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::task::Context;
 
 use execute::TableExecuteFunction;
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use scan::TableScanFunction;
 
 use super::Signature;
@@ -321,9 +321,7 @@ where
     const FUNCTION_TYPE: TableFunctionType = TableFunctionType::Execute;
 
     const VTABLE: &'static RawTableFunctionVTable = &RawTableFunctionVTable {
-        scan_bind_fn: |_function, _db_context, _input| {
-            Err(RayexecError::new("Not a scan function"))
-        },
+        scan_bind_fn: |_function, _db_context, _input| Err(DbError::new("Not a scan function")),
         execute_bind_fn: |function, input| {
             let function = unsafe { function.cast::<F>().as_ref().unwrap() };
             let state = function.bind(input)?;
@@ -336,10 +334,10 @@ where
             })
         },
         create_pull_operator_state_fn: |_bind_state, _projections, _props| {
-            Err(RayexecError::new("Not a scan function"))
+            Err(DbError::new("Not a scan function"))
         },
         create_pull_partition_states_fn: |_bind_state, _props, _partitions| {
-            Err(RayexecError::new("Not a scan function"))
+            Err(DbError::new("Not a scan function"))
         },
         create_execute_operator_state_fn: |bind_state, props| {
             let bind_state = bind_state
@@ -381,7 +379,7 @@ where
         },
 
         poll_pull_fn: |_cx, _op_state, _partition_state, _output| {
-            Err(RayexecError::new("Not a scan functions"))
+            Err(DbError::new("Not a scan functions"))
         },
     };
 }
@@ -408,7 +406,7 @@ where
                 })
             }))
         },
-        execute_bind_fn: |_function, _input| Err(RayexecError::new("Not an execute function")),
+        execute_bind_fn: |_function, _input| Err(DbError::new("Not an execute function")),
         create_pull_operator_state_fn: |bind_state, projections, props| {
             let bind_state = bind_state
                 .downcast_ref::<<F as TableScanFunction>::BindState>()
@@ -429,17 +427,17 @@ where
             Ok(states)
         },
         create_execute_operator_state_fn: |_bind_state, _props| {
-            Err(RayexecError::new("Not an execute function"))
+            Err(DbError::new("Not an execute function"))
         },
         create_execute_partition_states_fn: |_op_state, _props, _partitions| {
-            Err(RayexecError::new("Not an execute function"))
+            Err(DbError::new("Not an execute function"))
         },
 
         poll_execute_fn: |_cx, _op_state, _partition_state, _input, _output| {
-            Err(RayexecError::new("Not an execute function"))
+            Err(DbError::new("Not an execute function"))
         },
         poll_finalize_execute_fn: |_cx, _op_state, _partition_state| {
-            Err(RayexecError::new("Not an execute function"))
+            Err(DbError::new("Not an execute function"))
         },
 
         poll_pull_fn: |cx, op_state, partition_state, output| {

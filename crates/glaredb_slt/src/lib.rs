@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use convert::{batches_to_rows, schema_to_types};
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use libtest_mimic::{Arguments, Trial};
 use sqllogictest::DefaultColumnType;
@@ -273,7 +273,7 @@ impl TestSession {
     async fn run_inner(
         &mut self,
         sql: &str,
-    ) -> Result<sqllogictest::DBOutput<DefaultColumnType>, RayexecError> {
+    ) -> Result<sqllogictest::DBOutput<DefaultColumnType>, DbError> {
         info!(%sql, "query");
 
         let mut sql_with_replacements = sql.to_string();
@@ -314,7 +314,7 @@ impl TestSession {
                 query_res.handle.cancel();
 
                 // let prof_data = handle.generate_execution_profile_data().await.unwrap();
-                Err(RayexecError::new(format!(
+                Err(DbError::new(format!(
                     "Variables\n{}\nQuery timed out\n---",
                     self.conf.vars
                 )))
@@ -325,7 +325,7 @@ impl TestSession {
 
 #[async_trait]
 impl sqllogictest::AsyncDB for TestSession {
-    type Error = RayexecError;
+    type Error = DbError;
     type ColumnType = DefaultColumnType;
 
     async fn run(

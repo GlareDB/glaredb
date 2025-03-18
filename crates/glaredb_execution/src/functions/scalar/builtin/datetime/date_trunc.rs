@@ -1,19 +1,19 @@
 use std::str::FromStr;
 
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{not_implemented, DbError, Result};
 
-use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::PhysicalI64;
+use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit};
-use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::executor::OutBuffer;
 use crate::expr::Expression;
-use crate::functions::Signature;
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::functions::Signature;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
 pub const FUNCTION_SET_DATE_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
     name: "date_trunc",
@@ -47,7 +47,7 @@ enum TruncField {
 }
 
 impl FromStr for TruncField {
-    type Err = RayexecError;
+    type Err = DbError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "microseconds" => Self::Microseconds,
@@ -63,7 +63,7 @@ impl FromStr for TruncField {
             "decade" => Self::Decade,
             "century" => Self::Century,
             "millennium" => Self::Millennium,
-            other => return Err(RayexecError::new(format!("Unexpected date field: {other}"))),
+            other => return Err(DbError::new(format!("Unexpected date field: {other}"))),
         })
     }
 }
@@ -92,7 +92,7 @@ impl ScalarFunction for DateTrunc {
         let time_m = match inputs[1].datatype()? {
             DataType::Timestamp(m) => m,
             other => {
-                return Err(RayexecError::new("Unexpected data type").with_field("datatype", other));
+                return Err(DbError::new("Unexpected data type").with_field("datatype", other));
             }
         };
 

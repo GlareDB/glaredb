@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::task::Context;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use parking_lot::Mutex;
 
 use crate::arrays::row::row_layout::RowLayout;
@@ -183,7 +183,7 @@ impl MergeQueue {
     pub fn take_sorted_run(&self) -> Result<Option<SortedSegment>> {
         let mut inner = self.inner.lock();
         if !inner.is_complete() {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Attempted to take final run from queue before merging complete",
             ));
         }

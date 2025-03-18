@@ -1,8 +1,8 @@
 use std::fmt::Debug;
-use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
+use std::sync::Arc;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::datatable::DataTable;
 
@@ -30,14 +30,14 @@ impl StorageManager {
         // Failing here shouldn't happen.
         self.tables
             .insert(id, table)
-            .map_err(|_| RayexecError::new(format!("Table with id already exists: {id:?}")))?;
+            .map_err(|_| DbError::new(format!("Table with id already exists: {id:?}")))?;
 
         Ok(id)
     }
 
     pub fn drop_table(&self, id: StorageTableId) -> Result<()> {
         if self.tables.remove(&id).is_none() {
-            return Err(RayexecError::new(format!("Missing table for id: {id:?}")));
+            return Err(DbError::new(format!("Missing table for id: {id:?}")));
         }
         Ok(())
     }
@@ -46,7 +46,7 @@ impl StorageManager {
         let table = self
             .tables
             .get(&id)
-            .ok_or_else(|| RayexecError::new(format!("Missing table for id: {id:?}")))?;
+            .ok_or_else(|| DbError::new(format!("Missing table for id: {id:?}")))?;
         Ok(table.get().clone())
     }
 }

@@ -1,10 +1,9 @@
 use std::borrow::Borrow;
 
 use ahash::RandomState;
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{not_implemented, DbError, Result};
 use half::f16;
 
-use crate::arrays::array::Array;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -13,24 +12,25 @@ use crate::arrays::array::physical_type::{
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI8,
+    PhysicalI128,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalInterval,
     PhysicalType,
-    PhysicalU8,
+    PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU128,
+    PhysicalU8,
     PhysicalUntypedNull,
     PhysicalUtf8,
     ScalarStorage,
     UntypedNull,
 };
 use crate::arrays::array::selection::Selection;
+use crate::arrays::array::Array;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
 use crate::util::iter::IntoExactSizeIterator;
@@ -167,9 +167,7 @@ where
             let inner_type = match datatype {
                 DataType::List(m) => &m.datatype,
                 other => {
-                    return Err(RayexecError::new(format!(
-                        "Expected list datatype, got {other}"
-                    )));
+                    return Err(DbError::new(format!("Expected list datatype, got {other}")));
                 }
             };
             hash_list_array::<H>(arr, inner_type, sel, hashes)

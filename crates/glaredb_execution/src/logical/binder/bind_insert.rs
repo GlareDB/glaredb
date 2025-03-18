@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
@@ -6,15 +6,15 @@ use super::bind_query::BoundQuery;
 use super::table_list::TableRef;
 use crate::arrays::datatype::DataType;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
-use crate::expr::{Expression, cast};
+use crate::expr::{cast, Expression};
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::operator::LocationRequirement;
-use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_table::{
     ResolvedTableOrCteReference,
     ResolvedTableReference,
 };
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct InsertProjections {
@@ -71,13 +71,11 @@ impl<'a> InsertBinder<'a> {
             (ResolvedTableOrCteReference::Table(reference), location) => (reference, location),
             (ResolvedTableOrCteReference::Cte { .. }, _) => {
                 // Shouldn't be possible.
-                return Err(RayexecError::new("Cannot insert into CTE"));
+                return Err(DbError::new("Cannot insert into CTE"));
             }
             (ResolvedTableOrCteReference::View(_), _) => {
                 // Also shouldn't be possible.
-                return Err(RayexecError::new(
-                    "View should have been inlined during resolve",
-                ));
+                return Err(DbError::new("View should have been inlined during resolve"));
             }
         };
 
@@ -107,7 +105,7 @@ impl<'a> InsertBinder<'a> {
             .collect();
 
         if table_types.len() != source_types.len() {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Invalid number of inputs. Expected {}, got {}",
                 table_types.len(),
                 source_types.len(),

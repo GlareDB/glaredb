@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::expr_binder::RecursionContext;
@@ -9,10 +9,10 @@ use crate::functions::table::TableFunctionInput;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::column_binder::ErroringColumnBinder;
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
-use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
-use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::logical::resolver::ResolvedMeta;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
 #[derive(Debug)]
 pub struct ConstantBinder<'a> {
@@ -72,7 +72,7 @@ impl<'a> ConstantBinder<'a> {
     ) -> Result<Expression> {
         match arg {
             ast::FunctionArgExpr::Expr(expr) => self.bind_constant_expression(expr),
-            ast::FunctionArgExpr::Wildcard => Err(RayexecError::new(
+            ast::FunctionArgExpr::Wildcard => Err(DbError::new(
                 "'*' cannot be used as a constant function argument",
             )),
         }

@@ -1,39 +1,39 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use num_traits::{NumCast, PrimInt};
 
 use super::decimal_sigs::D_SIGS;
-use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
-    PhysicalI8,
+    PhysicalI128,
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
-    PhysicalI128,
+    PhysicalI8,
     PhysicalInterval,
-    PhysicalU8,
+    PhysicalU128,
     PhysicalU16,
     PhysicalU32,
     PhysicalU64,
-    PhysicalU128,
+    PhysicalU8,
     ScalarStorage,
 };
+use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
-use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::BinaryExecutor;
-use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
+use crate::arrays::executor::OutBuffer;
+use crate::arrays::scalar::decimal::{Decimal128Type, Decimal64Type, DecimalType};
 use crate::arrays::scalar::interval::Interval;
 use crate::expr::{self, Expression};
-use crate::functions::Signature;
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
+use crate::functions::Signature;
 
 pub const FUNCTION_SET_MUL: ScalarFunctionSet = ScalarFunctionSet {
     name: "*",
@@ -243,7 +243,7 @@ where
             Some(meta) => (false, meta),
             None => {
                 let meta = DecimalTypeMeta::new_for_datatype_id(l_type.datatype_id()).ok_or_else(
-                    || RayexecError::new(format!("Cannot convert {l_type} into a decimal")),
+                    || DbError::new(format!("Cannot convert {l_type} into a decimal")),
                 )?;
                 (true, meta)
             }
@@ -253,7 +253,7 @@ where
             Some(meta) => (false, meta),
             None => {
                 let meta = DecimalTypeMeta::new_for_datatype_id(r_type.datatype_id()).ok_or_else(
-                    || RayexecError::new(format!("Cannot convert {r_type} into a decimal")),
+                    || DbError::new(format!("Cannot convert {r_type} into a decimal")),
                 )?;
                 (true, meta)
             }
@@ -263,7 +263,7 @@ where
         let new_scale = l_meta.scale + r_meta.scale;
 
         if new_scale > D::MAX_PRECISION as i8 {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Resuling decimal scale of '{new_scale}' exceeds max decimal precion '{}'",
                 D::MAX_PRECISION
             )));
@@ -275,7 +275,7 @@ where
         }
 
         if new_scale > new_precision as i8 {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Compute scale '{new_scale}' exceeds computed precision '{new_precision}'"
             )));
         }

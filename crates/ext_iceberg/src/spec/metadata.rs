@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use regex::Regex;
-use serde::{Deserialize, Deserializer, de};
+use serde::{de, Deserialize, Deserializer};
 
 use super::Schema;
 
@@ -121,7 +121,7 @@ pub enum Transform {
 }
 
 impl FromStr for Transform {
-    type Err = RayexecError;
+    type Err = DbError;
 
     fn from_str(s: &str) -> Result<Self> {
         Ok(match s {
@@ -139,16 +139,16 @@ impl FromStr for Transform {
                 static BUCKET_RE: LazyLock<Regex> =
                     LazyLock::new(|| Regex::new(r"^bucket\[(?P<n>\d+)\]$").unwrap());
 
-                let captures = BUCKET_RE.captures(other).ok_or_else(|| {
-                    RayexecError::new(format!("Invalid bucket transform: {other}"))
-                })?;
+                let captures = BUCKET_RE
+                    .captures(other)
+                    .ok_or_else(|| DbError::new(format!("Invalid bucket transform: {other}")))?;
 
                 let n: usize = captures
                     .name("n")
-                    .ok_or_else(|| RayexecError::new(format!("Invalid bucket transform: {other}")))?
+                    .ok_or_else(|| DbError::new(format!("Invalid bucket transform: {other}")))?
                     .as_str()
                     .parse()
-                    .map_err(|e| RayexecError::new(format!("'n' not a usize: {e}")))?;
+                    .map_err(|e| DbError::new(format!("'n' not a usize: {e}")))?;
 
                 Transform::Bucket(n)
             }
@@ -160,23 +160,21 @@ impl FromStr for Transform {
                 static BUCKET_RE: LazyLock<Regex> =
                     LazyLock::new(|| Regex::new(r"^truncate\[(?P<n>\d+)\]$").unwrap());
 
-                let captures = BUCKET_RE.captures(other).ok_or_else(|| {
-                    RayexecError::new(format!("Invalid truncate transform: {other}"))
-                })?;
+                let captures = BUCKET_RE
+                    .captures(other)
+                    .ok_or_else(|| DbError::new(format!("Invalid truncate transform: {other}")))?;
 
                 let n: usize = captures
                     .name("n")
-                    .ok_or_else(|| {
-                        RayexecError::new(format!("Invalid truncate transform: {other}"))
-                    })?
+                    .ok_or_else(|| DbError::new(format!("Invalid truncate transform: {other}")))?
                     .as_str()
                     .parse()
-                    .map_err(|e| RayexecError::new(format!("'n' not a usize: {e}")))?;
+                    .map_err(|e| DbError::new(format!("'n' not a usize: {e}")))?;
 
                 Transform::Truncate(n)
             }
 
-            other => return Err(RayexecError::new(format!("Invalid transform: {other}"))),
+            other => return Err(DbError::new(format!("Invalid transform: {other}"))),
         })
     }
 }

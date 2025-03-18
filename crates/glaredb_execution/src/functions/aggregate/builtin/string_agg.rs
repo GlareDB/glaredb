@@ -1,21 +1,21 @@
 use std::fmt::Debug;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::physical_type::{AddressableMut, PhysicalUtf8};
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::arrays::executor::PutBuffer;
 use crate::arrays::executor::aggregate::AggregateState;
+use crate::arrays::executor::PutBuffer;
 use crate::arrays::scalar::BorrowedScalarValue;
 use crate::expr::Expression;
-use crate::functions::Signature;
-use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{BinaryAggregate, SimpleBinaryAggregate};
+use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::AggregateFunctionSet;
-use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::functions::Signature;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 
 pub const FUNCTION_SET_STRING_AGG: AggregateFunctionSet = AggregateFunctionSet {
     name: "string_agg",
@@ -50,7 +50,7 @@ impl BinaryAggregate for StringAgg {
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         if !inputs[1].is_const_foldable() {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Second argument to STRING_AGG must be constant",
             ));
         }
@@ -59,7 +59,7 @@ impl BinaryAggregate for StringAgg {
             BorrowedScalarValue::Null => String::new(),
             BorrowedScalarValue::Utf8(v) => v.into_owned(),
             other => {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Unexpected value for STRING_AGG: {other}"
                 )));
             }

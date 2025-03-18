@@ -2,7 +2,7 @@ use std::backtrace::{Backtrace, BacktraceStatus};
 use std::error::Error;
 use std::fmt;
 
-pub type Result<T, E = RayexecError> = std::result::Result<T, E>;
+pub type Result<T, E = DbError> = std::result::Result<T, E>;
 
 /// Helper macros for returning an error for currently unimplemented items.
 ///
@@ -11,12 +11,12 @@ pub type Result<T, E = RayexecError> = std::result::Result<T, E>;
 macro_rules! not_implemented {
     ($($arg:tt)+) => {{
         let msg = format!($($arg)+);
-        return Err($crate::RayexecError::new(format!("Not yet implemented: {msg}")));
+        return Err($crate::DbError::new(format!("Not yet implemented: {msg}")));
     }};
 }
 
 // TODO: Implement partial eq on msg
-pub struct RayexecError {
+pub struct DbError {
     inner: Box<RayexecErrorInner>,
 }
 
@@ -43,9 +43,9 @@ pub struct ErrorField {
     pub value: Box<dyn ErrorFieldValue>,
 }
 
-impl RayexecError {
+impl DbError {
     pub fn new(msg: impl Into<String>) -> Self {
-        RayexecError {
+        DbError {
             inner: Box::new(RayexecErrorInner {
                 msg: msg.into(),
                 source: None,
@@ -56,7 +56,7 @@ impl RayexecError {
     }
 
     pub fn with_source(msg: impl Into<String>, source: Box<dyn Error + Send + Sync>) -> Self {
-        RayexecError {
+        DbError {
             inner: Box::new(RayexecErrorInner {
                 msg: msg.into(),
                 source: Some(source),
@@ -103,13 +103,13 @@ impl RayexecError {
     }
 }
 
-impl From<fmt::Error> for RayexecError {
+impl From<fmt::Error> for DbError {
     fn from(value: fmt::Error) -> Self {
         Self::with_source("Format error", Box::new(value))
     }
 }
 
-impl From<std::io::Error> for RayexecError {
+impl From<std::io::Error> for DbError {
     fn from(value: std::io::Error) -> Self {
         Self::with_source("IO error", Box::new(value))
     }
@@ -119,13 +119,13 @@ impl From<std::io::Error> for RayexecError {
 // was the value? What were we converting to?
 //
 // Likely this should be removed once we're in the polishing phase.
-impl From<std::num::TryFromIntError> for RayexecError {
+impl From<std::num::TryFromIntError> for DbError {
     fn from(value: std::num::TryFromIntError) -> Self {
         Self::with_source("Int convert error", Box::new(value))
     }
 }
 
-impl fmt::Display for RayexecError {
+impl fmt::Display for DbError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.inner.msg)?;
 
@@ -147,13 +147,13 @@ impl fmt::Display for RayexecError {
 
 // Debug implemented by using the Display out as that's significantly easier to
 // read.
-impl fmt::Debug for RayexecError {
+impl fmt::Debug for DbError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
     }
 }
 
-impl Error for RayexecError {
+impl Error for DbError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.inner.source.as_ref().map(|e| e.as_ref() as _)
     }
@@ -172,14 +172,14 @@ impl<T, E: Error + Send + Sync + 'static> ResultExt<T, E> for std::result::Resul
     fn context(self, msg: &'static str) -> Result<T> {
         match self {
             Ok(v) => Ok(v),
-            Err(e) => Err(RayexecError::with_source(msg, Box::new(e))),
+            Err(e) => Err(DbError::with_source(msg, Box::new(e))),
         }
     }
 
     fn context_fn<F: Fn() -> String>(self, f: F) -> Result<T> {
         match self {
             Ok(v) => Ok(v),
-            Err(e) => Err(RayexecError::with_source(f(), Box::new(e))),
+            Err(e) => Err(DbError::with_source(f(), Box::new(e))),
         }
     }
 }
@@ -193,7 +193,7 @@ impl<T> OptionExt<T> for Option<T> {
     fn required(self, msg: &'static str) -> Result<T> {
         match self {
             Self::Some(v) => Ok(v),
-            None => Err(RayexecError::new(msg)),
+            None => Err(DbError::new(msg)),
         }
     }
 }

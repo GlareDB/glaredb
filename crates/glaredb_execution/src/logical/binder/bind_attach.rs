@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
@@ -8,8 +8,8 @@ use super::column_binder::ErroringColumnBinder;
 use super::expr_binder::{BaseExpressionBinder, RecursionContext};
 use crate::logical::logical_attach::{LogicalAttachDatabase, LogicalDetachDatabase};
 use crate::logical::operator::{LocationRequirement, Node};
-use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 use crate::logical::statistics::StatisticsValue;
 
 #[derive(Debug)]
@@ -57,7 +57,7 @@ impl AttachBinder {
                     let v = expr.try_into_scalar()?;
 
                     if options.contains_key(&k) {
-                        return Err(RayexecError::new(format!(
+                        return Err(DbError::new(format!(
                             "Option '{k}' provided more than once"
                         )));
                     }
@@ -65,7 +65,7 @@ impl AttachBinder {
                 }
 
                 if attach.alias.0.len() != 1 {
-                    return Err(RayexecError::new(format!(
+                    return Err(DbError::new(format!(
                         "Expected a single identifier, got '{}'",
                         attach.alias
                     )));
@@ -93,7 +93,7 @@ impl AttachBinder {
                     estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
-            ast::AttachType::Table => Err(RayexecError::new("Attach tables not yet supported")),
+            ast::AttachType::Table => Err(DbError::new("Attach tables not yet supported")),
         }
     }
 
@@ -105,7 +105,7 @@ impl AttachBinder {
         match detach.attach_type {
             ast::AttachType::Database => {
                 if detach.alias.0.len() != 1 {
-                    return Err(RayexecError::new(format!(
+                    return Err(DbError::new(format!(
                         "Expected a single identifier, got '{}'",
                         detach.alias
                     )));
@@ -119,7 +119,7 @@ impl AttachBinder {
                     estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
-            ast::AttachType::Table => Err(RayexecError::new("Detach tables not yet supported")),
+            ast::AttachType::Table => Err(DbError::new("Detach tables not yet supported")),
         }
     }
 }

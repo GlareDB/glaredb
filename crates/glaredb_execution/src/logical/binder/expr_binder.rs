@@ -1,15 +1,15 @@
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{not_implemented, DbError, Result};
 use glaredb_parser::ast::{self, QueryNode};
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ExpressionColumnBinder;
-use crate::arrays::compute::cast::parse::{Decimal64Parser, Decimal128Parser, Parser};
+use crate::arrays::compute::cast::parse::{Decimal128Parser, Decimal64Parser, Parser};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::decimal::{
-    Decimal64Scalar,
-    Decimal64Type,
     Decimal128Scalar,
     Decimal128Type,
+    Decimal64Scalar,
+    Decimal64Type,
     DecimalType,
 };
 use crate::arrays::scalar::interval::Interval;
@@ -27,7 +27,7 @@ use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
-use crate::expr::{self, Expression, bind_aggregate_function};
+use crate::expr::{self, bind_aggregate_function, Expression};
 use crate::functions::scalar::builtin::datetime::FUNCTION_SET_DATE_PART;
 use crate::functions::scalar::builtin::is::{
     FUNCTION_SET_IS_FALSE,
@@ -47,11 +47,11 @@ use crate::functions::scalar::builtin::string::{
     FUNCTION_SET_STARTS_WITH,
     FUNCTION_SET_SUBSTRING,
 };
-use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
-use crate::logical::resolver::ResolvedMeta;
+use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecursionContext {
@@ -113,7 +113,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 // Use the provided column binder, no fallback.
                 match column_binder.bind_from_ident(self.current, bind_context, ident, recur)? {
                     Some(expr) => Ok(expr),
-                    None => Err(RayexecError::new(format!(
+                    None => Err(DbError::new(format!(
                         "Missing column for reference: {ident}",
                     ))),
                 }
@@ -128,13 +128,13 @@ impl<'a> BaseExpressionBinder<'a> {
                             .map(|i| i.as_normalized_string())
                             .collect::<Vec<_>>()
                             .join(".");
-                        Err(RayexecError::new(format!(
+                        Err(DbError::new(format!(
                             "Missing column for reference: {ident_string}",
                         )))
                     }
                 }
             }
-            ast::Expr::QualifiedWildcard(_) => Err(RayexecError::new(
+            ast::Expr::QualifiedWildcard(_) => Err(DbError::new(
                 "Qualified wildcard not a valid expression to bind",
             )),
             ast::Expr::Literal(literal) => {
@@ -202,7 +202,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
                     }
                     ast::ArraySubscript::Slice { .. } => {
-                        Err(RayexecError::new("Array slicing not yet implemented"))
+                        Err(DbError::new("Array slicing not yet implemented"))
                     }
                 }
             }
@@ -358,7 +358,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     ast::BinaryOperator::Lt => ComparisonOperator::Lt,
                     ast::BinaryOperator::LtEq => ComparisonOperator::LtEq,
                     _ => {
-                        return Err(RayexecError::new(
+                        return Err(DbError::new(
                             "ANY/ALL can only have =, <>, <, >, <=, or >= as an operator",
                         ));
                     }
@@ -572,9 +572,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 trailing,
             }) => {
                 if leading.is_some() {
-                    return Err(RayexecError::new(
-                        "Leading unit in interval not yet supported",
-                    ));
+                    return Err(DbError::new("Leading unit in interval not yet supported"));
                 }
                 let expr = self.bind_expression(
                     bind_context,
@@ -615,7 +613,7 @@ impl<'a> BaseExpressionBinder<'a> {
                             }
                             other => {
                                 // TODO: Got lazy, add the rest.
-                                return Err(RayexecError::new(format!(
+                                return Err(DbError::new(format!(
                                     "Missing interval constant for {other:?}"
                                 )));
                             }
@@ -693,13 +691,13 @@ impl<'a> BaseExpressionBinder<'a> {
                 else_expr,
             } => {
                 if conditions.len() != results.len() {
-                    return Err(RayexecError::new(
+                    return Err(DbError::new(
                         "CASE conditions and results differ in lengths",
                     ));
                 }
                 // Parser shouldn't allow this, but just in case.
                 if conditions.is_empty() {
-                    return Err(RayexecError::new("CASE requires at least one condition"));
+                    return Err(DbError::new("CASE requires at least one condition"));
                 }
 
                 let expr = expr
@@ -814,7 +812,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 //
                 // Currently we're just going to support top-level select
                 // expressions.
-                Err(RayexecError::new(
+                Err(DbError::new(
                     "COLUMNS expression should have been handle in select list expander",
                 ))
             }
@@ -836,7 +834,7 @@ impl<'a> BaseExpressionBinder<'a> {
             .column_types
             .first()
             .cloned()
-            .ok_or_else(|| RayexecError::new("Subquery returns zero columns"))?;
+            .ok_or_else(|| DbError::new("Subquery returns zero columns"))?;
 
         let return_type = if subquery_type == SubqueryType::Scalar {
             query_return_type.clone()
@@ -849,7 +847,7 @@ impl<'a> BaseExpressionBinder<'a> {
             SubqueryType::Scalar | SubqueryType::Any { .. }
         ) && table.num_columns() != 1
         {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Expected subquery to return 1 column, returns {} columns",
                 table.num_columns(),
             )));
@@ -906,9 +904,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 } else if let Ok(n) = n.parse::<f64>() {
                     expr::lit(n).into()
                 } else {
-                    return Err(RayexecError::new(format!(
-                        "Unable to parse {n} as a number"
-                    )));
+                    return Err(DbError::new(format!("Unable to parse {n} as a number")));
                 }
             }
             ast::Literal::Boolean(b) => Expression::Literal(LiteralExpr {
@@ -921,9 +917,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 literal: ScalarValue::Utf8(s.to_string().into()),
             }),
             other => {
-                return Err(RayexecError::new(format!(
-                    "Unusupported SQL literal: {other:?}"
-                )));
+                return Err(DbError::new(format!("Unusupported SQL literal: {other:?}")));
             }
         })
     }
@@ -967,12 +961,12 @@ impl<'a> BaseExpressionBinder<'a> {
                     ast::FunctionArgExpr::Wildcard => {
                         // Resolver should have handled removing '*'
                         // from function calls.
-                        Err(RayexecError::new(
+                        Err(DbError::new(
                             "Cannot plan a function with '*' as an argument",
                         ))
                     }
                 },
-                ast::FunctionArg::Named { .. } => Err(RayexecError::new(
+                ast::FunctionArg::Named { .. } => Err(DbError::new(
                     "Named arguments to scalar functions not supported",
                 )),
             })
@@ -986,26 +980,24 @@ impl<'a> BaseExpressionBinder<'a> {
                 match special {
                     SpecialBuiltinFunction::Unnest => {
                         if func.distinct || func.filter.is_some() || func.over.is_some() {
-                            return Err(RayexecError::new(
+                            return Err(DbError::new(
                                 "UNNEST does not support DISTINCT, FILTER, or OVER",
                             ));
                         }
 
                         if func.args.len() != 1 {
-                            return Err(RayexecError::new("UNNEST requires a single argument"));
+                            return Err(DbError::new("UNNEST requires a single argument"));
                         }
 
                         let input = match &func.args[0] {
                             ast::FunctionArg::Named { .. } => {
-                                return Err(RayexecError::new(
+                                return Err(DbError::new(
                                     "named arguments to UNNEST not yet supported",
                                 ));
                             }
                             ast::FunctionArg::Unnamed { arg } => match arg {
                                 ast::FunctionArgExpr::Wildcard => {
-                                    return Err(RayexecError::new(
-                                        "wildcard to UNNEST not supported",
-                                    ));
+                                    return Err(DbError::new("wildcard to UNNEST not supported"));
                                 }
                                 ast::FunctionArgExpr::Expr(expr) => self.bind_expression(
                                     bind_context,
@@ -1030,26 +1022,24 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     SpecialBuiltinFunction::Grouping => {
                         if func.distinct || func.filter.is_some() || func.over.is_some() {
-                            return Err(RayexecError::new(
+                            return Err(DbError::new(
                                 "GROUPING does not support DISTINCT, FILTER, or OVER",
                             ));
                         }
 
                         if func.args.is_empty() {
-                            return Err(RayexecError::new(
-                                "GROUPING requires at least one argument",
-                            ));
+                            return Err(DbError::new("GROUPING requires at least one argument"));
                         }
 
                         let inputs = func
                             .args
                             .iter()
                             .map(|arg| match arg {
-                                ast::FunctionArg::Named { .. } => Err(RayexecError::new(
-                                    "GROUPING does not accept named arguments",
-                                )),
+                                ast::FunctionArg::Named { .. } => {
+                                    Err(DbError::new("GROUPING does not accept named arguments"))
+                                }
                                 ast::FunctionArg::Unnamed { arg } => match arg {
-                                    ast::FunctionArgExpr::Wildcard => Err(RayexecError::new(
+                                    ast::FunctionArgExpr::Wildcard => Err(DbError::new(
                                         "GROUPING does not support wildcard arguments",
                                     )),
                                     ast::FunctionArgExpr::Expr(expr) => self.bind_expression(
@@ -1071,14 +1061,12 @@ impl<'a> BaseExpressionBinder<'a> {
             }
             (ResolvedFunction::Scalar(scalar), _) => {
                 if func.distinct {
-                    return Err(RayexecError::new(
+                    return Err(DbError::new(
                         "DISTINCT only supported for aggregate functions",
                     ));
                 }
                 if func.over.is_some() {
-                    return Err(RayexecError::new(
-                        "OVER only supported for aggregate functions",
-                    ));
+                    return Err(DbError::new("OVER only supported for aggregate functions"));
                 }
 
                 let function = expr::bind_scalar_function(scalar, inputs)?;

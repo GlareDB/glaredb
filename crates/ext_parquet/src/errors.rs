@@ -103,8 +103,8 @@ impl From<str::Utf8Error> for ParquetError {
     }
 }
 
-impl From<RayexecError> for ParquetError {
-    fn from(e: RayexecError) -> Self {
+impl From<DbError> for ParquetError {
+    fn from(e: DbError) -> Self {
         ParquetError::External(Box::new(e))
     }
 }
@@ -144,4 +144,4 @@ macro_rules! eof_err {
     ($fmt:expr, $($args:expr),*) => (crate::errors::ParquetError::EOF(format!($fmt, $($args),*)));
 }
 pub(crate) use eof_err;
-use glaredb_error::RayexecError;
+use glaredb_error::DbError;

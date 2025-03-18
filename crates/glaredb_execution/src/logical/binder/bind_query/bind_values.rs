@@ -1,14 +1,14 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use crate::arrays::datatype::DataType;
-use crate::expr::{Expression, cast};
+use crate::expr::{cast, Expression};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
 use crate::logical::binder::table_list::TableRef;
-use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
+use crate::logical::resolver::ResolvedMeta;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundValues {
@@ -62,7 +62,7 @@ impl<'a> ValuesBinder<'a> {
                 .iter()
                 .map(|expr| expr.datatype())
                 .collect::<Result<Vec<_>>>()?,
-            None => return Err(RayexecError::new("Empty VALUES statement")),
+            None => return Err(DbError::new("Empty VALUES statement")),
         };
 
         // TODO: Below casting could be a bit more sophisticated by using the
@@ -77,7 +77,7 @@ impl<'a> ValuesBinder<'a> {
         // Find any null types and try to replace them.
         for row in &rows {
             if row.len() != types.len() {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "All rows in VALUES clause must have the same number of columns",
                 ));
             }

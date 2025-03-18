@@ -28,7 +28,7 @@ use cast_expr::CastExpr;
 use column_expr::{ColumnExpr, ColumnReference};
 use comparison_expr::{ComparisonExpr, ComparisonOperator};
 use conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use grouping_set_expr::GroupingSetExpr;
 use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
@@ -470,7 +470,7 @@ impl Expression {
     pub fn try_into_scalar(self) -> Result<ScalarValue> {
         match self {
             Self::Literal(lit) => Ok(lit.literal),
-            other => Err(RayexecError::new(format!("Not a literal: {other}"))),
+            other => Err(DbError::new(format!("Not a literal: {other}"))),
         }
     }
 }
@@ -714,7 +714,7 @@ pub fn bind_table_execute_function(
     let (func, input) = bind_table_function_signature(function, input)?;
 
     if func.function_type() != TableFunctionType::Execute {
-        return Err(RayexecError::new(format!(
+        return Err(DbError::new(format!(
             "'{}' does not accept table inputs",
             function.name
         )));
@@ -737,7 +737,7 @@ pub async fn bind_table_scan_function(
     let (func, input) = bind_table_function_signature(function, input)?;
 
     if func.function_type() != TableFunctionType::Scan {
-        return Err(RayexecError::new(format!(
+        return Err(DbError::new(format!(
             "'{}' is not a scan function",
             function.name
         )));
@@ -790,7 +790,7 @@ where
     let (f, inputs) = bind_function_signature(function, inputs.to_vec())?;
     let inputs = inputs
         .try_into()
-        .map_err(|_| RayexecError::new("failed to convert to array"))?;
+        .map_err(|_| DbError::new("failed to convert to array"))?;
     Ok((f, inputs))
 }
 
@@ -819,7 +819,7 @@ where
 
             if candidates.is_empty() {
                 // TODO: Better error.
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Invalid inputs to '{}': {}",
                     function.name,
                     datatypes.display_with_brackets(),

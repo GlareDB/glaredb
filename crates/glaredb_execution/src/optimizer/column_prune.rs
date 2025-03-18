@@ -1,10 +1,10 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::OptimizeRule;
-use crate::expr::Expression;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
+use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, LogicalOperator, Node};
@@ -269,7 +269,7 @@ impl PruneState {
                         mat.plan = mat_plan;
                     }
                     other => {
-                        return Err(RayexecError::new(format!(
+                        return Err(DbError::new(format!(
                             "unexpected left child for magic join: {other:?}"
                         )));
                     }
@@ -328,7 +328,7 @@ impl PruneState {
                         let child_col = match projection {
                             Expression::Column(col) => col.reference,
                             other => {
-                                return Err(RayexecError::new(format!(
+                                return Err(DbError::new(format!(
                                     "Unexpected expression: {other}"
                                 )));
                             }
@@ -472,7 +472,7 @@ impl PruneState {
                             .projection
                             .first()
                             .copied()
-                            .ok_or_else(|| RayexecError::new("Scan references no columns"))?,
+                            .ok_or_else(|| DbError::new("Scan references no columns"))?,
                     );
                 }
 

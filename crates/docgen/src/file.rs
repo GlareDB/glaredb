@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::sync::LazyLock;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use regex::Regex;
 use tracing::info;
 
@@ -44,7 +44,7 @@ impl DocFile {
             match DOCSGEN_START_REGEX.captures(line) {
                 Some(captures) => {
                     if in_docsgen_section {
-                        return Err(RayexecError::new("Cannot nest docsgen sections")
+                        return Err(DbError::new("Cannot nest docsgen sections")
                             .with_field("line_number", idx + 1));
                     }
                     in_docsgen_section = true;
@@ -62,7 +62,7 @@ impl DocFile {
                             }
                         })
                         .ok_or_else(|| {
-                            RayexecError::new(format!("Missing docs section: {section_name}"))
+                            DbError::new(format!("Missing docs section: {section_name}"))
                         })?;
 
                     // Write original line + extra newline
@@ -75,7 +75,7 @@ impl DocFile {
                 None => {
                     if DOCSGEN_END_REGEX.is_match(line.as_str()) {
                         if !in_docsgen_section {
-                            return Err(RayexecError::new(
+                            return Err(DbError::new(
                                 "Found DOCSGEN_END tag when not in a docsgen section",
                             )
                             .with_field("line_number", idx + 1));
@@ -99,7 +99,7 @@ impl DocFile {
         }
 
         if in_docsgen_section {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Reached end of file, still in docsgen section",
             ));
         }

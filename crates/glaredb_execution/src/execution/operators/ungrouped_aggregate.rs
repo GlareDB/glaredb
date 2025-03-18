@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::task::Context;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use parking_lot::Mutex;
 
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
@@ -258,9 +258,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                     Ok(PollFinalize::Finalized)
                 }
             }
-            _ => Err(RayexecError::new(
-                "Ungrouped aggregate state in invalid state",
-            )),
+            _ => Err(DbError::new("Ungrouped aggregate state in invalid state")),
         }
     }
 }

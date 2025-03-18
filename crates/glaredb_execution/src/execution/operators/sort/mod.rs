@@ -2,7 +2,7 @@ mod merge_queue;
 
 use std::task::Context;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use merge_queue::{MergeQueue, PollMerge};
 
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
@@ -13,8 +13,8 @@ use crate::arrays::sort::partial_sort::{PartialSortedRowCollection, SortedRowApp
 use crate::arrays::sort::sort_layout::{SortColumn, SortLayout};
 use crate::arrays::sort::sorted_segment::{SortedSegment, SortedSegmentScanState};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::expr::physical::PhysicalSortExpression;
 use crate::expr::physical::evaluator::ExpressionEvaluator;
+use crate::expr::physical::PhysicalSortExpression;
 
 #[derive(Debug)]
 pub enum SortPartitionState {
@@ -279,7 +279,7 @@ impl ExecuteOperator for PhysicalSort {
                 // Trigger merge work.
                 Ok(PollFinalize::NeedsDrain)
             }
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Sort partition state in invalid state: {other:?}",
             ))),
         }

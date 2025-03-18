@@ -39,7 +39,7 @@ use std::fmt;
 use std::hash::Hash;
 
 pub use attach::*;
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 pub use window::*;
 
@@ -106,15 +106,13 @@ impl AstParseable for Ident {
         let tok = match parser.next() {
             Some(tok) => &tok.token,
             None => {
-                return Err(RayexecError::new(
-                    "Expected identifier, found end of statement",
-                ));
+                return Err(DbError::new("Expected identifier, found end of statement"));
             }
         };
 
         match tok {
             Token::Word(w) => Ok(w.clone().into()),
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Unexpected token: {other:?}. Expected an identifier.",
             ))),
         }
@@ -178,7 +176,7 @@ impl ObjectReference {
     pub fn base(&self) -> Result<Ident> {
         match self.0.last() {
             Some(ident) => Ok(ident.clone()),
-            None => Err(RayexecError::new("Empty object reference")),
+            None => Err(DbError::new("Empty object reference")),
         }
     }
 }
@@ -190,7 +188,7 @@ impl AstParseable for ObjectReference {
             let ident = match &tok.token {
                 Token::Word(w) => w.clone().into(),
                 other => {
-                    return Err(RayexecError::new(format!(
+                    return Err(DbError::new(format!(
                         "Unexpected token: {other:?}. Expected an object reference.",
                     )));
                 }

@@ -1,10 +1,10 @@
-use glaredb_error::RayexecError;
+use glaredb_error::DbError;
 use glaredb_execution::arrays::batch::Batch;
 use glaredb_execution::arrays::field::ColumnSchema;
 use glaredb_execution::arrays::format::pretty::table::PrettyTable;
 use glaredb_execution::engine::single_user::SingleUserEngine;
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
-use pyo3::{Python, pyclass, pyfunction, pymethods};
+use pyo3::{pyclass, pyfunction, pymethods, Python};
 
 use crate::errors::Result;
 use crate::event_loop::run_until_complete;
@@ -69,7 +69,7 @@ impl PythonSession {
                 // Possibly do some network calls if needed.
                 Ok(())
             }
-            None => Err(RayexecError::new("Tried to close an already closed session").into()),
+            None => Err(DbError::new("Tried to close an already closed session").into()),
         }
     }
 }
@@ -77,7 +77,7 @@ impl PythonSession {
 impl PythonSession {
     fn try_get_engine(&self) -> Result<&SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>> {
         let engine = self.engine.as_ref().ok_or_else(|| {
-            RayexecError::new("Attempted to reuse session after it's already been closed")
+            DbError::new("Attempted to reuse session after it's already been closed")
         })?;
         Ok(engine)
     }

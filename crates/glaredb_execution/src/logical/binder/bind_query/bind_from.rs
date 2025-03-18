@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{not_implemented, DbError, Result};
 use glaredb_parser::ast;
 
 use super::{BoundQuery, QueryBinder};
@@ -143,7 +143,7 @@ impl<'a> FromBinder<'a> {
             ast::FromNodeBody::Subquery(subquery) => {
                 self.bind_subquery(bind_context, subquery, from.alias)
             }
-            ast::FromNodeBody::File(_) => Err(RayexecError::new(
+            ast::FromNodeBody::File(_) => Err(DbError::new(
                 "Resolver should have replaced file path with a table function",
             )),
         }
@@ -173,7 +173,7 @@ impl<'a> FromBinder<'a> {
                 // their original names.
                 if let Some(columns) = columns {
                     if columns.len() > default_column_aliases.len() {
-                        return Err(RayexecError::new(format!(
+                        return Err(DbError::new(format!(
                             "Specified {} column aliases when only {} columns exist",
                             columns.len(),
                             default_column_aliases.len(),
@@ -253,9 +253,9 @@ impl<'a> FromBinder<'a> {
                 // TODO: Does location matter here?
                 self.bind_cte(bind_context, name, alias)
             }
-            (ResolvedTableOrCteReference::View(_), _location) => Err(RayexecError::new(
-                "View should have been inlined during resolve",
-            )),
+            (ResolvedTableOrCteReference::View(_), _location) => {
+                Err(DbError::new("View should have been inlined during resolve"))
+            }
         }
     }
 
@@ -361,7 +361,7 @@ impl<'a> FromBinder<'a> {
             // `push_table_scope_with_from_alias`. This just sets the default
             // names.
             if column_aliases.len() > names.len() {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "View contains too many column aliases, expected {}, got {}",
                     names.len(),
                     column_aliases.len()
@@ -439,7 +439,7 @@ impl<'a> FromBinder<'a> {
                                 positional.push(expr);
                             }
                             ast::FunctionArgExpr::Wildcard => {
-                                return Err(RayexecError::new(
+                                return Err(DbError::new(
                                     "Cannot plan a function with '*' as an argument",
                                 ));
                             }
@@ -456,7 +456,7 @@ impl<'a> FromBinder<'a> {
                                 named.insert(name.as_normalized_string(), expr);
                             }
                             ast::FunctionArgExpr::Wildcard => {
-                                return Err(RayexecError::new(
+                                return Err(DbError::new(
                                     "Cannot plan a function with '*' as an argument",
                                 ));
                             }
@@ -616,7 +616,7 @@ impl<'a> FromBinder<'a> {
         // Handle any USING columns, adding conditions as needed.
         for using in using_cols {
             let missing_column = |side| {
-                RayexecError::new(format!(
+                DbError::new(format!(
                     "Cannot find column '{using}' on {side} side of join"
                 ))
             };

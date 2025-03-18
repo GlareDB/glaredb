@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use futures::{Stream, stream};
-use glaredb_error::{RayexecError, Result};
-use scc::HashIndex;
+use futures::{stream, Stream};
+use glaredb_error::{DbError, Result};
 use scc::ebr::Guard;
+use scc::HashIndex;
 
 use super::create::{
     CreateAggregateFunctionInfo,
@@ -27,13 +27,13 @@ use super::entry::{
 };
 use super::{Catalog, Schema};
 use crate::catalog::entry::SchemaEntry;
-use crate::execution::operators::PlannedOperator;
 use crate::execution::operators::catalog::create_schema::PhysicalCreateSchema;
 use crate::execution::operators::catalog::create_table::PhysicalCreateTable;
 use crate::execution::operators::catalog::create_table_as::PhysicalCreateTableAs;
 use crate::execution::operators::catalog::create_view::PhysicalCreateView;
 use crate::execution::operators::catalog::drop::PhysicalDrop;
 use crate::execution::operators::catalog::insert::PhysicalInsert;
+use crate::execution::operators::PlannedOperator;
 use crate::functions::table::builtin::memory_scan::FUNCTION_SET_MEMORY_SCAN;
 use crate::storage::storage_manager::{StorageManager, StorageTableId};
 
@@ -81,7 +81,7 @@ impl Catalog for MemoryCatalog {
                 ent.update(schema.clone());
                 Ok(schema)
             }
-            (Entry::Occupied(_), OnConflict::Error) => Err(RayexecError::new(format!(
+            (Entry::Occupied(_), OnConflict::Error) => Err(DbError::new(format!(
                 "Duplicate schema name: '{}'",
                 create.name,
             ))),
@@ -96,7 +96,7 @@ impl Catalog for MemoryCatalog {
     fn drop_entry(&self, drop: &DropInfo) -> Result<Option<Arc<CatalogEntry>>> {
         if drop.object == DropObject::Schema {
             if drop.cascade {
-                return Err(RayexecError::new("CASCADE not yet supported"));
+                return Err(DbError::new("CASCADE not yet supported"));
             }
 
             // TODO: Schemas should be implemented as a CatalogMap.
@@ -108,10 +108,7 @@ impl Catalog for MemoryCatalog {
             let schema = self.schemas.get(&drop.schema).map(|ent| ent.clone());
 
             if !self.schemas.remove(&drop.schema) && !drop.if_exists {
-                return Err(RayexecError::new(format!(
-                    "Missing schema: {}",
-                    drop.schema
-                )));
+                return Err(DbError::new(format!("Missing schema: {}", drop.schema)));
             }
 
             return Ok(schema.map(|s| s.schema.clone()));
@@ -120,7 +117,7 @@ impl Catalog for MemoryCatalog {
         let schema = self
             .schemas
             .get(&drop.schema)
-            .ok_or_else(|| RayexecError::new(format!("Missing schema: {}", drop.schema)))?;
+            .ok_or_else(|| DbError::new(format!("Missing schema: {}", drop.schema)))?;
 
         schema.drop_entry(drop)
     }
@@ -415,10 +412,7 @@ impl MemorySchema {
                 map.create_entry(entry)?;
             }
             (OnConflict::Error, Some(_)) => {
-                return Err(RayexecError::new(format!(
-                    "Duplicate entry: {}",
-                    entry.name
-                )));
+                return Err(DbError::new(format!("Duplicate entry: {}", entry.name)));
             }
             (OnConflict::Error, None) | (OnConflict::Ignore, None) => {
                 map.create_entry(entry)?;
@@ -427,24 +421,22 @@ impl MemorySchema {
 
         let ent = map
             .get_entry(&name)?
-            .ok_or_else(|| RayexecError::new("Missing entry after create"))?;
+            .ok_or_else(|| DbError::new("Missing entry after create"))?;
 
         Ok(ent)
     }
 
     fn drop_entry(&self, drop: &DropInfo) -> Result<Option<Arc<CatalogEntry>>> {
         match &drop.object {
-            DropObject::Index(_) => Err(RayexecError::new("Dropping indexes not yet supported")),
-            DropObject::Function(_) => {
-                Err(RayexecError::new("Dropping functions not yet supported"))
-            }
+            DropObject::Index(_) => Err(DbError::new("Dropping indexes not yet supported")),
+            DropObject::Function(_) => Err(DbError::new("Dropping functions not yet supported")),
             DropObject::Table(name) => {
                 Self::drop_entry_inner(&self.tables, name, drop.if_exists, drop.cascade)
             }
             DropObject::View(name) => {
                 Self::drop_entry_inner(&self.tables, name, drop.if_exists, drop.cascade)
             }
-            DropObject::Schema => Err(RayexecError::new("Cannot drop schema from inside schema")),
+            DropObject::Schema => Err(DbError::new("Cannot drop schema from inside schema")),
         }
     }
 
@@ -455,7 +447,7 @@ impl MemorySchema {
         cascade: bool,
     ) -> Result<Option<Arc<CatalogEntry>>> {
         if cascade {
-            return Err(RayexecError::new("CASCADE not yet supported"));
+            return Err(DbError::new("CASCADE not yet supported"));
         }
 
         let ent = map.get_entry(name)?;
@@ -466,7 +458,7 @@ impl MemorySchema {
                 Ok(Some(ent))
             }
             (None, true) => Ok(None),
-            (None, false) => Err(RayexecError::new("Missing entry, cannot drop")),
+            (None, false) => Err(DbError::new("Missing entry, cannot drop")),
         }
     }
 }
@@ -514,10 +506,9 @@ struct CatalogMap {
 impl CatalogMap {
     fn create_entry(&self, entry: CatalogEntry) -> Result<()> {
         match self.entries.entry(entry.name.clone()) {
-            scc::hash_index::Entry::Occupied(ent) => Err(RayexecError::new(format!(
-                "Duplicate entry name '{}'",
-                ent.name
-            ))),
+            scc::hash_index::Entry::Occupied(ent) => {
+                Err(DbError::new(format!("Duplicate entry name '{}'", ent.name)))
+            }
             scc::hash_index::Entry::Vacant(ent) => {
                 ent.insert_entry(Arc::new(entry));
                 Ok(())
@@ -527,7 +518,7 @@ impl CatalogMap {
 
     fn drop_entry(&self, entry: &CatalogEntry) -> Result<()> {
         if !self.entries.remove(&entry.name) {
-            return Err(RayexecError::new(format!("Missing entry '{}'", entry.name)));
+            return Err(DbError::new(format!("Missing entry '{}'", entry.name)));
         }
         Ok(())
     }
