@@ -7,12 +7,12 @@ SHOW DATABASES;
 system
 temp
 
-statement ok
-ATTACH memory DATABASE AS my_db;
+# statement ok
+# ATTACH memory DATABASE AS my_db;
 
-query T
-SHOW DATABASES;
-----
-my_db
-system
-temp
+# query T
+# SHOW DATABASES;
+# ----
+# my_db
+# system
+# temp

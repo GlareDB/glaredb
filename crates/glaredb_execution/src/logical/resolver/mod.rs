@@ -29,6 +29,12 @@ use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampType
 use crate::arrays::scalar::ScalarValue;
 use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
 use crate::catalog::context::DatabaseContext;
+use crate::catalog::system::{
+    BuiltinView,
+    SHOW_DATABASES_VIEW,
+    SHOW_SCHEMAS_VIEW,
+    SHOW_TABLES_VIEW,
+};
 use crate::expr;
 use crate::logical::operator::LocationRequirement;
 
@@ -203,39 +209,41 @@ impl<'a> Resolver<'a> {
     async fn resolve_show(
         &self,
         show: ast::Show<Raw>,
-        _resolve_context: &mut ResolveContext,
+        resolve_context: &mut ResolveContext,
     ) -> Result<ResolvedStatement> {
-        // let get_view_query = |view: BuiltinView| {
-        //     let mut stmts = parser::parse(view.view)?;
-        //     let stmt = match stmts.len() {
-        //         1 => stmts.pop().unwrap(),
-        //         other => {
-        //             return Err(RayexecError::new(format!(
-        //                 "Expected 1 statement, got {other}"
-        //             )))
-        //         }
-        //     };
+        let get_view_query = |view: BuiltinView| {
+            let mut stmts = parser::parse(view.view)?;
+            let stmt = match stmts.len() {
+                1 => stmts.pop().unwrap(),
+                other => return Err(DbError::new(format!("Expected 1 statement, got {other}"))),
+            };
 
-        //     match stmt {
-        //         Statement::Query(q) => Ok(q),
-        //         other => Err(RayexecError::new(format!(
-        //             "Expected query statement, got {other:?}"
-        //         ))),
-        //     }
-        // };
+            match stmt {
+                Statement::Query(q) => Ok(q),
+                other => Err(DbError::new(format!(
+                    "Expected query statement, got {other:?}"
+                ))),
+            }
+        };
 
         match show.reference {
             ast::ShowReference::Variable(var) => Ok(Statement::Show(ast::Show {
                 reference: Self::reference_to_strings(var).into(),
             })),
             ast::ShowReference::Databases => {
-                not_implemented!("resolve SHOW DATABASES")
+                let query = get_view_query(SHOW_DATABASES_VIEW)?;
+                let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
+                Ok(Statement::Query(query))
             }
             ast::ShowReference::Schemas => {
-                not_implemented!("resolve SHOW SCHEMAS")
+                let query = get_view_query(SHOW_SCHEMAS_VIEW)?;
+                let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
+                Ok(Statement::Query(query))
             }
             ast::ShowReference::Tables => {
-                not_implemented!("resolve SHOW TABLES")
+                let query = get_view_query(SHOW_TABLES_VIEW)?;
+                let query = Box::pin(self.resolve_query(query, resolve_context)).await?;
+                Ok(Statement::Query(query))
             }
         }
     }

@@ -10,7 +10,7 @@ use super::resolved_table_function::ConstantFunctionArgs;
 use super::{ResolveContext, ResolvedMeta, Resolver};
 use crate::catalog::context::SYSTEM_CATALOG;
 use crate::catalog::entry::CatalogEntryType;
-use crate::catalog::system::BUILTIN_SCHEMA;
+use crate::catalog::system::DEFAULT_SCHEMA;
 use crate::catalog::{Catalog, Schema};
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
 use crate::logical::operator::LocationRequirement;
@@ -573,7 +573,7 @@ impl<'a> ExpressionResolver<'a> {
             0 => return Err(DbError::new("Missing idents for function reference")), // Shouldn't happen.
             1 => (
                 SYSTEM_CATALOG.to_string(),
-                BUILTIN_SCHEMA.to_string(),
+                DEFAULT_SCHEMA.to_string(),
                 func.reference.0[0].as_normalized_string(),
             ),
             2 => (
