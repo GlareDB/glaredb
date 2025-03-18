@@ -1,4 +1,4 @@
-use glaredb_error::{not_implemented, Result};
+use glaredb_error::{Result, not_implemented};
 
 use super::OperatorPlanState;
 use crate::execution::operators::hash_aggregate::{Aggregates, PhysicalHashAggregate};
