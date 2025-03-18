@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::PhysicalI64;
@@ -47,7 +47,7 @@ enum TruncField {
 }
 
 impl FromStr for TruncField {
-    type Err = RayexecError;
+    type Err = DbError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "microseconds" => Self::Microseconds,
@@ -63,7 +63,7 @@ impl FromStr for TruncField {
             "decade" => Self::Decade,
             "century" => Self::Century,
             "millennium" => Self::Millennium,
-            other => return Err(RayexecError::new(format!("Unexpected date field: {other}"))),
+            other => return Err(DbError::new(format!("Unexpected date field: {other}"))),
         })
     }
 }
@@ -92,7 +92,7 @@ impl ScalarFunction for DateTrunc {
         let time_m = match inputs[1].datatype()? {
             DataType::Timestamp(m) => m,
             other => {
-                return Err(RayexecError::new("Unexpected data type").with_field("datatype", other));
+                return Err(DbError::new("Unexpected data type").with_field("datatype", other));
             }
         };
 

@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Ident, ObjectReference, QueryNode};
@@ -46,7 +46,7 @@ impl AstParseable for CreateView<Raw> {
         let query_tok = match parser.peek() {
             Some(tok) => tok.clone(),
             None => {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Unexpected end of statement, expect view body",
                 ));
             }

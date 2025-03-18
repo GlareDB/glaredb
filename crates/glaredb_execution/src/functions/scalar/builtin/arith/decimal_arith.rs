@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::datatype::{DataType, DecimalTypeMeta};
 use crate::arrays::scalar::decimal::DecimalType;
@@ -26,13 +26,13 @@ where
     let l_meta = match D::decimal_meta_opt(left) {
         Some(meta) => meta,
         None => DecimalTypeMeta::new_for_datatype_id(left.datatype_id())
-            .ok_or_else(|| RayexecError::new(format!("Cannot convert {left} into a decimal")))?,
+            .ok_or_else(|| DbError::new(format!("Cannot convert {left} into a decimal")))?,
     };
 
     let r_meta = match D::decimal_meta_opt(right) {
         Some(meta) => meta,
         None => DecimalTypeMeta::new_for_datatype_id(right.datatype_id())
-            .ok_or_else(|| RayexecError::new(format!("Cannot convert {right} into a decimal")))?,
+            .ok_or_else(|| DbError::new(format!("Cannot convert {right} into a decimal")))?,
     };
 
     // Need to apply casts to get the decimals to the same prec/scale.

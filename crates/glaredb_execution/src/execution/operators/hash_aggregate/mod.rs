@@ -7,7 +7,7 @@ mod grouping_value;
 use std::collections::BTreeSet;
 use std::task::{Context, Waker};
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use grouping_set_hash_table::{
     GroupingSetBuildPartitionState,
     GroupingSetHashTable,
@@ -309,9 +309,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
                 Ok(PollFinalize::NeedsDrain)
             }
-            _ => Err(RayexecError::new(
-                "Hash aggregate partition already finalized",
-            )),
+            _ => Err(DbError::new("Hash aggregate partition already finalized")),
         }
     }
 }

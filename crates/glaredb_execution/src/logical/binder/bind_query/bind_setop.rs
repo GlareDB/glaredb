@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::ast;
 
 use super::BoundQuery;
@@ -129,7 +129,7 @@ impl<'a> SetOpBinder<'a> {
             );
 
             if left_score.is_none() && right_score.is_none() {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Cannot find suitable cast type for {left} and {right}"
                 )));
             }

@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn};
@@ -157,7 +157,7 @@ impl DefaultColumnBinder {
 /// Errors if no idents are provided.
 pub fn idents_to_alias_and_column(idents: &[ast::Ident]) -> Result<(Option<TableAlias>, String)> {
     match idents.len() {
-        0 => Err(RayexecError::new("Empty identifier")),
+        0 => Err(DbError::new("Empty identifier")),
         1 => {
             // Single column.
             Ok((None, idents[0].as_normalized_string()))
@@ -183,7 +183,7 @@ pub fn idents_to_alias_and_column(idents: &[ast::Ident]) -> Result<(Option<Table
 
             Ok((Some(alias), col))
         }
-        _ => Err(RayexecError::new(format!(
+        _ => Err(DbError::new(format!(
             "Too many identifier parts in {}",
             ast::ObjectReference(idents.to_vec()),
         ))), // TODO: Struct fields.
@@ -213,7 +213,7 @@ impl ExpressionColumnBinder for ErroringColumnBinder {
         _ident: &ast::Ident,
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        Err(RayexecError::new(
+        Err(DbError::new(
             "Statement does not support binding to columns",
         ))
     }
@@ -225,7 +225,7 @@ impl ExpressionColumnBinder for ErroringColumnBinder {
         _idents: &[ast::Ident],
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        Err(RayexecError::new(
+        Err(DbError::new(
             "Statement does not support binding to columns",
         ))
     }

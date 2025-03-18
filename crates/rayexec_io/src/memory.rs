@@ -8,7 +8,7 @@ use bytes::Bytes;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::BoxStream;
 use futures::{Stream, StreamExt};
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use parking_lot::Mutex;
 
 use crate::exp::AsyncReadStream;
@@ -48,7 +48,7 @@ impl MemoryFileSystem {
             .lock()
             .get(name)
             .cloned()
-            .ok_or_else(|| RayexecError::new(format!("Missing file for '{name}'")))?;
+            .ok_or_else(|| DbError::new(format!("Missing file for '{name}'")))?;
 
         Ok(Box::new(MemoryFile { content }))
     }
@@ -71,7 +71,7 @@ pub struct MemoryFile {
 impl FileSource for MemoryFile {
     fn read_range(&mut self, start: usize, len: usize) -> BoxFuture<Result<Bytes>> {
         let result = if start + len > self.content.len() {
-            Err(RayexecError::new("Byte range out of bounds"))
+            Err(DbError::new("Byte range out of bounds"))
         } else {
             let bs = self.content.slice(start..start + len);
             Ok(bs)
@@ -198,32 +198,32 @@ pub fn get_normalized_file_name(path: &Path) -> Result<&str> {
         Some(Component::RootDir) | Some(Component::CurDir) => (),
         Some(Component::Normal(s)) => {
             if components.next().is_some() {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Directories not supported in WASM fs provider",
                 ));
             }
 
             return s
                 .to_str()
-                .ok_or_else(|| RayexecError::new("Unable to convert os string to string"));
+                .ok_or_else(|| DbError::new("Unable to convert os string to string"));
         }
-        Some(_) => return Err(RayexecError::new("Invalid component in path")),
-        None => return Err(RayexecError::new("Path is empty")),
+        Some(_) => return Err(DbError::new("Invalid component in path")),
+        None => return Err(DbError::new("Path is empty")),
     }
 
     // We're either in '/' or './' (same thing)
     match components.next() {
         Some(Component::Normal(s)) => {
             if components.next().is_some() {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Directories not supported in WASM fs provider",
                 ));
             }
 
             Ok(s.to_str()
-                .ok_or_else(|| RayexecError::new("Unable to convert os string to string"))?)
+                .ok_or_else(|| DbError::new("Unable to convert os string to string"))?)
         }
-        _ => Err(RayexecError::new("Invalid path component")),
+        _ => Err(DbError::new("Invalid path component")),
     }
 }
 

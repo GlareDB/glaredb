@@ -3,7 +3,7 @@
 
 use std::fmt::Debug;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::AggregateFunction;
 use crate::arrays::array::Array;
@@ -82,11 +82,11 @@ where
         dest: &mut [&mut Self::GroupState],
     ) -> Result<()> {
         if src.len() != dest.len() {
-            return Err(RayexecError::new(
-                "Source and destination have different number of states",
-            )
-            .with_field("source", src.len())
-            .with_field("dest", dest.len()));
+            return Err(
+                DbError::new("Source and destination have different number of states")
+                    .with_field("source", src.len())
+                    .with_field("dest", dest.len()),
+            );
         }
 
         for (src, dest) in src.iter_mut().zip(dest) {
@@ -182,11 +182,11 @@ where
         dest: &mut [&mut Self::GroupState],
     ) -> Result<()> {
         if src.len() != dest.len() {
-            return Err(RayexecError::new(
-                "Source and destination have different number of states",
-            )
-            .with_field("source", src.len())
-            .with_field("dest", dest.len()));
+            return Err(
+                DbError::new("Source and destination have different number of states")
+                    .with_field("source", src.len())
+                    .with_field("dest", dest.len()),
+            );
         }
 
         for (src, dest) in src.iter_mut().zip(dest) {

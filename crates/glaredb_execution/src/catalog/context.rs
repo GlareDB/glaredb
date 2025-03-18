@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::database::{AccessMode, Database};
 use super::memory::MemoryCatalog;
@@ -49,7 +49,7 @@ impl DatabaseContext {
     pub fn require_get_database(&self, name: &str) -> Result<&Arc<Database>> {
         self.databases
             .get(name)
-            .ok_or_else(|| RayexecError::new(format!("Missing catalog '{name}'")))
+            .ok_or_else(|| DbError::new(format!("Missing catalog '{name}'")))
     }
 
     pub fn iter_databases(&self) -> impl Iterator<Item = &Arc<Database>> + '_ {

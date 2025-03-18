@@ -2,7 +2,7 @@ use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::physical_type::{
     BinaryViewAddressable,
@@ -106,9 +106,7 @@ impl ArrayBuffer {
                 let inner = match datatype {
                     DataType::List(m) => m.datatype.as_ref().clone(),
                     other => {
-                        return Err(RayexecError::new(format!(
-                            "Expected list datatype, got {other}"
-                        )));
+                        return Err(DbError::new(format!("Expected list datatype, got {other}")));
                     }
                 };
                 ListBuffer::try_new(manager, inner, capacity)?.into()
@@ -238,7 +236,7 @@ impl ArrayBufferType {
     pub fn get_list_buffer(&self) -> Result<&ListBuffer> {
         match self {
             Self::List(b) => Ok(b),
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Expected list buffer, got {}",
                 other.kind()
             ))),
@@ -248,7 +246,7 @@ impl ArrayBufferType {
     pub fn get_list_buffer_mut(&mut self) -> Result<&mut ListBuffer> {
         match self {
             Self::List(b) => Ok(b),
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Expected list buffer, got {}",
                 other.kind()
             ))),
@@ -258,7 +256,7 @@ impl ArrayBufferType {
     pub fn get_scalar_buffer(&self) -> Result<&ScalarBuffer> {
         match self {
             Self::Scalar(b) => Ok(b),
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Expected scalar buffer, got {}",
                 other.kind()
             ))),
@@ -268,7 +266,7 @@ impl ArrayBufferType {
     pub fn get_scalar_buffer_mut(&mut self) -> Result<&mut ScalarBuffer> {
         match self {
             Self::Scalar(b) => Ok(b),
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Expected scalar buffer, got {}",
                 other.kind()
             ))),
@@ -278,7 +276,7 @@ impl ArrayBufferType {
     pub fn get_string_buffer(&self) -> Result<&StringBuffer> {
         match self {
             Self::String(b) => Ok(b),
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Expected string buffer, got {}",
                 other.kind()
             ))),
@@ -288,7 +286,7 @@ impl ArrayBufferType {
     pub fn get_string_buffer_mut(&self) -> Result<&StringBuffer> {
         match self {
             Self::String(b) => Ok(b),
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Expected string buffer, got {}",
                 other.kind()
             ))),
@@ -388,7 +386,7 @@ impl ScalarBuffer {
         S::StorageType: Sized,
     {
         if self.physical_type != S::PHYSICAL_TYPE {
-            return Err(RayexecError::new("Physical type doesn't match for cast")
+            return Err(DbError::new("Physical type doesn't match for cast")
                 .with_field("need", self.physical_type)
                 .with_field("have", S::PHYSICAL_TYPE));
         }
@@ -403,7 +401,7 @@ impl ScalarBuffer {
         S::StorageType: Sized,
     {
         if self.physical_type != S::PHYSICAL_TYPE {
-            return Err(RayexecError::new("Physical type doesn't match for cast")
+            return Err(DbError::new("Physical type doesn't match for cast")
                 .with_field("need", self.physical_type)
                 .with_field("have", S::PHYSICAL_TYPE));
         }
@@ -503,7 +501,7 @@ impl StringBuffer {
     pub fn try_as_string_view(&self) -> Result<StringViewAddressable> {
         let buffer = &self.buffer;
         if !self.is_utf8 {
-            return Err(RayexecError::new("Cannot view raw binary as strings"));
+            return Err(DbError::new("Cannot view raw binary as strings"));
         }
 
         Ok(StringViewAddressable {
@@ -515,7 +513,7 @@ impl StringBuffer {
     pub fn try_as_string_view_mut(&mut self) -> Result<StringViewAddressableMut> {
         let buffer = self.buffer.try_as_mut()?;
         if !self.is_utf8 {
-            return Err(RayexecError::new("Cannot view raw binary as strings"));
+            return Err(DbError::new("Cannot view raw binary as strings"));
         }
 
         Ok(StringViewAddressableMut {
@@ -560,7 +558,7 @@ impl StringBuffer {
             PhysicalType::Utf8 => true,
             PhysicalType::Binary => false,
             other => {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Unexpected physical type for string buffer: {other}",
                 )));
             }
@@ -845,7 +843,7 @@ impl<T> SharedOrOwned<T> {
 
     pub(crate) fn try_clone_shared(&self) -> Result<Self> {
         match self {
-            Self::Owned(_) => Err(RayexecError::new("Cannot clone owned value")),
+            Self::Owned(_) => Err(DbError::new("Cannot clone owned value")),
             Self::Shared(v) => Ok(Self::Shared(v.clone())),
             Self::Uninit => panic!("invalid state"),
         }
@@ -870,12 +868,12 @@ impl<T> Deref for SharedOrOwned<T> {
 }
 
 impl<T> TryAsMut<T> for SharedOrOwned<T> {
-    type Error = RayexecError;
+    type Error = DbError;
 
     fn try_as_mut(&mut self) -> Result<&mut T, Self::Error> {
         match self {
             Self::Owned(v) => Ok(v.as_mut()),
-            Self::Shared(_) => Err(RayexecError::new("Cannot get mutable refernce")),
+            Self::Shared(_) => Err(DbError::new("Cannot get mutable refernce")),
             Self::Uninit => panic!("invalid state"),
         }
     }

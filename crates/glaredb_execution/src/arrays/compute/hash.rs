@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 
 use ahash::RandomState;
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 use half::f16;
 
 use crate::arrays::array::Array;
@@ -167,9 +167,7 @@ where
             let inner_type = match datatype {
                 DataType::List(m) => &m.datatype,
                 other => {
-                    return Err(RayexecError::new(format!(
-                        "Expected list datatype, got {other}"
-                    )));
+                    return Err(DbError::new(format!("Expected list datatype, got {other}")));
                 }
             };
             hash_list_array::<H>(arr, inner_type, sel, hashes)

@@ -25,7 +25,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::ReorderableCondition;
 use super::edge::{EdgeId, EdgeType, HyperEdges, NeighborEdge};
@@ -359,7 +359,7 @@ impl Graph {
         let longest = self
             .best_plans
             .remove(&longest_set)
-            .ok_or_else(|| RayexecError::new("Missing longest best plan"))?;
+            .ok_or_else(|| DbError::new("Missing longest best plan"))?;
 
         let plan = self.build_from_generated(&longest)?;
 
@@ -529,11 +529,11 @@ impl Graph {
         let left = self
             .best_plans
             .get_key_value(left)
-            .ok_or_else(|| RayexecError::new("missing best plan for left"))?;
+            .ok_or_else(|| DbError::new("missing best plan for left"))?;
         let right = self
             .best_plans
             .get_key_value(right)
-            .ok_or_else(|| RayexecError::new("missing best plan for right"))?;
+            .ok_or_else(|| DbError::new("missing best plan for right"))?;
 
         let new_set = RelationSet::union(left.0, right.0);
 
@@ -684,7 +684,7 @@ impl Graph {
             let filter = self
                 .filters
                 .remove(filter_id)
-                .ok_or_else(|| RayexecError::new(format!("Filter previously used: {filter_id}")))?;
+                .ok_or_else(|| DbError::new(format!("Filter previously used: {filter_id}")))?;
 
             input_filters.push(filter.filter);
         }
@@ -773,7 +773,7 @@ impl Graph {
             let rel = self
                 .base_relations
                 .remove(&node.set.relation_indices[0])
-                .ok_or_else(|| RayexecError::new("Missing base relation"))?;
+                .ok_or_else(|| DbError::new("Missing base relation"))?;
 
             return Ok(rel.operator);
         }
@@ -783,11 +783,11 @@ impl Graph {
         let mut left_gen = self
             .best_plans
             .remove(&node.left)
-            .ok_or_else(|| RayexecError::new("Missing left input"))?;
+            .ok_or_else(|| DbError::new("Missing left input"))?;
         let mut right_gen = self
             .best_plans
             .remove(&node.right)
-            .ok_or_else(|| RayexecError::new("Missing right input"))?;
+            .ok_or_else(|| DbError::new("Missing right input"))?;
 
         // If any of the conditions are part of a semi join, ensure the correct
         // order of the plans and prevent swapping sides.
@@ -796,7 +796,7 @@ impl Graph {
             let edge = self
                 .hyper_edges
                 .get_edge(edge_id)
-                .ok_or_else(|| RayexecError::new("Missing edge"))?;
+                .ok_or_else(|| DbError::new("Missing edge"))?;
 
             if let Some(cond @ ReorderableCondition::Semi { .. }) = &edge.filter {
                 let [left_refs, _right_refs] = cond.get_left_right_table_refs();
@@ -815,7 +815,7 @@ impl Graph {
             let edge = self
                 .hyper_edges
                 .remove_edge(edge_id)
-                .ok_or_else(|| RayexecError::new("Edge already used"))?;
+                .ok_or_else(|| DbError::new("Edge already used"))?;
 
             let condition = match edge.filter {
                 Some(filter) => filter,

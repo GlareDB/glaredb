@@ -3,7 +3,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use apache_avro::{Reader, from_value};
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 
 use super::{PartitionField, Schema};
@@ -67,7 +67,7 @@ impl ManifestList {
     /// Read a manifest list from a reader over an Avro file.
     pub fn from_raw_avro(reader: impl std::io::Read) -> Result<ManifestList> {
         let reader = Reader::new(reader).map_err(|e| {
-            RayexecError::new(format!(
+            DbError::new(format!(
                 "failed to create avro reader for manifest list: {e}"
             ))
         })?;
@@ -75,10 +75,10 @@ impl ManifestList {
         let mut entries = Vec::new();
         for value in reader {
             let value = value.map_err(|e| {
-                RayexecError::new(format!("failed to get value for manifest list entry: {e}"))
+                DbError::new(format!("failed to get value for manifest list entry: {e}"))
             })?;
             let entry: ManifestListEntry = from_value(&value).map_err(|e| {
-                RayexecError::new(format!(
+                DbError::new(format!(
                     "failed to deserialize value for manifest list entry: {e}"
                 ))
             })?;
@@ -120,13 +120,13 @@ pub enum ManifestContent {
 }
 
 impl FromStr for ManifestContent {
-    type Err = RayexecError;
+    type Err = DbError;
     fn from_str(s: &str) -> Result<Self> {
         Ok(match s {
             "data" => ManifestContent::Data,
             "delete" => ManifestContent::Delete,
             other => {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "'{other}' is not valid content for manifest"
                 )));
             }
@@ -151,9 +151,8 @@ pub struct Manifest {
 
 impl Manifest {
     pub fn from_raw_avro(reader: impl std::io::Read) -> Result<Manifest> {
-        let reader = Reader::new(reader).map_err(|e| {
-            RayexecError::new(format!("failed to create avro reader for manifest: {e}"))
-        })?;
+        let reader = Reader::new(reader)
+            .map_err(|e| DbError::new(format!("failed to create avro reader for manifest: {e}")))?;
 
         let m = reader.user_metadata();
 
@@ -162,15 +161,15 @@ impl Manifest {
             field: &str,
         ) -> Result<&'a Vec<u8>> {
             m.get(field).ok_or_else(|| {
-                RayexecError::new(format!("Missing field '{field}' in manifest metadata"))
+                DbError::new(format!("Missing field '{field}' in manifest metadata"))
             })
         }
 
         fn get_metadata_as_i32(m: &HashMap<String, Vec<u8>>, field: &str) -> Result<i32> {
             let bs = get_metadata_field(m, field)?;
-            String::from_utf8_lossy(bs).parse::<i32>().map_err(|e| {
-                RayexecError::new(format!("Failed to parse 'schema-id' as an i32: {e}"))
-            })
+            String::from_utf8_lossy(bs)
+                .parse::<i32>()
+                .map_err(|e| DbError::new(format!("Failed to parse 'schema-id' as an i32: {e}")))
         }
 
         let schema = serde_json::from_slice::<Schema>(get_metadata_field(m, "schema")?)
@@ -182,7 +181,7 @@ impl Manifest {
         let partition_spec_id = get_metadata_as_i32(m, "partition-spec-id")?;
 
         let raw_partition_spec = m.get("partition-spec").ok_or_else(|| {
-            RayexecError::new("Missing field 'partition-spec' in manifest metadata".to_string())
+            DbError::new("Missing field 'partition-spec' in manifest metadata".to_string())
         })?;
 
         let partition_spec = match serde_json::from_slice::<PartitionSpec>(raw_partition_spec) {
@@ -212,10 +211,10 @@ impl Manifest {
         let mut entries = Vec::new();
         for value in reader {
             let value = value.map_err(|e| {
-                RayexecError::new(format!("failed to get value for manifest entry: {e}"))
+                DbError::new(format!("failed to get value for manifest entry: {e}"))
             })?;
             let entry: ManifestEntry = from_value(&value).map_err(|e| {
-                RayexecError::new(format!(
+                DbError::new(format!(
                     "failed to deserialize value for manifest entry: {e}"
                 ))
             })?;
@@ -241,7 +240,7 @@ impl ManifestEntryStatus {
 }
 
 impl TryFrom<i32> for ManifestEntryStatus {
-    type Error = RayexecError;
+    type Error = DbError;
 
     fn try_from(value: i32) -> std::prelude::v1::Result<Self, Self::Error> {
         Ok(match value {
@@ -249,9 +248,7 @@ impl TryFrom<i32> for ManifestEntryStatus {
             1 => Self::Added,
             2 => Self::Deleted,
             i => {
-                return Err(RayexecError::new(format!(
-                    "unknown manifest entry status: {i}"
-                )));
+                return Err(DbError::new(format!("unknown manifest entry status: {i}")));
             }
         })
     }

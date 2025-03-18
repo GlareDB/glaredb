@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::plan_query::QueryPlanner;
 use super::plan_subquery::SubqueryPlanner;
@@ -238,7 +238,7 @@ impl FromPlanner {
         // need to keep planning that.
         if !is_lateral && join.conditions.is_empty() {
             if !join.conditions.is_empty() {
-                return Err(RayexecError::new("CROSS JOIN should not have conditions"));
+                return Err(DbError::new("CROSS JOIN should not have conditions"));
             }
             return Ok(LogicalOperator::CrossJoin(Node {
                 node: LogicalCrossJoin,
@@ -280,7 +280,7 @@ impl FromPlanner {
             // Special join planning, needing to kick it to subquery planner. We
             // currently don't support arbitrary expressions for lateral join.
             if !extracted.arbitrary.is_empty() {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Arbitrary expressions not yet supported for LATERAL joins",
                 ));
             }

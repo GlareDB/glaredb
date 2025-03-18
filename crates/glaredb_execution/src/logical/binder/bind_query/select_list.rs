@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast::{self};
 
 use super::bind_group_by::BoundGroupBy;
@@ -193,7 +193,7 @@ impl SelectList {
                         .any(|table_ref| &col.reference.table_scope == table_ref)
                     {
                         let (col_name, _) = bind_context.get_column(col.reference)?;
-                        return Err(RayexecError::new(format!(
+                        return Err(DbError::new(format!(
                             "Column '{col_name}' must appear in the GROUP BY clause or be used in an aggregate function"
                         )));
                     }
@@ -298,9 +298,9 @@ impl SelectList {
         if let ast::Literal::Number(s) = lit {
             let n = s
                 .parse::<i64>()
-                .map_err(|_| RayexecError::new(format!("Failed to parse '{s}' into a number")))?;
+                .map_err(|_| DbError::new(format!("Failed to parse '{s}' into a number")))?;
             if n < 1 || n as usize > self.projections.len() {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Column out of range, expected 1 to {}",
                     self.projections.len()
                 )))?;
@@ -335,7 +335,7 @@ impl SelectList {
                 if self.grouping_set_references.is_empty() {
                     return Ok(Vec::new());
                 } else {
-                    return Err(RayexecError::new(
+                    return Err(DbError::new(
                         "GROUPING cannot be used without any GROUP BY expressions",
                     ));
                 }
@@ -350,7 +350,7 @@ impl SelectList {
             let grouping_expr = match grouping_expr {
                 Expression::GroupingSet(expr) => expr,
                 other => {
-                    return Err(RayexecError::new(format!(
+                    return Err(DbError::new(format!(
                         "Expected grouping set expression, got {other}"
                     )));
                 }
@@ -361,7 +361,7 @@ impl SelectList {
                 let idx = match group_by.expressions.iter().position(|expr| expr == input) {
                     Some(idx) => idx,
                     None => {
-                        return Err(RayexecError::new(format!(
+                        return Err(DbError::new(format!(
                             "'{input}' was not found in the GROUP BY and cannot be used as an argument to GROUPING"
                         )));
                     }
@@ -391,12 +391,10 @@ impl SelectList {
         for (idx, expr) in group_by.expressions.iter_mut().enumerate() {
             if let Expression::Column(col) = expr {
                 if col.reference.table_scope == self.projections_table {
-                    let proj_expr =
-                        self.projections
-                            .get_mut(col.reference.column)
-                            .ok_or_else(|| {
-                                RayexecError::new(format!("Missing projection column: {col}"))
-                            })?;
+                    let proj_expr = self
+                        .projections
+                        .get_mut(col.reference.column)
+                        .ok_or_else(|| DbError::new(format!("Missing projection column: {col}")))?;
 
                     let datatype = proj_expr.datatype()?;
 

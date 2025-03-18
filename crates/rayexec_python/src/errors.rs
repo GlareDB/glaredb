@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt;
 
-use glaredb_error::RayexecError;
+use glaredb_error::DbError;
 use pyo3::PyErr;
 use pyo3::exceptions::PyRuntimeError;
 
@@ -10,7 +10,7 @@ pub type Result<T, E = PythonError> = std::result::Result<T, E>;
 /// Wrapper around a rayexec error to convert into a `PyErr`.
 #[derive(Debug)]
 pub enum PythonError {
-    Rayexec(RayexecError),
+    Rayexec(DbError),
     PyErr(PyErr),
 }
 
@@ -32,8 +32,8 @@ impl fmt::Display for PythonError {
     }
 }
 
-impl From<RayexecError> for PythonError {
-    fn from(value: RayexecError) -> Self {
+impl From<DbError> for PythonError {
+    fn from(value: DbError) -> Self {
         PythonError::Rayexec(value)
     }
 }

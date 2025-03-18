@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
@@ -61,7 +61,7 @@ impl BinaryListReducer {
         if !inner1.child_validity.all_valid() || !inner2.child_validity.all_valid() {
             // TODO: This can be more selective. Rows that don't conform
             // could be skipped with the selections.
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "List reduction requires all values be non-null",
             ));
         }
@@ -87,7 +87,7 @@ impl BinaryListReducer {
                 let meta2 = metadata2.get(input2_idx).unwrap();
 
                 if meta1.len != meta2.len {
-                    return Err(RayexecError::new(format!(
+                    return Err(DbError::new(format!(
                         "List reduction requires lists be the same length, got {} and {}",
                         meta1.len, meta2.len,
                     )));
@@ -120,11 +120,11 @@ impl BinaryListReducer {
                 let meta2 = metadata2.get(input2_idx).unwrap();
 
                 if meta1.len != meta2.len {
-                    return Err(RayexecError::new(
-                        "List reduction requires lists be the same length",
-                    )
-                    .with_field("len1", meta1.len)
-                    .with_field("len2", meta2.len));
+                    return Err(
+                        DbError::new("List reduction requires lists be the same length")
+                            .with_field("len1", meta1.len)
+                            .with_field("len2", meta2.len),
+                    );
                 }
 
                 let mut reducer = R::default();

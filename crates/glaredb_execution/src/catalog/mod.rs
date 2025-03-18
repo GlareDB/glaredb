@@ -20,7 +20,7 @@ use create::{
 use drop::DropInfo;
 use entry::{CatalogEntry, CatalogEntryType};
 use futures::Stream;
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::execution::operators::PlannedOperator;
 use crate::storage::storage_manager::{StorageManager, StorageTableId};
@@ -39,7 +39,7 @@ pub trait Catalog: Debug + Sync + Send {
     /// Get a schema, returning an error if it doesn't exist.
     fn require_get_schema(&self, name: &str) -> Result<Arc<Self::Schema>> {
         self.get_schema(name)?
-            .ok_or_else(|| RayexecError::new(format!("Missing schema '{name}'")))
+            .ok_or_else(|| DbError::new(format!("Missing schema '{name}'")))
     }
 
     /// Drop an entry in the catalog.
@@ -121,9 +121,9 @@ pub trait Schema: Debug + Sync + Send {
     fn require_get_table(&self, name: &str) -> Result<Arc<CatalogEntry>> {
         let ent = self
             .get_table_or_view(name)?
-            .ok_or_else(|| RayexecError::new(format!("Missing table '{name}'")))?;
+            .ok_or_else(|| DbError::new(format!("Missing table '{name}'")))?;
         if ent.entry_type() != CatalogEntryType::Table {
-            return Err(RayexecError::new(format!("'{name}' is not a table")));
+            return Err(DbError::new(format!("'{name}' is not a table")));
         }
         Ok(ent)
     }

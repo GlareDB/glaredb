@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_proto::ProtoConv;
 use num_traits::{FromPrimitive, PrimInt, Signed, Zero};
 use serde::{Deserialize, Serialize};
@@ -50,7 +50,7 @@ pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
         }
 
         if precision > Self::MAX_PRECISION {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Precision {precision} is greater than max precision {}",
                 Self::MAX_PRECISION
             )));
@@ -58,7 +58,7 @@ pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
 
         let digits = value.abs().ilog10() + 1;
         if digits > precision as u32 {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "{value} cannot be stored in decimal with a precision of {precision}"
             )));
         }
@@ -75,7 +75,7 @@ pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
     /// not the correct type.
     fn decimal_meta(datatype: &DataType) -> Result<DecimalTypeMeta> {
         Self::decimal_meta_opt(datatype)
-            .ok_or_else(|| RayexecError::new("Failed to unwrap decimal type meta"))
+            .ok_or_else(|| DbError::new("Failed to unwrap decimal type meta"))
     }
 
     /// Create a new datatype using the provide precision and scale.
@@ -184,7 +184,7 @@ impl ProtoConv for Decimal128Scalar {
                 proto
                     .value
                     .try_into()
-                    .map_err(|_| RayexecError::new("byte buffer not 16 bytes"))?,
+                    .map_err(|_| DbError::new("byte buffer not 16 bytes"))?,
             ),
         })
     }

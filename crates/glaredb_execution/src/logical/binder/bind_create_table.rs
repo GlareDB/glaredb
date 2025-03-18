@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
@@ -44,7 +44,7 @@ impl<'a> CreateTableBinder<'a> {
             (false, true) => OnConflict::Ignore,
             (false, false) => OnConflict::Error,
             (true, true) => {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Cannot specify both OR REPLACE and IF NOT EXISTS",
                 ));
             }
@@ -73,7 +73,7 @@ impl<'a> CreateTableBinder<'a> {
                 // TODO: We could allow this though. We'd just need to do some
                 // projections as necessary.
                 if !columns.is_empty() {
-                    return Err(RayexecError::new(
+                    return Err(DbError::new(
                         "Cannot specify columns when running CREATE TABLE ... AS ...",
                     ));
                 }

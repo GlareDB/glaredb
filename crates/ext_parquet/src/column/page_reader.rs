@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_execution::buffer::typed::ByteBuffer;
 
 use super::encoding::PageDecoder;
@@ -57,7 +57,7 @@ impl PageReader {
     /// values available to read.
     pub fn prepare_next(&mut self) -> Result<()> {
         if self.chunk_offset >= self.chunk.capacity() {
-            return Err(RayexecError::new("reached end of chunk"));
+            return Err(DbError::new("reached end of chunk"));
         }
 
         let header = self.read_header()?;
@@ -112,7 +112,7 @@ impl PageReader {
             .chunk
             .as_slice()
             .get(self.chunk_offset..(self.chunk_offset + metadata.compressed_page_size as usize))
-            .ok_or_else(|| RayexecError::new("chunk buffer not large enough to read from"))?;
+            .ok_or_else(|| DbError::new("chunk buffer not large enough to read from"))?;
 
         self.chunk_offset += metadata.compressed_page_size as usize;
 
@@ -159,9 +159,7 @@ impl PageReader {
 
         if self.descr.max_rep_level > 0 {
             if header.rep_level_encoding != Encoding::RLE {
-                return Err(RayexecError::new(
-                    "RLE encoding required for repetition levels",
-                ));
+                return Err(DbError::new("RLE encoding required for repetition levels"));
             }
 
             self.state.repetitions = Some(get_level_decoder(self.descr.max_rep_level)?);
@@ -169,9 +167,7 @@ impl PageReader {
 
         if self.descr.max_def_level > 0 {
             if header.rep_level_encoding != Encoding::RLE {
-                return Err(RayexecError::new(
-                    "RLE encoding required for definition levels",
-                ));
+                return Err(DbError::new("RLE encoding required for definition levels"));
             }
 
             self.state.definitions = Some(get_level_decoder(self.descr.max_rep_level)?);
@@ -223,7 +219,7 @@ impl PageReader {
             self.chunk_offset += compressed_count;
 
             let codec = self.codec.as_ref().ok_or_else(|| {
-                RayexecError::new(
+                DbError::new(
                 "Page header indicates page is compressed, but we don't have a codec configured",
             )
             })?;
@@ -277,7 +273,7 @@ impl PageReader {
                 // Taking remaining...
                 unimplemented!()
             }
-            other => Err(RayexecError::new("Unsupported encoding").with_field("encoding", other)),
+            other => Err(DbError::new("Unsupported encoding").with_field("encoding", other)),
         }
     }
 
@@ -286,7 +282,7 @@ impl PageReader {
         let bs = &chunk
             .as_slice()
             .get(offset..(offset + size))
-            .ok_or_else(|| RayexecError::new("chunk buffer not large enough to read from"))?;
+            .ok_or_else(|| DbError::new("chunk buffer not large enough to read from"))?;
 
         Ok(bs)
     }

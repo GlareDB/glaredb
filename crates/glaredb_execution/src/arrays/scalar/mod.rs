@@ -7,7 +7,7 @@ use std::fmt;
 use std::hash::Hash;
 
 use decimal::{Decimal64Scalar, Decimal128Scalar};
-use glaredb_error::{OptionExt, RayexecError, Result};
+use glaredb_error::{DbError, OptionExt, Result};
 use glaredb_proto::ProtoConv;
 use half::f16;
 use interval::Interval;
@@ -200,7 +200,7 @@ impl BorrowedScalarValue<'_> {
     pub fn try_as_bool(&self) -> Result<bool> {
         match self {
             Self::Boolean(b) => Ok(*b),
-            other => Err(RayexecError::new(format!("Not a bool: {other}"))),
+            other => Err(DbError::new(format!("Not a bool: {other}"))),
         }
     }
 
@@ -214,7 +214,7 @@ impl BorrowedScalarValue<'_> {
             Self::UInt16(i) => Ok(*i as usize),
             Self::UInt32(i) => Ok(*i as usize),
             Self::UInt64(i) => Ok(*i as usize),
-            other => Err(RayexecError::new(format!("Not an integer: {other}"))),
+            other => Err(DbError::new(format!("Not an integer: {other}"))),
         }
     }
 
@@ -231,10 +231,10 @@ impl BorrowedScalarValue<'_> {
                 if *i < i64::MAX as u64 {
                     Ok(*i as i64)
                 } else {
-                    Err(RayexecError::new("u64 too large to fit into an i64"))
+                    Err(DbError::new("u64 too large to fit into an i64"))
                 }
             }
-            other => Err(RayexecError::new(format!("Not an integer: {other}"))),
+            other => Err(DbError::new(format!("Not an integer: {other}"))),
         }
     }
 
@@ -247,7 +247,7 @@ impl BorrowedScalarValue<'_> {
                 if *i < i32::MAX as i64 {
                     Ok(*i as i32)
                 } else {
-                    Err(RayexecError::new("i64 too large to fit into an i32"))
+                    Err(DbError::new("i64 too large to fit into an i32"))
                 }
             }
             Self::UInt8(i) => Ok(*i as i32),
@@ -256,31 +256,31 @@ impl BorrowedScalarValue<'_> {
                 if *i < i32::MAX as u32 {
                     Ok(*i as i32)
                 } else {
-                    Err(RayexecError::new("u32 too large to fit into an i32"))
+                    Err(DbError::new("u32 too large to fit into an i32"))
                 }
             }
             Self::UInt64(i) => {
                 if *i < i32::MAX as u64 {
                     Ok(*i as i32)
                 } else {
-                    Err(RayexecError::new("u64 too large to fit into an i32"))
+                    Err(DbError::new("u64 too large to fit into an i32"))
                 }
             }
-            other => Err(RayexecError::new(format!("Not an integer: {other}"))),
+            other => Err(DbError::new(format!("Not an integer: {other}"))),
         }
     }
 
     pub fn try_as_str(&self) -> Result<&str> {
         match self {
             Self::Utf8(v) => Ok(v.as_ref()),
-            other => Err(RayexecError::new(format!("Not a string: {other}"))),
+            other => Err(DbError::new(format!("Not a string: {other}"))),
         }
     }
 
     pub fn try_into_string(self) -> Result<String> {
         match self {
             Self::Utf8(v) => Ok(v.to_string()),
-            other => Err(RayexecError::new(format!("Not a string: {other}"))),
+            other => Err(DbError::new(format!("Not a string: {other}"))),
         }
     }
 }
@@ -467,7 +467,7 @@ impl ProtoConv for ScalarValue {
             Value::ScalarInt64(v) => Self::Int64(v),
             Value::ScalarInt128(v) => Self::Int128(i128::from_le_bytes(
                 v.try_into()
-                    .map_err(|_| RayexecError::new("byte buffer not 16 bytes"))?,
+                    .map_err(|_| DbError::new("byte buffer not 16 bytes"))?,
             )),
             Value::ScalarUint8(v) => Self::UInt8(v.try_into()?),
             Value::ScalarUint16(v) => Self::UInt16(v.try_into()?),
@@ -475,7 +475,7 @@ impl ProtoConv for ScalarValue {
             Value::ScalarUint64(v) => Self::UInt64(v),
             Value::ScalarUint128(v) => Self::UInt128(u128::from_le_bytes(
                 v.try_into()
-                    .map_err(|_| RayexecError::new("byte buffer not 16 bytes"))?,
+                    .map_err(|_| DbError::new("byte buffer not 16 bytes"))?,
             )),
             Value::ScalarFloat16(v) => Self::Float16(f16::from_f32(v)),
             Value::ScalarFloat32(v) => Self::Float32(v),

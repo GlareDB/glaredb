@@ -5,7 +5,7 @@ use bytes::Bytes;
 use futures::future::FutureExt;
 use futures::stream::StreamExt;
 use futures::{Future, Stream};
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 use rayexec_io::http::{HttpClient, HttpResponse};
 use reqwest::header::HeaderMap;
 use reqwest::{Request, StatusCode};
@@ -90,7 +90,7 @@ impl Future for ResponseJoinHandle {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.join_handle.poll_unpin(cx) {
-            Poll::Ready(Err(_)) => Poll::Ready(Err(RayexecError::new("tokio join error"))),
+            Poll::Ready(Err(_)) => Poll::Ready(Err(DbError::new("tokio join error"))),
             Poll::Ready(Ok(Err(e))) => Poll::Ready(Err(e)),
             Poll::Ready(Ok(Ok(b))) => Poll::Ready(Ok(b)),
             Poll::Pending => Poll::Pending,

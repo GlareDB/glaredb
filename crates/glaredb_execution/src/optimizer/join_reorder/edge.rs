@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops::ControlFlow;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::ReorderableCondition;
 use super::graph::{BaseRelation, RelId, RelationSet};
@@ -253,8 +253,8 @@ impl HyperEdges {
 
         let cols = condition.get_column_refs();
 
-        let left_rel = left_rel.ok_or_else(|| RayexecError::new("Missing left rel id"))?;
-        let right_rel = right_rel.ok_or_else(|| RayexecError::new("Missing right rel id"))?;
+        let left_rel = left_rel.ok_or_else(|| DbError::new("Missing left rel id"))?;
+        let right_rel = right_rel.ok_or_else(|| DbError::new("Missing right rel id"))?;
 
         let edge = Edge {
             filter: Some(condition),

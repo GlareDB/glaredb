@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};
 
-use glaredb_error::RayexecError;
+use glaredb_error::DbError;
 use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_execution::runtime::ErrorSink;
 use parking_lot::Mutex;
@@ -41,9 +41,7 @@ impl PartitionPipelineTask {
         let mut pipeline_state = self.state.pipeline.lock();
 
         if pipeline_state.query_canceled {
-            self.state
-                .errors
-                .set_error(RayexecError::new("Query canceled"));
+            self.state.errors.set_error(DbError::new("Query canceled"));
             return;
         }
 

@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
@@ -71,13 +71,11 @@ impl<'a> InsertBinder<'a> {
             (ResolvedTableOrCteReference::Table(reference), location) => (reference, location),
             (ResolvedTableOrCteReference::Cte { .. }, _) => {
                 // Shouldn't be possible.
-                return Err(RayexecError::new("Cannot insert into CTE"));
+                return Err(DbError::new("Cannot insert into CTE"));
             }
             (ResolvedTableOrCteReference::View(_), _) => {
                 // Also shouldn't be possible.
-                return Err(RayexecError::new(
-                    "View should have been inlined during resolve",
-                ));
+                return Err(DbError::new("View should have been inlined during resolve"));
             }
         };
 
@@ -107,7 +105,7 @@ impl<'a> InsertBinder<'a> {
             .collect();
 
         if table_types.len() != source_types.len() {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Invalid number of inputs. Expected {}, got {}",
                 table_types.len(),
                 source_types.len(),

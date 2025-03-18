@@ -1,7 +1,7 @@
 use std::ops::Neg;
 use std::str::FromStr;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -379,7 +379,7 @@ impl Expr<Raw> {
         let tok = match parser.next() {
             Some(tok) => tok,
             None => {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Expected prefix expression, found end of statement",
                 ));
             }
@@ -472,7 +472,7 @@ impl Expr<Raw> {
                         {
                             Box::new(Expr::parse(parser)?)
                         } else {
-                            return Err(RayexecError::new("Missing FROM argument for SUBSTRING"));
+                            return Err(DbError::new("Missing FROM argument for SUBSTRING"));
                         };
 
                         let count = if parser.consume_token(&Token::Comma)
@@ -539,7 +539,7 @@ impl Expr<Raw> {
                 } else {
                     let mut exprs = parser.parse_comma_separated(Expr::parse)?;
                     match exprs.len() {
-                        0 => return Err(RayexecError::new("No expressions")),
+                        0 => return Err(DbError::new("No expressions")),
                         1 => Expr::Nested(Box::new(exprs.pop().unwrap())),
                         _ => Expr::Tuple(exprs),
                     }
@@ -556,7 +556,7 @@ impl Expr<Raw> {
                 expr: Box::new(Expr::parse_subexpr(parser, Self::PREC_UNARY_MINUS)?),
             },
             other => {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Unexpected token '{other:?}'. Expected expression."
                 )));
             }
@@ -569,7 +569,7 @@ impl Expr<Raw> {
         let tok = match parser.next() {
             Some(tok) => &tok.token,
             None => {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Expected infix expression, found end of statement",
                 ));
             }
@@ -632,7 +632,7 @@ impl Expr<Raw> {
             let kw = match w.keyword {
                 Some(kw) => kw,
                 None => {
-                    return Err(RayexecError::new(format!(
+                    return Err(DbError::new(format!(
                         "Unexpected token in infix expression: {w}"
                     )));
                 }
@@ -669,11 +669,11 @@ impl Expr<Raw> {
                             val: false,
                             negated: true,
                         }),
-                        other => Err(RayexecError::new(format!(
+                        other => Err(DbError::new(format!(
                             "Unexpected keyword in IS NOT expression: {other}"
                         ))),
                     },
-                    other => Err(RayexecError::new(format!(
+                    other => Err(DbError::new(format!(
                         "Unexpected keyword in IS expression: {other}"
                     ))),
                 },
@@ -710,7 +710,7 @@ impl Expr<Raw> {
                         pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
                     }),
                     other => {
-                        return Err(RayexecError::new(format!(
+                        return Err(DbError::new(format!(
                             "Unexpected keyword in infix expression: {other}"
                         )));
                     }
@@ -757,7 +757,7 @@ impl Expr<Raw> {
                     })
                 }
                 other => {
-                    return Err(RayexecError::new(format!(
+                    return Err(DbError::new(format!(
                         "Unexpected keyword in infix expression: {other}"
                     )));
                 }
@@ -774,7 +774,7 @@ impl Expr<Raw> {
                 expr: Box::new(prefix),
             })
         } else {
-            Err(RayexecError::new(format!(
+            Err(DbError::new(format!(
                 "Unable to parse token {:?} as an expression",
                 tok
             )))
@@ -885,12 +885,12 @@ impl Expr<Raw> {
                     Token::Word(w) => idents.push(w.clone().into()),
                     Token::Mul => wildcard = true,
                     other => {
-                        return Err(RayexecError::new(format!(
+                        return Err(DbError::new(format!(
                             "Unexpected token in compound identifier: {other:?}"
                         )));
                     }
                 },
-                None => return Err(RayexecError::new("Expected identifier after '.'")),
+                None => return Err(DbError::new("Expected identifier after '.'")),
             };
         }
 
@@ -901,7 +901,7 @@ impl Expr<Raw> {
             if wildcard {
                 // Someone trying to do this:
                 // `namespace.*()`
-                return Err(RayexecError::new("Cannot have wildcard function call"));
+                return Err(DbError::new("Cannot have wildcard function call"));
             }
 
             let args = if parser.consume_token(&Token::RightParen) {
@@ -965,12 +965,12 @@ impl Expr<Raw> {
     pub fn parse_string_literal(parser: &mut Parser) -> Result<String> {
         let tok = match parser.next() {
             Some(tok) => &tok.token,
-            None => return Err(RayexecError::new("Unexpected end of statement")),
+            None => return Err(DbError::new("Unexpected end of statement")),
         };
 
         match tok {
             Token::SingleQuotedString(s) => Ok(s.clone()),
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Expected string literal, got {other:?}"
             ))),
         }
@@ -979,31 +979,31 @@ impl Expr<Raw> {
     pub fn parse_i64_literal(parser: &mut Parser) -> Result<i64> {
         let tok = match parser.next() {
             Some(tok) => &tok.token,
-            None => return Err(RayexecError::new("Unexpected end of statement")),
+            None => return Err(DbError::new("Unexpected end of statement")),
         };
 
         let parse = |s: &str| {
             s.parse::<i64>()
-                .map_err(|_| RayexecError::new(format!("Unable to parse '{s}' as an integer")))
+                .map_err(|_| DbError::new(format!("Unable to parse '{s}' as an integer")))
         };
 
         match tok {
             Token::Minus => {
                 let tok = match parser.next() {
                     Some(tok) => &tok.token,
-                    None => return Err(RayexecError::new("Unexpected end of statement")),
+                    None => return Err(DbError::new("Unexpected end of statement")),
                 };
 
                 if let Token::Number(s) = tok {
                     return parse(s).map(|v| v.neg());
                 }
 
-                Err(RayexecError::new(format!(
+                Err(DbError::new(format!(
                     "Expected integer literal, got {tok:?}"
                 )))
             }
             Token::Number(s) => parse(s),
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Expected integer literal, got {other:?}"
             ))),
         }
@@ -1050,7 +1050,7 @@ impl AstParseable for IntervalUnit {
             Keyword::MICROSECOND | Keyword::MICROSECONDS => Self::Microsecond,
             Keyword::NANOSECOND | Keyword::NANOSECONDS => Self::Nanosecond,
             other => {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Expected interval unit, got '{other}'"
                 )));
             }
@@ -1112,7 +1112,7 @@ impl AstParseable for DatePart {
         let tok = match parser.peek() {
             Some(tok) => tok,
             None => {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Expected keyword or string, got end of statement",
                 ));
             }
@@ -1123,7 +1123,7 @@ impl AstParseable for DatePart {
                 let keyword = match word.keyword {
                     Some(k) => k,
                     None => {
-                        return Err(RayexecError::new(format!(
+                        return Err(DbError::new(format!(
                             "Expected a keyword, got {}",
                             word.value,
                         )));
@@ -1134,13 +1134,11 @@ impl AstParseable for DatePart {
             }
             Token::SingleQuotedString(s) => {
                 let kw = keyword_from_str(s)
-                    .ok_or_else(|| RayexecError::new(format!("Unexpected date part: {s}")))?;
+                    .ok_or_else(|| DbError::new(format!("Unexpected date part: {s}")))?;
                 let _ = parser.next(); // Consume
                 Self::try_from_kw(kw)
             }
-            other => Err(RayexecError::new(format!(
-                "Expected a keyword: got {other:?}"
-            ))),
+            other => Err(DbError::new(format!("Expected a keyword: got {other:?}"))),
         }
     }
 }
@@ -1170,7 +1168,7 @@ impl DatePart {
             Keyword::TIMEZONE_MINUTE => DatePart::TimezoneMinute,
             Keyword::WEEK => DatePart::Week,
             Keyword::YEAR => DatePart::Year,
-            other => return Err(RayexecError::new(format!("Unexepcted date part: {other}"))),
+            other => return Err(DbError::new(format!("Unexepcted date part: {other}"))),
         })
     }
 
@@ -1203,10 +1201,10 @@ impl DatePart {
 }
 
 impl FromStr for DatePart {
-    type Err = RayexecError;
+    type Err = DbError;
     fn from_str(s: &str) -> Result<Self> {
         let kw = keyword_from_str(s)
-            .ok_or_else(|| RayexecError::new(format!("'{s}' is not a valid date part")))?;
+            .ok_or_else(|| DbError::new(format!("'{s}' is not a valid date part")))?;
         Self::try_from_kw(kw)
     }
 }

@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::OptimizeRule;
 use crate::expr::Expression;
@@ -205,7 +205,7 @@ impl RemoveRedundantGroups {
                     .get(&expr.base_original_idx)
                     .copied()
                     .ok_or_else(|| {
-                        RayexecError::new(format!(
+                        DbError::new(format!(
                             "Missing mapping for group expr at idx {}",
                             expr.base_original_idx
                         ))
@@ -283,7 +283,7 @@ impl RemoveRedundantGroups {
                 .get(&removed.base_original_idx)
                 .copied()
                 .ok_or_else(|| {
-                    RayexecError::new(format!(
+                    DbError::new(format!(
                         "Missing mapping for base original idx: {}",
                         removed.base_original_idx
                     ))

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast::{self};
 use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
@@ -134,7 +134,7 @@ impl<B, U> MaybeResolved<B, U> {
     pub fn try_unwrap_resolved(self) -> Result<(B, LocationRequirement)> {
         match self {
             Self::Resolved(b, loc) => Ok((b, loc)),
-            Self::Unresolved(_) => Err(RayexecError::new("Reference not resolved")),
+            Self::Unresolved(_) => Err(DbError::new("Reference not resolved")),
         }
     }
 }
@@ -167,8 +167,8 @@ impl<B, U> ResolveList<B, U> {
     ) -> Result<(&B, LocationRequirement)> {
         match self.inner.get(idx) {
             Some(MaybeResolved::Resolved(b, loc)) => Ok((b, *loc)),
-            Some(MaybeResolved::Unresolved(_)) => Err(RayexecError::new("Item not resolved")),
-            None => Err(RayexecError::new("Missing reference")),
+            Some(MaybeResolved::Unresolved(_)) => Err(DbError::new("Item not resolved")),
+            None => Err(DbError::new("Missing reference")),
         }
     }
 
@@ -201,20 +201,18 @@ pub struct ItemReference(pub Vec<String>);
 impl ItemReference {
     pub fn pop(&mut self) -> Result<String> {
         // TODO: Could be more informative with this error.
-        self.0
-            .pop()
-            .ok_or_else(|| RayexecError::new("End of reference"))
+        self.0.pop().ok_or_else(|| DbError::new("End of reference"))
     }
 
     pub fn pop_2(&mut self) -> Result<[String; 2]> {
         let a = self
             .0
             .pop()
-            .ok_or_else(|| RayexecError::new("Expected 2 identifiers, got 0"))?;
+            .ok_or_else(|| DbError::new("Expected 2 identifiers, got 0"))?;
         let b = self
             .0
             .pop()
-            .ok_or_else(|| RayexecError::new("Expected 2 identifiers, got 1"))?;
+            .ok_or_else(|| DbError::new("Expected 2 identifiers, got 1"))?;
         Ok([b, a])
     }
 
@@ -222,15 +220,15 @@ impl ItemReference {
         let a = self
             .0
             .pop()
-            .ok_or_else(|| RayexecError::new("Expected 3 identifiers, got 0"))?;
+            .ok_or_else(|| DbError::new("Expected 3 identifiers, got 0"))?;
         let b = self
             .0
             .pop()
-            .ok_or_else(|| RayexecError::new("Expected 3 identifiers, got 1"))?;
+            .ok_or_else(|| DbError::new("Expected 3 identifiers, got 1"))?;
         let c = self
             .0
             .pop()
-            .ok_or_else(|| RayexecError::new("Expected 3 identifiers, got 2"))?;
+            .ok_or_else(|| DbError::new("Expected 3 identifiers, got 2"))?;
         Ok([c, b, a])
     }
 }

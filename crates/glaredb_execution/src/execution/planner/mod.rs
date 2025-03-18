@@ -24,7 +24,7 @@ mod plan_unnest;
 
 use std::collections::BTreeMap;
 
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 use uuid::Uuid;
 
 use super::operators::materialize::PhysicalMaterialize;
@@ -167,7 +167,7 @@ impl<'a> OperatorPlanState<'a> {
             };
 
             if self.materializations.insert(mat_ref, operator).is_some() {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Duplicate materialization ref: {}",
                     mat_ref
                 )));
@@ -202,14 +202,12 @@ impl<'a> OperatorPlanState<'a> {
                 self.plan_magic_materialize_scan(node)
             }
             LogicalOperator::Empty(node) => self.plan_empty(node),
-            LogicalOperator::SetVar(_) => {
-                Err(RayexecError::new("SET should be handled in the session"))
-            }
+            LogicalOperator::SetVar(_) => Err(DbError::new("SET should be handled in the session")),
             LogicalOperator::ResetVar(_) => {
-                Err(RayexecError::new("RESET should be handled in the session"))
+                Err(DbError::new("RESET should be handled in the session"))
             }
             LogicalOperator::DetachDatabase(_) | LogicalOperator::AttachDatabase(_) => Err(
-                RayexecError::new("ATTACH/DETACH should be handled in the session"),
+                DbError::new("ATTACH/DETACH should be handled in the session"),
             ),
             LogicalOperator::CreateView(node) => self.plan_create_view(node),
             LogicalOperator::CreateSchema(node) => self.plan_create_schema(node),

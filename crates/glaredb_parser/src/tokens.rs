@@ -1,6 +1,6 @@
 use std::fmt;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::keywords::{Keyword, keyword_from_str};
 
@@ -439,7 +439,7 @@ impl<'a> Tokenizer<'a> {
                 Token::Word(ident)
             }
 
-            c => return Err(RayexecError::new(format!("Unhandled character: {c}"))),
+            c => return Err(DbError::new(format!("Unhandled character: {c}"))),
         }))
     }
 

@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::PhysicalSortExpression;
 use super::case_expr::PhysicalCaseExpr;
@@ -86,7 +86,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
 
                 // Column not in any of our required tables, indicates
                 // correlated column.
-                Err(RayexecError::new(format!(
+                Err(DbError::new(format!(
                     "Column expr not referencing a valid table ref, column: {col}, valid tables: {}",
                     table_refs.display_with_brackets(),
                 )))
@@ -155,7 +155,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                     datatype: datatype.clone(),
                 }))
             }
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Unsupported scalar expression: {other}"
             ))),
         }
@@ -174,7 +174,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         let exact = op
             .as_scalar_function_set()
             .find_exact(&datatypes)
-            .ok_or_else(|| RayexecError::new("Expected exact function signature match"))?;
+            .ok_or_else(|| DbError::new("Expected exact function signature match"))?;
 
         let bind_state = exact.call_bind(inputs)?;
         let planned = PlannedScalarFunction {

@@ -2,7 +2,7 @@ mod merge_queue;
 
 use std::task::Context;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use merge_queue::{MergeQueue, PollMerge};
 
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
@@ -279,7 +279,7 @@ impl ExecuteOperator for PhysicalSort {
                 // Trigger merge work.
                 Ok(PollFinalize::NeedsDrain)
             }
-            other => Err(RayexecError::new(format!(
+            other => Err(DbError::new(format!(
                 "Sort partition state in invalid state: {other:?}",
             ))),
         }

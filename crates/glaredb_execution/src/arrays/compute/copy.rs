@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::ArrayBuffer;
@@ -36,7 +36,7 @@ pub fn copy_rows_array(
     dest: &mut Array,
 ) -> Result<()> {
     if dest.should_flatten_for_execution() {
-        return Err(RayexecError::new(
+        return Err(DbError::new(
             "Cannot copy to array that needs to be flattened",
         ));
     }

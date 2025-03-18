@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use crate::arrays::datatype::DataType;
@@ -62,7 +62,7 @@ impl<'a> ValuesBinder<'a> {
                 .iter()
                 .map(|expr| expr.datatype())
                 .collect::<Result<Vec<_>>>()?,
-            None => return Err(RayexecError::new("Empty VALUES statement")),
+            None => return Err(DbError::new("Empty VALUES statement")),
         };
 
         // TODO: Below casting could be a bit more sophisticated by using the
@@ -77,7 +77,7 @@ impl<'a> ValuesBinder<'a> {
         // Find any null types and try to replace them.
         for row in &rows {
             if row.len() != types.len() {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "All rows in VALUES clause must have the same number of columns",
                 ));
             }

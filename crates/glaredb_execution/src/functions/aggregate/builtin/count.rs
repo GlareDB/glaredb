@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalI64};
@@ -57,7 +57,7 @@ impl AggregateFunction for Count {
         let input = &inputs[0];
 
         if num_rows != states.len() {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Invalid number of states for selection in count agggregate executor",
             )
             .with_field("num_rows", num_rows)
@@ -111,11 +111,11 @@ impl AggregateFunction for Count {
         dest: &mut [&mut Self::GroupState],
     ) -> Result<()> {
         if src.len() != dest.len() {
-            return Err(RayexecError::new(
-                "Source and destination have different number of states",
-            )
-            .with_field("source", src.len())
-            .with_field("dest", dest.len()));
+            return Err(
+                DbError::new("Source and destination have different number of states")
+                    .with_field("source", src.len())
+                    .with_field("dest", dest.len()),
+            );
         }
 
         for (src, dest) in src.iter_mut().zip(dest) {

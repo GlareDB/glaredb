@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::Catalog;
 use super::create::{CreateSchemaInfo, CreateTableInfo, CreateViewInfo};
@@ -101,7 +101,7 @@ impl Database {
 
     fn check_can_write(&self) -> Result<()> {
         if self.mode != AccessMode::ReadWrite {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Database '{}' is not writable",
                 self.name
             )));

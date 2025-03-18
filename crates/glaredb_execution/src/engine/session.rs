@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::parser;
 use glaredb_parser::statement::RawStatement;
 use hashbrown::HashMap;
@@ -190,7 +190,7 @@ where
         portal_name: impl Into<String>,
     ) -> Result<()> {
         let stmt = self.prepared.get(prepared_name).ok_or_else(|| {
-            RayexecError::new(format!(
+            DbError::new(format!(
                 "Missing named prepared statement: '{prepared_name}'"
             ))
         })?;
@@ -308,7 +308,7 @@ where
                     let child = explain
                         .children
                         .first()
-                        .ok_or_else(|| RayexecError::new("Missing explain child"))?;
+                        .ok_or_else(|| DbError::new("Missing explain child"))?;
 
                     explain.node.logical_optimized = Some(ExplainNode::new_from_logical_plan(
                         &bind_context,
@@ -401,7 +401,7 @@ where
         let portal = self
             .portals
             .remove(portal_name)
-            .ok_or_else(|| RayexecError::new(format!("Missing portal: '{portal_name}'")))?;
+            .ok_or_else(|| DbError::new(format!("Missing portal: '{portal_name}'")))?;
 
         if portal.execution_mode == ExecutionMode::Hybrid {
             not_implemented!("Hybrid exec")

@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::{ArrayBufferType, ListItemMetadata, SharedOrOwned};
@@ -45,7 +45,7 @@ pub fn make_list_from_values(
     let inner_type = match output.datatype() {
         DataType::List(m) => m.datatype.physical_type(),
         other => {
-            return Err(RayexecError::new(format!(
+            return Err(DbError::new(format!(
                 "Expected output to be list datatype, got {other}",
             )));
         }
@@ -96,7 +96,7 @@ fn make_list_from_values_inner<S: MutableScalarStorage>(
 
     let list_buf = match output.data.as_mut() {
         ArrayBufferType::List(list_buf) => list_buf,
-        _ => return Err(RayexecError::new("Expected list buffer")),
+        _ => return Err(DbError::new("Expected list buffer")),
     };
 
     let metadata = list_buf.metadata.try_as_mut()?;

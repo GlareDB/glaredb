@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use benchmark::Benchmark;
 use clap::Parser;
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_execution::engine::single_user::SingleUserEngine;
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use runner::{BenchmarkRunner, BenchmarkTimes, RunnerConfig};
@@ -81,7 +81,7 @@ pub fn run(builder: impl EngineBuilder, default_dir: &str) -> Result<()> {
     for path in paths {
         let path_str = path
             .to_str()
-            .ok_or_else(|| RayexecError::new("File path not valid utf8"))?;
+            .ok_or_else(|| DbError::new("File path not valid utf8"))?;
 
         if let Some(pattern) = &args.pattern {
             if !path_str.contains(pattern) {

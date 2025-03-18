@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::expr_binder::RecursionContext;
@@ -72,7 +72,7 @@ impl<'a> ConstantBinder<'a> {
     ) -> Result<Expression> {
         match arg {
             ast::FunctionArgExpr::Expr(expr) => self.bind_constant_expression(expr),
-            ast::FunctionArgExpr::Wildcard => Err(RayexecError::new(
+            ast::FunctionArgExpr::Wildcard => Err(DbError::new(
                 "'*' cannot be used as a constant function argument",
             )),
         }

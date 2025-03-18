@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr, Ident, OrderByNode};
@@ -78,7 +78,7 @@ impl AstParseable for WindowFrameUnit {
                 Some(Keyword::RANGE) => WindowFrameUnit::Range,
                 Some(Keyword::GROUPS) => WindowFrameUnit::Groups,
                 _ => {
-                    return Err(RayexecError::new(
+                    return Err(DbError::new(
                         "Expected ROWS, RANGE, or GROUPS for window frame unit",
                     ));
                 }
@@ -111,7 +111,7 @@ impl AstParseable for WindowFrameExclusion {
             ]) {
                 WindowFrameExclusion::ExcludeNoOthers
             } else {
-                return Err(RayexecError::new(
+                return Err(DbError::new(
                     "Expected EXLUDE CURRENT ROW, EXCLUDE GROUP, EXCLUDE TIES, EXCLUDE NO OTHERS for window frame exclusion",
                 ));
             },
@@ -143,7 +143,7 @@ impl AstParseable for WindowFrameBound<Raw> {
                     Some(Keyword::PRECEDING) => WindowFrameBound::Preceding(Box::new(expr)),
                     Some(Keyword::FOLLOWING) => WindowFrameBound::Following(Box::new(expr)),
                     _ => {
-                        return Err(RayexecError::new(
+                        return Err(DbError::new(
                             "Expected <expr> PRECEDING, UNBOUNDED PRECEDING, CURRENT ROW, UNBOUNDED FOLLOWING, or <expr> FOLLOWING for window frame bound",
                         ));
                     }

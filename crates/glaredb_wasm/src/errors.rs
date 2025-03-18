@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt;
 
-use glaredb_error::RayexecError;
+use glaredb_error::DbError;
 use wasm_bindgen::JsValue;
 
 pub type Result<T, E = WasmError> = std::result::Result<T, E>;
@@ -10,7 +10,7 @@ pub type Result<T, E = WasmError> = std::result::Result<T, E>;
 /// (a string).
 #[derive(Debug)]
 pub struct WasmError {
-    pub error: RayexecError,
+    pub error: DbError,
 }
 
 impl Error for WasmError {
@@ -25,8 +25,8 @@ impl fmt::Display for WasmError {
     }
 }
 
-impl From<RayexecError> for WasmError {
-    fn from(value: RayexecError) -> Self {
+impl From<DbError> for WasmError {
+    fn from(value: DbError) -> Self {
         WasmError { error: value }
     }
 }

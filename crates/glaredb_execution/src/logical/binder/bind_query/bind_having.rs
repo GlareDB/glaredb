@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::bind_group_by::BoundGroupBy;
@@ -107,7 +107,7 @@ impl<'a> HavingBinder<'a> {
         }
 
         if !refs.is_empty() {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "HAVING contains columns not found in the GROUP BY clause",
             ));
         }

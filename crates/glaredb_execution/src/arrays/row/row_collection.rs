@@ -1,6 +1,6 @@
 use std::borrow::{Borrow, BorrowMut};
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::block::ValidityInitializer;
 use super::block_scan::BlockScanState;
@@ -209,7 +209,7 @@ impl RowCollection {
     /// Both collections must have the same layout.
     pub fn merge(&mut self, other: Self) -> Result<()> {
         if self.layout() != other.layout() {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Attemped to merge row collections with different layouts",
             ));
         }

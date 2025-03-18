@@ -1,6 +1,6 @@
 use std::task::Context;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalI64};
@@ -64,7 +64,7 @@ impl SeriesParams {
         let step = input.arrays[2].get_value(row)?.try_as_i64()?;
 
         if step == 0 {
-            return Err(RayexecError::new("Step cannot be zero"));
+            return Err(DbError::new("Step cannot be zero"));
         }
 
         Ok(SeriesParams {

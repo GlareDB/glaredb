@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
@@ -55,7 +55,7 @@ impl<'a> CreateViewBinder<'a> {
         if let Some(column_aliases) = &column_aliases {
             let table = bind_context.get_table(query.output_table_ref())?;
             if column_aliases.len() > table.num_columns() {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Expected at most {} column aliases for view, got {}",
                     table.num_columns(),
                     column_aliases.len()

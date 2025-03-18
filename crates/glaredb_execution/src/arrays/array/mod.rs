@@ -15,7 +15,7 @@ use array_buffer::{
     SharedOrOwned,
 };
 use flat::FlattenedArray;
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 use half::f16;
 use physical_type::{
     Addressable,
@@ -171,11 +171,9 @@ impl Array {
 
     pub fn swap(&mut self, other: &mut Self) -> Result<()> {
         if self.datatype != other.datatype {
-            return Err(
-                RayexecError::new("Cannot swap arrays with different data types")
-                    .with_field("self", self.datatype.clone())
-                    .with_field("other", other.datatype.clone()),
-            );
+            return Err(DbError::new("Cannot swap arrays with different data types")
+                .with_field("self", self.datatype.clone())
+                .with_field("other", other.datatype.clone()));
         }
 
         std::mem::swap(self, other);
@@ -196,7 +194,7 @@ impl Array {
     ) -> Result<()> {
         if self.datatype != other.datatype {
             return Err(
-                RayexecError::new("Cannot clone arrays with different data types")
+                DbError::new("Cannot clone arrays with different data types")
                     .with_field("self", self.datatype.clone())
                     .with_field("other", other.datatype.clone()),
             );
@@ -223,7 +221,7 @@ impl Array {
     ) -> Result<()> {
         if self.datatype != other.datatype {
             return Err(
-                RayexecError::new("Cannot clone arrays with different data types")
+                DbError::new("Cannot clone arrays with different data types")
                     .with_field("self", self.datatype.clone())
                     .with_field("other", other.datatype.clone()),
             );
@@ -313,7 +311,7 @@ impl Array {
     /// buffer.
     pub fn put_validity(&mut self, validity: Validity) -> Result<()> {
         if validity.len() != self.data.logical_len() {
-            return Err(RayexecError::new("Invalid validity length")
+            return Err(DbError::new("Invalid validity length")
                 .with_field("got", validity.len())
                 .with_field("want", self.data.logical_len()));
         }
@@ -446,7 +444,7 @@ impl Array {
 
     pub fn get_value(&self, idx: usize) -> Result<BorrowedScalarValue> {
         if idx >= self.logical_len() {
-            return Err(RayexecError::new("Index out of bounds")
+            return Err(DbError::new("Index out of bounds")
                 .with_field("idx", idx)
                 .with_field("capacity", self.logical_len()));
         }
@@ -475,7 +473,7 @@ impl Array {
         }
 
         if idx >= self.logical_len() {
-            return Err(RayexecError::new("Index out of bounds")
+            return Err(DbError::new("Index out of bounds")
                 .with_field("idx", idx)
                 .with_field("capacity", self.logical_len()));
         }
@@ -722,7 +720,7 @@ fn get_value_inner<'a>(
         DataType::List(m) => {
             let list_buf = match buffer.as_ref() {
                 ArrayBufferType::List(list_buf) => list_buf,
-                _ => return Err(RayexecError::new("Expected list buffer")),
+                _ => return Err(DbError::new("Expected list buffer")),
             };
 
             let meta = list_buf.metadata.as_slice()[data_idx];
@@ -753,7 +751,7 @@ fn get_value_inner<'a>(
 macro_rules! impl_primitive_from_iter {
     ($prim:ty, $phys:ty, $typ_variant:ident) => {
         impl TryFromExactSizeIterator<$prim> for Array {
-            type Error = RayexecError;
+            type Error = DbError;
 
             fn try_from_iter<T: crate::util::iter::IntoExactSizeIterator<Item = $prim>>(
                 iter: T,
@@ -810,7 +808,7 @@ impl<S> TryFromExactSizeIterator<S> for Array
 where
     S: AsRefStr,
 {
-    type Error = RayexecError;
+    type Error = DbError;
 
     fn try_from_iter<T: crate::util::iter::IntoExactSizeIterator<Item = S>>(
         iter: T,
@@ -834,9 +832,9 @@ where
 impl<V> TryFromExactSizeIterator<Option<V>> for Array
 where
     V: Default,
-    Array: TryFromExactSizeIterator<V, Error = RayexecError>,
+    Array: TryFromExactSizeIterator<V, Error = DbError>,
 {
-    type Error = RayexecError;
+    type Error = DbError;
 
     fn try_from_iter<T: crate::util::iter::IntoExactSizeIterator<Item = Option<V>>>(
         iter: T,

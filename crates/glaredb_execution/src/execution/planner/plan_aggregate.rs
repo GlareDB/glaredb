@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result, ResultExt, not_implemented};
+use glaredb_error::{DbError, Result, ResultExt, not_implemented};
 
 use super::OperatorPlanState;
 use crate::execution::operators::hash_aggregate::{Aggregates, PhysicalHashAggregate};
@@ -49,9 +49,7 @@ impl OperatorPlanState<'_> {
             let agg = match agg_expr {
                 Expression::Aggregate(agg) => agg,
                 other => {
-                    return Err(RayexecError::new(format!(
-                        "Expected aggregate, got: {other}"
-                    )));
+                    return Err(DbError::new(format!("Expected aggregate, got: {other}")));
                 }
             };
 

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::execution::operators::{PollExecute, PollFinalize};
 
@@ -137,7 +137,7 @@ impl ExecutionStack {
                                 is_pipeline_start: false,
                             });
                         } else {
-                            return Err(RayexecError::new("Last operator returned HasMore"));
+                            return Err(DbError::new("Last operator returned HasMore"));
                         }
 
                         Ok(StackControlFlow::Continue)
@@ -147,7 +147,7 @@ impl ExecutionStack {
                         self.instructions.clear();
 
                         if operator_idx == self.num_operators - 1 {
-                            return Err(RayexecError::new("Last operator returned Exhausted"));
+                            return Err(DbError::new("Last operator returned Exhausted"));
                         }
 
                         // Finalize next operator.
@@ -190,7 +190,7 @@ impl ExecutionStack {
                     }
                     PollFinalize::NeedsDrain => {
                         if operator_idx == self.num_operators - 1 {
-                            return Err(RayexecError::new("Last operator returned NeedsDrain"));
+                            return Err(DbError::new("Last operator returned NeedsDrain"));
                         }
 
                         // This operator is now the start of the pipeline.

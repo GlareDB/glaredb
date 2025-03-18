@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
@@ -74,7 +74,7 @@ impl ScalarFunction for ListExtract {
             .try_as_i64()?;
 
         if index <= 0 {
-            return Err(RayexecError::new("Index cannot be less than 1"));
+            return Err(DbError::new("Index cannot be less than 1"));
         }
         // Adjust from 1-based indexing.
         let index = (index - 1) as usize;
@@ -82,7 +82,7 @@ impl ScalarFunction for ListExtract {
         let inner_datatype = match inputs[0].datatype()? {
             DataType::List(meta) => meta.datatype.as_ref().clone(),
             other => {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Cannot index into non-list type, got {other}",
                 )));
             }

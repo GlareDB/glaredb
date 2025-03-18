@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_execution::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_execution::buffer::typed::ByteBuffer;
 
@@ -52,11 +52,9 @@ impl OwnedReadBuffer {
     /// Skip the next number of bytes.
     pub fn skip(&mut self, num_bytes: usize) -> Result<()> {
         if num_bytes > self.remaining {
-            return Err(
-                RayexecError::new("Attempted to skip more bytes than remaining")
-                    .with_field("remaining", self.remaining)
-                    .with_field("take", num_bytes),
-            );
+            return Err(DbError::new("Attempted to skip more bytes than remaining")
+                .with_field("remaining", self.remaining)
+                .with_field("take", num_bytes));
         }
 
         // SAFETY: We check that this would be in bounds above.

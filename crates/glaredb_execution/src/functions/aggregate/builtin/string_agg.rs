@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::physical_type::{AddressableMut, PhysicalUtf8};
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -50,7 +50,7 @@ impl BinaryAggregate for StringAgg {
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         if !inputs[1].is_const_foldable() {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Second argument to STRING_AGG must be constant",
             ));
         }
@@ -59,7 +59,7 @@ impl BinaryAggregate for StringAgg {
             BorrowedScalarValue::Null => String::new(),
             BorrowedScalarValue::Utf8(v) => v.into_owned(),
             other => {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Unexpected value for STRING_AGG: {other}"
                 )));
             }

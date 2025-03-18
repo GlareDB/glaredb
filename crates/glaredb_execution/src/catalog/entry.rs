@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::field::Field;
 use crate::functions::function_set::{AggregateFunctionSet, ScalarFunctionSet, TableFunctionSet};
@@ -105,42 +105,42 @@ impl CatalogEntry {
     pub fn try_as_table_entry(&self) -> Result<&TableEntry> {
         match &self.entry {
             CatalogEntryInner::Table(ent) => Ok(ent),
-            _ => Err(RayexecError::new("Entry not a table")),
+            _ => Err(DbError::new("Entry not a table")),
         }
     }
 
     pub fn try_as_view_entry(&self) -> Result<&ViewEntry> {
         match &self.entry {
             CatalogEntryInner::View(ent) => Ok(ent),
-            _ => Err(RayexecError::new("Entry not a view")),
+            _ => Err(DbError::new("Entry not a view")),
         }
     }
 
     pub fn try_as_schema_entry(&self) -> Result<&SchemaEntry> {
         match &self.entry {
             CatalogEntryInner::Schema(ent) => Ok(ent),
-            _ => Err(RayexecError::new("Entry not a schema")),
+            _ => Err(DbError::new("Entry not a schema")),
         }
     }
 
     pub fn try_as_scalar_function_entry(&self) -> Result<&ScalarFunctionEntry> {
         match &self.entry {
             CatalogEntryInner::ScalarFunction(ent) => Ok(ent),
-            _ => Err(RayexecError::new("Entry not a scalar function")),
+            _ => Err(DbError::new("Entry not a scalar function")),
         }
     }
 
     pub fn try_as_aggregate_function_entry(&self) -> Result<&AggregateFunctionEntry> {
         match &self.entry {
             CatalogEntryInner::AggregateFunction(ent) => Ok(ent),
-            _ => Err(RayexecError::new("Entry not an aggregate function")),
+            _ => Err(DbError::new("Entry not an aggregate function")),
         }
     }
 
     pub fn try_as_table_function_entry(&self) -> Result<&TableFunctionEntry> {
         match &self.entry {
             CatalogEntryInner::TableFunction(ent) => Ok(ent),
-            _ => Err(RayexecError::new("Entry not a table function")),
+            _ => Err(DbError::new("Entry not a table function")),
         }
     }
 }

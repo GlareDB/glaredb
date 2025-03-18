@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -52,7 +52,7 @@ impl ScalarFunction for ListValues {
             let dt = input.datatype()?;
             // TODO: We can add casts here.
             if dt != first {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Not all inputs are the same type, got {dt}, expected {first}"
                 )));
             }

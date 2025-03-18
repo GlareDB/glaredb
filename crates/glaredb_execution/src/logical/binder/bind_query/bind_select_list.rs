@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::select_expr_expander::ExpandedSelectExpr;
@@ -318,14 +318,14 @@ impl ExpressionColumnBinder for SelectAliasColumnBinder<'_> {
                             // Valid alias reference, use the existing expression.
                             let aliased_expr =
                                 self.previous_exprs.get(col_idx).ok_or_else(|| {
-                                    RayexecError::new("Missing select expression?")
+                                    DbError::new("Missing select expression?")
                                         .with_field("idx", col_idx)
                                 })?;
 
                             Ok(Some(aliased_expr.clone()))
                         } else {
                             // Not a valid alias expression.
-                            Err(RayexecError::new(format!(
+                            Err(DbError::new(format!(
                                 "'{col}' can only be referenced after it's been defined in the SELECT list"
                             )))
                         }

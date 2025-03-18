@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -33,7 +33,7 @@ impl Projections {
         F: FnMut(usize, &mut Array) -> Result<()>,
     {
         if output.arrays.len() != self.indices.len() {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Output batch must have the same number of arrays as the projection list",
             )
             .with_field("num_arrays", output.arrays.len())

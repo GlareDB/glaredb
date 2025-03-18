@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
@@ -60,13 +60,13 @@ impl AggregateHashTable {
     /// value for the groups.
     pub fn try_new(layout: AggregateLayout, row_capacity: usize) -> Result<Self> {
         if layout.groups.num_columns() == 0 {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Cannot create aggregate hash table with zero groups",
             ));
         }
 
         if layout.groups.types.last().unwrap() != &DataType::UInt64 {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Last group type not u64, expected u64 for the hash value",
             ));
         }
@@ -251,7 +251,7 @@ impl AggregateHashTable {
                         // fit everything.
                         //
                         // But Sean writes bugs, so just in case...
-                        return Err(RayexecError::new("Hash table completely full"));
+                        return Err(DbError::new("Hash table completely full"));
                     }
                 }
             }
@@ -555,7 +555,7 @@ impl Directory {
             new_capacity = new_capacity.next_power_of_two();
         }
         if new_capacity < self.entries.capacity() {
-            return Err(RayexecError::new("Cannot reduce capacity of hash table")
+            return Err(DbError::new("Cannot reduce capacity of hash table")
                 .with_field("current", self.entries.capacity())
                 .with_field("new", new_capacity));
         }

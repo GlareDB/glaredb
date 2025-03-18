@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use tracing::trace;
 
 use super::action::{Action, ActionAddFile, ActionChangeMetadata, ActionRemoveFile};
@@ -34,9 +34,7 @@ impl Snapshot {
                 Action::ChangeMetadata(metadata) => Some(metadata.clone()),
                 _ => None,
             })
-            .ok_or_else(|| {
-                RayexecError::new("Cannot construct snapshop without a metadata action")
-            })?;
+            .ok_or_else(|| DbError::new("Cannot construct snapshop without a metadata action"))?;
 
         let mut snapshot = Snapshot {
             metadata,

@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::Aggregates;
 use super::aggregate_hash_table::{AggregateHashTable, AggregateHashTableInsertState};
@@ -173,7 +173,7 @@ impl GroupingSetHashTable {
         input: &mut Batch,
     ) -> Result<()> {
         if state.finished {
-            return Err(RayexecError::new("Partition-local table already finished"));
+            return Err(DbError::new("Partition-local table already finished"));
         }
 
         // Get both the group arrays, and the inputs to the aggregates.
@@ -223,7 +223,7 @@ impl GroupingSetHashTable {
         state: &mut GroupingSetBuildPartitionState,
     ) -> Result<bool> {
         if state.finished {
-            return Err(RayexecError::new("State already finished"));
+            return Err(DbError::new("State already finished"));
         }
 
         match &mut *op_state {
@@ -285,9 +285,7 @@ impl GroupingSetHashTable {
                     Ok(false)
                 }
             }
-            _ => Err(RayexecError::new(
-                "Operator hash table not in building state",
-            )),
+            _ => Err(DbError::new("Operator hash table not in building state")),
         }
     }
 
@@ -306,13 +304,11 @@ impl GroupingSetHashTable {
                 let state = scanning
                     .scan_states
                     .pop()
-                    .ok_or_else(|| RayexecError::new("Missing partition scan state"))?;
+                    .ok_or_else(|| DbError::new("Missing partition scan state"))?;
 
                 Ok(state)
             }
-            _ => Err(RayexecError::new(
-                "Operator hash table not in scanning state",
-            )),
+            _ => Err(DbError::new("Operator hash table not in scanning state")),
         }
     }
 

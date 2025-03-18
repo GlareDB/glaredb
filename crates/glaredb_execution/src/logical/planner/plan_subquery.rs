@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::arrays::datatype::DataType;
 use crate::expr::aggregate_expr::AggregateExpr;
@@ -83,7 +83,7 @@ impl SubqueryPlanner {
             });
 
             let right = *planner.column_map.get(&correlated).ok_or_else(|| {
-                RayexecError::new(format!(
+                DbError::new(format!(
                     "Missing updated right side for correlate column: {correlated:?}"
                 ))
             })?;
@@ -334,7 +334,7 @@ impl SubqueryPlanner {
             });
 
             let right = *planner.column_map.get(&correlated).ok_or_else(|| {
-                RayexecError::new(format!(
+                DbError::new(format!(
                     "Missing updated right side for correlate column: {correlated:?}"
                 ))
             })?;
@@ -735,9 +735,7 @@ impl DependentJoinPushdown {
         let has_correlation = *self
             .correlated_operators
             .get(&LogicalOperatorPtr::new(plan))
-            .ok_or_else(|| {
-                RayexecError::new(format!("Missing correlation check for plan: {plan:?}"))
-            })?;
+            .ok_or_else(|| DbError::new(format!("Missing correlation check for plan: {plan:?}")))?;
 
         if !has_correlation {
             // Operator (and children) do not have correlated columns. Cross
@@ -820,7 +818,7 @@ impl DependentJoinPushdown {
                 let offset = project.node.projections.len();
                 for (idx, correlated) in self.columns.iter().enumerate() {
                     let reference = *self.column_map.get(correlated).ok_or_else(|| {
-                            RayexecError::new(
+                            DbError::new(
                                 format!("Missing correlated column in column map for appending projection: {correlated:?}"))
                     })?;
 
@@ -862,7 +860,7 @@ impl DependentJoinPushdown {
                 let offset = list.node.types.len();
                 for (idx, correlated) in self.columns.iter().enumerate() {
                     let reference = *self.column_map.get(correlated).ok_or_else(|| {
-                            RayexecError::new(
+                            DbError::new(
                                 format!("Missing correlated column in column map for appending expression to expression list: {correlated:?}"))
                     })?;
 
@@ -920,7 +918,7 @@ impl DependentJoinPushdown {
                 let offset = inout.node.projected_outputs.len();
                 for (idx, correlated) in self.columns.iter().enumerate() {
                     let reference = *self.column_map.get(correlated).ok_or_else(|| {
-                            RayexecError::new(
+                            DbError::new(
                                 format!("Missing correlated column in column map for appending projection to In/Out: {correlated:?}"))
                     })?;
 
@@ -990,7 +988,7 @@ impl DependentJoinPushdown {
 
                 for (idx, correlated) in self.columns.iter().enumerate() {
                     let reference = *self.column_map.get(correlated).ok_or_else(|| {
-                            RayexecError::new(
+                            DbError::new(
                                 format!("Missing correlated column in column map for appending group expression: {correlated:?}"))
                     })?;
 
@@ -1026,7 +1024,7 @@ impl DependentJoinPushdown {
 
                 Ok(())
             }
-            LogicalOperator::Scan(_) => Err(RayexecError::new(
+            LogicalOperator::Scan(_) => Err(DbError::new(
                 "Unexpectedly reached scan node when pushing down dependent join",
             )),
             other => not_implemented!("dependent join pushdown for node: {other:?}"),
@@ -1095,7 +1093,7 @@ impl DependentJoinPushdown {
                 }) {
                     // Correlated column found, update to mapped column.
                     let new_col = *self.column_map.get(correlated).ok_or_else(|| {
-                        RayexecError::new(format!(
+                        DbError::new(format!(
                             "Missing correlated column in column map: {correlated:?}"
                         ))
                     })?;

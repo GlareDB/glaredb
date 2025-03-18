@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -95,7 +95,7 @@ impl QueryNodeBody<Raw> {
             parser.expect_token(&Token::RightParen)?;
             QueryNodeBody::Nested(Box::new(nested))
         } else {
-            return Err(RayexecError::new("Expected SELECT or VALUES"));
+            return Err(DbError::new("Expected SELECT or VALUES"));
         };
 
         // Parse set operation(s)

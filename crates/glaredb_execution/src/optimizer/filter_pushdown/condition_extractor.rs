@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::fmt::Debug;
 
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::expr::Expression;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
@@ -145,7 +145,7 @@ impl ExprJoinSide {
         } else if right_tables.contains_ref(&table_ref) {
             Ok(ExprJoinSide::Right)
         } else {
-            Err(RayexecError::new(format!(
+            Err(DbError::new(format!(
                 "Table ref is invalid. Left: {left_tables:?}, right: {right_tables:?}, got: {table_ref:?}"
             )))
         }

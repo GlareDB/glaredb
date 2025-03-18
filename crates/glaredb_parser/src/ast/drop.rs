@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, ObjectReference};
@@ -41,7 +41,7 @@ impl AstParseable for DropStatement<Raw> {
             Keyword::SCHEMA => DropType::Schema,
             Keyword::VIEW => DropType::View,
             other => {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Got unexpected keyword for drop type: {other}"
                 )));
             }

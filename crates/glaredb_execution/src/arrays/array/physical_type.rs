@@ -1,6 +1,6 @@
 use std::fmt::{self, Debug};
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_proto::ProtoConv;
 use half::f16;
 
@@ -96,7 +96,7 @@ impl ProtoConv for PhysicalType {
 
     fn from_proto(proto: Self::ProtoType) -> Result<Self> {
         Ok(match proto {
-            Self::ProtoType::InvalidPhysicalType => return Err(RayexecError::new("invalid")),
+            Self::ProtoType::InvalidPhysicalType => return Err(DbError::new("invalid")),
             Self::ProtoType::UntypedNull => Self::UntypedNull,
             Self::ProtoType::Boolean => Self::Boolean,
             Self::ProtoType::Int8 => Self::Int8,
@@ -272,9 +272,7 @@ macro_rules! generate_primitive {
             fn try_reserve(buffer: &mut ArrayBuffer, additional: usize) -> Result<()> {
                 match buffer.as_mut() {
                     ArrayBufferType::Scalar(buf) => buf.try_reserve::<Self>(additional),
-                    _ => Err(RayexecError::new(
-                        "invalid buffer type, expected scalar buffer",
-                    )),
+                    _ => Err(DbError::new("invalid buffer type, expected scalar buffer")),
                 }
             }
         }
@@ -418,9 +416,7 @@ impl ScalarStorage for PhysicalBinary {
     fn get_addressable(buffer: &ArrayBuffer) -> Result<Self::Addressable<'_>> {
         match buffer.as_ref() {
             ArrayBufferType::String(buf) => Ok(buf.as_binary_view()),
-            _ => Err(RayexecError::new(
-                "invalid buffer type, expected string buffer",
-            )),
+            _ => Err(DbError::new("invalid buffer type, expected string buffer")),
         }
     }
 }
@@ -431,18 +427,14 @@ impl MutableScalarStorage for PhysicalBinary {
     fn get_addressable_mut(buffer: &mut ArrayBuffer) -> Result<Self::AddressableMut<'_>> {
         match buffer.as_mut() {
             ArrayBufferType::String(buf) => buf.try_as_binary_view_mut(),
-            _ => Err(RayexecError::new(
-                "invalid buffer type, expected string buffer",
-            )),
+            _ => Err(DbError::new("invalid buffer type, expected string buffer")),
         }
     }
 
     fn try_reserve(buffer: &mut ArrayBuffer, additional: usize) -> Result<()> {
         match buffer.as_mut() {
             ArrayBufferType::String(buf) => buf.try_reserve(additional),
-            _ => Err(RayexecError::new(
-                "invalid buffer type, expected string buffer",
-            )),
+            _ => Err(DbError::new("invalid buffer type, expected string buffer")),
         }
     }
 }
@@ -459,9 +451,7 @@ impl ScalarStorage for PhysicalUtf8 {
     fn get_addressable(buffer: &ArrayBuffer) -> Result<Self::Addressable<'_>> {
         match buffer.as_ref() {
             ArrayBufferType::String(buf) => buf.try_as_string_view(),
-            _ => Err(RayexecError::new(
-                "invalid buffer type, expected string buffer",
-            )),
+            _ => Err(DbError::new("invalid buffer type, expected string buffer")),
         }
     }
 }
@@ -472,18 +462,14 @@ impl MutableScalarStorage for PhysicalUtf8 {
     fn get_addressable_mut(buffer: &mut ArrayBuffer) -> Result<Self::AddressableMut<'_>> {
         match buffer.as_mut() {
             ArrayBufferType::String(buf) => buf.try_as_string_view_mut(),
-            _ => Err(RayexecError::new(
-                "invalid buffer type, expected string buffer",
-            )),
+            _ => Err(DbError::new("invalid buffer type, expected string buffer")),
         }
     }
 
     fn try_reserve(buffer: &mut ArrayBuffer, additional: usize) -> Result<()> {
         match buffer.as_mut() {
             ArrayBufferType::String(buf) => buf.try_reserve(additional),
-            _ => Err(RayexecError::new(
-                "invalid buffer type, expected string buffer",
-            )),
+            _ => Err(DbError::new("invalid buffer type, expected string buffer")),
         }
     }
 }
@@ -504,9 +490,7 @@ impl ScalarStorage for PhysicalList {
                 let s = buf.metadata.as_slice();
                 Ok(PrimitiveSlice { slice: s })
             }
-            _ => Err(RayexecError::new(
-                "invalid buffer type, expected list buffer",
-            )),
+            _ => Err(DbError::new("invalid buffer type, expected list buffer")),
         }
     }
 }

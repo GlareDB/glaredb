@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_execution::arrays::compute::cast::parse::{
     BoolParser,
     Float64Parser,
@@ -37,9 +37,7 @@ impl CsvSchema {
     /// records.
     pub fn infer_from_records(records: &ByteRecords) -> Result<Self> {
         if records.num_records() == 0 {
-            return Err(RayexecError::new(
-                "Unable to infer CSV schema with no records",
-            ));
+            return Err(DbError::new("Unable to infer CSV schema with no records"));
         }
 
         let num_fields = records.get_record(0).num_fields();

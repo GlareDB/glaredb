@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use futures::lock::Mutex;
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::parser;
 use glaredb_parser::statement::RawStatement;
 
@@ -71,10 +71,7 @@ where
         let statement = match statements.len() {
             1 => statements.pop().unwrap(),
             other => {
-                return Err(RayexecError::new(format!(
-                    "Expected 1 statement, got {}",
-                    other
-                )));
+                return Err(DbError::new(format!("Expected 1 statement, got {}", other)));
             }
         };
 

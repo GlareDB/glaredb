@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, Expr};
@@ -41,9 +41,9 @@ impl AstParseable for DataType {
         let kw = match parser.next() {
             Some(tok) => match tok.keyword() {
                 Some(kw) => kw,
-                None => return Err(RayexecError::new(format!("Expected keyword, got: {tok:?}"))),
+                None => return Err(DbError::new(format!("Expected keyword, got: {tok:?}"))),
             },
-            None => return Err(RayexecError::new("Unexpected end of query")),
+            None => return Err(DbError::new("Unexpected end of query")),
         };
 
         Ok(match kw {
@@ -65,7 +65,7 @@ impl AstParseable for DataType {
             Keyword::TIMESTAMP => DataType::Timestamp,
             Keyword::INTERVAL => DataType::Interval,
             other => {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Unexpected keyword for data type: {other:?}",
                 )));
             }

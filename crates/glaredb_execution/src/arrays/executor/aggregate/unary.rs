@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use super::AggregateState;
 use crate::arrays::array::Array;
@@ -23,7 +23,7 @@ impl UnaryNonNullUpdater {
     {
         let selection = selection.into_exact_size_iter();
         if selection.len() != states.len() {
-            return Err(RayexecError::new(
+            return Err(DbError::new(
                 "Invalid number of states for selection in unary agggregate executor",
             )
             .with_field("sel_len", selection.len())

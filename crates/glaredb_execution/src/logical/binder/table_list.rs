@@ -1,6 +1,6 @@
 use std::fmt;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::datatype::DataType;
@@ -107,14 +107,14 @@ impl TableList {
     pub fn get(&self, table_ref: TableRef) -> Result<&Table> {
         self.tables
             .get(table_ref.table_idx)
-            .ok_or_else(|| RayexecError::new(format!("Missing table in table list: {table_ref}")))
+            .ok_or_else(|| DbError::new(format!("Missing table in table list: {table_ref}")))
     }
 
     /// Get a mutable table by table ref.
     pub fn get_mut(&mut self, table_ref: TableRef) -> Result<&mut Table> {
         self.tables
             .get_mut(table_ref.table_idx)
-            .ok_or_else(|| RayexecError::new(format!("Missing table in table list: {table_ref}")))
+            .ok_or_else(|| DbError::new(format!("Missing table in table list: {table_ref}")))
     }
 
     pub fn push_table<S>(
@@ -131,7 +131,7 @@ impl TableList {
 
         if column_types.len() != column_names.len() {
             return Err(
-                RayexecError::new("Column names and types have different lengths")
+                DbError::new("Column names and types have different lengths")
                     .with_fields([("types", column_types.len()), ("names", column_names.len())]),
             );
         }
@@ -167,7 +167,7 @@ impl TableList {
             .get(reference.column)
             .map(|s| s.as_str())
             .ok_or_else(|| {
-                RayexecError::new(format!(
+                DbError::new(format!(
                     "Missing column {} in table {}",
                     reference.column, reference.table_scope
                 ))

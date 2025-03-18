@@ -13,7 +13,7 @@ pub mod select_list;
 use bind_select::{BoundSelect, SelectBinder};
 use bind_setop::{BoundSetOp, SetOpBinder};
 use bind_values::{BoundValues, ValuesBinder};
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
@@ -134,7 +134,7 @@ impl<'a> QueryBinder<'a> {
         // WITH my_cte(alias1, alias2) AS ...
         if let Some(col_aliases) = &cte.column_aliases {
             if col_aliases.len() > names.len() {
-                return Err(RayexecError::new(format!(
+                return Err(DbError::new(format!(
                     "Expected at most {} column aliases, received {}",
                     names.len(),
                     col_aliases.len()

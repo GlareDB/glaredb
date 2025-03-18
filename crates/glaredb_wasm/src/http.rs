@@ -6,7 +6,7 @@ use bytes::Bytes;
 use futures::Stream;
 use futures::future::FutureExt;
 use futures::stream::StreamExt;
-use glaredb_error::{RayexecError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 use rayexec_io::http::{HttpClient, HttpResponse};
 use reqwest::header::HeaderMap;
 use reqwest::{Request, StatusCode};
@@ -36,10 +36,7 @@ impl HttpClient for WasmHttpClient {
     fn do_request(&self, request: Request) -> Self::RequestFuture {
         let fut = self.client.execute(request).map(|result| match result {
             Ok(resp) => Ok(WasmBoxingResponse(resp)),
-            Err(e) => Err(RayexecError::with_source(
-                "Failed to make request",
-                Box::new(e),
-            )),
+            Err(e) => Err(DbError::with_source("Failed to make request", Box::new(e))),
         });
 
         unsafe { FakeSyncSendFuture::new(Box::pin(fut) as _) }

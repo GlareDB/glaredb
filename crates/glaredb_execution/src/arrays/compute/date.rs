@@ -1,5 +1,5 @@
 use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc};
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{PhysicalI32, PhysicalI64};
@@ -129,7 +129,7 @@ pub fn extract_date_part(
             DatePart::Year => timestamp_extract_with_fn(m.unit, arr, sel, extract_year, out),
             other => not_implemented!("Extract {other:?} from {datatype}"),
         },
-        other => Err(RayexecError::new(format!(
+        other => Err(DbError::new(format!(
             "Unable to extract date part for array with data type {other}"
         ))),
     }

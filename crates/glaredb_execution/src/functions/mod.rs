@@ -26,7 +26,7 @@ use std::fmt::Display;
 
 use candidate::CandidateSignature;
 use documentation::Documentation;
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::util::fmt::displayable::IntoDisplayableSlice;
@@ -184,7 +184,7 @@ pub fn plan_check_num_args<T>(
     expected: usize,
 ) -> Result<()> {
     if inputs.len() != expected {
-        return Err(RayexecError::new(format!(
+        return Err(DbError::new(format!(
             "Expected {} {} for '{}', received {}",
             expected,
             if expected == 1 { "input" } else { "inputs" },
@@ -201,7 +201,7 @@ pub fn plan_check_num_args_one_of<T, const N: usize>(
     one_of: [usize; N],
 ) -> Result<()> {
     if !one_of.contains(&inputs.len()) {
-        return Err(RayexecError::new(format!(
+        return Err(DbError::new(format!(
             "Expected {} inputs for '{}', received {}",
             one_of.display_with_brackets(),
             func.name(),
@@ -214,13 +214,13 @@ pub fn plan_check_num_args_one_of<T, const N: usize>(
 /// Return an error indicating the input types we got are not ones we can
 /// handle.
 // TODO: Include valid signatures in the error
-pub fn invalid_input_types_error<T>(func: &impl FunctionInfo, got: &[T]) -> RayexecError
+pub fn invalid_input_types_error<T>(func: &impl FunctionInfo, got: &[T]) -> DbError
 where
     T: Borrow<DataType> + Display,
 {
     // TODO: Include relevant valid signatures. What "relevant" means and how we
     // determine that is stil tbd.
-    RayexecError::new(format!(
+    DbError::new(format!(
         "Got invalid type(s) '{}' for '{}'",
         got.display_with_brackets(),
         func.name()

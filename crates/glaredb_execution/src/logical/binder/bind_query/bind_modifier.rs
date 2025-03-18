@@ -1,6 +1,6 @@
 use std::fmt;
 
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::select_list::SelectList;
@@ -73,7 +73,7 @@ impl<'a> ModifierBinder<'a> {
         // TODO: What do here?
         let current = match self.current.first() {
             Some(&current) => current,
-            None => return Err(RayexecError::new("Missing scope, cannot bind to anything")),
+            None => return Err(DbError::new("Missing scope, cannot bind to anything")),
         };
 
         let exprs = order_by
@@ -142,7 +142,7 @@ impl<'a> ModifierBinder<'a> {
         // TODO: What do here?
         let current = match self.current.first() {
             Some(&current) => current,
-            None => return Err(RayexecError::new("Missing scope, cannot bind to anything")),
+            None => return Err(DbError::new("Missing scope, cannot bind to anything")),
         };
 
         let expr_binder = BaseExpressionBinder::new(current, self.resolve_context);
@@ -160,7 +160,7 @@ impl<'a> ModifierBinder<'a> {
             )?,
             None => {
                 if limit_mod.offset.is_some() {
-                    return Err(RayexecError::new("OFFSET without LIMIT not supported"));
+                    return Err(DbError::new("OFFSET without LIMIT not supported"));
                 }
                 return Ok(None);
             }
@@ -168,7 +168,7 @@ impl<'a> ModifierBinder<'a> {
 
         let limit = limit.try_into_scalar()?.try_as_i64()?;
         let limit = if limit < 0 {
-            return Err(RayexecError::new("LIMIT cannot be negative"));
+            return Err(DbError::new("LIMIT cannot be negative"));
         } else {
             limit as usize
         };
@@ -187,7 +187,7 @@ impl<'a> ModifierBinder<'a> {
                 )?;
                 let offset = offset.try_into_scalar()?.try_as_i64()?;
                 if offset < 0 {
-                    return Err(RayexecError::new("OFFSET cannot be negative"));
+                    return Err(DbError::new("OFFSET cannot be negative"));
                 } else {
                     Some(offset as usize)
                 }

@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use glaredb_error::{RayexecError, Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::ast;
 
 use super::select_list::SelectList;
@@ -149,7 +149,7 @@ impl GroupByWithSets {
             ast::GroupByNode::Exprs { mut exprs } => {
                 let expr = match exprs.len() {
                     1 => exprs.pop().unwrap(),
-                    _ => return Err(RayexecError::new("Invalid number of group by expressions")),
+                    _ => return Err(DbError::new("Invalid number of group by expressions")),
                 };
 
                 let (expressions, grouping_sets) = match expr {

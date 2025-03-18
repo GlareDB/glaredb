@@ -1,4 +1,4 @@
-use glaredb_error::{RayexecError, Result};
+use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -100,9 +100,7 @@ impl AstParseable for FromNode<Raw> {
                                 JoinType::LeftSemi
                             }
                             _ => {
-                                return Err(RayexecError::new(
-                                    "Expected one of OUTER, SEMI, or JOIN",
-                                ));
+                                return Err(DbError::new("Expected one of OUTER, SEMI, or JOIN"));
                             }
                         }
                     }
@@ -129,9 +127,7 @@ impl AstParseable for FromNode<Raw> {
                                 JoinType::RightSemi
                             }
                             _ => {
-                                return Err(RayexecError::new(
-                                    "Expected one of OUTER, SEMI, or JOIN",
-                                ));
+                                return Err(DbError::new("Expected one of OUTER, SEMI, or JOIN"));
                             }
                         }
                     }
@@ -265,7 +261,7 @@ impl FromNode<Raw> {
                 }
                 _ => {
                     if lateral {
-                        return Err(RayexecError::new(
+                        return Err(DbError::new(
                             "LATERAL can only be used with subqueries and table functions on the right side",
                         ));
                     }
