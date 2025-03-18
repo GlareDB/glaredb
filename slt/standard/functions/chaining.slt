@@ -80,7 +80,7 @@ statement error Missing catalog
 SELECT t.b.upper() FROM t ORDER BY 1;
 
 query T
-SELECT system.builtin.upper(t.b) FROM t ORDER BY 1;
+SELECT system.default.upper(t.b) FROM t ORDER BY 1;
 ----
 CAT
 DOG

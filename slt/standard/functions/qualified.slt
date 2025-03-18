@@ -1,11 +1,11 @@
 # Ensure we can call functions partially and fully qualified.
 
 query I
-SELECT builtin.abs(-48);
+SELECT default.abs(-48);
 ----
 48
 
 query I
-SELECT system.builtin.abs(-48);
+SELECT system.default.abs(-48);
 ----
 48

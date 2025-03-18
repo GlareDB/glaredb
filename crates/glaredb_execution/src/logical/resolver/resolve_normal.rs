@@ -16,7 +16,7 @@ use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
 use crate::catalog::database::Database;
 use crate::catalog::entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType};
 use crate::catalog::memory::MemorySchema;
-use crate::catalog::system::BUILTIN_SCHEMA;
+use crate::catalog::system::DEFAULT_SCHEMA;
 use crate::catalog::{Catalog, Schema};
 use crate::expr;
 use crate::functions::function_set::TableFunctionSet;
@@ -91,7 +91,7 @@ impl<'a> NormalResolver<'a> {
         let [catalog, schema, name] = match reference.0.len() {
             1 => [
                 SYSTEM_CATALOG.to_string(),
-                BUILTIN_SCHEMA.to_string(),
+                DEFAULT_SCHEMA.to_string(),
                 reference.0[0].as_normalized_string(),
             ],
             2 => {
