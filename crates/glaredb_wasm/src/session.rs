@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use ext_spark::SparkExtension;
 use glaredb_error::DbError;
 use glaredb_execution::arrays::batch::Batch;
 use glaredb_execution::arrays::field::ColumnSchema;
@@ -24,6 +25,7 @@ impl WasmSession {
     pub fn try_new() -> Result<WasmSession> {
         let runtime = WasmRuntime::try_new()?;
         let engine = SingleUserEngine::try_new(WasmExecutor, runtime.clone())?;
+        engine.register_extension(SparkExtension)?;
 
         Ok(WasmSession { runtime, engine })
     }
@@ -77,4 +79,21 @@ impl WasmQueryResults {}
 pub struct WasmQueryResult {
     pub(crate) schema: ColumnSchema,
     pub(crate) batches: Vec<Batch>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_session() {
+        // Ensure we can create a session.
+        //
+        // The reason for this test case is to ensure we can create the system
+        // catalog and registery any extensions without erroring.
+        //
+        // It does not test that we can actually run anything (since running
+        // would attempt to create promises).
+        let _ = WasmSession::try_new().unwrap();
+    }
 }

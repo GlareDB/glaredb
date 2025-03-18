@@ -10,6 +10,9 @@ logutil = { path = '../logutil' }
 glaredb_error = { path = '../glaredb_error' }
 glaredb_execution = { path = '../glaredb_execution' }
 glaredb_rt_native = { path = '../glaredb_rt_native' }
+
+ext_spark = { path = '../ext_spark' }
+
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
 futures = { workspace = true }

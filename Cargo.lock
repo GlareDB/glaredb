@@ -819,6 +819,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ext_spark"
+version = "0.0.98"
+dependencies = [
+ "glaredb_error",
+ "glaredb_execution",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1000,6 +1008,7 @@ version = "0.0.98"
 dependencies = [
  "clap",
  "crossterm",
+ "ext_spark",
  "futures",
  "glaredb_error",
  "glaredb_execution",
@@ -1125,6 +1134,7 @@ dependencies = [
  "ext_csv",
  "ext_delta",
  "ext_iceberg",
+ "ext_spark",
  "futures",
  "getrandom 0.2.14",
  "glaredb_error",

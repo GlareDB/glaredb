@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
+use ext_spark::SparkExtension;
 use glaredb_error::Result;
 use glaredb_execution::arrays::format::pretty::table::PrettyTable;
 use glaredb_execution::engine::single_user::SingleUserEngine;
@@ -105,6 +106,7 @@ async fn inner(
     runtime: impl Runtime,
 ) -> Result<()> {
     let engine = SingleUserEngine::try_new(executor, runtime)?;
+    engine.register_extension(SparkExtension)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
     let mut stdout = BufWriter::new(std::io::stdout());
