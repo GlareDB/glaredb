@@ -1,0 +1,10 @@
+# list_tables function
+
+statement ok
+CREATE TEMP TABLE hello (a INT);
+
+query T
+SELECT table_name FROM list_tables() WHERE table_name = 'hello';
+----
+hello
+

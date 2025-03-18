@@ -147,6 +147,11 @@ pub trait Schema: Debug + Sync + Send {
         name: &str,
     ) -> Result<Option<Arc<CatalogEntry>>>;
 
+    /// List all entries in the schema.
+    fn list_entries(
+        self: &Arc<Self>,
+    ) -> impl Stream<Item = Result<Vec<Arc<CatalogEntry>>>> + Sync + Send + 'static;
+
     fn list_tables(
         self: &Arc<Self>,
     ) -> impl Stream<Item = Result<Vec<Arc<CatalogEntry>>>> + Sync + Send + 'static;
