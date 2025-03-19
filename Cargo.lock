@@ -2908,7 +2908,7 @@ checksum = "b6bc1c9ce2b5135ac7f93c72918fc37feb872bdc6a5533a8b85eb4b86bfdae52"
 [[package]]
 name = "tpchgen"
 version = "0.1.0"
-source = "git+https://github.com/glaredb/tpchgen-rs?rev=e8804de553e4afeda9e708e083408fe4b7ab24e6#e8804de553e4afeda9e708e083408fe4b7ab24e6"
+source = "git+https://github.com/glaredb/tpchgen-rs?rev=ee39aeac495ab2f1ca281ef9ccd6a3dd3b174102#ee39aeac495ab2f1ca281ef9ccd6a3dd3b174102"
 dependencies = [
  "chrono",
  "indexmap",
