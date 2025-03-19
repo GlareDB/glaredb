@@ -2,6 +2,9 @@ pub mod functions;
 
 use functions::{
     FUNCTION_SET_CUSTOMER,
+    FUNCTION_SET_LINEITEM,
+    FUNCTION_SET_NATION,
+    FUNCTION_SET_ORDERS,
     FUNCTION_SET_PART,
     FUNCTION_SET_PARTSUPP,
     FUNCTION_SET_REGION,
@@ -24,6 +27,9 @@ impl Extension for TpchGenExtension {
             FUNCTION_SET_SUPPLIER,
             FUNCTION_SET_CUSTOMER,
             FUNCTION_SET_PARTSUPP,
+            FUNCTION_SET_ORDERS,
+            FUNCTION_SET_LINEITEM,
+            FUNCTION_SET_NATION,
         ]
     }
 }

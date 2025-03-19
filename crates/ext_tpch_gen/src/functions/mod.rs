@@ -10,7 +10,16 @@ pub use supplier::*;
 mod customer;
 pub use customer::*;
 
-mod part_supp;
-pub use part_supp::*;
+mod partsupp;
+pub use partsupp::*;
+
+mod orders;
+pub use orders::*;
+
+mod lineitem;
+pub use lineitem::*;
+
+mod nation;
+pub use nation::*;
 
 mod table_gen;
