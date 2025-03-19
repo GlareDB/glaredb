@@ -18,7 +18,7 @@
 use bytes::Bytes;
 use rand::distr::uniform::SampleUniform;
 use rand::distr::{Distribution, StandardUniform};
-use rand::{rng, Rng};
+use rand::{Rng, rng};
 
 use crate::data_type::*;
 

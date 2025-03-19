@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use rand::distr::Alphanumeric;
 use rand::Rng;
+use rand::distr::Alphanumeric;
 
 #[derive(Clone)]
 pub enum VarValue {

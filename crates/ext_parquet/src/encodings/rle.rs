@@ -39,8 +39,8 @@ use std::mem::size_of;
 
 use bytes::Bytes;
 
-use crate::errors::{eof_err, ParquetResult};
-use crate::util::bit_util::{self, from_le_slice, BitReader, BitWriter, FromBytes};
+use crate::errors::{ParquetResult, eof_err};
+use crate::util::bit_util::{self, BitReader, BitWriter, FromBytes, from_le_slice};
 
 /// Maximum groups of 8 values per bit-packed run. Current value is 64.
 const MAX_GROUPS_PER_BIT_PACKED_RUN: usize = 1 << 6;
@@ -526,7 +526,7 @@ impl RleDecoder {
 #[cfg(test)]
 mod tests {
     use rand::distr::StandardUniform;
-    use rand::{self, rng, Rng, SeedableRng};
+    use rand::{self, Rng, SeedableRng, rng};
 
     use super::*;
     use crate::util::bit_util::ceil;
