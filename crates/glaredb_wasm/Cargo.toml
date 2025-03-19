@@ -36,5 +36,8 @@ console_error_panic_hook = "0.1.7"
 url = { workspace = true }
 bytes = { version = "1.10", default-features = false, features = ["std"] }
 reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls", "stream"] }
+
 # See <https://docs.rs/getrandom/latest/getrandom/#webassembly-support>
 getrandom = { workspace = true, features = ["wasm_js"] }
+# See <https://docs.rs/uuid/latest/uuid/#webassembly>
+uuid = { workspace = true, features = ["js"] }
