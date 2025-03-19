@@ -4,7 +4,7 @@ default-members = ["crates/*", "test_bin", "bench_bin"]
 resolver = "2"
 
 [workspace.package]
-version = "0.0.98"
+version = "0.0.99"
 edition = "2024"
 
 [profile.release]
@@ -14,20 +14,21 @@ codegen-units = 1
 
 [workspace.dependencies]
 ahash = { version = "0.8.11", default-features = false }
-chrono = { version = "0.4.39" }
+chrono = { version = "0.4.40" }
 futures = "0.3.30"
 hashbrown = "0.14.5"
 parking_lot = "0.12"
-rand = "0.8.5"
+rand = "0.9.0"
 rayon = "1.10.0"
 num_cpus = "1.16.0"
-tokio = { version = "1.43.0", default-features = false }
+tokio = { version = "1.44.1", default-features = false }
 tracing = { version = "0.1.40", default-features = false }
 regex = "1.10.5"
 url = "2.5.1"
-serde = { version = "1.0.218", features = ["derive", "rc"] }
+serde = { version = "1.0.219", features = ["derive", "rc"] }
 serde_json = { version = "1.0", features = ["std"] }
 bytes = "1.10.0"
-uuid = { version = "1.12.1", features = ["v4"] }
+uuid = { version = "1.16.0", features = ["v4"] }
 scc = "2.3.3"
-half = { version = "2.4.1", features = ["num-traits", "serde"] }
+half = { version = "2.5.0", features = ["num-traits", "serde"] }
+getrandom = { version = "0.3" }

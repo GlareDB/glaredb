@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use rand::Rng;
-use rand::distributions::Alphanumeric;
+use rand::distr::Alphanumeric;
 
 #[derive(Clone)]
 pub enum VarValue {
@@ -80,7 +80,7 @@ impl Default for ReplacementVars {
             vars: HashMap::new(),
         };
 
-        let s: String = rand::thread_rng()
+        let s: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(7)
             .map(char::from)
