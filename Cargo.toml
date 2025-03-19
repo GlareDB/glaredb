@@ -18,7 +18,7 @@ chrono = { version = "0.4.39" }
 futures = "0.3.30"
 hashbrown = "0.14.5"
 parking_lot = "0.12"
-rand = "0.8.5"
+rand = "0.9.0"
 rayon = "1.10.0"
 num_cpus = "1.16.0"
 tokio = { version = "1.44.1", default-features = false }
@@ -31,3 +31,4 @@ bytes = "1.10.0"
 uuid = { version = "1.16.0", features = ["v4"] }
 scc = "2.3.3"
 half = { version = "2.5.0", features = ["num-traits", "serde"] }
+getrandom = { version = "0.3" }

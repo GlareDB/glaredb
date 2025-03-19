@@ -21,8 +21,8 @@ use std::mem::size_of;
 use bytes::Bytes;
 
 use crate::data_type::{AsBytes, ByteArray, FixedLenByteArray, Int96};
-use crate::errors::{ParquetResult, general_err};
-use crate::util::bit_pack::{unpack8, unpack16, unpack32, unpack64};
+use crate::errors::{general_err, ParquetResult};
+use crate::util::bit_pack::{unpack16, unpack32, unpack64, unpack8};
 
 #[inline]
 pub fn from_le_slice<T: FromBytes>(bs: &[u8]) -> T {
@@ -677,7 +677,7 @@ impl From<Vec<u8>> for BitReader {
 mod tests {
     use std::fmt::Debug;
 
-    use rand::distributions::{Distribution, Standard};
+    use rand::distr::{Distribution, StandardUniform};
 
     use super::*;
     use crate::testutil::rand_gen::random_numbers;
@@ -1026,7 +1026,7 @@ mod tests {
     fn test_put_aligned_rand_numbers<T>(total: usize, num_bits: usize)
     where
         T: Copy + FromBytes + AsBytes + Debug + PartialEq,
-        Standard: Distribution<T>,
+        StandardUniform: Distribution<T>,
     {
         assert!(num_bits <= 32);
         assert!(total % 2 == 0);

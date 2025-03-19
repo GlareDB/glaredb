@@ -16,9 +16,9 @@
 // under the License.
 
 use bytes::Bytes;
-use rand::distributions::uniform::SampleUniform;
-use rand::distributions::{Distribution, Standard};
-use rand::{Rng, thread_rng};
+use rand::distr::uniform::SampleUniform;
+use rand::distr::{Distribution, StandardUniform};
+use rand::{rng, Rng};
 
 use crate::data_type::*;
 
@@ -37,51 +37,55 @@ pub trait RandGen<T: DataType> {
 
 impl RandGen<bool> for bool {
     fn generate(_: i32) -> bool {
-        thread_rng().r#gen::<bool>()
+        rng().random::<bool>()
     }
 }
 
 impl RandGen<i32> for i32 {
     fn generate(_: i32) -> i32 {
-        thread_rng().r#gen::<i32>()
+        rng().random::<i32>()
     }
 }
 
 impl RandGen<i64> for i64 {
     fn generate(_: i32) -> i64 {
-        thread_rng().r#gen::<i64>()
+        rng().random::<i64>()
     }
 }
 
 impl RandGen<Int96> for Int96 {
     fn generate(_: i32) -> Int96 {
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut result = Int96::new();
-        result.set_data(rng.r#gen::<u32>(), rng.r#gen::<u32>(), rng.r#gen::<u32>());
+        result.set_data(
+            rng.random::<u32>(),
+            rng.random::<u32>(),
+            rng.random::<u32>(),
+        );
         result
     }
 }
 
 impl RandGen<f32> for f32 {
     fn generate(_: i32) -> f32 {
-        thread_rng().r#gen::<f32>()
+        rng().random::<f32>()
     }
 }
 
 impl RandGen<f64> for f64 {
     fn generate(_: i32) -> f64 {
-        thread_rng().r#gen::<f64>()
+        rng().random::<f64>()
     }
 }
 
 impl RandGen<ByteArray> for ByteArray {
     fn generate(_: i32) -> ByteArray {
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut result = ByteArray::new();
         let mut value = vec![];
-        let len = rng.gen_range(0..128);
+        let len = rng.random_range(0..128);
         for _ in 0..len {
-            value.push(rng.gen_range(0..255));
+            value.push(rng.random_range(0..255));
         }
         result.set_data(Bytes::from(value));
         result
@@ -98,28 +102,28 @@ impl RandGen<FixedLenByteArray> for FixedLenByteArray {
 
 pub fn random_bytes(n: usize) -> Vec<u8> {
     let mut result = vec![];
-    let mut rng = thread_rng();
+    let mut rng = rng();
     for _ in 0..n {
-        result.push(rng.gen_range(0..255));
+        result.push(rng.random_range(0..255));
     }
     result
 }
 
 pub fn random_numbers<T>(n: usize) -> Vec<T>
 where
-    Standard: Distribution<T>,
+    StandardUniform: Distribution<T>,
 {
-    let mut rng = thread_rng();
-    Standard.sample_iter(&mut rng).take(n).collect()
+    let mut rng = rng();
+    StandardUniform.sample_iter(&mut rng).take(n).collect()
 }
 
 pub fn random_numbers_range<T>(n: usize, low: T, high: T, result: &mut Vec<T>)
 where
     T: PartialOrd + SampleUniform + Copy,
 {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     for _ in 0..n {
-        result.push(rng.gen_range(low..high));
+        result.push(rng.random_range(low..high));
     }
 }
 

@@ -39,8 +39,8 @@ use std::mem::size_of;
 
 use bytes::Bytes;
 
-use crate::errors::{ParquetResult, eof_err};
-use crate::util::bit_util::{self, BitReader, BitWriter, FromBytes, from_le_slice};
+use crate::errors::{eof_err, ParquetResult};
+use crate::util::bit_util::{self, from_le_slice, BitReader, BitWriter, FromBytes};
 
 /// Maximum groups of 8 values per bit-packed run. Current value is 64.
 const MAX_GROUPS_PER_BIT_PACKED_RUN: usize = 1 << 6;
@@ -525,8 +525,8 @@ impl RleDecoder {
 
 #[cfg(test)]
 mod tests {
-    use rand::distributions::Standard;
-    use rand::{self, Rng, SeedableRng, thread_rng};
+    use rand::distr::StandardUniform;
+    use rand::{self, rng, Rng, SeedableRng};
 
     use super::*;
     use crate::util::bit_util::ceil;
@@ -1020,15 +1020,18 @@ mod tests {
 
         for _ in 0..niters {
             values.clear();
-            let rng = thread_rng();
-            let seed_vec: Vec<u8> = rng.sample_iter::<u8, _>(&Standard).take(seed_len).collect();
+            let rng = rng();
+            let seed_vec: Vec<u8> = rng
+                .sample_iter::<u8, _>(&StandardUniform)
+                .take(seed_len)
+                .collect();
             let mut seed = [0u8; 32];
             seed.copy_from_slice(&seed_vec[0..seed_len]);
             let mut r#gen = rand::rngs::StdRng::from_seed(seed);
 
             let mut parity = false;
             for _ in 0..ngroups {
-                let mut group_size = r#gen.gen_range(1..20);
+                let mut group_size = r#gen.random_range(1..20);
                 if group_size > max_group_size {
                     group_size = 1;
                 }
