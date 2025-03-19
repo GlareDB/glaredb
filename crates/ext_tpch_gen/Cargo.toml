@@ -1,0 +1,9 @@
+[package]
+name = "ext_tpch_gen"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+glaredb_execution = { path = '../glaredb_execution' }
+glaredb_error = { path = '../glaredb_error' }
+tpchgen = { git = "https://github.com/clflushopt/tpchgen-rs", rev = "f73ed05fe8ef0c1545da3dd792ce9903b42382d6"}
