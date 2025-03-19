@@ -677,7 +677,7 @@ impl From<Vec<u8>> for BitReader {
 mod tests {
     use std::fmt::Debug;
 
-    use rand::distributions::{Distribution, Standard};
+    use rand::distr::{Distribution, StandardUniform};
 
     use super::*;
     use crate::testutil::rand_gen::random_numbers;
@@ -1026,7 +1026,7 @@ mod tests {
     fn test_put_aligned_rand_numbers<T>(total: usize, num_bits: usize)
     where
         T: Copy + FromBytes + AsBytes + Debug + PartialEq,
-        Standard: Distribution<T>,
+        StandardUniform: Distribution<T>,
     {
         assert!(num_bits <= 32);
         assert!(total % 2 == 0);
