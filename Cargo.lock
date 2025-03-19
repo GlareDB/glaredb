@@ -989,6 +989,7 @@ dependencies = [
  "clap",
  "crossterm",
  "ext_spark",
+ "ext_tpch_gen",
  "futures",
  "glaredb_error",
  "glaredb_execution",
