@@ -5,12 +5,6 @@
 // functions defualt a `const fn new` to accomplish this. Functions are never
 // created outside of a const context, so the Default implementation is useless.
 #![allow(clippy::new_without_default)]
-// Clippy produces false positives here.
-//
-// Table scan functions can return futures, and those futures are tied to the
-// lifetime of the passed in database context. Clippy seems to think that
-// they're tied to the lifetime of `&self`, which is not the case.
-#![allow(clippy::manual_async_fn)]
 
 pub mod aggregate;
 pub mod bind_state;

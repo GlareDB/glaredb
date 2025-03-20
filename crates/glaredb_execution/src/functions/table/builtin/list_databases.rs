@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::sync::Arc;
 use std::task::Context;
 
@@ -53,23 +52,21 @@ impl TableScanFunction for ListDatabases {
     type OperatorState = ListDatabasesOperatorState;
     type PartitionState = ListDatabasePartitionState;
 
-    fn bind<'a>(
-        &self,
-        db_context: &'a DatabaseContext,
+    async fn bind(
+        &'static self,
+        db_context: &DatabaseContext,
         input: TableFunctionInput,
-    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + 'a {
+    ) -> Result<TableFunctionBindState<Self::BindState>> {
         let databases = db_context.iter_databases().cloned().collect();
-        async move {
-            Ok(TableFunctionBindState {
-                state: ListDatabasesBindState { databases },
-                input,
-                schema: ColumnSchema::new([
-                    Field::new("database_name", DataType::Utf8, false),
-                    Field::new("access_mode", DataType::Utf8, false),
-                ]),
-                cardinality: StatisticsValue::Unknown,
-            })
-        }
+        Ok(TableFunctionBindState {
+            state: ListDatabasesBindState { databases },
+            input,
+            schema: ColumnSchema::new([
+                Field::new("database_name", DataType::Utf8, false),
+                Field::new("access_mode", DataType::Utf8, false),
+            ]),
+            cardinality: StatisticsValue::Unknown,
+        })
     }
 
     fn create_pull_operator_state(

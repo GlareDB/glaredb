@@ -99,32 +99,28 @@ where
     type OperatorState = TableGenOperatorState;
     type PartitionState = TableGenPartitionState<T>;
 
-    #[allow(clippy::manual_async_fn)] // TODO: Fix signature, or figure out how to get this lint to go away
-    fn bind<'a>(
-        &self,
-        _db_context: &'a DatabaseContext,
+    async fn bind(
+        &'static self,
+        _db_context: &DatabaseContext,
         input: TableFunctionInput,
-    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + Sync + Send + 'a
-    {
-        async move {
-            // TODO: Use named arguments.
-            let scale_factor = match input.positional.first() {
-                Some(arg) => {
-                    // TODO: Would be nice not having to worry about const
-                    // folding in the functions themselves.
-                    let arg = ConstFold::rewrite(arg.clone())?;
-                    Some(arg.try_as_scalar()?.try_as_f64()?)
-                }
-                None => None,
-            };
+    ) -> Result<TableFunctionBindState<Self::BindState>> {
+        // TODO: Use named arguments.
+        let scale_factor = match input.positional.first() {
+            Some(arg) => {
+                // TODO: Would be nice not having to worry about const
+                // folding in the functions themselves.
+                let arg = ConstFold::rewrite(arg.clone())?;
+                Some(arg.try_as_scalar()?.try_as_f64()?)
+            }
+            None => None,
+        };
 
-            Ok(TableFunctionBindState {
-                state: TableGenBindState { scale_factor },
-                input,
-                schema: T::column_schema(),
-                cardinality: StatisticsValue::Unknown,
-            })
-        }
+        Ok(TableFunctionBindState {
+            state: TableGenBindState { scale_factor },
+            input,
+            schema: T::column_schema(),
+            cardinality: StatisticsValue::Unknown,
+        })
     }
 
     fn create_pull_operator_state(

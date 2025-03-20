@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::sync::Arc;
 use std::task::Context;
 
@@ -55,45 +54,42 @@ impl TableScanFunction for MemoryScan {
     type OperatorState = MemoryScanOperatorState;
     type PartitionState = MemoryScanPartitionState;
 
-    fn bind<'a>(
-        &self,
-        db_context: &'a DatabaseContext,
+    async fn bind(
+        &'static self,
+        db_context: &DatabaseContext,
         input: TableFunctionInput,
-    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + Sync + Send + 'a
-    {
-        async move {
-            // TODO: Avoid the clones.
-            // TODO: Avoid all of this? Can we jut pass the entry directly?
-            let catalog = input.positional[0]
-                .clone()
-                .try_into_scalar()?
-                .try_into_string()?;
-            let schema = input.positional[1]
-                .clone()
-                .try_into_scalar()?
-                .try_into_string()?;
-            let table = input.positional[2]
-                .clone()
-                .try_into_scalar()?
-                .try_into_string()?;
+    ) -> Result<TableFunctionBindState<Self::BindState>> {
+        // TODO: Avoid the clones.
+        // TODO: Avoid all of this? Can we jut pass the entry directly?
+        let catalog = input.positional[0]
+            .clone()
+            .try_into_scalar()?
+            .try_into_string()?;
+        let schema = input.positional[1]
+            .clone()
+            .try_into_scalar()?
+            .try_into_string()?;
+        let table = input.positional[2]
+            .clone()
+            .try_into_scalar()?
+            .try_into_string()?;
 
-            let database = db_context.require_get_database(&catalog)?;
+        let database = db_context.require_get_database(&catalog)?;
 
-            let ent = database
-                .catalog
-                .require_get_schema(&schema)?
-                .require_get_table(&table)?;
+        let ent = database
+            .catalog
+            .require_get_schema(&schema)?
+            .require_get_table(&table)?;
 
-            let ent = ent.try_as_table_entry()?;
-            let datatable = database.storage.get_table(ent.storage_id)?;
+        let ent = ent.try_as_table_entry()?;
+        let datatable = database.storage.get_table(ent.storage_id)?;
 
-            Ok(TableFunctionBindState {
-                state: MemoryScanBindState { table: datatable },
-                input,
-                schema: ColumnSchema::new(ent.columns.clone()),
-                cardinality: StatisticsValue::Unknown, // TODO
-            })
-        }
+        Ok(TableFunctionBindState {
+            state: MemoryScanBindState { table: datatable },
+            input,
+            schema: ColumnSchema::new(ent.columns.clone()),
+            cardinality: StatisticsValue::Unknown, // TODO
+        })
     }
 
     fn create_pull_operator_state(

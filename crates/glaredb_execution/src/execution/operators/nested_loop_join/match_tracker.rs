@@ -50,7 +50,7 @@ impl MatchTracker {
         debug_assert!(right.arrays.len() <= output.arrays.len());
 
         let not_match_iter = NotMatchIter::new(&self.matches);
-        let output_rows = not_match_iter.rem_no_matches;
+        let output_rows = not_match_iter.rem_count;
 
         if output_rows == 0 {
             // Don't need to do anything, just set output to have no rows.
@@ -97,7 +97,7 @@ impl MatchTracker {
         let matches = &self.matches[left_offset..(left_offset + left.num_rows())];
 
         let not_match_iter = NotMatchIter::new(matches);
-        let output_rows = not_match_iter.rem_no_matches;
+        let output_rows = not_match_iter.rem_count;
 
         if output_rows == 0 {
             // Don't need to do anything, just set output to have no rows.
@@ -123,37 +123,63 @@ impl MatchTracker {
 
         Ok(())
     }
+
+    /// Write the result of a left semi join to `output`.
+    pub fn left_semi_result(
+        &self,
+        left_offset: usize,
+        left: &mut Batch,
+        output: &mut Batch,
+    ) -> Result<()> {
+        debug_assert!(left.num_rows() + left_offset <= self.matches.len());
+
+        // Slice matches to only the ones for this batch.
+        let matches = &self.matches[left_offset..(left_offset + left.num_rows())];
+
+        let match_iter = MatchIndexIter::<true>::new(matches);
+
+        output.clone_from_other(left)?;
+        output.select(match_iter)?;
+
+        Ok(())
+    }
 }
 
-/// Returns indices for rows that didn't match.
+/// Returns indices for rows that did not match.
+///
+/// Should be used to construct the remaining output of a LEFT join to get all
+/// rows that didn't have matches.
+type NotMatchIter<'a> = MatchIndexIter<'a, false>;
+
+/// Returns indices for rows where `matches[row_idx] == B`.
 #[derive(Debug, Clone)]
-struct NotMatchIter<'a> {
+struct MatchIndexIter<'a, const B: bool> {
     matches: &'a [bool],
     idx: usize,
-    rem_no_matches: usize,
+    rem_count: usize,
 }
 
-impl<'a> NotMatchIter<'a> {
+impl<'a, const B: bool> MatchIndexIter<'a, B> {
     fn new(matches: &'a [bool]) -> Self {
-        let no_match_count: usize = matches
+        let count: usize = matches
             .iter()
-            .map(|&did_match| if did_match { 0 } else { 1 })
+            .map(|&did_match| if did_match == B { 1 } else { 0 })
             .sum();
 
-        NotMatchIter {
+        MatchIndexIter {
             matches,
             idx: 0,
-            rem_no_matches: no_match_count,
+            rem_count: count,
         }
     }
 }
 
-impl Iterator for NotMatchIter<'_> {
+impl<const B: bool> Iterator for MatchIndexIter<'_, B> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if self.rem_no_matches == 0 {
+            if self.rem_count == 0 {
                 return None;
             }
 
@@ -161,19 +187,19 @@ impl Iterator for NotMatchIter<'_> {
             let v = self.matches[idx];
             self.idx += 1;
 
-            if !v {
-                self.rem_no_matches -= 1;
+            if v == B {
+                self.rem_count -= 1;
                 return Some(idx);
             }
         }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.rem_no_matches, Some(self.rem_no_matches))
+        (self.rem_count, Some(self.rem_count))
     }
 }
 
-impl ExactSizeIterator for NotMatchIter<'_> {}
+impl<const B: bool> ExactSizeIterator for MatchIndexIter<'_, B> {}
 
 #[cfg(test)]
 mod tests {
@@ -318,6 +344,51 @@ mod tests {
             .left_outer_result(0, &mut left, &mut output)
             .unwrap();
         let expected = generate_batch!([4], [None as Option<&str>]);
+        assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn left_semi_no_rows_match() {
+        // COLLECTION SIZE: 4
+        // OUTPUT SIZE: 2
+        //
+        // No output produced
+
+        let mut tracker = MatchTracker::empty();
+        tracker.ensure_initialized(4);
+
+        let mut output = Batch::new([DataType::Int32], 2).unwrap();
+
+        let mut left = generate_batch!([1, 2]);
+        tracker.left_semi_result(0, &mut left, &mut output).unwrap();
+        assert_eq!(0, output.num_rows());
+
+        let mut left = generate_batch!([3, 4]);
+        tracker.left_semi_result(0, &mut left, &mut output).unwrap();
+        assert_eq!(0, output.num_rows());
+    }
+
+    #[test]
+    fn left_semi_some_rows_match() {
+        // COLLECTION SIZE: 4
+        // OUTPUT SIZE: 2
+
+        let mut tracker = MatchTracker::empty();
+        tracker.ensure_initialized(4);
+
+        // Should produce rows 0 and 2
+        tracker.set_matches([0, 2]);
+
+        let mut output = Batch::new([DataType::Int32], 2).unwrap();
+
+        let mut left = generate_batch!([1, 2]);
+        tracker.left_semi_result(0, &mut left, &mut output).unwrap();
+        let expected = generate_batch!([1]);
+        assert_batches_eq(&expected, &output);
+
+        let mut left = generate_batch!([3, 4]);
+        tracker.left_semi_result(0, &mut left, &mut output).unwrap();
+        let expected = generate_batch!([3]);
         assert_batches_eq(&expected, &output);
     }
 }

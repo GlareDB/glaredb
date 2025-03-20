@@ -4,7 +4,7 @@ mod match_tracker;
 use std::task::Context;
 
 use cross_product::CrossProductState;
-use glaredb_error::{DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use match_tracker::MatchTracker;
 use parking_lot::Mutex;
 
@@ -46,7 +46,7 @@ struct StateInner {
     ///
     /// This is relative to the entire collection.
     ///
-    /// Only used for LEFT/OUTER joins.
+    /// Used for LEFT, LEFT SEMI, LEFT ANTI, and OUTER joins.
     left_matches: MatchTracker,
 }
 
@@ -75,13 +75,19 @@ pub struct NestedLoopJoinProbeState {
     left_drain_state: ParallelColumnCollectionScanState,
     /// Marker for if this partition is currently draining for a LEFT JOIN.
     draining_left: bool,
+    /// Batch used for SEMI or ANTI joins when computing the cross product.
+    ///
+    /// We need this since the output of the operator does not include columns
+    /// from both sides, but we need to compute the conditions on both sides.
+    ///
+    /// Empty if not a SEMI or ANTI join.
+    semi_anti_batch: Batch,
 }
 
 #[derive(Debug)]
 pub struct PhysicalNestedLoopJoin {
     pub(crate) join_type: JoinType,
     pub(crate) left_types: Vec<DataType>,
-    #[expect(unused)] // For now.
     pub(crate) right_types: Vec<DataType>,
     pub(crate) output_types: Vec<DataType>,
     pub(crate) filter: Option<PhysicalScalarExpression>,
@@ -96,7 +102,7 @@ impl PhysicalNestedLoopJoin {
     ) -> Result<Self> {
         if !matches!(
             join_type,
-            JoinType::Inner | JoinType::Right | JoinType::Left
+            JoinType::Inner | JoinType::Right | JoinType::Left | JoinType::LeftSemi
         ) {
             return Err(DbError::new(format!(
                 "Unsupported join type for nested loop join: {join_type}",
@@ -105,12 +111,16 @@ impl PhysicalNestedLoopJoin {
 
         let left_types: Vec<_> = left_types.into_iter().collect();
         let right_types: Vec<_> = right_types.into_iter().collect();
-        // TODO: Mark/semi/anti
-        let output_types = left_types
-            .iter()
-            .cloned()
-            .chain(right_types.iter().cloned())
-            .collect();
+
+        let output_types = match join_type {
+            JoinType::LeftSemi | JoinType::LeftAnti => left_types.clone(),
+            JoinType::Right | JoinType::Full | JoinType::Left | JoinType::Inner => left_types
+                .iter()
+                .cloned()
+                .chain(right_types.iter().cloned())
+                .collect(),
+            JoinType::LeftMark { .. } => vec![DataType::Boolean],
+        };
 
         Ok(PhysicalNestedLoopJoin {
             join_type,
@@ -197,7 +207,10 @@ impl PushOperator for PhysicalNestedLoopJoin {
             inner.probe_wakers.wake_all();
 
             // Init left matches if needed.
-            if matches!(self.join_type, JoinType::Left) {
+            if matches!(
+                self.join_type,
+                JoinType::Left | JoinType::LeftSemi | JoinType::LeftAnti | JoinType::Full
+            ) {
                 let num_rows_left = operator_state.collected.flushed_rows();
                 inner.left_matches.ensure_initialized(num_rows_left);
             }
@@ -237,6 +250,19 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
                     None => None,
                 };
 
+                let semi_anti_batch =
+                    if matches!(self.join_type, JoinType::LeftSemi | JoinType::LeftAnti) {
+                        let types: Vec<_> = self
+                            .left_types
+                            .iter()
+                            .cloned()
+                            .chain(self.right_types.iter().cloned())
+                            .collect();
+                        Batch::new(types, props.batch_size)?
+                    } else {
+                        Batch::empty()
+                    };
+
                 Ok(NestedLoopJoinProbeState {
                     partition_idx,
                     build_complete: false,
@@ -245,6 +271,7 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
                     right_matches: MatchTracker::empty(),
                     left_drain_state,
                     draining_left: false,
+                    semi_anti_batch,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -287,12 +314,26 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
 
             // TODO: Don't lock.
             let inner = operator_state.inner.lock();
+            // Produce batches where the left rows matched.
+            //
             // TODO: Possibly loop here if output rows is zero.
-            inner.left_matches.left_outer_result(
-                state.left_drain_state.state.relative_scan_offset(),
-                &mut state.cross_state.batch,
-                output,
-            )?;
+            match self.join_type {
+                JoinType::Left | JoinType::Full => {
+                    inner.left_matches.left_outer_result(
+                        state.left_drain_state.state.relative_scan_offset(),
+                        &mut state.cross_state.batch,
+                        output,
+                    )?;
+                }
+                JoinType::LeftSemi => {
+                    inner.left_matches.left_semi_result(
+                        state.left_drain_state.state.relative_scan_offset(),
+                        &mut state.cross_state.batch,
+                        output,
+                    )?;
+                }
+                other => not_implemented!("drain for join type: {other}"),
+            }
 
             // Keep going.
             return Ok(PollExecute::HasMore);
@@ -304,24 +345,38 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
             state.right_matches.ensure_initialized(input.num_rows());
         }
 
+        // Depending on the join type, use different batches for getting the
+        // cross product.
+        //
+        // SEMI/ANTI joins never produce output until we begin draining. So not
+        // doing anything with `output` is fine.
+        //
+        // For join types that do produce output, this will still write the
+        // results to `output` as expected.
+        let cross_out_batch = if matches!(self.join_type, JoinType::LeftSemi | JoinType::LeftAnti) {
+            &mut state.semi_anti_batch
+        } else {
+            output
+        };
+
         loop {
-            output.reset_for_write()?;
+            cross_out_batch.reset_for_write()?;
 
             let keep_right =
                 state
                     .cross_state
-                    .scan_next(&operator_state.collected, input, output)?;
+                    .scan_next(&operator_state.collected, input, cross_out_batch)?;
 
             if !keep_right {
                 // We're done scanning the right batch. Finish up any remaining
                 // scanning and request a new batch.
 
-                // TODO: Join types, etc.
-
                 if matches!(self.join_type, JoinType::Right) {
                     // Find rows that didn't match from the right, and flush
                     // them out with null left side values.
-                    state.right_matches.right_outer_result(input, output)?;
+                    state
+                        .right_matches
+                        .right_outer_result(input, cross_out_batch)?;
                     state.right_matches.reset();
 
                     return Ok(PollExecute::Ready);
@@ -335,7 +390,7 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
                 Some(evaluator) => {
                     // Evaluate the selection on the output of the cross
                     // product.
-                    let selection = evaluator.select(output)?;
+                    let selection = evaluator.select(cross_out_batch)?;
 
                     if selection.is_empty() {
                         // Evaluated empty, reset the chunk and try again.
@@ -347,7 +402,10 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
                         state.right_matches.set_matches(selection.iter().copied());
                     }
 
-                    if matches!(self.join_type, JoinType::Left) {
+                    if matches!(
+                        self.join_type,
+                        JoinType::Left | JoinType::LeftSemi | JoinType::LeftAnti
+                    ) {
                         // Mark left _row_ as matched. Note that we produce a
                         // row at a time for the left.
                         let left_row =
@@ -358,8 +416,15 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
                         inner.left_matches.set_match(left_row);
                     }
 
+                    if matches!(self.join_type, JoinType::LeftSemi | JoinType::LeftAnti) {
+                        // Keep bringing in batches from the right. SEMI/ANTI
+                        // joins need to drain their results at the end, and
+                        // won't produce any batches until then.
+                        return Ok(PollExecute::NeedsMore);
+                    }
+
                     // We have a selection, select the output.
-                    output.select(selection.iter().copied())?;
+                    cross_out_batch.select(selection.iter().copied())?;
 
                     return Ok(PollExecute::HasMore);
                 }
@@ -378,7 +443,10 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
         _operator_state: &Self::OperatorState,
         state: &mut Self::PartitionExecuteState,
     ) -> Result<PollFinalize> {
-        if matches!(self.join_type, JoinType::Left | JoinType::Full) {
+        if matches!(
+            self.join_type,
+            JoinType::Left | JoinType::LeftSemi | JoinType::LeftAnti | JoinType::Full
+        ) {
             // Trigger left drain if needed.
             state.draining_left = true;
             return Ok(PollFinalize::NeedsDrain);
