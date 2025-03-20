@@ -9,7 +9,7 @@ use uuid::Uuid;
 use super::query_result::{Output, QueryResult, StreamOutput};
 use crate::arrays::field::{ColumnSchema, Field};
 use crate::catalog::context::DatabaseContext;
-use crate::catalog::profile::PlanningProfile;
+use crate::catalog::profile::{PlanningProfile, QueryProfile};
 use crate::config::execution::OperatorPlanConfig;
 use crate::config::session::SessionConfig;
 use crate::execution::operators::results::streaming::{PhysicalStreamingResults, ResultStream};
@@ -100,7 +100,6 @@ struct IntermediatePortal {
 struct ExecutablePortal {
     /// Query id for this query. Used to begin execution on the remote side if
     /// needed.
-    #[expect(unused)]
     query_id: Uuid,
     /// Execution mode of the query.
     ///
@@ -421,9 +420,14 @@ where
             .executor
             .spawn_pipelines(pipelines, Arc::new(portal.result_stream.error_sink()));
 
+        let profile = QueryProfile {
+            id: portal.query_id,
+            plan: Some(portal.profile),
+        };
+
         let output = Output::Stream(StreamOutput::new(
             portal.result_stream,
-            portal.profile,
+            profile,
             handle,
             self.context.profiles().clone(),
         ));

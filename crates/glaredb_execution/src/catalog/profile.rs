@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::time::Duration;
 
 use parking_lot::Mutex;
+use uuid::Uuid;
 
 /// Retain the profiles for the last number of queries.
 pub const RETAINED_PROFILE_COUNT: usize = 20;
@@ -20,14 +21,23 @@ impl ProfileCollector {
         profiles.push_front(profile);
     }
 
+    /// Get the nth profile.
+    ///
+    /// '0' is for the most recent query.
     pub fn get_profile(&self, n: usize) -> Option<QueryProfile> {
         let profiles = self.profiles.lock();
         profiles.get(n).cloned()
+    }
+
+    pub fn get_profile_by_id(&self, id: Uuid) -> Option<QueryProfile> {
+        let profiles = self.profiles.lock();
+        profiles.iter().find(|prof| prof.id == id).cloned()
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct QueryProfile {
+    pub id: Uuid,
     pub plan: Option<PlanningProfile>,
 }
 

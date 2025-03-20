@@ -1,13 +1,16 @@
 use std::fmt::Debug;
+use std::str::FromStr;
 use std::task::Context;
 use std::time::Duration;
 
-use glaredb_error::Result;
+use glaredb_error::{Result, ResultExt};
+use uuid::Uuid;
 
 use crate::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
     PhysicalF64,
+    PhysicalI32,
     PhysicalUtf8,
 };
 use crate::arrays::batch::Batch;
@@ -22,13 +25,15 @@ use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::TableScanFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::logical::statistics::StatisticsValue;
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::storage::projections::Projections;
 
 pub const FUNCTION_SET_PLANNING_PROFILE: TableFunctionSet = TableFunctionSet {
     name: "planning_profile",
     aliases: &[],
     doc: Some(&Documentation {
-        category: Category::General,
+        category: Category::System,
         description: "Get the timings generating during query planning.",
         arguments: &[],
         example: None,
@@ -43,8 +48,34 @@ pub const FUNCTION_SET_PLANNING_PROFILE: TableFunctionSet = TableFunctionSet {
         // planning_profile(n)
         // Get profile for the nth query, starting at the most recent (0).
         RawTableFunction::new_scan(
-            &Signature::new(&[DataTypeId::UInt64], DataTypeId::Table),
+            &Signature::new(&[DataTypeId::Int64], DataTypeId::Table),
             &ProfileTableGen::new(PlanningProfileTable),
+        ),
+        // planning_profile(id)
+        // Get profile for specific query by id
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+            &ProfileTableGen::new(PlanningProfileTable),
+        ),
+    ],
+};
+
+pub const FUNCTION_SET_QUERY_INFO: TableFunctionSet = TableFunctionSet {
+    name: "query_info",
+    aliases: &[],
+    doc: None,
+    functions: &[
+        // query_info()
+        // Get info for most recent query.
+        RawTableFunction::new_scan(
+            &Signature::new(&[], DataTypeId::Table),
+            &ProfileTableGen::new(QueryInfoTable),
+        ),
+        // query_profile(n)
+        // Get info for the nth query, starting at the most recent (0).
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Int64], DataTypeId::Table),
+            &ProfileTableGen::new(QueryInfoTable),
         ),
     ],
 };
@@ -90,13 +121,17 @@ pub struct PlanningProfileTable;
 
 #[derive(Debug)]
 pub struct PlanningProfileRow {
+    query_id: Uuid,
+    step_order: usize,
     step: &'static str,
     duration_seconds: Option<f64>,
 }
 
 impl PlanningProfileRow {
-    fn new(step: &'static str, dur: Option<Duration>) -> Self {
+    fn new(query_id: Uuid, step_order: usize, step: &'static str, dur: Option<Duration>) -> Self {
         PlanningProfileRow {
+            query_id,
+            step_order,
             step,
             duration_seconds: dur.map(|d| d.as_secs_f64()),
         }
@@ -105,6 +140,8 @@ impl PlanningProfileRow {
 
 impl ProfileTable for PlanningProfileTable {
     const COLUMNS: &[ProfileColumn] = &[
+        ProfileColumn::new("query_id", DataType::Utf8),
+        ProfileColumn::new("step_order", DataType::Int32),
         ProfileColumn::new("step", DataType::Utf8),
         ProfileColumn::new("duration_seconds", DataType::Float64),
     ];
@@ -117,29 +154,52 @@ impl ProfileTable for PlanningProfileTable {
             None => return Ok(Vec::new()),
         };
 
+        let id = profile.id;
+
         Ok(vec![
-            PlanningProfileRow::new("resolve_step", plan_prof.resolve_step),
-            PlanningProfileRow::new("bind_step", plan_prof.bind_step),
-            PlanningProfileRow::new("plan_logical_step", plan_prof.plan_logical_step),
+            PlanningProfileRow::new(id, 0, "resolve_step", plan_prof.resolve_step),
+            PlanningProfileRow::new(id, 1, "bind_step", plan_prof.bind_step),
+            PlanningProfileRow::new(id, 2, "plan_logical_step", plan_prof.plan_logical_step),
             PlanningProfileRow::new(
+                id,
+                3,
                 "plan_optimize_step",
                 plan_prof.plan_optimize_step.as_ref().map(|s| s.total),
             ),
-            PlanningProfileRow::new("plan_physical_step", plan_prof.plan_physical_step),
-            PlanningProfileRow::new("plan_executable_step", plan_prof.plan_executable_step),
+            PlanningProfileRow::new(id, 4, "plan_physical_step", plan_prof.plan_physical_step),
+            PlanningProfileRow::new(
+                id,
+                5,
+                "plan_executable_step",
+                plan_prof.plan_executable_step,
+            ),
         ])
     }
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
         projections.for_each_column(output, &mut |col_idx, array| match col_idx {
             0 => {
+                let mut ids = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    ids.put(idx, &row.query_id.to_string());
+                }
+                Ok(())
+            }
+            1 => {
+                let mut orders = PhysicalI32::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    orders.put(idx, &(row.step_order as i32));
+                }
+                Ok(())
+            }
+            2 => {
                 let mut steps = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     steps.put(idx, row.step);
                 }
                 Ok(())
             }
-            1 => {
+            3 => {
                 let (data, validity) = array.data_and_validity_mut();
                 let mut durations = PhysicalF64::get_addressable_mut(data)?;
                 for (idx, row) in rows.iter().enumerate() {
@@ -147,6 +207,31 @@ impl ProfileTable for PlanningProfileTable {
                         Some(dur) => durations.put(idx, &dur),
                         None => validity.set_invalid(idx),
                     }
+                }
+                Ok(())
+            }
+            other => panic!("invalid projection {other}"),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct QueryInfoTable;
+
+impl ProfileTable for QueryInfoTable {
+    const COLUMNS: &[ProfileColumn] = &[ProfileColumn::new("query_id", DataType::Utf8)];
+    type Row = Uuid;
+
+    fn profile_as_rows(profile: &QueryProfile) -> Result<Vec<Self::Row>> {
+        Ok(vec![profile.id])
+    }
+
+    fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
+        projections.for_each_column(output, &mut |col_idx, array| match col_idx {
+            0 => {
+                let mut ids = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    ids.put(idx, &row.to_string());
                 }
                 Ok(())
             }
@@ -199,12 +284,28 @@ where
         db_context: &DatabaseContext,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let idx = match input.positional.get(0) {
-            Some(arg) => arg.try_as_scalar()?.try_as_usize()?,
-            None => 0,
-        };
+        let profile = match input.positional.get(0) {
+            Some(arg) => {
+                // TODO: Do this automatically
+                let arg = ConstFold::rewrite(arg.clone())?;
+                let arg = arg.try_as_scalar()?;
 
-        let profile = db_context.profiles().get_profile(idx);
+                if arg.datatype().is_utf8() {
+                    // We're querying by query_id.
+                    let arg = arg.try_as_str()?;
+                    let id = Uuid::from_str(arg).context("failed to parse query id as UUID")?;
+                    db_context.profiles().get_profile_by_id(id)
+                } else {
+                    // We're querying by index.
+                    let idx = arg.try_as_usize()?;
+                    db_context.profiles().get_profile(idx)
+                }
+            }
+            None => {
+                // Default to just getting the most recent query.
+                db_context.profiles().get_profile(0)
+            }
+        };
 
         Ok(TableFunctionBindState {
             state: ProfileTableGenBindState { profile },

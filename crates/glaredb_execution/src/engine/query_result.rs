@@ -26,14 +26,12 @@ pub struct StreamOutput {
 impl StreamOutput {
     pub fn new(
         stream: ResultStream,
-        profile: PlanningProfile,
+        profile: QueryProfile,
         handle: Arc<dyn QueryHandle>,
         profiles: Arc<ProfileCollector>,
     ) -> Self {
         StreamOutput {
-            profile: Some(QueryProfile {
-                plan: Some(profile),
-            }),
+            profile: Some(profile),
             profiles,
             handle,
             stream,
