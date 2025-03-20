@@ -279,8 +279,7 @@ impl ProfileTable for OptimizerProfileTable {
         let opt_prof = match profile
             .plan
             .as_ref()
-            .map(|p| p.plan_optimize_step.as_ref())
-            .flatten()
+            .and_then(|p| p.plan_optimize_step.as_ref())
         {
             Some(prof) => prof,
             None => return Ok(Vec::new()),
@@ -405,7 +404,7 @@ where
         db_context: &DatabaseContext,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let profile = match input.positional.get(0) {
+        let profile = match input.positional.first() {
             Some(arg) => {
                 // TODO: Do this automatically
                 let arg = ConstFold::rewrite(arg.clone())?;
