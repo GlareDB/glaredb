@@ -5,11 +5,12 @@ use std::task::{Context, Poll, Wake, Waker};
 use futures::future::BoxFuture;
 use glaredb_error::{Result, not_implemented};
 use glaredb_execution::arrays::scalar::ScalarValue;
+use glaredb_execution::catalog::profile::ExecutionProfile;
 use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_execution::io::access::AccessConfig;
 use glaredb_execution::io::file::FileOpener;
 use glaredb_execution::io::memory::MemoryFileSource;
-use glaredb_execution::runtime::handle::{ExecutionProfileData, QueryHandle};
+use glaredb_execution::runtime::handle::QueryHandle;
 use glaredb_execution::runtime::{ErrorSink, PipelineExecutor, Runtime, TokioHandlerProvider};
 use parking_lot::Mutex;
 use tracing::debug;
@@ -136,7 +137,7 @@ impl QueryHandle for WasmQueryHandle {
         // TODO
     }
 
-    fn generate_execution_profile_data(&self) -> BoxFuture<'_, Result<ExecutionProfileData>> {
+    fn generate_execution_profile(&self) -> BoxFuture<'_, Result<ExecutionProfile>> {
         Box::pin(async { not_implemented!("execution profile data") })
     }
 }

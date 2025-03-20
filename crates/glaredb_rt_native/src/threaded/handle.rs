@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use glaredb_error::{Result, not_implemented};
-use glaredb_execution::runtime::handle::{ExecutionProfileData, QueryHandle};
+use glaredb_execution::catalog::profile::ExecutionProfile;
+use glaredb_execution::runtime::handle::QueryHandle;
 use parking_lot::Mutex;
 
 use super::task::{PartitionPipelineTask, TaskState};
@@ -31,7 +32,7 @@ impl QueryHandle for ThreadedQueryHandle {
         }
     }
 
-    fn generate_execution_profile_data(&self) -> BoxFuture<'_, Result<ExecutionProfileData>> {
+    fn generate_execution_profile(&self) -> BoxFuture<'_, Result<ExecutionProfile>> {
         Box::pin(async { not_implemented!("generate execution profile data") })
     }
 }

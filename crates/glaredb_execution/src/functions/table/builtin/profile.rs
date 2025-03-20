@@ -29,6 +29,13 @@ use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::storage::projections::Projections;
 
+// TODO: Should empty args for these just return the profiles for all queries?
+// Doing so would enable something like:
+// ```
+// SELECT * FROM planning_profile()
+//   WHERE query_id = (SELECT query_id FROM query_info());
+// ```
+
 pub const FUNCTION_SET_PLANNING_PROFILE: TableFunctionSet = TableFunctionSet {
     name: "planning_profile",
     aliases: &[],
@@ -56,6 +63,37 @@ pub const FUNCTION_SET_PLANNING_PROFILE: TableFunctionSet = TableFunctionSet {
         RawTableFunction::new_scan(
             &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
             &ProfileTableGen::new(PlanningProfileTable),
+        ),
+    ],
+};
+
+pub const FUNCTION_SET_OPTIMIZER_PROFILE: TableFunctionSet = TableFunctionSet {
+    name: "optimizer_profile",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::System,
+        description: "Get the timings generated for each optimizer rule.",
+        arguments: &[],
+        example: None,
+    }),
+    functions: &[
+        // optimizer_profile()
+        // Get profile for most recent query.
+        RawTableFunction::new_scan(
+            &Signature::new(&[], DataTypeId::Table),
+            &ProfileTableGen::new(OptimizerProfileTable),
+        ),
+        // optimizer_profile(n)
+        // Get profile for the nth query, starting at the most recent (0).
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Int64], DataTypeId::Table),
+            &ProfileTableGen::new(OptimizerProfileTable),
+        ),
+        // optimizer_profile(id)
+        // Get profile for specific query by id
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+            &ProfileTableGen::new(OptimizerProfileTable),
         ),
     ],
 };
@@ -119,6 +157,7 @@ pub trait ProfileTable: Debug + Send + Sync + Clone + Copy + 'static {
 #[derive(Debug, Clone, Copy)]
 pub struct PlanningProfileTable;
 
+// TODO: Show individual expression rewrite rules too.
 #[derive(Debug)]
 pub struct PlanningProfileRow {
     query_id: Uuid,
@@ -207,6 +246,88 @@ impl ProfileTable for PlanningProfileTable {
                         Some(dur) => durations.put(idx, &dur),
                         None => validity.set_invalid(idx),
                     }
+                }
+                Ok(())
+            }
+            other => panic!("invalid projection {other}"),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OptimizerProfileTable;
+
+#[derive(Debug)]
+pub struct OptimizerProfileRow {
+    query_id: Uuid,
+    rule_order: usize,
+    rule_name: &'static str,
+    duration_seconds: f64,
+}
+
+impl ProfileTable for OptimizerProfileTable {
+    const COLUMNS: &[ProfileColumn] = &[
+        ProfileColumn::new("query_id", DataType::Utf8),
+        ProfileColumn::new("rule_order", DataType::Int32),
+        ProfileColumn::new("rule", DataType::Utf8),
+        ProfileColumn::new("duration_seconds", DataType::Float64),
+    ];
+
+    type Row = OptimizerProfileRow;
+
+    fn profile_as_rows(profile: &QueryProfile) -> Result<Vec<Self::Row>> {
+        let opt_prof = match profile
+            .plan
+            .as_ref()
+            .map(|p| p.plan_optimize_step.as_ref())
+            .flatten()
+        {
+            Some(prof) => prof,
+            None => return Ok(Vec::new()),
+        };
+
+        let rows = opt_prof
+            .timings
+            .iter()
+            .enumerate()
+            .map(|(idx, (name, timing))| OptimizerProfileRow {
+                query_id: profile.id,
+                rule_order: idx,
+                rule_name: name,
+                duration_seconds: timing.as_secs_f64(),
+            })
+            .collect();
+
+        Ok(rows)
+    }
+
+    fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
+        projections.for_each_column(output, &mut |col_idx, array| match col_idx {
+            0 => {
+                let mut ids = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    ids.put(idx, &row.query_id.to_string());
+                }
+                Ok(())
+            }
+            1 => {
+                let mut orders = PhysicalI32::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    orders.put(idx, &(row.rule_order as i32));
+                }
+                Ok(())
+            }
+            2 => {
+                let mut rule_names = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    rule_names.put(idx, row.rule_name);
+                }
+                Ok(())
+            }
+            3 => {
+                let mut durations = PhysicalF64::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    durations.put(idx, &row.duration_seconds);
                 }
                 Ok(())
             }

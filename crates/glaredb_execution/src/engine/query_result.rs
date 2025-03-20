@@ -5,7 +5,7 @@ use glaredb_error::Result;
 
 use crate::arrays::batch::Batch;
 use crate::arrays::field::ColumnSchema;
-use crate::catalog::profile::{PlanningProfile, ProfileCollector, QueryProfile};
+use crate::catalog::profile::{ProfileCollector, QueryProfile};
 use crate::execution::operators::results::streaming::ResultStream;
 use crate::runtime::handle::QueryHandle;
 

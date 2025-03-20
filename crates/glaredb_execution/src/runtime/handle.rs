@@ -3,6 +3,8 @@ use std::fmt::Debug;
 use futures::future::BoxFuture;
 use glaredb_error::Result;
 
+use crate::catalog::profile::ExecutionProfile;
+
 /// A handle to a running or recently completed query.
 pub trait QueryHandle: Debug + Sync + Send {
     /// Cancel the query.
@@ -15,8 +17,5 @@ pub trait QueryHandle: Debug + Sync + Send {
     ///
     /// This is async as it's expected to fetch profiling data for pipelines
     /// executing on remote nodes.
-    fn generate_execution_profile_data(&self) -> BoxFuture<'_, Result<ExecutionProfileData>>;
+    fn generate_execution_profile(&self) -> BoxFuture<'_, Result<ExecutionProfile>>;
 }
-
-#[derive(Debug)]
-pub struct ExecutionProfileData {}

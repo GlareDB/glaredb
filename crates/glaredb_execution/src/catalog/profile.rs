@@ -66,3 +66,32 @@ pub struct PlanningProfile {
     /// Time taken to create the final pipelines from the physical plan.
     pub plan_executable_step: Option<Duration>,
 }
+
+#[derive(Debug, Clone, Default)]
+pub struct PartitionPipelineOperatorProfile {
+    /// Total time spent execution this operator.
+    pub execution_duration: Duration,
+    /// Total number of rows pushing into this operator within this pipeline.
+    pub rows_in: u64,
+    /// Total number of rows pulled out of this operator within this pipeline.
+    pub rows_out: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct PartitionPipelineProfile {
+    /// Profiles for each operator in this pipeline.
+    pub operator_profiles: Vec<PartitionPipelineOperatorProfile>,
+}
+
+impl PartitionPipelineProfile {
+    pub fn new(num_operators: usize) -> Self {
+        PartitionPipelineProfile {
+            operator_profiles: vec![PartitionPipelineOperatorProfile::default(); num_operators],
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExecutionProfile {
+    pub partition_profiles: Vec<PartitionPipelineProfile>,
+}

@@ -8,8 +8,6 @@ pub mod location;
 #[allow(dead_code)] // Until it's more robust
 pub mod redundant_groups;
 
-use std::time::Duration;
-
 use column_prune::ColumnPrune;
 use expr_rewrite::ExpressionRewriter;
 use filter_pushdown::FilterPushdown;
