@@ -1,4 +1,3 @@
-pub mod profiler;
 pub mod query_result;
 pub mod session;
 pub mod single_user;

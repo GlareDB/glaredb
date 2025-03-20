@@ -38,7 +38,7 @@ pub trait PipelineExecutor: Debug + Sync + Send + Clone {
         &self,
         pipelines: Vec<ExecutablePartitionPipeline>,
         errors: Arc<dyn ErrorSink>,
-    ) -> Box<dyn QueryHandle>;
+    ) -> Arc<dyn QueryHandle>;
 }
 
 /// Runtime dependendencies.

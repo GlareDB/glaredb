@@ -6,6 +6,7 @@ use glaredb_error::{DbError, Result};
 
 use super::database::{AccessMode, Database};
 use super::memory::MemoryCatalog;
+use super::profile::ProfileCollector;
 use crate::catalog::Catalog;
 use crate::catalog::create::{CreateSchemaInfo, OnConflict};
 use crate::storage::storage_manager::StorageManager;
@@ -17,6 +18,7 @@ pub const TEMP_CATALOG: &str = "temp";
 #[derive(Debug)]
 pub struct DatabaseContext {
     databases: HashMap<String, Arc<Database>>,
+    profiles: Arc<ProfileCollector>,
 }
 
 impl DatabaseContext {
@@ -39,7 +41,14 @@ impl DatabaseContext {
 
         databases.insert(temp_db.name.clone(), temp_db);
 
-        Ok(DatabaseContext { databases })
+        Ok(DatabaseContext {
+            databases,
+            profiles: Arc::new(ProfileCollector::default()),
+        })
+    }
+
+    pub fn profiles(&self) -> &Arc<ProfileCollector> {
+        &self.profiles
     }
 
     pub fn get_database(&self, name: &str) -> Option<&Arc<Database>> {

@@ -59,9 +59,9 @@ impl<S: Scheduler + 'static> PipelineExecutor for NativeExecutor<S> {
         &self,
         pipelines: Vec<ExecutablePartitionPipeline>,
         errors: Arc<dyn ErrorSink>,
-    ) -> Box<dyn QueryHandle> {
+    ) -> Arc<dyn QueryHandle> {
         let handle = self.0.spawn_pipelines(pipelines, errors);
-        Box::new(handle)
+        Arc::new(handle)
     }
 }
 

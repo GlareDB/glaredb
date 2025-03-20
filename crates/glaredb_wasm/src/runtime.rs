@@ -74,7 +74,7 @@ impl PipelineExecutor for WasmExecutor {
         &self,
         pipelines: Vec<ExecutablePartitionPipeline>,
         errors: Arc<dyn ErrorSink>,
-    ) -> Box<dyn QueryHandle> {
+    ) -> Arc<dyn QueryHandle> {
         debug!("spawning query graph on wasm runtime");
 
         let states: Vec<_> = pipelines
@@ -92,7 +92,7 @@ impl PipelineExecutor for WasmExecutor {
             spawn_local(async move { state.execute() })
         }
 
-        Box::new(WasmQueryHandle { states })
+        Arc::new(WasmQueryHandle { states })
     }
 }
 
