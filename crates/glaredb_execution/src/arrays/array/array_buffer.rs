@@ -679,20 +679,15 @@ impl StringViewBuffer {
         curr_filled: usize,
         additional: usize,
     ) -> usize {
-        let mut new_size = curr_cap * 2;
-        if new_size == 0 {
-            new_size = 16;
-        }
-
+        let mut new_size = if curr_cap == 0 { 16 } else { curr_cap };
         loop {
-            if new_size + (curr_cap - curr_filled) >= additional {
-                // This is enough to fix `len` bytes.
+            if new_size - curr_filled >= additional {
+                // This is enough to fit `additional` bytes.
                 break;
             }
-            // Otherwise try doubling.
+            // Otherwise, double the size.
             new_size *= 2;
         }
-
         new_size
     }
 }
@@ -912,5 +907,32 @@ mod tests {
         // Ensure first wasn't overwritten.
         let got = buffer.get(&m1);
         assert_eq!(&vec![4; 32], got);
+    }
+
+    #[test]
+    fn compute_reserve_size() {
+        // Current cap sufficient.
+        let amount = StringViewBuffer::compute_amount_to_reserve(16, 0, 1);
+        assert_eq!(16, amount);
+
+        // Current cap sufficient, including filled bytes.
+        let amount = StringViewBuffer::compute_amount_to_reserve(16, 15, 1);
+        assert_eq!(16, amount);
+
+        // Need to double.
+        let amount = StringViewBuffer::compute_amount_to_reserve(16, 0, 17);
+        assert_eq!(32, amount);
+
+        // Need to double, taking into account existing filled bytes.
+        let amount = StringViewBuffer::compute_amount_to_reserve(16, 15, 2);
+        assert_eq!(32, amount);
+
+        // Need to double more than once.
+        let amount = StringViewBuffer::compute_amount_to_reserve(16, 0, 33);
+        assert_eq!(64, amount);
+
+        // Need to double more than once, taking into account filled bytes.
+        let amount = StringViewBuffer::compute_amount_to_reserve(16, 15, 18);
+        assert_eq!(64, amount);
     }
 }
