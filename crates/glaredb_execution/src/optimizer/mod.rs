@@ -8,8 +8,6 @@ pub mod location;
 #[allow(dead_code)] // Until it's more robust
 pub mod redundant_groups;
 
-use std::time::Duration;
-
 use column_prune::ColumnPrune;
 use expr_rewrite::ExpressionRewriter;
 use filter_pushdown::FilterPushdown;
@@ -18,19 +16,14 @@ use join_reorder::JoinReorder;
 use limit_pushdown::LimitPushdown;
 use tracing::debug;
 
+use crate::catalog::profile::OptimizerProfile;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::operator::LogicalOperator;
 use crate::runtime::time::{RuntimeInstant, Timer};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct OptimizerProfileData {
-    pub total: Duration,
-    pub timings: Vec<(&'static str, Duration)>,
-}
-
 #[derive(Debug)]
 pub struct Optimizer {
-    pub profile_data: OptimizerProfileData,
+    pub profile_data: OptimizerProfile,
 }
 
 impl Default for Optimizer {
@@ -42,7 +35,7 @@ impl Default for Optimizer {
 impl Optimizer {
     pub fn new() -> Self {
         Optimizer {
-            profile_data: OptimizerProfileData::default(),
+            profile_data: OptimizerProfile::default(),
         }
     }
 

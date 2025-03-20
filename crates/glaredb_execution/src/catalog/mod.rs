@@ -4,6 +4,7 @@ pub mod database;
 pub mod drop;
 pub mod entry;
 pub mod memory;
+pub mod profile;
 pub mod system;
 
 use std::fmt::Debug;

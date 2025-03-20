@@ -33,7 +33,7 @@ pub fn new_system_catalog() -> Result<MemoryCatalog> {
         on_conflict: OnConflict::Error,
     })?;
 
-    let _pg_catalog = catalog.create_schema(&CreateSchemaInfo {
+    let _information_schema_catalog = catalog.create_schema(&CreateSchemaInfo {
         name: "information_schema".to_string(),
         on_conflict: OnConflict::Error,
     })?;

@@ -311,7 +311,7 @@ impl TestSession {
             }
             _ = &mut timeout => {
                  // Timed out.
-                query_res.handle.cancel();
+                query_res.output.query_handle().cancel();
 
                 // let prof_data = handle.generate_execution_profile_data().await.unwrap();
                 Err(DbError::new(format!(

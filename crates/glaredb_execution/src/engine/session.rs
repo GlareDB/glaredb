@@ -6,10 +6,10 @@ use glaredb_parser::statement::RawStatement;
 use hashbrown::HashMap;
 use uuid::Uuid;
 
-use super::profiler::PlanningProfileData;
-use super::query_result::{Output, QueryResult};
+use super::query_result::{Output, QueryResult, StreamOutput};
 use crate::arrays::field::{ColumnSchema, Field};
 use crate::catalog::context::DatabaseContext;
+use crate::catalog::profile::{PlanningProfile, QueryProfile};
 use crate::config::execution::OperatorPlanConfig;
 use crate::config::session::SessionConfig;
 use crate::execution::operators::results::streaming::{PhysicalStreamingResults, ResultStream};
@@ -54,7 +54,7 @@ use crate::runtime::{PipelineExecutor, Runtime};
 /// independent of any state inside the session.
 #[derive(Debug)]
 pub struct Session<P: PipelineExecutor, R: Runtime> {
-    /// Context containg everything in the "database" that's visible to this
+    /// Context containing everything in the "database" that's visible to this
     /// session.
     context: DatabaseContext,
     /// Variables for this session.
@@ -100,7 +100,6 @@ struct IntermediatePortal {
 struct ExecutablePortal {
     /// Query id for this query. Used to begin execution on the remote side if
     /// needed.
-    #[expect(unused)]
     query_id: Uuid,
     /// Execution mode of the query.
     ///
@@ -115,8 +114,7 @@ struct ExecutablePortal {
     /// Output result stream.
     result_stream: ResultStream,
     /// Profile data we've collected during resolving/binding/planning.
-    #[expect(unused)]
-    profile: PlanningProfileData,
+    profile: PlanningProfile,
     /// Optional verifier that we're carrying through planning.
     #[expect(unused)]
     verifier: Option<()>,
@@ -196,7 +194,7 @@ where
         })?;
         let verifier = stmt.verifier;
 
-        let mut profile = PlanningProfileData::default();
+        let mut profile = PlanningProfile::default();
 
         let resolve_mode = ResolveMode::Normal;
 
@@ -258,7 +256,7 @@ where
         stmt: ResolvedStatement,
         resolve_context: ResolveContext,
         resolve_mode: ResolveMode,
-        profile: &mut PlanningProfileData,
+        profile: &mut PlanningProfile,
         sink: O,
     ) -> Result<IntermediatePortal>
     where
@@ -299,7 +297,7 @@ where
                 if self.config.enable_optimizer {
                     let mut optimizer = Optimizer::new();
                     logical = optimizer.optimize::<R::Instant>(&mut bind_context, logical)?;
-                    profile.optimizer_step = Some(optimizer.profile_data);
+                    profile.plan_optimize_step = Some(optimizer.profile_data);
                 }
 
                 // If we're an explain, put a copy of the optimized plan on the
@@ -378,7 +376,7 @@ where
                     root => {
                         let timer = Timer::<R::Instant>::start();
                         let pipelines = planner.plan(root, &self.context, bind_context, sink)?;
-                        profile.plan_intermediate_step = Some(timer.stop());
+                        profile.plan_physical_step = Some(timer.stop());
                         pipelines
                     }
                 };
@@ -422,10 +420,19 @@ where
             .executor
             .spawn_pipelines(pipelines, Arc::new(portal.result_stream.error_sink()));
 
-        let output = Output::Stream(portal.result_stream);
+        let profile = QueryProfile {
+            id: portal.query_id,
+            plan: Some(portal.profile),
+        };
+
+        let output = Output::Stream(StreamOutput::new(
+            portal.result_stream,
+            profile,
+            handle,
+            self.context.profiles().clone(),
+        ));
 
         Ok(QueryResult {
-            handle,
             output,
             output_schema: portal.output_schema,
         })

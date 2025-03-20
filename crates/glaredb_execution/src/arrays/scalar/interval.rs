@@ -25,6 +25,8 @@ impl Interval {
     pub const NANOSECONDS_IN_SECOND: i64 = 1_000_000_000;
     pub const NANOSECONDS_IN_MINUTE: i64 = 60 * Self::NANOSECONDS_IN_SECOND;
     pub const NANOSECONDS_IN_HOUR: i64 = 60 * Self::NANOSECONDS_IN_MINUTE;
+    pub const NANOSECONDS_IN_DAY: i64 =
+        Self::ASSUMED_HOURS_IN_DAY as i64 * Self::NANOSECONDS_IN_HOUR;
 
     pub const fn new(months: i32, days: i32, nanos: i64) -> Self {
         Interval {

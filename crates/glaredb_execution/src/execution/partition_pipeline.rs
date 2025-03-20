@@ -11,6 +11,7 @@ use super::operators::{
     PollFinalize,
 };
 use crate::arrays::batch::Batch;
+use crate::catalog::profile::PartitionPipelineProfile;
 use crate::execution::execution_stack::StackControlFlow;
 use crate::runtime::time::RuntimeInstant;
 
@@ -34,6 +35,8 @@ pub struct ExecutablePartitionPipeline {
     pub(crate) buffers: Vec<Batch>,
     /// Controls the execution of the operators for this partition.
     pub(crate) stack: ExecutionStack,
+    /// Execution profile for this pipeline.
+    pub(crate) profile: PartitionPipelineProfile,
 }
 
 impl ExecutablePartitionPipeline {
@@ -82,6 +85,12 @@ impl ExecutablePartitionPipeline {
                 StackControlFlow::Pending => return Poll::Pending,
             }
         }
+    }
+
+    pub fn profile(&self) -> &PartitionPipelineProfile {
+        // TODO: We should probably just return the profile when we finish
+        // execute.
+        &self.profile
     }
 }
 
