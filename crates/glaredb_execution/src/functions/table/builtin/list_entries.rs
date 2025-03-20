@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::sync::Arc;
 use std::task::Context;
 
@@ -137,33 +136,30 @@ impl TableScanFunction for ListTables {
     type OperatorState = ListEntriesOperatorState;
     type PartitionState = ListEntriesPartitionState;
 
-    fn bind<'a>(
-        &self,
-        db_context: &'a DatabaseContext,
+    async fn bind(
+        &'static self,
+        db_context: &DatabaseContext,
         input: TableFunctionInput,
-    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + Sync + Send + 'a
-    {
+    ) -> Result<TableFunctionBindState<Self::BindState>> {
         let databases: Vec<_> = db_context.iter_databases().cloned().collect();
-        async move {
-            let state = ListEntriesBindState::load_entries(
-                databases,
-                |_| true,
-                |_| true,
-                |ent| ent.entry_type() == CatalogEntryType::Table,
-            )
-            .await?;
+        let state = ListEntriesBindState::load_entries(
+            databases,
+            |_| true,
+            |_| true,
+            |ent| ent.entry_type() == CatalogEntryType::Table,
+        )
+        .await?;
 
-            Ok(TableFunctionBindState {
-                state,
-                input,
-                schema: ColumnSchema::new([
-                    Field::new("database_name", DataType::Utf8, false),
-                    Field::new("schema_name", DataType::Utf8, false),
-                    Field::new("table_name", DataType::Utf8, false),
-                ]),
-                cardinality: StatisticsValue::Unknown,
-            })
-        }
+        Ok(TableFunctionBindState {
+            state,
+            input,
+            schema: ColumnSchema::new([
+                Field::new("database_name", DataType::Utf8, false),
+                Field::new("schema_name", DataType::Utf8, false),
+                Field::new("table_name", DataType::Utf8, false),
+            ]),
+            cardinality: StatisticsValue::Unknown,
+        })
     }
 
     fn create_pull_operator_state(
@@ -250,33 +246,30 @@ impl TableScanFunction for ListViews {
     type OperatorState = ListEntriesOperatorState;
     type PartitionState = ListEntriesPartitionState;
 
-    fn bind<'a>(
-        &self,
-        db_context: &'a DatabaseContext,
+    async fn bind(
+        &'static self,
+        db_context: &DatabaseContext,
         input: TableFunctionInput,
-    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + Sync + Send + 'a
-    {
+    ) -> Result<TableFunctionBindState<Self::BindState>> {
         let databases: Vec<_> = db_context.iter_databases().cloned().collect();
-        async move {
-            let state = ListEntriesBindState::load_entries(
-                databases,
-                |_| true,
-                |_| true,
-                |ent| ent.entry_type() == CatalogEntryType::View,
-            )
-            .await?;
+        let state = ListEntriesBindState::load_entries(
+            databases,
+            |_| true,
+            |_| true,
+            |ent| ent.entry_type() == CatalogEntryType::View,
+        )
+        .await?;
 
-            Ok(TableFunctionBindState {
-                state,
-                input,
-                schema: ColumnSchema::new([
-                    Field::new("database_name", DataType::Utf8, false),
-                    Field::new("schema_name", DataType::Utf8, false),
-                    Field::new("view_name", DataType::Utf8, false),
-                ]),
-                cardinality: StatisticsValue::Unknown,
-            })
-        }
+        Ok(TableFunctionBindState {
+            state,
+            input,
+            schema: ColumnSchema::new([
+                Field::new("database_name", DataType::Utf8, false),
+                Field::new("schema_name", DataType::Utf8, false),
+                Field::new("view_name", DataType::Utf8, false),
+            ]),
+            cardinality: StatisticsValue::Unknown,
+        })
     }
 
     fn create_pull_operator_state(
@@ -375,52 +368,49 @@ impl TableScanFunction for ListFunctions {
     type OperatorState = ListEntriesOperatorState;
     type PartitionState = ListEntriesPartitionState;
 
-    fn bind<'a>(
-        &self,
-        db_context: &'a DatabaseContext,
+    async fn bind(
+        &'static self,
+        db_context: &DatabaseContext,
         input: TableFunctionInput,
-    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + Sync + Send + 'a
-    {
+    ) -> Result<TableFunctionBindState<Self::BindState>> {
         let databases: Vec<_> = db_context.iter_databases().cloned().collect();
-        async move {
-            // TODO: Do we want COPY functions in the output?
-            let state = ListEntriesBindState::load_entries(
-                databases,
-                |_| true,
-                |_| true,
-                |ent| {
-                    matches!(
-                        ent.entry_type(),
-                        CatalogEntryType::TableFunction
-                            | CatalogEntryType::ScalarFunction
-                            | CatalogEntryType::AggregateFunction
-                            | CatalogEntryType::CopyToFunction
-                    )
-                },
-            )
-            .await?;
+        // TODO: Do we want COPY functions in the output?
+        let state = ListEntriesBindState::load_entries(
+            databases,
+            |_| true,
+            |_| true,
+            |ent| {
+                matches!(
+                    ent.entry_type(),
+                    CatalogEntryType::TableFunction
+                        | CatalogEntryType::ScalarFunction
+                        | CatalogEntryType::AggregateFunction
+                        | CatalogEntryType::CopyToFunction
+                )
+            },
+        )
+        .await?;
 
-            Ok(TableFunctionBindState {
-                state,
-                input,
-                schema: ColumnSchema::new([
-                    Field::new("database_name", DataType::Utf8, false),
-                    Field::new("schema_name", DataType::Utf8, false),
-                    Field::new("function_name", DataType::Utf8, false),
-                    Field::new("function_type", DataType::Utf8, false),
-                    Field::new(
-                        "argument_types",
-                        DataType::List(ListTypeMeta::new(DataType::Utf8)),
-                        false,
-                    ),
-                    Field::new("return_type", DataType::Utf8, false),
-                    Field::new("description", DataType::Utf8, false),
-                    Field::new("example", DataType::Utf8, false),
-                    Field::new("example_output", DataType::Utf8, false),
-                ]),
-                cardinality: StatisticsValue::Unknown,
-            })
-        }
+        Ok(TableFunctionBindState {
+            state,
+            input,
+            schema: ColumnSchema::new([
+                Field::new("database_name", DataType::Utf8, false),
+                Field::new("schema_name", DataType::Utf8, false),
+                Field::new("function_name", DataType::Utf8, false),
+                Field::new("function_type", DataType::Utf8, false),
+                Field::new(
+                    "argument_types",
+                    DataType::List(ListTypeMeta::new(DataType::Utf8)),
+                    false,
+                ),
+                Field::new("return_type", DataType::Utf8, false),
+                Field::new("description", DataType::Utf8, false),
+                Field::new("example", DataType::Utf8, false),
+                Field::new("example_output", DataType::Utf8, false),
+            ]),
+            cardinality: StatisticsValue::Unknown,
+        })
     }
 
     fn create_pull_operator_state(
