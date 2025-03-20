@@ -99,6 +99,7 @@ where
     type OperatorState = TableGenOperatorState;
     type PartitionState = TableGenPartitionState<T>;
 
+    #[allow(clippy::manual_async_fn)] // TODO: Fix signature, or figure out how to get this lint to go away
     fn bind<'a>(
         &self,
         _db_context: &'a DatabaseContext,
@@ -107,7 +108,7 @@ where
     {
         async move {
             // TODO: Use named arguments.
-            let scale_factor = match input.positional.get(0) {
+            let scale_factor = match input.positional.first() {
                 Some(arg) => {
                     // TODO: Would be nice not having to worry about const
                     // folding in the functions themselves.
@@ -132,7 +133,7 @@ where
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(TableGenOperatorState {
-            scale_factor: bind_state.scale_factor.clone(),
+            scale_factor: bind_state.scale_factor,
             projections: projections.clone(),
         })
     }
