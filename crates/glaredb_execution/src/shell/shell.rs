@@ -132,7 +132,14 @@ where
         }
     }
 
-    pub async fn execute_pending(&mut self, _guard: RawModeGuard<T>) -> Result<()> {
+    pub async fn execute_pending(&mut self, guard: RawModeGuard<T>) -> Result<()> {
+        // Drop the guard here to exit raw mode before executing the query.
+        //
+        // This allows for nicer println debugging since the formatting won't be
+        // all messed up. Also helps when we panic during execution... we don't
+        // want to leave the terminal in raw mode.
+        std::mem::drop(guard);
+
         let width = self.editor.get_size().cols;
         trace!(%width, "using editor reported width");
 
@@ -142,11 +149,11 @@ where
                     Some(query) => query,
                     None => return Ok(()), // Nothing to execute.
                 };
+                // Using a raw writer here even in "cooked" mode is fine, since
+                // all it does is replace '\n' with '\r\n' which works in either
+                // mode.
                 let mut writer = RawTerminalWriter::new(self.editor.writer_mut());
 
-                // TODO: What would really be cool is if we disabled raw mode
-                // during execution, then re-enabled it before writing the
-                // results. That would enable nicer println debugging.
                 match engine.engine.session().query_many(&query) {
                     Ok(pending_queries) => {
                         trace!("writing results");
