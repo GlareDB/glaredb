@@ -473,6 +473,13 @@ impl Expression {
             other => Err(DbError::new(format!("Not a literal: {other}"))),
         }
     }
+
+    pub fn try_as_scalar(&self) -> Result<&ScalarValue> {
+        match self {
+            Self::Literal(lit) => Ok(&lit.literal),
+            other => Err(DbError::new(format!("Not a literal: {other}"))),
+        }
+    }
 }
 
 macro_rules! impl_from_expr {

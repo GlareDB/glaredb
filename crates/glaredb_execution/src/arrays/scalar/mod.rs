@@ -270,6 +270,18 @@ impl BorrowedScalarValue<'_> {
         }
     }
 
+    pub fn try_as_f64(&self) -> Result<f64> {
+        match self {
+            Self::Float16(v) => Ok(f64::from(*v)),
+            Self::Float32(v) => Ok(*v as f64),
+            Self::Float64(v) => Ok(*v),
+            other => {
+                let v_i32 = other.try_as_i32()?;
+                Ok(v_i32 as f64)
+            }
+        }
+    }
+
     pub fn try_as_str(&self) -> Result<&str> {
         match self {
             Self::Utf8(v) => Ok(v.as_ref()),

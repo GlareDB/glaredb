@@ -5,6 +5,7 @@ use functions::{FUNCTION_SET_CSC, FUNCTION_SET_EXPM1};
 use glaredb_execution::extension::Extension;
 use glaredb_execution::functions::function_set::ScalarFunctionSet;
 
+#[derive(Debug, Clone, Copy)]
 pub struct SparkExtension;
 
 impl Extension for SparkExtension {
