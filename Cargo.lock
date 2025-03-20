@@ -2739,6 +2739,7 @@ dependencies = [
 name = "test_bin"
 version = "0.0.99"
 dependencies = [
+ "ext_tpch_gen",
  "glaredb_error",
  "glaredb_execution",
  "glaredb_rt_native",

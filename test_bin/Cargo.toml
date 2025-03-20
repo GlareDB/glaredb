@@ -10,9 +10,19 @@ glaredb_error = { path = '../crates/glaredb_error' }
 glaredb_execution = { path = '../crates/glaredb_execution' }
 glaredb_rt_native = { path = '../crates/glaredb_rt_native' }
 glaredb_slt = { path = '../crates/glaredb_slt' }
+
+ext_tpch_gen = { path = '../crates/ext_tpch_gen' }
+
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
+
 
 [[test]]
 harness = false
 name = "integration_slt_standard"
 path = "integration_slt_standard.rs"
+
+[[test]]
+harness = false
+name = "integration_slt_tpch_gen"
+path = "integration_slt_tpch_gen.rs"
+

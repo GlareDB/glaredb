@@ -1,0 +1,97 @@
+# DECRIBE the functions.
+
+# TODO: A few of these will be updated to use Decimal and instea of Float.
+
+query TT
+DESCRIBE tpch_gen.region(0.1);
+----
+r_regionkey  Int32
+r_name       Utf8
+r_comment    Utf8
+
+query TT
+DESCRIBE tpch_gen.customer(0.1);
+----
+c_custkey     Int64
+c_name        Utf8
+c_address     Utf8
+c_nationkey   Int32
+c_phone       Utf8
+c_acctbal     Float64
+c_mktsegment  Utf8
+c_comment     Utf8
+
+query TT
+DESCRIBE tpch_gen.orders(0.1);
+----
+o_orderkey       Int64
+o_custkey        Int64
+o_orderstatus    Utf8
+o_totalprice     Float64
+o_orderdate      Date32
+o_orderpriority  Utf8
+o_clerk          Utf8
+o_shippriority   Int32
+o_comment        Utf8
+
+query TT
+DESCRIBE tpch_gen.lineitem(0.1);
+----
+l_orderkey       Int64
+l_partkey        Int64
+l_suppkey        Int64
+l_linenumber     Int32
+l_quantity       Int64
+l_extendedprice  Float64
+l_discount       Float64
+l_tax            Float64
+l_returnflag     Utf8
+l_linestatus     Utf8
+l_shipdate       Date32
+l_commitdate     Date32
+l_receiptdate    Date32
+l_shipinstruct   Utf8
+l_shipmode       Utf8
+l_comment        Utf8
+
+query TT
+DESCRIBE tpch_gen.nation(0.1);
+----
+n_nationkey  Int32
+n_name       Utf8
+n_regionkey  Int32
+n_comment    Utf8
+
+query TT
+DESCRIBE tpch_gen.part(0.1);
+----
+p_partkey      Int64
+p_name         Utf8
+p_mfgr         Utf8
+p_brand        Utf8
+p_type         Utf8
+p_size         Int32
+p_container    Utf8
+p_retailprice  Float64
+p_comment      Utf8
+
+query TT
+DESCRIBE tpch_gen.supplier(0.1);
+----
+s_suppkey    Int64
+s_name       Utf8
+s_address    Utf8
+s_nationkey  Int32
+s_phone      Utf8
+s_acctbal    Float64
+s_comment    Utf8
+
+query TT
+DESCRIBE tpch_gen.partsupp(0.1);
+----
+ps_partkey     Int64
+ps_suppkey     Int64
+ps_availqty    Int32
+ps_supplycost  Float64
+ps_comment     Utf8
+
