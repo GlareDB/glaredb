@@ -1,4 +1,4 @@
-use glaredb_error::Result;
+use glaredb_error::{OptionExt, Result};
 use glaredb_execution::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
@@ -9,9 +9,9 @@ use glaredb_execution::arrays::array::physical_type::{
 };
 use glaredb_execution::arrays::batch::Batch;
 use glaredb_execution::arrays::datatype::{DataType, DataTypeId};
+use glaredb_execution::functions::Signature;
 use glaredb_execution::functions::function_set::TableFunctionSet;
 use glaredb_execution::functions::table::RawTableFunction;
-use glaredb_execution::functions::Signature;
 use glaredb_execution::storage::projections::Projections;
 use tpchgen::generators::{Customer, CustomerGenerator, CustomerGeneratorIterator};
 
@@ -22,7 +22,7 @@ pub const FUNCTION_SET_CUSTOMER: TableFunctionSet = TableFunctionSet {
     aliases: &[],
     doc: None,
     functions: &[RawTableFunction::new_scan(
-        &Signature::new(&[], DataTypeId::Table),
+        &Signature::new(&[DataTypeId::Float64], DataTypeId::Table),
         &TableGen::new(CustomerTable),
     )],
 };
@@ -45,8 +45,9 @@ impl TpchTable for CustomerTable {
     type RowIter = CustomerGeneratorIterator<'static>;
     type Row = Customer;
 
-    fn create_row_iter(sf: f64) -> Self::RowIter {
-        CustomerGenerator::new(sf, 1, 1).iter()
+    fn create_row_iter(sf: Option<f64>) -> Result<Self::RowIter> {
+        let sf = sf.required("sf")?;
+        Ok(CustomerGenerator::new(sf, 1, 1).iter())
     }
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {

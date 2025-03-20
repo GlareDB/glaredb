@@ -7,9 +7,9 @@ use glaredb_execution::arrays::array::physical_type::{
 };
 use glaredb_execution::arrays::batch::Batch;
 use glaredb_execution::arrays::datatype::{DataType, DataTypeId};
+use glaredb_execution::functions::Signature;
 use glaredb_execution::functions::function_set::TableFunctionSet;
 use glaredb_execution::functions::table::RawTableFunction;
-use glaredb_execution::functions::Signature;
 use glaredb_execution::storage::projections::Projections;
 use tpchgen::generators::{Nation, NationGenerator, NationGeneratorIterator};
 
@@ -19,10 +19,18 @@ pub const FUNCTION_SET_NATION: TableFunctionSet = TableFunctionSet {
     name: "nation",
     aliases: &[],
     doc: None,
-    functions: &[RawTableFunction::new_scan(
-        &Signature::new(&[], DataTypeId::Table),
-        &TableGen::new(NationTable),
-    )],
+    functions: &[
+        // nation(sf)
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Float64], DataTypeId::Table),
+            &TableGen::new(NationTable),
+        ),
+        // nation()
+        RawTableFunction::new_scan(
+            &Signature::new(&[], DataTypeId::Table),
+            &TableGen::new(NationTable),
+        ),
+    ],
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -39,8 +47,8 @@ impl TpchTable for NationTable {
     type RowIter = NationGeneratorIterator<'static>;
     type Row = Nation<'static>;
 
-    fn create_row_iter(_sf: f64) -> Self::RowIter {
-        NationGenerator::new().iter()
+    fn create_row_iter(_sf: Option<f64>) -> Result<Self::RowIter> {
+        Ok(NationGenerator::new().iter())
     }
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {

@@ -7,9 +7,9 @@ use glaredb_execution::arrays::array::physical_type::{
 };
 use glaredb_execution::arrays::batch::Batch;
 use glaredb_execution::arrays::datatype::{DataType, DataTypeId};
+use glaredb_execution::functions::Signature;
 use glaredb_execution::functions::function_set::TableFunctionSet;
 use glaredb_execution::functions::table::RawTableFunction;
-use glaredb_execution::functions::Signature;
 use glaredb_execution::storage::projections::Projections;
 use tpchgen::generators::{Region, RegionGenerator, RegionGeneratorIterator};
 
@@ -19,10 +19,18 @@ pub const FUNCTION_SET_REGION: TableFunctionSet = TableFunctionSet {
     name: "region",
     aliases: &[],
     doc: None,
-    functions: &[RawTableFunction::new_scan(
-        &Signature::new(&[], DataTypeId::Table),
-        &TableGen::new(RegionTable),
-    )],
+    functions: &[
+        // region(sf)
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Float64], DataTypeId::Table),
+            &TableGen::new(RegionTable),
+        ),
+        // region()
+        RawTableFunction::new_scan(
+            &Signature::new(&[], DataTypeId::Table),
+            &TableGen::new(RegionTable),
+        ),
+    ],
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -38,8 +46,8 @@ impl TpchTable for RegionTable {
     type RowIter = RegionGeneratorIterator<'static>;
     type Row = Region<'static>;
 
-    fn create_row_iter(_sf: f64) -> Self::RowIter {
-        RegionGenerator::new().iter()
+    fn create_row_iter(_sf: Option<f64>) -> Result<Self::RowIter> {
+        Ok(RegionGenerator::new().iter())
     }
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {

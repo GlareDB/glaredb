@@ -10,6 +10,8 @@ use glaredb_execution::execution::operators::{ExecutionProperties, PollPull};
 use glaredb_execution::functions::table::scan::TableScanFunction;
 use glaredb_execution::functions::table::{TableFunctionBindState, TableFunctionInput};
 use glaredb_execution::logical::statistics::StatisticsValue;
+use glaredb_execution::optimizer::expr_rewrite::ExpressionRewriteRule;
+use glaredb_execution::optimizer::expr_rewrite::const_fold::ConstFold;
 use glaredb_execution::storage::projections::Projections;
 
 /// Describes a single column in a tpch table.
@@ -32,11 +34,18 @@ pub trait TpchTable: Debug + Clone + Copy + Sync + Send + 'static {
     type RowIter: Iterator<Item = Self::Row> + Sync + Send;
     type Row: Sync + Send;
 
-    /// Creates a row iterator using the provided scale factor.
+    /// Creates a row iterator using an optional scale factor.
     ///
-    /// May be ignored if the table doesn't take into account a scale factor
-    /// (e.g. region).
-    fn create_row_iter(sf: f64) -> Self::RowIter;
+    /// If generating a table requires a scale factor (e.g. lineimtem), this
+    /// should error.
+    ///
+    /// If a table _doesn't_ require a scale factor, but is provided one, then
+    /// it should ignore it (e.g. region).
+    ///
+    /// The discrepancy in behavior here is to provide consistency when
+    /// generating all tables at the same time and not having to worry about
+    /// which table needs a scale factor, and which doesn't.
+    fn create_row_iter(sf: Option<f64>) -> Result<Self::RowIter>;
 
     /// Generate the column schema for the table.
     fn column_schema() -> ColumnSchema {
@@ -54,9 +63,12 @@ pub trait TpchTable: Debug + Clone + Copy + Sync + Send + 'static {
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()>;
 }
 
-pub struct TableGenBindState {}
+pub struct TableGenBindState {
+    scale_factor: Option<f64>,
+}
 
 pub struct TableGenOperatorState {
+    scale_factor: Option<f64>,
     projections: Projections,
 }
 
@@ -93,9 +105,20 @@ where
         input: TableFunctionInput,
     ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + Sync + Send + 'a
     {
-        async {
+        async move {
+            // TODO: Use named arguments.
+            let scale_factor = match input.positional.get(0) {
+                Some(arg) => {
+                    // TODO: Would be nice not having to worry about const
+                    // folding in the functions themselves.
+                    let arg = ConstFold::rewrite(arg.clone())?;
+                    Some(arg.try_as_scalar()?.try_as_f64()?)
+                }
+                None => None,
+            };
+
             Ok(TableFunctionBindState {
-                state: TableGenBindState {},
+                state: TableGenBindState { scale_factor },
                 input,
                 schema: T::column_schema(),
                 cardinality: StatisticsValue::Unknown,
@@ -104,17 +127,18 @@ where
     }
 
     fn create_pull_operator_state(
-        _bind_state: &Self::BindState,
+        bind_state: &Self::BindState,
         projections: &Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(TableGenOperatorState {
+            scale_factor: bind_state.scale_factor.clone(),
             projections: projections.clone(),
         })
     }
 
     fn create_pull_partition_states(
-        _op_state: &Self::OperatorState,
+        op_state: &Self::OperatorState,
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionState>> {
@@ -123,7 +147,7 @@ where
         // Single threaded for now, one partition generates, all others just
         // immediately exhuast.
         let mut states = vec![TableGenPartitionState {
-            row_iter: Some(T::create_row_iter(0.01)),
+            row_iter: Some(T::create_row_iter(op_state.scale_factor)?),
             row_buffer: Vec::with_capacity(props.batch_size),
         }];
         states.resize_with(partitions, || TableGenPartitionState {
@@ -151,7 +175,7 @@ where
 
         let cap = output.write_capacity()?;
 
-        // Generate the next batch of regions.
+        // Generate the next batch of rows.
         state.row_buffer.clear();
         state.row_buffer.extend(row_iter.take(cap));
 
