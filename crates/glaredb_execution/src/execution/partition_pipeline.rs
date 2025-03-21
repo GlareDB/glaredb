@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::task::{Context, Poll};
 
 use glaredb_error::Result;
@@ -9,9 +10,11 @@ use super::operators::{
     PlannedOperator,
     PollExecute,
     PollFinalize,
+    PollPull,
+    PollPush,
 };
 use crate::arrays::batch::Batch;
-use crate::catalog::profile::PartitionPipelineProfile;
+use crate::catalog::profile::{PartitionPipelineOperatorProfile, PartitionPipelineProfile};
 use crate::execution::execution_stack::StackControlFlow;
 use crate::runtime::time::RuntimeInstant;
 
@@ -40,6 +43,28 @@ pub struct ExecutablePartitionPipeline {
 }
 
 impl ExecutablePartitionPipeline {
+    /// Create a new partition pipeline.
+    ///
+    /// This does not create the partition states or intermediate buffers.
+    pub(crate) fn new(
+        operators: Vec<PlannedOperator>,
+        operator_states: Vec<AnyOperatorState>,
+    ) -> Self {
+        debug_assert_eq!(operators.len(), operator_states.len());
+        debug_assert!(operators.len() >= 2);
+
+        let num_operators = operators.len();
+
+        ExecutablePartitionPipeline {
+            operators,
+            operator_states,
+            partition_states: Vec::with_capacity(num_operators),
+            buffers: Vec::with_capacity(num_operators - 1),
+            stack: ExecutionStack::new(num_operators),
+            profile: PartitionPipelineProfile::new(num_operators),
+        }
+    }
+
     /// Try to execute as much of the pipeline for this partition as possible.
     ///
     /// Loop through all operators, pushing data as far as we can until we get
@@ -65,12 +90,14 @@ impl ExecutablePartitionPipeline {
     where
         I: RuntimeInstant,
     {
-        let mut effects = OperatorEffects {
+        let mut effects = OperatorEffects::<I> {
             cx,
             operators: &self.operators,
             operator_states: &self.operator_states,
             partition_states: &mut self.partition_states,
             buffers: &mut self.buffers,
+            profiles: &mut self.profile.operator_profiles,
+            _instant: PhantomData,
         };
 
         loop {
@@ -94,16 +121,28 @@ impl ExecutablePartitionPipeline {
     }
 }
 
-struct OperatorEffects<'a, 'b> {
+/// Handles calling the poll methods as needed for driving execution.
+///
+/// This will also handle updating the profile data for each operator.
+#[derive(Debug)]
+struct OperatorEffects<'a, 'b, I> {
+    /// Context to use for the polls.
     cx: &'a mut Context<'b>,
     operators: &'a [PlannedOperator],
     operator_states: &'a [AnyOperatorState],
     partition_states: &'a mut [AnyPartitionState],
     buffers: &'a mut [Batch],
+    /// Profile data for each operator this pipeline.
+    profiles: &'a mut [PartitionPipelineOperatorProfile],
+    /// Instant type to time each operator.
+    _instant: PhantomData<I>,
 }
 
-impl Effects for OperatorEffects<'_, '_> {
-    fn handle_execute(&mut self, op_idx: usize) -> Result<PollExecute> {
+impl<I> OperatorEffects<'_, '_, I>
+where
+    I: RuntimeInstant,
+{
+    fn handle_execute_inner(&mut self, op_idx: usize) -> Result<PollExecute> {
         if op_idx == 0 {
             // Pulling from pipeline source.
             let poll = self.operators[0].call_poll_pull(
@@ -112,6 +151,11 @@ impl Effects for OperatorEffects<'_, '_> {
                 &mut self.partition_states[0],
                 &mut self.buffers[0],
             )?;
+
+            if poll != PollPull::Pending {
+                // Update pull counts.
+                self.profiles[0].rows_out += self.buffers[0].num_rows as u64;
+            }
 
             return Ok(poll.as_poll_execute());
         }
@@ -127,6 +171,11 @@ impl Effects for OperatorEffects<'_, '_> {
                 pipeline_output,
             )?;
 
+            if poll != PollPush::Pending {
+                // Update push counts.
+                self.profiles[op_idx].rows_in += pipeline_output.num_rows as u64;
+            }
+
             return Ok(poll.as_poll_execute());
         }
 
@@ -134,16 +183,29 @@ impl Effects for OperatorEffects<'_, '_> {
         // previous operator's output batch as this operator's input.
         let (input, output) = get_execute_inout(op_idx, self.buffers);
 
-        self.operators[op_idx].call_poll_execute(
+        let poll = self.operators[op_idx].call_poll_execute(
             self.cx,
             &self.operator_states[op_idx],
             &mut self.partition_states[op_idx],
             input,
             output,
-        )
+        )?;
+
+        if poll != PollExecute::Pending {
+            // Update input and output.
+            //
+            // TODO: This will count inputs/outputs multiple times for polls
+            // like NeedsMore, HasMore. While technically it's true that we're
+            // pushing/pulling these rows, the counts do not reflect
+            // "meaningful" rows.
+            self.profiles[op_idx].rows_in += input.num_rows as u64;
+            self.profiles[op_idx].rows_out += output.num_rows as u64;
+        }
+
+        Ok(poll)
     }
 
-    fn handle_finalize(&mut self, op_idx: usize) -> Result<PollFinalize> {
+    fn handle_finalize_inner(&mut self, op_idx: usize) -> Result<PollFinalize> {
         assert_ne!(0, op_idx);
 
         if op_idx == self.operators.len() - 1 {
@@ -165,6 +227,31 @@ impl Effects for OperatorEffects<'_, '_> {
             &self.operator_states[op_idx],
             &mut self.partition_states[op_idx],
         )
+    }
+}
+
+impl<I> Effects for OperatorEffects<'_, '_, I>
+where
+    I: RuntimeInstant,
+{
+    fn handle_execute(&mut self, op_idx: usize) -> Result<PollExecute> {
+        let now = I::now();
+        let poll = self.handle_execute_inner(op_idx)?;
+        let elapsed = I::now().duration_since(now);
+
+        self.profiles[op_idx].execution_duration += elapsed;
+
+        Ok(poll)
+    }
+
+    fn handle_finalize(&mut self, op_idx: usize) -> Result<PollFinalize> {
+        let now = I::now();
+        let poll = self.handle_finalize_inner(op_idx)?;
+        let elapsed = I::now().duration_since(now);
+
+        self.profiles[op_idx].execution_duration += elapsed;
+
+        Ok(poll)
     }
 }
 

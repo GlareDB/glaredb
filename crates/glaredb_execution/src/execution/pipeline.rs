@@ -6,8 +6,6 @@ use super::operators::{AnyOperatorState, ExecutionProperties, PlannedOperator};
 use super::partition_pipeline::ExecutablePartitionPipeline;
 use super::planner::PlannedQueryGraph;
 use crate::arrays::batch::Batch;
-use crate::catalog::profile::PartitionPipelineProfile;
-use crate::execution::execution_stack::ExecutionStack;
 use crate::logical::binder::bind_context::MaterializationRef;
 
 #[derive(Debug)]
@@ -140,13 +138,11 @@ impl ExecutablePipeline {
         }
 
         let mut pipelines: Vec<_> = (0..partitions)
-            .map(|_| ExecutablePartitionPipeline {
-                operators: self.operators.clone(),
-                operator_states: self.operator_states.clone(),
-                partition_states: Vec::with_capacity(self.operators.len()),
-                buffers: Vec::with_capacity(self.operators.len() - 1),
-                stack: ExecutionStack::new(self.operators.len()),
-                profile: PartitionPipelineProfile::new(self.operators.len()),
+            .map(|_| {
+                ExecutablePartitionPipeline::new(
+                    self.operators.clone(),
+                    self.operator_states.clone(),
+                )
             })
             .collect();
 
