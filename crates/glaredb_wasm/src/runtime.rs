@@ -2,15 +2,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};
 
-use futures::future::BoxFuture;
 use glaredb_error::{Result, not_implemented};
 use glaredb_execution::arrays::scalar::ScalarValue;
-use glaredb_execution::catalog::profile::ExecutionProfile;
 use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_execution::io::access::AccessConfig;
 use glaredb_execution::io::file::FileOpener;
 use glaredb_execution::io::memory::MemoryFileSource;
 use glaredb_execution::runtime::handle::QueryHandle;
+use glaredb_execution::runtime::profile_buffer::{ProfileBuffer, ProfileSink};
 use glaredb_execution::runtime::{ErrorSink, PipelineExecutor, Runtime, TokioHandlerProvider};
 use parking_lot::Mutex;
 use tracing::debug;
@@ -78,11 +77,17 @@ impl PipelineExecutor for WasmExecutor {
     ) -> Arc<dyn QueryHandle> {
         debug!("spawning query graph on wasm runtime");
 
+        let (profiles, profile_sinks) = ProfileBuffer::new(pipelines.len());
+
         let states: Vec<_> = pipelines
             .into_iter()
-            .map(|pipeline| WasmTaskState {
-                errors: errors.clone(),
-                pipeline: Arc::new(Mutex::new(pipeline)),
+            .zip(profile_sinks)
+            .map(|(pipeline, profile_sink)| WasmPartitionPipelineTask {
+                state: Arc::new(WasmTaskState {
+                    profile_sink,
+                    errors: errors.clone(),
+                    pipeline: Mutex::new(pipeline),
+                }),
             })
             .collect();
 
@@ -93,29 +98,38 @@ impl PipelineExecutor for WasmExecutor {
             spawn_local(async move { state.execute() })
         }
 
-        Arc::new(WasmQueryHandle { states })
+        Arc::new(WasmQueryHandle { profiles, states })
     }
 }
 
-#[derive(Debug, Clone)]
-struct WasmTaskState {
+#[derive(Debug)]
+pub(crate) struct WasmTaskState {
+    profile_sink: ProfileSink,
     errors: Arc<dyn ErrorSink>,
-    pipeline: Arc<Mutex<ExecutablePartitionPipeline>>,
+    pipeline: Mutex<ExecutablePartitionPipeline>,
 }
 
-impl WasmTaskState {
+#[derive(Debug, Clone)]
+pub(crate) struct WasmPartitionPipelineTask {
+    state: Arc<WasmTaskState>,
+}
+
+impl WasmPartitionPipelineTask {
     fn execute(&self) {
-        let state = self.clone();
-        let waker: Waker = Arc::new(WasmWaker { state }).into();
+        let waker: Waker = Arc::new(WasmWaker {
+            state: self.state.clone(),
+        })
+        .into();
         let mut cx = Context::from_waker(&waker);
 
-        let mut pipeline = self.pipeline.lock();
+        let mut pipeline = self.state.pipeline.lock();
         match pipeline.poll_execute::<PerformanceInstant>(&mut cx) {
-            Poll::Ready(Ok(())) => {
+            Poll::Ready(Ok(profile)) => {
                 // Pushing through the pipeline was successful.
+                self.state.profile_sink.put(profile);
             }
             Poll::Ready(Err(e)) => {
-                self.errors.set_error(e);
+                self.state.errors.set_error(e);
             }
             Poll::Pending => {
                 // Exit the loop. Waker was already stored in the pending
@@ -128,8 +142,9 @@ impl WasmTaskState {
 
 #[derive(Debug)]
 pub struct WasmQueryHandle {
+    profiles: ProfileBuffer,
     #[allow(unused)]
-    states: Vec<WasmTaskState>,
+    states: Vec<WasmPartitionPipelineTask>,
 }
 
 impl QueryHandle for WasmQueryHandle {
@@ -137,14 +152,14 @@ impl QueryHandle for WasmQueryHandle {
         // TODO
     }
 
-    fn generate_execution_profile(&self) -> BoxFuture<'_, Result<ExecutionProfile>> {
-        Box::pin(async { not_implemented!("execution profile data") })
+    fn get_profile_buffer(&self) -> &ProfileBuffer {
+        &self.profiles
     }
 }
 
 #[derive(Debug)]
 struct WasmWaker {
-    state: WasmTaskState,
+    state: Arc<WasmTaskState>,
 }
 
 impl Wake for WasmWaker {
@@ -153,7 +168,10 @@ impl Wake for WasmWaker {
     }
 
     fn wake(self: Arc<Self>) {
-        spawn_local(async move { self.state.execute() })
+        let task = WasmPartitionPipelineTask {
+            state: self.state.clone(),
+        };
+        spawn_local(async move { task.execute() })
     }
 }
 
