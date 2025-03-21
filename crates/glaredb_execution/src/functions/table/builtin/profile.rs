@@ -98,6 +98,37 @@ pub const FUNCTION_SET_OPTIMIZER_PROFILE: TableFunctionSet = TableFunctionSet {
     ],
 };
 
+pub const FUNCTION_SET_EXECUTION_PROFILE: TableFunctionSet = TableFunctionSet {
+    name: "execution_profile",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::System,
+        description: "Get the timings generating during query execution.",
+        arguments: &[],
+        example: None,
+    }),
+    functions: &[
+        // execution_profile()
+        // Get profile for most recent query.
+        RawTableFunction::new_scan(
+            &Signature::new(&[], DataTypeId::Table),
+            &ProfileTableGen::new(PlanningProfileTable),
+        ),
+        // execution_profile(n)
+        // Get profile for the nth query, starting at the most recent (0).
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Int64], DataTypeId::Table),
+            &ProfileTableGen::new(PlanningProfileTable),
+        ),
+        // execution_profile(id)
+        // Get profile for specific query by id
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+            &ProfileTableGen::new(PlanningProfileTable),
+        ),
+    ],
+};
+
 pub const FUNCTION_SET_QUERY_INFO: TableFunctionSet = TableFunctionSet {
     name: "query_info",
     aliases: &[],
@@ -332,6 +363,25 @@ impl ProfileTable for OptimizerProfileTable {
             }
             other => panic!("invalid projection {other}"),
         })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ExecutionProfileTable;
+
+#[derive(Debug)]
+pub struct ExecutionProfileRow {}
+
+impl ProfileTable for ExecutionProfileTable {
+    const COLUMNS: &[ProfileColumn] = &[];
+    type Row = ExecutionProfileRow;
+
+    fn profile_as_rows(profile: &QueryProfile) -> Result<Vec<Self::Row>> {
+        Ok(Vec::new())
+    }
+
+    fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
+        Ok(())
     }
 }
 
