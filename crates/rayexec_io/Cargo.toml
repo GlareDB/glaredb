@@ -8,7 +8,7 @@ glaredb_error = { path = '../glaredb_error' }
 glaredb_proto = { path = '../glaredb_proto' }
 futures = { workspace = true }
 tracing = { workspace = true }
-reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls", "stream"] }
+reqwest = { version = "0.12.15", default-features = false, features = ["rustls-tls", "stream"] }
 url = { workspace = true, features = ["serde"] }
 bytes = { version = "1.10", default-features = false, features = ["std"] }
 serde = { workspace = true }
