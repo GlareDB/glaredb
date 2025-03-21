@@ -34,6 +34,7 @@ use crate::execution::operators::catalog::create_table_as::PhysicalCreateTableAs
 use crate::execution::operators::catalog::create_view::PhysicalCreateView;
 use crate::execution::operators::catalog::drop::PhysicalDrop;
 use crate::execution::operators::catalog::insert::PhysicalInsert;
+use crate::execution::planner::OperatorIdGen;
 use crate::functions::table::builtin::memory_scan::FUNCTION_SET_MEMORY_SCAN;
 use crate::storage::storage_manager::{StorageManager, StorageTableId};
 
@@ -124,6 +125,7 @@ impl Catalog for MemoryCatalog {
 
     fn plan_create_view(
         self: &Arc<Self>,
+        id_gen: &mut OperatorIdGen,
         schema: &str,
         create: CreateViewInfo,
     ) -> Result<PlannedOperator> {
@@ -133,12 +135,13 @@ impl Catalog for MemoryCatalog {
             info: create,
         };
 
-        Ok(PlannedOperator::new_pull(operator))
+        Ok(PlannedOperator::new_pull(id_gen.next_id(), operator))
     }
 
     fn plan_create_table(
         self: &Arc<Self>,
         storage: &Arc<StorageManager>,
+        id_gen: &mut OperatorIdGen,
         schema: &str,
         create: CreateTableInfo,
     ) -> Result<PlannedOperator> {
@@ -149,23 +152,28 @@ impl Catalog for MemoryCatalog {
             info: create,
         };
 
-        Ok(PlannedOperator::new_pull(operator))
+        Ok(PlannedOperator::new_pull(id_gen.next_id(), operator))
     }
 
     fn plan_insert(
         self: &Arc<Self>,
         storage: &Arc<StorageManager>,
+        id_gen: &mut OperatorIdGen,
         table: Arc<CatalogEntry>,
     ) -> Result<PlannedOperator> {
-        Ok(PlannedOperator::new_execute(PhysicalInsert {
-            storage: storage.clone(),
-            entry: table,
-        }))
+        Ok(PlannedOperator::new_execute(
+            id_gen.next_id(),
+            PhysicalInsert {
+                storage: storage.clone(),
+                entry: table,
+            },
+        ))
     }
 
     fn plan_create_table_as(
         self: &Arc<Self>,
         storage: &Arc<StorageManager>,
+        id_gen: &mut OperatorIdGen,
         schema: &str,
         create: CreateTableInfo,
     ) -> Result<PlannedOperator> {
@@ -176,26 +184,37 @@ impl Catalog for MemoryCatalog {
             info: create,
         };
 
-        Ok(PlannedOperator::new_execute(operator))
+        Ok(PlannedOperator::new_execute(id_gen.next_id(), operator))
     }
 
-    fn plan_create_schema(self: &Arc<Self>, create: CreateSchemaInfo) -> Result<PlannedOperator> {
-        Ok(PlannedOperator::new_pull(PhysicalCreateSchema {
-            catalog: self.clone(),
-            info: create,
-        }))
+    fn plan_create_schema(
+        self: &Arc<Self>,
+        id_gen: &mut OperatorIdGen,
+        create: CreateSchemaInfo,
+    ) -> Result<PlannedOperator> {
+        Ok(PlannedOperator::new_pull(
+            id_gen.next_id(),
+            PhysicalCreateSchema {
+                catalog: self.clone(),
+                info: create,
+            },
+        ))
     }
 
     fn plan_drop(
         self: &Arc<Self>,
         storage: &Arc<StorageManager>,
+        id_gen: &mut OperatorIdGen,
         drop: DropInfo,
     ) -> Result<PlannedOperator> {
-        Ok(PlannedOperator::new_pull(PhysicalDrop {
-            storage: storage.clone(),
-            catalog: self.clone(),
-            info: drop,
-        }))
+        Ok(PlannedOperator::new_pull(
+            id_gen.next_id(),
+            PhysicalDrop {
+                storage: storage.clone(),
+                catalog: self.clone(),
+                info: drop,
+            },
+        ))
     }
 
     fn list_schemas(

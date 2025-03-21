@@ -423,6 +423,7 @@ where
         let profile = QueryProfile {
             id: portal.query_id,
             plan: Some(portal.profile),
+            execution: None,
         };
 
         let output = Output::Stream(StreamOutput::new(
@@ -433,6 +434,7 @@ where
         ));
 
         Ok(QueryResult {
+            query_id: portal.query_id,
             output,
             output_schema: portal.output_schema,
         })

@@ -28,6 +28,7 @@ use std::task::Context;
 use glaredb_error::{DbError, Result};
 
 use super::pipeline::{ExecutablePipeline, ExecutablePipelineGraph};
+use super::planner::OperatorId;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -340,8 +341,8 @@ pub struct AnyPartitionState(Box<dyn Any + Sync + Send>);
 
 #[derive(Debug, Clone)]
 pub struct PlannedOperatorWithChildren {
-    pub operator: PlannedOperator,
-    pub children: Vec<PlannedOperatorWithChildren>,
+    pub(crate) operator: PlannedOperator,
+    pub(crate) children: Vec<PlannedOperatorWithChildren>,
 }
 
 impl PlannedOperatorWithChildren {
@@ -358,6 +359,8 @@ impl PlannedOperatorWithChildren {
 
 #[derive(Debug, Clone)]
 pub struct PlannedOperator {
+    /// Identifier for the operator.
+    pub(crate) id: OperatorId,
     /// The underlying operator.
     pub(crate) operator: Arc<dyn Any + Sync + Send>,
     /// The operator vtable.
@@ -366,55 +369,60 @@ pub struct PlannedOperator {
 }
 
 impl PlannedOperator {
-    pub fn new_execute<O>(op: O) -> Self
+    pub fn new_execute<O>(id: OperatorId, op: O) -> Self
     where
         O: ExecuteOperator,
     {
         PlannedOperator {
+            id,
             operator: Arc::new(op),
             vtable: ExecuteOperatorVTable::<O>::VTABLE,
             operator_type: ExecuteOperatorVTable::<O>::OPERATOR_TYPE,
         }
     }
 
-    pub fn new_push<O>(op: O) -> Self
+    pub fn new_push<O>(id: OperatorId, op: O) -> Self
     where
         O: PushOperator,
     {
         PlannedOperator {
+            id,
             operator: Arc::new(op),
             vtable: PushOperatorVTable::<O>::VTABLE,
             operator_type: PushOperatorVTable::<O>::OPERATOR_TYPE,
         }
     }
 
-    pub fn new_push_execute<O>(op: O) -> Self
+    pub fn new_push_execute<O>(id: OperatorId, op: O) -> Self
     where
         O: PushOperator + ExecuteOperator,
     {
         PlannedOperator {
+            id,
             operator: Arc::new(op),
             vtable: PushExecuteOperatorVTable::<O>::VTABLE,
             operator_type: PushExecuteOperatorVTable::<O>::OPERATOR_TYPE,
         }
     }
 
-    pub fn new_pull<O>(op: O) -> Self
+    pub fn new_pull<O>(id: OperatorId, op: O) -> Self
     where
         O: PullOperator,
     {
         PlannedOperator {
+            id,
             operator: Arc::new(op),
             vtable: PullOperatorVTable::<O>::VTABLE,
             operator_type: PullOperatorVTable::<O>::OPERATOR_TYPE,
         }
     }
 
-    pub fn new_materializing<O>(op: O) -> Self
+    pub fn new_materializing<O>(id: OperatorId, op: O) -> Self
     where
         O: MaterializingOperator,
     {
         PlannedOperator {
+            id,
             operator: Arc::new(op),
             vtable: MaterializingOperatorVTable::<O>::VTABLE,
             operator_type: MaterializingOperatorVTable::<O>::OPERATOR_TYPE,

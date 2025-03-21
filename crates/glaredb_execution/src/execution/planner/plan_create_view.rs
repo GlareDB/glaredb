@@ -20,7 +20,7 @@ impl OperatorPlanState<'_> {
             query_string: create.node.query_string,
         };
 
-        let operator = db.plan_create_view(&create.node.schema, info)?;
+        let operator = db.plan_create_view(&mut self.id_gen, &create.node.schema, info)?;
 
         Ok(PlannedOperatorWithChildren {
             operator,

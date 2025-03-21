@@ -24,6 +24,7 @@ use futures::Stream;
 use glaredb_error::{DbError, Result};
 
 use crate::execution::operators::PlannedOperator;
+use crate::execution::planner::OperatorIdGen;
 use crate::storage::storage_manager::{StorageManager, StorageTableId};
 
 pub trait Catalog: Debug + Sync + Send {
@@ -50,6 +51,7 @@ pub trait Catalog: Debug + Sync + Send {
 
     fn plan_create_view(
         self: &Arc<Self>,
+        id_gen: &mut OperatorIdGen,
         schema: &str,
         create: CreateViewInfo,
     ) -> Result<PlannedOperator>;
@@ -57,6 +59,7 @@ pub trait Catalog: Debug + Sync + Send {
     fn plan_create_table(
         self: &Arc<Self>,
         storage: &Arc<StorageManager>,
+        id_gen: &mut OperatorIdGen,
         schema: &str,
         create: CreateTableInfo,
     ) -> Result<PlannedOperator>;
@@ -64,6 +67,7 @@ pub trait Catalog: Debug + Sync + Send {
     fn plan_create_table_as(
         self: &Arc<Self>,
         storage: &Arc<StorageManager>,
+        id_gen: &mut OperatorIdGen,
         schema: &str,
         create: CreateTableInfo,
     ) -> Result<PlannedOperator>;
@@ -71,14 +75,20 @@ pub trait Catalog: Debug + Sync + Send {
     fn plan_insert(
         self: &Arc<Self>,
         storage: &Arc<StorageManager>,
+        id_gen: &mut OperatorIdGen,
         entry: Arc<CatalogEntry>,
     ) -> Result<PlannedOperator>;
 
-    fn plan_create_schema(self: &Arc<Self>, create: CreateSchemaInfo) -> Result<PlannedOperator>;
+    fn plan_create_schema(
+        self: &Arc<Self>,
+        id_gen: &mut OperatorIdGen,
+        create: CreateSchemaInfo,
+    ) -> Result<PlannedOperator>;
 
     fn plan_drop(
         self: &Arc<Self>,
         storage: &Arc<StorageManager>,
+        id_gen: &mut OperatorIdGen,
         drop: DropInfo,
     ) -> Result<PlannedOperator>;
 

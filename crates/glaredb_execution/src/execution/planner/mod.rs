@@ -23,6 +23,7 @@ mod plan_table_execute;
 mod plan_unnest;
 
 use std::collections::BTreeMap;
+use std::fmt;
 
 use glaredb_error::{DbError, Result, not_implemented};
 use uuid::Uuid;
@@ -41,6 +42,32 @@ use crate::logical::operator::{self, LogicalOperator};
 pub struct PlannedQueryGraph {
     pub materializations: BTreeMap<MaterializationRef, PlannedOperatorWithChildren>,
     pub root: PlannedOperatorWithChildren,
+}
+
+/// Identifier for an operator within a query.
+///
+/// Unique across all operators within a query.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OperatorId(pub(crate) usize);
+
+impl fmt::Display for OperatorId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// State for generating unique operator IDs.
+#[derive(Debug)]
+pub struct OperatorIdGen {
+    next: usize,
+}
+
+impl OperatorIdGen {
+    pub fn next_id(&mut self) -> OperatorId {
+        let id = OperatorId(self.next);
+        self.next += 1;
+        id
+    }
 }
 
 /// Planner for building the query graph containing physical operators.
@@ -84,7 +111,7 @@ impl OperatorPlanner {
         // Now plan to query with access to all materializations.
         let root = state.plan(root)?;
 
-        let planned_sink = PlannedOperator::new_push(sink);
+        let planned_sink = PlannedOperator::new_push(state.id_gen.next_id(), sink);
 
         let root = PlannedOperatorWithChildren {
             operator: planned_sink,
@@ -123,6 +150,8 @@ struct OperatorPlanState<'a> {
     /// might depend on another). We want to make sure we iterate in the same
     /// order when creating the operator states.
     materializations: BTreeMap<MaterializationRef, PlannedOperatorWithChildren>,
+    /// Generate unique ids for all operators.
+    id_gen: OperatorIdGen,
 }
 
 impl<'a> OperatorPlanState<'a> {
@@ -139,6 +168,7 @@ impl<'a> OperatorPlanState<'a> {
             bind_context,
             expr_planner,
             materializations: BTreeMap::new(),
+            id_gen: OperatorIdGen { next: 0 },
         }
     }
 
@@ -162,7 +192,7 @@ impl<'a> OperatorPlanState<'a> {
             };
 
             let operator = PlannedOperatorWithChildren {
-                operator: PlannedOperator::new_materializing(operator),
+                operator: PlannedOperator::new_materializing(self.id_gen.next_id(), operator),
                 children: vec![mat_root],
             };
 

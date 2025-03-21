@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
-use glaredb_error::{Result, not_implemented};
-use glaredb_execution::catalog::profile::ExecutionProfile;
 use glaredb_execution::runtime::handle::QueryHandle;
+use glaredb_execution::runtime::profile_buffer::ProfileBuffer;
 use parking_lot::Mutex;
 
 use super::task::{PartitionPipelineTask, TaskState};
@@ -13,6 +11,7 @@ use super::task::{PartitionPipelineTask, TaskState};
 pub struct ThreadedQueryHandle {
     /// Registered task states for all pipelines in a query.
     pub(crate) states: Mutex<Vec<Arc<TaskState>>>,
+    pub(crate) profiles: ProfileBuffer,
 }
 
 impl QueryHandle for ThreadedQueryHandle {
@@ -32,7 +31,7 @@ impl QueryHandle for ThreadedQueryHandle {
         }
     }
 
-    fn generate_execution_profile(&self) -> BoxFuture<'_, Result<ExecutionProfile>> {
-        Box::pin(async { not_implemented!("generate execution profile data") })
+    fn get_profile_buffer(&self) -> &ProfileBuffer {
+        &self.profiles
     }
 }

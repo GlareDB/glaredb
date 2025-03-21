@@ -19,7 +19,7 @@ impl OperatorPlanState<'_> {
         let child = self.plan(input)?;
 
         let db = self.db_context.require_get_database(&insert.node.catalog)?;
-        let operator = db.plan_insert(insert.node.table)?;
+        let operator = db.plan_insert(&mut self.id_gen, insert.node.table)?;
 
         let mut planned = PlannedOperatorWithChildren {
             operator,
@@ -39,7 +39,7 @@ impl OperatorPlanState<'_> {
             )]);
 
             planned = PlannedOperatorWithChildren {
-                operator: PlannedOperator::new_execute(agg),
+                operator: PlannedOperator::new_execute(self.id_gen.next_id(), agg),
                 children: vec![planned],
             }
         }

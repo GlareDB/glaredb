@@ -6,8 +6,6 @@ use super::operators::{AnyOperatorState, ExecutionProperties, PlannedOperator};
 use super::partition_pipeline::ExecutablePartitionPipeline;
 use super::planner::PlannedQueryGraph;
 use crate::arrays::batch::Batch;
-use crate::catalog::profile::PartitionPipelineProfile;
-use crate::execution::execution_stack::ExecutionStack;
 use crate::logical::binder::bind_context::MaterializationRef;
 
 #[derive(Debug)]
@@ -118,11 +116,19 @@ impl ExecutablePipeline {
         self.operator_states.push(state);
     }
 
+    /// Creates some number of partition partition pipelines for this pipeline.
+    ///
+    /// The number of partitions specified indicates the amount of parallelism
+    /// for a pipeline.
     pub fn create_partition_pipelines(
         &self,
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<ExecutablePartitionPipeline>> {
+        if partitions < 1 {
+            return Err(DbError::new("Partitions cannot be less than one"));
+        }
+
         debug_assert_eq!(self.operators.len(), self.operator_states.len());
 
         if self.operators.len() < 2 {
@@ -132,13 +138,12 @@ impl ExecutablePipeline {
         }
 
         let mut pipelines: Vec<_> = (0..partitions)
-            .map(|_| ExecutablePartitionPipeline {
-                operators: self.operators.clone(),
-                operator_states: self.operator_states.clone(),
-                partition_states: Vec::with_capacity(self.operators.len()),
-                buffers: Vec::with_capacity(self.operators.len() - 1),
-                stack: ExecutionStack::new(self.operators.len()),
-                profile: PartitionPipelineProfile::new(self.operators.len()),
+            .map(|partition_idx| {
+                ExecutablePartitionPipeline::new(
+                    partition_idx,
+                    self.operators.clone(),
+                    self.operator_states.clone(),
+                )
             })
             .collect();
 

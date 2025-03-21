@@ -30,7 +30,7 @@ impl OperatorPlanState<'_> {
         };
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(operator),
+            operator: PlannedOperator::new_execute(self.id_gen.next_id(), operator),
             children: vec![input],
         })
     }

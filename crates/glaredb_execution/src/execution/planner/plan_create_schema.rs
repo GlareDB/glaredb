@@ -18,7 +18,7 @@ impl OperatorPlanState<'_> {
             on_conflict: create.node.on_conflict,
         };
 
-        let operator = db.plan_create_schema(info)?;
+        let operator = db.plan_create_schema(&mut self.id_gen, info)?;
 
         Ok(PlannedOperatorWithChildren {
             operator,

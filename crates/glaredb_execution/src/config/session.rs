@@ -6,8 +6,6 @@ use glaredb_error::{DbError, Result};
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::runtime::{PipelineExecutor, Runtime};
 
-pub const DEFAULT_BATCH_SIZE: usize = 2048;
-
 /// Configuration for the session.
 #[derive(Debug)]
 pub struct SessionConfig {
@@ -154,6 +152,9 @@ impl SessionSetting for ApplicationName {
     }
 }
 
+const MIN_PARTITION_COUNT: usize = 1;
+const MAX_PARTITION_COUNT: usize = 512;
+
 pub struct Partitions;
 
 impl SessionSetting for Partitions {
@@ -161,7 +162,20 @@ impl SessionSetting for Partitions {
     const DESCRIPTION: &'static str = "Number of partitions to use during execution";
 
     fn set_from_scalar(scalar: BorrowedScalarValue, conf: &mut SessionConfig) -> Result<()> {
-        let val = scalar.try_as_i64()?;
+        let val = scalar.try_as_usize()?;
+
+        if val < MIN_PARTITION_COUNT {
+            return Err(DbError::new(format!(
+                "Partition count cannot be less than {MIN_PARTITION_COUNT}"
+            )));
+        }
+
+        if val > MAX_PARTITION_COUNT {
+            return Err(DbError::new(format!(
+                "Partition count cannot be greater than {MAX_PARTITION_COUNT}"
+            )));
+        }
+
         conf.partitions = val as u64;
         Ok(())
     }
@@ -171,6 +185,11 @@ impl SessionSetting for Partitions {
     }
 }
 
+pub const DEFAULT_BATCH_SIZE: usize = 2048;
+
+const MIN_BATCH_SIZE: usize = 1;
+const MAX_BATCH_SIZE: usize = 8192;
+
 pub struct BatchSize;
 
 impl SessionSetting for BatchSize {
@@ -178,7 +197,20 @@ impl SessionSetting for BatchSize {
     const DESCRIPTION: &'static str = "Desired number of rows in a batch";
 
     fn set_from_scalar(scalar: BorrowedScalarValue, conf: &mut SessionConfig) -> Result<()> {
-        let val = scalar.try_as_i64()?;
+        let val = scalar.try_as_usize()?;
+
+        if val < MIN_BATCH_SIZE {
+            return Err(DbError::new(format!(
+                "Batch size cannot be less than {MIN_BATCH_SIZE}"
+            )));
+        }
+
+        if val > MAX_BATCH_SIZE {
+            return Err(DbError::new(format!(
+                "Batch size cannot be greater than {MAX_BATCH_SIZE}"
+            )));
+        }
+
         conf.batch_size = val as u64;
         Ok(())
     }

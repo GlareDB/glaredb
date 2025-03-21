@@ -36,7 +36,10 @@ impl OperatorPlanState<'_> {
             .context("Failed to plan projections out of materialization")?;
 
         let proj_op = PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(PhysicalProject::new(projections)),
+            operator: PlannedOperator::new_execute(
+                self.id_gen.next_id(),
+                PhysicalProject::new(projections),
+            ),
             children: vec![scan_op],
         };
 

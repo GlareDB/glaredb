@@ -31,9 +31,11 @@ pub trait Scheduler: Sync + Send + Debug + Sized + Clone {
 
     fn num_threads(&self) -> usize;
 
-    fn spawn_pipelines<P>(&self, pipelines: P, errors: Arc<dyn ErrorSink>) -> Self::Handle
-    where
-        P: IntoIterator<Item = ExecutablePartitionPipeline>;
+    fn spawn_pipelines(
+        &self,
+        pipelines: Vec<ExecutablePartitionPipeline>,
+        errors: Arc<dyn ErrorSink>,
+    ) -> Self::Handle;
 }
 
 #[derive(Debug, Clone)]

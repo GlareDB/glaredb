@@ -11,6 +11,8 @@ use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalF64,
     PhysicalI32,
+    PhysicalU32,
+    PhysicalU64,
     PhysicalUtf8,
 };
 use crate::arrays::batch::Batch;
@@ -94,6 +96,37 @@ pub const FUNCTION_SET_OPTIMIZER_PROFILE: TableFunctionSet = TableFunctionSet {
         RawTableFunction::new_scan(
             &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
             &ProfileTableGen::new(OptimizerProfileTable),
+        ),
+    ],
+};
+
+pub const FUNCTION_SET_EXECUTION_PROFILE: TableFunctionSet = TableFunctionSet {
+    name: "execution_profile",
+    aliases: &[],
+    doc: Some(&Documentation {
+        category: Category::System,
+        description: "Get the timings generating during query execution.",
+        arguments: &[],
+        example: None,
+    }),
+    functions: &[
+        // execution_profile()
+        // Get profile for most recent query.
+        RawTableFunction::new_scan(
+            &Signature::new(&[], DataTypeId::Table),
+            &ProfileTableGen::new(ExecutionProfileTable),
+        ),
+        // execution_profile(n)
+        // Get profile for the nth query, starting at the most recent (0).
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Int64], DataTypeId::Table),
+            &ProfileTableGen::new(ExecutionProfileTable),
+        ),
+        // execution_profile(id)
+        // Get profile for specific query by id
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+            &ProfileTableGen::new(ExecutionProfileTable),
         ),
     ],
 };
@@ -327,6 +360,115 @@ impl ProfileTable for OptimizerProfileTable {
                 let mut durations = PhysicalF64::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     durations.put(idx, &row.duration_seconds);
+                }
+                Ok(())
+            }
+            other => panic!("invalid projection {other}"),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ExecutionProfileTable;
+
+#[derive(Debug)]
+pub struct ExecutionProfileRow {
+    /// ID of this query.
+    query_id: Uuid,
+    /// Identifier of the operator.
+    operator_id: u32,
+    /// Partition index within a pipeline.
+    partition_idx: u32,
+    /// Rows pushed into this operator.
+    rows_in: u64,
+    /// Rows produces by this operator.
+    rows_out: u64,
+    /// Time taken by this operator during its execution.
+    execution_time_seconds: f64,
+}
+
+impl ProfileTable for ExecutionProfileTable {
+    const COLUMNS: &[ProfileColumn] = &[
+        ProfileColumn::new("query_id", DataType::Utf8),
+        ProfileColumn::new("operator_id", DataType::UInt32),
+        ProfileColumn::new("partition_idx", DataType::UInt32),
+        ProfileColumn::new("rows_in", DataType::UInt64),
+        ProfileColumn::new("rows_out", DataType::UInt64),
+        ProfileColumn::new("execution_time_seconds", DataType::Float64),
+    ];
+
+    type Row = ExecutionProfileRow;
+
+    fn profile_as_rows(profile: &QueryProfile) -> Result<Vec<Self::Row>> {
+        let prof = match &profile.execution {
+            Some(prof) => prof,
+            None => return Ok(Vec::new()),
+        };
+
+        let query_id = profile.id;
+
+        let rows = prof
+            .partition_pipeline_profiles
+            .iter()
+            .flat_map(|part_prof| {
+                part_prof
+                    .operator_profiles
+                    .iter()
+                    .map(|op_prof| ExecutionProfileRow {
+                        query_id,
+                        operator_id: op_prof.operator_id.0 as u32,
+                        partition_idx: part_prof.partition_idx as u32,
+                        rows_in: op_prof.rows_in,
+                        rows_out: op_prof.rows_out,
+                        execution_time_seconds: op_prof.execution_duration.as_secs_f64(),
+                    })
+            })
+            .collect();
+
+        Ok(rows)
+    }
+
+    fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
+        projections.for_each_column(output, &mut |col_idx, array| match col_idx {
+            0 => {
+                let mut ids = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    ids.put(idx, &row.query_id.to_string());
+                }
+                Ok(())
+            }
+            1 => {
+                let mut op_ids = PhysicalU32::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    op_ids.put(idx, &row.operator_id);
+                }
+                Ok(())
+            }
+            2 => {
+                let mut part_indices = PhysicalU32::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    part_indices.put(idx, &row.partition_idx);
+                }
+                Ok(())
+            }
+            3 => {
+                let mut rows_in = PhysicalU64::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    rows_in.put(idx, &row.rows_in);
+                }
+                Ok(())
+            }
+            4 => {
+                let mut rows_out = PhysicalU64::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    rows_out.put(idx, &row.rows_out);
+                }
+                Ok(())
+            }
+            5 => {
+                let mut times = PhysicalF64::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    times.put(idx, &row.execution_time_seconds);
                 }
                 Ok(())
             }

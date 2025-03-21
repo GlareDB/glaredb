@@ -23,7 +23,7 @@ impl OperatorPlanState<'_> {
             SetOpKind::Union => {
                 let operator = PhysicalUnion::new(left_types);
                 PlannedOperatorWithChildren {
-                    operator: PlannedOperator::new_push_execute(operator),
+                    operator: PlannedOperator::new_push_execute(self.id_gen.next_id(), operator),
                     children: vec![left, right],
                 }
             }
@@ -51,10 +51,10 @@ impl OperatorPlanState<'_> {
             };
 
             operator = PlannedOperatorWithChildren {
-                operator: PlannedOperator::new_execute(PhysicalHashAggregate::new(
-                    aggregates,
-                    grouping_set,
-                )),
+                operator: PlannedOperator::new_execute(
+                    self.id_gen.next_id(),
+                    PhysicalHashAggregate::new(aggregates, grouping_set),
+                ),
                 children: vec![operator],
             };
         }
