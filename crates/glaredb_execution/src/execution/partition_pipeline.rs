@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 use std::task::{Context, Poll};
+use std::time::Duration;
 
 use glaredb_error::Result;
 
@@ -50,6 +51,7 @@ impl ExecutablePartitionPipeline {
     ///
     /// This does not create the partition states or intermediate buffers.
     pub(crate) fn new(
+        partition_idx: usize,
         operators: Vec<PlannedOperator>,
         operator_states: Vec<AnyOperatorState>,
     ) -> Self {
@@ -58,13 +60,26 @@ impl ExecutablePartitionPipeline {
 
         let num_operators = operators.len();
 
+        let operator_profiles = operators
+            .iter()
+            .map(|op| OperatorProfile {
+                operator_id: op.id,
+                execution_duration: Duration::default(),
+                rows_in: 0,
+                rows_out: 0,
+            })
+            .collect();
+
         ExecutablePartitionPipeline {
             operators,
             operator_states,
             partition_states: Vec::with_capacity(num_operators),
             buffers: Vec::with_capacity(num_operators - 1),
             stack: ExecutionStack::new(num_operators),
-            profile: Some(PartitionPipelineProfile::new(num_operators)),
+            profile: Some(PartitionPipelineProfile {
+                partition_idx,
+                operator_profiles,
+            }),
         }
     }
 

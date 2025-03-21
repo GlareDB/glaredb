@@ -26,7 +26,7 @@ impl OperatorPlanState<'_> {
                 on_conflict: create.node.on_conflict,
             };
 
-            let operator = db.plan_create_table(&create.node.schema, info)?;
+            let operator = db.plan_create_table(&mut self.id_gen, &create.node.schema, info)?;
             Ok(PlannedOperatorWithChildren {
                 operator,
                 children: Vec::new(),
@@ -42,7 +42,7 @@ impl OperatorPlanState<'_> {
                 on_conflict: create.node.on_conflict,
             };
 
-            let operator = db.plan_create_table_as(&create.node.schema, info)?;
+            let operator = db.plan_create_table_as(&mut self.id_gen, &create.node.schema, info)?;
             let mut planned = PlannedOperatorWithChildren {
                 operator,
                 children: vec![child],
@@ -61,7 +61,7 @@ impl OperatorPlanState<'_> {
                 )]);
 
                 planned = PlannedOperatorWithChildren {
-                    operator: PlannedOperator::new_execute(agg),
+                    operator: PlannedOperator::new_execute(self.id_gen.next(), agg),
                     children: vec![planned],
                 }
             }

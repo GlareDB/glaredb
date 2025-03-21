@@ -138,8 +138,9 @@ impl ExecutablePipeline {
         }
 
         let mut pipelines: Vec<_> = (0..partitions)
-            .map(|_| {
+            .map(|partition_idx| {
                 ExecutablePartitionPipeline::new(
+                    partition_idx,
                     self.operators.clone(),
                     self.operator_states.clone(),
                 )

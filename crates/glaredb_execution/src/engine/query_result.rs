@@ -3,6 +3,7 @@ use std::sync::Arc;
 use futures::TryStreamExt;
 use glaredb_error::Result;
 use tracing::error;
+use uuid::Uuid;
 
 use crate::arrays::batch::Batch;
 use crate::arrays::field::ColumnSchema;
@@ -12,6 +13,7 @@ use crate::runtime::handle::QueryHandle;
 
 #[derive(Debug)]
 pub struct QueryResult {
+    pub query_id: Uuid,
     pub output_schema: ColumnSchema,
     pub output: Output,
 }

@@ -4,6 +4,8 @@ use std::time::Duration;
 use parking_lot::Mutex;
 use uuid::Uuid;
 
+use crate::execution::planner::OperatorId;
+
 /// Retain the profiles for the last number of queries.
 pub const RETAINED_PROFILE_COUNT: usize = 20;
 
@@ -68,8 +70,10 @@ pub struct PlanningProfile {
     pub plan_executable_step: Option<Duration>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct OperatorProfile {
+    /// Identifier for the operator.
+    pub operator_id: OperatorId,
     /// Total time spent execution this operator.
     pub execution_duration: Duration,
     /// Total number of rows pushing into this operator within this pipeline.
@@ -80,16 +84,10 @@ pub struct OperatorProfile {
 
 #[derive(Debug, Clone)]
 pub struct PartitionPipelineProfile {
+    /// Partition index of this partition pipeline.
+    pub partition_idx: usize,
     /// Profiles for each operator in this pipeline.
     pub operator_profiles: Vec<OperatorProfile>,
-}
-
-impl PartitionPipelineProfile {
-    pub fn new(num_operators: usize) -> Self {
-        PartitionPipelineProfile {
-            operator_profiles: vec![OperatorProfile::default(); num_operators],
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

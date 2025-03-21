@@ -434,6 +434,7 @@ where
         ));
 
         Ok(QueryResult {
+            query_id: portal.query_id,
             output,
             output_schema: portal.output_schema,
         })

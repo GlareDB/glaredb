@@ -11,6 +11,7 @@ use super::entry::CatalogEntry;
 use super::memory::MemoryCatalog;
 use crate::arrays::scalar::ScalarValue;
 use crate::execution::operators::PlannedOperator;
+use crate::execution::planner::OperatorIdGen;
 use crate::storage::storage_manager::StorageManager;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,46 +58,59 @@ pub struct Database {
 impl Database {
     pub fn plan_create_view(
         &self,
+        id_gen: &mut OperatorIdGen,
         schema: &str,
         create: CreateViewInfo,
     ) -> Result<PlannedOperator> {
         self.check_can_write()?;
-        self.catalog.plan_create_view(schema, create)
+        self.catalog.plan_create_view(id_gen, schema, create)
     }
 
     pub fn plan_create_table(
         &self,
+        id_gen: &mut OperatorIdGen,
         schema: &str,
         create: CreateTableInfo,
     ) -> Result<PlannedOperator> {
         self.check_can_write()?;
         self.catalog
-            .plan_create_table(&self.storage, schema, create)
+            .plan_create_table(&self.storage, id_gen, schema, create)
     }
 
     pub fn plan_create_table_as(
         &self,
+        id_gen: &mut OperatorIdGen,
         schema: &str,
         create: CreateTableInfo,
     ) -> Result<PlannedOperator> {
         self.check_can_write()?;
         self.catalog
-            .plan_create_table_as(&self.storage, schema, create)
+            .plan_create_table_as(&self.storage, id_gen, schema, create)
     }
 
-    pub fn plan_insert(&self, table: Arc<CatalogEntry>) -> Result<PlannedOperator> {
+    pub fn plan_insert(
+        &self,
+
+        id_gen: &mut OperatorIdGen,
+        table: Arc<CatalogEntry>,
+    ) -> Result<PlannedOperator> {
         self.check_can_write()?;
-        self.catalog.plan_insert(&self.storage, table)
+        self.catalog.plan_insert(&self.storage, id_gen, table)
     }
 
-    pub fn plan_create_schema(&self, create: CreateSchemaInfo) -> Result<PlannedOperator> {
+    pub fn plan_create_schema(
+        &self,
+
+        id_gen: &mut OperatorIdGen,
+        create: CreateSchemaInfo,
+    ) -> Result<PlannedOperator> {
         self.check_can_write()?;
-        self.catalog.plan_create_schema(create)
+        self.catalog.plan_create_schema(id_gen, create)
     }
 
-    pub fn plan_drop(&self, drop: DropInfo) -> Result<PlannedOperator> {
+    pub fn plan_drop(&self, id_gen: &mut OperatorIdGen, drop: DropInfo) -> Result<PlannedOperator> {
         self.check_can_write()?;
-        self.catalog.plan_drop(&self.storage, drop)
+        self.catalog.plan_drop(&self.storage, id_gen, drop)
     }
 
     fn check_can_write(&self) -> Result<()> {

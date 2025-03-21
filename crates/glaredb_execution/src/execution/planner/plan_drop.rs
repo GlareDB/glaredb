@@ -10,7 +10,7 @@ impl OperatorPlanState<'_> {
         let _location = drop.location;
 
         let db = self.db_context.require_get_database(&drop.node.catalog)?;
-        let operator = db.plan_drop(drop.node.info)?;
+        let operator = db.plan_drop(&mut self.id_gen, drop.node.info)?;
 
         Ok(PlannedOperatorWithChildren {
             operator,

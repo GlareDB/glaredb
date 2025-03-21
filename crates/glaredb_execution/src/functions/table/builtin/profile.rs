@@ -11,6 +11,7 @@ use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalF64,
     PhysicalI32,
+    PhysicalU32,
     PhysicalU64,
     PhysicalUtf8,
 };
@@ -374,17 +375,26 @@ pub struct ExecutionProfileTable;
 pub struct ExecutionProfileRow {
     /// ID of this query.
     query_id: Uuid,
+    /// Identifier of the operator.
+    operator_id: u32,
+    /// Partition index within a pipeline.
+    partition_idx: u32,
     /// Rows pushed into this operator.
     rows_in: u64,
     /// Rows produces by this operator.
     rows_out: u64,
+    /// Time taken by this operator during its execution.
+    execution_time_seconds: f64,
 }
 
 impl ProfileTable for ExecutionProfileTable {
     const COLUMNS: &[ProfileColumn] = &[
         ProfileColumn::new("query_id", DataType::Utf8),
+        ProfileColumn::new("operator_id", DataType::UInt32),
+        ProfileColumn::new("partition_idx", DataType::UInt32),
         ProfileColumn::new("rows_in", DataType::UInt64),
         ProfileColumn::new("rows_out", DataType::UInt64),
+        ProfileColumn::new("execution_time_seconds", DataType::Float64),
     ];
 
     type Row = ExecutionProfileRow;
@@ -406,8 +416,11 @@ impl ProfileTable for ExecutionProfileTable {
                     .iter()
                     .map(|op_prof| ExecutionProfileRow {
                         query_id,
+                        operator_id: op_prof.operator_id.0 as u32,
+                        partition_idx: part_prof.partition_idx as u32,
                         rows_in: op_prof.rows_in,
                         rows_out: op_prof.rows_out,
+                        execution_time_seconds: op_prof.execution_duration.as_secs_f64(),
                     })
             })
             .collect();
@@ -425,16 +438,37 @@ impl ProfileTable for ExecutionProfileTable {
                 Ok(())
             }
             1 => {
+                let mut op_ids = PhysicalU32::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    op_ids.put(idx, &row.operator_id);
+                }
+                Ok(())
+            }
+            2 => {
+                let mut part_indices = PhysicalU32::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    part_indices.put(idx, &row.partition_idx);
+                }
+                Ok(())
+            }
+            3 => {
                 let mut rows_in = PhysicalU64::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     rows_in.put(idx, &row.rows_in);
                 }
                 Ok(())
             }
-            2 => {
+            4 => {
                 let mut rows_out = PhysicalU64::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     rows_out.put(idx, &row.rows_out);
+                }
+                Ok(())
+            }
+            5 => {
+                let mut times = PhysicalF64::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    times.put(idx, &row.execution_time_seconds);
                 }
                 Ok(())
             }

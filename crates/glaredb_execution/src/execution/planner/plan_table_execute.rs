@@ -46,7 +46,10 @@ impl OperatorPlanState<'_> {
 
         // Project function inputs first.
         let child = PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(PhysicalProject::new(projections)),
+            operator: PlannedOperator::new_execute(
+                self.id_gen.next(),
+                PhysicalProject::new(projections),
+            ),
             children: vec![child],
         };
 
@@ -56,7 +59,7 @@ impl OperatorPlanState<'_> {
             PhysicalTableExecute::new(inout.node.function, additional_projections, input_types);
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(operator),
+            operator: PlannedOperator::new_execute(self.id_gen.next(), operator),
             children: vec![child],
         })
     }

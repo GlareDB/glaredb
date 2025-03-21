@@ -16,7 +16,7 @@ impl OperatorPlanState<'_> {
         // the expression `1+1` with the input being the batch with 1 row and no
         // columns.
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_pull(PhysicalEmpty),
+            operator: PlannedOperator::new_pull(self.id_gen.next(), PhysicalEmpty),
             children: Vec::new(),
         })
     }
