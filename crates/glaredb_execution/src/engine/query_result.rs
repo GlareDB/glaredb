@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use futures::TryStreamExt;
 use glaredb_error::Result;
+use tracing::error;
 
 use crate::arrays::batch::Batch;
 use crate::arrays::field::ColumnSchema;
@@ -42,9 +43,18 @@ impl StreamOutput {
         let stream = &mut self.stream;
         let batches = stream.try_collect().await?;
 
-        // TODO: Collect execution profile.
+        if let Some(mut profile) = self.profile.take() {
+            match self.handle.generate_final_execution_profile() {
+                Ok(execution) => {
+                    profile.execution = Some(execution);
+                }
+                Err(e) => {
+                    // Don't fail the query because we couldn't generate the
+                    // final profile, just log.
+                    error!(%e, "failed to generate final execution profile");
+                }
+            }
 
-        if let Some(profile) = self.profile.take() {
             self.profiles.push_profile(profile);
         }
 

@@ -39,6 +39,7 @@ impl ProfileCollector {
 pub struct QueryProfile {
     pub id: Uuid,
     pub plan: Option<PlanningProfile>,
+    pub execution: Option<ExecutionProfile>,
 }
 
 /// Profile data for the optimizer.
@@ -68,7 +69,7 @@ pub struct PlanningProfile {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct PartitionPipelineOperatorProfile {
+pub struct OperatorProfile {
     /// Total time spent execution this operator.
     pub execution_duration: Duration,
     /// Total number of rows pushing into this operator within this pipeline.
@@ -80,18 +81,19 @@ pub struct PartitionPipelineOperatorProfile {
 #[derive(Debug, Clone)]
 pub struct PartitionPipelineProfile {
     /// Profiles for each operator in this pipeline.
-    pub operator_profiles: Vec<PartitionPipelineOperatorProfile>,
+    pub operator_profiles: Vec<OperatorProfile>,
 }
 
 impl PartitionPipelineProfile {
     pub fn new(num_operators: usize) -> Self {
         PartitionPipelineProfile {
-            operator_profiles: vec![PartitionPipelineOperatorProfile::default(); num_operators],
+            operator_profiles: vec![OperatorProfile::default(); num_operators],
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct ExecutionProfile {
-    pub partition_profiles: Vec<PartitionPipelineProfile>,
+    /// Profiles for each partition pipeline in the query.
+    pub partition_pipeline_profiles: Vec<PartitionPipelineProfile>,
 }

@@ -14,7 +14,7 @@ use super::operators::{
     PollPush,
 };
 use crate::arrays::batch::Batch;
-use crate::catalog::profile::{PartitionPipelineOperatorProfile, PartitionPipelineProfile};
+use crate::catalog::profile::{OperatorProfile, PartitionPipelineProfile};
 use crate::execution::execution_stack::StackControlFlow;
 use crate::runtime::time::RuntimeInstant;
 
@@ -39,7 +39,10 @@ pub struct ExecutablePartitionPipeline {
     /// Controls the execution of the operators for this partition.
     pub(crate) stack: ExecutionStack,
     /// Execution profile for this pipeline.
-    pub(crate) profile: PartitionPipelineProfile,
+    ///
+    /// A value of None indicates that this partition pipeline has been
+    /// completed, and should not be polled again.
+    pub(crate) profile: Option<PartitionPipelineProfile>,
 }
 
 impl ExecutablePartitionPipeline {
@@ -61,11 +64,14 @@ impl ExecutablePartitionPipeline {
             partition_states: Vec::with_capacity(num_operators),
             buffers: Vec::with_capacity(num_operators - 1),
             stack: ExecutionStack::new(num_operators),
-            profile: PartitionPipelineProfile::new(num_operators),
+            profile: Some(PartitionPipelineProfile::new(num_operators)),
         }
     }
 
     /// Try to execute as much of the pipeline for this partition as possible.
+    ///
+    /// Returns an execution profile once this pipeline is poll to completion.
+    /// This pipeline must not be polled again.
     ///
     /// Loop through all operators, pushing data as far as we can until we get
     /// to a pending state, or we've completed the pipeline.
@@ -86,17 +92,26 @@ impl ExecutablePartitionPipeline {
     /// next call to `poll_execute` will pick up where it left off.
     ///
     /// The inner logic lives in `ExecutionStack`.
-    pub fn poll_execute<I>(&mut self, cx: &mut Context) -> Poll<Result<()>>
+    ///
+    /// # Panics
+    ///
+    /// Panics if this pipeline was already polled to completion.
+    pub fn poll_execute<I>(&mut self, cx: &mut Context) -> Poll<Result<PartitionPipelineProfile>>
     where
         I: RuntimeInstant,
     {
+        let prof = self
+            .profile
+            .as_mut()
+            .expect("poll_execute to be called on pipeline that hasn't completed");
+
         let mut effects = OperatorEffects::<I> {
             cx,
             operators: &self.operators,
             operator_states: &self.operator_states,
             partition_states: &mut self.partition_states,
             buffers: &mut self.buffers,
-            profiles: &mut self.profile.operator_profiles,
+            profiles: &mut prof.operator_profiles,
             _instant: PhantomData,
         };
 
@@ -108,16 +123,10 @@ impl ExecutablePartitionPipeline {
 
             match control_flow {
                 StackControlFlow::Continue => continue,
-                StackControlFlow::Finished => return Poll::Ready(Ok(())),
+                StackControlFlow::Finished => return Poll::Ready(Ok(self.profile.take().unwrap())),
                 StackControlFlow::Pending => return Poll::Pending,
             }
         }
-    }
-
-    pub fn profile(&self) -> &PartitionPipelineProfile {
-        // TODO: We should probably just return the profile when we finish
-        // execute.
-        &self.profile
     }
 }
 
@@ -133,7 +142,7 @@ struct OperatorEffects<'a, 'b, I> {
     partition_states: &'a mut [AnyPartitionState],
     buffers: &'a mut [Batch],
     /// Profile data for each operator this pipeline.
-    profiles: &'a mut [PartitionPipelineOperatorProfile],
+    profiles: &'a mut [OperatorProfile],
     /// Instant type to time each operator.
     _instant: PhantomData<I>,
 }

@@ -11,6 +11,7 @@ use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalF64,
     PhysicalI32,
+    PhysicalU64,
     PhysicalUtf8,
 };
 use crate::arrays::batch::Batch;
@@ -112,19 +113,19 @@ pub const FUNCTION_SET_EXECUTION_PROFILE: TableFunctionSet = TableFunctionSet {
         // Get profile for most recent query.
         RawTableFunction::new_scan(
             &Signature::new(&[], DataTypeId::Table),
-            &ProfileTableGen::new(PlanningProfileTable),
+            &ProfileTableGen::new(ExecutionProfileTable),
         ),
         // execution_profile(n)
         // Get profile for the nth query, starting at the most recent (0).
         RawTableFunction::new_scan(
             &Signature::new(&[DataTypeId::Int64], DataTypeId::Table),
-            &ProfileTableGen::new(PlanningProfileTable),
+            &ProfileTableGen::new(ExecutionProfileTable),
         ),
         // execution_profile(id)
         // Get profile for specific query by id
         RawTableFunction::new_scan(
             &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
-            &ProfileTableGen::new(PlanningProfileTable),
+            &ProfileTableGen::new(ExecutionProfileTable),
         ),
     ],
 };
@@ -370,18 +371,75 @@ impl ProfileTable for OptimizerProfileTable {
 pub struct ExecutionProfileTable;
 
 #[derive(Debug)]
-pub struct ExecutionProfileRow {}
+pub struct ExecutionProfileRow {
+    /// ID of this query.
+    query_id: Uuid,
+    /// Rows pushed into this operator.
+    rows_in: u64,
+    /// Rows produces by this operator.
+    rows_out: u64,
+}
 
 impl ProfileTable for ExecutionProfileTable {
-    const COLUMNS: &[ProfileColumn] = &[];
+    const COLUMNS: &[ProfileColumn] = &[
+        ProfileColumn::new("query_id", DataType::Utf8),
+        ProfileColumn::new("rows_in", DataType::UInt64),
+        ProfileColumn::new("rows_out", DataType::UInt64),
+    ];
+
     type Row = ExecutionProfileRow;
 
     fn profile_as_rows(profile: &QueryProfile) -> Result<Vec<Self::Row>> {
-        Ok(Vec::new())
+        let prof = match &profile.execution {
+            Some(prof) => prof,
+            None => return Ok(Vec::new()),
+        };
+
+        let query_id = profile.id;
+
+        let rows = prof
+            .partition_pipeline_profiles
+            .iter()
+            .flat_map(|part_prof| {
+                part_prof
+                    .operator_profiles
+                    .iter()
+                    .map(|op_prof| ExecutionProfileRow {
+                        query_id,
+                        rows_in: op_prof.rows_in,
+                        rows_out: op_prof.rows_out,
+                    })
+            })
+            .collect();
+
+        Ok(rows)
     }
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
-        Ok(())
+        projections.for_each_column(output, &mut |col_idx, array| match col_idx {
+            0 => {
+                let mut ids = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    ids.put(idx, &row.query_id.to_string());
+                }
+                Ok(())
+            }
+            1 => {
+                let mut rows_in = PhysicalU64::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    rows_in.put(idx, &row.rows_in);
+                }
+                Ok(())
+            }
+            2 => {
+                let mut rows_out = PhysicalU64::get_addressable_mut(array.data_mut())?;
+                for (idx, row) in rows.iter().enumerate() {
+                    rows_out.put(idx, &row.rows_out);
+                }
+                Ok(())
+            }
+            other => panic!("invalid projection {other}"),
+        })
     }
 }
 

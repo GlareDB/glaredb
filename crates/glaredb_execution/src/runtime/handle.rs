@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
-use futures::future::BoxFuture;
 use glaredb_error::Result;
 
+use super::profile_buffer::ProfileBuffer;
 use crate::catalog::profile::ExecutionProfile;
 
 /// A handle to a running or recently completed query.
@@ -13,9 +13,27 @@ pub trait QueryHandle: Debug + Sync + Send {
     /// be canceled.
     fn cancel(&self);
 
-    /// Generates profile data for the query.
+    /// Get a reference to the buffer holding the execution profiles.
+    fn get_profile_buffer(&self) -> &ProfileBuffer;
+
+    /// Generates the final execution profile for the query.
     ///
-    /// This is async as it's expected to fetch profiling data for pipelines
-    /// executing on remote nodes.
-    fn generate_execution_profile(&self) -> BoxFuture<'_, Result<ExecutionProfile>>;
+    /// This should only be called onces, and after executing the query to
+    /// completion.
+    // TODO: This may at some point require async if we need to fetch remote
+    // profiles.
+    fn generate_final_execution_profile(&self) -> Result<ExecutionProfile> {
+        let buffer = self.get_profile_buffer();
+
+        // TODO: We shouldn't filter out None profiles.
+        let profiles = buffer
+            .take_profiles()?
+            .into_iter()
+            .filter_map(|prof| prof)
+            .collect();
+
+        Ok(ExecutionProfile {
+            partition_pipeline_profiles: profiles,
+        })
+    }
 }

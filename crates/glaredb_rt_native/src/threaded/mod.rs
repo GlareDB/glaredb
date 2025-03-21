@@ -7,6 +7,7 @@ use std::sync::Arc;
 use glaredb_error::{DbError, Result};
 use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_execution::runtime::ErrorSink;
+use glaredb_execution::runtime::profile_buffer::ProfileBuffer;
 use handle::ThreadedQueryHandle;
 use parking_lot::Mutex;
 use rayon::{ThreadPool, ThreadPoolBuilder};
@@ -52,15 +53,19 @@ impl Scheduler for ThreadedScheduler {
     ///
     /// Each partition pipeline in the query graph will be independently
     /// executed.
-    fn spawn_pipelines<P>(&self, pipelines: P, errors: Arc<dyn ErrorSink>) -> ThreadedQueryHandle
-    where
-        P: IntoIterator<Item = ExecutablePartitionPipeline>,
-    {
+    fn spawn_pipelines(
+        &self,
+        pipelines: Vec<ExecutablePartitionPipeline>,
+        errors: Arc<dyn ErrorSink>,
+    ) -> ThreadedQueryHandle {
         debug!("spawning execution of query graph");
+
+        let (profiles, profile_sinks) = ProfileBuffer::new(pipelines.len());
 
         let task_states: Vec<_> = pipelines
             .into_iter()
-            .map(|pipeline| {
+            .zip(profile_sinks)
+            .map(|(pipeline, profile_sink)| {
                 Arc::new(TaskState {
                     pipeline: Mutex::new(PipelineState {
                         pipeline,
@@ -68,12 +73,14 @@ impl Scheduler for ThreadedScheduler {
                     }),
                     errors: errors.clone(),
                     pool: self.pool.clone(),
+                    profile_sink,
                 })
             })
             .collect();
 
         let handle = ThreadedQueryHandle {
             states: Mutex::new(task_states.clone()),
+            profiles,
         };
 
         for state in task_states {

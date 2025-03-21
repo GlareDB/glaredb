@@ -4,6 +4,7 @@ use std::task::{Context, Poll, Wake, Waker};
 use glaredb_error::DbError;
 use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_execution::runtime::ErrorSink;
+use glaredb_execution::runtime::profile_buffer::ProfileSink;
 use parking_lot::Mutex;
 use rayon::ThreadPool;
 
@@ -19,6 +20,8 @@ pub(crate) struct TaskState {
     pub(crate) errors: Arc<dyn ErrorSink>,
     /// The threadpool to execute on.
     pub(crate) pool: Arc<ThreadPool>,
+    /// Where to put the profile when this pipeline completes.
+    pub(crate) profile_sink: ProfileSink,
 }
 
 #[derive(Debug)]
@@ -55,8 +58,10 @@ impl PartitionPipelineTask {
             .pipeline
             .poll_execute::<NativeInstant>(&mut cx)
         {
-            Poll::Ready(Ok(())) => {
-                // Pushing through the pipeline was successful.
+            Poll::Ready(Ok(prof)) => {
+                // Pushing through the pipeline was successful. Put our profile.
+                // We'll never execute again.
+                self.state.profile_sink.put(prof);
             }
             Poll::Ready(Err(e)) => {
                 self.state.errors.set_error(e);

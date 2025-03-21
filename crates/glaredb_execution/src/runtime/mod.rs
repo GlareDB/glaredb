@@ -1,4 +1,5 @@
 pub mod handle;
+pub mod profile_buffer;
 pub mod time;
 
 use std::fmt::Debug;
