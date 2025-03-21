@@ -118,11 +118,19 @@ impl ExecutablePipeline {
         self.operator_states.push(state);
     }
 
+    /// Creates some number of partition partition pipelines for this pipeline.
+    ///
+    /// The number of partitions specified indicates the amount of parallelism
+    /// for a pipeline.
     pub fn create_partition_pipelines(
         &self,
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<ExecutablePartitionPipeline>> {
+        if partitions < 1 {
+            return Err(DbError::new("Partitions cannot be less than one"));
+        }
+
         debug_assert_eq!(self.operators.len(), self.operator_states.len());
 
         if self.operators.len() < 2 {

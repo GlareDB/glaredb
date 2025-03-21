@@ -1,0 +1,14 @@
+# Verify validation of setting partitons.
+
+statement error Partition count cannot be less than 1
+SET partitions TO 0;
+
+statement ok
+SET partitions TO 1;
+
+statement error Partition count cannot be greater than 512
+SET partitions TO 513;
+
+statement ok
+SET partitions TO 512;
+
