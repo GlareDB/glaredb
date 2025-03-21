@@ -23,7 +23,7 @@ impl OperatorPlanState<'_> {
             .context("Failed to plan expressions for projection")?;
 
         let operator = PhysicalProject::new(projections);
-        let planned = PlannedOperator::new_execute(self.id_gen.next(), operator);
+        let planned = PlannedOperator::new_execute(self.id_gen.next_id(), operator);
 
         Ok(PlannedOperatorWithChildren {
             operator: planned,

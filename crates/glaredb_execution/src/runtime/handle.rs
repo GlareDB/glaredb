@@ -26,11 +26,7 @@ pub trait QueryHandle: Debug + Sync + Send {
         let buffer = self.get_profile_buffer();
 
         // TODO: We shouldn't filter out None profiles.
-        let profiles = buffer
-            .take_profiles()?
-            .into_iter()
-            .filter_map(|prof| prof)
-            .collect();
+        let profiles = buffer.take_profiles()?.into_iter().flatten().collect();
 
         Ok(ExecutionProfile {
             partition_pipeline_profiles: profiles,

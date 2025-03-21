@@ -39,7 +39,7 @@ impl OperatorPlanState<'_> {
             )]);
 
             planned = PlannedOperatorWithChildren {
-                operator: PlannedOperator::new_execute(self.id_gen.next(), agg),
+                operator: PlannedOperator::new_execute(self.id_gen.next_id(), agg),
                 children: vec![planned],
             }
         }

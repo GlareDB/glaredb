@@ -37,7 +37,7 @@ impl OperatorPlanState<'_> {
 
         let proj_op = PlannedOperatorWithChildren {
             operator: PlannedOperator::new_execute(
-                self.id_gen.next(),
+                self.id_gen.next_id(),
                 PhysicalProject::new(projections),
             ),
             children: vec![scan_op],

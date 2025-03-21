@@ -24,7 +24,7 @@ impl OperatorPlanState<'_> {
         let sort = PhysicalSort::new(sort_exprs, child.operator.call_output_types());
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(self.id_gen.next(), sort),
+            operator: PlannedOperator::new_execute(self.id_gen.next_id(), sort),
             children: vec![child],
         })
     }

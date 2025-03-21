@@ -81,7 +81,7 @@ impl OperatorPlanState<'_> {
 
         let child = PlannedOperatorWithChildren {
             operator: PlannedOperator::new_execute(
-                self.id_gen.next(),
+                self.id_gen.next_id(),
                 PhysicalProject::new(preproject_exprs),
             ),
             children: vec![child],
@@ -102,7 +102,7 @@ impl OperatorPlanState<'_> {
                 let operator = PhysicalHashAggregate::new(aggregates, grouping_sets);
 
                 Ok(PlannedOperatorWithChildren {
-                    operator: PlannedOperator::new_execute(self.id_gen.next(), operator),
+                    operator: PlannedOperator::new_execute(self.id_gen.next_id(), operator),
                     children: vec![child],
                 })
             }
@@ -111,7 +111,7 @@ impl OperatorPlanState<'_> {
                 let operator = PhysicalUngroupedAggregate::new(phys_aggs);
 
                 Ok(PlannedOperatorWithChildren {
-                    operator: PlannedOperator::new_execute(self.id_gen.next(), operator),
+                    operator: PlannedOperator::new_execute(self.id_gen.next_id(), operator),
                     children: vec![child],
                 })
             }

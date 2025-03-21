@@ -65,7 +65,7 @@ impl ProfileBuffer {
             ));
         }
 
-        let profiles = std::mem::replace(&mut inner.profiles, Vec::new());
+        let profiles = std::mem::take(&mut inner.profiles);
         inner.consumed = true;
 
         Ok(profiles)

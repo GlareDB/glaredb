@@ -17,7 +17,7 @@ impl OperatorPlanState<'_> {
         let operator = PhysicalScan::new(projections, function);
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_pull(self.id_gen.next(), operator),
+            operator: PlannedOperator::new_pull(self.id_gen.next_id(), operator),
             children: Vec::new(),
         })
     }

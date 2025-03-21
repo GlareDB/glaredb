@@ -63,7 +63,7 @@ pub struct OperatorIdGen {
 }
 
 impl OperatorIdGen {
-    pub fn next(&mut self) -> OperatorId {
+    pub fn next_id(&mut self) -> OperatorId {
         let id = OperatorId(self.next);
         self.next += 1;
         id
@@ -111,7 +111,7 @@ impl OperatorPlanner {
         // Now plan to query with access to all materializations.
         let root = state.plan(root)?;
 
-        let planned_sink = PlannedOperator::new_push(state.id_gen.next(), sink);
+        let planned_sink = PlannedOperator::new_push(state.id_gen.next_id(), sink);
 
         let root = PlannedOperatorWithChildren {
             operator: planned_sink,
@@ -192,7 +192,7 @@ impl<'a> OperatorPlanState<'a> {
             };
 
             let operator = PlannedOperatorWithChildren {
-                operator: PlannedOperator::new_materializing(self.id_gen.next(), operator),
+                operator: PlannedOperator::new_materializing(self.id_gen.next_id(), operator),
                 children: vec![mat_root],
             };
 

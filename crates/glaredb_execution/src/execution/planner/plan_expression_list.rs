@@ -27,7 +27,7 @@ impl OperatorPlanState<'_> {
         let values = PhysicalValues::new(rows);
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(self.id_gen.next(), values),
+            operator: PlannedOperator::new_execute(self.id_gen.next_id(), values),
             children: vec![child],
         })
     }

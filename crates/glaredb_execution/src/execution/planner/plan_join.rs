@@ -148,7 +148,7 @@ impl OperatorPlanState<'_> {
         )?;
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_push_execute(self.id_gen.next(), join),
+            operator: PlannedOperator::new_push_execute(self.id_gen.next_id(), join),
             children: vec![left, right],
         })
     }

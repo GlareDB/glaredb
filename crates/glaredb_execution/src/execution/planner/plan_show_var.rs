@@ -19,9 +19,9 @@ impl OperatorPlanState<'_> {
         let operator = PhysicalValues::new(vec![vec![PhysicalLiteralExpr::new(show.value).into()]]);
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(self.id_gen.next(), operator),
+            operator: PlannedOperator::new_execute(self.id_gen.next_id(), operator),
             children: vec![PlannedOperatorWithChildren {
-                operator: PlannedOperator::new_pull(self.id_gen.next(), PhysicalEmpty),
+                operator: PlannedOperator::new_pull(self.id_gen.next_id(), PhysicalEmpty),
                 children: Vec::new(),
             }],
         })

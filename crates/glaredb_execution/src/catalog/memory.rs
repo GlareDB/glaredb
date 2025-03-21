@@ -135,7 +135,7 @@ impl Catalog for MemoryCatalog {
             info: create,
         };
 
-        Ok(PlannedOperator::new_pull(id_gen.next(), operator))
+        Ok(PlannedOperator::new_pull(id_gen.next_id(), operator))
     }
 
     fn plan_create_table(
@@ -152,7 +152,7 @@ impl Catalog for MemoryCatalog {
             info: create,
         };
 
-        Ok(PlannedOperator::new_pull(id_gen.next(), operator))
+        Ok(PlannedOperator::new_pull(id_gen.next_id(), operator))
     }
 
     fn plan_insert(
@@ -162,7 +162,7 @@ impl Catalog for MemoryCatalog {
         table: Arc<CatalogEntry>,
     ) -> Result<PlannedOperator> {
         Ok(PlannedOperator::new_execute(
-            id_gen.next(),
+            id_gen.next_id(),
             PhysicalInsert {
                 storage: storage.clone(),
                 entry: table,
@@ -184,7 +184,7 @@ impl Catalog for MemoryCatalog {
             info: create,
         };
 
-        Ok(PlannedOperator::new_execute(id_gen.next(), operator))
+        Ok(PlannedOperator::new_execute(id_gen.next_id(), operator))
     }
 
     fn plan_create_schema(
@@ -193,7 +193,7 @@ impl Catalog for MemoryCatalog {
         create: CreateSchemaInfo,
     ) -> Result<PlannedOperator> {
         Ok(PlannedOperator::new_pull(
-            id_gen.next(),
+            id_gen.next_id(),
             PhysicalCreateSchema {
                 catalog: self.clone(),
                 info: create,
@@ -208,7 +208,7 @@ impl Catalog for MemoryCatalog {
         drop: DropInfo,
     ) -> Result<PlannedOperator> {
         Ok(PlannedOperator::new_pull(
-            id_gen.next(),
+            id_gen.next_id(),
             PhysicalDrop {
                 storage: storage.clone(),
                 catalog: self.clone(),
