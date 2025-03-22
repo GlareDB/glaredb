@@ -1,6 +1,7 @@
 mod vars;
 use glaredb_execution::arrays::format::pretty::table::PrettyTable;
 use glaredb_execution::engine::single_user::SingleUserEngine;
+use uuid::Uuid;
 pub use vars::*;
 
 mod convert;
@@ -35,7 +36,7 @@ pub const DEBUG_PRINT_EXPLAIN_VAR: &str = "DEBUG_PRINT_EXPLAIN";
 pub const DEBUG_SET_PARTITIONS_VAR: &str = "DEBUG_SET_PARTITIONS";
 
 /// Environment variable for printing out profiling data after querye execution.
-pub const DEBUG_PRINT_PROFILE_DATA_VAR: &str = "DEBUG_PRINT_PROFILE_DATA";
+pub const DEBUG_PRINT_PROFILE_VAR: &str = "DEBUG_PRINT_PROFILE";
 
 #[derive(Debug)]
 pub struct RunConfig {
@@ -244,31 +245,30 @@ impl TestSession {
         self.debug_partitions_set = true;
     }
 
-    // async fn debug_print_profile_data(&self, table: &MaterializedResultTable, sql: &str) {
-    //     if std::env::var(DEBUG_PRINT_PROFILE_DATA_VAR).is_err() {
-    //         // Not set.
-    //         return;
-    //     }
+    async fn debug_print_profile(&self, query_id: Uuid) {
+        if std::env::var(DEBUG_PRINT_PROFILE_VAR).is_err() {
+            // Not set.
+            return;
+        }
 
-    //     println!("---- PROFILE ----");
-    //     println!("{sql}");
+        let (cols, _rows) = crossterm::terminal::size().unwrap_or((100, 0));
+        let run_and_print = async |query: String| {
+            if let Ok(mut res) = self.conf.engine.session().query(&query).await {
+                let batches = res.output.collect().await.unwrap();
+                println!(
+                    "{}",
+                    PrettyTable::try_new(&res.output_schema, &batches, cols as usize, Some(200))
+                        .unwrap()
+                );
+            }
+        };
 
-    //     println!("---- PLANNING ----");
-    //     match table.planning_profile_data() {
-    //         Some(data) => {
-    //             println!("{}", data);
-    //         }
-    //         None => println!("Planning profile data not available"),
-    //     }
+        println!("---- PLANNING PROFILE ----");
+        run_and_print(format!("SELECT * FROM planning_profile('{query_id}')")).await;
 
-    //     println!("---- EXECUTION ----");
-    //     match table.execution_profile_data() {
-    //         Some(data) => {
-    //             println!("{data}");
-    //         }
-    //         None => println!("Execution profile data not available"),
-    //     }
-    // }
+        println!("---- EXECUTION PROFILE ----");
+        run_and_print(format!("SELECT * FROM execution_profile('{query_id}')")).await;
+    }
 
     async fn run_inner(
         &mut self,
@@ -302,7 +302,7 @@ impl TestSession {
         tokio::select! {
             materialized = query_res.output.collect() => {
                 let materialized = materialized?;
-                // self.debug_print_profile_data(&materialized, sql).await;
+                self.debug_print_profile(query_res.query_id).await;
 
                 Ok(sqllogictest::DBOutput::Rows {
                     types: schema_to_types(&query_res.output_schema),
