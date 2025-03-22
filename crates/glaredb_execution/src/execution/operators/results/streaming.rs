@@ -142,6 +142,7 @@ pub struct StreamingResultsOperatorState {
 
 #[derive(Debug)]
 pub struct StreamingResultsPartitionState {
+    finished: bool, // For debug.
     partition_idx: usize,
 }
 
@@ -190,7 +191,10 @@ impl PushOperator for PhysicalStreamingResults {
         inner.remaining_inputs = partitions;
 
         let states = (0..partitions)
-            .map(|partition_idx| StreamingResultsPartitionState { partition_idx })
+            .map(|partition_idx| StreamingResultsPartitionState {
+                finished: false,
+                partition_idx,
+            })
             .collect();
 
         Ok(states)
@@ -203,6 +207,8 @@ impl PushOperator for PhysicalStreamingResults {
         state: &mut Self::PartitionPushState,
         input: &mut Batch,
     ) -> Result<PollPush> {
+        // TODO: We should probably be filtering these out during the core
+        // execution loop.
         if input.num_rows() == 0 {
             return Ok(PollPush::NeedsMore);
         }
@@ -233,8 +239,11 @@ impl PushOperator for PhysicalStreamingResults {
         &self,
         _cx: &mut Context,
         operator_state: &Self::OperatorState,
-        _state: &mut Self::PartitionPushState,
+        state: &mut Self::PartitionPushState,
     ) -> Result<PollFinalize> {
+        debug_assert!(!state.finished);
+        state.finished = true;
+
         let mut inner = operator_state.sink.inner.lock();
         inner.remaining_inputs -= 1;
 

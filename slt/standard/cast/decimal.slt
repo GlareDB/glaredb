@@ -79,3 +79,19 @@ query R
 SELECT CAST(0.2 AS DECIMAL(15, 2));
 ----
 0.20
+
+query TT
+DESCRIBE SELECT a, a::DECIMAL(8,2)
+           FROM VALUES (10.308), (10.301), (-10.308), (-10.301) v(a) ORDER BY 1;
+----
+a         Decimal64(5,3)
+?column?  Decimal64(8,2)
+
+query R
+SELECT a, a::DECIMAL(8,2)
+  FROM VALUES (10.308), (10.301), (-10.308), (-10.301) v(a) ORDER BY 1;
+----
+-10.308  -10.31
+-10.301  -10.30
+10.301   10.30
+10.308   10.31
