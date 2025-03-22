@@ -49,8 +49,8 @@ pub enum KeyEvent {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct LineInput<'a> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UserInput<'a> {
     /// The string the user entered.
     pub s: &'a str,
     /// If the input is prefixed with a '.' indicating the user entered a shell
@@ -64,7 +64,7 @@ pub enum Signal<'a> {
     /// Keep sending input.
     KeepEditing,
     /// Input completed.
-    InputCompleted(&'a str),
+    InputCompleted(UserInput<'a>),
     /// User requested exit.
     Exit,
 }
@@ -156,14 +156,6 @@ where
         match key {
             KeyEvent::Char(c) => self.edit_insert_char(c, true)?,
             KeyEvent::Backspace => self.edit_backspace()?,
-            KeyEvent::ShiftEnter => {
-                self.edit_move_to_end()?;
-
-                write!(self.writer, "{}", vt100::CRLF)?;
-                self.writer.flush()?;
-
-                return Ok(Signal::InputCompleted(self.buffer.as_ref()));
-            }
             KeyEvent::Enter => {
                 if self.is_complete() {
                     self.edit_move_to_end()?;
@@ -171,7 +163,13 @@ where
                     write!(self.writer, "{}", vt100::CRLF)?;
                     self.writer.flush()?;
 
-                    return Ok(Signal::InputCompleted(self.buffer.as_ref()));
+                    let trimmed = self.buffer.as_ref().trim();
+                    let input = UserInput {
+                        s: trimmed,
+                        is_dot_command: trimmed.starts_with('.'),
+                    };
+
+                    return Ok(Signal::InputCompleted(input));
                 }
                 self.edit_enter()?;
             }

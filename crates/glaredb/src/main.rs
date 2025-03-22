@@ -154,11 +154,15 @@ async fn inner(
 
     // Otherwise continue on with interactive shell.
 
-    let mut shell = Shell::new(stdout, CrosstermRawModeTerm);
-    shell.set_size(TermSize {
-        cols: cols as usize,
-    });
-    shell.attach(engine, "GlareDB Shell")?;
+    let mut shell = Shell::start(
+        stdout,
+        CrosstermRawModeTerm,
+        Some(TermSize {
+            cols: cols as usize,
+        }),
+        engine,
+        "GlareDB Shell",
+    )?;
 
     let mut edit_guard = shell.edit_start()?;
 

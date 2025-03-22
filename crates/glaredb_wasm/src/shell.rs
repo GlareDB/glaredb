@@ -140,9 +140,13 @@ impl WasmShell {
         let session = WasmSession::try_new()?;
 
         let terminal = TerminalBuffer::new(terminal);
-        let mut shell = Shell::new(terminal, NopRawMode);
-
-        shell.attach(session.engine, "GlareDB WASM Shell")?;
+        let mut shell = Shell::start(
+            terminal,
+            NopRawMode,
+            None,
+            session.engine,
+            "GlareDB Wasm Shell",
+        )?;
 
         let edit_guard = shell.edit_start()?;
 

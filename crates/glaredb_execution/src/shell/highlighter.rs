@@ -60,6 +60,16 @@ impl HighlightState {
         self.highlight_toks.clear();
         self.toks.clear();
 
+        if query.starts_with('.') {
+            // Dot command, don't do any highlighting.
+            self.highlight_toks.push_back(HighlightToken {
+                token_type: TokenType::Reset,
+                offset: 0,
+            });
+
+            return;
+        }
+
         if Tokenizer::new(query).tokenize(&mut self.toks).is_err() {
             // Ideally we don't error here, but if we do, just use a single
             // token that does no highlighting.
