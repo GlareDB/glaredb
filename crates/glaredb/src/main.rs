@@ -10,7 +10,7 @@ use glaredb_execution::arrays::format::pretty::table::PrettyTable;
 use glaredb_execution::engine::single_user::SingleUserEngine;
 use glaredb_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
 use glaredb_execution::shell::lineedit::{KeyEvent, TermSize};
-use glaredb_execution::shell::shell::{RawModeTerm, Shell, ShellSignal};
+use glaredb_execution::shell::{RawModeTerm, Shell, ShellSignal};
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 
 #[derive(Parser)]
@@ -19,8 +19,6 @@ struct Arguments {
     /// Execute file containing sql statements then exit.
     #[clap(short = 'f', long)]
     files: Vec<PathBuf>,
-    #[clap(long)]
-    dump_profile: bool,
     /// Queries to execute.
     ///
     /// If omitted, and no files were given via the `files` argument, then an

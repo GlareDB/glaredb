@@ -3,7 +3,7 @@ use std::io;
 use std::rc::Rc;
 
 use glaredb_execution::shell::lineedit::{KeyEvent, TermSize};
-use glaredb_execution::shell::shell::{RawModeGuard, RawModeTerm, Shell, ShellSignal};
+use glaredb_execution::shell::{RawModeGuard, RawModeTerm, Shell, ShellSignal};
 use js_sys::Function;
 use tracing::{error, trace, warn};
 use wasm_bindgen::prelude::*;

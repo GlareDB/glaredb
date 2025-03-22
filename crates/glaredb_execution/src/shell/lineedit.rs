@@ -49,6 +49,15 @@ pub enum KeyEvent {
     Unknown,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct LineInput<'a> {
+    /// The string the user entered.
+    pub s: &'a str,
+    /// If the input is prefixed with a '.' indicating the user entered a shell
+    /// commend.
+    pub is_dot_command: bool,
+}
+
 /// Signal as a response to a key input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Signal<'a> {
@@ -468,7 +477,7 @@ where
 
     fn is_complete(&self) -> bool {
         let trimmed = self.buffer.as_ref().trim();
-        trimmed.ends_with(';') || trimmed.starts_with('/')
+        trimmed.ends_with(';') || trimmed.starts_with('.')
     }
 }
 
