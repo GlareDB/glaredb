@@ -7,7 +7,7 @@ edition.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
-web-sys = { version = "0.3.69", features = [
+web-sys = { version = "0.3.77", features = [
   "console",
   "KeyboardEvent",
   "Window",
@@ -30,12 +30,12 @@ js-sys = "0.3.69"
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", default-features = false, features = ["std", "fmt", "env-filter"] }
 wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4.42"
+wasm-bindgen-futures = "0.4.45"
 tokio = { workspace = true, default-features = false, features = [ "rt" ] } # TODO: Remove tokio from runtime interface
 console_error_panic_hook = "0.1.7"
 url = { workspace = true }
 bytes = { version = "1.10", default-features = false, features = ["std"] }
-reqwest = { version = "0.12.4", default-features = false, features = ["rustls-tls", "stream"] }
+reqwest = { version = "0.12.15", default-features = false, features = ["rustls-tls", "stream"] }
 
 # See <https://docs.rs/getrandom/latest/getrandom/#webassembly-support>
 getrandom = { workspace = true, features = ["wasm_js"] }
