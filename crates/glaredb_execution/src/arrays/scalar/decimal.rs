@@ -9,9 +9,13 @@ use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalI64, Phy
 use crate::arrays::datatype::{DataType, DecimalTypeMeta};
 
 /// Trait describing the underlying primivite representing the decimal.
+// TODO: These num_trait traits are kind of annoying to use. It might make sense
+// to put some methods/consts directly on this trait.
 pub trait DecimalPrimitive:
     PrimInt + FromPrimitive + Signed + Default + Debug + Display + Sync + Send
 {
+    const ZERO: Self;
+
     /// Returns the base 10 log of this number, rounded down.
     ///
     /// This is guaranteed to be called with a non-zero positive number.
@@ -19,12 +23,16 @@ pub trait DecimalPrimitive:
 }
 
 impl DecimalPrimitive for i64 {
+    const ZERO: Self = 0;
+
     fn ilog10(self) -> u32 {
         i64::ilog10(self)
     }
 }
 
 impl DecimalPrimitive for i128 {
+    const ZERO: Self = 0;
+
     fn ilog10(self) -> u32 {
         i128::ilog10(self)
     }

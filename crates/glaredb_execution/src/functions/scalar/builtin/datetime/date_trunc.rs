@@ -109,7 +109,7 @@ impl ScalarFunction for DateTrunc {
     fn execute(state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let sel = input.selection();
         // First element is field name, skip.
-        let input = &input.arrays()[0];
+        let input = &input.arrays()[1];
 
         let trunc = match state.input_unit {
             TimeUnit::Second => match state.field {

@@ -1,7 +1,8 @@
-use std::ops::Mul;
+use std::cmp::Ordering;
+use std::ops::{Mul, Neg};
 
 use glaredb_error::{DbError, Result};
-use num_traits::{CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
+use num_traits::{CheckedAdd, CheckedDiv, CheckedMul, Float, NumCast, PrimInt, ToPrimitive};
 
 use super::behavior::CastFailBehavior;
 use super::format::{
@@ -73,7 +74,12 @@ use crate::arrays::cache::NopCache;
 use crate::arrays::datatype::{DataType, TimeUnit};
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
-use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
+use crate::arrays::scalar::decimal::{
+    Decimal64Type,
+    Decimal128Type,
+    DecimalPrimitive,
+    DecimalType,
+};
 use crate::buffer::buffer_manager::NopBufferManager;
 use crate::util::iter::IntoExactSizeIterator;
 
@@ -281,10 +287,18 @@ where
     let new_meta = out.datatype().try_get_decimal_type_meta()?;
     let arr_meta = arr.datatype().try_get_decimal_type_meta()?;
 
+    let scale_diff = arr_meta.scale - new_meta.scale;
     let scale_amount = <D2::Primitive as NumCast>::from(
         10.pow((arr_meta.scale - new_meta.scale).unsigned_abs() as u32),
     )
     .expect("to be in range");
+
+    // Only used when downscaling (reducing precision)
+    let rounding_addition = if scale_diff > 0 {
+        scale_amount / <D2::Primitive as NumCast>::from(2).unwrap()
+    } else {
+        D2::Primitive::ZERO
+    };
 
     let mut fail_state = behavior.new_state();
     UnaryExecutor::execute::<D1::Storage, D2::Storage, _>(
@@ -302,21 +316,39 @@ where
                 }
             };
 
-            if arr_meta.scale < new_meta.scale {
-                match v.checked_mul(&scale_amount) {
-                    Some(v) => buf.put(&v),
-                    None => {
-                        fail_state.set_error(|| DbError::new("Failed cast decimal"));
-                        buf.put_null();
+            // TODO: This if should be moved out this execute function.
+            match scale_diff.cmp(&0) {
+                Ordering::Less => {
+                    // Upscale
+                    match v.checked_mul(&scale_amount) {
+                        Some(v) => buf.put(&v),
+                        None => {
+                            fail_state.set_error(|| DbError::new("Failed cast decimal"));
+                            buf.put_null();
+                        }
                     }
                 }
-            } else {
-                match v.checked_div(&scale_amount) {
-                    Some(v) => buf.put(&v),
-                    None => {
-                        fail_state.set_error(|| DbError::new("Failed cast decimal"));
-                        buf.put_null();
+                Ordering::Greater => {
+                    // Downscale with rounding
+                    let adjustment = if v >= D2::Primitive::ZERO {
+                        rounding_addition
+                    } else {
+                        rounding_addition.neg()
+                    };
+                    match v
+                        .checked_add(&adjustment)
+                        .and_then(|v| v.checked_div(&scale_amount))
+                    {
+                        Some(v) => buf.put(&v),
+                        None => {
+                            fail_state.set_error(|| DbError::new("Failed cast decimal"));
+                            buf.put_null();
+                        }
                     }
+                }
+                Ordering::Equal => {
+                    // No change.
+                    buf.put(&v)
                 }
             }
         },
@@ -947,5 +979,30 @@ mod tests {
         let v = PhysicalI64::get_addressable(&out.data).unwrap().slice;
         // Truncate right-most zeros
         assert_eq!(130, v[0]);
+    }
+
+    #[test]
+    fn array_cast_decimal64_reduce_scale_round() {
+        let mut arr =
+            Array::try_from_iter([13100_i64, 13600, 13501, -13100, -13600, -13499]).unwrap();
+        // '[1.3100, 1.3600, 1.3501, -1.3100, -1.3600, -1.3499]'
+        arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(6, 4));
+
+        // Scale down to single decimal place.
+        let mut out = Array::new(
+            &NopBufferManager,
+            DataType::Decimal64(DecimalTypeMeta::new(6, 1)),
+            6,
+        )
+        .unwrap();
+        cast_array(&mut arr, 0..6, &mut out, CastFailBehavior::Error).unwrap();
+
+        let v = PhysicalI64::get_addressable(&out.data).unwrap().slice;
+        assert_eq!(13, v[0]); // Round down (1.3100 -> 1.3)
+        assert_eq!(14, v[1]); // Round up (1.3600 -> 1.4)
+        assert_eq!(14, v[2]); // Round up (1.3501 -> 1.4)
+        assert_eq!(-13, v[3]); // Round up (-1.3100 -> -1.3)
+        assert_eq!(-14, v[4]); // Round up (-1.3600 -> -1.4)
+        assert_eq!(-13, v[5]); // Round up (-1.3499 -> -1.3)
     }
 }

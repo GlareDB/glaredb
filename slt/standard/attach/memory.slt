@@ -1,6 +1,6 @@
 # ATTACH MEMORY ...
 
-halt;
+halt
 
 statement ok
 attach memory database as my_db;
