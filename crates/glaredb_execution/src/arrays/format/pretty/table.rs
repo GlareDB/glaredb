@@ -708,6 +708,9 @@ impl ColumnWidthSizeStats {
     }
 }
 
+/// Character to use to denote a hardwrap/softwrap in a string that we display.
+const LINEBREAK_CHAR: char = '+';
+
 /// Truncate or wrap a string as to not exceed `width` (including the possible
 /// overflow character).
 ///
@@ -730,11 +733,34 @@ fn truncate_or_wrap_string(s: &mut String, width: usize) -> usize {
             return num_lines;
         }
 
-        let lines = wrap(s, width - 1); // Include space for line break arrow.
+        let mut lines = wrap(s, width - 1); // Include space for line break character.
         let num_lines = lines.len();
 
-        let new_s = lines.join("↵\n");
-        *s = new_s;
+        // We'll handle formatting the last line separately.
+        let last = match lines.pop() {
+            Some(last) => last,
+            None => return 0, // No lines?
+        };
+
+        let mut out_buf = String::new();
+        // Format everything but the last line. This will mark line breaks at
+        // the end of the line.
+        for line in lines {
+            writeln!(
+                out_buf,
+                "{:<width$}{lb}",
+                line,
+                lb = LINEBREAK_CHAR,
+                width = width - 1
+            )
+            .expect("write to string to never fail");
+        }
+
+        // Format the last line. Just a simple write, we don't need to worry
+        // about writing newlines.
+        write!(out_buf, "{last}").expect("write to string to never fail");
+
+        *s = out_buf;
 
         return num_lines;
     }
@@ -769,6 +795,7 @@ mod tests {
     use crate::arrays::array::selection::Selection;
     use crate::arrays::field::Field;
     use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::generate_batch;
     use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
@@ -778,6 +805,7 @@ mod tests {
             input: &'static str,
             truncate: usize,
             expected: &'static str,
+            expected_lines: usize,
         }
 
         let test_cases = &[
@@ -785,38 +813,51 @@ mod tests {
                 input: "test",
                 truncate: 32,
                 expected: "test",
+                expected_lines: 1,
             },
             TestCase {
                 input: "test",
                 truncate: 4,
                 expected: "test",
+                expected_lines: 1,
             },
             TestCase {
                 input: "test",
                 truncate: 3,
                 expected: "te…",
+                expected_lines: 1,
             },
             TestCase {
                 input: "hello\nworld",
                 truncate: 8,
-                expected: "hello↵\nworld",
+                expected: "hello  +\nworld",
+                expected_lines: 2,
             },
             TestCase {
                 input: "hello\nworld",
                 truncate: 3,
-                expected: "he↵\nll↵\no↵\nwo↵\nrl↵\nd",
+                expected: "he+\nll+\no +\nwo+\nrl+\nd",
+                expected_lines: 6,
+            },
+            TestCase {
+                input: "hello world\n",
+                truncate: 16,
+                expected: "hello world    +\n",
+                expected_lines: 2,
             },
         ];
 
         for tc in test_cases {
             let mut s = tc.input.to_string();
-            truncate_or_wrap_string(&mut s, tc.truncate);
+            let lines = truncate_or_wrap_string(&mut s, tc.truncate);
             assert_eq!(tc.expected, &s, "test case: {tc:?}");
+            assert_eq!(tc.expected_lines, lines, "test case: {tc:?}");
         }
     }
 
     /// Assert equality and place both values in the assert message for easier
     /// of test failures.
+    #[track_caller]
     fn assert_eq_print<S: AsRef<str>>(expected: S, got: S) {
         let expected = expected.as_ref();
         let got = got.as_ref();
@@ -914,10 +955,10 @@ mod tests {
             "│ c1   │ c2    │ c3         │",
             "│ Utf8 │ Int32 │ Utf8       │",
             "├──────┼───────┼────────────┤",
-            "│ a↵   │     1 │ Mario      │",
+            "│ a  + │     1 │ Mario      │",
             "│ b    │       │            │",
             "│ c    │    10 │ Yoshi      │",
-            "│ d    │   100 │ Luigi↵     │",
+            "│ d    │   100 │ Luigi    + │",
             "│      │       │ Peach      │",
             "└──────┴───────┴────────────┘",
         ]
@@ -1442,6 +1483,31 @@ mod tests {
             "├────────┴────────┤",
             "│ 6 rows, 5 shown │",
             "└─────────────────┘",
+        ];
+        assert_eq_print(expected.join("\n"), table.to_string())
+    }
+
+    #[test]
+    fn batch_with_whitespace_trailing_newline() {
+        // This showcases the current (if suboptimal) behavior of not properly
+        // taking into account newlines during column width sampling.
+        //
+        // See <https://github.com/GlareDB/glaredb/issues/3467>
+
+        let schema = ColumnSchema::new([Field::new("a", DataType::Utf8, true)]);
+
+        let batch = generate_batch!(["yoshi mario\n"]);
+        let table = pretty_format_batches(&schema, &[batch], 40, Some(5)).unwrap();
+
+        let expected = [
+            "┌─────────────┐",
+            "│ a           │",
+            "│ Utf8        │",
+            "├─────────────┤",
+            "│ yoshi     + │",
+            "│ mario     + │",
+            "│             │",
+            "└─────────────┘",
         ];
         assert_eq_print(expected.join("\n"), table.to_string())
     }
