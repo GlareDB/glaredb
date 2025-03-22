@@ -7,7 +7,7 @@ edition.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
-web-sys = { version = "0.3.69", features = [
+web-sys = { version = "0.3.77", features = [
   "console",
   "KeyboardEvent",
   "Window",
