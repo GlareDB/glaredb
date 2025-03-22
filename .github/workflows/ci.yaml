@@ -85,14 +85,14 @@ jobs:
       # - name: SLTs TPC-H SF=0.1
       #   env:
       #     DEBUG_PRINT_EXPLAIN: 1
-      #     DEBUG_PRINT_PROFILE_DATA: 1
+      #     DEBUG_PRINT_PROFILE: 1
       #   run: |
       #     cargo test slt/tpch
 
       # - name: SLTs TPC-DS SF=0.1
       #   env:
       #     DEBUG_PRINT_EXPLAIN: 1
-      #     DEBUG_PRINT_PROFILE_DATA: 1
+      #     DEBUG_PRINT_PROFILE: 1
       #   run: |
       #     cargo test slt/tpcds/describe_files
       #     # cargo test slt/tpcds/q01
