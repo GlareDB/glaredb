@@ -868,7 +868,7 @@ impl<T> TryAsMut<T> for SharedOrOwned<T> {
     fn try_as_mut(&mut self) -> Result<&mut T, Self::Error> {
         match self {
             Self::Owned(v) => Ok(v.as_mut()),
-            Self::Shared(_) => Err(DbError::new("Cannot get mutable refernce")),
+            Self::Shared(_) => Err(DbError::new("Cannot get mutable reference")),
             Self::Uninit => panic!("invalid state"),
         }
     }

@@ -1,5 +1,6 @@
 use glaredb_error::Result;
 
+use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalBool};
 use crate::arrays::array::validity::Validity;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
@@ -140,6 +141,35 @@ impl MatchTracker {
 
         output.clone_from_other(left)?;
         output.select(match_iter)?;
+
+        Ok(())
+    }
+
+    /// Write the output of a left mark join to `output`.
+    pub fn left_mark_result(
+        &self,
+        left_offset: usize,
+        left: &mut Batch,
+        output: &mut Batch,
+    ) -> Result<()> {
+        debug_assert_eq!(left.arrays.len() + 1, output.arrays.len());
+
+        // Output gets the full left side.
+        for idx in 0..left.arrays.len() {
+            output.clone_array_from(idx, (left, idx))?;
+        }
+
+        // Plus a boolean array containing the matches.
+
+        let matches = &self.matches[left_offset..(left_offset + left.num_rows())];
+        let out_matches =
+            PhysicalBool::get_addressable_mut(&mut output.arrays.last_mut().unwrap().data)?;
+
+        for (out, &matched) in out_matches.slice.iter_mut().zip(matches) {
+            *out = matched;
+        }
+
+        output.set_num_rows(matches.len())?;
 
         Ok(())
     }
@@ -389,6 +419,53 @@ mod tests {
         let mut left = generate_batch!([3, 4]);
         tracker.left_semi_result(0, &mut left, &mut output).unwrap();
         let expected = generate_batch!([3]);
+        assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn left_mark_no_rows_match() {
+        // COLLECTION SIZE: 4
+        // OUTPUT SIZE: 2
+        //
+        // Matches all false.
+
+        let mut tracker = MatchTracker::empty();
+        tracker.ensure_initialized(4);
+
+        let mut output = Batch::new([DataType::Int32, DataType::Boolean], 2).unwrap();
+
+        let mut left = generate_batch!([1, 2]);
+        tracker.left_mark_result(0, &mut left, &mut output).unwrap();
+        let expected = generate_batch!([1, 2], [false, false]);
+        assert_batches_eq(&expected, &output);
+
+        let mut left = generate_batch!([3, 4]);
+        tracker.left_mark_result(0, &mut left, &mut output).unwrap();
+        let expected = generate_batch!([3, 4], [false, false]);
+        assert_batches_eq(&expected, &output);
+    }
+
+    #[test]
+    fn left_mark_some_rows_match() {
+        // COLLECTION SIZE: 4
+        // OUTPUT SIZE: 2
+
+        let mut tracker = MatchTracker::empty();
+        tracker.ensure_initialized(4);
+
+        // Should produce [true, false, true, false] for matches.
+        tracker.set_matches([0, 2]);
+
+        let mut output = Batch::new([DataType::Int32, DataType::Boolean], 2).unwrap();
+
+        let mut left = generate_batch!([1, 2]);
+        tracker.left_mark_result(0, &mut left, &mut output).unwrap();
+        let expected = generate_batch!([1, 2], [true, false]);
+        assert_batches_eq(&expected, &output);
+
+        let mut left = generate_batch!([3, 4]);
+        tracker.left_mark_result(0, &mut left, &mut output).unwrap();
+        let expected = generate_batch!([3, 4], [true, false]);
         assert_batches_eq(&expected, &output);
     }
 }
