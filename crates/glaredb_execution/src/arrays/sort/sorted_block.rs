@@ -61,13 +61,13 @@ impl SortedBlock {
         }
 
         let mut compare_offset = 0;
-        let mut sort_width = 0;
+        let mut compare_width = 0;
         let mut first_sort = true;
         // Indicate if row at index 'i' is tied with row at index 'i+1'.
         let mut tied_with_next = vec![true; num_rows - 1];
 
         for col_idx in 0..key_layout.num_columns() {
-            sort_width += key_layout.column_widths[col_idx];
+            compare_width += key_layout.column_widths[col_idx];
 
             // Continue to add to sort width while we haven't reached a column
             // that requires us to look at the heap. This just lets us do fewere
@@ -86,7 +86,7 @@ impl SortedBlock {
                         0,
                         num_rows,
                         compare_offset,
-                        sort_width,
+                        compare_width,
                     )?;
                 }
 
@@ -99,7 +99,7 @@ impl SortedBlock {
                         &mut keys,
                         &tied_with_next,
                         compare_offset,
-                        sort_width,
+                        compare_width,
                     )?;
                 }
             }
@@ -117,7 +117,7 @@ impl SortedBlock {
                     key_layout,
                     &keys,
                     compare_offset,
-                    sort_width,
+                    compare_width,
                     &mut tied_with_next,
                 );
             }
@@ -129,8 +129,8 @@ impl SortedBlock {
 
             // TODO: Sort (non-inline) blobs
 
-            compare_offset += sort_width;
-            sort_width = 0;
+            compare_offset += compare_width;
+            compare_width = 0;
         }
 
         // Reorder heap keys and data according to the sorted keys.
@@ -191,9 +191,13 @@ impl SortedBlock {
     }
 }
 
-/// Compares subquent rows for tied values and writes the result to `ties`.
+/// Compares subsequent rows for tied values and writes the result to `ties`.
 ///
-/// Skips rows that have been determined to not be tied.
+/// Each `ties[i]` is set to true if row[i] and row[i+1] are equal in the
+/// compare range.
+///
+/// Assumes `ties.len() + 1 == row_count`.
+#[allow(clippy::needless_range_loop)] // Iter by index makes this clearer.
 unsafe fn fill_ties(
     layout: &SortLayout,
     block: &Block,
@@ -201,25 +205,22 @@ unsafe fn fill_ties(
     compare_width: usize,
     ties: &mut [bool],
 ) {
-    unsafe {
-        let mut col_ptr = block.as_ptr();
-        col_ptr = col_ptr.byte_add(compare_offset);
+    let row_width = layout.row_width;
+    let base_ptr = unsafe { block.as_ptr().add(compare_offset) };
 
-        // Note that `ties` is 1 less than the number of rows we're checking.
-        for tie in ties {
-            if !*tie {
-                continue;
-            }
+    for i in 0..ties.len() {
+        if !ties[i] {
+            continue;
+        }
 
-            let a_ptr = col_ptr;
-            let b_ptr = a_ptr.byte_add(layout.row_width);
+        unsafe {
+            let a_ptr = base_ptr.add(i * row_width);
+            let b_ptr = base_ptr.add((i + 1) * row_width);
 
             let a = std::slice::from_raw_parts(a_ptr, compare_width);
             let b = std::slice::from_raw_parts(b_ptr, compare_width);
 
-            col_ptr = b_ptr;
-
-            *tie = a == b
+            ties[i] = a == b;
         }
     }
 }
@@ -243,11 +244,7 @@ unsafe fn sort_tied_keys_in_place(
 
         // Row is tied with the next. Find all contiguously tied rows.
         let mut next_row_offset = row_offset + 1;
-        while next_row_offset < ties.len() {
-            if ties[row_offset] {
-                // Not tied with us, don't include in the sort.
-                break;
-            }
+        while next_row_offset < ties.len() && ties[next_row_offset] {
             next_row_offset += 1;
         }
 
@@ -295,10 +292,10 @@ unsafe fn sort_keys_in_place(
 
             // Note we're not producing a slice from the full row,
             // just the part that we want to compare.
-            let a = std::slice::from_raw_parts(a_ptr, compare_width);
-            let b = std::slice::from_raw_parts(b_ptr, compare_width);
+            let a_slice = std::slice::from_raw_parts(a_ptr, compare_width);
+            let b_slice = std::slice::from_raw_parts(b_ptr, compare_width);
 
-            (a, b)
+            (a_slice, b_slice)
         };
         a.cmp(b)
     });
@@ -310,6 +307,7 @@ unsafe fn sort_keys_in_place(
     for sort_idx in sort_indices {
         unsafe {
             let src_ptr = start_ptr.byte_add(sort_idx * layout.row_width);
+
             temp_ptr.copy_from_nonoverlapping(src_ptr, layout.row_width);
             temp_ptr = temp_ptr.byte_add(layout.row_width);
         }
