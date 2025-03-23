@@ -1,0 +1,98 @@
+# ORDER BY many columns.
+
+statement ok
+CREATE TEMP TABLE t1 (a TEXT, b TEXT, c INT);
+
+statement ok
+INSERT INTO t1 VALUES
+  ('Foo', 'aaa', 10),
+  ('Foo', 'bbb', 20),
+  ('Foo', 'aaa', NULL),
+  ('Foo', NULL, NULL),
+  ('Bar', 'aaa', 15),
+  ('Bar', 'bbb', 5),
+  ('Bar', 'aaa', NULL),
+  ('Bar', NULL, NULL),
+  (NULL, 'aaa', NULL),
+  (NULL, 'bbb', NULL),
+  (NULL, 'aaa', 14);
+
+query TTI
+SELECT * FROM t1 ORDER BY 1,2,3;
+----
+Bar   aaa   15
+Bar   aaa   NULL
+Bar   bbb   5
+Bar   NULL  NULL
+Foo   aaa   10
+Foo   aaa   NULL
+Foo   bbb   20
+Foo   NULL  NULL
+NULL  aaa   14
+NULL  aaa   NULL
+NULL  bbb   NULL
+
+query TTI
+SELECT * FROM t1 ORDER BY 1 NULLS FIRST, 2,3;
+----
+NULL  aaa   14
+NULL  aaa   NULL
+NULL  bbb   NULL
+Bar   aaa   15
+Bar   aaa   NULL
+Bar   bbb   5
+Bar   NULL  NULL
+Foo   aaa   10
+Foo   aaa   NULL
+Foo   bbb   20
+Foo   NULL  NULL
+
+query TTI
+SELECT * FROM t1 ORDER BY 1 NULLS FIRST, 2,3 NULLS FIRST;
+----
+NULL  aaa   NULL
+NULL  aaa   14
+NULL  bbb   NULL
+Bar   aaa   NULL
+Bar   aaa   15
+Bar   bbb   5
+Bar   NULL  NULL
+Foo   aaa   NULL
+Foo   aaa   10
+Foo   bbb   20
+Foo   NULL  NULL
+
+# Behavior matches postgres, where NULL is considered larger than any value. So
+# column 2 has the nulls first implicitly.
+#
+# Note that DuckDB orderes nulls last for column 2.
+query TTI
+SELECT * FROM t1 ORDER BY 1 NULLS FIRST, 2 DESC,3 NULLS FIRST;
+----
+NULL  bbb   NULL
+NULL  aaa   NULL
+NULL  aaa   14
+Bar   NULL  NULL
+Bar   bbb   5
+Bar   aaa   NULL
+Bar   aaa   15
+Foo   NULL  NULL
+Foo   bbb   20
+Foo   aaa   NULL
+Foo   aaa   10
+
+query TTI
+SELECT * FROM t1 ORDER BY 1 NULLS FIRST, 2 DESC NULLS LAST,3 NULLS FIRST;
+----
+NULL  bbb   NULL
+NULL  aaa   NULL
+NULL  aaa   14
+Bar   bbb   5
+Bar   aaa   NULL
+Bar   aaa   15
+Bar   NULL  NULL
+Foo   bbb   20
+Foo   aaa   NULL
+Foo   aaa   10
+Foo   NULL  NULL
+
