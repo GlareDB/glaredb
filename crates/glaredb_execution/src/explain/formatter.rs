@@ -60,6 +60,11 @@ impl ExplainFormatter {
                 let mut buf = String::new();
                 fmt(node, 0, &mut buf)?;
 
+                // Remove trailing newline.
+                if buf.ends_with('\n') {
+                    buf.pop();
+                }
+
                 Ok(buf)
             }
             ExplainFormat::Json => {
