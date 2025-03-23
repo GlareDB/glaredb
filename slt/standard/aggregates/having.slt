@@ -3,7 +3,7 @@
 # (Taken from duckdb's test_having.test, incomplete)
 
 statement ok
-CREATE TABLE test (a BIGINT, b BIGINT);
+CREATE TEMP TABLE test (a BIGINT, b BIGINT);
 
 statement ok
 INSERT INTO test VALUES (11, 22), (13, 22), (12, 21);
