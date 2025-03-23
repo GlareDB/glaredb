@@ -45,3 +45,35 @@ query ?
 SELECT 1.001::DECIMAL(6,4) = 1.001::DECIMAL(6,2);
 ----
 false
+
+# Comparisons with bigints.
+
+statement ok
+CREATE TEMP TABLE bigints (a BIGINT)
+
+statement ok
+INSERT INTO bigints values (1), (5), (8), (2147483647)
+
+query IT
+SELECT a, a >= 5.4 FROM bigints ORDER BY 1;
+----
+1           false
+5           false
+8           true
+2147483647  true
+
+query IT
+SELECT a, a >= 5.4::DECIMAL(4,0) FROM bigints ORDER BY 1;
+----
+1           false
+5           true
+8           true
+2147483647  true
+
+query IT
+SELECT a::DECIMAL(19,8), a::DECIMAL(19, 8) >= 5.4::DECIMAL(4,0) FROM bigints ORDER BY 1;
+----
+1.00000000           false
+5.00000000           true
+8.00000000           true
+2147483647.00000000  true

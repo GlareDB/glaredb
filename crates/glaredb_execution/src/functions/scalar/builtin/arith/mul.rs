@@ -121,11 +121,11 @@ pub const FUNCTION_SET_MUL: ScalarFunctionSet = ScalarFunctionSet {
         RawScalarFunction::new(D_SIGS.d64_i8, &DecimalMul::<Decimal64Type>::new()),
         RawScalarFunction::new(D_SIGS.d64_i16, &DecimalMul::<Decimal64Type>::new()),
         RawScalarFunction::new(D_SIGS.d64_i32, &DecimalMul::<Decimal64Type>::new()),
-        RawScalarFunction::new(D_SIGS.d64_i64, &DecimalMul::<Decimal64Type>::new()),
+        // RawScalarFunction::new(D_SIGS.d64_i64, &DecimalMul::<Decimal64Type>::new()),
         RawScalarFunction::new(D_SIGS.i8_d64, &DecimalMul::<Decimal64Type>::new()),
         RawScalarFunction::new(D_SIGS.i16_d64, &DecimalMul::<Decimal64Type>::new()),
         RawScalarFunction::new(D_SIGS.i32_d64, &DecimalMul::<Decimal64Type>::new()),
-        RawScalarFunction::new(D_SIGS.i64_d64, &DecimalMul::<Decimal64Type>::new()),
+        // RawScalarFunction::new(D_SIGS.i64_d64, &DecimalMul::<Decimal64Type>::new()),
         // Decimal128
         RawScalarFunction::new(D_SIGS.d128_d128, &DecimalMul::<Decimal128Type>::new()),
         RawScalarFunction::new(D_SIGS.d128_i8, &DecimalMul::<Decimal128Type>::new()),

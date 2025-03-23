@@ -53,15 +53,15 @@ pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
 
     /// Validates that the value is within the provided precision.
     fn validate_precision(value: Self::Primitive, precision: u8) -> Result<()> {
-        if value.is_zero() {
-            return Ok(());
-        }
-
         if precision > Self::MAX_PRECISION {
             return Err(DbError::new(format!(
                 "Precision {precision} is greater than max precision {}",
                 Self::MAX_PRECISION
             )));
+        }
+
+        if value.is_zero() {
+            return Ok(());
         }
 
         let digits = value.abs().ilog10() + 1;
@@ -82,8 +82,11 @@ pub trait DecimalType: Debug + Sync + Send + Copy + 'static {
     /// Unwrap the decimal type metadata, returning an error if the datatype is
     /// not the correct type.
     fn decimal_meta(datatype: &DataType) -> Result<DecimalTypeMeta> {
-        Self::decimal_meta_opt(datatype)
-            .ok_or_else(|| DbError::new("Failed to unwrap decimal type meta"))
+        Self::decimal_meta_opt(datatype).ok_or_else(|| {
+            DbError::new(format!(
+                "Failed to unwrap decimal type meta, got: {datatype}"
+            ))
+        })
     }
 
     /// Create a new datatype using the provide precision and scale.

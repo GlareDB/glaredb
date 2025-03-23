@@ -118,11 +118,11 @@ pub const FUNCTION_SET_ADD: ScalarFunctionSet = ScalarFunctionSet {
         RawScalarFunction::new(D_SIGS.d64_i8, &DecimalAdd::<Decimal64Type>::new()),
         RawScalarFunction::new(D_SIGS.d64_i16, &DecimalAdd::<Decimal64Type>::new()),
         RawScalarFunction::new(D_SIGS.d64_i32, &DecimalAdd::<Decimal64Type>::new()),
-        RawScalarFunction::new(D_SIGS.d64_i64, &DecimalAdd::<Decimal64Type>::new()),
+        // RawScalarFunction::new(D_SIGS.d64_i64, &DecimalAdd::<Decimal64Type>::new()),
         RawScalarFunction::new(D_SIGS.i8_d64, &DecimalAdd::<Decimal64Type>::new()),
         RawScalarFunction::new(D_SIGS.i16_d64, &DecimalAdd::<Decimal64Type>::new()),
         RawScalarFunction::new(D_SIGS.i32_d64, &DecimalAdd::<Decimal64Type>::new()),
-        RawScalarFunction::new(D_SIGS.i64_d64, &DecimalAdd::<Decimal64Type>::new()),
+        // RawScalarFunction::new(D_SIGS.i64_d64, &DecimalAdd::<Decimal64Type>::new()),
         // Decimal128
         RawScalarFunction::new(D_SIGS.d128_d128, &DecimalAdd::<Decimal128Type>::new()),
         RawScalarFunction::new(D_SIGS.d128_i8, &DecimalAdd::<Decimal128Type>::new()),
