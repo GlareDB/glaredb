@@ -162,12 +162,13 @@ const fn int32_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<
 }
 
 const fn int64_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
+    // Note we don't allow implicit casting to Decimal64 (max precision
+    // overflow).
     Some(match want {
         DataTypeId::Int64
         | DataTypeId::Float16
         | DataTypeId::Float32
         | DataTypeId::Float64
-        | DataTypeId::Decimal64
         | DataTypeId::Decimal128 => target_score(want),
         DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
@@ -268,7 +269,7 @@ const fn float64_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Optio
 
 const fn decimal64_cast_score(want: DataTypeId, conf: ImplicitCastConfig) -> Option<u32> {
     Some(match want {
-        DataTypeId::Float32 | DataTypeId::Float64 => target_score(want),
+        DataTypeId::Float32 | DataTypeId::Float64 | DataTypeId::Decimal128 => target_score(want),
         DataTypeId::Utf8 if conf.allow_to_utf8 => target_score(want),
         _ => return None,
     })
@@ -347,6 +348,9 @@ mod tests {
 
         // Not valid
         assert!(implicit_cast_score(DataTypeId::Int16, DataTypeId::UInt64, conf).is_none());
+
+        // Max precision for i64 too big.
+        assert!(implicit_cast_score(DataTypeId::Int64, DataTypeId::Decimal64, conf).is_none());
     }
 
     #[test]

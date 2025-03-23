@@ -44,3 +44,20 @@ query R
 SELECT sum(a) * 0.5 FROM (VALUES (1::DECIMAL), (2::DECIMAL), (3::DECIMAL)) AS v(a);
 ----
 3.0000
+
+statement ok
+CREATE TEMP TABLE bigints (a BIGINT);
+
+statement ok
+INSERT INTO bigints values (1), (5), (8), (2147483647);
+
+# Implicit casting of 'sum(i64) * decimal' -> decimal
+query R
+SELECT sum(a) * 0.5 FROM bigints;
+----
+1073741830.5
+
+query TT
+DESCRIBE SELECT sum(a) * 0.5 FROM bigints
+----
+?column?  Decimal128(21,1)

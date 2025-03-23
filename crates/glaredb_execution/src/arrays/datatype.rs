@@ -136,6 +136,8 @@ impl DecimalTypeMeta {
             }
             DataTypeId::Int64 => {
                 // [-9_223_372_036_854_775_808, 9_223_372_036_854_775_807]
+                //
+                // Note this will overflow a Decimal64
                 Some(DecimalTypeMeta {
                     precision: 19,
                     scale: 0,
@@ -390,18 +392,16 @@ pub enum DataType {
 }
 
 impl DataType {
-    /// Try to create a default data type from the the data type id.
+    /// Try to generate a datatype for casting `from` type id to `to` type id.
     ///
-    /// Errors on attempts to create a data type from an id that we either don't
-    /// have enough information about (struct, list) or can never be represented
-    /// as a concrete data type (any).
-    pub fn try_default_datatype(id: DataTypeId) -> Result<Self> {
-        Ok(match id {
+    /// Errors if a suitable datatype cannot be created.
+    pub fn try_generate_cast_datatype(from: DataType, to: DataTypeId) -> Result<Self> {
+        Ok(match to {
             DataTypeId::Any => {
-                return Err(DbError::new("Cannot create a default Any datatype"));
+                return Err(DbError::new("Cannot cast to Any"));
             }
             DataTypeId::Table => {
-                return Err(DbError::new("Cannot create a default Table datatype"));
+                return Err(DbError::new("Cannot cast to Table"));
             }
             DataTypeId::Null => DataType::Null,
             DataTypeId::Boolean => DataType::Boolean,
@@ -418,14 +418,36 @@ impl DataType {
             DataTypeId::Float16 => DataType::Float16,
             DataTypeId::Float32 => DataType::Float32,
             DataTypeId::Float64 => DataType::Float64,
-            DataTypeId::Decimal64 => DataType::Decimal64(DecimalTypeMeta::new(
-                Decimal64Type::MAX_PRECISION,
-                Decimal64Type::DEFAULT_SCALE,
-            )),
-            DataTypeId::Decimal128 => DataType::Decimal128(DecimalTypeMeta::new(
-                Decimal128Type::MAX_PRECISION,
-                Decimal128Type::DEFAULT_SCALE,
-            )),
+            DataTypeId::Decimal64 => match from {
+                DataType::Decimal64(_) => from,
+                other => {
+                    let meta = DecimalTypeMeta::new_for_datatype_id(other.datatype_id())
+                        .ok_or_else(|| {
+                            DbError::new(format!(
+                                "Cannot create decimal datatype for casting from {other} to {to}"
+                            ))
+                        })?;
+                    Decimal64Type::validate_precision(0, meta.precision).context_fn(|| {
+                        format!("Cannot create decimal datatype for casting from {other} to {to}")
+                    })?;
+                    DataType::Decimal64(meta)
+                }
+            },
+            DataTypeId::Decimal128 => match from {
+                DataType::Decimal64(m) | DataType::Decimal128(m) => DataType::Decimal128(m),
+                other => {
+                    let meta = DecimalTypeMeta::new_for_datatype_id(other.datatype_id())
+                        .ok_or_else(|| {
+                            DbError::new(format!(
+                                "Cannot create decimal datatype for casting from {other} to {to}"
+                            ))
+                        })?;
+                    Decimal128Type::validate_precision(0, meta.precision).context_fn(|| {
+                        format!("Cannot create decimal datatype for casting from {other} to {to}")
+                    })?;
+                    DataType::Decimal128(meta)
+                }
+            },
             DataTypeId::Timestamp => DataType::Timestamp(TimestampTypeMeta {
                 unit: TimeUnit::Microsecond,
             }),

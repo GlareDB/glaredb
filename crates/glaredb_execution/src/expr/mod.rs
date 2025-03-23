@@ -28,7 +28,7 @@ use cast_expr::CastExpr;
 use column_expr::{ColumnExpr, ColumnReference};
 use comparison_expr::{ComparisonExpr, ComparisonOperator};
 use conjunction_expr::{ConjunctionExpr, ConjunctionOperator};
-use glaredb_error::{DbError, Result};
+use glaredb_error::{DbError, Result, ResultExt};
 use grouping_set_expr::GroupingSetExpr;
 use is_expr::IsExpr;
 use literal_expr::LiteralExpr;
@@ -843,11 +843,18 @@ where
             // Apply casts where needed.
             inputs = inputs
                 .into_iter()
-                .zip(candidate.casts)
-                .map(|(input, cast_to)| {
+                .zip(datatypes.into_iter().zip(candidate.casts))
+                .map(|(input, (from_dt, cast_to))| {
                     Ok(match cast_to {
                         CastType::Cast { to, .. } => Expression::Cast(CastExpr {
-                            to: DataType::try_default_datatype(to)?, // TODO: Still want this?
+                            to: DataType::try_generate_cast_datatype(from_dt, to).context_fn(
+                                || {
+                                    format!(
+                                        "Failed to create cast datatype for function '{}'",
+                                        function.name
+                                    )
+                                },
+                            )?,
                             expr: Box::new(input),
                         }),
                         CastType::NoCastNeeded => input,

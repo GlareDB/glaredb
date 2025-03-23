@@ -9,13 +9,14 @@ pub struct DecimalArithSignatures {
     pub d64_i8: &'static Signature,
     pub d64_i16: &'static Signature,
     pub d64_i32: &'static Signature,
-    pub d64_i64: &'static Signature,
 
     pub i8_d64: &'static Signature,
     pub i16_d64: &'static Signature,
     pub i32_d64: &'static Signature,
-    pub i64_d64: &'static Signature,
 
+    // // Overflow sigs
+    // pub i64_d64_overflow: &'static Signature,
+    // pub d64_i64_overflow: &'static Signature,
     pub d128_i8: &'static Signature,
     pub d128_i16: &'static Signature,
     pub d128_i32: &'static Signature,
@@ -49,10 +50,6 @@ pub const D_SIGS: DecimalArithSignatures = DecimalArithSignatures {
         &[DataTypeId::Decimal64, DataTypeId::Int32],
         DataTypeId::Decimal64,
     ),
-    d64_i64: &Signature::new(
-        &[DataTypeId::Decimal64, DataTypeId::Int64],
-        DataTypeId::Decimal64,
-    ),
 
     i8_d64: &Signature::new(
         &[DataTypeId::Int8, DataTypeId::Decimal64],
@@ -64,10 +61,6 @@ pub const D_SIGS: DecimalArithSignatures = DecimalArithSignatures {
     ),
     i32_d64: &Signature::new(
         &[DataTypeId::Int32, DataTypeId::Decimal64],
-        DataTypeId::Decimal64,
-    ),
-    i64_d64: &Signature::new(
-        &[DataTypeId::Int64, DataTypeId::Decimal64],
         DataTypeId::Decimal64,
     ),
 
