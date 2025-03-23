@@ -80,6 +80,7 @@ impl CrossProductState {
             // Scan next batch.
             self.batch_row_idx = 0;
             let count = left.scan(&self.projections, scan_state, &mut self.batch)?;
+
             if count == 0 {
                 // We're done.
                 self.scan_state = None;
