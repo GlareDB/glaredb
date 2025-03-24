@@ -894,8 +894,8 @@ mod tests {
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::ListTypeMeta;
     use crate::arrays::scalar::ScalarValue;
+    use crate::generate_array;
     use crate::testutil::arrays::assert_arrays_eq;
-    use crate::{generate_array, generate_batch};
 
     #[test]
     fn try_new_constant_utf8() {

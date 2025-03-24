@@ -14,6 +14,8 @@ use crate::functions::table::execute::TableExecuteFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::logical::statistics::StatisticsValue;
 
+// TODO: Unit test when create list arrays is more fun.
+
 pub const FUNCTION_SET_UNNEST: TableFunctionSet = TableFunctionSet {
     name: "unnest",
     aliases: &[],

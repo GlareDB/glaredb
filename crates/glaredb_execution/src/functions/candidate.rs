@@ -294,7 +294,18 @@ mod tests {
     fn find_candidate_match_list_with_null_input() {
         // SELECT * FROM unnest(NULL);
         //
-        // NULL should be castable to a list. However it's on the Nu
+        // NULL should be castable to a list.
+        //
+        // TDB if this is desired behavior.
+        //
+        // Postgres with null without types:
+        // ```
+        // select * from unnest(null);
+        // ERROR:  function unnest(unknown) is not unique
+        // ```
+        //
+        // However postgres executes it fine when provided `null::int[]` (and
+        // produces zero rows).
         let inputs = &[DataType::Null];
         let sigs = &[Signature {
             positional_args: &[DataTypeId::List(&DataTypeId::Any)],
@@ -304,7 +315,7 @@ mod tests {
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
-        assert!(candidates.is_empty(), "candidates: {candidates:?}");
+        assert_eq!(1, candidates.len(), "candidates: {candidates:?}");
     }
 
     #[test]
