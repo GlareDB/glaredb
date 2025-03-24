@@ -10,6 +10,8 @@ use glaredb_error::{DbError, Result};
 use split::split_conjunction;
 
 use super::OptimizeRule;
+use super::expr_rewrite::ExpressionRewriteRule;
+use super::expr_rewrite::const_fold::ConstFold;
 use crate::expr::{self, Expression};
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
@@ -24,6 +26,7 @@ use crate::logical::logical_join::{
     LogicalMagicJoin,
 };
 use crate::logical::logical_materialization::LogicalMaterializationScan;
+use crate::logical::logical_no_rows::LogicalNoRows;
 use crate::logical::logical_order::LogicalOrder;
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
@@ -87,8 +90,14 @@ impl FilterPushdown {
             .map(ExtractedFilter::from_expr)
     }
 
-    /// Stops the push down for this set of filters, and wraps the plan in a new
-    /// filter node.
+    /// Stops the push down for this set of filters, and possibly wraps the plan
+    /// in a new filter node.
+    ///
+    /// If there are no remaining filters, then no additional fiter is added.
+    ///
+    /// If the remaining filter expression is constant, it's evaluated. If the
+    /// result is true, then no filter node is added. If false, then we return
+    /// an empty operator, effectively removing all children of the filter.
     ///
     /// This will go ahead and perform a separate pushdown to children of this
     /// plan.
@@ -108,14 +117,38 @@ impl FilterPushdown {
             return Ok(plan);
         }
 
-        let filter = expr::and(self.drain_filters().map(|ex| ex.filter))?.into();
+        let filter: Expression = expr::and(self.drain_filters().map(|ex| ex.filter))?.into();
 
-        Ok(LogicalOperator::Filter(Node {
-            node: LogicalFilter { filter },
-            location: LocationRequirement::Any,
-            children: vec![plan],
-            estimated_cardinality: StatisticsValue::Unknown,
-        }))
+        if filter.is_const_foldable() {
+            let val = ConstFold::rewrite(filter)?
+                .try_into_scalar()?
+                .try_as_bool()?;
+
+            if val {
+                // Omit the filter node, all rows pass.
+                Ok(plan)
+            } else {
+                // Replace with no rows, reusing the same table refs as the
+                // original plan.
+                let table_refs = plan.get_output_table_refs(bind_context);
+
+                Ok(LogicalOperator::NoRows(Node {
+                    node: LogicalNoRows { table_refs },
+                    location: LocationRequirement::Any,
+                    children: Vec::new(),
+                    estimated_cardinality: StatisticsValue::Exact(0),
+                }))
+            }
+        } else {
+            // TODO: We could probably const fold here to simplify as much as
+            // possible as well.
+            Ok(LogicalOperator::Filter(Node {
+                node: LogicalFilter { filter },
+                location: LocationRequirement::Any,
+                children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
+            }))
+        }
     }
 
     fn pushdown_materialized_scan(

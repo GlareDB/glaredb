@@ -6,16 +6,17 @@ use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
+/// Emit a single row with no columns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LogicalEmpty;
+pub struct LogicalSingleRow;
 
-impl Explainable for LogicalEmpty {
+impl Explainable for LogicalSingleRow {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Empty")
+        ExplainEntry::new("SingleRow")
     }
 }
 
-impl LogicalNode for Node<LogicalEmpty> {
+impl LogicalNode for Node<LogicalSingleRow> {
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }

@@ -10,7 +10,6 @@ use crate::expr::{self, Expression};
 use crate::functions::table::TableFunctionType;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_from::{BoundFrom, BoundFromItem, BoundJoin};
-use crate::logical::logical_empty::LogicalEmpty;
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_inout::LogicalTableExecute;
 use crate::logical::logical_join::{
@@ -27,6 +26,7 @@ use crate::logical::logical_scan::{
     TableFunctionScanSource,
     TableScanSource,
 };
+use crate::logical::logical_single_row::LogicalSingleRow;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor;
@@ -94,7 +94,7 @@ impl FromPlanner {
                                 projected_outputs: Vec::new(),
                             },
                             location: func.location,
-                            children: vec![LogicalOperator::EMPTY],
+                            children: vec![LogicalOperator::SINGLE_ROW],
                             estimated_cardinality: cardinality,
                         }))
                     }
@@ -213,8 +213,8 @@ impl FromPlanner {
                     estimated_cardinality: StatisticsValue::Unknown,
                 }))
             }
-            BoundFromItem::Empty => Ok(LogicalOperator::Empty(Node {
-                node: LogicalEmpty,
+            BoundFromItem::Empty => Ok(LogicalOperator::SingleRow(Node {
+                node: LogicalSingleRow,
                 location: LocationRequirement::Any,
                 children: Vec::new(),
                 estimated_cardinality: StatisticsValue::Unknown,

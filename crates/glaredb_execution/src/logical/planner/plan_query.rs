@@ -31,7 +31,7 @@ impl QueryPlanner {
                         rows: values.rows,
                     },
                     location: LocationRequirement::Any,
-                    children: vec![LogicalOperator::EMPTY.clone()],
+                    children: vec![LogicalOperator::SINGLE_ROW.clone()],
                     estimated_cardinality: StatisticsValue::Estimated(card),
                 }))
             }

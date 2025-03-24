@@ -12,7 +12,6 @@ use super::logical_create::{LogicalCreateSchema, LogicalCreateTable, LogicalCrea
 use super::logical_describe::LogicalDescribe;
 use super::logical_distinct::LogicalDistinct;
 use super::logical_drop::LogicalDrop;
-use super::logical_empty::LogicalEmpty;
 use super::logical_explain::LogicalExplain;
 use super::logical_expression_list::LogicalExpressionList;
 use super::logical_filter::LogicalFilter;
@@ -26,11 +25,13 @@ use super::logical_join::{
 };
 use super::logical_limit::LogicalLimit;
 use super::logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan};
+use super::logical_no_rows::LogicalNoRows;
 use super::logical_order::LogicalOrder;
 use super::logical_project::LogicalProject;
 use super::logical_scan::LogicalScan;
 use super::logical_set::{LogicalResetVar, LogicalSetVar, LogicalShowVar};
 use super::logical_setop::LogicalSetop;
+use super::logical_single_row::LogicalSingleRow;
 use super::logical_unnest::LogicalUnnest;
 use super::logical_window::LogicalWindow;
 use super::statistics::StatisticsValue;
@@ -274,7 +275,8 @@ pub enum LogicalOperator {
     ExpressionList(Node<LogicalExpressionList>),
     MaterializationScan(Node<LogicalMaterializationScan>),
     MagicMaterializationScan(Node<LogicalMagicMaterializationScan>),
-    Empty(Node<LogicalEmpty>),
+    SingleRow(Node<LogicalSingleRow>),
+    NoRows(Node<LogicalNoRows>),
     SetVar(Node<LogicalSetVar>),
     ResetVar(Node<LogicalResetVar>),
     ShowVar(Node<LogicalShowVar>),
@@ -298,11 +300,11 @@ pub enum LogicalOperator {
 }
 
 impl LogicalOperator {
-    pub(crate) const EMPTY: LogicalOperator = LogicalOperator::Empty(Node {
-        node: LogicalEmpty,
+    pub(crate) const SINGLE_ROW: LogicalOperator = LogicalOperator::SingleRow(Node {
+        node: LogicalSingleRow,
         location: LocationRequirement::Any,
         children: Vec::new(),
-        estimated_cardinality: StatisticsValue::Unknown,
+        estimated_cardinality: StatisticsValue::Exact(1),
     });
 
     pub fn location(&self) -> &LocationRequirement {
@@ -314,11 +316,11 @@ impl LogicalOperator {
     }
 
     pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Self::EMPTY)
+        std::mem::replace(self, Self::SINGLE_ROW)
     }
 
     pub fn take_boxed(self: &mut Box<Self>) -> Box<Self> {
-        std::mem::replace(self, Box::new(Self::EMPTY))
+        std::mem::replace(self, Box::new(Self::SINGLE_ROW))
     }
 
     pub fn for_each_child_mut<F>(&mut self, _f: &mut F) -> Result<()>
@@ -371,7 +373,8 @@ impl LogicalOperator {
             Self::MagicMaterializationScan(n) => &n.children,
             Self::Aggregate(n) => &n.children,
             Self::SetOp(n) => &n.children,
-            Self::Empty(n) => &n.children,
+            Self::SingleRow(n) => &n.children,
+            Self::NoRows(n) => &n.children,
             Self::Limit(n) => &n.children,
             Self::Order(n) => &n.children,
             Self::SetVar(n) => &n.children,
@@ -409,7 +412,8 @@ impl LogicalOperator {
             Self::MagicMaterializationScan(n) => &mut n.children,
             Self::Aggregate(n) => &mut n.children,
             Self::SetOp(n) => &mut n.children,
-            Self::Empty(n) => &mut n.children,
+            Self::SingleRow(n) => &mut n.children,
+            Self::NoRows(n) => &mut n.children,
             Self::Limit(n) => &mut n.children,
             Self::Order(n) => &mut n.children,
             Self::SetVar(n) => &mut n.children,
@@ -451,7 +455,8 @@ impl LogicalOperator {
             LogicalOperator::MagicMaterializationScan(n) => n.estimated_cardinality,
             LogicalOperator::Aggregate(n) => n.estimated_cardinality,
             LogicalOperator::SetOp(n) => n.estimated_cardinality,
-            LogicalOperator::Empty(n) => n.estimated_cardinality,
+            LogicalOperator::SingleRow(n) => n.estimated_cardinality,
+            LogicalOperator::NoRows(n) => n.estimated_cardinality,
             LogicalOperator::Limit(n) => n.estimated_cardinality,
             LogicalOperator::Order(n) => n.estimated_cardinality,
             LogicalOperator::SetVar(n) => n.estimated_cardinality,
@@ -491,7 +496,8 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::MagicMaterializationScan(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::Aggregate(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::SetOp(n) => n.get_output_table_refs(bind_context),
-            LogicalOperator::Empty(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::SingleRow(n) => n.get_output_table_refs(bind_context),
+            LogicalOperator::NoRows(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::Limit(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::Order(n) => n.get_output_table_refs(bind_context),
             LogicalOperator::SetVar(n) => n.get_output_table_refs(bind_context),
@@ -532,7 +538,8 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::MagicMaterializationScan(n) => n.for_each_expr(func),
             LogicalOperator::Aggregate(n) => n.for_each_expr(func),
             LogicalOperator::SetOp(n) => n.for_each_expr(func),
-            LogicalOperator::Empty(n) => n.for_each_expr(func),
+            LogicalOperator::SingleRow(n) => n.for_each_expr(func),
+            LogicalOperator::NoRows(n) => n.for_each_expr(func),
             LogicalOperator::Limit(n) => n.for_each_expr(func),
             LogicalOperator::Order(n) => n.for_each_expr(func),
             LogicalOperator::SetVar(n) => n.for_each_expr(func),
@@ -573,7 +580,8 @@ impl LogicalNode for LogicalOperator {
             LogicalOperator::MagicMaterializationScan(n) => n.for_each_expr_mut(func),
             LogicalOperator::Aggregate(n) => n.for_each_expr_mut(func),
             LogicalOperator::SetOp(n) => n.for_each_expr_mut(func),
-            LogicalOperator::Empty(n) => n.for_each_expr_mut(func),
+            LogicalOperator::SingleRow(n) => n.for_each_expr_mut(func),
+            LogicalOperator::NoRows(n) => n.for_each_expr_mut(func),
             LogicalOperator::Limit(n) => n.for_each_expr_mut(func),
             LogicalOperator::Order(n) => n.for_each_expr_mut(func),
             LogicalOperator::SetVar(n) => n.for_each_expr_mut(func),

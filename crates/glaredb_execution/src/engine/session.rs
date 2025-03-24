@@ -359,7 +359,12 @@ where
                         // distributed execution.
                         self.config
                             .set_from_scalar(&set_var.node.name, set_var.node.value)?;
-                        planner.plan(LogicalOperator::EMPTY, &self.context, bind_context, sink)?
+                        planner.plan(
+                            LogicalOperator::SINGLE_ROW,
+                            &self.context,
+                            bind_context,
+                            sink,
+                        )?
                     }
                     LogicalOperator::ResetVar(reset) => {
                         // Same TODO as above.
@@ -371,7 +376,12 @@ where
                                 self.config.reset_all(&self.executor, &self.runtime)
                             }
                         }
-                        planner.plan(LogicalOperator::EMPTY, &self.context, bind_context, sink)?
+                        planner.plan(
+                            LogicalOperator::SINGLE_ROW,
+                            &self.context,
+                            bind_context,
+                            sink,
+                        )?
                     }
                     root => {
                         let timer = Timer::<R::Instant>::start();

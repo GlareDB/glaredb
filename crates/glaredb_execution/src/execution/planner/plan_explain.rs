@@ -1,7 +1,7 @@
 use glaredb_error::{Result, not_implemented};
 
 use super::OperatorPlanState;
-use crate::execution::operators::empty::PhysicalEmpty;
+use crate::execution::operators::single_row::PhysicalSingleRow;
 use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::explain::formatter::ExplainFormatter;
@@ -61,7 +61,7 @@ impl OperatorPlanState<'_> {
         Ok(PlannedOperatorWithChildren {
             operator: PlannedOperator::new_execute(self.id_gen.next_id(), values),
             children: vec![PlannedOperatorWithChildren {
-                operator: PlannedOperator::new_pull(self.id_gen.next_id(), PhysicalEmpty),
+                operator: PlannedOperator::new_pull(self.id_gen.next_id(), PhysicalSingleRow),
                 children: Vec::new(),
             }],
         })
