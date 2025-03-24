@@ -18,6 +18,13 @@ pub struct PhysicalCastExpr {
 }
 
 impl PhysicalCastExpr {
+    pub fn new(expr: impl Into<PhysicalScalarExpression>, to: DataType) -> Self {
+        PhysicalCastExpr {
+            to,
+            expr: Box::new(expr.into()),
+        }
+    }
+
     pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
         let inputs = vec![self.expr.create_state(batch_size)?];
         let buffer = Batch::new([self.expr.datatype()], batch_size)?;

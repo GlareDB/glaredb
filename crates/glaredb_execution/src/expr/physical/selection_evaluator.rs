@@ -51,7 +51,8 @@ impl SelectionEvaluator {
         UnaryExecutor::select(
             &self.output.arrays[0],
             0..input.num_rows(),
-            &mut self.selection,
+            |idx| self.selection.push(idx),
+            |_| {}, // Do nothing for the false case.
         )?;
 
         Ok(&self.selection)

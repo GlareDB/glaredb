@@ -37,6 +37,15 @@ fn maybe_fold(expr: &mut Expression) -> Result<()> {
         return Ok(());
     }
 
+    // Return early for CASE to avoid attempting to evaluate the THEN side.
+    //
+    // TODO: Dont' do this, either
+    // - Be selective about which expressions to fold (only the WHEN side, etc).
+    // - Execute all expressions, allow errors, but don't report them for THEN exprs.
+    if matches!(expr, Expression::Case(_)) {
+        return Ok(());
+    }
+
     // Otherwise try the children.
     expr.for_each_child_mut(&mut |child| maybe_fold(child))
 }
