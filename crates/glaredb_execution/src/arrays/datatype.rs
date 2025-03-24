@@ -629,6 +629,15 @@ impl DataType {
             ))),
         }
     }
+
+    pub fn try_get_list_type_meta(&self) -> Result<&ListTypeMeta> {
+        match self {
+            Self::List(m) => Ok(m),
+            other => Err(DbError::new(format!(
+                "Cannot get list type meta from type {other}"
+            ))),
+        }
+    }
 }
 
 impl ProtoConv for DataType {

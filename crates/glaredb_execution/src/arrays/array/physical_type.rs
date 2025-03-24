@@ -1,6 +1,6 @@
 use std::fmt::{self, Debug};
 
-use glaredb_error::{DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_proto::ProtoConv;
 use half::f16;
 
@@ -8,6 +8,7 @@ use super::array_buffer::{ArrayBuffer, ListItemMetadata, StringViewBuffer};
 use crate::arrays::array::array_buffer::ArrayBufferType;
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::string::StringView;
+use crate::util::convert::TryAsMut;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {
@@ -477,7 +478,6 @@ impl MutableScalarStorage for PhysicalUtf8 {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PhysicalList;
 
-// TODO: Is this useful?
 impl ScalarStorage for PhysicalList {
     const PHYSICAL_TYPE: PhysicalType = PhysicalType::List;
 
@@ -492,5 +492,23 @@ impl ScalarStorage for PhysicalList {
             }
             _ => Err(DbError::new("invalid buffer type, expected list buffer")),
         }
+    }
+}
+
+impl MutableScalarStorage for PhysicalList {
+    type AddressableMut<'a> = PrimitiveSliceMut<'a, Self::StorageType>;
+
+    fn get_addressable_mut(buffer: &mut ArrayBuffer) -> Result<Self::AddressableMut<'_>> {
+        match buffer.as_mut() {
+            ArrayBufferType::List(buf) => {
+                let s = buf.metadata.try_as_mut()?.as_slice_mut();
+                Ok(PrimitiveSliceMut { slice: s })
+            }
+            _ => Err(DbError::new("invalid buffer type, expected list buffer")),
+        }
+    }
+
+    fn try_reserve(_buffer: &mut ArrayBuffer, _additional: usize) -> Result<()> {
+        not_implemented!("try_reserve on PhysicalList")
     }
 }

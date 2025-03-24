@@ -117,7 +117,7 @@ fn make_list_from_values_inner<S: MutableScalarStorage>(
     // Update metadata on the list buffer itself. Note that this can be less
     // than the buffer's actual capacity. This only matters during writes to
     // know if we still have room to push to the child array.
-    list_buf.entries = total_capacity;
+    list_buf.current_offset = total_capacity;
 
     // (flat, addressable) pairs.
     let element_bufs = inputs

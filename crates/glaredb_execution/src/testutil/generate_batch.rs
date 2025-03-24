@@ -1,10 +1,21 @@
 //! Helpers for creating batches.
 
+/// Helper for generating an array.
+///
+/// Essentially just calls `try_from_iter`.
+#[macro_export]
+macro_rules! generate_array {
+    ($array_values:expr) => {{
+        use $crate::util::iter::TryFromExactSizeIterator;
+        $crate::arrays::array::Array::try_from_iter($array_values).unwrap()
+    }};
+}
+
 /// Helper macro for generating batches to use in tests.
 // TODO: Remove `macro_export`. Only done to make this visible outside of the
 // crate. We should probably just make a separate `testutil` crate with all
-// these helpers (and then I would really care if this macros gets exported at
-// the root).
+// these helpers (and then I wouldn't really care if this macros gets exported
+// at the root).
 #[macro_export]
 macro_rules! generate_batch {
     ( $( $array_values:expr ),+ $(,)? ) => {{
@@ -22,8 +33,15 @@ pub(crate) use generate_batch;
 mod tests {
     use crate::arrays::array::Array;
     use crate::arrays::batch::Batch;
-    use crate::testutil::arrays::assert_batches_eq;
+    use crate::testutil::arrays::{assert_arrays_eq, assert_batches_eq};
     use crate::util::iter::TryFromExactSizeIterator;
+
+    #[test]
+    fn generate_array_simple() {
+        let arr = generate_array!([1, 2, 3]);
+        let expected = Array::try_from_iter([1, 2, 3]).unwrap();
+        assert_arrays_eq(&expected, &arr);
+    }
 
     #[test]
     fn generate_batch_single_column() {

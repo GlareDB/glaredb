@@ -11,6 +11,7 @@ use array_buffer::{
     ArrayBufferType,
     ConstantBuffer,
     DictionaryBuffer,
+    ListItemMetadata,
     ScalarBuffer,
     SharedOrOwned,
 };
@@ -32,6 +33,7 @@ use physical_type::{
     PhysicalI64,
     PhysicalI128,
     PhysicalInterval,
+    PhysicalList,
     PhysicalType,
     PhysicalU8,
     PhysicalU16,
@@ -52,6 +54,7 @@ use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::timestamp::TimestampScalar;
 use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager, NopBufferManager};
 use crate::buffer::typed::TypedBuffer;
+use crate::util::convert::TryAsMut;
 use crate::util::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};
 
 #[derive(Debug)]
@@ -478,115 +481,18 @@ impl Array {
                 .with_field("capacity", self.logical_len()));
         }
 
-        self.validity.set_valid(idx);
+        // Currently the same since we don't allow setting inot
+        // dictionary/constant buffers.
+        let logical_idx = idx;
+        let data_idx = idx;
 
-        match val {
-            BorrowedScalarValue::Null => {
-                self.validity.set_invalid(idx);
-            }
-            BorrowedScalarValue::Boolean(val) => {
-                PhysicalBool::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Int8(val) => {
-                PhysicalI8::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Int16(val) => {
-                PhysicalI16::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Int32(val) => {
-                PhysicalI32::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Int64(val) => {
-                PhysicalI64::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Int128(val) => {
-                PhysicalI128::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::UInt8(val) => {
-                PhysicalU8::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::UInt16(val) => {
-                PhysicalU16::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::UInt32(val) => {
-                PhysicalU32::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::UInt64(val) => {
-                PhysicalU64::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::UInt128(val) => {
-                PhysicalU128::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Float16(val) => {
-                PhysicalF16::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Float32(val) => {
-                PhysicalF32::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Float64(val) => {
-                PhysicalF64::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Decimal64(val) => {
-                PhysicalI64::get_addressable_mut(&mut self.data)?.put(idx, &val.value);
-            }
-            BorrowedScalarValue::Decimal128(val) => {
-                PhysicalI128::get_addressable_mut(&mut self.data)?.put(idx, &val.value);
-            }
-            BorrowedScalarValue::Date32(val) => {
-                PhysicalI32::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Date64(val) => {
-                PhysicalI64::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Timestamp(val) => {
-                PhysicalI64::get_addressable_mut(&mut self.data)?.put(idx, &val.value);
-            }
-            BorrowedScalarValue::Interval(val) => {
-                PhysicalInterval::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Utf8(val) => {
-                PhysicalUtf8::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::Binary(val) => {
-                PhysicalBinary::get_addressable_mut(&mut self.data)?.put(idx, val);
-            }
-            BorrowedScalarValue::List(_) => {
-                not_implemented!("set value for list")
-                // let secondary = self.data.try_as_mut()?.get_secondary_mut().get_list_mut()?;
-
-                // // Ensure we have space to push.
-                // let rem_cap = secondary.child.capacity() - secondary.entries;
-                // if rem_cap < list.len() {
-                //     // TODO: Just resize secondary.
-                //     return Err(RayexecError::new(
-                //         "Secondary list buffer does not have required capacity",
-                //     )
-                //     .with_field("remaining", rem_cap)
-                //     .with_field("need", list.len()));
-                // }
-
-                // for (child_idx, val) in (secondary.entries..).zip(list) {
-                //     secondary.child.set_value(child_idx, val)?;
-                // }
-
-                // // Now update entry count in child. Original value is our offset
-                // // index.
-                // let start_offset = secondary.entries;
-                // secondary.entries += list.len();
-
-                // // Set metadata pointing to new list.
-                // PhysicalList::get_addressable_mut(self.data.try_as_mut()?)?.put(
-                //     idx,
-                //     &ListItemMetadata {
-                //         offset: start_offset as i32,
-                //         len: list.len() as i32,
-                //     },
-                // );
-            }
-            BorrowedScalarValue::Struct(_) => not_implemented!("set value for struct"),
-        }
-
-        Ok(())
+        set_value_inner(
+            val,
+            &mut self.data,
+            &mut self.validity,
+            logical_idx,
+            data_idx,
+        )
     }
 }
 
@@ -744,6 +650,127 @@ fn get_value_inner<'a>(
     }
 }
 
+fn set_value_inner(
+    value: &BorrowedScalarValue,
+    buffer: &mut ArrayBuffer,
+    validity: &mut Validity,
+    logical_idx: usize,
+    data_idx: usize,
+) -> Result<()> {
+    validity.set_valid(logical_idx);
+
+    match value {
+        BorrowedScalarValue::Null => {
+            // Use the logical index to update the validity mask. Data index is
+            // unused.
+            validity.set_invalid(logical_idx);
+        }
+        BorrowedScalarValue::Boolean(val) => {
+            PhysicalBool::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Int8(val) => {
+            PhysicalI8::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Int16(val) => {
+            PhysicalI16::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Int32(val) => {
+            PhysicalI32::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Int64(val) => {
+            PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Int128(val) => {
+            PhysicalI128::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::UInt8(val) => {
+            PhysicalU8::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::UInt16(val) => {
+            PhysicalU16::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::UInt32(val) => {
+            PhysicalU32::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::UInt64(val) => {
+            PhysicalU64::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::UInt128(val) => {
+            PhysicalU128::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Float16(val) => {
+            PhysicalF16::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Float32(val) => {
+            PhysicalF32::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Float64(val) => {
+            PhysicalF64::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Decimal64(val) => {
+            PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, &val.value);
+        }
+        BorrowedScalarValue::Decimal128(val) => {
+            PhysicalI128::get_addressable_mut(buffer)?.put(data_idx, &val.value);
+        }
+        BorrowedScalarValue::Date32(val) => {
+            PhysicalI32::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Date64(val) => {
+            PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Timestamp(val) => {
+            PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, &val.value);
+        }
+        BorrowedScalarValue::Interval(val) => {
+            PhysicalInterval::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Utf8(val) => {
+            PhysicalUtf8::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::Binary(val) => {
+            PhysicalBinary::get_addressable_mut(buffer)?.put(data_idx, val);
+        }
+        BorrowedScalarValue::List(val) => {
+            let list_buf = buffer.get_list_buffer_mut()?;
+
+            // Ensure we have enough space to push.
+            let rem_cap = list_buf.logical_len() - list_buf.current_offset;
+            if val.len() > rem_cap {
+                // Resize the secondary buffers.
+                list_buf.try_reserve_child_buffers(val.len() - rem_cap)?;
+            }
+
+            let child_buffer = &mut list_buf.child_buffer;
+            let child_validity = list_buf.child_validity.try_as_mut()?;
+
+            // We should have enough capacity now, insert our values.
+            for (child_offset, val) in (list_buf.current_offset..).zip(val) {
+                // Lists can't contain selections.
+                let logical_idx = child_offset;
+                let data_idx = child_offset;
+
+                set_value_inner(val, child_buffer, child_validity, logical_idx, data_idx)?;
+            }
+
+            let start_offset = list_buf.current_offset;
+            list_buf.current_offset += val.len();
+
+            // Set metadata point to new list.
+            PhysicalList::get_addressable_mut(buffer)?.put(
+                data_idx,
+                &ListItemMetadata {
+                    offset: start_offset as i32,
+                    len: val.len() as i32,
+                },
+            );
+        }
+        BorrowedScalarValue::Struct(_) => not_implemented!("set value for struct"),
+    }
+
+    Ok(())
+}
+
 /// Implements `try_from_iter` for primitive types.
 ///
 /// Note these create arrays using Nop buffer manager and so really only
@@ -866,7 +893,9 @@ mod tests {
     use crate::arrays::cache::NopCache;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::ListTypeMeta;
+    use crate::arrays::scalar::ScalarValue;
     use crate::testutil::arrays::assert_arrays_eq;
+    use crate::{generate_array, generate_batch};
 
     #[test]
     fn try_new_constant_utf8() {
@@ -1039,6 +1068,25 @@ mod tests {
         let arr = Array::new_constant(&NopBufferManager, &"cat".into(), 4).unwrap();
         let val = arr.get_value(2).unwrap();
         assert_eq!(BorrowedScalarValue::Utf8("cat".into()), val);
+    }
+
+    #[test]
+    fn set_value_simple() {
+        let mut arr = generate_array!(["a", "b", "c"]);
+        let val: ScalarValue = "cat".into();
+        arr.set_value(1, &val).unwrap();
+
+        let expected = generate_array!(["a", "cat", "c"]);
+        assert_arrays_eq(&expected, &arr);
+    }
+
+    #[test]
+    fn set_value_null() {
+        let mut arr = generate_array!(["a", "b", "c"]);
+        arr.set_value(1, &ScalarValue::Null).unwrap();
+
+        let expected = generate_array!([Some("a"), None, Some("c")]);
+        assert_arrays_eq(&expected, &arr);
     }
 
     #[test]

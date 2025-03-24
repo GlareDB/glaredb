@@ -4,6 +4,7 @@ pub mod list_schemas;
 pub mod memory_scan;
 pub mod profile;
 pub mod series;
+pub mod unnest;
 
 use list_databases::FUNCTION_SET_LIST_DATABASES;
 use list_entries::{
@@ -20,11 +21,13 @@ use profile::{
     FUNCTION_SET_QUERY_INFO,
 };
 use series::FUNCTION_SET_GENERATE_SERIES;
+use unnest::FUNCTION_SET_UNNEST;
 
 use crate::functions::function_set::TableFunctionSet;
 
 pub const BUILTIN_TABLE_FUNCTION_SETS: &[TableFunctionSet] = &[
     FUNCTION_SET_GENERATE_SERIES,
+    FUNCTION_SET_UNNEST,
     // System functions.
     FUNCTION_SET_LIST_DATABASES,
     FUNCTION_SET_LIST_SCHEMAS,
