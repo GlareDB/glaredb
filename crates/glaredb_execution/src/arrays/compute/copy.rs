@@ -1,4 +1,4 @@
-use glaredb_error::{DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::ArrayBuffer;
@@ -79,7 +79,7 @@ pub fn copy_rows_array(
 ///
 /// This is exposed to allow shared copy implementations between `Array`s and
 /// array-type collections like buffers in `ColumnarCollection`.
-pub(in crate::arrays) fn copy_rows_raw(
+pub(crate) fn copy_rows_raw(
     phys_type: PhysicalType,
     src_buf: &ArrayBuffer,
     src_validity: &Validity,
@@ -233,7 +233,7 @@ pub(in crate::arrays) fn copy_rows_raw(
             dest_buf,
             dest_validity,
         ),
-        _ => unimplemented!(),
+        other => not_implemented!("copy rows raw: {other}"),
     }
 }
 

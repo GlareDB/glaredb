@@ -20,7 +20,6 @@ unnest  Null
 query ?
 SELECT * FROM unnest(NULL);
 ----
-NULL
 
 query ?
 SELECT * FROM unnest([]);

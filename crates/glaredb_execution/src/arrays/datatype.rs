@@ -459,7 +459,12 @@ impl DataType {
             DataTypeId::Struct => {
                 return Err(DbError::new("Cannot create a default Struct datatype"));
             }
-            DataTypeId::List(_) => {
+            DataTypeId::List(&inner) => {
+                // TODO: Is this fine?
+                if from == DataType::Null && inner == DataTypeId::Any {
+                    return Ok(DataType::List(ListTypeMeta::new(DataType::Null)));
+                }
+
                 return Err(DbError::new("Cannot create a default List datatype"));
             }
         })
@@ -626,6 +631,15 @@ impl DataType {
             Self::Decimal128(m) => Ok(*m),
             other => Err(DbError::new(format!(
                 "Cannot get decimal type meta from type {other}"
+            ))),
+        }
+    }
+
+    pub fn try_get_list_type_meta(&self) -> Result<&ListTypeMeta> {
+        match self {
+            Self::List(m) => Ok(m),
+            other => Err(DbError::new(format!(
+                "Cannot get list type meta from type {other}"
             ))),
         }
     }

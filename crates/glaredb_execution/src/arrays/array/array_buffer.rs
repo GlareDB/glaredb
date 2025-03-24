@@ -2,7 +2,7 @@ use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use glaredb_error::{DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 
 use super::physical_type::{
     BinaryViewAddressable,
@@ -111,7 +111,7 @@ impl ArrayBuffer {
                 };
                 ListBuffer::try_new(manager, inner, capacity)?.into()
             }
-            _ => unimplemented!(),
+            other => not_implemented!("new array buffer for physical type: {other}"),
         };
 
         Ok(ArrayBuffer { inner })
@@ -732,21 +732,16 @@ pub struct ListItemMetadata {
 #[derive(Debug)]
 pub struct ListBuffer {
     pub(crate) metadata: SharedOrOwned<TypedBuffer<ListItemMetadata>>,
-    /// Number of "filled" entries in the child array.
-    ///
-    /// This differs from the child's capacity as we need to be able
-    /// incrementally push back values.
-    ///
-    /// This is only looked at when writing values to the child array. Reads can
-    /// ignore this as all required info is in the entry metadata.
+    /// Current offset when adding values to the list.
     #[allow(dead_code)]
-    pub(crate) entries: usize,
-    pub(crate) child_validity: SharedOrOwned<Validity>, // TODO: Does this need to be wrapped?
+    pub(crate) current_offset: usize,
+    pub(crate) child_physical_type: PhysicalType,
+    pub(crate) child_validity: SharedOrOwned<Validity>, // TODO: Does this need to be wrapped? // TODO: With what?
     pub(crate) child_buffer: Box<ArrayBuffer>,
 }
 
 impl ListBuffer {
-    fn try_new(
+    pub fn try_new(
         manager: &impl AsRawBufferManager,
         inner_type: DataType,
         capacity: usize,
@@ -757,13 +752,73 @@ impl ListBuffer {
 
         Ok(ListBuffer {
             metadata: SharedOrOwned::owned(metadata),
-            entries: 0,
+            current_offset: 0,
+            child_physical_type: inner_type.physical_type(),
             child_validity: SharedOrOwned::owned(child_validity),
             child_buffer: Box::new(child_buffer),
         })
     }
 
-    fn logical_len(&self) -> usize {
+    /// Try to resize the child buffers in order to hold `additional` elements.
+    pub fn try_reserve_child_buffers(&mut self, additional: usize) -> Result<()> {
+        // Resize array buffer.
+        match &mut self.child_buffer.inner {
+            ArrayBufferType::Scalar(scalar) => match self.child_physical_type {
+                PhysicalType::UntypedNull => {
+                    scalar.try_reserve::<PhysicalUntypedNull>(additional)?
+                }
+                PhysicalType::Boolean => scalar.try_reserve::<PhysicalBool>(additional)?,
+                PhysicalType::Int8 => scalar.try_reserve::<PhysicalI8>(additional)?,
+                PhysicalType::Int16 => scalar.try_reserve::<PhysicalI16>(additional)?,
+                PhysicalType::Int32 => scalar.try_reserve::<PhysicalI32>(additional)?,
+                PhysicalType::Int64 => scalar.try_reserve::<PhysicalI64>(additional)?,
+                PhysicalType::Int128 => scalar.try_reserve::<PhysicalI128>(additional)?,
+                PhysicalType::UInt8 => scalar.try_reserve::<PhysicalU8>(additional)?,
+                PhysicalType::UInt16 => scalar.try_reserve::<PhysicalU16>(additional)?,
+                PhysicalType::UInt32 => scalar.try_reserve::<PhysicalU32>(additional)?,
+                PhysicalType::UInt64 => scalar.try_reserve::<PhysicalU64>(additional)?,
+                PhysicalType::UInt128 => scalar.try_reserve::<PhysicalU128>(additional)?,
+                PhysicalType::Float16 => scalar.try_reserve::<PhysicalF16>(additional)?,
+                PhysicalType::Float32 => scalar.try_reserve::<PhysicalF32>(additional)?,
+                PhysicalType::Float64 => scalar.try_reserve::<PhysicalF64>(additional)?,
+                PhysicalType::Interval => scalar.try_reserve::<PhysicalInterval>(additional)?,
+                other => {
+                    return Err(DbError::new(format!(
+                        "Unexpected physical type in list array attempting to resize scalar buffer: {other}"
+                    )));
+                }
+            },
+            ArrayBufferType::String(string) => string.try_reserve(additional)?,
+            ArrayBufferType::List(_) => {
+                not_implemented!("Reserve additional capacity for nested arrays")
+            }
+            ArrayBufferType::Constant(_) => {
+                return Err(DbError::new(
+                    "Unexpected constant array in list array buffer during resize",
+                ));
+            }
+            ArrayBufferType::Dictionary(_) => {
+                return Err(DbError::new(
+                    "Unexpected dictionary array in list array buffer during resize",
+                ));
+            }
+        }
+
+        // Resize validity.
+        let mut validity = Validity::new_all_valid(self.child_validity.len() + additional);
+        if !self.child_validity.all_valid() {
+            for (idx, valid) in self.child_validity.iter().enumerate() {
+                if !valid {
+                    validity.set_invalid(idx);
+                }
+            }
+        }
+        self.child_validity = SharedOrOwned::owned(validity);
+
+        Ok(())
+    }
+
+    pub(crate) fn logical_len(&self) -> usize {
         self.metadata.capacity()
     }
 
@@ -780,7 +835,8 @@ impl ListBuffer {
 
         ListBuffer {
             metadata,
-            entries: self.entries,
+            current_offset: self.current_offset,
+            child_physical_type: self.child_physical_type,
             child_buffer: Box::new(child_buffer),
             child_validity,
         }
@@ -789,7 +845,8 @@ impl ListBuffer {
     fn try_clone_shared(&self) -> Result<Self> {
         Ok(ListBuffer {
             metadata: self.metadata.try_clone_shared()?,
-            entries: self.entries,
+            current_offset: self.current_offset,
+            child_physical_type: self.child_physical_type,
             child_buffer: Box::new(self.child_buffer.try_clone_shared()?),
             child_validity: self.child_validity.try_clone_shared()?,
         })
