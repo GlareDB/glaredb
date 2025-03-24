@@ -178,10 +178,18 @@ impl UnaryExecutor {
         Ok(())
     }
 
+    /// Iterate over a boolean array, calling `when_true` and `when_false`
+    /// depending on the value.
+    ///
+    /// If a value is NULL, `when_false` is called.
+    ///
+    /// `when_true` and `when_false` are called with the logical index for the
+    /// array.
     pub fn select(
         array: &Array,
         selection: impl IntoExactSizeIterator<Item = usize>,
-        true_indices: &mut Vec<usize>,
+        mut when_true: impl FnMut(usize),
+        mut when_false: impl FnMut(usize),
     ) -> Result<()> {
         let flat = array.flatten()?;
 
@@ -194,18 +202,25 @@ impl UnaryExecutor {
                 let v = *bools.get(selected_idx).unwrap();
 
                 if v {
-                    true_indices.push(input_idx);
+                    when_true(input_idx)
+                } else {
+                    when_false(input_idx)
                 }
             }
         } else {
             for input_idx in selection.into_exact_size_iter() {
+                let valid = validity.is_valid(input_idx);
                 let selected_idx = flat.selection.get(input_idx).unwrap();
 
-                if validity.is_valid(selected_idx) {
+                if valid {
                     let v = *bools.get(selected_idx).unwrap();
                     if v {
-                        true_indices.push(input_idx);
+                        when_true(input_idx);
+                    } else {
+                        when_false(input_idx);
                     }
+                } else {
+                    when_false(input_idx);
                 }
             }
         }
@@ -225,6 +240,7 @@ mod tests {
     };
     use crate::arrays::datatype::DataType;
     use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::generate_array;
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::util::iter::TryFromExactSizeIterator;
 
@@ -492,5 +508,33 @@ mod tests {
 
         let expected = Array::try_from_iter([5, 5]).unwrap();
         assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn select_simple() {
+        let array = generate_array!([Some(true), Some(false), None, Some(true)]);
+
+        let mut trues = Vec::new();
+        let mut falses = Vec::new();
+
+        UnaryExecutor::select(&array, 0..4, |idx| trues.push(idx), |idx| falses.push(idx)).unwrap();
+
+        assert_eq!(&[0, 3], trues.as_slice());
+        assert_eq!(&[1, 2], falses.as_slice());
+    }
+
+    #[test]
+    fn select_dictionary() {
+        let mut array = generate_array!([Some(true), Some(false), None, Some(true)]);
+        // [NULL, NULL, false, true]
+        array.select(&NopBufferManager, [2, 2, 1, 0]).unwrap();
+
+        let mut trues = Vec::new();
+        let mut falses = Vec::new();
+
+        UnaryExecutor::select(&array, 0..4, |idx| trues.push(idx), |idx| falses.push(idx)).unwrap();
+
+        assert_eq!(&[3], trues.as_slice());
+        assert_eq!(&[0, 1, 2], falses.as_slice());
     }
 }

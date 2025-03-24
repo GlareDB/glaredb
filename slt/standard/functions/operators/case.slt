@@ -107,7 +107,7 @@ DESCRIBE SELECT i, CASE i
        END FROM ints;
 ----
 i         Int32
-?column?  Float64
+?column?  Decimal64(2,1)
 
 query IR rowsort
 SELECT i, CASE i
@@ -116,6 +116,6 @@ SELECT i, CASE i
        END FROM ints;
 ----
 4     8.5
-5     5
-6     6
+5     5.0
+6     6.0
 NULL  NULL
