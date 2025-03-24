@@ -459,7 +459,12 @@ impl DataType {
             DataTypeId::Struct => {
                 return Err(DbError::new("Cannot create a default Struct datatype"));
             }
-            DataTypeId::List(_) => {
+            DataTypeId::List(&inner) => {
+                // TODO: Is this fine?
+                if from == DataType::Null && inner == DataTypeId::Any {
+                    return Ok(DataType::List(ListTypeMeta::new(DataType::Null)));
+                }
+
                 return Err(DbError::new("Cannot create a default List datatype"));
             }
         })

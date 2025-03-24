@@ -10,6 +10,7 @@ macro_rules! generate_array {
         $crate::arrays::array::Array::try_from_iter($array_values).unwrap()
     }};
 }
+pub(crate) use generate_array;
 
 /// Helper macro for generating batches to use in tests.
 // TODO: Remove `macro_export`. Only done to make this visible outside of the
