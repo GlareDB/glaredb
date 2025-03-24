@@ -8,16 +8,16 @@ use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EmptyPartitionState {
+pub enum SingleRowScanPartitionState {
     Emit,
     NoEmit,
 }
 
-/// A dummy operator that emits a single row across all partitions.
+/// An operator that emits a single row with no columns across all partitions.
 #[derive(Debug)]
-pub struct PhysicalEmpty;
+pub struct PhysicalSingleRow;
 
-impl BaseOperator for PhysicalEmpty {
+impl BaseOperator for PhysicalSingleRow {
     type OperatorState = ();
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -29,8 +29,8 @@ impl BaseOperator for PhysicalEmpty {
     }
 }
 
-impl PullOperator for PhysicalEmpty {
-    type PartitionPullState = EmptyPartitionState;
+impl PullOperator for PhysicalSingleRow {
+    type PartitionPullState = SingleRowScanPartitionState;
 
     fn create_partition_pull_states(
         &self,
@@ -40,8 +40,8 @@ impl PullOperator for PhysicalEmpty {
     ) -> Result<Vec<Self::PartitionPullState>> {
         debug_assert!(partitions >= 1);
 
-        let mut states = vec![EmptyPartitionState::Emit];
-        states.resize(partitions, EmptyPartitionState::NoEmit);
+        let mut states = vec![SingleRowScanPartitionState::Emit];
+        states.resize(partitions, SingleRowScanPartitionState::NoEmit);
 
         Ok(states)
     }
@@ -54,15 +54,15 @@ impl PullOperator for PhysicalEmpty {
         output: &mut Batch,
     ) -> Result<PollPull> {
         match state {
-            EmptyPartitionState::Emit => output.set_num_rows(1)?,
-            EmptyPartitionState::NoEmit => output.set_num_rows(0)?,
+            SingleRowScanPartitionState::Emit => output.set_num_rows(1)?,
+            SingleRowScanPartitionState::NoEmit => output.set_num_rows(0)?,
         }
         Ok(PollPull::Exhausted)
     }
 }
 
-impl Explainable for PhysicalEmpty {
+impl Explainable for PhysicalSingleRow {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Empty")
+        ExplainEntry::new("SingleRow")
     }
 }

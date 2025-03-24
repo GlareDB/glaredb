@@ -1,16 +1,17 @@
 //! Implementations of physical operators in an execution pipeline.
 
 pub mod catalog;
-pub mod empty;
 pub mod filter;
 pub mod hash_aggregate;
 pub mod hash_join;
 pub mod limit;
 pub mod materialize;
 pub mod nested_loop_join;
+pub mod no_rows;
 pub mod project;
 pub mod results;
 pub mod scan;
+pub mod single_row;
 pub mod sort;
 pub mod table_execute;
 pub mod ungrouped_aggregate;

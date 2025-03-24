@@ -5,7 +5,6 @@ mod plan_create_view;
 mod plan_describe;
 mod plan_distinct;
 mod plan_drop;
-mod plan_empty;
 mod plan_explain;
 mod plan_expression_list;
 mod plan_filter;
@@ -14,10 +13,12 @@ mod plan_join;
 mod plan_limit;
 mod plan_magic_scan;
 mod plan_materialize_scan;
+mod plan_no_rows;
 mod plan_project;
 mod plan_scan;
 mod plan_set_operation;
 mod plan_show_var;
+mod plan_single_row;
 mod plan_sort;
 mod plan_table_execute;
 mod plan_unnest;
@@ -231,7 +232,8 @@ impl<'a> OperatorPlanState<'a> {
             LogicalOperator::MagicMaterializationScan(node) => {
                 self.plan_magic_materialize_scan(node)
             }
-            LogicalOperator::Empty(node) => self.plan_empty(node),
+            LogicalOperator::SingleRow(node) => self.plan_single_row(node),
+            LogicalOperator::NoRows(node) => self.plan_no_rows(node),
             LogicalOperator::SetVar(_) => Err(DbError::new("SET should be handled in the session")),
             LogicalOperator::ResetVar(_) => {
                 Err(DbError::new("RESET should be handled in the session"))

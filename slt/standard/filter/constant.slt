@@ -1,0 +1,94 @@
+# Constant filter expressions.
+
+# TODO: Need a way to check NoRows/SingleRow in the output plan.
+# TODO: Also verify with unoptimized.
+# TODO: Eliminate joins with constant fals conditions.
+
+query I
+SELECT a FROM VALUES (1), (2), (NULL) v(a) WHERE 1 = 1 ORDER BY 1;
+----
+1
+2
+NULL
+
+query I
+SELECT a FROM VALUES (1), (2), (NULL) v(a) WHERE 1 = 2 ORDER BY 1;
+----
+
+query TT
+DESCRIBE SELECT a FROM VALUES (1), (2), (NULL) v(a) WHERE 1 = 2 ORDER BY 1;
+----
+a  Int32
+
+query I
+SELECT a FROM VALUES (1), (2), (NULL) v(a) WHERE 1 <= 2 ORDER BY 1;
+----
+1
+2
+NULL
+
+# Outside of CTE
+query I
+WITH test AS
+  (SELECT i AS needle FROM generate_series(1, 10) t(i))
+SELECT count(*) FROM test WHERE 1 = 1;
+----
+10
+
+query I
+WITH test AS
+  (SELECT i AS needle FROM generate_series(1, 10) t(i))
+SELECT count(*) FROM test WHERE 1 <> 1;
+----
+0
+
+# Inside CTE
+query I
+WITH test AS
+  (SELECT i AS needle FROM generate_series(1, 10) t(i) WHERE 1 = 1)
+SELECT count(*) FROM test;
+----
+10
+
+query I
+WITH test AS
+  (SELECT i AS needle FROM generate_series(1, 10) t(i) WHERE 1 = 3)
+SELECT count(*) FROM test;
+----
+0
+
+# Part of join
+query II
+SELECT * FROM
+    (SELECT * FROM generate_series(1, 5) WHERE 1 = 2),
+    (SELECT * FROM generate_series(1, 5));
+----
+
+query II
+SELECT * FROM
+    (SELECT * FROM generate_series(1, 5) g(a) WHERE 1 = 1),
+    (SELECT * FROM generate_series(1, 5) g(b))
+  WHERE a = b ORDER BY 1;
+----
+1  1
+2  2
+3  3
+4  4
+5  5
+
+query II
+SELECT * FROM
+    (SELECT * FROM generate_series(1, 5) g(a) WHERE 1 = 2),
+    (SELECT * FROM generate_series(1, 5) g(b))
+  WHERE a = b ORDER BY 1;
+----
+
+query TT
+DESCRIBE SELECT * FROM
+    (SELECT * FROM generate_series(1, 5) g(a) WHERE 1 = 2),
+    (SELECT * FROM generate_series(1, 5) g(b))
+  WHERE a = b ORDER BY 1;
+----
+a  Int64
+b  Int64
+
