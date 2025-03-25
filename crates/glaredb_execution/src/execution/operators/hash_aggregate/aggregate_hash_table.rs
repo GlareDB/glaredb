@@ -181,8 +181,6 @@ impl AggregateHashTable {
     ///
     /// This will fill `out_ptrs` with the pointers to use for each row to
     /// update the aggregate state.
-    ///
-    /// Returns the total number of groups in the table.
     fn find_or_create_groups<A>(
         &mut self,
         append_state: &mut AggregateAppendState,
