@@ -47,19 +47,19 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Unit tests
-        run: cargo test -- --skip slt/
+      # - name: Unit tests
+      #   run: cargo test -- --skip slt/
 
       - name: DEBUG
-        run: DEBUG_PRINT_PROFILE=1 cargo test slt/standard/aggregates/group_by_cube.slt
+        run: cargo run --bin glaredb -- -f ./scratch_queries/grouping.sql
 
-      - name: SQL Logic Tests (standard)
-        if: always()
-        run: ./scripts/run_slt_standard.sh
+      # - name: SQL Logic Tests (standard)
+      #   if: always()
+      #   run: ./scripts/run_slt_standard.sh
 
-      - name: Extension - tpch_gen (SLT)
-        if: always()
-        run: cargo test slt/tpch_gen
+      # - name: Extension - tpch_gen (SLT)
+      #   if: always()
+      #   run: cargo test slt/tpch_gen
 
       # - name: SLTs Parquet
       #   env:

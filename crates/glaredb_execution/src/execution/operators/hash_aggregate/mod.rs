@@ -55,7 +55,7 @@ pub struct HashAggregateScanningPartitionState {
     /// Scan states per grouping set tables.
     ///
     /// This should be treated as a queue, each scan state should be exhausted
-    /// (and remove) until we have no scan states left.
+    /// (and removed) until we have no scan states left.
     states: Vec<(GroupingSetScanPartitionState, usize)>,
 }
 
