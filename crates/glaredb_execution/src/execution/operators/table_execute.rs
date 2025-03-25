@@ -105,6 +105,8 @@ impl PhysicalTableExecute {
 }
 
 impl BaseOperator for PhysicalTableExecute {
+    const OPERATOR_NAME: &str = "TableExecute";
+
     type OperatorState = TableExecuteOperatorState;
 
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -260,7 +262,8 @@ impl ExecuteOperator for PhysicalTableExecute {
 
 impl Explainable for PhysicalTableExecute {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("TableExecute").with_value("function", self.function.name);
+        let mut ent =
+            ExplainEntry::new(Self::OPERATOR_NAME).with_value("function", self.function.name);
         if conf.verbose {
             ent = ent.with_values("input_types", &self.input_types);
         }

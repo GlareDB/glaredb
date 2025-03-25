@@ -43,6 +43,8 @@ impl PhysicalValues {
 }
 
 impl BaseOperator for PhysicalValues {
+    const OPERATOR_NAME: &str = "Values";
+
     type OperatorState = ();
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -131,7 +133,7 @@ impl ExecuteOperator for PhysicalValues {
 
 impl Explainable for PhysicalValues {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Values")
+        ExplainEntry::new(Self::OPERATOR_NAME)
             .with_value("num_rows", self.expressions.len())
             .with_values("datatypes", &self.output_types)
     }

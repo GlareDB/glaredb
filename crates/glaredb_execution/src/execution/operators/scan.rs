@@ -47,6 +47,8 @@ impl PhysicalScan {
 }
 
 impl BaseOperator for PhysicalScan {
+    const OPERATOR_NAME: &str = "Scan";
+
     type OperatorState = ScanOperatorState;
 
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -102,6 +104,6 @@ impl PullOperator for PhysicalScan {
 
 impl Explainable for PhysicalScan {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Scan").with_value("source", self.function.name)
+        ExplainEntry::new(Self::OPERATOR_NAME).with_value("source", self.function.name)
     }
 }

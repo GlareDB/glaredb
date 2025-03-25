@@ -52,6 +52,8 @@ impl PhysicalLimit {
 }
 
 impl BaseOperator for PhysicalLimit {
+    const OPERATOR_NAME: &str = "Limit";
+
     type OperatorState = LimitOperatorState;
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -151,7 +153,7 @@ impl ExecuteOperator for PhysicalLimit {
 
 impl Explainable for PhysicalLimit {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("Limit").with_value("limit", self.limit);
+        let mut ent = ExplainEntry::new(Self::OPERATOR_NAME).with_value("limit", self.limit);
         if let Some(offset) = self.offset {
             ent = ent.with_value("offset", offset);
         }

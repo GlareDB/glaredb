@@ -160,6 +160,11 @@ impl OperatorType {
 }
 
 pub trait BaseOperator: Sync + Send + Debug + Explainable + 'static {
+    /// Name of the operator.
+    ///
+    /// Should be unique among all operators.
+    const OPERATOR_NAME: &str;
+
     type OperatorState: Sync + Send;
 
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState>;
@@ -360,6 +365,8 @@ impl PlannedOperatorWithChildren {
 
 #[derive(Debug, Clone)]
 pub struct PlannedOperator {
+    /// Name of the operator.
+    pub(crate) operator_name: &'static str,
     /// Identifier for the operator.
     pub(crate) id: OperatorId,
     /// The underlying operator.
@@ -375,6 +382,7 @@ impl PlannedOperator {
         O: ExecuteOperator,
     {
         PlannedOperator {
+            operator_name: O::OPERATOR_NAME,
             id,
             operator: Arc::new(op),
             vtable: ExecuteOperatorVTable::<O>::VTABLE,
@@ -387,6 +395,7 @@ impl PlannedOperator {
         O: PushOperator,
     {
         PlannedOperator {
+            operator_name: O::OPERATOR_NAME,
             id,
             operator: Arc::new(op),
             vtable: PushOperatorVTable::<O>::VTABLE,
@@ -399,6 +408,7 @@ impl PlannedOperator {
         O: PushOperator + ExecuteOperator,
     {
         PlannedOperator {
+            operator_name: O::OPERATOR_NAME,
             id,
             operator: Arc::new(op),
             vtable: PushExecuteOperatorVTable::<O>::VTABLE,
@@ -411,6 +421,7 @@ impl PlannedOperator {
         O: PullOperator,
     {
         PlannedOperator {
+            operator_name: O::OPERATOR_NAME,
             id,
             operator: Arc::new(op),
             vtable: PullOperatorVTable::<O>::VTABLE,
@@ -423,6 +434,7 @@ impl PlannedOperator {
         O: MaterializingOperator,
     {
         PlannedOperator {
+            operator_name: O::OPERATOR_NAME,
             id,
             operator: Arc::new(op),
             vtable: MaterializingOperatorVTable::<O>::VTABLE,
