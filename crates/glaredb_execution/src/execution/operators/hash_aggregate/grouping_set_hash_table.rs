@@ -130,7 +130,13 @@ impl GroupingSetHashTable {
         let build_states = (0..partitions)
             .map(|_| {
                 // Note that this includes only the groups in the grouping set.
+                //
+                // In certain cases, this may result in an empty batch, e.g.
+                // when dealing with rollups. The hash table has special logic
+                // for when no group arrays are provided to ensure that all rows
+                // still have a valid (and the same) hash.
                 let groups = Batch::new(self.group_types_no_hash_iter(), self.batch_size)?;
+
                 let agg_input_types: Vec<_> = self
                     .layout
                     .aggregates
@@ -333,8 +339,8 @@ impl GroupingSetHashTable {
         // That column is accounted for in the layout, but omitted from the
         // grouping set.
         let num_groups_scan = self.grouping_set.len();
-        let capacity = state.groups.write_capacity()?;
         state.groups.reset_for_write()?;
+        let capacity = state.groups.write_capacity()?;
         let group_row_count = state.hash_table.data.scan_groups_subset(
             &mut state.scan_state,
             0..num_groups_scan,

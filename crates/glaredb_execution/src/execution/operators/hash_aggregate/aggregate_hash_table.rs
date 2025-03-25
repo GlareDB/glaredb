@@ -20,6 +20,11 @@ use crate::execution::operators::util::power_of_two::{
 };
 use crate::expr::comparison_expr::ComparisonOperator;
 
+/// Hash value to use when not provided with any groups.
+///
+/// Non-zero for debuggability.
+const NO_GROUPS_HASH_VALUE: u64 = 49820;
+
 #[derive(Debug)]
 pub struct AggregateHashTableInsertState {
     /// Reusable buffer containing pointers to the beginning of rows that we
@@ -91,6 +96,13 @@ impl AggregateHashTable {
         }
     }
 
+    /// Gets the number of groups in this hash table.
+    #[allow(unused)]
+    pub fn num_groups(&self) -> usize {
+        debug_assert_eq!(self.data.num_groups(), self.directory.num_occupied);
+        self.data.num_groups()
+    }
+
     /// Insert groups and aggregate inputs into the hash table.
     ///
     /// `inputs` should be ordered inputs to the aggregates in this table.
@@ -107,6 +119,19 @@ impl AggregateHashTable {
         let mut hashes_arr = Array::new(&NopBufferManager, DataType::UInt64, groups.num_rows)?;
         let hashes = PhysicalU64::get_addressable_mut(&mut hashes_arr.data)?.slice;
         hash_many_arrays(&groups.arrays, 0..groups.num_rows, hashes)?;
+
+        if groups.arrays.is_empty() {
+            // We didn't actually hash anything...
+            //
+            // But we still want to insert these inputs. Since we treat the hash
+            // values as part of the group, we just fill the hash slice with the
+            // same value to produce a single group. The value we use is
+            // non-zero to aid in debuggability.
+            //
+            // No group arrays will happen when dealing with rollups, since the
+            // final rollup will be with no groups.
+            hashes.fill(NO_GROUPS_HASH_VALUE);
+        }
 
         self.insert_with_hashes(state, groups, inputs, &hashes_arr)
     }
@@ -518,6 +543,8 @@ impl Entry {
 }
 
 /// Hash table directory containing pointers to rows.
+///
+/// The number of entries in the directory indicates the number of groups.
 #[derive(Debug)]
 pub(crate) struct Directory {
     /// Number of non-null pointers in entries.
@@ -607,25 +634,26 @@ mod tests {
     use crate::expr::physical::PhysicalAggregateExpression;
     use crate::expr::{self, bind_aggregate_function};
     use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
+    use crate::generate_array;
     use crate::testutil::arrays::{assert_arrays_eq, assert_batches_eq, generate_batch};
     use crate::util::iter::TryFromExactSizeIterator;
 
     /// Helper to get the groups and results from a hash table.
     fn get_groups_and_results(table: &AggregateHashTable) -> (Batch, Batch) {
-        let cap = table.data.num_groups();
-        let mut out_groups = Batch::new(table.layout.groups.types.clone(), cap).unwrap();
+        let num_groups = table.num_groups();
+        let mut out_groups = Batch::new(table.layout.groups.types.clone(), num_groups).unwrap();
         let mut out_results = Batch::new(
             table
                 .layout
                 .aggregates
                 .iter()
                 .map(|agg| agg.function.state.return_type.clone()),
-            cap,
+            num_groups,
         )
         .unwrap();
 
         let mut row_ptrs: Vec<_> = table.data.row_mut_ptr_iter().collect();
-        assert_eq!(row_ptrs.len(), cap);
+        assert_eq!(row_ptrs.len(), num_groups);
 
         unsafe {
             table
@@ -638,10 +666,50 @@ mod tests {
                 .unwrap();
         }
 
-        out_groups.set_num_rows(cap).unwrap();
-        out_results.set_num_rows(cap).unwrap();
+        out_groups.set_num_rows(num_groups).unwrap();
+        out_results.set_num_rows(num_groups).unwrap();
 
         (out_groups, out_results)
+    }
+
+    #[test]
+    fn single_insert_single_agg_no_group_vals() {
+        // Hash table needs to handle case when no groups are provided. Happens
+        // when producing a final rollup.
+
+        // GROUP     NO USER PROVIDED GROUPS
+        // GROUP     (hash): UInt64
+        // AGG_INPUT (col0): Int64
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 0), DataType::Int64).into()],
+        )
+        .unwrap();
+        let aggs = [PhysicalAggregateExpression::new(
+            sum_agg,
+            [(0, DataType::Int64)],
+        )];
+
+        let layout = AggregateLayout::new([DataType::UInt64], aggs);
+
+        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut state = table.init_insert_state();
+
+        let groups = Batch::empty_with_num_rows(4);
+        let inputs = generate_batch!([1_i64, 2, 3, 4]);
+
+        table.insert(&mut state, &groups, &inputs).unwrap();
+
+        let (out_groups, out_results) = get_groups_and_results(&table);
+
+        // We should only have one "group", that being the hash value. We'll
+        // have no user provided groups.
+
+        let expected_groups = generate_array!([NO_GROUPS_HASH_VALUE]);
+        assert_arrays_eq(&expected_groups, &out_groups.arrays[0]);
+
+        let expected_results = generate_batch!([10_i64]);
+        assert_batches_eq(&expected_results, &out_results);
     }
 
     #[test]

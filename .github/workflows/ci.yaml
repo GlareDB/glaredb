@@ -52,7 +52,7 @@ jobs:
 
       - name: SQL Logic Tests (standard)
         if: always()
-        run: cargo test slt/standard
+        run: ./scripts/run_slt_standard.sh
 
       - name: Extension - tpch_gen (SLT)
         if: always()

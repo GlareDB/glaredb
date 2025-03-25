@@ -154,11 +154,34 @@ impl PullOperator for PhysicalMaterialize {
         if count == 0 {
             // Check if input is finished.
             let mut inner = operator_state.inner.lock();
+
             if inner.remaining_input_partitions > 0 {
                 // Still have inputs, need to come back later for more batches.
                 inner.pull_wakers[state.output_idx].store(cx.waker(), state.partition_idx);
                 return Ok(PollPull::Pending);
             } else {
+                // We don't need the lock for the scan.
+                std::mem::drop(inner);
+                // Do a second scan here to verify count==0.
+                //
+                // We do this since there's a race-condition where:
+                // 1. This partition scans, gets zero rows.
+                // 2. Final input partition flushes its rows, sets remaining to 0.
+                // 3. This partition does not know about the final set of rows.
+                //
+                // This second scan addresses step 3, ensuring we see the final
+                // set of rows.
+                let count = operator_state.collection.parallel_scan(
+                    &state.projections,
+                    &mut state.scan_state,
+                    output,
+                )?;
+                if count != 0 {
+                    // There was a race, but we now know about the final set of
+                    // rows.
+                    return Ok(PollPull::HasMore);
+                }
+
                 // Inputs are finished, we're exhausted.
                 return Ok(PollPull::Exhausted);
             }
