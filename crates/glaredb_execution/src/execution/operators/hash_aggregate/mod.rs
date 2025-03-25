@@ -232,6 +232,8 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 }
 
                 loop {
+                    // Fill up our output batch by trying to scan as many tables
+                    // as we can.
                     let (mut scan_state, table_idx) = match scanning.states.pop() {
                         Some(v) => v,
                         None => {
@@ -267,6 +269,9 @@ impl ExecuteOperator for PhysicalHashAggregate {
     ) -> Result<PollFinalize> {
         match state {
             HashAggregatePartitionState::Building(building) => {
+                // Finalize the building for this partition by merging all
+                // partition-local tables into the operator tables.
+
                 let partition_idx = building.partition_idx;
                 // Replace partition state to ready it for scanning.
                 let state = std::mem::replace(
@@ -293,10 +298,12 @@ impl ExecuteOperator for PhysicalHashAggregate {
                         &mut partition_state.states[table_idx],
                     )?;
 
+                    // Just set if we're ready on the first table. If the first
+                    // table is ready for scanning, then all tables should be
+                    // ready for scanning.
                     if table_idx == 0 {
                         shared_state.scan_ready = scan_ready
                     }
-
                     debug_assert_eq!(shared_state.scan_ready, scan_ready);
                 }
 

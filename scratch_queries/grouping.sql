@@ -1,3 +1,5 @@
+SET partitions TO 1;
+
 CREATE TEMP TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1), (2), (3);
 

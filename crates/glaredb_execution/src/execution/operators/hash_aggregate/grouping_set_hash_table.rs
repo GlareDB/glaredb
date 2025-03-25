@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
-use std::time::Duration;
 
 use glaredb_error::{DbError, Result};
 
@@ -131,7 +130,13 @@ impl GroupingSetHashTable {
         let build_states = (0..partitions)
             .map(|_| {
                 // Note that this includes only the groups in the grouping set.
+                //
+                // In certain cases, this may result in an empty batch, e.g.
+                // when dealing with rollups. The hash table has special logic
+                // for when no group arrays are provided to ensure that all rows
+                // still have a valid (and the same) hash.
                 let groups = Batch::new(self.group_types_no_hash_iter(), self.batch_size)?;
+
                 let agg_input_types: Vec<_> = self
                     .layout
                     .aggregates
@@ -348,8 +353,6 @@ impl GroupingSetHashTable {
             output.set_num_rows(0)?;
             return Ok(());
         }
-
-        println!("GROUP ROW COUNT: {group_row_count}");
 
         debug_assert_eq!(capacity, state.results.write_capacity()?);
         debug_assert!(group_row_count <= capacity);
