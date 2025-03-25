@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
+use std::time::Duration;
 
 use glaredb_error::{DbError, Result};
 
@@ -333,8 +334,8 @@ impl GroupingSetHashTable {
         // That column is accounted for in the layout, but omitted from the
         // grouping set.
         let num_groups_scan = self.grouping_set.len();
-        let capacity = state.groups.write_capacity()?;
         state.groups.reset_for_write()?;
+        let capacity = state.groups.write_capacity()?;
         let group_row_count = state.hash_table.data.scan_groups_subset(
             &mut state.scan_state,
             0..num_groups_scan,
@@ -347,6 +348,8 @@ impl GroupingSetHashTable {
             output.set_num_rows(0)?;
             return Ok(());
         }
+
+        println!("GROUP ROW COUNT: {group_row_count}");
 
         debug_assert_eq!(capacity, state.results.write_capacity()?);
         debug_assert!(group_row_count <= capacity);
