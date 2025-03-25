@@ -95,6 +95,8 @@ impl PhysicalSort {
 }
 
 impl BaseOperator for PhysicalSort {
+    const OPERATOR_NAME: &str = "Sort";
+
     type OperatorState = SortOperatorState;
 
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -288,7 +290,7 @@ impl ExecuteOperator for PhysicalSort {
 
 impl Explainable for PhysicalSort {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Sort")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }
 

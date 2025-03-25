@@ -73,6 +73,8 @@ pub struct PhysicalMaterialize {
 }
 
 impl BaseOperator for PhysicalMaterialize {
+    const OPERATOR_NAME: &str = "Materialize";
+
     type OperatorState = MaterializeOperatorState;
 
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -237,7 +239,7 @@ impl PushOperator for PhysicalMaterialize {
 
 impl Explainable for PhysicalMaterialize {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Materialize")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }
 

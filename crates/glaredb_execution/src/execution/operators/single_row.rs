@@ -18,6 +18,8 @@ pub enum SingleRowScanPartitionState {
 pub struct PhysicalSingleRow;
 
 impl BaseOperator for PhysicalSingleRow {
+    const OPERATOR_NAME: &str = "SingleRow";
+
     type OperatorState = ();
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -63,6 +65,6 @@ impl PullOperator for PhysicalSingleRow {
 
 impl Explainable for PhysicalSingleRow {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("SingleRow")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }

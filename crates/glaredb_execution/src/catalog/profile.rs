@@ -72,6 +72,8 @@ pub struct PlanningProfile {
 
 #[derive(Debug, Clone)]
 pub struct OperatorProfile {
+    /// Name of the operator.
+    pub operator_name: &'static str,
     /// Identifier for the operator.
     pub operator_id: OperatorId,
     /// Total time spent execution this operator.

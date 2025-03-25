@@ -14,6 +14,8 @@ pub struct PhysicalNoRows {
 }
 
 impl BaseOperator for PhysicalNoRows {
+    const OPERATOR_NAME: &str = "NoRows";
+
     type OperatorState = ();
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -51,6 +53,6 @@ impl PullOperator for PhysicalNoRows {
 
 impl Explainable for PhysicalNoRows {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("NoRows")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }

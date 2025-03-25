@@ -112,6 +112,8 @@ impl PhysicalHashAggregate {
 }
 
 impl BaseOperator for PhysicalHashAggregate {
+    const OPERATOR_NAME: &str = "HashAggregate";
+
     type OperatorState = HashAggregateOperatorState;
 
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -316,7 +318,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
 impl Explainable for PhysicalHashAggregate {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("HashAggregate")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }
 

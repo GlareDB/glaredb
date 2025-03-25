@@ -159,6 +159,8 @@ impl PhysicalStreamingResults {
 }
 
 impl BaseOperator for PhysicalStreamingResults {
+    const OPERATOR_NAME: &str = "StreamingResults";
+
     type OperatorState = StreamingResultsOperatorState;
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -257,7 +259,7 @@ impl PushOperator for PhysicalStreamingResults {
 
 impl Explainable for PhysicalStreamingResults {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("StreamingResults")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }
 

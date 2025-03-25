@@ -24,6 +24,8 @@ pub struct PhysicalCreateSchema {
 }
 
 impl BaseOperator for PhysicalCreateSchema {
+    const OPERATOR_NAME: &str = "CreateSchema";
+
     type OperatorState = ();
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -68,6 +70,6 @@ impl PullOperator for PhysicalCreateSchema {
 
 impl Explainable for PhysicalCreateSchema {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("CreateSchema")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }

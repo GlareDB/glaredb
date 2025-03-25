@@ -42,6 +42,8 @@ pub struct PhysicalHashJoin {
 }
 
 impl BaseOperator for PhysicalHashJoin {
+    const OPERATOR_NAME: &str = "HashJoin";
+
     type OperatorState = HashJoinOperatorState;
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -124,6 +126,6 @@ impl PushOperator for PhysicalHashJoin {
 
 impl Explainable for PhysicalHashJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("HashJoin")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }

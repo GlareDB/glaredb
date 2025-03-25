@@ -147,6 +147,8 @@ impl PhysicalNestedLoopJoin {
 }
 
 impl BaseOperator for PhysicalNestedLoopJoin {
+    const OPERATOR_NAME: &str = "NestedLoopJoin";
+
     type OperatorState = NestedLoopJoinOperatorState;
 
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -525,7 +527,7 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
 
 impl Explainable for PhysicalNestedLoopJoin {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("NestedLoopJoin")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }
 

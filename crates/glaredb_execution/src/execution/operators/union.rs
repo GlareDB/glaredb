@@ -87,6 +87,8 @@ impl PhysicalUnion {
 }
 
 impl BaseOperator for PhysicalUnion {
+    const OPERATOR_NAME: &str = "Union";
+
     type OperatorState = UnionOperatorState;
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -245,7 +247,7 @@ impl ExecuteOperator for PhysicalUnion {
 
 impl Explainable for PhysicalUnion {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Union")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }
 

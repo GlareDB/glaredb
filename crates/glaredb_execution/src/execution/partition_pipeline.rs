@@ -63,6 +63,7 @@ impl ExecutablePartitionPipeline {
         let operator_profiles = operators
             .iter()
             .map(|op| OperatorProfile {
+                operator_name: op.operator_name,
                 operator_id: op.id,
                 execution_duration: Duration::default(),
                 rows_in: 0,

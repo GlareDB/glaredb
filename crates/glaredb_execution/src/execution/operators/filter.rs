@@ -22,6 +22,8 @@ pub struct FilterPartitionState {
 }
 
 impl BaseOperator for PhysicalFilter {
+    const OPERATOR_NAME: &str = "Filter";
+
     type OperatorState = ();
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -86,7 +88,7 @@ impl ExecuteOperator for PhysicalFilter {
 
 impl Explainable for PhysicalFilter {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Filter").with_value("predicate", &self.predicate)
+        ExplainEntry::new(Self::OPERATOR_NAME).with_value("predicate", &self.predicate)
     }
 }
 
