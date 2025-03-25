@@ -60,6 +60,8 @@ pub struct PhysicalCreateTableAs {
 }
 
 impl BaseOperator for PhysicalCreateTableAs {
+    const OPERATOR_NAME: &str = "CreateTableAs";
+
     type OperatorState = CreateTableAsOperatorState;
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -198,6 +200,6 @@ impl ExecuteOperator for PhysicalCreateTableAs {
 
 impl Explainable for PhysicalCreateTableAs {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("CreateTableAs")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }

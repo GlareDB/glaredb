@@ -36,6 +36,8 @@ pub struct ProjectPartitionState {
 }
 
 impl BaseOperator for PhysicalProject {
+    const OPERATOR_NAME: &str = "Project";
+
     type OperatorState = ();
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -94,7 +96,7 @@ impl ExecuteOperator for PhysicalProject {
 
 impl Explainable for PhysicalProject {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Project").with_values("projections", &self.projections)
+        ExplainEntry::new(Self::OPERATOR_NAME).with_values("projections", &self.projections)
     }
 }
 

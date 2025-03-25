@@ -105,6 +105,8 @@ impl PhysicalUngroupedAggregate {
 }
 
 impl BaseOperator for PhysicalUngroupedAggregate {
+    const OPERATOR_NAME: &str = "UngroupedAggregate";
+
     type OperatorState = UngroupedAggregateOperatorState;
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -265,7 +267,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
 
 impl Explainable for PhysicalUngroupedAggregate {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("PhysicalUngroupedAggregate")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }
 

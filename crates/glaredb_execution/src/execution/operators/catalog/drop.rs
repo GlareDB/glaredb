@@ -27,6 +27,8 @@ pub struct PhysicalDrop {
 }
 
 impl BaseOperator for PhysicalDrop {
+    const OPERATOR_NAME: &str = "Drop";
+
     type OperatorState = ();
 
     fn create_operator_state(&self, _props: ExecutionProperties) -> Result<Self::OperatorState> {
@@ -80,6 +82,6 @@ impl PullOperator for PhysicalDrop {
 
 impl Explainable for PhysicalDrop {
     fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Drop")
+        ExplainEntry::new(Self::OPERATOR_NAME)
     }
 }
