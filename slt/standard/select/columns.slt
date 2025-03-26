@@ -46,3 +46,34 @@ query IIII
 SELECT col_a, COLUMNS('col_*') FROM t1;
 ----
 2  2  3  4
+
+# Multiple COLUMNs
+
+query TT
+DESCRIBE SELECT COLUMNS('.*_a|.*_c'), COLUMNS('.*_a|.*_c') FROM t1;
+----
+col_a  Int32
+col_c  Int32
+col_a  Int32
+col_c  Int32
+
+query IIII
+SELECT COLUMNS('.*_a|.*_c'), COLUMNS('.*_a|.*_c') FROM t1
+----
+2  4  2  4
+
+query TT
+DESCRIBE SELECT COLUMNS('.*_a|.*_c'), COLUMNS('col*'), COLUMNS('.*_a|.*_c') FROM t1;
+----
+col_a Int32
+col_c Int32
+col_a Int32
+col_b Int32
+col_c Int32
+col_a Int32
+col_c Int32
+
+query IIIIIII
+SELECT COLUMNS('.*_a|.*_c'), COLUMNS('col*'), COLUMNS('.*_a|.*_c') FROM t1
+----
+2 4 2 3 4 2 4

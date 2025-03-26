@@ -1,0 +1,17 @@
+# Alias the columns for VALUES
+
+query TT
+DESCRIBE SELECT * FROM (VALUES (1,2.0,3)) v(a,b,c);
+----
+a  Int32
+b  Decimal64(2,1)
+c  Int32
+
+# Allow fewer aliases then number of column. Follows postgres.
+query TT
+DESCRIBE SELECT * FROM (VALUES (1,2.0,3)) v(a,b);
+----
+a        Int32
+b        Decimal64(2,1)
+column3  Int32
+

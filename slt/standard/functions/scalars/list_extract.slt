@@ -1,9 +1,5 @@
 # list_extract function
 
-# TODO: Add back list functions
-# <https://github.com/GlareDB/rayexec/issues/276>
-halt
-
 query I
 select list_extract(list_values(8, 9), 1);
 ----

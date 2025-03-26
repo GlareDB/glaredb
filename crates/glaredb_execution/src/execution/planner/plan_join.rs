@@ -103,17 +103,6 @@ impl OperatorPlanState<'_> {
             )
             .context("Failed to plan expressions arbitrary join filter")?;
 
-        // Modify the filter as to match the join type.
-        let filter = match join.node.join_type {
-            JoinType::Inner => filter,
-            other => {
-                // TODO: Other join types.
-                return Err(DbError::new(format!(
-                    "Unhandled join type for arbitrary join: {other:?}"
-                )));
-            }
-        };
-
         let [left, right] = join.take_two_children_exact()?;
 
         self.plan_nested_loop_join(location, left, right, Some(filter), join.node.join_type)
