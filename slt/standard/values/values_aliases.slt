@@ -30,3 +30,8 @@ query IRIIRI
 SELECT * FROM (VALUES (1,2.0,3)) v(a,b), (VALUES (a + 3, b*2, column3 +1))
 ----
 1  2.0  3  4  4.0  4
+
+query IRIIRI
+SELECT * FROM (VALUES (1,2.0,3)) v(a,b), LATERAL (VALUES (a + 3, b*2, column3 +1))
+----
+1  2.0  3  4  4.0  4

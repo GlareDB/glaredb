@@ -1,0 +1,18 @@
+# Correlated + lateral joins
+
+# TODO: Need to check tables with null values as well.
+
+statement ok
+CREATE TEMP TABLE t1 (v INT);
+
+statement ok
+INSERT INTO t1 VALUES (4), (5), (6);
+
+# Correlated in project, lateral in from. Lateral does not reference correlated.
+query III
+SELECT v, (SELECT a1.v FROM t1 AS a1 WHERE a1.v = a2.v + 1), g
+  FROM t1 AS a2, VALUES (a2.v + 3) v(g) ORDER BY 1,2,3;
+----
+4  5     7
+5  6     8
+6  NULL  9
