@@ -147,6 +147,8 @@ pub struct StreamingResultsPartitionState {
 }
 
 /// Operator for producing non-empty batches on a stream.
+///
+/// This will emit directly to the stream as data comes in.
 #[derive(Debug)]
 pub struct PhysicalStreamingResults {
     pub(crate) sink: ResultSink,
