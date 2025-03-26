@@ -87,3 +87,11 @@ DOG
 MOUSE
 NULL
 
+# Chaining outside of select.
+# TODO: We seem to only detect stuff in the select.
+# query TI
+# SELECT a, b
+#   FROM (VALUES ('cat', -1), ('dog', -5), ('horse', 6), ('moose', NULL)) v(a,b)
+#   WHERE b.abs() > 2
+#   ORDER BY b.abs()
+# ----

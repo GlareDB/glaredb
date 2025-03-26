@@ -1,4 +1,4 @@
-use glaredb_error::{DbError, Result, ResultExt};
+use glaredb_error::{Result, ResultExt};
 
 use super::OperatorPlanState;
 use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
@@ -102,17 +102,6 @@ impl OperatorPlanState<'_> {
                 &join.node.condition,
             )
             .context("Failed to plan expressions arbitrary join filter")?;
-
-        // Modify the filter as to match the join type.
-        let filter = match join.node.join_type {
-            JoinType::Inner => filter,
-            other => {
-                // TODO: Other join types.
-                return Err(DbError::new(format!(
-                    "Unhandled join type for arbitrary join: {other:?}"
-                )));
-            }
-        };
 
         let [left, right] = join.take_two_children_exact()?;
 

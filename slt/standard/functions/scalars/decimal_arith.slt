@@ -12,14 +12,10 @@ DESCRIBE SELECT 10.308::DECIMAL(8, 2) * 12.1::DECIMAL(8, 2);
 ----
 ?column?  Decimal64(16,4)
 
-# TODO: This currently results in '124.6300' since it seems like we're
-# truncating instead of rounding. Postgres/duckdb both return the result
-# associated with rounding.
-#
-# query R
-# SELECT 10.308::DECIMAL(8, 2) * 12.1::DECIMAL(8, 2);
-# ----
-# 124.7510
+query R
+SELECT 10.308::DECIMAL(8, 2) * 12.1::DECIMAL(8, 2);
+----
+124.7510
 
 query R
 SELECT 10.304::DECIMAL(8, 2) * 12.1::DECIMAL(8, 2);
@@ -41,11 +37,15 @@ SELECT 10.308::DECIMAL(10, 3) * 12.1::DECIMAL(8, 2);
 ----
 124.72680
 
-# TODO: 64 -> 128 auto cast
-# query R
-# SELECT 10.308::DECIMAL(32, 3) * 12.1::DECIMAL(8, 2);
-# ----
-# 124.72680
+query TT
+DESCRIBE SELECT 10.308::DECIMAL(32, 3) * 12.1::DECIMAL(8, 2);
+----
+?column?  Decimal128(38,5)
+
+query R
+SELECT 10.308::DECIMAL(32, 3) * 12.1::DECIMAL(8, 2);
+----
+124.72680
 
 query R
 SELECT 10.3::DECIMAL * 12.1::DECIMAL;

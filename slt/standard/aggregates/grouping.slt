@@ -113,3 +113,71 @@ NULL  Sport  7  0  5
 NULL  Tour   7  0  20
 NULL  NULL   7  1  50
 
+query II
+SELECT min(g), max(g)
+  FROM (SELECT make, model, GROUPING(make) g, GROUPING(model), sum(sales)
+          FROM items_sold
+          GROUP BY CUBE(make,model)
+          ORDER BY GROUPING(make), 1, 2 NULLS LAST)
+----
+0  1
+
+query II
+SELECT min(g1), max(g1), min(g2), max(g2)
+  FROM (SELECT make, model, GROUPING(make,make,make) g1, GROUPING(model) g2, sum(sales)
+          FROM items_sold
+          GROUP BY CUBE(make,model)
+          ORDER BY GROUPING(make), 1, 2 NULLS LAST)
+----
+0  7  0  1
+
+query II
+SELECT sum(a), GROUPING(a+2)
+  FROM generate_series(1, 5) g(a), (VALUES ('cat', 'dog'))
+  GROUP BY ROLLUP(a+2)
+  ORDER BY 1,2;
+----
+1   0
+2   0
+3   0
+4   0
+5   0
+15  1
+
+query II
+SELECT sum(a), GROUPING(a+2) + 4
+  FROM generate_series(1, 5) g(a), (VALUES ('cat', 'dog'))
+  GROUP BY ROLLUP(a+2)
+  ORDER BY 1,2;
+----
+1   4
+2   4
+3   4
+4   4
+5   4
+15  5
+
+statement error Column 'b' must appear in the GROUP BY clause or be used in an aggregate function
+SELECT sum(a), repeat(b, GROUPING(a+2)+1)
+  FROM generate_series(1, 5) g(a), (VALUES ('cat', 'dog')) v(b)
+  GROUP BY ROLLUP(a+2)
+  ORDER BY 1,2;
+
+query IT
+SELECT sum(a), repeat(b, GROUPING(a+2)+1)
+  FROM generate_series(1, 5) g(a), (VALUES ('cat', 'dog')) v(b)
+  GROUP BY ROLLUP(a+2, b)
+  ORDER BY 1,2;
+----
+1   cat
+1   NULL
+2   cat
+2   NULL
+3   cat
+3   NULL
+4   cat
+4   NULL
+5   cat
+5   NULL
+15  NULL
+
