@@ -1,4 +1,4 @@
-use glaredb_error::{DbError, Result, ResultExt};
+use glaredb_error::{Result, ResultExt};
 
 use super::OperatorPlanState;
 use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
