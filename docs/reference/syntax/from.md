@@ -81,7 +81,7 @@ FROM cities, states;
 
 ### Conditional joins
 
-Conditional joins are join that specify the predicate used when joining rows
+Conditional joins are joins that specify the predicate used when joining rows
 between tables.
 
 Join `states` onto `cities` to get information about the state's capital:
