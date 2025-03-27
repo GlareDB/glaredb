@@ -17,12 +17,19 @@ use crate::execution::operators::{ExecutionProperties, PushOperator};
 use crate::execution::pipeline::ExecutablePipelineGraph;
 use crate::execution::planner::{OperatorPlanner, PlannedQueryGraph};
 use crate::explain::node::ExplainNode;
+use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_statement::StatementBinder;
 use crate::logical::logical_set::VariableOrAll;
 use crate::logical::operator::LogicalOperator;
 use crate::logical::planner::plan_statement::StatementPlanner;
 use crate::logical::resolver::resolve_context::ResolveContext;
-use crate::logical::resolver::{ResolveConfig, ResolveMode, ResolvedStatement, Resolver};
+use crate::logical::resolver::{
+    ResolveConfig,
+    ResolveMode,
+    ResolvedStatement,
+    ResolvedSubqueryOptions,
+    Resolver,
+};
 use crate::optimizer::Optimizer;
 use crate::runtime::time::Timer;
 use crate::runtime::{PipelineExecutor, Runtime};
@@ -72,7 +79,6 @@ pub struct Session<P: PipelineExecutor, R: Runtime> {
 
 #[derive(Debug)]
 struct PreparedStatement {
-    verifier: Option<()>,
     statement: RawStatement,
 }
 
@@ -89,9 +95,13 @@ enum ExecutionMode {
 /// execution.
 #[derive(Debug)]
 struct IntermediatePortal {
+    /// Identifier for the query.
     query_id: Uuid,
+    /// Execution mode (hybrid or local).
     execution_mode: ExecutionMode,
+    /// The physical graph for the query.
     query_graph: PlannedQueryGraph,
+    /// Query output schema.
     output_schema: ColumnSchema,
 }
 
@@ -115,9 +125,15 @@ struct ExecutablePortal {
     result_stream: ResultStream,
     /// Profile data we've collected during resolving/binding/planning.
     profile: PlanningProfile,
-    /// Optional verifier that we're carrying through planning.
-    #[expect(unused)]
-    verifier: Option<()>,
+}
+
+/// State for query verification.
+#[derive(Debug)]
+struct VerificationState {
+    /// A clone of the bind context before optimization happens.
+    bind_context: BindContext,
+    /// A clone of the plan before optimization.
+    plan: LogicalOperator,
 }
 
 impl<P, R> Session<P, R>
@@ -164,19 +180,9 @@ where
 
     // TODO: Typed parameters at some point.
     pub fn prepare(&mut self, prepared_name: impl Into<String>, stmt: RawStatement) -> Result<()> {
-        let verifier = if self.config.verify_optimized_plan {
-            not_implemented!("Query verification")
-        } else {
-            None
-        };
+        self.prepared
+            .insert(prepared_name.into(), PreparedStatement { statement: stmt });
 
-        self.prepared.insert(
-            prepared_name.into(),
-            PreparedStatement {
-                statement: stmt,
-                verifier,
-            },
-        );
         Ok(())
     }
 
@@ -192,7 +198,6 @@ where
                 "Missing named prepared statement: '{prepared_name}'"
             ))
         })?;
-        let verifier = stmt.verifier;
 
         let mut profile = PlanningProfile::default();
 
@@ -240,7 +245,6 @@ where
                 output_schema: intermediate_portal.output_schema,
                 result_stream: stream,
                 profile,
-                verifier,
             },
         );
 
@@ -264,23 +268,11 @@ where
     {
         match resolve_mode {
             ResolveMode::Hybrid if resolve_context.any_unresolved() => {
-                // // Hybrid planning, send to remote to complete planning.
-                // let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
-                // let resp = hybrid_client
-                //     .remote_plan(stmt, resolve_context, &self.context)
-                //     .await?;
-
-                unimplemented!()
-                // Ok(IntermediatePortal {
-                //     query_id: resp.query_id,
-                //     execution_mode: ExecutionMode::Hybrid,
-                //     intermediate_pipelines: resp.pipelines,
-                //     intermediate_materializations: IntermediateMaterializationGroup::default(), // TODO: Need to get these somehow.
-                //     output_schema: resp.schema,
-                // })
+                not_implemented!("hybrid resolve mode")
             }
             _ => {
                 // Normal all-local planning.
+                let is_query = matches!(stmt, ResolvedStatement::Query(_));
 
                 let binder = StatementBinder {
                     session_config: &self.config,
@@ -293,6 +285,17 @@ where
                 let timer = Timer::<R::Instant>::start();
                 let mut logical = StatementPlanner.plan(&mut bind_context, bound_stmt)?;
                 profile.plan_logical_step = Some(timer.stop());
+
+                // Only verify query if user requested it, and this is a "query"
+                // statement. We don't want to be trying to run DDLs twice.
+                let verification_state = if self.config.verify_optimized_plan && is_query {
+                    Some(VerificationState {
+                        bind_context: bind_context.clone_for_verification(),
+                        plan: logical.clone(),
+                    })
+                } else {
+                    None
+                };
 
                 if self.config.enable_optimizer {
                     let mut optimizer = Optimizer::new();
@@ -385,9 +388,20 @@ where
                     }
                     root => {
                         let timer = Timer::<R::Instant>::start();
-                        let pipelines = planner.plan(root, &self.context, bind_context, sink)?;
+                        let graph = match verification_state {
+                            Some(verification_state) => {
+                                // Insert a verification node that bridges the
+                                // optimized with unoptimized plan.
+
+                                unimplemented!()
+                            }
+                            None => {
+                                // Normal planning.
+                                planner.plan(root, &self.context, bind_context, sink)?
+                            }
+                        };
                         profile.plan_physical_step = Some(timer.stop());
-                        pipelines
+                        graph
                     }
                 };
 

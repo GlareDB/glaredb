@@ -17,6 +17,7 @@ pub mod table_execute;
 pub mod ungrouped_aggregate;
 pub mod union;
 pub mod values;
+pub mod verifier;
 
 pub(crate) mod util;
 

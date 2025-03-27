@@ -10,6 +10,7 @@ use crate::catalog::Schema;
 use crate::catalog::create::CreateTableInfo;
 use crate::catalog::memory::MemorySchema;
 use crate::config::session::DEFAULT_BATCH_SIZE;
+use crate::execution::operators::util::partition_wakers::PartitionWakers;
 use crate::execution::operators::{
     BaseOperator,
     ExecuteOperator,
@@ -17,7 +18,6 @@ use crate::execution::operators::{
     PollExecute,
     PollFinalize,
 };
-use crate::execution::partition_wakers::PartitionWakers;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::storage::datatable::{DataTable, DataTableAppendState};
 use crate::storage::storage_manager::StorageManager;

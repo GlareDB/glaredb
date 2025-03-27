@@ -21,7 +21,8 @@ use crate::runtime::ErrorSink;
 /// Streams result batches for a query.
 ///
 /// This produces a single stream from some number of partitions. The ordering
-/// of batches is not guaranteed.
+/// of batches between partitions is not guaranteed, while the ordering of
+/// batches within a partition is.
 #[derive(Debug)]
 pub struct ResultStream {
     inner: Arc<Mutex<ResultStreamInner>>,
@@ -147,6 +148,8 @@ pub struct StreamingResultsPartitionState {
 }
 
 /// Operator for producing non-empty batches on a stream.
+///
+/// This will emit directly to the stream as data comes in.
 #[derive(Debug)]
 pub struct PhysicalStreamingResults {
     pub(crate) sink: ResultSink,
@@ -170,7 +173,6 @@ impl BaseOperator for PhysicalStreamingResults {
     }
 
     fn output_types(&self) -> &[DataType] {
-        // TODO: ?
         &[]
     }
 }

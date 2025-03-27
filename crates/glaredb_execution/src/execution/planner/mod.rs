@@ -41,7 +41,9 @@ use crate::logical::operator::{self, LogicalOperator};
 /// Output of physical planning.
 #[derive(Debug)]
 pub struct PlannedQueryGraph {
+    /// Materializations for this query.
     pub materializations: BTreeMap<MaterializationRef, PlannedOperatorWithChildren>,
+    /// The main query tree.
     pub root: PlannedOperatorWithChildren,
 }
 

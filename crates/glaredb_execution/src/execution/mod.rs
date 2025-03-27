@@ -6,4 +6,3 @@ pub mod partition_pipeline;
 pub mod pipeline;
 
 mod execution_stack;
-mod partition_wakers;
