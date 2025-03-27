@@ -3,10 +3,6 @@
 `SELECT` statements perform data retrieval from the database, and may contain
 expressions to transform the results.
 
-## Examples
-
-## `SELECT` clause
-
 The `SELECT` clause contains a a list of expressions to specify the results of a
 query.
 
@@ -94,5 +90,18 @@ Select all columns that end with `_name`, and also select the `height` column:
 
 ```sql
 SELECT COLUMNS('_name$'), height FROM persons;
+```
+
+## Aggregates
+
+Aggregates produce a result that combines multiple rows into a single value.
+When the `SELECT` list contains an aggregate function, then all expressions
+being selected need to either be part an aggregate function, or part of a group
+(specified via `GROUP BY`).
+
+Get the min and max `population` from a `cities` table:
+
+```sql
+SELECT min(population), max(population) FROM cities;
 ```
 
