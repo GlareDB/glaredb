@@ -99,15 +99,19 @@ pub fn verify_collections_eq(
             if left_cmp.num_rows() > compare_count {
                 left_cmp.select(0..compare_count)?;
             }
+            debug_assert_eq!(compare_count, left_cmp.num_rows);
             let mut right_cmp = Batch::new_from_other(&mut right_batch)?;
             if right_cmp.num_rows() > compare_count {
                 right_cmp.select(0..compare_count)?;
             }
+            debug_assert_eq!(compare_count, right_cmp.num_rows);
 
-            let cmp_batch = Batch::from_arrays([
+            let mut cmp_batch = Batch::from_arrays([
                 left_cmp.arrays.pop().unwrap(),
                 right_cmp.arrays.pop().unwrap(),
             ])?;
+            cmp_batch.set_num_rows(compare_count)?;
+            debug_assert_eq!(compare_count, cmp_batch.num_rows);
 
             // Do the compare.
             eq_func.function.call_execute(&cmp_batch, &mut out)?;
