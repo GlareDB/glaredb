@@ -128,3 +128,30 @@ predicate.
 - `FULL OUTER JOIN`: Return all matched rows, and all non-matched rows from the
   left and right table.
 
+### Lateral joins
+
+A lateral join allows a subquery in the `FROM` clause to reference columns from
+previous tables in the same `FROM` clause.
+
+Lateral joins allow subqueries and table functions to depend on _each row_ of
+the table before it.
+
+A simple example:
+
+```sql
+SELECT *
+FROM generate_series(1, 3) g(a), LATERAL (SELECT (a + 2)) s(b);
+```
+
+| a | b |
+|---|---|
+| 1 | 3 |
+| 2 | 4 |
+| 3 | 5 |
+
+The `LATERAL` keyword keyword may be omitted:
+
+```sql
+SELECT *
+FROM generate_series(1, 3) g(a), (SELECT (a + 2)) s(b);
+```
