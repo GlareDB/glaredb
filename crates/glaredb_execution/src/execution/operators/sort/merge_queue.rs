@@ -11,7 +11,8 @@ use crate::arrays::sort::sort_layout::SortLayout;
 use crate::arrays::sort::sorted_block::SortedBlock;
 use crate::arrays::sort::sorted_segment::SortedSegment;
 use crate::buffer::buffer_manager::NopBufferManager;
-use crate::execution::partition_wakers::PartitionWakers;
+use crate::execution::operators::util::delayed_count::DelayedPartitionCount;
+use crate::execution::operators::util::partition_wakers::PartitionWakers;
 
 // TODO: Tests, specifically around waking when appropriate.
 
@@ -55,7 +56,7 @@ struct MergeQueueInner {
     /// it to the queue.
     ///
     /// Initialized to number of partitions.
-    remaining_collection_count: usize,
+    remaining_collection_count: DelayedPartitionCount,
     /// Number of merges we're currently running.
     running_merges: usize,
     /// Wakers for partitions waiting to work on a merge.
@@ -67,9 +68,9 @@ impl MergeQueueInner {
     ///
     /// Once this is true, we can begin to produce batches.
     fn is_complete(&self) -> bool {
-        self.remaining_collection_count == 0
-            && self.running_merges == 0
-            && (self.runs.len() == 1 || self.runs.is_empty())
+        let remaining = self.remaining_collection_count.current().unwrap(); // TODO
+
+        remaining == 0 && self.running_merges == 0 && (self.runs.len() == 1 || self.runs.is_empty())
     }
 }
 
@@ -79,7 +80,7 @@ impl MergeQueue {
     pub fn new(key_layout: SortLayout, data_layout: RowLayout, block_capacity: usize) -> Self {
         let inner = MergeQueueInner {
             runs: VecDeque::new(),
-            remaining_collection_count: 0,
+            remaining_collection_count: DelayedPartitionCount::uninit(),
             running_merges: 0,
             wakers: PartitionWakers::empty(),
         };
@@ -98,7 +99,10 @@ impl MergeQueue {
     /// to the number of partitions we're merging.
     pub fn prepare_for_partitions(&self, num_partitions: usize) {
         let mut inner = self.inner.lock();
-        inner.remaining_collection_count = num_partitions;
+        inner
+            .remaining_collection_count
+            .set(num_partitions)
+            .unwrap(); // TODO
         inner.wakers.init_for_partitions(num_partitions);
     }
 
@@ -116,7 +120,7 @@ impl MergeQueue {
             .runs
             .extend(blocks.into_iter().map(SortedSegment::from_sorted_block));
 
-        inner.remaining_collection_count -= 1;
+        inner.remaining_collection_count.dec_by_one()?;
 
         Ok(())
     }

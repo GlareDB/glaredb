@@ -3,6 +3,8 @@ use std::task::Context;
 use glaredb_error::Result;
 use parking_lot::Mutex;
 
+use super::util::delayed_count::DelayedPartitionCount;
+use super::util::partition_wakers::PartitionWakers;
 use super::{
     BaseOperator,
     ExecutionProperties,
@@ -20,7 +22,6 @@ use crate::arrays::collection::concurrent::{
     ParallelColumnCollectionScanState,
 };
 use crate::arrays::datatype::DataType;
-use crate::execution::partition_wakers::PartitionWakers;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::binder::bind_context::MaterializationRef;
 use crate::storage::projections::Projections;
@@ -38,7 +39,7 @@ struct OperatorStateInner {
     ///
     /// Initialized when push partition states are created, decremented as
     /// partitions are finished.
-    remaining_input_partitions: usize,
+    remaining_input_partitions: DelayedPartitionCount,
     /// Wakers for all pull outputs.
     ///
     /// Appended to when create partition states for the pull side.
@@ -85,7 +86,7 @@ impl BaseOperator for PhysicalMaterialize {
         Ok(MaterializeOperatorState {
             collection,
             inner: Mutex::new(OperatorStateInner {
-                remaining_input_partitions: 0,
+                remaining_input_partitions: DelayedPartitionCount::uninit(),
                 pull_wakers: Vec::new(),
             }),
         })
@@ -155,7 +156,7 @@ impl PullOperator for PhysicalMaterialize {
             // Check if input is finished.
             let mut inner = operator_state.inner.lock();
 
-            if inner.remaining_input_partitions > 0 {
+            if inner.remaining_input_partitions.current()? > 0 {
                 // Still have inputs, need to come back later for more batches.
                 inner.pull_wakers[state.output_idx].store(cx.waker(), state.partition_idx);
                 return Ok(PollPull::Pending);
@@ -201,11 +202,7 @@ impl PushOperator for PhysicalMaterialize {
         partitions: usize,
     ) -> Result<Vec<Self::PartitionPushState>> {
         let mut inner = operator_state.inner.lock();
-        assert_eq!(
-            0, inner.remaining_input_partitions,
-            "Multiple inputs to physical materialize"
-        );
-        inner.remaining_input_partitions = partitions;
+        inner.remaining_input_partitions.set(partitions)?;
 
         let states = (0..partitions)
             .map(|_| MaterializePushPartitionState {
@@ -249,7 +246,7 @@ impl PushOperator for PhysicalMaterialize {
         operator_state.collection.flush(&mut state.append_state)?;
 
         let mut inner = operator_state.inner.lock();
-        inner.remaining_input_partitions -= 1;
+        inner.remaining_input_partitions.dec_by_one()?;
 
         inner
             .pull_wakers
