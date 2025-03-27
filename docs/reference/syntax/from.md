@@ -38,8 +38,7 @@ SELECT * FROM generate_series(1, 10);
 
 Subqueries are nested queries that produce one or more columns.
 
-Select from a subquery thats selecting from a table named `cities`:
-
+Select from a subquery that's selecting from a table named `cities`:
 ```sql
 SELECT *
 FROM (SELECT name, state FROM cities);
