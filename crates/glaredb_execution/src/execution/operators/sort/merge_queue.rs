@@ -11,7 +11,7 @@ use crate::arrays::sort::sort_layout::SortLayout;
 use crate::arrays::sort::sorted_block::SortedBlock;
 use crate::arrays::sort::sorted_segment::SortedSegment;
 use crate::buffer::buffer_manager::NopBufferManager;
-use crate::execution::partition_wakers::PartitionWakers;
+use crate::execution::operators::util::partition_wakers::PartitionWakers;
 
 // TODO: Tests, specifically around waking when appropriate.
 
