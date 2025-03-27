@@ -157,13 +157,8 @@ const MAX_PARTITION_COUNT: usize = 512;
 
 pub struct Partitions;
 
-impl SessionSetting for Partitions {
-    const NAME: &'static str = "partitions";
-    const DESCRIPTION: &'static str = "Number of partitions to use during execution";
-
-    fn set_from_scalar(scalar: BorrowedScalarValue, conf: &mut SessionConfig) -> Result<()> {
-        let val = scalar.try_as_usize()?;
-
+impl Partitions {
+    pub fn validate_value(val: usize) -> Result<()> {
         if val < MIN_PARTITION_COUNT {
             return Err(DbError::new(format!(
                 "Partition count cannot be less than {MIN_PARTITION_COUNT}"
@@ -175,6 +170,18 @@ impl SessionSetting for Partitions {
                 "Partition count cannot be greater than {MAX_PARTITION_COUNT}"
             )));
         }
+
+        Ok(())
+    }
+}
+
+impl SessionSetting for Partitions {
+    const NAME: &'static str = "partitions";
+    const DESCRIPTION: &'static str = "Number of partitions to use during execution";
+
+    fn set_from_scalar(scalar: BorrowedScalarValue, conf: &mut SessionConfig) -> Result<()> {
+        let val = scalar.try_as_usize()?;
+        Self::validate_value(val)?;
 
         conf.partitions = val as u64;
         Ok(())

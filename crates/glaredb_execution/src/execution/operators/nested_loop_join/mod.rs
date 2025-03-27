@@ -8,6 +8,8 @@ use glaredb_error::{DbError, Result, not_implemented};
 use match_tracker::MatchTracker;
 use parking_lot::Mutex;
 
+use super::util::delayed_count::DelayedPartitionCount;
+use super::util::partition_wakers::PartitionWakers;
 use super::{
     BaseOperator,
     ExecuteOperator,
@@ -24,7 +26,6 @@ use crate::arrays::collection::concurrent::{
     ParallelColumnCollectionScanState,
 };
 use crate::arrays::datatype::DataType;
-use crate::execution::partition_wakers::PartitionWakers;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::selection_evaluator::SelectionEvaluator;
@@ -39,12 +40,12 @@ pub struct NestedLoopJoinOperatorState {
 #[derive(Debug)]
 struct OperatorStateInner {
     /// Number of build inputs we're still waiting on to complete.
-    remaining_build_inputs: usize,
+    remaining_build_inputs: DelayedPartitionCount,
     /// Number of probe inputs we're waiting on until we can start draining
     /// batches.
     ///
     /// Only checked for LEFT, LEFT SEMI, LEFT ANTI, and OUTER joins.
-    remaining_probe_inputs: usize,
+    remaining_probe_inputs: DelayedPartitionCount,
     /// Wakers for pending probes if we're still building or waiting to begin
     /// draining.
     probe_wakers: PartitionWakers,
@@ -156,8 +157,8 @@ impl BaseOperator for PhysicalNestedLoopJoin {
             ConcurrentColumnCollection::new(self.left_types.iter().cloned(), 1, props.batch_size);
 
         let inner = OperatorStateInner {
-            remaining_build_inputs: 0, // Set when creating push partition states.
-            remaining_probe_inputs: 0, // Set when creating probe states.
+            remaining_build_inputs: DelayedPartitionCount::uninit(), // Set when creating push partition states.
+            remaining_probe_inputs: DelayedPartitionCount::uninit(), // Set when creating probe states.
             probe_wakers: PartitionWakers::empty(), // Set when creating probe states.
             left_matches: MatchTracker::empty(),
         };
@@ -189,7 +190,11 @@ impl PushOperator for PhysicalNestedLoopJoin {
             })
             .collect();
 
-        operator_state.inner.lock().remaining_build_inputs = partitions;
+        operator_state
+            .inner
+            .lock()
+            .remaining_build_inputs
+            .set(partitions)?;
 
         Ok(states)
     }
@@ -216,11 +221,11 @@ impl PushOperator for PhysicalNestedLoopJoin {
         operator_state.collected.flush(&mut state.append_state)?;
 
         let mut inner = operator_state.inner.lock();
-        inner.remaining_build_inputs -= 1;
+        let remaining = inner.remaining_build_inputs.dec_by_one()?;
 
         // If this is the last build input, go ahead and wake up all pending
         // probers.
-        if inner.remaining_build_inputs == 0 {
+        if remaining == 0 {
             inner.probe_wakers.wake_all();
 
             // Init left matches if needed.
@@ -253,7 +258,7 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
     ) -> Result<Vec<Self::PartitionExecuteState>> {
         let mut inner = operator_state.inner.lock();
         inner.probe_wakers.init_for_partitions(partitions);
-        inner.remaining_probe_inputs = partitions;
+        inner.remaining_probe_inputs.set(partitions)?;
 
         // Init states for left drain. Note that these might end up being
         // unused, but creating them isn't expensive.
@@ -314,7 +319,7 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
         if !state.build_complete {
             // Check operator state to see if we can continue.
             let mut inner = operator_state.inner.lock();
-            if inner.remaining_build_inputs > 0 {
+            if inner.remaining_build_inputs.current()? > 0 {
                 // Still building, come back later.
                 inner.probe_wakers.store(cx.waker(), state.partition_idx);
                 return Ok(PollExecute::Pending);
@@ -328,7 +333,7 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
             // TODO: Don't lock this every time. Should be moving stuff into
             // partition state when it's ready.
             let mut inner = operator_state.inner.lock();
-            if inner.remaining_probe_inputs > 0 {
+            if inner.remaining_probe_inputs.current()? > 0 {
                 // Still doing normal probe inputs, come back when all probing
                 // is complete.
                 inner.probe_wakers.store(cx.waker(), state.partition_idx);
@@ -499,7 +504,7 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
     ) -> Result<PollFinalize> {
         // Decrement remaining count. Only affects logic for LEFT ... joins.
         let mut inner = operator_state.inner.lock();
-        inner.remaining_probe_inputs -= 1;
+        let remaining = inner.remaining_probe_inputs.dec_by_one()?;
 
         if matches!(
             self.join_type,
@@ -512,7 +517,7 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
             // Trigger left drain if needed.
             state.draining_left = true;
 
-            if inner.remaining_probe_inputs == 0 {
+            if remaining == 0 {
                 // Wake up all probers so they can drain.
                 inner.probe_wakers.wake_all();
             }
