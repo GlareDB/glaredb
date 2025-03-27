@@ -97,6 +97,8 @@ impl Batch {
     /// The initial number of rows the batch will report will equal the capacity
     /// of the arrays. `set_num_rows` should be used if the logical number of
     /// rows is less than capacity.
+    // TODO: This is a bit easy to misuse. Should probably have this accept a
+    // num rows param itself.
     pub fn from_arrays(arrays: impl IntoIterator<Item = Array>) -> Result<Self> {
         let arrays: Vec<_> = arrays.into_iter().collect();
         let num_rows = match arrays.first() {
