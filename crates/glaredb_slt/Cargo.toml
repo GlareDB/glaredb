@@ -10,7 +10,7 @@ glaredb_error = { path = '../glaredb_error' }
 glaredb_execution = { path = '../glaredb_execution' }
 glaredb_rt_native = { path = '../glaredb_rt_native' }
 libtest-mimic = "0.7.3"
-sqllogictest = "0.20.4"
+sqllogictest = "0.28.0"
 futures = { workspace = true, features = ["executor"] }
 async-trait = "0.1.88"
 tokio = { version = "1", features = ["full"] }
