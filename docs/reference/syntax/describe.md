@@ -4,61 +4,55 @@ title: DESCRIBE
 
 # DESCRIBE
 
-`DESCRIBE` statements provide information about the schema of queries, tables, 
+`DESCRIBE` statements provide information about the schema of queries, tables,
 table functions, or files.
 
-## DESCRIBE query
+## Describing a query
 
-The `DESCRIBE query` form shows the column names and data types that would be 
-returned by the specified query.
+`DESCRIBE` followed by a query can be used to show the names and data types that
+would be return by that query:
 
 ```sql
 DESCRIBE SELECT 1 as a, 'hello' as b;
 ```
 
-Results:
+Shows the following query info:
 
-```
-a  Int32
-b  Utf8
-```
+| column_name | datatype |
+|-------------|----------|
+| a           | Int32    |
+| b           | Utf8     |
 
-`DESCRIBE` can be used with queries that include more complex expressions:
+## Describing Tables and Table Functions
 
-```sql
-DESCRIBE SELECT * FROM (VALUES (1, 2.0, 3.0::decimal(18,9))) AS v(a, b, c);
-```
+`DESCRIBE` followed by a table, table function, or file shows the column names
+and data types of that object.
 
-Results:
-
-```
-a  Int32
-b  Decimal64(2,1)
-c  Decimal64(18,9)
-```
-
-## DESCRIBE table/function/file
-
-The `DESCRIBE table/function/file` form shows the column names and data types of a 
-table, table function, or file.
-
-Describe a table:
+Describe `my_table`:
 
 ```sql
+CREATE TEMP TABLE my_table (a TEXT, b DECIMAL(16, 2));
 DESCRIBE my_table;
 ```
 
-Describe a parquet file:
+Outputs:
+
+| column_name | datatype        |
+|-------------|-----------------|
+| a           | Utf8            |
+| b           | Decimal64(16,2) |
+
+Describe the output of a call to a table function:
 
 ```sql
-DESCRIBE 'path/to/file.parquet';
+DESCRIBE unnest([4,5,6]);
 ```
 
-## Output format
+Outputs:
 
-The output of the `DESCRIBE` command is a table with two columns:
-- Column names (left column)
-- Data types (right column)
+| column_name | datatype |
+|-------------|----------|
+| unnest      | Int32    |
 
-The data types correspond to GlareDB's internal type system, which includes types 
-such as Int32, Int64, Float32, Float64, Decimal64, Utf8, Date32, etc.
+
+<!-- TODO: Add in describe parquet/csv when that works again -->
