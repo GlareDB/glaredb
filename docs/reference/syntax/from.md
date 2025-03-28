@@ -1,5 +1,5 @@
 ---
-sidebar_label: FROM
+title: FROM
 ---
 
 # FROM

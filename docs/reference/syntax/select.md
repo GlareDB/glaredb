@@ -1,5 +1,5 @@
 ---
-sidebar_label: SELECT
+title: SELECT
 ---
 
 # SELECT
