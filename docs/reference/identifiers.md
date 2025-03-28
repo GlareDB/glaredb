@@ -1,3 +1,7 @@
+---
+sidebar_label: Identifiers
+---
+
 # Identifiers
 
 Identifiers are used when referencing database objects.

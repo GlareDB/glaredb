@@ -1,3 +1,7 @@
+---
+sidebar_label: FROM
+---
+
 # FROM
 
 The `FROM` clause specifies the sources for data for a query. A source can be a

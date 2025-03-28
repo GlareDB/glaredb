@@ -1,3 +1,7 @@
+---
+sidebar_label: Data Types
+---
+
 # Data Types
 
 ## Scalar Data Types

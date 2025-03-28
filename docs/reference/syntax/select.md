@@ -1,3 +1,7 @@
+---
+sidebar_label: SELECT
+---
+
 # SELECT
 
 `SELECT` statements perform data retrieval from the database, and may contain
