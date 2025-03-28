@@ -33,3 +33,9 @@ SELECT * FROM t2 RIGHT JOIN t1 ON t1.a = t2.a AND t2.a = 2 ORDER BY 3,4;
 NULL  NULL  1  2
 2     20    2  3
 NULL  NULL  3  4
+
+query IIII
+SELECT * FROM t1 RIGHT JOIN t2 ON t1.a = t2.a AND t1.b > 2 ORDER BY 1,2;
+----
+2     3     2  20
+NULL  NULL  1  10
