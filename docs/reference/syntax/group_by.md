@@ -20,7 +20,7 @@ GROUP BY state_abbr;
 ```
 
 A `GROUP BY` can be used even if there are no aggregates in the `SELECT`. This
-produce a single row for each group (e.g. `DISTINCT`).
+produces a single row for each group (e.g. `DISTINCT`).
 
 ## Grouping sets
 

@@ -7,7 +7,7 @@ title: SELECT
 `SELECT` statements perform data retrieval from the database, and may contain
 expressions to transform the results.
 
-The `SELECT` clause contains a a list of expressions to specify the results of a
+The `SELECT` clause contains a list of expressions to specify the results of a
 query.
 
 ## Star expressions
@@ -100,8 +100,8 @@ SELECT COLUMNS('_name$'), height FROM persons;
 
 Aggregates produce a result that combines multiple rows into a single value.
 When the `SELECT` list contains an aggregate function, then all expressions
-being selected need to either be part an aggregate function, or part of a group
-(specified via `GROUP BY`).
+being selected need to either be part of an aggregate function, or part of a
+group (specified via `GROUP BY`).
 
 Get the min and max `population` from a `cities` table:
 
