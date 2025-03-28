@@ -4,7 +4,9 @@ title: WITH
 
 # WITH
 
-The `WITH` clause allows you to define temporary result sets (Common Table Expressions or CTEs) that exist only for the duration of a query. CTEs can simplify complex queries by breaking them down into more manageable parts.
+The `WITH` clause allows you to define temporary result sets (Common Table
+Expressions or CTEs) that exist only for the duration of a query. CTEs can
+simplify complex queries by breaking them down into more manageable parts.
 
 ## Basic syntax
 
@@ -17,7 +19,8 @@ WITH cte_name AS (
 SELECT * FROM cte_name;
 ```
 
-Where `cte_name` is the name given to the CTE and `select_statement` is a valid SELECT query that defines the data for the CTE.
+Where `cte_name` is the name given to the CTE and `select_statement` is a valid
+SELECT query that defines the data for the CTE.
 
 Create a CTE named `numbers` that contains a sequence of integers:
 
@@ -40,10 +43,11 @@ This produces:
 
 ## Multiple CTEs
 
-You can define multiple CTEs in a single `WITH` clause by separating them with commas:
+You can define multiple CTEs in a single `WITH` clause by separating them with
+commas:
 
 ```sql
-WITH 
+WITH
     cte1 AS (select_statement1),
     cte2 AS (select_statement2)
 SELECT * FROM cte1 JOIN cte2 ON ...;
@@ -52,7 +56,7 @@ SELECT * FROM cte1 JOIN cte2 ON ...;
 Create two CTEs and join them together:
 
 ```sql
-WITH 
+WITH
     even_numbers AS (
         SELECT * FROM generate_series(2, 10, 2)
     ),
@@ -76,10 +80,11 @@ This produces:
 
 ## CTE references
 
-CTEs defined earlier in the `WITH` clause can be referenced by CTEs defined later:
+CTEs defined earlier in the `WITH` clause can be referenced by CTEs defined
+later:
 
 ```sql
-WITH 
+WITH
     numbers AS (
         SELECT * FROM generate_series(1, 3)
     ),
@@ -97,3 +102,25 @@ This produces:
 | 1               | 2             |
 | 2               | 4             |
 | 3               | 6             |
+
+## Materialized CTEs
+
+By default, a CTE is evaluated each time it is referenced in the query. You can
+use the `MATERIALIZED` keyword to cache the results of a CTE, which can improve
+performance when the CTE is referenced multiple times:
+
+```sql
+WITH cte_name AS MATERIALIZED (
+    select_statement
+)
+SELECT * FROM cte_name;
+```
+
+Create a materialized CTE:
+
+```sql
+WITH numbers AS MATERIALIZED (
+    SELECT * FROM generate_series(1, 1000000)
+)
+SELECT COUNT(*) FROM numbers WHERE generate_series % 2 = 0;
+```
