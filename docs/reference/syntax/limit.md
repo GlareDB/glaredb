@@ -4,7 +4,8 @@ title: LIMIT
 
 # LIMIT
 
-The `LIMIT` clause restricts the number of rows returned by a query.
+The `LIMIT` clause restricts the number of rows returned by a query. Without an
+`ORDER BY` clause, which rows are returned when using `LIMIT` is non-deterministic.
 
 ## Basic Syntax
 
@@ -51,17 +52,4 @@ SELECT name, population
 FROM cities
 ORDER BY population DESC
 LIMIT 3 OFFSET 3;
-```
-
-## Partition Behavior
-
-When executing a query with multiple partitions, the `LIMIT` clause applies to
-each partition independently unless a global limit is enforced by using a single
-partition.
-
-To ensure a global limit, set the number of partitions to 1:
-
-```sql
-SET partitions TO 1;
-SELECT * FROM large_table LIMIT 10;
 ```
