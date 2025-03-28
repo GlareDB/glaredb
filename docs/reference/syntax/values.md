@@ -88,7 +88,7 @@ FROM (VALUES (2), (3)) v1(a),
 SELECT * FROM (VALUES (4), (NULL));
 ```
 
-This produces:
+This produces a single Int32 column:
 
 | column1 |
 |---------|
@@ -98,4 +98,4 @@ This produces:
 ## Restrictions
 
 - All rows in a `VALUES` expression must have the same number of columns
-- Empty `VALUES` expressions (e.g., `VALUES ()`) are not allowed
+- Empty `VALUES` expressions (e.g. `VALUES ()`) are not allowed
