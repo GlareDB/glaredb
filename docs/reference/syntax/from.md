@@ -119,7 +119,7 @@ Producing rows with redundant data removed:
 #### Inner/Outer joins
 
 Inner joins are joins that will return rows _only if_ the join predicate matches
-for that row. Inner joins can be specied using either `INNER JOIN` or just
+for that row. Inner joins can be specified using either `INNER JOIN` or just
 `JOIN`.
 
 Outer joins are joins that return rows that both match and don't match the join
