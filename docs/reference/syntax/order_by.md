@@ -4,7 +4,8 @@ title: ORDER BY
 
 # ORDER BY
 
-The `ORDER BY` clause specifies the order of rows in a query result set. Without an `ORDER BY` clause, the order of rows in a result set is not guaranteed.
+The `ORDER BY` clause specifies the order of rows in a query result set. Without
+an `ORDER BY` clause, the order of rows in a result set is not guaranteed.
 
 ## Basic Syntax
 
@@ -18,23 +19,25 @@ ORDER BY population;
 
 ## Sorting Direction
 
-By default, results are sorted in ascending order. You can explicitly specify the sort direction with `ASC` (ascending) or `DESC` (descending):
+By default, results are sorted in ascending order. You can explicitly specify
+the sort direction with `ASC` (ascending) or `DESC` (descending):
 
 ```sql
 -- Ascending order (default)
-SELECT name, population 
-FROM cities 
+SELECT name, population
+FROM cities
 ORDER BY population ASC;
 
 -- Descending order
-SELECT name, population 
-FROM cities 
+SELECT name, population
+FROM cities
 ORDER BY population DESC;
 ```
 
 ## Multiple Columns
 
-You can order by multiple columns, with each subsequent column used as a tiebreaker when the previous columns have equal values:
+You can order by multiple columns, with each subsequent column used as a
+tiebreaker when the previous columns have equal values:
 
 ```sql
 SELECT name, state_abbr, population
@@ -44,7 +47,8 @@ ORDER BY state_abbr, population DESC;
 
 ## Handling NULL Values
 
-By default, NULL values are considered larger than any non-NULL value:
+By default, NULL values are considered larger than any non-NULL value during
+sorting:
 
 - In `ASC` order, NULLs appear last
 - In `DESC` order, NULLs appear first
