@@ -31,6 +31,7 @@ WHERE cities.state_code = state.code;
 ```
 
 ### Excluding columns
+
 `EXCLUDE`/`EXCEPT` can be used to exclude certain columns from the output when
 combined with `*`.
 
