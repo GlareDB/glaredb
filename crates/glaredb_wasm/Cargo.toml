@@ -30,7 +30,7 @@ js-sys = "0.3.69"
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", default-features = false, features = ["std", "fmt", "env-filter"] }
 wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4.45"
+wasm-bindgen-futures = "0.4.50"
 tokio = { workspace = true, default-features = false, features = [ "rt" ] } # TODO: Remove tokio from runtime interface
 console_error_panic_hook = "0.1.7"
 url = { workspace = true }
