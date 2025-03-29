@@ -1,0 +1,49 @@
+# STRPOS
+
+query I
+SELECT strpos('hello', 'll');
+----
+3
+
+query I
+SELECT strpos('hello', 'hello');
+----
+1
+
+query I
+SELECT strpos('hello', 'o');
+----
+5
+
+query I
+SELECT strpos('hello', 'x');
+----
+0
+
+query I
+SELECT strpos('hello', '');
+----
+1
+
+query I
+SELECT strpos('', 'hello');
+----
+0
+
+query I
+SELECT strpos('', '');
+----
+1
+
+query I
+SELECT strpos('😀🙂😊', '🙂');
+----
+2
+
+query I rowsort
+SELECT strpos(a, 'll') FROM (VALUES ('hello'), (NULL), ('ball'), ('mill')) v(a);
+----
+0
+2
+3
+NULL
