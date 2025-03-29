@@ -24,12 +24,10 @@ pub const FUNCTION_SET_LEFT: ScalarFunctionSet = ScalarFunctionSet {
             output: "alp",
         }),
     }),
-    functions: &[
-        RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
-            &Left,
-        ),
-    ],
+    functions: &[RawScalarFunction::new(
+        &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
+        &Left,
+    )],
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -66,7 +64,7 @@ fn left(s: &str, count: i64) -> &str {
     }
 
     let count = count as usize;
-    
+
     match s.char_indices().nth(count) {
         Some((pos, _)) => &s[..pos],
         None => s, // Return the entire string if count is larger than the string length
