@@ -1,0 +1,58 @@
+# Basic right function tests
+query T
+SELECT right('hello', 3);
+----
+llo
+
+# Full string
+query T
+SELECT right('hello', 5);
+----
+hello
+
+# More than string length
+query T
+SELECT right('hello', 10);
+----
+hello
+
+# Zero count
+query T
+SELECT right('hello', 0);
+----
+(empty)
+
+# Negative count (start from left)
+query T
+SELECT right('hello', -3);
+----
+lo
+
+# Negative count (start from left, 2)
+query T
+SELECT right('hello', -2);
+----
+llo
+
+# UTF-8 characters
+query T
+SELECT right('😀🙂😊', 2);
+----
+🙂😊
+
+# Empty string
+query T
+SELECT right('', 3);
+----
+(empty)
+
+# NULL handling
+query T
+SELECT right(NULL, 3);
+----
+NULL
+
+query T
+SELECT right('hello', NULL);
+----
+NULL
