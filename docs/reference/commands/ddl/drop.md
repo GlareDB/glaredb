@@ -9,17 +9,15 @@ The `DROP` statement removes database objects such as tables and schemas from th
 ## Syntax
 
 ```sql
-DROP SCHEMA [ IF EXISTS ] schema_name [ CASCADE | RESTRICT ]
+DROP SCHEMA [ IF EXISTS ] schema_name
 
-DROP TABLE [ IF EXISTS ] [ schema_name. ] table_name [ CASCADE | RESTRICT ]
+DROP TABLE [ IF EXISTS ] [ schema_name. ] table_name
 ```
 
 Where:
 - `IF EXISTS`: Prevents an error if the object does not exist
 - `schema_name`: The name of the schema containing the object
 - `table_name`: The name of the table to drop
-- `CASCADE`: Automatically drop objects that depend on the dropped object
-- `RESTRICT`: Refuse to drop objects if there are dependent objects (this is the default)
 
 ## Examples
 
@@ -51,16 +49,7 @@ Drop a table only if it exists:
 DROP TABLE IF EXISTS my_table;
 ```
 
-### Using CASCADE
-
-Drop a table and all dependent objects:
-
-```sql
-DROP TABLE my_table CASCADE;
-```
-
 ## Notes
 
-- The `DROP SCHEMA` command removes a schema from the database. All objects contained within the schema (tables, views, etc.) are also dropped if CASCADE is specified.
-- The `DROP TABLE` command removes a table from the database. Any views or other objects that depend on the table will prevent the drop unless CASCADE is specified.
-- If CASCADE is not specified, the default behavior is RESTRICT, which will cause the drop operation to fail if there are any dependent objects.
+- The `DROP SCHEMA` command removes a schema from the database.
+- The `DROP TABLE` command removes a table from the database.
