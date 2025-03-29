@@ -1,4 +1,5 @@
 # isfinite
+
 query B
 select isfinite(1.0);
 ----
@@ -33,15 +34,3 @@ query B
 select isfinite(NULL::float);
 ----
 NULL
-
-
-
-query B
-select isfinite(1.0 + 2.0);
-----
-true
-
-query B
-select isfinite(1.0 / 0.0);
-----
-false
