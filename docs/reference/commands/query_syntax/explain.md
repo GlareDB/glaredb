@@ -10,7 +10,7 @@ showing the unoptimized, optimized, and physical plans for the query.
 ## Syntax
 
 ```sql
-EXPLAIN [ VERBOSE ] [ (FORMAT { TEXT | JSON} ) ] select-statement
+EXPLAIN [ VERBOSE ] [ (FORMAT { TEXT | JSON } ) ] select-statement
 ```
 
 ## Description
