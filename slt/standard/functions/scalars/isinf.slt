@@ -1,0 +1,33 @@
+# isinf
+
+statement ok
+CREATE TEMP TABLE t1 as (SELECT * FROM (VALUES ('Infinity'::FLOAT), ('-Infinity'::FLOAT), (1.0), (0.0), (NULL)) v(a));
+
+query IT rowsort
+SELECT a, isinf(a) from t1;
+----
+-inf  true
+0     false
+1     false
+NULL  NULL
+inf   true
+
+query T
+SELECT isinf(4.5);
+----
+false
+
+query T
+SELECT isinf('Infinity'::FLOAT);
+----
+true
+
+query T
+SELECT isinf('-Infinity'::FLOAT);
+----
+true
+
+query T
+SELECT isinf(NULL);
+----
+NULL
