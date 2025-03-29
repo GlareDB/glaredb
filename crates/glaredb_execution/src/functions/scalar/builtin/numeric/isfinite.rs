@@ -26,7 +26,7 @@ pub const FUNCTION_SET_IS_FINITE: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: Some(&Documentation {
         category: Category::Numeric,
-        description: "Return if the given float is finite (not infinite and not NaN).",
+        description: "Return if the given float is finite",
         arguments: &["float"],
         example: Some(Example {
             example: "isfinite(1.0)",

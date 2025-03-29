@@ -1,0 +1,67 @@
+# Tests for the isfinite function
+
+# Test with finite values
+query B
+select isfinite(1.0);
+----
+true
+
+query B
+select isfinite(0.0);
+----
+true
+
+query B
+select isfinite(-1.0);
+----
+true
+
+# Test with infinity
+query B
+select isfinite('Infinity'::float);
+----
+false
+
+query B
+select isfinite('-Infinity'::float);
+----
+false
+
+# Test with NaN
+query B
+select isfinite('NaN'::float);
+----
+false
+
+# Test with NULL
+query B
+select isfinite(NULL::float);
+----
+NULL
+
+# Test with different float types
+query B
+select isfinite(1.0::float16);
+----
+true
+
+query B
+select isfinite(1.0::float32);
+----
+true
+
+query B
+select isfinite(1.0::float64);
+----
+true
+
+# Test with expressions
+query B
+select isfinite(1.0 + 2.0);
+----
+true
+
+query B
+select isfinite(1.0 / 0.0);
+----
+false
