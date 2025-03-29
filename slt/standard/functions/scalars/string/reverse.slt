@@ -1,0 +1,28 @@
+# reverse
+
+query T
+SELECT reverse('hello');
+----
+olleh
+
+query T
+SELECT reverse('');
+----
+(empty)
+
+query T
+SELECT reverse('a');
+----
+a
+
+query T
+SELECT reverse('😀🙂😊');
+----
+😊🙂😀
+
+query T
+SELECT reverse(a) FROM (VALUES ('hello'), (NULL), ('😀🙂😊')) v(a) ORDER BY 1;
+----
+olleh
+😊🙂😀
+NULL

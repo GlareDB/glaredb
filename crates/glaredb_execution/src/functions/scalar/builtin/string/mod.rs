@@ -47,3 +47,6 @@ pub use right::*;
 
 mod strpos;
 pub use strpos::*;
+
+mod reverse;
+pub use reverse::*;
