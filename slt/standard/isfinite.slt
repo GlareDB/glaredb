@@ -1,6 +1,4 @@
-# Tests for the isfinite function
-
-# Test with finite values
+# isfinite
 query B
 select isfinite(1.0);
 ----
@@ -16,7 +14,6 @@ select isfinite(-1.0);
 ----
 true
 
-# Test with infinity
 query B
 select isfinite('Infinity'::float);
 ----
@@ -27,19 +24,16 @@ select isfinite('-Infinity'::float);
 ----
 false
 
-# Test with NaN
 query B
 select isfinite('NaN'::float);
 ----
 false
 
-# Test with NULL
 query B
 select isfinite(NULL::float);
 ----
 NULL
 
-# Test with different float types
 query B
 select isfinite(1.0::HALF);
 ----
@@ -55,7 +49,6 @@ select isfinite(1.0::DOUBLE);
 ----
 true
 
-# Test with expressions
 query B
 select isfinite(1.0 + 2.0);
 ----
