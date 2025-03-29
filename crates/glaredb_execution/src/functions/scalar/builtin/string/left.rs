@@ -66,11 +66,11 @@ fn left(s: &str, count: i64) -> &str {
     if count < 0 {
         let abs_count = (-count) as usize;
         let char_count = s.chars().count();
-        
+
         if abs_count >= char_count {
             return "";
         }
-        
+
         let take_count = char_count - abs_count;
         match s.char_indices().nth(take_count) {
             Some((pos, _)) => &s[..pos],
