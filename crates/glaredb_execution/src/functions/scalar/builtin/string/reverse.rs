@@ -1,7 +1,7 @@
 use glaredb_error::Result;
 
 use crate::arrays::array::Array;
-use crate::arrays::array::physical_type::{PhysicalUtf8};
+use crate::arrays::array::physical_type::PhysicalUtf8;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::OutBuffer;
@@ -63,7 +63,7 @@ impl ScalarFunction for Reverse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn reverse_cases() {
         let test_cases = [
@@ -71,10 +71,10 @@ mod tests {
             ("", ""),
             ("a", "a"),
             ("ab", "ba"),
-            ("😀🙂😊", "😊🙂😀"),  // Test with Unicode characters
-            ("radar", "radar"),     // Test with palindrome
+            ("😀🙂😊", "😊🙂😀"), // Test with Unicode characters
+            ("radar", "radar"),   // Test with palindrome
         ];
-        
+
         for (input, expected) in test_cases {
             let mut input_string = input.to_string();
             let result = input_string.chars().rev().collect::<String>();
