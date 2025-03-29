@@ -1,0 +1,43 @@
+# LEFT
+
+query T
+SELECT left('hello', 3);
+----
+hel
+
+query T
+SELECT left('hello', 5);
+----
+hello
+
+query T
+SELECT left('hello', 10);
+----
+hello
+
+query T
+SELECT left('hello', 0);
+----
+(empty)
+
+query T
+SELECT left('hello', -5);
+----
+(empty)
+
+query T
+SELECT left('😀🙂😊', 2);
+----
+😀🙂
+
+query T
+SELECT left('', 3);
+----
+(empty)
+
+query T rowsort
+SELECT left(a, 2) FROM (VALUES ('hello'), (NULL), ('😀🙂😊')) v(a);
+----
+NULL
+he
+😀🙂
