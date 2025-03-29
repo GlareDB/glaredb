@@ -41,17 +41,17 @@ NULL
 
 # Test with different float types
 query B
-select isfinite(1.0::FLOAT16);
+select isfinite(1.0::HALF);
 ----
 true
 
 query B
-select isfinite(1.0::FLOAT32);
+select isfinite(1.0::FLOAT);
 ----
 true
 
 query B
-select isfinite(1.0::FLOAT64);
+select isfinite(1.0::DOUBLE);
 ----
 true
 
