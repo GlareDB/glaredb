@@ -48,8 +48,3 @@ Drop a table only if it exists:
 ```sql
 DROP TABLE IF EXISTS my_table;
 ```
-
-## Notes
-
-- The `DROP SCHEMA` command removes a schema from the database.
-- The `DROP TABLE` command removes a table from the database.
