@@ -1,5 +1,6 @@
 ---
 title: Data Types
+order: 0
 ---
 
 # Data Types
