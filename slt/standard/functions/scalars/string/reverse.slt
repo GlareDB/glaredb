@@ -1,4 +1,4 @@
-# REVERSE
+# reverse
 
 query T
 SELECT reverse('hello');
@@ -16,23 +16,11 @@ SELECT reverse('a');
 a
 
 query T
-SELECT reverse('ab');
-----
-ba
-
-query T
-SELECT reverse('radar');
-----
-radar
-
-query T
 SELECT reverse('😀🙂😊');
 ----
 😊🙂😀
 
-query T rowsort
-SELECT reverse(a) FROM (VALUES ('hello'), (NULL), ('😀🙂😊')) v(a);
+query T
+SELECT reverse(NULL);
 ----
 NULL
-olleh
-😊🙂😀

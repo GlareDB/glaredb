@@ -48,37 +48,17 @@ impl ScalarFunction for Reverse {
         let sel = input.selection();
         let input = &input.arrays()[0];
 
+        let mut s_buf = String::new();
+
         UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
             input,
             sel,
             OutBuffer::from_array(output)?,
             |v, buf| {
-                let reversed = v.chars().rev().collect::<String>();
-                buf.put(&reversed)
+                s_buf.clear();
+                s_buf.extend(v.chars().rev());
+                buf.put(&s_buf)
             },
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reverse_cases() {
-        let test_cases = [
-            ("hello", "olleh"),
-            ("", ""),
-            ("a", "a"),
-            ("ab", "ba"),
-            ("😀🙂😊", "😊🙂😀"), // Test with Unicode characters
-            ("radar", "radar"),   // Test with palindrome
-        ];
-
-        for (input, expected) in test_cases {
-            let mut input_string = input.to_string();
-            let result = input_string.chars().rev().collect::<String>();
-            assert_eq!(expected, result);
-        }
     }
 }
