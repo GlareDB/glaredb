@@ -277,7 +277,7 @@ pub enum GroupByExpr<T: AstMeta> {
     /// `GROUP BY ROLLUP (<expr>)`
     Rollup(Vec<Expr<T>>),
     /// `GROUP BY GROUPING SETS (<expr>)`
-    GroupingSets(Vec<Expr<T>>), // TODO: vec vec
+    GroupingSets(Vec<Vec<Expr<T>>>),
 }
 
 impl AstParseable for GroupByExpr<Raw> {
@@ -306,7 +306,7 @@ impl AstParseable for GroupByExpr<Raw> {
                 Keyword::GROUPING => {
                     parser.next();
                     parser.expect_keyword(Keyword::SETS)?;
-                    let exprs = parser.parse_parenthesized_comma_separated(Expr::parse)?;
+                    let exprs = parser.parse_grouping_sets(Expr::parse)?;
                     return Ok(GroupByExpr::GroupingSets(exprs));
                 }
                 _ => (), // Fallthrough, need to parse as an expression.

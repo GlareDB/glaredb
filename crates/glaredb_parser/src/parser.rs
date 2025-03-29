@@ -474,4 +474,40 @@ impl<'a> Parser<'a> {
                 .ok_or_else(|| DbError::new("Unable to get string slice for original sql string")),
         }
     }
+
+    /// Parse a comma separated list of grouping set expressions.
+    /// 
+    /// A grouping set expression can be either a single expression or a
+    /// parenthesized list of expressions.
+    pub(crate) fn parse_grouping_sets<T>(
+        &mut self,
+        mut f: impl FnMut(&mut Parser) -> Result<T>,
+    ) -> Result<Vec<Vec<T>>> {
+        self.expect_token(&Token::LeftParen)?;
+        if self.consume_token(&Token::RightParen) {
+            return Ok(Vec::new());
+        }
+        
+        let mut result = Vec::new();
+        let _ = self.parse_comma_separated(|parser| {
+            if parser.consume_token(&Token::LeftParen) {
+                // Parse a parenthesized list of expressions
+                let mut exprs = Vec::new();
+                if !parser.consume_token(&Token::RightParen) {
+                    exprs = parser.parse_comma_separated(&mut f)?;
+                    parser.expect_token(&Token::RightParen)?;
+                }
+                result.push(exprs);
+                Ok(())
+            } else {
+                // Parse a single expression
+                let expr = f(parser)?;
+                result.push(vec![expr]);
+                Ok(())
+            }
+        })?;
+        
+        self.expect_token(&Token::RightParen)?;
+        Ok(result)
+    }
 }

@@ -86,9 +86,13 @@ impl<'a> ExpressionResolver<'a> {
             ast::GroupByExpr::Rollup(exprs) => {
                 ast::GroupByExpr::Rollup(self.resolve_expressions(exprs, resolve_context).await?)
             }
-            ast::GroupByExpr::GroupingSets(exprs) => ast::GroupByExpr::GroupingSets(
-                self.resolve_expressions(exprs, resolve_context).await?,
-            ),
+            ast::GroupByExpr::GroupingSets(exprs) => {
+                let mut resolved_groups = Vec::new();
+                for group in exprs {
+                    resolved_groups.push(self.resolve_expressions(group, resolve_context).await?);
+                }
+                ast::GroupByExpr::GroupingSets(resolved_groups)
+            },
         })
     }
 

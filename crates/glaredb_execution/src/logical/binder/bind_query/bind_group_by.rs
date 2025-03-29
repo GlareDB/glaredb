@@ -182,8 +182,18 @@ impl GroupByWithSets {
 
                         (exprs, sets)
                     }
-                    ast::GroupByExpr::GroupingSets(_exprs) => {
-                        not_implemented!("GROUPING SETS")
+                    ast::GroupByExpr::GroupingSets(exprs) => {
+                        let mut all_exprs = Vec::new();
+                        let mut sets = Vec::new();
+                        
+                        for group in exprs {
+                            let start_idx = all_exprs.len();
+                            all_exprs.extend(group);
+                            let set: BTreeSet<usize> = (start_idx..all_exprs.len()).collect();
+                            sets.push(set);
+                        }
+                        
+                        (all_exprs, sets)
                     }
                 };
 
@@ -292,6 +302,33 @@ mod tests {
                 [1, 2].into(),
                 [0, 1, 2].into(),
             ],
+        };
+
+        assert_eq!(expected, sets)
+    }
+
+    #[test]
+    fn group_by_with_sets_from_grouping_sets() {
+        // GROUP BY GROUPING SETS (a, (b, c), ())
+        let node = ast::GroupByNode::Exprs {
+            exprs: vec![ast::GroupByExpr::GroupingSets(vec![
+                vec![ast::Expr::Ident(ast::Ident::new_unquoted("a"))],
+                vec![
+                    ast::Expr::Ident(ast::Ident::new_unquoted("b")),
+                    ast::Expr::Ident(ast::Ident::new_unquoted("c")),
+                ],
+                vec![],
+            ])],
+        };
+
+        let sets = GroupByWithSets::try_from_ast(node).unwrap();
+        let expected = GroupByWithSets {
+            expressions: vec![
+                ast::Expr::Ident(ast::Ident::new_unquoted("a")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("b")),
+                ast::Expr::Ident(ast::Ident::new_unquoted("c")),
+            ],
+            grouping_sets: vec![[0].into(), [1, 2].into(), [].into()],
         };
 
         assert_eq!(expected, sets)
