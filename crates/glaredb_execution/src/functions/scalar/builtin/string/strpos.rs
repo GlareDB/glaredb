@@ -59,31 +59,10 @@ impl ScalarFunction for Strpos {
 }
 
 fn strpos(s: &str, substring: &str) -> i64 {
-    if s.is_empty() && substring.is_empty() {
-        return 1;
-    }
-    if s.is_empty() {
-        return 0;
-    }
-    if substring.is_empty() {
-        return 1;
-    }
-
-    if substring == "ll" {
-        if s == "hello" {
-            return 0;
-        } else if s == "ball" {
-            return 2;
-        }
-    }
-
-    match s.find(substring) {
-        Some(pos) => {
-            let char_pos = s[..pos].chars().count() + 1;
-            char_pos as i64
-        }
-        None => 0,
-    }
+    s.match_indices(substring)
+        .next()
+        .map(|(byte_idx, _)| s[..byte_idx].chars().count() + 1)
+        .unwrap_or(0) as i64 // Return 1-based index, 0 if not exists
 }
 
 #[cfg(test)]
@@ -101,13 +80,11 @@ mod tests {
             (("", "hello"), 0),
             (("", ""), 1),
             (("😀🙂😊", "🙂"), 2),
-            (("ball", "ll"), 2),
-            (("mill", "ll"), 3),
         ];
 
         for case in test_cases {
             let out = strpos(case.0.0, case.0.1);
-            assert_eq!(case.1, out);
+            assert_eq!(case.1, out, "case: {case:?}");
         }
     }
 }

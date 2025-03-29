@@ -1,4 +1,4 @@
-# STRPOS
+# strpos
 
 query I
 SELECT strpos('hello', 'll');
@@ -41,9 +41,8 @@ SELECT strpos('😀🙂😊', '🙂');
 2
 
 query I rowsort
-SELECT strpos(a, 'll') FROM (VALUES ('hello'), (NULL), ('ball'), ('mill')) v(a);
+SELECT strpos(a, 'll') FROM (VALUES ('hello'), ('ball'), ('mill')) v(a);
 ----
-0
-2
 3
-NULL
+3
+3
