@@ -59,15 +59,29 @@ impl ScalarFunction for Left {
 }
 
 fn left(s: &str, count: i64) -> &str {
-    if count <= 0 {
+    if count == 0 {
         return "";
     }
 
-    let count = count as usize;
-
-    match s.char_indices().nth(count) {
-        Some((pos, _)) => &s[..pos],
-        None => s, // Return the entire string if count is larger than the string length
+    if count < 0 {
+        let abs_count = (-count) as usize;
+        let char_count = s.chars().count();
+        
+        if abs_count >= char_count {
+            return "";
+        }
+        
+        let take_count = char_count - abs_count;
+        match s.char_indices().nth(take_count) {
+            Some((pos, _)) => &s[..pos],
+            None => s,
+        }
+    } else {
+        let count = count as usize;
+        match s.char_indices().nth(count) {
+            Some((pos, _)) => &s[..pos],
+            None => s, // Return the entire string if count is larger than the string length
+        }
     }
 }
 

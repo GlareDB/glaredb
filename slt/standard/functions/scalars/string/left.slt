@@ -26,6 +26,11 @@ SELECT left('hello', -5);
 (empty)
 
 query T
+SELECT left('hello', -3);
+----
+he
+
+query T
 SELECT left('😀🙂😊', 2);
 ----
 😀🙂
