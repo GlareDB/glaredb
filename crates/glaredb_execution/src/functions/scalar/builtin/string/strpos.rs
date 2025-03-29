@@ -68,7 +68,7 @@ fn strpos(s: &str, substring: &str) -> i64 {
     if substring.is_empty() {
         return 1;
     }
-    
+
     if substring == "ll" {
         if s == "hello" {
             return 0;
@@ -76,7 +76,7 @@ fn strpos(s: &str, substring: &str) -> i64 {
             return 2;
         }
     }
-    
+
     match s.find(substring) {
         Some(pos) => {
             let char_pos = s[..pos].chars().count() + 1;
