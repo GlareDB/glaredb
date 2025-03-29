@@ -65,11 +65,11 @@ fn right(s: &str, count: i64) -> &str {
 
     if count < 0 {
         let abs_count = (-count) as usize;
-        
+
         if abs_count >= s.chars().count() {
             return "";
         }
-        
+
         match s.char_indices().nth(abs_count) {
             Some((pos, _)) => &s[pos..],
             None => "",
@@ -77,11 +77,11 @@ fn right(s: &str, count: i64) -> &str {
     } else {
         let count = count as usize;
         let char_count = s.chars().count();
-        
+
         if count >= char_count {
             return s;
         }
-        
+
         let pos_to_skip = char_count - count;
         match s.char_indices().nth(pos_to_skip) {
             Some((pos, _)) => &s[pos..],
