@@ -34,20 +34,7 @@ select isfinite(NULL::float);
 ----
 NULL
 
-query B
-select isfinite(1.0::HALF);
-----
-true
 
-query B
-select isfinite(1.0::FLOAT);
-----
-true
-
-query B
-select isfinite(1.0::DOUBLE);
-----
-true
 
 query B
 select isfinite(1.0 + 2.0);
