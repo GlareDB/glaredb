@@ -11,13 +11,12 @@ The `CREATE VIEW` statement creates a named view that represents a stored query.
 ## Syntax
 
 ```sql
-CREATE TEMP VIEW [IF NOT EXISTS] view_name [(column_name [, ...])]
+CREATE TEMP VIEW view_name [(column_name [, ...])]
 AS query
 ```
 
 Where:
 - `TEMP`: Specifies that the view is temporary and will only exist for the current session
-- `IF NOT EXISTS`: Optional clause that prevents an error if a view with the same name already exists
 - `view_name`: Name to assign to the view
 - `column_name`: Optional comma-separated list of names to assign to the view's columns
 - `query`: A SELECT statement that defines the view
