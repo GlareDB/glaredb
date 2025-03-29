@@ -12,7 +12,7 @@ The `CREATE TABLE` statement creates a new table in the database.
 
 ```sql
 CREATE [TEMP | TEMPORARY] TABLE [IF NOT EXISTS] table_name (
-    column_name data_type [NULL | NOT NULL],
+    column_name data_type,
     ...
 )
 ```
@@ -30,7 +30,6 @@ CREATE [TEMP | TEMPORARY] TABLE [IF NOT EXISTS] table_name AS query
 - `table_name`: The name of the table to create.
 - `column_name`: The name of a column in the new table.
 - `data_type`: The data type of the column.
-- `NULL | NOT NULL`: Specifies whether the column can contain NULL values.
 - `query`: A SELECT query that defines the columns and data for the new table.
 
 ## Examples
