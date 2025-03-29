@@ -1,0 +1,36 @@
+# isfinite
+
+query B
+select isfinite(1.0);
+----
+true
+
+query B
+select isfinite(0.0);
+----
+true
+
+query B
+select isfinite(-1.0);
+----
+true
+
+query B
+select isfinite('Infinity'::float);
+----
+false
+
+query B
+select isfinite('-Infinity'::float);
+----
+false
+
+query B
+select isfinite('NaN'::float);
+----
+false
+
+query B
+select isfinite(NULL::float);
+----
+NULL
