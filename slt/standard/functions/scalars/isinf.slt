@@ -6,11 +6,11 @@ CREATE TEMP TABLE t1 as (SELECT * FROM (VALUES ('Infinity'::FLOAT), ('-Infinity'
 query IT rowsort
 SELECT a, isinf(a) from t1;
 ----
-Infinity     true
--Infinity    true
-1            false
-0            false
-NULL         NULL
+-inf true
+0 false
+1 false
+NULL NULL
+inf true
 
 query T
 SELECT isinf(4.5);
