@@ -1,8 +1,3 @@
----
-title: EXPLAIN
-order: 0
----
-
 # EXPLAIN
 
 `EXPLAIN` statements provide information about how a query will be executed, showing the unoptimized, optimized, and physical plans that the database will use.
