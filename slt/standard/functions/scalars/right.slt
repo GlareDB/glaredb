@@ -1,4 +1,5 @@
-# Basic right function tests
+# right
+
 query T
 SELECT right('hello', 3);
 ----
