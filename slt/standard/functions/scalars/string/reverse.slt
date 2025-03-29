@@ -1,0 +1,38 @@
+# REVERSE
+
+query T
+SELECT reverse('hello');
+----
+olleh
+
+query T
+SELECT reverse('');
+----
+(empty)
+
+query T
+SELECT reverse('a');
+----
+a
+
+query T
+SELECT reverse('ab');
+----
+ba
+
+query T
+SELECT reverse('radar');
+----
+radar
+
+query T
+SELECT reverse('😀🙂😊');
+----
+😊🙂😀
+
+query T rowsort
+SELECT reverse(a) FROM (VALUES ('hello'), (NULL), ('😀🙂😊')) v(a);
+----
+NULL
+olleh
+😊🙂😀
