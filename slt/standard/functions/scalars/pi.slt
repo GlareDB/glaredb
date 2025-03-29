@@ -1,0 +1,7 @@
+# pi
+
+query R
+SELECT pi()::DECIMAL(10, 2);
+----
+3.14
+
