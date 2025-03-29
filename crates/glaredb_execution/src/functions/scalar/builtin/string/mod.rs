@@ -45,5 +45,8 @@ pub use left::*;
 mod right;
 pub use right::*;
 
+mod strpos;
+pub use strpos::*;
+
 mod reverse;
 pub use reverse::*;
