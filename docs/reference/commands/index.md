@@ -1,4 +1,4 @@
 ---
-title: SQL command
+title: SQL commands
 order: 2
 ---
