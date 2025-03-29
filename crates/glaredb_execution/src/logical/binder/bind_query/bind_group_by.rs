@@ -185,14 +185,14 @@ impl GroupByWithSets {
                     ast::GroupByExpr::GroupingSets(exprs) => {
                         let mut all_exprs = Vec::new();
                         let mut sets = Vec::new();
-                        
+
                         for group in exprs {
                             let start_idx = all_exprs.len();
                             all_exprs.extend(group);
                             let set: BTreeSet<usize> = (start_idx..all_exprs.len()).collect();
                             sets.push(set);
                         }
-                        
+
                         (all_exprs, sets)
                     }
                 };

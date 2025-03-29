@@ -476,7 +476,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse a comma separated list of grouping set expressions.
-    /// 
+    ///
     /// A grouping set expression can be either a single expression or a
     /// parenthesized list of expressions.
     pub(crate) fn parse_grouping_sets<T>(
@@ -487,7 +487,7 @@ impl<'a> Parser<'a> {
         if self.consume_token(&Token::RightParen) {
             return Ok(Vec::new());
         }
-        
+
         let mut result = Vec::new();
         let _ = self.parse_comma_separated(|parser| {
             if parser.consume_token(&Token::LeftParen) {
@@ -506,7 +506,7 @@ impl<'a> Parser<'a> {
                 Ok(())
             }
         })?;
-        
+
         self.expect_token(&Token::RightParen)?;
         Ok(result)
     }

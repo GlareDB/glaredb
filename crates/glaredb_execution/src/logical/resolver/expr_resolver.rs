@@ -92,7 +92,7 @@ impl<'a> ExpressionResolver<'a> {
                     resolved_groups.push(self.resolve_expressions(group, resolve_context).await?);
                 }
                 ast::GroupByExpr::GroupingSets(resolved_groups)
-            },
+            }
         })
     }
 
