@@ -1,7 +1,5 @@
 # DECRIBE the functions.
 
-# TODO: A few of these will be updated to use Decimal and instea of Float.
-
 query TT
 DESCRIBE tpch_gen.region(0.1);
 ----

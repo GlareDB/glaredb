@@ -109,14 +109,14 @@ impl TpchTable for CustomerTable {
             6 => {
                 let mut c_segments = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, cust) in rows.iter().enumerate() {
-                    c_segments.put(idx, &cust.c_mktsegment);
+                    c_segments.put(idx, cust.c_mktsegment);
                 }
                 Ok(())
             }
             7 => {
                 let mut c_comments = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, cust) in rows.iter().enumerate() {
-                    c_comments.put(idx, &cust.c_comment);
+                    c_comments.put(idx, cust.c_comment);
                 }
                 Ok(())
             }

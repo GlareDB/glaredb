@@ -14,6 +14,7 @@ use glaredb_core::storage::projections::Projections;
 use glaredb_error::{OptionExt, Result};
 use tpchgen::generators::{LineItem, LineItemGenerator, LineItemGeneratorIterator};
 
+use super::convert;
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
 pub const FUNCTION_SET_LINEITEM: TableFunctionSet = TableFunctionSet {
@@ -136,15 +137,33 @@ impl TpchTable for LineItemTable {
                 Ok(())
             }
             10 => {
-                // TODO: Ship date
+                let mut l_ship_dates = PhysicalI32::get_addressable_mut(output.data_mut())?;
+                for (idx, lineitem) in rows.iter().enumerate() {
+                    l_ship_dates.put(
+                        idx,
+                        &convert::tpch_date_to_days_after_epoch(lineitem.l_shipdate),
+                    );
+                }
                 Ok(())
             }
             11 => {
-                // TODO: Commit date
+                let mut l_commit_dates = PhysicalI32::get_addressable_mut(output.data_mut())?;
+                for (idx, lineitem) in rows.iter().enumerate() {
+                    l_commit_dates.put(
+                        idx,
+                        &convert::tpch_date_to_days_after_epoch(lineitem.l_commitdate),
+                    );
+                }
                 Ok(())
             }
             12 => {
-                // TODO: Receipt date
+                let mut l_receipt_dates = PhysicalI32::get_addressable_mut(output.data_mut())?;
+                for (idx, lineitem) in rows.iter().enumerate() {
+                    l_receipt_dates.put(
+                        idx,
+                        &convert::tpch_date_to_days_after_epoch(lineitem.l_receiptdate),
+                    );
+                }
                 Ok(())
             }
             13 => {

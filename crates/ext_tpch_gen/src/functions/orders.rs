@@ -14,8 +14,9 @@ use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
 use glaredb_core::storage::projections::Projections;
 use glaredb_error::{OptionExt, Result};
-use tpchgen::generators::{Order, OrderGenerator, OrderGeneratorIterator, OrderStatus};
+use tpchgen::generators::{Order, OrderGenerator, OrderGeneratorIterator};
 
+use super::convert;
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
 pub const FUNCTION_SET_ORDERS: TableFunctionSet = TableFunctionSet {
@@ -74,7 +75,7 @@ impl TpchTable for OrdersTable {
             2 => {
                 let mut o_statuses = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
-                    o_statuses.put(idx, status_to_str(order.o_orderstatus));
+                    o_statuses.put(idx, convert::status_to_str(order.o_orderstatus));
                 }
                 Ok(())
             }
@@ -86,16 +87,19 @@ impl TpchTable for OrdersTable {
                 Ok(())
             }
             4 => {
-                // TODO
-                // let mut o_dates = PhysicalI32::get_addressable_mut(output.data_mut())?;
-                // for (idx, order) in rows.iter().enumerate() {
-                // }
+                let mut o_dates = PhysicalI32::get_addressable_mut(output.data_mut())?;
+                for (idx, order) in rows.iter().enumerate() {
+                    o_dates.put(
+                        idx,
+                        &convert::tpch_date_to_days_after_epoch(order.o_orderdate),
+                    );
+                }
                 Ok(())
             }
             5 => {
                 let mut o_priorities = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
-                    o_priorities.put(idx, &order.o_orderpriority);
+                    o_priorities.put(idx, order.o_orderpriority);
                 }
                 Ok(())
             }
@@ -104,7 +108,7 @@ impl TpchTable for OrdersTable {
                 let mut o_clerks = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
                     s_buf.clear();
-                    write!(s_buf, "{}", order.o_clerk);
+                    write!(s_buf, "{}", order.o_clerk)?;
                     o_clerks.put(idx, &s_buf);
                 }
                 Ok(())
@@ -125,15 +129,5 @@ impl TpchTable for OrdersTable {
             }
             other => panic!("invalid projection {other}"),
         })
-    }
-}
-
-// TODO: Remove
-// <https://github.com/clflushopt/tpchgen-rs/pull/95>
-const fn status_to_str(status: OrderStatus) -> &'static str {
-    match status {
-        OrderStatus::Fulfilled => "F",
-        OrderStatus::Open => "O",
-        OrderStatus::Pending => "P",
     }
 }

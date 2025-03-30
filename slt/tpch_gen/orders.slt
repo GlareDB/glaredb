@@ -1,0 +1,6 @@
+# Orders sanity checks
+
+query TT
+SELECT min(o_orderdate), max(o_orderdate) FROM tpch_gen.orders(1);
+----
+1992-09-24  1999-04-26
