@@ -6,15 +6,10 @@ use glaredb_core::arrays::scalar::ScalarValue;
 use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_core::io::access::AccessConfig;
 use glaredb_core::io::file::FileOpener;
-use glaredb_core::runtime::handle::QueryHandle;
-use glaredb_core::runtime::{
-    ErrorSink,
-    OptionalTokioRuntime,
-    PipelineExecutor,
-    Runtime,
-    TokioHandlerProvider,
-};
+use glaredb_core::runtime::io::IoRuntime;
+use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
 use glaredb_error::{Result, ResultExt, not_implemented};
+use tokio::runtime::Handle as TokioHandle;
 
 use crate::filesystem::LocalFile;
 use crate::http::TokioWrappedHttpClient;
@@ -52,7 +47,7 @@ impl<S: Scheduler> NativeExecutor<S> {
     }
 }
 
-impl<S: Scheduler + 'static> PipelineExecutor for NativeExecutor<S> {
+impl<S: Scheduler + 'static> PipelineRuntime for NativeExecutor<S> {
     fn default_partitions(&self) -> usize {
         self.0.num_threads()
     }
@@ -67,52 +62,46 @@ impl<S: Scheduler + 'static> PipelineExecutor for NativeExecutor<S> {
     }
 }
 
+/// Create a new tokio runtime configured for io.
+///
+/// This runtime should be passed to the native runtime so its able to execute
+/// io operations on the tokio runtime.
+pub fn new_tokio_runtime_for_io() -> Result<tokio::runtime::Runtime> {
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_io()
+        .enable_time()
+        .thread_name("glaredb_tokio_io")
+        .build()
+        .context("Failed to build tokio runtime")
+}
+
 pub type ThreadedNativeExecutor = NativeExecutor<ThreadedScheduler>;
 
 #[derive(Debug, Clone)]
 pub struct NativeRuntime {
-    tokio: Arc<OptionalTokioRuntime>,
+    handle: TokioHandle,
 }
 
 impl NativeRuntime {
-    pub fn with_default_tokio() -> Result<Self> {
-        // TODO: I had to change this to multi threaded since there was a
-        // deadlock with current_thread and a single worker. I _think_ this is
-        // because in main we're using the tokio runtime + block_on.
-        let tokio = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_io()
-            .enable_time()
-            .thread_name("rayexec_tokio")
-            .build()
-            .context("Failed to build tokio runtime")?;
-
-        Ok(NativeRuntime {
-            tokio: Arc::new(OptionalTokioRuntime::new(Some(tokio))),
-        })
+    pub fn new(handle: TokioHandle) -> Self {
+        NativeRuntime { handle }
     }
 }
 
-impl Runtime for NativeRuntime {
+impl IoRuntime for NativeRuntime {
     type HttpClient = TokioWrappedHttpClient;
     type FileProvider = NativeFileProvider;
-    type TokioHandle = OptionalTokioRuntime;
     type Instant = NativeInstant;
 
     fn file_provider(&self) -> Arc<Self::FileProvider> {
         Arc::new(NativeFileProvider {
-            _handle: self.tokio.handle_opt(),
+            _handle: Some(self.handle.clone()),
         })
     }
 
     fn http_client(&self) -> Self::HttpClient {
-        // TODO: Currently not possible to construct a native runtime without
-        // tokio, but it is optional...
-        TokioWrappedHttpClient::new(reqwest::Client::default(), self.tokio.handle().unwrap())
-    }
-
-    fn tokio_handle(&self) -> &Self::TokioHandle {
-        self.tokio.as_ref()
+        TokioWrappedHttpClient::new(reqwest::Client::default(), self.handle.clone())
     }
 }
 

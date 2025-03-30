@@ -5,7 +5,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
-use glaredb_core::runtime::ErrorSink;
+use glaredb_core::runtime::pipeline::ErrorSink;
 use glaredb_core::runtime::profile_buffer::ProfileBuffer;
 use glaredb_error::{DbError, Result};
 use handle::ThreadedQueryHandle;

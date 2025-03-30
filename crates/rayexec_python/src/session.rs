@@ -3,8 +3,9 @@ use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::DbError;
-use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io};
 use pyo3::{Python, pyclass, pyfunction, pymethods};
+use tokio::runtime::Runtime as TokioRuntime;
 
 use crate::errors::Result;
 use crate::event_loop::run_until_complete;
@@ -14,12 +15,13 @@ const DEFAULT_TABLE_WIDTH: usize = 100;
 
 #[pyfunction]
 pub fn connect() -> Result<PythonSession> {
-    // TODO: Pass in a tokio runtime.
-    let runtime = NativeRuntime::with_default_tokio()?;
+    let tokio_rt = new_tokio_runtime_for_io()?;
+    let runtime = NativeRuntime::new(tokio_rt.handle().clone());
     let executor = ThreadedNativeExecutor::try_new()?;
     let engine = SingleUserEngine::try_new(executor, runtime.clone())?;
 
     Ok(PythonSession {
+        _tokio_rt: tokio_rt,
         engine: Some(engine),
     })
 }
@@ -27,6 +29,7 @@ pub fn connect() -> Result<PythonSession> {
 #[pyclass]
 #[derive(Debug)]
 pub struct PythonSession {
+    pub(crate) _tokio_rt: TokioRuntime,
     /// Single user engine backing this session.
     ///
     /// Wrapped in an option so that we can properly drop it on close and error

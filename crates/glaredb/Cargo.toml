@@ -12,6 +12,7 @@ glaredb_core = { path = '../glaredb_core' }
 glaredb_rt_native = { path = '../glaredb_rt_native' }
 
 ext_spark = { path = '../ext_spark' }
+ext_csv = { path = '../ext_csv' }
 ext_tpch_gen = { path = '../ext_tpch_gen' }
 
 tracing = { workspace = true }
