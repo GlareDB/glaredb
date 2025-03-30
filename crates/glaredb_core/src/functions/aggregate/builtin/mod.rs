@@ -1,4 +1,5 @@
 pub mod avg;
+pub mod bool_and;
 pub mod corr;
 pub mod count;
 pub mod covar;
@@ -30,6 +31,7 @@ use stddev::{
 };
 use string_agg::FUNCTION_SET_STRING_AGG;
 use sum::FUNCTION_SET_SUM;
+use bool_and::FUNCTION_SET_BOOL_AND;
 
 use crate::functions::function_set::AggregateFunctionSet;
 
@@ -53,4 +55,5 @@ pub const BUILTIN_AGGREGATE_FUNCTION_SETS: &[AggregateFunctionSet] = &[
     FUNCTION_SET_REGR_R2,
     FUNCTION_SET_REGR_SLOPE,
     FUNCTION_SET_STRING_AGG,
+    FUNCTION_SET_BOOL_AND,
 ];
