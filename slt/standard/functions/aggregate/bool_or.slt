@@ -1,0 +1,65 @@
+# Test bool_or aggregate function
+
+# Test with all TRUE values
+query T
+SELECT bool_or(b) FROM (VALUES (TRUE), (TRUE), (TRUE)) AS t(b);
+----
+true
+
+# Test with mixed TRUE and FALSE values
+query T
+SELECT bool_or(b) FROM (VALUES (TRUE), (TRUE), (FALSE)) AS t(b);
+----
+true
+
+# Test with all FALSE values
+query T
+SELECT bool_or(b) FROM (VALUES (FALSE), (FALSE), (FALSE)) AS t(b);
+----
+false
+
+# Test with empty set (should return NULL)
+query T
+SELECT bool_or(b) FROM (VALUES (TRUE)) AS t(b) WHERE 1=0;
+----
+NULL
+
+# Test with all NULL values
+query T
+SELECT bool_or(b) FROM (VALUES (CAST(NULL AS BOOLEAN)), (CAST(NULL AS BOOLEAN))) AS t(b);
+----
+NULL
+
+# Test with mixed TRUE and NULL values
+query T
+SELECT bool_or(b) FROM (VALUES (TRUE), (CAST(NULL AS BOOLEAN)), (TRUE)) AS t(b);
+----
+true
+
+# Test with mixed FALSE and NULL values
+query T
+SELECT bool_or(b) FROM (VALUES (FALSE), (CAST(NULL AS BOOLEAN)), (FALSE)) AS t(b);
+----
+false
+
+# Test with mixed TRUE, FALSE, and NULL values
+query T
+SELECT bool_or(b) FROM (VALUES (TRUE), (FALSE), (CAST(NULL AS BOOLEAN))) AS t(b);
+----
+true
+
+# Test with literals
+query T
+SELECT bool_or(TRUE);
+----
+true
+
+query T
+SELECT bool_or(FALSE);
+----
+false
+
+query T
+SELECT bool_or(CAST(NULL AS BOOLEAN));
+----
+NULL
