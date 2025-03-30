@@ -18,6 +18,14 @@ pub enum DataType {
     Integer,
     /// BIGINT, INT8
     BigInt,
+    /// UTINYINT, UINT1
+    UnsignedTinyInt,
+    /// USMALLINT, UINT2
+    UnsignedSmallInt,
+    /// UINT, UINT4
+    UnsignedInt,
+    /// UBIGINT, UINT8
+    UnsignedBigInt,
     /// HALF, FLOAT2,
     Half,
     /// REAL, FLOAT, FLOAT4
@@ -53,6 +61,10 @@ impl AstParseable for DataType {
             Keyword::SMALLINT | Keyword::INT2 => DataType::SmallInt,
             Keyword::INT | Keyword::INTEGER | Keyword::INT4 => DataType::Integer,
             Keyword::BIGINT | Keyword::INT8 => DataType::BigInt,
+            Keyword::UTINYINT | Keyword::UINT1 => DataType::UnsignedTinyInt,
+            Keyword::USMALLINT | Keyword::UINT2 => DataType::UnsignedSmallInt,
+            Keyword::UINT | Keyword::UINT4 => DataType::UnsignedInt,
+            Keyword::UBIGINT | Keyword::UINT8 => DataType::UnsignedBigInt,
             Keyword::HALF | Keyword::FLOAT2 => DataType::Half,
             Keyword::REAL | Keyword::FLOAT | Keyword::FLOAT4 => DataType::Real,
             Keyword::DOUBLE | Keyword::FLOAT8 => DataType::Double,
@@ -114,6 +126,18 @@ mod tests {
 
         assert_ast_eq(DataType::BigInt, "bigint");
         assert_ast_eq(DataType::BigInt, "int8");
+
+        assert_ast_eq(DataType::UnsignedTinyInt, "utinyint");
+        assert_ast_eq(DataType::UnsignedTinyInt, "uint1");
+
+        assert_ast_eq(DataType::UnsignedSmallInt, "usmallint");
+        assert_ast_eq(DataType::UnsignedSmallInt, "uint2");
+
+        assert_ast_eq(DataType::UnsignedInt, "uint");
+        assert_ast_eq(DataType::UnsignedInt, "uint4");
+
+        assert_ast_eq(DataType::UnsignedBigInt, "ubigint");
+        assert_ast_eq(DataType::UnsignedBigInt, "uint8");
 
         assert_ast_eq(DataType::Half, "half");
         assert_ast_eq(DataType::Half, "float2");

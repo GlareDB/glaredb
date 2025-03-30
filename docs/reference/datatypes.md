@@ -13,10 +13,10 @@ order: 0
 | `SMALLINT`, `INT2`             | Int16                | Signed 16-bit (2-byte) integer                  |
 | `INT`, `INTEGER`, `INT4`       | Int32                | Signed 32-bit (4-byte) integer                  |
 | `BIGINT`, `INT8`               | Int64                | Signed 64-bit (8-byte) integer                  |
-|                                | UInt8                | Unsigned 8-bit (1-byte) integer                 |
-|                                | UInt16               | Unsigned 16-bit (2-byte) integer                |
-|                                | UInt32               | Unsigned 32-bit (4-byte) integer                |
-|                                | UInt64               | Unsigned 64-bit (8-byte) integer                |
+| `UTINYINT`, `UINT1`           | UInt8                | Unsigned 8-bit (1-byte) integer                 |
+| `USMALLINT`, `UINT2`          | UInt16               | Unsigned 16-bit (2-byte) integer                |
+| `UINT`, `UINT4`               | UInt32               | Unsigned 32-bit (4-byte) integer                |
+| `UBIGINT`, `UINT8`            | UInt64               | Unsigned 64-bit (8-byte) integer                |
 | `HALF`, `FLOAT2`               | Float16              | Half precision (2-byte) floating-point number   |
 | `REAL`, `FLOAT`, `FLOAT4`      | Float32              | Single precision (4-byte) floating-point number |
 | `DOUBLE`, `FLOAT8`             | Float64              | Double precision (8-byte) floating-point number |
