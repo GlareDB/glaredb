@@ -15,15 +15,10 @@ pub mod implicit;
 pub mod scalar;
 pub mod table;
 
-use std::borrow::Borrow;
-use std::fmt::Display;
-
 use candidate::CandidateSignature;
 use documentation::Documentation;
-use glaredb_error::{DbError, Result};
 
 use crate::arrays::datatype::{DataType, DataTypeId};
-use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 /// Function signature.
 // TODO: Include named args. Also make sure to update PartialEq too.
@@ -131,92 +126,3 @@ impl PartialEq for Signature {
 }
 
 impl Eq for Signature {}
-
-/// Trait for defining informating about functions.
-pub trait FunctionInfo {
-    /// Name of the function.
-    fn name(&self) -> &'static str;
-
-    /// Aliases for the function.
-    ///
-    /// When the system catalog is initialized, the function will be placed into
-    /// the catalog using both its name and all of its aliases.
-    fn aliases(&self) -> &'static [&'static str] {
-        &[]
-    }
-
-    /// Signature for the function.
-    ///
-    /// This is used during binding/planning to determine the return type for a
-    /// function given some inputs, and how we should handle implicit casting.
-    fn signatures(&self) -> &[Signature];
-
-    /// Get the signature for a function if it's an exact match for the inputs.
-    ///
-    /// If there are no exact signatures for these types, None will be retuned.
-    fn exact_signature(&self, inputs: &[DataType]) -> Option<&Signature> {
-        self.signatures().iter().find(|sig| sig.exact_match(inputs))
-    }
-
-    /// Get candidate signatures for this function given the input datatypes.
-    ///
-    /// The returned candidates will have info on which arguments need to be
-    /// casted and which are fine to state as-is.
-    ///
-    /// Candidates are returned in sorted order with the highest cast score
-    /// being first.
-    fn candidate(&self, inputs: &[DataType]) -> Vec<CandidateSignature> {
-        CandidateSignature::find_candidates(inputs, self.signatures())
-    }
-}
-
-/// Check the number of arguments provided, erroring if it doesn't match the
-/// expected number of arguments.
-pub fn plan_check_num_args<T>(
-    func: &impl FunctionInfo,
-    inputs: &[T],
-    expected: usize,
-) -> Result<()> {
-    if inputs.len() != expected {
-        return Err(DbError::new(format!(
-            "Expected {} {} for '{}', received {}",
-            expected,
-            if expected == 1 { "input" } else { "inputs" },
-            func.name(),
-            inputs.len(),
-        )));
-    }
-    Ok(())
-}
-
-pub fn plan_check_num_args_one_of<T, const N: usize>(
-    func: &impl FunctionInfo,
-    inputs: &[T],
-    one_of: [usize; N],
-) -> Result<()> {
-    if !one_of.contains(&inputs.len()) {
-        return Err(DbError::new(format!(
-            "Expected {} inputs for '{}', received {}",
-            one_of.display_with_brackets(),
-            func.name(),
-            inputs.len(),
-        )));
-    }
-    Ok(())
-}
-
-/// Return an error indicating the input types we got are not ones we can
-/// handle.
-// TODO: Include valid signatures in the error
-pub fn invalid_input_types_error<T>(func: &impl FunctionInfo, got: &[T]) -> DbError
-where
-    T: Borrow<DataType> + Display,
-{
-    // TODO: Include relevant valid signatures. What "relevant" means and how we
-    // determine that is stil tbd.
-    DbError::new(format!(
-        "Got invalid type(s) '{}' for '{}'",
-        got.display_with_brackets(),
-        func.name()
-    ))
-}
