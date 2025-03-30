@@ -17,7 +17,7 @@ c_name        Utf8
 c_address     Utf8
 c_nationkey   Int32
 c_phone       Utf8
-c_acctbal     Float64
+c_acctbal     Decimal64(15,2)
 c_mktsegment  Utf8
 c_comment     Utf8
 
@@ -27,7 +27,7 @@ DESCRIBE tpch_gen.orders(0.1);
 o_orderkey       Int64
 o_custkey        Int64
 o_orderstatus    Utf8
-o_totalprice     Float64
+o_totalprice     Decimal64(15,2)
 o_orderdate      Date32
 o_orderpriority  Utf8
 o_clerk          Utf8
@@ -42,9 +42,9 @@ l_partkey        Int64
 l_suppkey        Int64
 l_linenumber     Int32
 l_quantity       Int64
-l_extendedprice  Float64
-l_discount       Float64
-l_tax            Float64
+l_extendedprice  Decimal64(15,2)
+l_discount       Decimal64(15,2)
+l_tax            Decimal64(15,2)
 l_returnflag     Utf8
 l_linestatus     Utf8
 l_shipdate       Date32
@@ -72,7 +72,7 @@ p_brand        Utf8
 p_type         Utf8
 p_size         Int32
 p_container    Utf8
-p_retailprice  Float64
+p_retailprice  Decimal64(15,2)
 p_comment      Utf8
 
 query TT
@@ -83,7 +83,7 @@ s_name       Utf8
 s_address    Utf8
 s_nationkey  Int32
 s_phone      Utf8
-s_acctbal    Float64
+s_acctbal    Decimal64(15,2)
 s_comment    Utf8
 
 query TT
@@ -92,6 +92,6 @@ DESCRIBE tpch_gen.partsupp(0.1);
 ps_partkey     Int64
 ps_suppkey     Int64
 ps_availqty    Int32
-ps_supplycost  Float64
+ps_supplycost  Decimal64(15,2)
 ps_comment     Utf8
 
