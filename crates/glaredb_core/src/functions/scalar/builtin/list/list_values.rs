@@ -27,7 +27,6 @@ pub const FUNCTION_SET_LIST_VALUES: ScalarFunctionSet = ScalarFunctionSet {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Any),
             return_type: DataTypeId::List(&DataTypeId::Any),
-            doc: None,
         },
         &ListValues,
     )],

@@ -211,7 +211,6 @@ mod tests {
             positional_args: &[DataTypeId::List(&DataTypeId::Any)],
             variadic_arg: None,
             return_type: DataTypeId::Int64,
-            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
@@ -226,7 +225,6 @@ mod tests {
             positional_args: &[DataTypeId::Int64],
             variadic_arg: None,
             return_type: DataTypeId::Int64,
-            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
@@ -245,7 +243,6 @@ mod tests {
             positional_args: &[DataTypeId::List(&DataTypeId::Int64)],
             variadic_arg: None,
             return_type: DataTypeId::Int64,
-            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
@@ -264,7 +261,6 @@ mod tests {
             positional_args: &[DataTypeId::List(&DataTypeId::Any)],
             variadic_arg: None,
             return_type: DataTypeId::Any,
-            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
@@ -283,7 +279,6 @@ mod tests {
             positional_args: &[DataTypeId::List(&DataTypeId::Float64)],
             variadic_arg: None,
             return_type: DataTypeId::Float64,
-            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
@@ -311,7 +306,6 @@ mod tests {
             positional_args: &[DataTypeId::List(&DataTypeId::Any)],
             variadic_arg: None,
             return_type: DataTypeId::Table,
-            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
@@ -325,7 +319,6 @@ mod tests {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Any),
             return_type: DataTypeId::List(&DataTypeId::Any),
-            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
@@ -348,7 +341,6 @@ mod tests {
             positional_args: &[DataTypeId::Utf8],
             variadic_arg: Some(DataTypeId::Utf8),
             return_type: DataTypeId::Utf8,
-            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
@@ -371,7 +363,6 @@ mod tests {
             positional_args: &[DataTypeId::Utf8],
             variadic_arg: Some(DataTypeId::Utf8),
             return_type: DataTypeId::Utf8,
-            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
@@ -394,7 +385,6 @@ mod tests {
             positional_args: &[DataTypeId::Utf8],
             variadic_arg: Some(DataTypeId::Utf8),
             return_type: DataTypeId::Utf8,
-            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);
@@ -410,7 +400,6 @@ mod tests {
             positional_args: &[DataTypeId::Float32, DataTypeId::Float32],
             variadic_arg: None,
             return_type: DataTypeId::Float32,
-            doc: None,
         }];
 
         let candidates = CandidateSignature::find_candidates(inputs, sigs);

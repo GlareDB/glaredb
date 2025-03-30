@@ -32,7 +32,6 @@ pub const FUNCTION_SET_CONCAT: ScalarFunctionSet = ScalarFunctionSet {
             positional_args: &[DataTypeId::Utf8],
             variadic_arg: Some(DataTypeId::Utf8),
             return_type: DataTypeId::Utf8,
-            doc: None,
         },
         &StringConcat,
     )],
