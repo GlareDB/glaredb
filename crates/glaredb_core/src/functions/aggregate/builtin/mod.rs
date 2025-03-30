@@ -14,6 +14,7 @@ pub mod string_agg;
 pub mod sum;
 
 use avg::FUNCTION_SET_AVG;
+use bool_and::FUNCTION_SET_BOOL_AND;
 use corr::FUNCTION_SET_CORR;
 use count::FUNCTION_SET_COUNT;
 use covar::{FUNCTION_SET_COVAR_POP, FUNCTION_SET_COVAR_SAMP};
@@ -31,7 +32,6 @@ use stddev::{
 };
 use string_agg::FUNCTION_SET_STRING_AGG;
 use sum::FUNCTION_SET_SUM;
-use bool_and::FUNCTION_SET_BOOL_AND;
 
 use crate::functions::function_set::AggregateFunctionSet;
 
