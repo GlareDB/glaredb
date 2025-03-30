@@ -54,8 +54,8 @@ impl UnaryAggregate for BoolOr {
 
 #[derive(Debug, Default)]
 pub struct BoolOrState {
-    result: bool, // Default is false, which is correct for OR operations
-    valid: bool,  // Default is false
+    result: bool,
+    valid: bool,
 }
 
 impl AggregateState<&bool, bool> for BoolOrState {
