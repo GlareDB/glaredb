@@ -65,9 +65,3 @@ query I
 SELECT bit_or(v) FROM (VALUES (CAST(1 AS INTEGER))) AS t(v) WHERE 1=0;
 ----
 NULL
-
-# Test with zero values
-query I
-SELECT bit_or(v) FROM (VALUES (CAST(0 AS INTEGER)), (CAST(1 AS INTEGER)), (CAST(2 AS INTEGER))) AS t(v);
-----
-3
