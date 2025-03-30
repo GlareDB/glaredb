@@ -51,3 +51,14 @@ query T
 SELECT bool_and(CAST(NULL AS BOOLEAN));
 ----
 NULL
+
+# Alias
+query T
+SELECT every(b) FROM (VALUES (TRUE), (TRUE), (TRUE)) AS t(b);
+----
+true
+
+query T
+SELECT every(b) FROM (VALUES (FALSE), (TRUE), (TRUE)) AS t(b);
+----
+false
