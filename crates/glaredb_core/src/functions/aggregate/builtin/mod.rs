@@ -1,4 +1,5 @@
 pub mod avg;
+pub mod bit_and;
 pub mod bit_or;
 pub mod bool_and;
 pub mod bool_or;
@@ -16,6 +17,7 @@ pub mod string_agg;
 pub mod sum;
 
 use avg::FUNCTION_SET_AVG;
+use bit_and::FUNCTION_SET_BIT_AND;
 use bit_or::FUNCTION_SET_BIT_OR;
 use bool_and::FUNCTION_SET_BOOL_AND;
 use bool_or::FUNCTION_SET_BOOL_OR;
@@ -61,5 +63,6 @@ pub const BUILTIN_AGGREGATE_FUNCTION_SETS: &[AggregateFunctionSet] = &[
     FUNCTION_SET_STRING_AGG,
     FUNCTION_SET_BOOL_AND,
     FUNCTION_SET_BOOL_OR,
+    FUNCTION_SET_BIT_AND,
     FUNCTION_SET_BIT_OR,
 ];

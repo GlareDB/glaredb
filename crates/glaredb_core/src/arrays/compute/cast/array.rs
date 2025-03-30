@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::fmt::Display;
 use std::ops::{Mul, Neg};
 
 use glaredb_error::{DbError, Result};
@@ -561,7 +562,7 @@ fn cast_primitive_numeric_helper<S>(
 ) -> Result<()>
 where
     S: ScalarStorage,
-    S::StorageType: ToPrimitive + Sized + Copy,
+    S::StorageType: ToPrimitive + Display + Sized + Copy,
 {
     match out.datatype() {
         DataType::Int8 => cast_primitive_numeric::<S, PhysicalI8>(arr, sel, out, behavior),
@@ -590,7 +591,7 @@ fn cast_primitive_numeric<S1, S2>(
 ) -> Result<()>
 where
     S1: ScalarStorage,
-    S1::StorageType: ToPrimitive + Sized + Copy,
+    S1::StorageType: ToPrimitive + Display + Sized + Copy,
     S2: MutableScalarStorage,
     S2::StorageType: NumCast + Copy,
 {
@@ -599,7 +600,14 @@ where
         match NumCast::from(v) {
             Some(v) => buf.put(&v),
             None => {
-                fail_state.set_error(|| DbError::new("Failed to cast primitive numeric"));
+                fail_state.set_error(|| {
+                    DbError::new(format!(
+                        "Failed to cast value '{}' from {} to {}",
+                        v,
+                        S1::PHYSICAL_TYPE,
+                        S2::PHYSICAL_TYPE,
+                    ))
+                });
                 buf.put_null();
             }
         }

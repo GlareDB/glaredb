@@ -1,0 +1,15 @@
+# Test the errors we get back when attempting to cast ints that would lead to an
+# overflow.
+
+# Sanity check
+statement ok
+SELECT 127::TINYINT;
+
+statement error Failed to cast value '128' from Int32 to Int8
+SELECT 128::TINYINT;
+
+statement error Failed to cast value '-129' from Int32 to Int8
+SELECT (-129)::TINYINT;
+
+statement error Failed to cast value '2147483648' from Int64 to Int32
+SELECT 2147483648::INT;
