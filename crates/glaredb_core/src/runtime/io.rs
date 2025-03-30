@@ -25,30 +25,6 @@ pub trait IoRuntime: Debug + Sync + Send + Clone + 'static {
     }
 }
 
-pub trait TokioHandlerProvider {
-    fn handle_opt(&self) -> Option<tokio::runtime::Handle>;
-
-    fn handle(&self) -> Result<tokio::runtime::Handle> {
-        self.handle_opt()
-            .ok_or_else(|| DbError::new("Tokio runtime not configured"))
-    }
-}
-
-#[derive(Debug)]
-pub struct OptionalTokioRuntime(Option<tokio::runtime::Runtime>);
-
-impl OptionalTokioRuntime {
-    pub fn new(runtime: Option<tokio::runtime::Runtime>) -> Self {
-        OptionalTokioRuntime(runtime)
-    }
-}
-
-impl TokioHandlerProvider for OptionalTokioRuntime {
-    fn handle_opt(&self) -> Option<tokio::runtime::Handle> {
-        self.0.as_ref().map(|t| t.handle().clone())
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 struct DynIoRuntimeVTable {}
 
