@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::ops::BitAnd;
 
 use glaredb_error::Result;
 
@@ -23,7 +24,7 @@ use crate::functions::Signature;
 use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
-use crate::functions::documentation::{Category, Documentation, Example};
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::AggregateFunctionSet;
 
 pub const FUNCTION_SET_BIT_AND: AggregateFunctionSet = AggregateFunctionSet {
@@ -32,11 +33,8 @@ pub const FUNCTION_SET_BIT_AND: AggregateFunctionSet = AggregateFunctionSet {
     doc: Some(&Documentation {
         category: Category::Aggregate,
         description: "Returns the bitwise AND of all non-NULL input values.",
-        arguments: &["input"],
-        example: Some(Example {
-            example: "bit_and(value)",
-            output: "result",
-        }),
+        arguments: &["integer"],
+        example: None,
     }),
     functions: &[
         RawAggregateFunction::new(
@@ -88,7 +86,7 @@ impl<S> BitAndPrimitive<S> {
 impl<S> UnaryAggregate for BitAndPrimitive<S>
 where
     S: MutableScalarStorage,
-    S::StorageType: std::ops::BitAnd<Output = S::StorageType> + Copy + Sized + std::fmt::Debug,
+    S::StorageType: BitAnd<Output = S::StorageType> + Copy + Sized + Debug + Default,
 {
     type Input = S;
     type Output = S;
@@ -109,32 +107,15 @@ where
     }
 }
 
-#[derive(Debug)]
-pub struct BitAndStatePrimitive<T> {
+#[derive(Debug, Default)]
+pub struct BitAndStatePrimitive<T: Default> {
     result: T,
     valid: bool,
 }
 
-impl<T> Default for BitAndStatePrimitive<T>
-where
-    T: Copy + Sized,
-{
-    fn default() -> Self {
-        let size = std::mem::size_of::<T>();
-        let mut bytes = vec![0xFF; size];
-        let ptr = bytes.as_mut_ptr() as *mut T;
-        let result = unsafe { *ptr };
-
-        Self {
-            result,
-            valid: false,
-        }
-    }
-}
-
 impl<T> AggregateState<&T, T> for BitAndStatePrimitive<T>
 where
-    T: Debug + Sync + Send + std::ops::BitAnd<Output = T> + Copy,
+    T: Debug + Sync + Send + BitAnd<Output = T> + Copy + Default,
 {
     type BindState = ();
 
