@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -30,6 +31,10 @@ pub trait IoRuntime: Debug + Sync + Send + Clone + 'static {
     /// Data sources should error if they require tokio and if this returns
     /// None.
     fn tokio_handle(&self) -> &Self::TokioHandle;
+
+    fn as_dyn_io_runtime(&self) -> DynIoRuntime {
+        DynIoRuntime::from_io_runtime(self)
+    }
 }
 
 pub trait TokioHandlerProvider {
@@ -54,4 +59,45 @@ impl TokioHandlerProvider for OptionalTokioRuntime {
     fn handle_opt(&self) -> Option<tokio::runtime::Handle> {
         self.0.as_ref().map(|t| t.handle().clone())
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DynIoRuntimeVTable {}
+
+#[derive(Debug, Clone)]
+pub struct DynIoRuntime<'a> {
+    runtime: &'a (dyn Any + Sync + Send),
+    vtable: &'static DynIoRuntimeVTable,
+}
+
+impl<'a> DynIoRuntime<'a> {
+    pub fn from_io_runtime<R>(runtime: &'a R) -> Self
+    where
+        R: IoRuntime,
+    {
+        DynIoRuntime {
+            runtime: runtime as _,
+            vtable: R::VTABLE,
+        }
+    }
+
+    pub fn downcast<R>(&self) -> Result<&R>
+    where
+        R: IoRuntime,
+    {
+        self.runtime
+            .downcast_ref::<R>()
+            .ok_or_else(|| DbError::new("Unexpected IO runtime"))
+    }
+}
+
+trait IoRuntimeVTable {
+    const VTABLE: &'static DynIoRuntimeVTable;
+}
+
+impl<R> IoRuntimeVTable for R
+where
+    R: IoRuntime,
+{
+    const VTABLE: &'static DynIoRuntimeVTable = &DynIoRuntimeVTable {};
 }
