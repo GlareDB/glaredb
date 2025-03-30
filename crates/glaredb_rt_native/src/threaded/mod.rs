@@ -4,10 +4,10 @@ mod task;
 use std::fmt;
 use std::sync::Arc;
 
+use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
+use glaredb_core::runtime::ErrorSink;
+use glaredb_core::runtime::profile_buffer::ProfileBuffer;
 use glaredb_error::{DbError, Result};
-use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
-use glaredb_execution::runtime::ErrorSink;
-use glaredb_execution::runtime::profile_buffer::ProfileBuffer;
 use handle::ThreadedQueryHandle;
 use parking_lot::Mutex;
 use rayon::{ThreadPool, ThreadPoolBuilder};

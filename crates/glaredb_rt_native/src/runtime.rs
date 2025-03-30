@@ -2,19 +2,19 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use glaredb_error::{Result, ResultExt, not_implemented};
-use glaredb_execution::arrays::scalar::ScalarValue;
-use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
-use glaredb_execution::io::access::AccessConfig;
-use glaredb_execution::io::file::FileOpener;
-use glaredb_execution::runtime::handle::QueryHandle;
-use glaredb_execution::runtime::{
+use glaredb_core::arrays::scalar::ScalarValue;
+use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
+use glaredb_core::io::access::AccessConfig;
+use glaredb_core::io::file::FileOpener;
+use glaredb_core::runtime::handle::QueryHandle;
+use glaredb_core::runtime::{
     ErrorSink,
     OptionalTokioRuntime,
     PipelineExecutor,
     Runtime,
     TokioHandlerProvider,
 };
+use glaredb_error::{Result, ResultExt, not_implemented};
 
 use crate::filesystem::LocalFile;
 use crate::http::TokioWrappedHttpClient;

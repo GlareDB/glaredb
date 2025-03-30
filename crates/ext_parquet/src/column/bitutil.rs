@@ -126,7 +126,7 @@ impl BitPackEncodeable for bool {
 #[cfg(test)]
 mod tests {
 
-    use glaredb_execution::buffer::buffer_manager::NopBufferManager;
+    use glaredb_core::buffer::buffer_manager::NopBufferManager;
 
     use super::*;
     use crate::column::read_buffer::OwnedReadBuffer;

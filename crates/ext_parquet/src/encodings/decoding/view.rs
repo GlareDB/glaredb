@@ -9,8 +9,8 @@
 use std::marker::PhantomData;
 
 use bytes::Bytes;
-use glaredb_execution::arrays::array::physical_type::{AddressableMut, BinaryViewAddressableMut};
-use glaredb_execution::buffer::buffer_manager::BufferManager;
+use glaredb_core::arrays::array::physical_type::{AddressableMut, BinaryViewAddressableMut};
+use glaredb_core::buffer::buffer_manager::BufferManager;
 
 use super::Encoding;
 use crate::encodings::rle::RleDecoder;

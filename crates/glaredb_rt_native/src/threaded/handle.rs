@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use glaredb_execution::runtime::handle::QueryHandle;
-use glaredb_execution::runtime::profile_buffer::ProfileBuffer;
+use glaredb_core::runtime::handle::QueryHandle;
+use glaredb_core::runtime::profile_buffer::ProfileBuffer;
 use parking_lot::Mutex;
 
 use super::task::{PartitionPipelineTask, TaskState};

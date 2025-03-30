@@ -1,10 +1,10 @@
 use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};
 
+use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
+use glaredb_core::runtime::ErrorSink;
+use glaredb_core::runtime::profile_buffer::ProfileSink;
 use glaredb_error::DbError;
-use glaredb_execution::execution::partition_pipeline::ExecutablePartitionPipeline;
-use glaredb_execution::runtime::ErrorSink;
-use glaredb_execution::runtime::profile_buffer::ProfileSink;
 use parking_lot::Mutex;
 use rayon::ThreadPool;
 

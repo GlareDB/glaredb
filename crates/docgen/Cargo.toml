@@ -6,7 +6,7 @@ edition.workspace = true
 [dependencies]
 logutil = { path = '../logutil' }
 glaredb_error = { path = '../glaredb_error' }
-glaredb_execution = { path = '../glaredb_execution' }
+glaredb_core = { path = '../glaredb_core' }
 glaredb_rt_native = { path = '../glaredb_rt_native' }
 ext_csv = { path = '../ext_csv' }
 ext_delta = { path = '../ext_delta' }

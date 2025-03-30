@@ -1,8 +1,8 @@
+use glaredb_core::arrays::batch::Batch;
+use glaredb_core::arrays::field::ColumnSchema;
+use glaredb_core::engine::single_user::SingleUserEngine;
+use glaredb_core::runtime::{Runtime, TokioHandlerProvider};
 use glaredb_error::Result;
-use glaredb_execution::arrays::batch::Batch;
-use glaredb_execution::arrays::field::ColumnSchema;
-use glaredb_execution::engine::single_user::SingleUserEngine;
-use glaredb_execution::runtime::{Runtime, TokioHandlerProvider};
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 
 #[derive(Debug)]

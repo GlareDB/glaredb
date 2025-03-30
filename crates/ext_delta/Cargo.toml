@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 glaredb_proto = { path = '../glaredb_proto' }
-glaredb_execution = { path = '../glaredb_execution' }
+glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
 rayexec_io = { path = '../rayexec_io' }
 ext_parquet = { path = '../ext_parquet' }

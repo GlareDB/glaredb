@@ -1,8 +1,8 @@
 use glaredb_error::Result;
-use glaredb_execution::arrays::batch::Batch;
-use glaredb_execution::arrays::datatype::DataType;
-use glaredb_execution::arrays::field::ColumnSchema;
-use glaredb_execution::arrays::format::{FormatOptions, Formatter};
+use glaredb_core::arrays::batch::Batch;
+use glaredb_core::arrays::datatype::DataType;
+use glaredb_core::arrays::field::ColumnSchema;
+use glaredb_core::arrays::format::{FormatOptions, Formatter};
 use sqllogictest::DefaultColumnType;
 
 /// Converts batches to rows.

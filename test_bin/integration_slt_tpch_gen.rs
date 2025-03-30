@@ -2,8 +2,8 @@ use std::path::Path;
 use std::time::Duration;
 
 use ext_tpch_gen::TpchGenExtension;
+use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::Result;
-use glaredb_execution::engine::single_user::SingleUserEngine;
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use glaredb_slt::{ReplacementVars, RunConfig};
 

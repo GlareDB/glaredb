@@ -2,8 +2,8 @@
 pub mod functions;
 
 use functions::{FUNCTION_SET_CSC, FUNCTION_SET_EXPM1};
-use glaredb_execution::extension::Extension;
-use glaredb_execution::functions::function_set::ScalarFunctionSet;
+use glaredb_core::extension::Extension;
+use glaredb_core::functions::function_set::ScalarFunctionSet;
 
 #[derive(Debug, Clone, Copy)]
 pub struct SparkExtension;
