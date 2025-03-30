@@ -1,0 +1,67 @@
+# Test bit_or aggregate function
+
+# Test with Int8 values
+query I
+SELECT bit_or(v) FROM (VALUES (CAST(96 AS TINYINT)), (CAST(9 AS TINYINT)), (CAST(6 AS TINYINT))) AS t(v);
+----
+111
+
+# Test with Int16 values
+query I
+SELECT bit_or(v) FROM (VALUES (CAST(8192 AS SMALLINT)), (CAST(4096 AS SMALLINT)), (CAST(1024 AS SMALLINT))) AS t(v);
+----
+13312
+
+# Test with Int32 values
+query I
+SELECT bit_or(v) FROM (VALUES (CAST(1 AS INTEGER)), (CAST(2 AS INTEGER)), (CAST(4 AS INTEGER))) AS t(v);
+----
+7
+
+# Test with Int64 values
+query I
+SELECT bit_or(v) FROM (VALUES (CAST(1 AS BIGINT)), (CAST(2 AS BIGINT)), (CAST(4 AS BIGINT))) AS t(v);
+----
+7
+
+# Test with UInt8 values (using positive values within TINYINT range)
+query I
+SELECT bit_or(v) FROM (VALUES (CAST(32 AS TINYINT)), (CAST(16 AS TINYINT)), (CAST(8 AS TINYINT))) AS t(v);
+----
+56
+
+# Test with UInt16 values (using positive values within SMALLINT range)
+query I
+SELECT bit_or(v) FROM (VALUES (CAST(1024 AS SMALLINT)), (CAST(2048 AS SMALLINT)), (CAST(4096 AS SMALLINT))) AS t(v);
+----
+7168
+
+# Test with UInt32 values
+query I
+SELECT bit_or(v) FROM (VALUES (CAST(1 AS INTEGER)), (CAST(2 AS INTEGER)), (CAST(4 AS INTEGER))) AS t(v);
+----
+7
+
+# Test with UInt64 values
+query I
+SELECT bit_or(v) FROM (VALUES (CAST(1 AS BIGINT)), (CAST(2 AS BIGINT)), (CAST(4 AS BIGINT))) AS t(v);
+----
+7
+
+# Test with NULL values (should be ignored)
+query I
+SELECT bit_or(v) FROM (VALUES (CAST(1 AS INTEGER)), (CAST(2 AS INTEGER)), (CAST(NULL AS INTEGER))) AS t(v);
+----
+3
+
+# Test with all NULL values (should return NULL)
+query I
+SELECT bit_or(v) FROM (VALUES (CAST(NULL AS INTEGER)), (CAST(NULL AS INTEGER))) AS t(v);
+----
+NULL
+
+# Test with empty set (should return NULL)
+query I
+SELECT bit_or(v) FROM (VALUES (CAST(1 AS INTEGER))) AS t(v) WHERE 1=0;
+----
+NULL
