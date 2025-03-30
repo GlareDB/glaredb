@@ -204,7 +204,6 @@ impl UnaryAggregate for MinBinary {
     }
 }
 
-
 pub const FUNCTION_SET_MAX: AggregateFunctionSet = AggregateFunctionSet {
     name: "max",
     aliases: &[],
