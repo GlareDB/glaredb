@@ -217,12 +217,6 @@ impl FunctionInfo for Min {
             positional_args: &[DataTypeId::Any],
             variadic_arg: None,
             return_type: DataTypeId::Any,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Return the minimum non-NULL value seen from input.",
-                arguments: &["input"],
-                example: None,
-            }),
         }]
     }
 }

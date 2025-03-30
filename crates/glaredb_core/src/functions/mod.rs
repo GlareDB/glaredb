@@ -19,7 +19,6 @@ use std::borrow::Borrow;
 use std::fmt::Display;
 
 use candidate::CandidateSignature;
-use documentation::Documentation;
 use glaredb_error::{DbError, Result};
 
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -50,9 +49,6 @@ pub struct Signature {
     /// gets used during planning.
     // TODO: Remove?
     pub return_type: DataTypeId,
-
-    /// Optional documentation for this function.
-    pub doc: Option<&'static Documentation>,
 }
 
 /// Represents a named argument in the signature.
@@ -68,7 +64,6 @@ impl Signature {
             positional_args: inputs,
             variadic_arg: None,
             return_type,
-            doc: None,
         }
     }
 
