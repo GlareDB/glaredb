@@ -1,5 +1,5 @@
 [package]
-name = "glaredb_execution"
+name = "glaredb_core"
 version = { workspace = true }
 edition = { workspace = true }
 

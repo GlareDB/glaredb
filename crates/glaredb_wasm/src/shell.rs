@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
 
-use glaredb_execution::shell::lineedit::{KeyEvent, TermSize};
-use glaredb_execution::shell::{RawModeGuard, RawModeTerm, Shell, ShellSignal};
+use glaredb_core::shell::lineedit::{KeyEvent, TermSize};
+use glaredb_core::shell::{RawModeGuard, RawModeTerm, Shell, ShellSignal};
 use js_sys::Function;
 use tracing::{error, trace, warn};
 use wasm_bindgen::prelude::*;

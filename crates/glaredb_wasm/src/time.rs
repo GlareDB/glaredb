@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use glaredb_execution::runtime::time::RuntimeInstant;
+use glaredb_core::runtime::time::RuntimeInstant;
 use tracing::warn;
 
 // TODO: This is messed up, only reports zeros.

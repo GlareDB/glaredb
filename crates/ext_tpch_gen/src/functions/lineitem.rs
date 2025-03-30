@@ -1,5 +1,4 @@
-use glaredb_error::{OptionExt, Result};
-use glaredb_execution::arrays::array::physical_type::{
+use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
     PhysicalF64,
@@ -7,12 +6,13 @@ use glaredb_execution::arrays::array::physical_type::{
     PhysicalI64,
     PhysicalUtf8,
 };
-use glaredb_execution::arrays::batch::Batch;
-use glaredb_execution::arrays::datatype::{DataType, DataTypeId};
-use glaredb_execution::functions::Signature;
-use glaredb_execution::functions::function_set::TableFunctionSet;
-use glaredb_execution::functions::table::RawTableFunction;
-use glaredb_execution::storage::projections::Projections;
+use glaredb_core::arrays::batch::Batch;
+use glaredb_core::arrays::datatype::{DataType, DataTypeId};
+use glaredb_core::functions::Signature;
+use glaredb_core::functions::function_set::TableFunctionSet;
+use glaredb_core::functions::table::RawTableFunction;
+use glaredb_core::storage::projections::Projections;
+use glaredb_error::{OptionExt, Result};
 use tpchgen::generators::{LineItem, LineItemGenerator, LineItemGeneratorIterator};
 
 use super::table_gen::{TableGen, TpchColumn, TpchTable};

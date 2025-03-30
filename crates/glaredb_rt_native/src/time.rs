@@ -1,4 +1,4 @@
-use glaredb_execution::runtime::time::RuntimeInstant;
+use glaredb_core::runtime::time::RuntimeInstant;
 
 /// Instant implementation that wraps std Instant.
 #[derive(Debug, Clone, PartialEq, Eq)]

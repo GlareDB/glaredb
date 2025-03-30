@@ -1,18 +1,18 @@
 use std::fmt::Debug;
 use std::task::Context;
 
+use glaredb_core::arrays::batch::Batch;
+use glaredb_core::arrays::datatype::DataType;
+use glaredb_core::arrays::field::{ColumnSchema, Field};
+use glaredb_core::catalog::context::DatabaseContext;
+use glaredb_core::execution::operators::{ExecutionProperties, PollPull};
+use glaredb_core::functions::table::scan::TableScanFunction;
+use glaredb_core::functions::table::{TableFunctionBindState, TableFunctionInput};
+use glaredb_core::logical::statistics::StatisticsValue;
+use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
+use glaredb_core::optimizer::expr_rewrite::const_fold::ConstFold;
+use glaredb_core::storage::projections::Projections;
 use glaredb_error::Result;
-use glaredb_execution::arrays::batch::Batch;
-use glaredb_execution::arrays::datatype::DataType;
-use glaredb_execution::arrays::field::{ColumnSchema, Field};
-use glaredb_execution::catalog::context::DatabaseContext;
-use glaredb_execution::execution::operators::{ExecutionProperties, PollPull};
-use glaredb_execution::functions::table::scan::TableScanFunction;
-use glaredb_execution::functions::table::{TableFunctionBindState, TableFunctionInput};
-use glaredb_execution::logical::statistics::StatisticsValue;
-use glaredb_execution::optimizer::expr_rewrite::ExpressionRewriteRule;
-use glaredb_execution::optimizer::expr_rewrite::const_fold::ConstFold;
-use glaredb_execution::storage::projections::Projections;
 
 /// Describes a single column in a tpch table.
 #[derive(Debug)]

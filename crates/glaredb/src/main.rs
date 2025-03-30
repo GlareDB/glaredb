@@ -5,12 +5,12 @@ use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
 use ext_spark::SparkExtension;
 use ext_tpch_gen::TpchGenExtension;
+use glaredb_core::arrays::format::pretty::table::PrettyTable;
+use glaredb_core::engine::single_user::SingleUserEngine;
+use glaredb_core::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
+use glaredb_core::shell::lineedit::{KeyEvent, TermSize};
+use glaredb_core::shell::{RawModeTerm, Shell, ShellSignal};
 use glaredb_error::Result;
-use glaredb_execution::arrays::format::pretty::table::PrettyTable;
-use glaredb_execution::engine::single_user::SingleUserEngine;
-use glaredb_execution::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
-use glaredb_execution::shell::lineedit::{KeyEvent, TermSize};
-use glaredb_execution::shell::{RawModeTerm, Shell, ShellSignal};
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 
 #[derive(Parser)]

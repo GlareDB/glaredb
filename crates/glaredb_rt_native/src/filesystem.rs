@@ -3,8 +3,8 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::task::{Context, Poll};
 
+use glaredb_core::io::file::{AsyncReadStream, FileSource};
 use glaredb_error::{Result, ResultExt};
-use glaredb_execution::io::file::{AsyncReadStream, FileSource};
 
 #[derive(Debug)]
 pub struct LocalFile {

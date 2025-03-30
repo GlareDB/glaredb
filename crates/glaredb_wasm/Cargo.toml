@@ -15,7 +15,7 @@ web-sys = { version = "0.3.77", features = [
   "PerformanceTiming"
 ] }
 
-glaredb_execution = { path = '../glaredb_execution' }
+glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
 
 ext_csv = { path = '../ext_csv' }

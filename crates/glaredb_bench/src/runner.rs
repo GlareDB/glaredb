@@ -1,9 +1,9 @@
 use std::time::Instant;
 
+use glaredb_core::arrays::format::pretty::table::PrettyTable;
+use glaredb_core::engine::single_user::SingleUserEngine;
+use glaredb_core::runtime::{Runtime, TokioHandlerProvider};
 use glaredb_error::Result;
-use glaredb_execution::arrays::format::pretty::table::PrettyTable;
-use glaredb_execution::engine::single_user::SingleUserEngine;
-use glaredb_execution::runtime::{Runtime, TokioHandlerProvider};
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 
 use crate::benchmark::Benchmark;

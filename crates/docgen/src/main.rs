@@ -6,8 +6,8 @@ mod session;
 use std::io;
 
 use file::DocFile;
+use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::Result;
-use glaredb_execution::engine::single_user::SingleUserEngine;
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use section::{AggregateFunctionWriter, ScalarFunctionWriter, TableFunctionWriter};
 use session::DocsSession;

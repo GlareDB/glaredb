@@ -10,8 +10,8 @@ use functions::{
     FUNCTION_SET_REGION,
     FUNCTION_SET_SUPPLIER,
 };
-use glaredb_execution::extension::Extension;
-use glaredb_execution::functions::function_set::TableFunctionSet;
+use glaredb_core::extension::Extension;
+use glaredb_core::functions::function_set::TableFunctionSet;
 
 #[derive(Debug, Clone, Copy)]
 pub struct TpchGenExtension;

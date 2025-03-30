@@ -1,15 +1,15 @@
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use glaredb_error::{DbError, Result, not_implemented};
-use glaredb_execution::arrays::datatype::{
+use glaredb_core::arrays::datatype::{
     DataType,
     DecimalTypeMeta,
     ListTypeMeta,
     TimeUnit,
     TimestampTypeMeta,
 };
-use glaredb_execution::arrays::field::{ColumnSchema as BulletSchema, Field};
+use glaredb_core::arrays::field::{ColumnSchema as BulletSchema, Field};
+use glaredb_error::{DbError, Result, not_implemented};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, de};
 

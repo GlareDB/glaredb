@@ -1,8 +1,8 @@
 use std::path::Path;
 use std::time::Duration;
 
+use glaredb_core::datasource::{DataSourceBuilder, DataSourceRegistry};
 use glaredb_error::Result;
-use glaredb_execution::datasource::{DataSourceBuilder, DataSourceRegistry};
 use rayexec_parquet::ParquetDataSource;
 use rayexec_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use rayexec_shell::session::SingleUserEngine;

@@ -210,8 +210,8 @@ dependencies = [
  "ext_delta",
  "ext_iceberg",
  "glaredb_bench",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "glaredb_rt_native",
 ]
 
@@ -611,8 +611,8 @@ dependencies = [
  "ext_csv",
  "ext_delta",
  "ext_iceberg",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "glaredb_rt_native",
  "logutil",
  "regex",
@@ -691,8 +691,8 @@ dependencies = [
  "csv",
  "csv-core",
  "futures",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "glaredb_proto",
  "regex",
  "tracing",
@@ -706,8 +706,8 @@ dependencies = [
  "bytes",
  "ext_parquet",
  "futures",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "glaredb_proto",
  "rayexec_io",
  "regex",
@@ -725,8 +725,8 @@ dependencies = [
  "bytes",
  "ext_parquet",
  "futures",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "glaredb_proto",
  "rayexec_io",
  "regex",
@@ -750,8 +750,8 @@ dependencies = [
  "criterion",
  "flate2",
  "futures",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "half",
  "hashbrown 0.14.5",
  "lz4_flex",
@@ -776,16 +776,16 @@ dependencies = [
 name = "ext_spark"
 version = "0.0.103"
 dependencies = [
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
 ]
 
 [[package]]
 name = "ext_tpch_gen"
 version = "0.0.103"
 dependencies = [
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "tpchgen",
 ]
 
@@ -976,8 +976,8 @@ dependencies = [
  "ext_spark",
  "ext_tpch_gen",
  "futures",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "glaredb_rt_native",
  "logutil",
  "tracing",
@@ -990,18 +990,14 @@ version = "0.0.103"
 dependencies = [
  "clap",
  "futures",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "glaredb_rt_native",
  "logutil",
 ]
 
 [[package]]
-name = "glaredb_error"
-version = "0.0.103"
-
-[[package]]
-name = "glaredb_execution"
+name = "glaredb_core"
 version = "0.0.103"
 dependencies = [
  "ahash",
@@ -1032,6 +1028,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "glaredb_error"
+version = "0.0.103"
+
+[[package]]
 name = "glaredb_parser"
 version = "0.0.103"
 dependencies = [
@@ -1059,8 +1059,8 @@ version = "0.0.103"
 dependencies = [
  "bytes",
  "futures",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "num_cpus",
  "parking_lot",
  "rayexec_io",
@@ -1078,8 +1078,8 @@ dependencies = [
  "async-trait",
  "crossterm",
  "futures",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "glaredb_rt_native",
  "libtest-mimic",
  "rand 0.9.0",
@@ -1102,8 +1102,8 @@ dependencies = [
  "ext_spark",
  "futures",
  "getrandom 0.3.2",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "js-sys",
  "parking_lot",
  "rayexec_io",
@@ -2214,8 +2214,8 @@ dependencies = [
  "ext_csv",
  "ext_delta",
  "futures",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "glaredb_rt_native",
  "parking_lot",
  "pyo3",
@@ -2779,8 +2779,8 @@ name = "test_bin"
 version = "0.0.103"
 dependencies = [
  "ext_tpch_gen",
+ "glaredb_core",
  "glaredb_error",
- "glaredb_execution",
  "glaredb_rt_native",
  "glaredb_slt",
  "tokio",

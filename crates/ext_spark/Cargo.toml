@@ -4,6 +4,6 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-glaredb_execution = { path = '../glaredb_execution' }
+glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
 

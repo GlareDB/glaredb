@@ -1,8 +1,8 @@
 #![allow(unused)]
 
+use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
+use glaredb_core::buffer::typed::ByteBuffer;
 use glaredb_error::{DbError, Result};
-use glaredb_execution::buffer::buffer_manager::AsRawBufferManager;
-use glaredb_execution::buffer::typed::ByteBuffer;
 
 /// Read buffer that owns the underlying buffer.
 #[derive(Debug)]
@@ -199,7 +199,7 @@ impl ReadBuffer {
 
 #[cfg(test)]
 mod tests {
-    use glaredb_execution::buffer::buffer_manager::NopBufferManager;
+    use glaredb_core::buffer::buffer_manager::NopBufferManager;
 
     use super::*;
 
