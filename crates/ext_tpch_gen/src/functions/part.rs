@@ -1,13 +1,14 @@
+use std::fmt::Write;
+
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
-    PhysicalF64,
     PhysicalI32,
     PhysicalI64,
     PhysicalUtf8,
 };
 use glaredb_core::arrays::batch::Batch;
-use glaredb_core::arrays::datatype::{DataType, DataTypeId};
+use glaredb_core::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use glaredb_core::functions::Signature;
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
@@ -39,7 +40,10 @@ impl TpchTable for PartTable {
         TpchColumn::new("p_type", DataType::Utf8),
         TpchColumn::new("p_size", DataType::Int32),
         TpchColumn::new("p_container", DataType::Utf8),
-        TpchColumn::new("p_retailprice", DataType::Float64), // TODO: Decimal(15, 2)
+        TpchColumn::new(
+            "p_retailprice",
+            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+        ),
         TpchColumn::new("p_comment", DataType::Utf8),
     ];
 
@@ -52,6 +56,8 @@ impl TpchTable for PartTable {
     }
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
+        let mut s_buf = String::new();
+
         projections.for_each_column(output, &mut |col_idx, output| match col_idx {
             0 => {
                 let mut p_keys = PhysicalI64::get_addressable_mut(output.data_mut())?;
@@ -63,21 +69,27 @@ impl TpchTable for PartTable {
             1 => {
                 let mut p_names = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
-                    p_names.put(idx, &part.p_name);
+                    s_buf.clear();
+                    write!(s_buf, "{}", part.p_name)?;
+                    p_names.put(idx, &s_buf);
                 }
                 Ok(())
             }
             2 => {
                 let mut p_mfgrs = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
-                    p_mfgrs.put(idx, &part.p_mfgr);
+                    s_buf.clear();
+                    write!(s_buf, "{}", part.p_mfgr)?;
+                    p_mfgrs.put(idx, &s_buf);
                 }
                 Ok(())
             }
             3 => {
                 let mut p_brands = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
-                    p_brands.put(idx, &part.p_brand);
+                    s_buf.clear();
+                    write!(s_buf, "{}", part.p_brand)?;
+                    p_brands.put(idx, &s_buf);
                 }
                 Ok(())
             }
@@ -103,9 +115,9 @@ impl TpchTable for PartTable {
                 Ok(())
             }
             7 => {
-                let mut p_prices = PhysicalF64::get_addressable_mut(output.data_mut())?;
+                let mut p_prices = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
-                    p_prices.put(idx, &part.p_retailprice);
+                    p_prices.put(idx, &part.p_retailprice.0);
                 }
                 Ok(())
             }

@@ -1,13 +1,12 @@
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
-    PhysicalF64,
     PhysicalI32,
     PhysicalI64,
     PhysicalUtf8,
 };
 use glaredb_core::arrays::batch::Batch;
-use glaredb_core::arrays::datatype::{DataType, DataTypeId};
+use glaredb_core::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use glaredb_core::functions::Signature;
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
@@ -37,9 +36,15 @@ impl TpchTable for LineItemTable {
         TpchColumn::new("l_suppkey", DataType::Int64),
         TpchColumn::new("l_linenumber", DataType::Int32),
         TpchColumn::new("l_quantity", DataType::Int64),
-        TpchColumn::new("l_extendedprice", DataType::Float64), // TODO: Decimal(15, 2)
-        TpchColumn::new("l_discount", DataType::Float64),      // TODO: Decimal(15, 2)
-        TpchColumn::new("l_tax", DataType::Float64),           // TODO: Decimal(15, 2)
+        TpchColumn::new(
+            "l_extendedprice",
+            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+        ),
+        TpchColumn::new(
+            "l_discount",
+            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+        ),
+        TpchColumn::new("l_tax", DataType::Decimal64(DecimalTypeMeta::new(15, 2))),
         TpchColumn::new("l_returnflag", DataType::Utf8),
         TpchColumn::new("l_linestatus", DataType::Utf8),
         TpchColumn::new("l_shipdate", DataType::Date32),
@@ -96,23 +101,23 @@ impl TpchTable for LineItemTable {
                 Ok(())
             }
             5 => {
-                let mut l_extended_prices = PhysicalF64::get_addressable_mut(output.data_mut())?;
+                let mut l_extended_prices = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
-                    l_extended_prices.put(idx, &lineitem.l_extendedprice);
+                    l_extended_prices.put(idx, &lineitem.l_extendedprice.0);
                 }
                 Ok(())
             }
             6 => {
-                let mut l_discounts = PhysicalF64::get_addressable_mut(output.data_mut())?;
+                let mut l_discounts = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
-                    l_discounts.put(idx, &lineitem.l_discount);
+                    l_discounts.put(idx, &lineitem.l_discount.0);
                 }
                 Ok(())
             }
             7 => {
-                let mut l_taxes = PhysicalF64::get_addressable_mut(output.data_mut())?;
+                let mut l_taxes = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
-                    l_taxes.put(idx, &lineitem.l_tax);
+                    l_taxes.put(idx, &lineitem.l_tax.0);
                 }
                 Ok(())
             }

@@ -47,7 +47,7 @@ impl TpchTable for RegionTable {
     type Row = Region<'static>;
 
     fn create_row_iter(_sf: Option<f64>) -> Result<Self::RowIter> {
-        Ok(RegionGenerator::new().iter())
+        Ok(RegionGenerator::default().iter())
     }
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {

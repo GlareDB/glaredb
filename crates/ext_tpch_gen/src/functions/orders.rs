@@ -1,19 +1,20 @@
+use std::fmt::Write;
+
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
-    PhysicalF64,
     PhysicalI32,
     PhysicalI64,
     PhysicalUtf8,
 };
 use glaredb_core::arrays::batch::Batch;
-use glaredb_core::arrays::datatype::{DataType, DataTypeId};
+use glaredb_core::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use glaredb_core::functions::Signature;
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
 use glaredb_core::storage::projections::Projections;
 use glaredb_error::{OptionExt, Result};
-use tpchgen::generators::{Order, OrderGenerator, OrderGeneratorIterator};
+use tpchgen::generators::{Order, OrderGenerator, OrderGeneratorIterator, OrderStatus};
 
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
@@ -35,7 +36,10 @@ impl TpchTable for OrdersTable {
         TpchColumn::new("o_orderkey", DataType::Int64),
         TpchColumn::new("o_custkey", DataType::Int64),
         TpchColumn::new("o_orderstatus", DataType::Utf8),
-        TpchColumn::new("o_totalprice", DataType::Float64), // TODO: Decimal(15, 2)
+        TpchColumn::new(
+            "o_totalprice",
+            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+        ),
         TpchColumn::new("o_orderdate", DataType::Date32),
         TpchColumn::new("o_orderpriority", DataType::Utf8),
         TpchColumn::new("o_clerk", DataType::Utf8),
@@ -70,18 +74,14 @@ impl TpchTable for OrdersTable {
             2 => {
                 let mut o_statuses = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
-                    // Single byte buffer is large enough here since the only
-                    // values can be 'F', 'O', or 'P'.
-                    let mut buf = [0];
-                    let s = order.o_orderstatus.encode_utf8(&mut buf);
-                    o_statuses.put(idx, s);
+                    o_statuses.put(idx, status_to_str(order.o_orderstatus));
                 }
                 Ok(())
             }
             3 => {
-                let mut o_totalprices = PhysicalF64::get_addressable_mut(output.data_mut())?;
+                let mut o_totalprices = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
-                    o_totalprices.put(idx, &order.o_totalprice);
+                    o_totalprices.put(idx, &order.o_totalprice.0);
                 }
                 Ok(())
             }
@@ -100,9 +100,12 @@ impl TpchTable for OrdersTable {
                 Ok(())
             }
             6 => {
+                let mut s_buf = String::new();
                 let mut o_clerks = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
-                    o_clerks.put(idx, &order.o_clerk);
+                    s_buf.clear();
+                    write!(s_buf, "{}", order.o_clerk);
+                    o_clerks.put(idx, &s_buf);
                 }
                 Ok(())
             }
@@ -122,5 +125,15 @@ impl TpchTable for OrdersTable {
             }
             other => panic!("invalid projection {other}"),
         })
+    }
+}
+
+// TODO: Remove
+// <https://github.com/clflushopt/tpchgen-rs/pull/95>
+const fn status_to_str(status: OrderStatus) -> &'static str {
+    match status {
+        OrderStatus::Fulfilled => "F",
+        OrderStatus::Open => "O",
+        OrderStatus::Pending => "P",
     }
 }

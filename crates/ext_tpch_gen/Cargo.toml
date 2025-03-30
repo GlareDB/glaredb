@@ -6,4 +6,4 @@ edition.workspace = true
 [dependencies]
 glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
-tpchgen = { git = "https://github.com/glaredb/tpchgen-rs", rev = "ee39aeac495ab2f1ca281ef9ccd6a3dd3b174102"}
+tpchgen = "0.1.0"

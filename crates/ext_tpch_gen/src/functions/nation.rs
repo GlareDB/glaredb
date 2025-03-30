@@ -48,7 +48,7 @@ impl TpchTable for NationTable {
     type Row = Nation<'static>;
 
     fn create_row_iter(_sf: Option<f64>) -> Result<Self::RowIter> {
-        Ok(NationGenerator::new().iter())
+        Ok(NationGenerator::default().iter())
     }
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {

@@ -1,19 +1,18 @@
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
-    PhysicalF64,
     PhysicalI32,
     PhysicalI64,
     PhysicalUtf8,
 };
 use glaredb_core::arrays::batch::Batch;
-use glaredb_core::arrays::datatype::{DataType, DataTypeId};
+use glaredb_core::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use glaredb_core::functions::Signature;
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
 use glaredb_core::storage::projections::Projections;
 use glaredb_error::{OptionExt, Result};
-use tpchgen::generators::{PartSupp, PartSupplierGenerator, PartSupplierGeneratorIterator};
+use tpchgen::generators::{PartSupp, PartSuppGenerator, PartSuppGeneratorIterator};
 
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
@@ -35,16 +34,19 @@ impl TpchTable for PartSuppTable {
         TpchColumn::new("ps_partkey", DataType::Int64),
         TpchColumn::new("ps_suppkey", DataType::Int64),
         TpchColumn::new("ps_availqty", DataType::Int32),
-        TpchColumn::new("ps_supplycost", DataType::Float64), // TODO: Decimal(15, 2)
+        TpchColumn::new(
+            "ps_supplycost",
+            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+        ),
         TpchColumn::new("ps_comment", DataType::Utf8),
     ];
 
-    type RowIter = PartSupplierGeneratorIterator<'static>;
+    type RowIter = PartSuppGeneratorIterator<'static>;
     type Row = PartSupp<'static>;
 
     fn create_row_iter(sf: Option<f64>) -> Result<Self::RowIter> {
         let sf = sf.required("sf")?;
-        Ok(PartSupplierGenerator::new(sf, 1, 1).iter())
+        Ok(PartSuppGenerator::new(sf, 1, 1).iter())
     }
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
@@ -71,9 +73,9 @@ impl TpchTable for PartSuppTable {
                 Ok(())
             }
             3 => {
-                let mut ps_supplycosts = PhysicalF64::get_addressable_mut(output.data_mut())?;
+                let mut ps_supplycosts = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, ps) in rows.iter().enumerate() {
-                    ps_supplycosts.put(idx, &(ps.ps_supplycost));
+                    ps_supplycosts.put(idx, &(ps.ps_supplycost.0));
                 }
                 Ok(())
             }
