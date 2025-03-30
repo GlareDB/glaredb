@@ -61,7 +61,7 @@ pub struct BoolAndState {
 impl Default for BoolAndState {
     fn default() -> Self {
         Self {
-            result: true, // Initialize to true so that AND operations work correctly
+            result: true,
             valid: false,
         }
     }

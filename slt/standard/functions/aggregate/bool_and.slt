@@ -1,4 +1,4 @@
-# Test bool_and aggregate function
+# bool_and
 
 # Test with all TRUE values
 query T
