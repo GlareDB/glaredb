@@ -1,4 +1,5 @@
 pub mod avg;
+pub mod bool_and;
 pub mod corr;
 pub mod count;
 pub mod covar;
@@ -13,6 +14,7 @@ pub mod string_agg;
 pub mod sum;
 
 use avg::FUNCTION_SET_AVG;
+use bool_and::FUNCTION_SET_BOOL_AND;
 use corr::FUNCTION_SET_CORR;
 use count::FUNCTION_SET_COUNT;
 use covar::{FUNCTION_SET_COVAR_POP, FUNCTION_SET_COVAR_SAMP};
@@ -53,4 +55,5 @@ pub const BUILTIN_AGGREGATE_FUNCTION_SETS: &[AggregateFunctionSet] = &[
     FUNCTION_SET_REGR_R2,
     FUNCTION_SET_REGR_SLOPE,
     FUNCTION_SET_STRING_AGG,
+    FUNCTION_SET_BOOL_AND,
 ];
