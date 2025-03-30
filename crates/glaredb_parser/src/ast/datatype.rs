@@ -18,9 +18,13 @@ pub enum DataType {
     Integer,
     /// BIGINT, INT8
     BigInt,
+    /// UTINYINT, UINT1
     UnsignedTinyInt,
+    /// USMALLINT, UINT2
     UnsignedSmallInt,
+    /// UINT, UINT4
     UnsignedInt,
+    /// UBIGINT, UINT8
     UnsignedBigInt,
     /// HALF, FLOAT2,
     Half,
