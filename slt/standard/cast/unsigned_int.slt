@@ -1,0 +1,177 @@
+# Unsigned integer casts
+
+# TODO: Unary (-) precedence
+
+query I
+select 10::UTINYINT;
+----
+10
+
+query I
+select 10::UINT1;
+----
+10
+
+query I
+select 255::UTINYINT;
+----
+255
+
+# query I
+# select -1::UTINYINT;
+# ----
+# -1
+
+query I
+select 10::USMALLINT;
+----
+10
+
+query I
+select 10::UINT2;
+----
+10
+
+query I
+select 65535::USMALLINT;
+----
+65535
+
+# query I
+# select -1::USMALLINT;
+# ----
+# 255
+
+query I
+select 10::UINT;
+----
+10
+
+query I
+select 10::UINT4;
+----
+10
+
+query I
+select 4294967295::UINT;
+----
+4294967295
+
+# query I
+# select -1::UINT;
+# ----
+# 4294967295
+
+query I
+select 10::UBIGINT;
+----
+10
+
+query I
+select 10::UINT8;
+----
+10
+
+query I
+select 18446744073709551615::UBIGINT;
+----
+18446744073709551615
+
+# query I
+# select -1::UBIGINT;
+# ----
+# 18446744073709551615
+
+# Test NULL values
+query I
+select NULL::UTINYINT;
+----
+NULL
+
+query I
+select NULL::USMALLINT;
+----
+NULL
+
+query I
+select NULL::UINT;
+----
+NULL
+
+query I
+select NULL::UBIGINT;
+----
+NULL
+
+# Test casting between unsigned types
+query I
+select 10::UTINYINT::USMALLINT;
+----
+10
+
+query I
+select 10::UTINYINT::UINT;
+----
+10
+
+query I
+select 10::UTINYINT::UBIGINT;
+----
+10
+
+query I
+select 10::USMALLINT::UINT;
+----
+10
+
+query I
+select 10::USMALLINT::UBIGINT;
+----
+10
+
+query I
+select 10::UINT::UBIGINT;
+----
+10
+
+# Test casting from string
+query I
+select '10'::UTINYINT;
+----
+10
+
+query I
+select '10'::USMALLINT;
+----
+10
+
+query I
+select '10'::UINT;
+----
+10
+
+query I
+select '10'::UBIGINT;
+----
+10
+
+# Test overflow
+statement error Failed to cast value '256' from Int32 to UInt8
+select 256::UTINYINT;
+
+statement error Failed to cast value '65536' from Int32 to UInt16
+select 65536::USMALLINT;
+
+statement error Failed to cast value '4294967296' from Int64 to UInt32
+select 4294967296::UINT;
+
+# Test describe
+query TT
+DESCRIBE SELECT a, a::UTINYINT, a::USMALLINT, a::UINT, a::UBIGINT
+           FROM VALUES (10), (20), (30) v(a) ORDER BY 1;
+----
+a         Int32
+?column?  UInt8
+?column?  UInt16
+?column?  UInt32
+?column?  UInt64
