@@ -1,13 +1,14 @@
+use std::fmt::Write;
+
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
-    PhysicalF64,
     PhysicalI32,
     PhysicalI64,
     PhysicalUtf8,
 };
 use glaredb_core::arrays::batch::Batch;
-use glaredb_core::arrays::datatype::{DataType, DataTypeId};
+use glaredb_core::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use glaredb_core::functions::Signature;
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
@@ -37,7 +38,10 @@ impl TpchTable for SupplierTable {
         TpchColumn::new("s_address", DataType::Utf8),
         TpchColumn::new("s_nationkey", DataType::Int32),
         TpchColumn::new("s_phone", DataType::Utf8),
-        TpchColumn::new("s_acctbal", DataType::Float64), // TODO: Decimal(15, 2)
+        TpchColumn::new(
+            "s_acctbal",
+            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+        ),
         TpchColumn::new("s_comment", DataType::Utf8),
     ];
 
@@ -50,6 +54,8 @@ impl TpchTable for SupplierTable {
     }
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
+        let mut s_buf = String::new();
+
         projections.for_each_column(output, &mut |col_idx, output| match col_idx {
             0 => {
                 let mut s_keys = PhysicalI64::get_addressable_mut(output.data_mut())?;
@@ -61,14 +67,18 @@ impl TpchTable for SupplierTable {
             1 => {
                 let mut s_names = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, supp) in rows.iter().enumerate() {
-                    s_names.put(idx, &supp.s_name);
+                    s_buf.clear();
+                    write!(s_buf, "{}", supp.s_name)?;
+                    s_names.put(idx, &s_buf);
                 }
                 Ok(())
             }
             2 => {
                 let mut s_addresses = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, supp) in rows.iter().enumerate() {
-                    s_addresses.put(idx, &supp.s_address);
+                    s_buf.clear();
+                    write!(s_buf, "{}", supp.s_address)?;
+                    s_addresses.put(idx, &s_buf);
                 }
                 Ok(())
             }
@@ -82,14 +92,16 @@ impl TpchTable for SupplierTable {
             4 => {
                 let mut s_phones = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, supp) in rows.iter().enumerate() {
-                    s_phones.put(idx, &supp.s_phone);
+                    s_buf.clear();
+                    write!(s_buf, "{}", supp.s_phone)?;
+                    s_phones.put(idx, &s_buf);
                 }
                 Ok(())
             }
             5 => {
-                let mut s_balances = PhysicalF64::get_addressable_mut(output.data_mut())?;
+                let mut s_balances = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, supp) in rows.iter().enumerate() {
-                    s_balances.put(idx, &supp.s_acctbal);
+                    s_balances.put(idx, &supp.s_acctbal.0);
                 }
                 Ok(())
             }

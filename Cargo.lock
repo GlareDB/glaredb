@@ -2983,11 +2983,8 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 [[package]]
 name = "tpchgen"
 version = "0.1.0"
-source = "git+https://github.com/glaredb/tpchgen-rs?rev=ee39aeac495ab2f1ca281ef9ccd6a3dd3b174102#ee39aeac495ab2f1ca281ef9ccd6a3dd3b174102"
-dependencies = [
- "chrono",
- "indexmap",
-]
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af098d370875e6220416d8ac3d0b18b315927fb39e290cc1280418de663d09d3"
 
 [[package]]
 name = "tracing"

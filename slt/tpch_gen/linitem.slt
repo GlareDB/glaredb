@@ -1,0 +1,16 @@
+# Lineitem sanity checks
+
+query TT
+SELECT min(l_shipdate), max(l_shipdate) FROM tpch_gen.lineitem(1);
+----
+1992-09-25  1999-08-25
+
+query TT
+SELECT min(l_commitdate), max(l_commitdate) FROM tpch_gen.lineitem(1);
+----
+1992-10-24  1999-07-25
+
+query TT
+SELECT min(l_receiptdate), max(l_receiptdate) FROM tpch_gen.lineitem(1);
+----
+1992-09-27  1999-09-24
