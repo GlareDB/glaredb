@@ -27,12 +27,12 @@ use crate::arrays::datatype::DataTypeId;
 use crate::arrays::executor::PutBuffer;
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::expr::Expression;
+use crate::functions::Signature;
 use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::AggregateFunctionSet;
-use crate::functions::{FunctionInfo, Signature};
 
 // Min/max is used in some aggregate layout tests, assuming the size and
 // alignment of min/max primitive states.
@@ -201,29 +201,6 @@ impl UnaryAggregate for MinBinary {
 
     fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
         MinStateBinary::default()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Min;
-
-impl FunctionInfo for Min {
-    fn name(&self) -> &'static str {
-        "min"
-    }
-
-    fn signatures(&self) -> &[Signature] {
-        &[Signature {
-            positional_args: &[DataTypeId::Any],
-            variadic_arg: None,
-            return_type: DataTypeId::Any,
-            doc: Some(&Documentation {
-                category: Category::Aggregate,
-                description: "Return the minimum non-NULL value seen from input.",
-                arguments: &["input"],
-                example: None,
-            }),
-        }]
     }
 }
 
