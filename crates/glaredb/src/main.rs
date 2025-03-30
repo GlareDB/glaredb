@@ -3,11 +3,13 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
+use ext_csv::extension::CsvExtension;
 use ext_spark::SparkExtension;
 use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
-use glaredb_core::runtime::{PipelineExecutor, Runtime, TokioHandlerProvider};
+use glaredb_core::runtime::executor::PipelineExecutor;
+use glaredb_core::runtime::io::{IoRuntime, TokioHandlerProvider};
 use glaredb_core::shell::lineedit::{KeyEvent, TermSize};
 use glaredb_core::shell::{RawModeTerm, Shell, ShellSignal};
 use glaredb_error::Result;
@@ -102,11 +104,12 @@ impl RawModeTerm for CrosstermRawModeTerm {
 async fn inner(
     args: Arguments,
     executor: impl PipelineExecutor,
-    runtime: impl Runtime,
+    runtime: impl IoRuntime,
 ) -> Result<()> {
-    let engine = SingleUserEngine::try_new(executor, runtime)?;
+    let engine = SingleUserEngine::try_new(executor, runtime.clone())?;
     engine.register_extension(SparkExtension)?;
     engine.register_extension(TpchGenExtension)?;
+    engine.register_extension(CsvExtension::new(runtime.clone()))?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
     let mut stdout = BufWriter::new(std::io::stdout());

@@ -10,12 +10,13 @@ use super::Engine;
 use super::query_result::QueryResult;
 use super::session::Session;
 use crate::extension::Extension;
-use crate::runtime::{PipelineExecutor, Runtime};
+use crate::runtime::executor::PipelineExecutor;
+use crate::runtime::io::IoRuntime;
 
 /// A wrapper around a session and an engine for when running the database in a
 /// local, single user mode (e.g. in the CLI or through wasm).
 #[derive(Debug)]
-pub struct SingleUserEngine<P: PipelineExecutor, R: Runtime> {
+pub struct SingleUserEngine<P: PipelineExecutor, R: IoRuntime> {
     pub runtime: R,
     pub engine: Engine<P, R>,
     pub session: SingleUserSession<P, R>,
@@ -24,7 +25,7 @@ pub struct SingleUserEngine<P: PipelineExecutor, R: Runtime> {
 impl<P, R> SingleUserEngine<P, R>
 where
     P: PipelineExecutor,
-    R: Runtime,
+    R: IoRuntime,
 {
     /// Create a new single user engine using the provided runtime and registry.
     pub fn try_new(executor: P, runtime: R) -> Result<Self> {
@@ -56,7 +57,7 @@ where
 ///
 /// Cheaply cloneable.
 #[derive(Debug, Clone)]
-pub struct SingleUserSession<P: PipelineExecutor, R: Runtime> {
+pub struct SingleUserSession<P: PipelineExecutor, R: IoRuntime> {
     /// The underlying session.
     ///
     /// Wrapped in a mutex since planning may alter session state. Needs a
@@ -71,7 +72,7 @@ pub struct SingleUserSession<P: PipelineExecutor, R: Runtime> {
 impl<P, R> SingleUserSession<P, R>
 where
     P: PipelineExecutor,
-    R: Runtime,
+    R: IoRuntime,
 {
     /// Execute a single sql query.
     pub async fn query(&self, sql: &str) -> Result<QueryResult> {
@@ -110,7 +111,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct PendingQuery<P: PipelineExecutor, R: Runtime> {
+pub struct PendingQuery<P: PipelineExecutor, R: IoRuntime> {
     pub(crate) statement: RawStatement,
     pub(crate) session: Arc<Mutex<Session<P, R>>>,
 }
@@ -118,7 +119,7 @@ pub struct PendingQuery<P: PipelineExecutor, R: Runtime> {
 impl<P, R> PendingQuery<P, R>
 where
     P: PipelineExecutor,
-    R: Runtime,
+    R: IoRuntime,
 {
     pub async fn execute(self) -> Result<QueryResult> {
         const UNNAMED: &str = "";

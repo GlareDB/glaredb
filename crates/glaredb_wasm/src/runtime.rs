@@ -7,9 +7,9 @@ use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_core::io::access::AccessConfig;
 use glaredb_core::io::file::FileOpener;
 use glaredb_core::io::memory::MemoryFileSource;
-use glaredb_core::runtime::handle::QueryHandle;
+use glaredb_core::runtime::executor::{ErrorSink, PipelineExecutor, QueryHandle};
+use glaredb_core::runtime::io::{IoRuntime, TokioHandlerProvider};
 use glaredb_core::runtime::profile_buffer::{ProfileBuffer, ProfileSink};
-use glaredb_core::runtime::{ErrorSink, PipelineExecutor, Runtime, TokioHandlerProvider};
 use glaredb_error::{Result, not_implemented};
 use parking_lot::Mutex;
 use tracing::debug;
@@ -29,7 +29,7 @@ impl WasmRuntime {
     }
 }
 
-impl Runtime for WasmRuntime {
+impl IoRuntime for WasmRuntime {
     type HttpClient = WasmHttpClient;
     type FileProvider = WasmFileProvider;
     type TokioHandle = MissingTokioHandle;

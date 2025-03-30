@@ -17,6 +17,7 @@
 //!
 //! Determine if there's a header by trying to parse the first record into the
 //! inferred types from the previous step. If it differs, assume a header.
+
 use std::task::{Context, Poll};
 
 use glaredb_core::arrays::array::Array;

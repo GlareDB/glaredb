@@ -6,14 +6,8 @@ use glaredb_core::arrays::scalar::ScalarValue;
 use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_core::io::access::AccessConfig;
 use glaredb_core::io::file::FileOpener;
-use glaredb_core::runtime::handle::QueryHandle;
-use glaredb_core::runtime::{
-    ErrorSink,
-    OptionalTokioRuntime,
-    PipelineExecutor,
-    Runtime,
-    TokioHandlerProvider,
-};
+use glaredb_core::runtime::executor::{ErrorSink, PipelineExecutor, QueryHandle};
+use glaredb_core::runtime::io::{IoRuntime, OptionalTokioRuntime, TokioHandlerProvider};
 use glaredb_error::{Result, ResultExt, not_implemented};
 
 use crate::filesystem::LocalFile;
@@ -93,7 +87,7 @@ impl NativeRuntime {
     }
 }
 
-impl Runtime for NativeRuntime {
+impl IoRuntime for NativeRuntime {
     type HttpClient = TokioWrappedHttpClient;
     type FileProvider = NativeFileProvider;
     type TokioHandle = OptionalTokioRuntime;
