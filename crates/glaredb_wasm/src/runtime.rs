@@ -7,7 +7,7 @@ use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_core::io::access::AccessConfig;
 use glaredb_core::io::file::FileOpener;
 use glaredb_core::io::memory::MemoryFileSource;
-use glaredb_core::runtime::io::{IoRuntime, TokioHandlerProvider};
+use glaredb_core::runtime::io::IoRuntime;
 use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
 use glaredb_core::runtime::profile_buffer::{ProfileBuffer, ProfileSink};
 use glaredb_error::{Result, not_implemented};
@@ -32,7 +32,6 @@ impl WasmRuntime {
 impl IoRuntime for WasmRuntime {
     type HttpClient = WasmHttpClient;
     type FileProvider = WasmFileProvider;
-    type TokioHandle = MissingTokioHandle;
     type Instant = PerformanceInstant;
 
     fn file_provider(&self) -> Arc<Self::FileProvider> {
@@ -42,19 +41,6 @@ impl IoRuntime for WasmRuntime {
 
     fn http_client(&self) -> Self::HttpClient {
         WasmHttpClient::new(reqwest::Client::default())
-    }
-
-    fn tokio_handle(&self) -> &Self::TokioHandle {
-        &MissingTokioHandle
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct MissingTokioHandle;
-
-impl TokioHandlerProvider for MissingTokioHandle {
-    fn handle_opt(&self) -> Option<tokio::runtime::Handle> {
-        None
     }
 }
 

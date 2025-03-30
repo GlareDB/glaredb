@@ -8,12 +8,12 @@ use ext_spark::SparkExtension;
 use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
-use glaredb_core::runtime::io::{IoRuntime, TokioHandlerProvider};
+use glaredb_core::runtime::io::IoRuntime;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::shell::lineedit::{KeyEvent, TermSize};
 use glaredb_core::shell::{RawModeTerm, Shell, ShellSignal};
 use glaredb_error::Result;
-use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io};
 
 #[derive(Parser)]
 #[clap(name = "glaredb")]
@@ -40,18 +40,12 @@ fn main() {
 
     // Nested result. Outer result for the panic, inner is execution result.
     let result = std::panic::catch_unwind(|| {
+        let tokio_rt = new_tokio_runtime_for_io()?;
+
         let executor = ThreadedNativeExecutor::try_new().unwrap();
-        let runtime = NativeRuntime::with_default_tokio().unwrap();
-        let tokio_handle = runtime
-            .tokio_handle()
-            .handle()
-            .expect("tokio to be configured");
+        let runtime = NativeRuntime::new(tokio_rt.handle().clone());
 
-        // Note we do an explicit clone here to avoid dropping the tokio runtime
-        // owned by the execution runtime inside the async context.
-        let runtime_clone = runtime.clone();
-
-        tokio_handle.block_on(async move { inner(args, executor, runtime_clone).await })
+        tokio_rt.block_on(async move { inner(args, executor, runtime).await })
     });
 
     match result {

@@ -995,6 +995,7 @@ dependencies = [
  "glaredb_error",
  "glaredb_rt_native",
  "logutil",
+ "tokio",
 ]
 
 [[package]]
@@ -1109,7 +1110,6 @@ dependencies = [
  "parking_lot",
  "rayexec_io",
  "reqwest",
- "tokio",
  "tracing",
  "tracing-subscriber",
  "url",

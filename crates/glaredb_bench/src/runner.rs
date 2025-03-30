@@ -2,7 +2,6 @@ use std::time::Instant;
 
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
-use glaredb_core::runtime::io::{IoRuntime, TokioHandlerProvider};
 use glaredb_error::Result;
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 
@@ -37,12 +36,8 @@ impl BenchmarkRunner {
     ///
     /// This will make use of the tokio runtime configured on the engine runtime
     /// for pulling the results.
-    pub fn run(&self, conf: RunnerConfig) -> Result<BenchmarkTimes> {
-        let handle = self.engine.runtime.tokio_handle().handle()?;
-
-        let result: Result<_> = handle.block_on(async move { self.run_inner(conf).await });
-
-        result
+    pub async fn run(&self, conf: RunnerConfig) -> Result<BenchmarkTimes> {
+        self.run_inner(conf).await
     }
 
     async fn run_inner(&self, conf: RunnerConfig) -> Result<BenchmarkTimes> {

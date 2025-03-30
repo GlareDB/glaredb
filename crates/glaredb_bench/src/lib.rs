@@ -9,8 +9,9 @@ use benchmark::Benchmark;
 use clap::Parser;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::{DbError, Result, ResultExt};
-use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io};
 use runner::{BenchmarkRunner, BenchmarkTimes, RunnerConfig};
+use tokio::runtime::Runtime as TokioRuntime;
 
 #[derive(Parser)]
 #[clap(name = "rayexec_bin")]
@@ -41,32 +42,31 @@ struct Arguments {
     pattern: Option<String>,
 }
 
-pub trait EngineBuilder {
-    fn build(&self) -> Result<SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>>;
-}
-
 #[derive(Debug)]
-pub struct DefaultEngineBuilder {
+pub struct EngineBuilder {
+    tokio_rt: TokioRuntime,
     executor: ThreadedNativeExecutor,
     runtime: NativeRuntime,
 }
 
-impl DefaultEngineBuilder {
+impl EngineBuilder {
     pub fn try_new() -> Result<Self> {
-        Ok(DefaultEngineBuilder {
+        let tokio_rt = new_tokio_runtime_for_io()?;
+        let runtime = NativeRuntime::new(tokio_rt.handle().clone());
+
+        Ok(EngineBuilder {
+            tokio_rt,
             executor: ThreadedNativeExecutor::try_new()?,
-            runtime: NativeRuntime::with_default_tokio()?,
+            runtime,
         })
     }
-}
 
-impl EngineBuilder for DefaultEngineBuilder {
     fn build(&self) -> Result<SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>> {
         SingleUserEngine::try_new(self.executor.clone(), self.runtime.clone())
     }
 }
 
-pub fn run(builder: impl EngineBuilder, default_dir: &str) -> Result<()> {
+pub fn run(builder: EngineBuilder, default_dir: &str) -> Result<()> {
     let args = Arguments::parse();
 
     let dir = match &args.benches_dir {
@@ -95,12 +95,12 @@ pub fn run(builder: impl EngineBuilder, default_dir: &str) -> Result<()> {
             benchmark: bench,
         };
 
-        let times = runner.run(RunnerConfig {
+        let times = builder.tokio_rt.block_on(runner.run(RunnerConfig {
             count: args.count,
             print_explain: args.print_explain,
             print_results: args.print_results,
             print_profile_data: args.print_profile_data,
-        })?;
+        }))?;
 
         let name = path_str
             .trim_end_matches(".bench")

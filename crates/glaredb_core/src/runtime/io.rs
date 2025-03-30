@@ -12,7 +12,6 @@ use crate::io::file::FileOpener;
 pub trait IoRuntime: Debug + Sync + Send + Clone + 'static {
     type HttpClient: HttpClient;
     type FileProvider: FileOpener;
-    type TokioHandle: TokioHandlerProvider;
     type Instant: RuntimeInstant; // TODO: Should this be on the runtime?
 
     /// Returns a file provider.
@@ -20,17 +19,6 @@ pub trait IoRuntime: Debug + Sync + Send + Clone + 'static {
 
     /// Returns an http client. Freely cloneable.
     fn http_client(&self) -> Self::HttpClient;
-
-    /// Return a handle to a tokio runtime if this execution runtime has a tokio
-    /// runtime configured.
-    ///
-    /// This is needed because our native execution runtime does not depend on
-    /// tokio, but certain libraries and drivers that we want to use have an
-    /// unavoidable dependency on tokio.
-    ///
-    /// Data sources should error if they require tokio and if this returns
-    /// None.
-    fn tokio_handle(&self) -> &Self::TokioHandle;
 
     fn as_dyn_io_runtime(&self) -> DynIoRuntime {
         DynIoRuntime::from_io_runtime(self)
@@ -62,12 +50,12 @@ impl TokioHandlerProvider for OptionalTokioRuntime {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct DynIoRuntimeVTable {}
+struct DynIoRuntimeVTable {}
 
 #[derive(Debug, Clone)]
 pub struct DynIoRuntime<'a> {
     runtime: &'a (dyn Any + Sync + Send),
-    vtable: &'static DynIoRuntimeVTable,
+    _vtable: &'static DynIoRuntimeVTable,
 }
 
 impl<'a> DynIoRuntime<'a> {
@@ -77,7 +65,7 @@ impl<'a> DynIoRuntime<'a> {
     {
         DynIoRuntime {
             runtime: runtime as _,
-            vtable: R::VTABLE,
+            _vtable: R::VTABLE,
         }
     }
 
