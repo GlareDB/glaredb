@@ -18,12 +18,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_COVAR_POP: AggregateFunctionSet = AggregateFunctionSet {
     name: "covar_pop",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Compute population covariance.",
         arguments: &["y", "x"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(
             &[DataTypeId::Float64, DataTypeId::Float64],
@@ -60,12 +60,12 @@ impl BinaryAggregate for CovarPop {
 pub const FUNCTION_SET_COVAR_SAMP: AggregateFunctionSet = AggregateFunctionSet {
     name: "covar_samp",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Compute sample covariance.",
         arguments: &["y", "x"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(
             &[DataTypeId::Float64, DataTypeId::Float64],

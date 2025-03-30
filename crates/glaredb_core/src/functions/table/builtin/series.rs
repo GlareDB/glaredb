@@ -19,12 +19,12 @@ use crate::logical::statistics::StatisticsValue;
 pub const FUNCTION_SET_GENERATE_SERIES: TableFunctionSet = TableFunctionSet {
     name: "generate_series",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Table,
         description: "Generate a series of values from 'start' to 'end' incrementing by a step of 1. 'start' and 'end' are both inclusive.",
         arguments: &["start", "end"],
         example: None,
-    }),
+    }],
     functions: &[
         // generate_series(start, stop)
         RawTableFunction::new_execute(

@@ -32,7 +32,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_REM: ScalarFunctionSet = ScalarFunctionSet {
     name: "%",
     aliases: &["rem"],
-    doc: None,
+    doc: &[],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(

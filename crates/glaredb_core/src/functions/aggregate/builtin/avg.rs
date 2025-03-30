@@ -26,12 +26,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_AVG: AggregateFunctionSet = AggregateFunctionSet {
     name: "avg",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Return the average value from the input column.",
         arguments: &["input"],
         example: None,
-    }),
+    }],
     functions: &[
         RawAggregateFunction::new(
             &Signature::new(&[DataTypeId::Decimal64], DataTypeId::Float64),

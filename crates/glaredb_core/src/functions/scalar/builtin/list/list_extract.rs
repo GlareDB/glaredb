@@ -39,7 +39,7 @@ use crate::util::iter::IntoExactSizeIterator;
 pub const FUNCTION_SET_LIST_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
     name: "list_extract",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::List,
         description: "Extract an item from the list. Used 1-based indexing.",
         arguments: &["list", "index"],
@@ -47,7 +47,7 @@ pub const FUNCTION_SET_LIST_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
             example: "list_extract([4,5,6], 2)",
             output: "5",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(
             &[DataTypeId::List(&DataTypeId::Any), DataTypeId::Int64],

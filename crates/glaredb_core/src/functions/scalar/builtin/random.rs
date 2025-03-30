@@ -14,12 +14,12 @@ use crate::functions::scalar::{BindState, FunctionVolatility, RawScalarFunction,
 pub const FUNCTION_SET_RANDOM: ScalarFunctionSet = ScalarFunctionSet {
     name: "random",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Numeric,
         description: "Return a random float.",
         arguments: &[],
         example: None,
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[], DataTypeId::Float64),
         &Random,

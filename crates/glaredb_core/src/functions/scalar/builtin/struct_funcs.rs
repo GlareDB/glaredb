@@ -7,7 +7,7 @@ use crate::functions::scalar::RawScalarFunction;
 pub const FUNCTION_SET_STRUCT_PACK: ScalarFunctionSet = ScalarFunctionSet {
     name: "struct_pack",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[RawScalarFunction::new(
         &Signature {
             positional_args: &[],
@@ -21,7 +21,7 @@ pub const FUNCTION_SET_STRUCT_PACK: ScalarFunctionSet = ScalarFunctionSet {
 pub const FUNCTION_SET_STRUCT_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
     name: "struct_extract",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[RawScalarFunction::new(
         &Signature {
             positional_args: &[DataTypeId::Struct],

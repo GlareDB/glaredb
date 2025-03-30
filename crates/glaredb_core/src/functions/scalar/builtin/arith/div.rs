@@ -33,7 +33,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_DIV: ScalarFunctionSet = ScalarFunctionSet {
     name: "/",
     aliases: &["div"],
-    doc: None,
+    doc: &[],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(

@@ -21,12 +21,12 @@ use crate::util::iter::IntoExactSizeIterator;
 pub const FUNCTION_SET_COS: ScalarFunctionSet = ScalarFunctionSet {
     name: "cos",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Numeric,
         description: "Compute the cosine of a value",
         arguments: &["float"],
         example: None,
-    }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),

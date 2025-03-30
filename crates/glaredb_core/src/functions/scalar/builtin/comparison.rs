@@ -42,7 +42,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_EQ: ScalarFunctionSet = ScalarFunctionSet {
     name: "=",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Check if two values are equal. Returns NULL if either argument is NULL.",
         arguments: &["a", "b"],
@@ -50,14 +50,14 @@ pub const FUNCTION_SET_EQ: ScalarFunctionSet = ScalarFunctionSet {
             example: "a = b",
             output: "true",
         }),
-    }),
+    }],
     functions: &generate_functions::<EqOperation>(),
 };
 
 pub const FUNCTION_SET_NEQ: ScalarFunctionSet = ScalarFunctionSet {
     name: "!=",
     aliases: &["<>"],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Check if two values are not equal. Returns NULL if either argument is NULL.",
         arguments: &["a", "b"],
@@ -65,14 +65,14 @@ pub const FUNCTION_SET_NEQ: ScalarFunctionSet = ScalarFunctionSet {
             example: "a != b",
             output: "false",
         }),
-    }),
+    }],
     functions: &generate_functions::<NotEqOperation>(),
 };
 
 pub const FUNCTION_SET_LT: ScalarFunctionSet = ScalarFunctionSet {
     name: "<",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Check if the left value is less than the right. Returns NULL if either argument is NULL.",
         arguments: &["a", "b"],
@@ -80,14 +80,14 @@ pub const FUNCTION_SET_LT: ScalarFunctionSet = ScalarFunctionSet {
             example: "a < b",
             output: "false",
         }),
-    }),
+    }],
     functions: &generate_functions::<LtOperation>(),
 };
 
 pub const FUNCTION_SET_LT_EQ: ScalarFunctionSet = ScalarFunctionSet {
     name: "<=",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Check if the left value is less than or equal to the right. Returns NULL if either argument is NULL.",
         arguments: &["a", "b"],
@@ -95,14 +95,14 @@ pub const FUNCTION_SET_LT_EQ: ScalarFunctionSet = ScalarFunctionSet {
             example: "a <= b",
             output: "false",
         }),
-    }),
+    }],
     functions: &generate_functions::<LtEqOperation>(),
 };
 
 pub const FUNCTION_SET_GT: ScalarFunctionSet = ScalarFunctionSet {
     name: ">",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Check if the left value is greater than the right. Returns NULL if either argument is NULL.",
         arguments: &["a", "b"],
@@ -110,14 +110,14 @@ pub const FUNCTION_SET_GT: ScalarFunctionSet = ScalarFunctionSet {
             example: "a > b",
             output: "false",
         }),
-    }),
+    }],
     functions: &generate_functions::<GtOperation>(),
 };
 
 pub const FUNCTION_SET_GT_EQ: ScalarFunctionSet = ScalarFunctionSet {
     name: ">=",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Check if the left value is greater than or equal to the right. Returns NULL if either argument is NULL.",
         arguments: &["a", "b"],
@@ -125,7 +125,7 @@ pub const FUNCTION_SET_GT_EQ: ScalarFunctionSet = ScalarFunctionSet {
             example: "a >= b",
             output: "false",
         }),
-    }),
+    }],
     functions: &generate_functions::<GtEqOperation>(),
 };
 

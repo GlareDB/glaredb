@@ -15,7 +15,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_LEFT: ScalarFunctionSet = ScalarFunctionSet {
     name: "left",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Get the leftmost N characters of a string.",
         arguments: &["string", "count"],
@@ -23,7 +23,7 @@ pub const FUNCTION_SET_LEFT: ScalarFunctionSet = ScalarFunctionSet {
             example: "left('alphabet', 3)",
             output: "alp",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
         &Left,

@@ -37,12 +37,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_FIRST: AggregateFunctionSet = AggregateFunctionSet {
     name: "first",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Return the first non-NULL value.",
         arguments: &["input"],
         example: None,
-    }),
+    }],
     // TODO: Do I care that this is long?
     functions: &[
         RawAggregateFunction::new(

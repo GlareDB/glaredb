@@ -16,7 +16,7 @@ use crate::util::iter::IntoExactSizeIterator;
 pub const FUNCTION_SET_LOWER: ScalarFunctionSet = ScalarFunctionSet {
     name: "lower",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Convert the string to lowercase.",
         arguments: &["string"],
@@ -24,7 +24,7 @@ pub const FUNCTION_SET_LOWER: ScalarFunctionSet = ScalarFunctionSet {
             example: "lower('ABC')",
             output: "abc",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
         &Lower,
@@ -55,7 +55,7 @@ impl ScalarFunction for Lower {
 pub const FUNCTION_SET_UPPER: ScalarFunctionSet = ScalarFunctionSet {
     name: "upper",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Convert the string to uppercase.",
         arguments: &["string"],
@@ -63,7 +63,7 @@ pub const FUNCTION_SET_UPPER: ScalarFunctionSet = ScalarFunctionSet {
             example: "upper('ABC')",
             output: "ABC",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
         &Upper,

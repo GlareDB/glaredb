@@ -15,7 +15,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_REVERSE: ScalarFunctionSet = ScalarFunctionSet {
     name: "reverse",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Reverse the input string.",
         arguments: &["string"],
@@ -23,7 +23,7 @@ pub const FUNCTION_SET_REVERSE: ScalarFunctionSet = ScalarFunctionSet {
             example: "reverse('hello')",
             output: "olleh",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Utf8], DataTypeId::Utf8),
         &Reverse,

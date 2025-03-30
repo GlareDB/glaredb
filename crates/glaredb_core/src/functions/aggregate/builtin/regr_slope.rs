@@ -19,12 +19,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_REGR_SLOPE: AggregateFunctionSet = AggregateFunctionSet {
     name: "regr_slope",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Compute the slope of the least-squares-fit linear equation.",
         arguments: &["y", "x"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(
             &[DataTypeId::Float64, DataTypeId::Float64],

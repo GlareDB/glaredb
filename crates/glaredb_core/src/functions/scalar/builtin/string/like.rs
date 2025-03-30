@@ -18,7 +18,7 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 pub const FUNCTION_SET_LIKE: ScalarFunctionSet = ScalarFunctionSet {
     name: "like",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Check if a string matches the given pattern.",
         arguments: &["string", "pattern"],
@@ -26,7 +26,7 @@ pub const FUNCTION_SET_LIKE: ScalarFunctionSet = ScalarFunctionSet {
             example: "like('hello, world', '%world')",
             output: "true",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Boolean),
         &Like,

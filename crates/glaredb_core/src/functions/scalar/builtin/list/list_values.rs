@@ -13,7 +13,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_LIST_VALUES: ScalarFunctionSet = ScalarFunctionSet {
     name: "list_values",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::List,
         description: "Create a list fromt the given values.",
         arguments: &["var_arg"],
@@ -21,7 +21,7 @@ pub const FUNCTION_SET_LIST_VALUES: ScalarFunctionSet = ScalarFunctionSet {
             example: "list_values('cat', 'dog', 'mouse')",
             output: "[cat, dog, mouse]",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature {
             positional_args: &[],

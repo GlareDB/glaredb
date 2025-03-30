@@ -15,7 +15,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_LEFT_PAD: ScalarFunctionSet = ScalarFunctionSet {
     name: "lpad",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Left pad a string with spaces until the resulting string contains 'count' characters.",
         arguments: &["string", "count"],
@@ -23,7 +23,7 @@ pub const FUNCTION_SET_LEFT_PAD: ScalarFunctionSet = ScalarFunctionSet {
             example: "lpad('house', 8)",
             output: "   house",
         }),
-    }),
+    }],
     functions: &[
         // lpad(string, count)
         RawScalarFunction::new(
@@ -95,7 +95,7 @@ impl ScalarFunction for LeftPad {
 pub const FUNCTION_SET_RIGHT_PAD: ScalarFunctionSet = ScalarFunctionSet {
     name: "rpad",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Right pad a string with spaces until the resulting string contains 'count' characters.",
         arguments: &["string", "count"],
@@ -103,7 +103,7 @@ pub const FUNCTION_SET_RIGHT_PAD: ScalarFunctionSet = ScalarFunctionSet {
             example: "rpad('house', 8)",
             output: "house    ",
         }),
-    }),
+    }],
     functions: &[
         // rpad(string, count)
         RawScalarFunction::new(

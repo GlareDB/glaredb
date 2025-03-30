@@ -18,7 +18,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_CONCAT: ScalarFunctionSet = ScalarFunctionSet {
     name: "concat",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Concatenate many strings into a single string.",
         arguments: &["var_args"],
@@ -26,7 +26,7 @@ pub const FUNCTION_SET_CONCAT: ScalarFunctionSet = ScalarFunctionSet {
             example: "concat('cat', 'dog', 'mouse')",
             output: "catdogmouse",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature {
             positional_args: &[DataTypeId::Utf8],

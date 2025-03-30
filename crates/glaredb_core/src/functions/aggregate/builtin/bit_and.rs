@@ -30,12 +30,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_BIT_AND: AggregateFunctionSet = AggregateFunctionSet {
     name: "bit_and",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Returns the bitwise AND of all non-NULL input values.",
         arguments: &["integer"],
         example: None,
-    }),
+    }],
     functions: &[
         RawAggregateFunction::new(
             &Signature::new(&[DataTypeId::Int8], DataTypeId::Int8),

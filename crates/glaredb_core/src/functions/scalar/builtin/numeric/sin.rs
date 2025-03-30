@@ -21,12 +21,12 @@ use crate::util::iter::IntoExactSizeIterator;
 pub const FUNCTION_SET_SIN: ScalarFunctionSet = ScalarFunctionSet {
     name: "sin",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Numeric,
         description: "Compute the sin of value",
         arguments: &["float"],
         example: None,
-    }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),

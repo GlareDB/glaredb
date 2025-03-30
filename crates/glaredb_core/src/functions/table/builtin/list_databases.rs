@@ -20,7 +20,7 @@ use crate::storage::projections::Projections;
 pub const FUNCTION_SET_LIST_DATABASES: TableFunctionSet = TableFunctionSet {
     name: "list_databases",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[], DataTypeId::Table),
         &ListDatabases,

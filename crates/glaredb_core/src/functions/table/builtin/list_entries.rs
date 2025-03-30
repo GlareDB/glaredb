@@ -24,7 +24,7 @@ use crate::storage::projections::Projections;
 pub const FUNCTION_SET_LIST_TABLES: TableFunctionSet = TableFunctionSet {
     name: "list_tables",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[], DataTypeId::Table),
         &ListTables,
@@ -34,7 +34,7 @@ pub const FUNCTION_SET_LIST_TABLES: TableFunctionSet = TableFunctionSet {
 pub const FUNCTION_SET_LIST_VIEWS: TableFunctionSet = TableFunctionSet {
     name: "list_views",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[], DataTypeId::Table),
         &ListViews,
@@ -44,7 +44,7 @@ pub const FUNCTION_SET_LIST_VIEWS: TableFunctionSet = TableFunctionSet {
 pub const FUNCTION_SET_LIST_FUNCTIONS: TableFunctionSet = TableFunctionSet {
     name: "list_functions",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[], DataTypeId::Table),
         &ListFunctions,

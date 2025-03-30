@@ -15,7 +15,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_SUBSTRING: ScalarFunctionSet = ScalarFunctionSet {
     name: "substring",
     aliases: &["substr"],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Get a substring of a string starting at an index until the end of the string. The index is 1-based.",
         arguments: &["string", "index"],
@@ -23,7 +23,7 @@ pub const FUNCTION_SET_SUBSTRING: ScalarFunctionSet = ScalarFunctionSet {
             example: "substring('alphabet', 3)",
             output: "phabet",
         }),
-    }),
+    }],
     functions: &[
         // substring(<string>, <from>)
         RawScalarFunction::new(

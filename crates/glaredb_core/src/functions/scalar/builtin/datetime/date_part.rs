@@ -17,7 +17,7 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 pub const FUNCTION_SET_DATE_PART: ScalarFunctionSet = ScalarFunctionSet {
     name: "date_part",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Date,
         description: "Get a subfield.",
         arguments: &["part", "date"],
@@ -25,7 +25,7 @@ pub const FUNCTION_SET_DATE_PART: ScalarFunctionSet = ScalarFunctionSet {
             example: "date_part('day', DATE '2024-12-17')",
             output: "17.000", // TODO: Gotta fix the trailing zeros.
         }),
-    }),
+    }],
     // TODO: Optional third arg for timezone.
     functions: &[
         RawScalarFunction::new(

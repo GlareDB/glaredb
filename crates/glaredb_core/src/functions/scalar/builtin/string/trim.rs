@@ -22,7 +22,7 @@ pub trait StringTrimOp: Sync + Send + Debug + Clone + Copy + PartialEq + Eq + 's
 pub const FUNCTION_SET_BTRIM: ScalarFunctionSet = ScalarFunctionSet {
     name: "btrim",
     aliases: &["trim"],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Trim matching characters from both sides of the string.",
         arguments: &["string", "characters"],
@@ -30,7 +30,7 @@ pub const FUNCTION_SET_BTRIM: ScalarFunctionSet = ScalarFunctionSet {
             example: "trim('->hello<', '<>-')",
             output: "hello",
         }),
-    }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Utf8),
@@ -71,7 +71,7 @@ impl ScalarFunction for BothTrimOp {
 pub const FUNCTION_SET_LTRIM: ScalarFunctionSet = ScalarFunctionSet {
     name: "ltrim",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Trim matching characters from the left side of the string.",
         arguments: &["string", "characters"],
@@ -79,7 +79,7 @@ pub const FUNCTION_SET_LTRIM: ScalarFunctionSet = ScalarFunctionSet {
             example: "ltrim('->hello<', '<>-')",
             output: "hello<",
         }),
-    }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Utf8),
@@ -120,7 +120,7 @@ impl ScalarFunction for LeftTrimOp {
 pub const FUNCTION_SET_RTRIM: ScalarFunctionSet = ScalarFunctionSet {
     name: "rtrim",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Trim whitespace from the right side of the string.",
         arguments: &["string"],
@@ -128,7 +128,7 @@ pub const FUNCTION_SET_RTRIM: ScalarFunctionSet = ScalarFunctionSet {
             example: "rtrim('  hello ')",
             output: "  hello",
         }),
-    }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Utf8),

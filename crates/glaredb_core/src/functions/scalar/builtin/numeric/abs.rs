@@ -21,12 +21,12 @@ use crate::util::iter::IntoExactSizeIterator;
 pub const FUNCTION_SET_ABS: ScalarFunctionSet = ScalarFunctionSet {
     name: "abs",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Numeric,
         description: "Compute the absolute value of a number",
         arguments: &["float"],
         example: None,
-    }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),

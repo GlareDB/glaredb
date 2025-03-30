@@ -17,7 +17,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_REPEAT: ScalarFunctionSet = ScalarFunctionSet {
     name: "repeat",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Repeat a string some number of times.",
         arguments: &["string", "count"],
@@ -25,7 +25,7 @@ pub const FUNCTION_SET_REPEAT: ScalarFunctionSet = ScalarFunctionSet {
             example: "repeat('abc', 3)",
             output: "abcabcabc",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
         &Repeat,

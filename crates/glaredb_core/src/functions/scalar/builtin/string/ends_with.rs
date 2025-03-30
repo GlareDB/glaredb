@@ -17,7 +17,7 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 pub const FUNCTION_SET_ENDS_WITH: ScalarFunctionSet = ScalarFunctionSet {
     name: "ends_with",
     aliases: &["suffix"],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Check if a string ends with a suffix.",
         arguments: &["string", "prefix"],
@@ -25,7 +25,7 @@ pub const FUNCTION_SET_ENDS_WITH: ScalarFunctionSet = ScalarFunctionSet {
             example: "ends_with('house', 'se')",
             output: "true",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Boolean),
         &EndsWith,

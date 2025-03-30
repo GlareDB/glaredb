@@ -19,12 +19,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_CORR: AggregateFunctionSet = AggregateFunctionSet {
     name: "corr",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Return the (Pearson) population correlation coefficient.",
         arguments: &["y", "x"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(
             &[DataTypeId::Float64, DataTypeId::Float64],

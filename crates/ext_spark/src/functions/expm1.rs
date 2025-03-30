@@ -15,12 +15,12 @@ use glaredb_error::Result;
 pub const FUNCTION_SET_EXPM1: ScalarFunctionSet = ScalarFunctionSet {
     name: "expm1",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Numeric,
         description: "Computes the exponential of the given value minus one",
         arguments: &["value"],
         example: None,
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
         &Expm1,

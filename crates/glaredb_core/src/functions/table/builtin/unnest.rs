@@ -19,7 +19,7 @@ use crate::logical::statistics::StatisticsValue;
 pub const FUNCTION_SET_UNNEST: TableFunctionSet = TableFunctionSet {
     name: "unnest",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[
         // unnest(list)
         RawTableFunction::new_execute(

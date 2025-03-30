@@ -20,7 +20,7 @@ use super::table_gen::{TableGen, TpchColumn, TpchTable};
 pub const FUNCTION_SET_LINEITEM: TableFunctionSet = TableFunctionSet {
     name: "lineitem",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Table),
         &TableGen::new(LineItemTable),

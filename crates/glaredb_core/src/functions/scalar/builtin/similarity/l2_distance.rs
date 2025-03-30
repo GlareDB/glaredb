@@ -25,7 +25,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_L2_DISTANCE: ScalarFunctionSet = ScalarFunctionSet {
     name: "l2_distance",
     aliases: &["array_distance"],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::List,
         description: "Compute the Euclidean distance between two lists. Both lists must be the same length and cannot contain NULLs.",
         arguments: &["list1", "list2"],
@@ -33,7 +33,7 @@ pub const FUNCTION_SET_L2_DISTANCE: ScalarFunctionSet = ScalarFunctionSet {
             example: "l2_distance([1.0, 1.0], [2.0, 4.0])",
             output: "3.1622776601683795",
         }),
-    }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(

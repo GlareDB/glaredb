@@ -15,12 +15,12 @@ use glaredb_error::Result;
 pub const FUNCTION_SET_CSC: ScalarFunctionSet = ScalarFunctionSet {
     name: "csc",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Numeric,
         description: "Computes the cosecant of the input",
         arguments: &["value"],
         example: None,
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
         &Csc,

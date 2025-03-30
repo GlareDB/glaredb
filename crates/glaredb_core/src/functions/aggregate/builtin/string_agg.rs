@@ -20,12 +20,12 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 pub const FUNCTION_SET_STRING_AGG: AggregateFunctionSet = AggregateFunctionSet {
     name: "string_agg",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Concatenate all non-NULL input string values using a delimiter.",
         arguments: &["inputs", "delimiter"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Utf8),
         &SimpleBinaryAggregate::new(&StringAgg),

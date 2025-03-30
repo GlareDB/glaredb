@@ -18,7 +18,7 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 pub const FUNCTION_SET_REGEXP_REPLACE: ScalarFunctionSet = ScalarFunctionSet {
     name: "regexp_replace",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Regexp,
         description: "Replace the first regular expression match in a string.",
         arguments: &["string", "regexp", "replacement"],
@@ -26,7 +26,7 @@ pub const FUNCTION_SET_REGEXP_REPLACE: ScalarFunctionSet = ScalarFunctionSet {
             example: "regexp_replace('alphabet', '[ae]', 'DOG')",
             output: "DOGlphabet",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(
             &[DataTypeId::Utf8, DataTypeId::Utf8, DataTypeId::Utf8],
