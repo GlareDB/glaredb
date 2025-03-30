@@ -16,7 +16,6 @@ pub mod scalar;
 pub mod table;
 
 use candidate::CandidateSignature;
-use glaredb_error::{DbError, Result};
 
 use crate::arrays::datatype::{DataType, DataTypeId};
 
