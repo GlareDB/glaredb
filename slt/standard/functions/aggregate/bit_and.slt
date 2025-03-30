@@ -1,0 +1,73 @@
+# Test bit_and aggregate function
+
+# Test with Int8 values
+query I
+SELECT bit_and(v) FROM (VALUES (CAST(127 AS TINYINT)), (CAST(123 AS TINYINT)), (CAST(103 AS TINYINT))) AS t(v);
+----
+99
+
+# Test with Int16 values
+query I
+SELECT bit_and(v) FROM (VALUES (CAST(32767 AS SMALLINT)), (CAST(12345 AS SMALLINT)), (CAST(10000 AS SMALLINT))) AS t(v);
+----
+8208
+
+# Test with Int32 values
+query I
+SELECT bit_and(v) FROM (VALUES (CAST(15 AS INTEGER)), (CAST(7 AS INTEGER)), (CAST(3 AS INTEGER))) AS t(v);
+----
+3
+
+# Test with Int64 values
+query I
+SELECT bit_and(v) FROM (VALUES (CAST(15 AS BIGINT)), (CAST(7 AS BIGINT)), (CAST(3 AS BIGINT))) AS t(v);
+----
+3
+
+# Test with UInt8 values (using positive values within TINYINT range)
+query I
+SELECT bit_and(v) FROM (VALUES (CAST(96 AS TINYINT)), (CAST(112 AS TINYINT)), (CAST(64 AS TINYINT))) AS t(v);
+----
+64
+
+# Test with UInt16 values (using positive values within SMALLINT range)
+query I
+SELECT bit_and(v) FROM (VALUES (CAST(16384 AS SMALLINT)), (CAST(24576 AS SMALLINT)), (CAST(16384 AS SMALLINT))) AS t(v);
+----
+16384
+
+# Test with UInt32 values
+query I
+SELECT bit_and(v) FROM (VALUES (CAST(15 AS INTEGER)), (CAST(7 AS INTEGER)), (CAST(3 AS INTEGER))) AS t(v);
+----
+3
+
+# Test with UInt64 values
+query I
+SELECT bit_and(v) FROM (VALUES (CAST(15 AS BIGINT)), (CAST(7 AS BIGINT)), (CAST(3 AS BIGINT))) AS t(v);
+----
+3
+
+# Test with NULL values (should be ignored)
+query I
+SELECT bit_and(v) FROM (VALUES (CAST(15 AS INTEGER)), (CAST(7 AS INTEGER)), (CAST(NULL AS INTEGER))) AS t(v);
+----
+7
+
+# Test with all NULL values (should return NULL)
+query I
+SELECT bit_and(v) FROM (VALUES (CAST(NULL AS INTEGER)), (CAST(NULL AS INTEGER))) AS t(v);
+----
+NULL
+
+# Test with empty set (should return NULL)
+query I
+SELECT bit_and(v) FROM (VALUES (CAST(15 AS INTEGER))) AS t(v) WHERE 1=0;
+----
+NULL
+
+# Test with zero values
+query I
+SELECT bit_and(v) FROM (VALUES (CAST(15 AS INTEGER)), (CAST(7 AS INTEGER)), (CAST(0 AS INTEGER))) AS t(v);
+----
+0
