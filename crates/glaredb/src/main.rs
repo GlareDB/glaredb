@@ -8,8 +8,8 @@ use ext_spark::SparkExtension;
 use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
-use glaredb_core::runtime::executor::PipelineExecutor;
 use glaredb_core::runtime::io::{IoRuntime, TokioHandlerProvider};
+use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::shell::lineedit::{KeyEvent, TermSize};
 use glaredb_core::shell::{RawModeTerm, Shell, ShellSignal};
 use glaredb_error::Result;
@@ -103,7 +103,7 @@ impl RawModeTerm for CrosstermRawModeTerm {
 
 async fn inner(
     args: Arguments,
-    executor: impl PipelineExecutor,
+    executor: impl PipelineRuntime,
     runtime: impl IoRuntime,
 ) -> Result<()> {
     let engine = SingleUserEngine::try_new(executor, runtime.clone())?;

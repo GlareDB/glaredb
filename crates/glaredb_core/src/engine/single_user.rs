@@ -10,13 +10,13 @@ use super::Engine;
 use super::query_result::QueryResult;
 use super::session::Session;
 use crate::extension::Extension;
-use crate::runtime::executor::PipelineExecutor;
 use crate::runtime::io::IoRuntime;
+use crate::runtime::pipeline::PipelineRuntime;
 
 /// A wrapper around a session and an engine for when running the database in a
 /// local, single user mode (e.g. in the CLI or through wasm).
 #[derive(Debug)]
-pub struct SingleUserEngine<P: PipelineExecutor, R: IoRuntime> {
+pub struct SingleUserEngine<P: PipelineRuntime, R: IoRuntime> {
     pub runtime: R,
     pub engine: Engine<P, R>,
     pub session: SingleUserSession<P, R>,
@@ -24,7 +24,7 @@ pub struct SingleUserEngine<P: PipelineExecutor, R: IoRuntime> {
 
 impl<P, R> SingleUserEngine<P, R>
 where
-    P: PipelineExecutor,
+    P: PipelineRuntime,
     R: IoRuntime,
 {
     /// Create a new single user engine using the provided runtime and registry.
@@ -57,7 +57,7 @@ where
 ///
 /// Cheaply cloneable.
 #[derive(Debug, Clone)]
-pub struct SingleUserSession<P: PipelineExecutor, R: IoRuntime> {
+pub struct SingleUserSession<P: PipelineRuntime, R: IoRuntime> {
     /// The underlying session.
     ///
     /// Wrapped in a mutex since planning may alter session state. Needs a
@@ -71,7 +71,7 @@ pub struct SingleUserSession<P: PipelineExecutor, R: IoRuntime> {
 
 impl<P, R> SingleUserSession<P, R>
 where
-    P: PipelineExecutor,
+    P: PipelineRuntime,
     R: IoRuntime,
 {
     /// Execute a single sql query.
@@ -111,14 +111,14 @@ where
 }
 
 #[derive(Debug)]
-pub struct PendingQuery<P: PipelineExecutor, R: IoRuntime> {
+pub struct PendingQuery<P: PipelineRuntime, R: IoRuntime> {
     pub(crate) statement: RawStatement,
     pub(crate) session: Arc<Mutex<Session<P, R>>>,
 }
 
 impl<P, R> PendingQuery<P, R>
 where
-    P: PipelineExecutor,
+    P: PipelineRuntime,
     R: IoRuntime,
 {
     pub async fn execute(self) -> Result<QueryResult> {

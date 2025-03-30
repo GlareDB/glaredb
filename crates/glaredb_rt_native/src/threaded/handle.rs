@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use glaredb_core::runtime::executor::QueryHandle;
+use glaredb_core::runtime::pipeline::QueryHandle;
 use glaredb_core::runtime::profile_buffer::ProfileBuffer;
 use parking_lot::Mutex;
 

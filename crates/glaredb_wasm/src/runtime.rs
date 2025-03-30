@@ -7,8 +7,8 @@ use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_core::io::access::AccessConfig;
 use glaredb_core::io::file::FileOpener;
 use glaredb_core::io::memory::MemoryFileSource;
-use glaredb_core::runtime::executor::{ErrorSink, PipelineExecutor, QueryHandle};
 use glaredb_core::runtime::io::{IoRuntime, TokioHandlerProvider};
+use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
 use glaredb_core::runtime::profile_buffer::{ProfileBuffer, ProfileSink};
 use glaredb_error::{Result, not_implemented};
 use parking_lot::Mutex;
@@ -65,7 +65,7 @@ impl TokioHandlerProvider for MissingTokioHandle {
 #[derive(Debug, Clone)]
 pub struct WasmExecutor;
 
-impl PipelineExecutor for WasmExecutor {
+impl PipelineRuntime for WasmExecutor {
     fn default_partitions(&self) -> usize {
         1
     }

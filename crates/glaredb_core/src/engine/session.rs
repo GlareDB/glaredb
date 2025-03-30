@@ -24,8 +24,8 @@ use crate::logical::planner::plan_statement::StatementPlanner;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::{ResolveConfig, ResolveMode, ResolvedStatement, Resolver};
 use crate::optimizer::Optimizer;
-use crate::runtime::executor::PipelineExecutor;
 use crate::runtime::io::IoRuntime;
+use crate::runtime::pipeline::PipelineRuntime;
 use crate::runtime::time::Timer;
 
 /// A "client" session capable of executing queries from arbitrary sql
@@ -54,7 +54,7 @@ use crate::runtime::time::Timer;
 /// during actual execution (pulling on the stream) as execution is completely
 /// independent of any state inside the session.
 #[derive(Debug)]
-pub struct Session<P: PipelineExecutor, R: IoRuntime> {
+pub struct Session<P: PipelineRuntime, R: IoRuntime> {
     /// Context containing everything in the "database" that's visible to this
     /// session.
     context: DatabaseContext,
@@ -123,7 +123,7 @@ struct ExecutablePortal {
 
 impl<P, R> Session<P, R>
 where
-    P: PipelineExecutor,
+    P: PipelineRuntime,
     R: IoRuntime,
 {
     pub fn new(context: DatabaseContext, executor: P, runtime: R) -> Self {

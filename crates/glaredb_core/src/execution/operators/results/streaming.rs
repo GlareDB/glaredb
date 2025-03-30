@@ -16,7 +16,7 @@ use crate::execution::operators::{
     PushOperator,
 };
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
-use crate::runtime::executor::ErrorSink;
+use crate::runtime::pipeline::ErrorSink;
 
 /// Streams result batches for a query.
 ///

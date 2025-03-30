@@ -6,8 +6,8 @@ use glaredb_core::arrays::scalar::ScalarValue;
 use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_core::io::access::AccessConfig;
 use glaredb_core::io::file::FileOpener;
-use glaredb_core::runtime::executor::{ErrorSink, PipelineExecutor, QueryHandle};
 use glaredb_core::runtime::io::{IoRuntime, OptionalTokioRuntime, TokioHandlerProvider};
+use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
 use glaredb_error::{Result, ResultExt, not_implemented};
 
 use crate::filesystem::LocalFile;
@@ -46,7 +46,7 @@ impl<S: Scheduler> NativeExecutor<S> {
     }
 }
 
-impl<S: Scheduler + 'static> PipelineExecutor for NativeExecutor<S> {
+impl<S: Scheduler + 'static> PipelineRuntime for NativeExecutor<S> {
     fn default_partitions(&self) -> usize {
         self.0.num_threads()
     }

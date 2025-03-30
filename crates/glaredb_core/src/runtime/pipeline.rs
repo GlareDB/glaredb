@@ -15,7 +15,7 @@ use crate::execution::partition_pipeline::ExecutablePartitionPipeline;
 ///
 /// This will likely only ever have two implementations; one for when we're
 /// executing "natively" (running pipelines on a thread pool), and one for wasm.
-pub trait PipelineExecutor: Debug + Sync + Send + Clone {
+pub trait PipelineRuntime: Debug + Sync + Send + Clone {
     /// Number of partitions to default to when executing.
     fn default_partitions(&self) -> usize;
 
