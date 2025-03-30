@@ -1,8 +1,8 @@
-use glaredb_error::DbError;
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
+use glaredb_error::DbError;
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use pyo3::{Python, pyclass, pyfunction, pymethods};
 

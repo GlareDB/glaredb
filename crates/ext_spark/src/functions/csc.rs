@@ -1,4 +1,3 @@
-use glaredb_error::Result;
 use glaredb_core::arrays::array::Array;
 use glaredb_core::arrays::array::physical_type::PhysicalF64;
 use glaredb_core::arrays::batch::Batch;
@@ -11,6 +10,7 @@ use glaredb_core::functions::bind_state::BindState;
 use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::ScalarFunctionSet;
 use glaredb_core::functions::scalar::{RawScalarFunction, ScalarFunction};
+use glaredb_error::Result;
 
 pub const FUNCTION_SET_CSC: ScalarFunctionSet = ScalarFunctionSet {
     name: "csc",

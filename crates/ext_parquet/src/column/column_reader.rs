@@ -1,5 +1,5 @@
-use glaredb_error::{DbError, Result};
 use glaredb_core::arrays::array::Array;
+use glaredb_error::{DbError, Result};
 
 use super::page_reader::PageReader;
 use crate::column::encoding::{Definitions, PageDecoder};

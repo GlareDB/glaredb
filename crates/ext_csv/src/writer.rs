@@ -1,10 +1,10 @@
 use std::io::Write as _;
 
 use csv::ByteRecord;
-use glaredb_error::{Result, ResultExt};
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::arrays::format::{FormatOptions, Formatter};
+use glaredb_error::{Result, ResultExt};
 
 use crate::dialect::DialectOptions;
 

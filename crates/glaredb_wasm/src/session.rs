@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
 use ext_spark::SparkExtension;
-use glaredb_error::DbError;
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::engine::single_user::SingleUserEngine;
+use glaredb_error::DbError;
 use tracing::trace;
 use wasm_bindgen::prelude::*;
 

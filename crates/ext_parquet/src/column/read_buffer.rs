@@ -1,8 +1,8 @@
 #![allow(unused)]
 
-use glaredb_error::{DbError, Result};
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::buffer::typed::ByteBuffer;
+use glaredb_error::{DbError, Result};
 
 /// Read buffer that owns the underlying buffer.
 #[derive(Debug)]

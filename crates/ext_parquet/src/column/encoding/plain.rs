@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 
-use glaredb_error::Result;
 use glaredb_core::arrays::array::Array;
 use glaredb_core::arrays::array::physical_type::{AddressableMut, MutableScalarStorage};
 use glaredb_core::util::marker::PhantomCovariant;
+use glaredb_error::Result;
 
 use super::Definitions;
 use crate::column::converter::ValueConverter;

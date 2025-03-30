@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 
 use benchmark::Benchmark;
 use clap::Parser;
-use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_core::engine::single_user::SingleUserEngine;
+use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
 use runner::{BenchmarkRunner, BenchmarkTimes, RunnerConfig};
 
