@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use glaredb_error::Result;
 
-use crate::arrays::array::physical_type::PhysicalBool;
+use crate::arrays::array::physical_type::{AddressableMut, PhysicalBool};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::PutBuffer;
 use crate::arrays::executor::aggregate::AggregateState;
@@ -84,7 +84,7 @@ impl AggregateState<&bool, bool> for BoolAndState {
 
     fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
-        M: crate::arrays::array::physical_type::AddressableMut<T = bool>,
+        M: AddressableMut<T = bool>,
     {
         if self.valid {
             output.put(&self.result);
