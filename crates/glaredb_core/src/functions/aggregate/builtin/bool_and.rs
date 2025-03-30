@@ -16,7 +16,7 @@ use crate::functions::function_set::AggregateFunctionSet;
 
 pub const FUNCTION_SET_BOOL_AND: AggregateFunctionSet = AggregateFunctionSet {
     name: "bool_and",
-    aliases: &[],
+    aliases: &["every"],
     doc: Some(&Documentation {
         category: Category::Aggregate,
         description: "Returns true if all non-NULL inputs are true, otherwise false.",
