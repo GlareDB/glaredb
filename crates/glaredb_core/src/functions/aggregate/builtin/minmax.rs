@@ -43,12 +43,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_MIN: AggregateFunctionSet = AggregateFunctionSet {
     name: "min",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Return the minimum non-NULL value seen from input.",
         arguments: &["input"],
         example: None,
-    }),
+    }],
     functions: &[
         RawAggregateFunction::new(
             &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
@@ -207,12 +207,12 @@ impl UnaryAggregate for MinBinary {
 pub const FUNCTION_SET_MAX: AggregateFunctionSet = AggregateFunctionSet {
     name: "max",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Return the maximum non-NULL value seen from input.",
         arguments: &["input"],
         example: None,
-    }),
+    }],
     functions: &[
         RawAggregateFunction::new(
             &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),

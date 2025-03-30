@@ -27,7 +27,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_NEGATE: ScalarFunctionSet = ScalarFunctionSet {
     name: "negate",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
@@ -67,7 +67,7 @@ pub const FUNCTION_SET_NEGATE: ScalarFunctionSet = ScalarFunctionSet {
 pub const FUNCTION_SET_NOT: ScalarFunctionSet = ScalarFunctionSet {
     name: "not",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
         &Not,

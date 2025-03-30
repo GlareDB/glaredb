@@ -20,7 +20,7 @@ use super::table_gen::{TableGen, TpchColumn, TpchTable};
 pub const FUNCTION_SET_CUSTOMER: TableFunctionSet = TableFunctionSet {
     name: "customer",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Table),
         &TableGen::new(CustomerTable),

@@ -18,12 +18,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_REGR_R2: AggregateFunctionSet = AggregateFunctionSet {
     name: "regr_r2",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Compute the square of the correlation coefficient.",
         arguments: &["y", "x"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(
             &[DataTypeId::Float64, DataTypeId::Float64],

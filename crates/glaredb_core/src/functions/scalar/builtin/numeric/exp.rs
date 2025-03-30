@@ -21,12 +21,12 @@ use crate::util::iter::IntoExactSizeIterator;
 pub const FUNCTION_SET_EXP: ScalarFunctionSet = ScalarFunctionSet {
     name: "exp",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Numeric,
         description: "Compute `e ^ val`",
         arguments: &["float"],
         example: None,
-    }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),

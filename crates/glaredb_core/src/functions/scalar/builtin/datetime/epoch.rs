@@ -15,7 +15,7 @@ use crate::util::iter::IntoExactSizeIterator;
 pub const FUNCTION_SET_EPOCH: ScalarFunctionSet = ScalarFunctionSet {
     name: "epoch",
     aliases: &["epoch_s"],
-    doc: None,
+    doc: &[],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Int64], DataTypeId::Timestamp),
         &EpochImpl::<1_000_000>,
@@ -25,7 +25,7 @@ pub const FUNCTION_SET_EPOCH: ScalarFunctionSet = ScalarFunctionSet {
 pub const FUNCTION_SET_EPOCH_MS: ScalarFunctionSet = ScalarFunctionSet {
     name: "epoch_ms",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Int64], DataTypeId::Timestamp),
         &EpochImpl::<1000>,

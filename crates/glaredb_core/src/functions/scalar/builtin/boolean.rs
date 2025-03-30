@@ -18,7 +18,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_AND: ScalarFunctionSet = ScalarFunctionSet {
     name: "and",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Boolean and all inputs.",
         arguments: &["var_args"],
@@ -26,7 +26,7 @@ pub const FUNCTION_SET_AND: ScalarFunctionSet = ScalarFunctionSet {
             example: "and(true, false, true)",
             output: "false",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature {
             positional_args: &[DataTypeId::Boolean],
@@ -40,7 +40,7 @@ pub const FUNCTION_SET_AND: ScalarFunctionSet = ScalarFunctionSet {
 pub const FUNCTION_SET_OR: ScalarFunctionSet = ScalarFunctionSet {
     name: "or",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Boolean or all inputs.",
         arguments: &["var_args"],
@@ -48,7 +48,7 @@ pub const FUNCTION_SET_OR: ScalarFunctionSet = ScalarFunctionSet {
             example: "or(true, false, true)",
             output: "true",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature {
             positional_args: &[DataTypeId::Boolean],

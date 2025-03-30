@@ -20,7 +20,7 @@ use crate::storage::projections::Projections;
 pub const FUNCTION_SET_MEMORY_SCAN: TableFunctionSet = TableFunctionSet {
     name: "memory_scan",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(
             &[DataTypeId::Utf8, DataTypeId::Utf8, DataTypeId::Utf8],

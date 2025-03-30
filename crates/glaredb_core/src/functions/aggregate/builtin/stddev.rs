@@ -18,12 +18,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_STDDEV_POP: AggregateFunctionSet = AggregateFunctionSet {
     name: "stddev_pop",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Compute the population standard deviation.",
         arguments: &["inputs"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
         &SimpleUnaryAggregate::new(&Variance::<StddevPopFinalize>::new()),
@@ -33,12 +33,12 @@ pub const FUNCTION_SET_STDDEV_POP: AggregateFunctionSet = AggregateFunctionSet {
 pub const FUNCTION_SET_STDDEV_SAMP: AggregateFunctionSet = AggregateFunctionSet {
     name: "stddev_samp",
     aliases: &["stddev"],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Compute the sample standard deviation.",
         arguments: &["inputs"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
         &SimpleUnaryAggregate::new(&Variance::<StddevSampFinalize>::new()),
@@ -48,12 +48,12 @@ pub const FUNCTION_SET_STDDEV_SAMP: AggregateFunctionSet = AggregateFunctionSet 
 pub const FUNCTION_SET_VAR_POP: AggregateFunctionSet = AggregateFunctionSet {
     name: "var_pop",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Compute the population variance.",
         arguments: &["inputs"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
         &SimpleUnaryAggregate::new(&Variance::<VariancePopFinalize>::new()),
@@ -63,12 +63,12 @@ pub const FUNCTION_SET_VAR_POP: AggregateFunctionSet = AggregateFunctionSet {
 pub const FUNCTION_SET_VAR_SAMP: AggregateFunctionSet = AggregateFunctionSet {
     name: "var_samp",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Compute the sample variance.",
         arguments: &["inputs"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
         &SimpleUnaryAggregate::new(&Variance::<VarianceSampFinalize>::new()),

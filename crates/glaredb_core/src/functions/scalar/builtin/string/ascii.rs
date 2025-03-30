@@ -15,7 +15,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_ASCII: ScalarFunctionSet = ScalarFunctionSet {
     name: "ascii",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Get the ascii code of the first character of the argument.",
         arguments: &["string"],
@@ -23,7 +23,7 @@ pub const FUNCTION_SET_ASCII: ScalarFunctionSet = ScalarFunctionSet {
             example: "ascii('h')",
             output: "104",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Utf8], DataTypeId::Int32),
         &Ascii,

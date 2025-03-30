@@ -17,12 +17,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_COUNT: AggregateFunctionSet = AggregateFunctionSet {
     name: "count",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Return the count of non-NULL inputs.",
         arguments: &["input"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Any], DataTypeId::Int64),
         &Count,

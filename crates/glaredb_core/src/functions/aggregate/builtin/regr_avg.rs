@@ -18,12 +18,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_REGR_AVG_Y: AggregateFunctionSet = AggregateFunctionSet {
     name: "regr_avgy",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Compute the average of the dependent variable ('y').",
         arguments: &["y", "x"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(
             &[DataTypeId::Float64, DataTypeId::Float64],
@@ -36,12 +36,12 @@ pub const FUNCTION_SET_REGR_AVG_Y: AggregateFunctionSet = AggregateFunctionSet {
 pub const FUNCTION_SET_REGR_AVG_X: AggregateFunctionSet = AggregateFunctionSet {
     name: "regr_avgx",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Compute the average of the independent variable ('x').",
         arguments: &["y", "x"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(
             &[DataTypeId::Float64, DataTypeId::Float64],

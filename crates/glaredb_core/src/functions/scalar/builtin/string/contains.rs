@@ -17,7 +17,7 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 pub const FUNCTION_SET_CONTAINS: ScalarFunctionSet = ScalarFunctionSet {
     name: "contains",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Check if string contains a search string.",
         arguments: &["string", "search"],
@@ -25,7 +25,7 @@ pub const FUNCTION_SET_CONTAINS: ScalarFunctionSet = ScalarFunctionSet {
             example: "contains('house', 'ou')",
             output: "true",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Boolean),
         &StringContains,

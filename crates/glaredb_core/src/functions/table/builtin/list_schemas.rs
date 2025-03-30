@@ -24,7 +24,7 @@ use crate::storage::projections::Projections;
 pub const FUNCTION_SET_LIST_SCHEMAS: TableFunctionSet = TableFunctionSet {
     name: "list_schemas",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[], DataTypeId::Table),
         &ListSchemas,

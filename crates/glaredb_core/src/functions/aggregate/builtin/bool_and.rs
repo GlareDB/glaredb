@@ -17,12 +17,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_BOOL_AND: AggregateFunctionSet = AggregateFunctionSet {
     name: "bool_and",
     aliases: &["every"],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Returns true if all non-NULL inputs are true, otherwise false.",
         arguments: &["input"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
         &SimpleUnaryAggregate::new(&BoolAnd),

@@ -24,7 +24,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_IS_INF: ScalarFunctionSet = ScalarFunctionSet {
     name: "isinf",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Numeric,
         description: "Return if the given float is infinite (positive or negative infinity).",
         arguments: &["float"],
@@ -32,7 +32,7 @@ pub const FUNCTION_SET_IS_INF: ScalarFunctionSet = ScalarFunctionSet {
             example: "isinf('Infinity'::FLOAT)",
             output: "true",
         }),
-    }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float16], DataTypeId::Boolean),

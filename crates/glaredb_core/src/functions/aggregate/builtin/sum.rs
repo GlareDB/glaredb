@@ -21,12 +21,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_SUM: AggregateFunctionSet = AggregateFunctionSet {
     name: "sum",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Compute the sum of all non-NULL inputs.",
         arguments: &["inputs"],
         example: None,
-    }),
+    }],
     functions: &[
         RawAggregateFunction::new(
             &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),

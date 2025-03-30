@@ -15,7 +15,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
     name: "length",
     aliases: &["char_length", "character_length"],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Get the number of characters in a string.",
         arguments: &["string"],
@@ -23,7 +23,7 @@ pub const FUNCTION_SET_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
             example: "length('tschüß')",
             output: "6",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),
         &StringLength,
@@ -63,7 +63,7 @@ impl ScalarFunction for StringLength {
 pub const FUNCTION_SET_BYTE_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
     name: "byte_length",
     aliases: &["octet_length"],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Get the number of bytes in a string or blob.",
         arguments: &["string"],
@@ -71,7 +71,7 @@ pub const FUNCTION_SET_BYTE_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
             example: "byte_length('tschüß')",
             output: "6",
         }),
-    }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),
@@ -115,7 +115,7 @@ impl ScalarFunction for ByteLength {
 pub const FUNCTION_SET_BIT_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
     name: "bit_length",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Get the number of bits in a string or blob.",
         arguments: &["string"],
@@ -123,7 +123,7 @@ pub const FUNCTION_SET_BIT_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
             example: "bit_length('tschüß')",
             output: "64",
         }),
-    }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Utf8], DataTypeId::Int64),

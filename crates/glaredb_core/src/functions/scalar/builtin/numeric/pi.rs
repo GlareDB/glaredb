@@ -14,7 +14,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_PI: ScalarFunctionSet = ScalarFunctionSet {
     name: "pi",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Numeric,
         description: "Return the value of pi.",
         arguments: &[],
@@ -22,7 +22,7 @@ pub const FUNCTION_SET_PI: ScalarFunctionSet = ScalarFunctionSet {
             example: "pi()",
             output: "3.141592653589793",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[], DataTypeId::Float64),
         &Pi,

@@ -15,7 +15,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_RIGHT: ScalarFunctionSet = ScalarFunctionSet {
     name: "right",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Get the rightmost N characters of a string.",
         arguments: &["string", "count"],
@@ -23,7 +23,7 @@ pub const FUNCTION_SET_RIGHT: ScalarFunctionSet = ScalarFunctionSet {
             example: "right('alphabet', 3)",
             output: "bet",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Utf8, DataTypeId::Int64], DataTypeId::Utf8),
         &Right,

@@ -17,7 +17,7 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 pub const FUNCTION_SET_STARTS_WITH: ScalarFunctionSet = ScalarFunctionSet {
     name: "starts_with",
     aliases: &["prefix"],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::String,
         description: "Check if a string starts with a prefix.",
         arguments: &["string", "prefix"],
@@ -25,7 +25,7 @@ pub const FUNCTION_SET_STARTS_WITH: ScalarFunctionSet = ScalarFunctionSet {
             example: "starts_with('hello', 'he')",
             output: "true",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Boolean),
         &StartsWith,

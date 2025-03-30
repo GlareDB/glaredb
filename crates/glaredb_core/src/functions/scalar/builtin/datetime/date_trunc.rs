@@ -18,7 +18,7 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 pub const FUNCTION_SET_DATE_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
     name: "date_trunc",
     aliases: &[],
-    doc: None,
+    doc: &[],
     // TODO: Date32/64
     functions: &[RawScalarFunction::new(
         &Signature::new(

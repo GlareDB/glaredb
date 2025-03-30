@@ -18,7 +18,7 @@ use super::table_gen::{TableGen, TpchColumn, TpchTable};
 pub const FUNCTION_SET_NATION: TableFunctionSet = TableFunctionSet {
     name: "nation",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[
         // nation(sf)
         RawTableFunction::new_scan(

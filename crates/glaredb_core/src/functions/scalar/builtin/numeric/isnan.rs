@@ -24,7 +24,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_IS_NAN: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_nan",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Numeric,
         description: "Return if the given float is a NaN.",
         arguments: &["float"],
@@ -32,7 +32,7 @@ pub const FUNCTION_SET_IS_NAN: ScalarFunctionSet = ScalarFunctionSet {
             example: "isnan('NaN'::FLOAT)",
             output: "true",
         }),
-    }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float16], DataTypeId::Boolean),

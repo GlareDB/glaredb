@@ -15,8 +15,7 @@ pub struct FunctionSet<T: 'static> {
     pub name: &'static str,
     /// Set of aliases for this function.
     pub aliases: &'static [&'static str],
-    /// Optional documentation for the function.
-    pub doc: Option<&'static Documentation>,
+    pub doc: &'static [&'static Documentation],
     /// The function implementations.
     pub functions: &'static [T],
 }

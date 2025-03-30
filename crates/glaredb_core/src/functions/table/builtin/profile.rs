@@ -41,12 +41,12 @@ use crate::storage::projections::Projections;
 pub const FUNCTION_SET_PLANNING_PROFILE: TableFunctionSet = TableFunctionSet {
     name: "planning_profile",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::System,
         description: "Get the timings generating during query planning.",
         arguments: &[],
         example: None,
-    }),
+    }],
     functions: &[
         // planning_profile()
         // Get profile for most recent query.
@@ -72,12 +72,12 @@ pub const FUNCTION_SET_PLANNING_PROFILE: TableFunctionSet = TableFunctionSet {
 pub const FUNCTION_SET_OPTIMIZER_PROFILE: TableFunctionSet = TableFunctionSet {
     name: "optimizer_profile",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::System,
         description: "Get the timings generated for each optimizer rule.",
         arguments: &[],
         example: None,
-    }),
+    }],
     functions: &[
         // optimizer_profile()
         // Get profile for most recent query.
@@ -103,12 +103,12 @@ pub const FUNCTION_SET_OPTIMIZER_PROFILE: TableFunctionSet = TableFunctionSet {
 pub const FUNCTION_SET_EXECUTION_PROFILE: TableFunctionSet = TableFunctionSet {
     name: "execution_profile",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::System,
         description: "Get the timings generating during query execution.",
         arguments: &[],
         example: None,
-    }),
+    }],
     functions: &[
         // execution_profile()
         // Get profile for most recent query.
@@ -134,7 +134,7 @@ pub const FUNCTION_SET_EXECUTION_PROFILE: TableFunctionSet = TableFunctionSet {
 pub const FUNCTION_SET_QUERY_INFO: TableFunctionSet = TableFunctionSet {
     name: "query_info",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[
         // query_info()
         // Get info for most recent query.

@@ -18,7 +18,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 pub const FUNCTION_SET_IS_NULL: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_null",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Check if a value is NULL.",
         arguments: &["value"],
@@ -26,7 +26,7 @@ pub const FUNCTION_SET_IS_NULL: ScalarFunctionSet = ScalarFunctionSet {
             example: "is_null(NULL)",
             output: "true",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Any], DataTypeId::Boolean),
         &IsNull::<false>,
@@ -36,7 +36,7 @@ pub const FUNCTION_SET_IS_NULL: ScalarFunctionSet = ScalarFunctionSet {
 pub const FUNCTION_SET_IS_NOT_NULL: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_not_null",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Check if a value is not NULL.",
         arguments: &["value"],
@@ -44,7 +44,7 @@ pub const FUNCTION_SET_IS_NOT_NULL: ScalarFunctionSet = ScalarFunctionSet {
             example: "is_not_null(NULL)",
             output: "false",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Any], DataTypeId::Boolean),
         &IsNull::<true>,
@@ -94,7 +94,7 @@ impl<const NEGATE: bool> ScalarFunction for IsNull<NEGATE> {
 pub const FUNCTION_SET_IS_TRUE: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_true",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Check if a value is true.",
         arguments: &["value"],
@@ -102,7 +102,7 @@ pub const FUNCTION_SET_IS_TRUE: ScalarFunctionSet = ScalarFunctionSet {
             example: "is_true(false)",
             output: "false",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
         &IsBool::<false, true>,
@@ -112,7 +112,7 @@ pub const FUNCTION_SET_IS_TRUE: ScalarFunctionSet = ScalarFunctionSet {
 pub const FUNCTION_SET_IS_NOT_TRUE: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_not_true",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Check if a value is not true.",
         arguments: &["value"],
@@ -120,7 +120,7 @@ pub const FUNCTION_SET_IS_NOT_TRUE: ScalarFunctionSet = ScalarFunctionSet {
             example: "is_not_true(false)",
             output: "true",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
         &IsBool::<true, true>,
@@ -130,7 +130,7 @@ pub const FUNCTION_SET_IS_NOT_TRUE: ScalarFunctionSet = ScalarFunctionSet {
 pub const FUNCTION_SET_IS_FALSE: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_false",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Check if a value is false.",
         arguments: &["value"],
@@ -138,7 +138,7 @@ pub const FUNCTION_SET_IS_FALSE: ScalarFunctionSet = ScalarFunctionSet {
             example: "is_false(false)",
             output: "true",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
         &IsBool::<false, false>,
@@ -148,7 +148,7 @@ pub const FUNCTION_SET_IS_FALSE: ScalarFunctionSet = ScalarFunctionSet {
 pub const FUNCTION_SET_IS_NOT_FALSE: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_not_false",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::General,
         description: "Check if a value is not false.",
         arguments: &["value"],
@@ -156,7 +156,7 @@ pub const FUNCTION_SET_IS_NOT_FALSE: ScalarFunctionSet = ScalarFunctionSet {
             example: "is_not_false(false)",
             output: "false",
         }),
-    }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
         &IsBool::<true, false>,

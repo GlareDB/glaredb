@@ -23,12 +23,12 @@ use crate::functions::function_set::AggregateFunctionSet;
 pub const FUNCTION_SET_REGR_COUNT: AggregateFunctionSet = AggregateFunctionSet {
     name: "regr_count",
     aliases: &[],
-    doc: Some(&Documentation {
+    doc: &[&Documentation {
         category: Category::Aggregate,
         description: "Compute the count where both inputs are not NULL.",
         arguments: &["y", "x"],
         example: None,
-    }),
+    }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(
             &[DataTypeId::Float64, DataTypeId::Float64],

@@ -18,7 +18,7 @@ use super::table_gen::{TableGen, TpchColumn, TpchTable};
 pub const FUNCTION_SET_REGION: TableFunctionSet = TableFunctionSet {
     name: "region",
     aliases: &[],
-    doc: None,
+    doc: &[],
     functions: &[
         // region(sf)
         RawTableFunction::new_scan(
