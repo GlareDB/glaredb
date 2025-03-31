@@ -30,7 +30,7 @@ pub(crate) mod convert {
 
     /// Number of days after 1970-01-01 to represent the min TPCH date
     /// (1992-01-01).
-    const MIN_DATE_DAYS_AFTER_EPOCH: i32 = 8302;
+    const MIN_DATE_DAYS_AFTER_EPOCH: i32 = 8035;
 
     /// Convert a tpch date to number of days after unix epoch.
     pub fn tpch_date_to_days_after_epoch(date: TPCHDate) -> i32 {
