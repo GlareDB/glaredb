@@ -1,0 +1,21 @@
+# trunc function
+
+query R
+SELECT trunc(1.9);
+----
+1
+
+query R
+SELECT trunc(-1.9);
+----
+-1
+
+query R
+SELECT trunc(0.0);
+----
+0
+
+query I
+SELECT trunc(NULL::FLOAT);
+----
+NULL

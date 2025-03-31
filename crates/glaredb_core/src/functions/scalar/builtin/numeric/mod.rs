@@ -20,6 +20,7 @@ mod round;
 mod sin;
 mod sqrt;
 mod tan;
+mod trunc;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -47,6 +48,7 @@ pub use round::*;
 pub use sin::*;
 pub use sqrt::*;
 pub use tan::*;
+pub use trunc::*;
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::MutableScalarStorage;
