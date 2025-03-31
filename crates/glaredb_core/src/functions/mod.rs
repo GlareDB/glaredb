@@ -9,12 +9,12 @@
 pub mod aggregate;
 pub mod bind_state;
 pub mod candidate;
+pub mod cast;
 pub mod documentation;
 pub mod function_set;
 pub mod implicit;
 pub mod scalar;
 pub mod table;
-pub mod cast;
 
 use candidate::CandidateSignature;
 
