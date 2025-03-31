@@ -28,8 +28,8 @@ pub const TO_UINT64_CAST_RULE: CastRule = CastRule::Implicit(160);
 pub const TO_F64_CAST_RULE: CastRule = CastRule::Implicit(151);
 pub const TO_F32_CAST_RULE: CastRule = CastRule::Implicit(150);
 
-pub const TO_DECIMAL_64_CAST_RULE: CastRule = CastRule::Implicit(131);
-pub const TO_DECIMAL_128_CAST_RULE: CastRule = CastRule::Implicit(130);
+pub const TO_DECIMAL64_CAST_RULE: CastRule = CastRule::Implicit(131);
+pub const TO_DECIMAL128_CAST_RULE: CastRule = CastRule::Implicit(130);
 
 pub const TO_STRING_CAST_RULE: CastRule = CastRule::Implicit(1);
 
