@@ -8,6 +8,8 @@ use crate::arrays::array::Array;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::ScalarValue;
+use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
 use crate::functions::cast::array::cast_array;
 use crate::functions::cast::behavior::CastFailBehavior;
 
@@ -18,9 +20,11 @@ pub struct PhysicalCastExpr {
 }
 
 impl PhysicalCastExpr {
-    pub fn new(expr: impl Into<PhysicalScalarExpression>, to: DataType) -> Self {
+    /// Applies a datatype cast to a literal null expression.
+    pub fn typed_null(datatype: DataType) -> Self {
+        let expr = PhysicalLiteralExpr::new(ScalarValue::Null);
         PhysicalCastExpr {
-            to,
+            to: datatype,
             expr: Box::new(expr.into()),
         }
     }

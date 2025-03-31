@@ -60,7 +60,7 @@ mod null {
     impl CastFunction for NullToAnything {
         type State = ();
 
-        fn bind(_src: &DataType, _target: &DataType) -> Result<Self::State> {
+        fn bind(&self, _src: &DataType, _target: &DataType) -> Result<Self::State> {
             Ok(())
         }
 

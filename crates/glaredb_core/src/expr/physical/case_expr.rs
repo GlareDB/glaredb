@@ -296,10 +296,7 @@ mod tests {
 
         let expr = PhysicalCaseExpr {
             cases,
-            else_expr: Box::new(
-                PhysicalCastExpr::new(PhysicalLiteralExpr::new(ScalarValue::Null), DataType::Int32)
-                    .into(),
-            ),
+            else_expr: Box::new(PhysicalCastExpr::typed_null(DataType::Int32).into()),
             datatype: DataType::Int32,
         };
 
@@ -352,10 +349,7 @@ mod tests {
 
         let expr = PhysicalCaseExpr {
             cases,
-            else_expr: Box::new(
-                PhysicalCastExpr::new(PhysicalLiteralExpr::new(ScalarValue::Null), DataType::Utf8)
-                    .into(),
-            ),
+            else_expr: Box::new(PhysicalCastExpr::typed_null(DataType::Utf8).into()),
             datatype: DataType::Utf8,
         };
 
@@ -471,10 +465,7 @@ mod tests {
 
         let expr = PhysicalCaseExpr {
             cases,
-            else_expr: Box::new(
-                PhysicalCastExpr::new(PhysicalLiteralExpr::new(ScalarValue::Null), DataType::Int32)
-                    .into(),
-            ),
+            else_expr: Box::new(PhysicalCastExpr::typed_null(DataType::Int32).into()),
             datatype: DataType::Int32,
         };
 

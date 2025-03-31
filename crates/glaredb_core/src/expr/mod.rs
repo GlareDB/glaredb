@@ -635,7 +635,7 @@ pub fn lit(scalar: impl Into<ScalarValue>) -> LiteralExpr {
 
 /// Wraps an expression in a cast.
 ///
-/// Does not verify that the cast is valid.
+/// Does not verify that the cast is valid (yet)
 pub fn cast(expr: impl Into<Expression>, to: DataType) -> CastExpr {
     CastExpr {
         to,

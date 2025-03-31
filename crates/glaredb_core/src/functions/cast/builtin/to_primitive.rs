@@ -49,12 +49,13 @@ use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_TO_INT8: CastFunctionSet = CastFunctionSet {
     name: "to_int8",
+    target: DataTypeId::Int8,
     #[rustfmt::skip]
     functions: &[
         // Null -> Int8
         RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_INT8_CAST_RULE),
         // Utf8 -> Int8
-        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalI8>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalI8>::new(), TO_INT8_CAST_RULE),
         // Int_ -> Int8
         RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalI8>::new(), TO_INT8_CAST_RULE),
         RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalI8>::new(), CastRule::Explicit),
@@ -76,10 +77,11 @@ pub const FUNCTION_SET_TO_INT8: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_UINT8: CastFunctionSet = CastFunctionSet {
     name: "to_uint8",
+    target: DataTypeId::UInt8,
     #[rustfmt::skip]
     functions: &[
         // Null -> UInt8
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_UINT16_CAST_RULE),
         // Utf8 -> UInt8
         RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalU8>::new(), CastRule::Explicit),
         // Int_ -> Uint8
@@ -103,12 +105,13 @@ pub const FUNCTION_SET_TO_UINT8: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_INT16: CastFunctionSet = CastFunctionSet {
     name: "to_int16",
+    target: DataTypeId::Int16,
     #[rustfmt::skip]
     functions: &[
         // Null -> Int16
         RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_INT16_CAST_RULE),
         // Utf8 -> Int16
-        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalI16>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalI16>::new(), TO_INT16_CAST_RULE),
         // Int_ -> Int16
         RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalI16>::new(), TO_INT16_CAST_RULE),
         RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalI16>::new(), TO_INT16_CAST_RULE),
@@ -130,6 +133,7 @@ pub const FUNCTION_SET_TO_INT16: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_UINT16: CastFunctionSet = CastFunctionSet {
     name: "to_uint16",
+    target: DataTypeId::UInt16,
     #[rustfmt::skip]
     functions: &[
         // Null -> UInt16
@@ -157,12 +161,13 @@ pub const FUNCTION_SET_TO_UINT16: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_INT32: CastFunctionSet = CastFunctionSet {
     name: "to_int32",
+    target: DataTypeId::Int32,
     #[rustfmt::skip]
     functions: &[
         // Null -> Int32
         RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_INT32_CAST_RULE),
         // Utf8 -> Int32
-        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalI32>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalI32>::new(), TO_INT32_CAST_RULE),
         // Int_ -> Int32
         RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalI32>::new(), TO_INT32_CAST_RULE),
         RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalI32>::new(), TO_INT32_CAST_RULE),
@@ -184,6 +189,7 @@ pub const FUNCTION_SET_TO_INT32: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_UINT32: CastFunctionSet = CastFunctionSet {
     name: "to_uint32",
+    target: DataTypeId::UInt32,
     #[rustfmt::skip]
     functions: &[
         // Null -> UInt32
@@ -211,12 +217,13 @@ pub const FUNCTION_SET_TO_UINT32: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_INT64: CastFunctionSet = CastFunctionSet {
     name: "to_int64",
+    target: DataTypeId::Int64,
     #[rustfmt::skip]
     functions: &[
         // Null -> Int64
         RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_INT64_CAST_RULE),
         // Utf8 -> Int64
-        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalI64>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalI64>::new(), TO_INT64_CAST_RULE),
         // Int_ -> Int64
         RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalI64>::new(), TO_INT64_CAST_RULE),
         RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalI64>::new(), TO_INT64_CAST_RULE),
@@ -238,6 +245,7 @@ pub const FUNCTION_SET_TO_INT64: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_UINT64: CastFunctionSet = CastFunctionSet {
     name: "to_uint64",
+    target: DataTypeId::UInt64,
     #[rustfmt::skip]
     functions: &[
         // Null -> UInt64
@@ -265,6 +273,7 @@ pub const FUNCTION_SET_TO_UINT64: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_INT128: CastFunctionSet = CastFunctionSet {
     name: "to_int128",
+    target: DataTypeId::Int128,
     #[rustfmt::skip]
     functions: &[
         // Null -> Int128
@@ -292,6 +301,7 @@ pub const FUNCTION_SET_TO_INT128: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_UINT128: CastFunctionSet = CastFunctionSet {
     name: "to_uint128",
+    target: DataTypeId::UInt128,
     #[rustfmt::skip]
     functions: &[
         // Null -> UInt128
@@ -319,6 +329,7 @@ pub const FUNCTION_SET_TO_UINT128: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_FLOAT16: CastFunctionSet = CastFunctionSet {
     name: "to_float16",
+    target: DataTypeId::Float16,
     #[rustfmt::skip]
     functions: &[
         // Null -> Float16
@@ -346,12 +357,13 @@ pub const FUNCTION_SET_TO_FLOAT16: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_FLOAT32: CastFunctionSet = CastFunctionSet {
     name: "to_float32",
+    target: DataTypeId::Float32,
     #[rustfmt::skip]
     functions: &[
         // Null -> Float32
         RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_F32_CAST_RULE),
         // Utf8 -> Float32
-        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalF32>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalF32>::new(), TO_F32_CAST_RULE),
         // Int_ -> Float32
         RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalF32>::new(), TO_F32_CAST_RULE),
         RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalF32>::new(), TO_F32_CAST_RULE),
@@ -376,12 +388,13 @@ pub const FUNCTION_SET_TO_FLOAT32: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_FLOAT64: CastFunctionSet = CastFunctionSet {
     name: "to_float64",
+    target: DataTypeId::Float64,
     #[rustfmt::skip]
     functions: &[
         // Null -> Float64
         RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_F64_CAST_RULE),
         // Utf8 -> Float64
-        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalF64>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalF64>::new(), TO_F64_CAST_RULE),
         // Int_ -> Float64
         RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalF64>::new(), TO_F64_CAST_RULE),
         RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalF64>::new(), TO_F64_CAST_RULE),
@@ -428,7 +441,7 @@ where
 {
     type State = ();
 
-    fn bind(_src: &DataType, _target: &DataType) -> Result<Self::State> {
+    fn bind(&self, _src: &DataType, _target: &DataType) -> Result<Self::State> {
         Ok(())
     }
 
@@ -488,7 +501,7 @@ where
 {
     type State = DecimalToFloatState<S::StorageType>;
 
-    fn bind(src: &DataType, _target: &DataType) -> Result<Self::State> {
+    fn bind(&self, src: &DataType, _target: &DataType) -> Result<Self::State> {
         let decimal_meta = src.try_get_decimal_type_meta()?;
         let scale = <S::StorageType as NumCast>::from((10.0).powi(decimal_meta.scale as i32))
             .ok_or_else(|| {
@@ -546,7 +559,7 @@ where
 {
     type State = ();
 
-    fn bind(_src: &DataType, _target: &DataType) -> Result<Self::State> {
+    fn bind(&self, _src: &DataType, _target: &DataType) -> Result<Self::State> {
         Ok(())
     }
 
@@ -642,9 +655,8 @@ mod tests {
 
         let error_state = CastFailBehavior::Error.new_state();
 
-        let state =
-            DecimalToFloat::<Decimal64Type, PhysicalF64>::bind(&arr.datatype, &DataType::Float64)
-                .unwrap();
+        let cast = DecimalToFloat::<Decimal64Type, PhysicalF64>::new();
+        let state = cast.bind(&arr.datatype, &DataType::Float64).unwrap();
         DecimalToFloat::<Decimal64Type, PhysicalF64>::cast(
             &state,
             error_state,

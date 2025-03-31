@@ -3,6 +3,7 @@ use std::fmt;
 use super::Expression;
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::functions::cast::PlannedCastFunction;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CastExpr {

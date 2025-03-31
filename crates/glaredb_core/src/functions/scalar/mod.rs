@@ -68,7 +68,7 @@ impl Hash for PlannedScalarFunction {
 pub struct RawScalarFunctionVTable {
     /// Create the function state and compute the return type.
     bind_fn: unsafe fn(function: *const (), inputs: Vec<Expression>) -> Result<RawBindState>,
-    /// Execute the function. First argument is a pointer to the function state.
+    /// Execute the function. First argument is the state.
     execute_fn: unsafe fn(state: &dyn Any, input: &Batch, output: &mut Array) -> Result<()>,
 }
 

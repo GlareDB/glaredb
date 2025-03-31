@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 
 use glaredb_error::{DbError, Result};
 
+use super::null::NullToAnything;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     PhysicalF16,
@@ -45,7 +46,10 @@ use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_TO_STRING: CastFunctionSet = CastFunctionSet {
     name: "to_string",
+    target: DataTypeId::Utf8,
     functions: &[
+        // Null
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_STRING_CAST_RULE),
         // Primitives
         RawCastFunction::new(
             DataTypeId::Int8,
@@ -155,7 +159,7 @@ where
 {
     type State = ();
 
-    fn bind(_src: &DataType, _target: &DataType) -> Result<Self::State> {
+    fn bind(&self, _src: &DataType, _target: &DataType) -> Result<Self::State> {
         Ok(())
     }
 
@@ -213,7 +217,7 @@ where
 {
     type State = DecimalToStringState<D::Primitive>;
 
-    fn bind(src: &DataType, _target: &DataType) -> Result<Self::State> {
+    fn bind(&self, src: &DataType, _target: &DataType) -> Result<Self::State> {
         let meta = src.try_get_decimal_type_meta()?;
         let formatter = DecimalFormatter::new(meta.precision, meta.scale);
 
@@ -242,7 +246,7 @@ pub struct TimestampToStringState {
 impl CastFunction for TimestampToString {
     type State = TimestampToStringState;
 
-    fn bind(src: &DataType, _target: &DataType) -> Result<Self::State> {
+    fn bind(&self, src: &DataType, _target: &DataType) -> Result<Self::State> {
         let m = src.try_get_timestamp_type_meta()?;
         Ok(TimestampToStringState { unit: m.unit })
     }

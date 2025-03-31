@@ -47,17 +47,18 @@ use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_TO_DECIMAL64: CastFunctionSet = CastFunctionSet {
     name: "to_decimal64",
+    target: DataTypeId::Decimal64,
     #[rustfmt::skip]
     functions: &[
         // Null -> Decimal64
         RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_DECIMAL64_CAST_RULE),
         // Utf8 -> Decimal64
-        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToDecimal::<Decimal64Type>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToDecimal::<Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
         // Int_ -> Decimal64
         RawCastFunction::new(DataTypeId::Int8, &IntToDecimal::<PhysicalI8, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
         RawCastFunction::new(DataTypeId::Int16, &IntToDecimal::<PhysicalI16, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
         RawCastFunction::new(DataTypeId::Int32, &IntToDecimal::<PhysicalI32, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Int64, &IntToDecimal::<PhysicalI64, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Int64, &IntToDecimal::<PhysicalI64, Decimal64Type>::new(), CastRule::Explicit),
         RawCastFunction::new(DataTypeId::Int128, &IntToDecimal::<PhysicalI128, Decimal64Type>::new(), CastRule::Explicit),
         // UInt_ -> Decimal64
         RawCastFunction::new(DataTypeId::UInt8, &IntToDecimal::<PhysicalU8, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
@@ -77,12 +78,13 @@ pub const FUNCTION_SET_TO_DECIMAL64: CastFunctionSet = CastFunctionSet {
 
 pub const FUNCTION_SET_TO_DECIMAL128: CastFunctionSet = CastFunctionSet {
     name: "to_decimal128",
+    target: DataTypeId::Decimal128,
     #[rustfmt::skip]
     functions: &[
         // Null -> Decimal128
         RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_DECIMAL128_CAST_RULE),
         // Utf8 -> Decimal128
-        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToDecimal::<Decimal128Type>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToDecimal::<Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
         // Int_ -> Decimal128
         RawCastFunction::new(DataTypeId::Int8, &IntToDecimal::<PhysicalI8, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
         RawCastFunction::new(DataTypeId::Int16, &IntToDecimal::<PhysicalI16, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
@@ -135,7 +137,7 @@ where
 {
     type State = IntToDecimalState<D::Primitive>;
 
-    fn bind(_src: &DataType, target: &DataType) -> Result<Self::State> {
+    fn bind(&self, _src: &DataType, target: &DataType) -> Result<Self::State> {
         let decimal_meta = target.try_get_decimal_type_meta()?;
         let scale = decimal_meta.scale;
         let precision = decimal_meta.precision;
@@ -236,7 +238,7 @@ where
 {
     type State = FloatToDecimalState<S::StorageType>;
 
-    fn bind(_src: &DataType, target: &DataType) -> Result<Self::State> {
+    fn bind(&self, _src: &DataType, target: &DataType) -> Result<Self::State> {
         let decimal_meta = target.try_get_decimal_type_meta()?;
         let scale = decimal_meta.scale;
         let precision = decimal_meta.precision;
@@ -309,7 +311,7 @@ where
 {
     type State = Utf8ToDecimalState;
 
-    fn bind(_src: &DataType, target: &DataType) -> Result<Self::State> {
+    fn bind(&self, _src: &DataType, target: &DataType) -> Result<Self::State> {
         let meta = target.try_get_decimal_type_meta()?;
         Ok(Utf8ToDecimalState {
             precision: meta.precision,
@@ -376,7 +378,7 @@ where
 {
     type State = DecimalToDecimalState<D2::Primitive>;
 
-    fn bind(src: &DataType, target: &DataType) -> Result<Self::State> {
+    fn bind(&self, src: &DataType, target: &DataType) -> Result<Self::State> {
         let target_meta = target.try_get_decimal_type_meta()?;
         let src_meta = src.try_get_decimal_type_meta()?;
 
@@ -485,9 +487,8 @@ mod tests {
         )
         .unwrap();
 
-        let state =
-            DecimalToDecimal::<Decimal64Type, Decimal64Type>::bind(&arr.datatype, &out.datatype)
-                .unwrap();
+        let cast = DecimalToDecimal::<Decimal64Type, Decimal64Type>::new();
+        let state = cast.bind(&arr.datatype, &out.datatype).unwrap();
         let error_state = CastFailBehavior::Error.new_state();
         DecimalToDecimal::<Decimal64Type, Decimal64Type>::cast(
             &state,
@@ -516,9 +517,8 @@ mod tests {
         )
         .unwrap();
 
-        let state =
-            DecimalToDecimal::<Decimal64Type, Decimal64Type>::bind(&arr.datatype, &out.datatype)
-                .unwrap();
+        let cast = DecimalToDecimal::<Decimal64Type, Decimal64Type>::new();
+        let state = cast.bind(&arr.datatype, &out.datatype).unwrap();
         let error_state = CastFailBehavior::Error.new_state();
         DecimalToDecimal::<Decimal64Type, Decimal64Type>::cast(
             &state,
@@ -549,9 +549,8 @@ mod tests {
         )
         .unwrap();
 
-        let state =
-            DecimalToDecimal::<Decimal64Type, Decimal64Type>::bind(&arr.datatype, &out.datatype)
-                .unwrap();
+        let cast = DecimalToDecimal::<Decimal64Type, Decimal64Type>::new();
+        let state = cast.bind(&arr.datatype, &out.datatype).unwrap();
         let error_state = CastFailBehavior::Error.new_state();
         DecimalToDecimal::<Decimal64Type, Decimal64Type>::cast(
             &state,
