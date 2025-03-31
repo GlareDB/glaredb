@@ -1,6 +1,6 @@
-use glaredb_core::arrays::compute::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
 use glaredb_core::arrays::datatype::{DataType, TimeUnit, TimestampTypeMeta};
 use glaredb_core::arrays::field::{ColumnSchema, Field};
+use glaredb_core::functions::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
 use glaredb_error::{DbError, Result, ResultExt};
 
 use crate::decoder::ByteRecords;

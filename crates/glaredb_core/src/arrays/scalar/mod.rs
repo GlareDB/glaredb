@@ -15,7 +15,15 @@ use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
 use crate::arrays::array::Array;
-use crate::arrays::compute::cast::format::{
+use crate::arrays::datatype::{
+    DataType,
+    DecimalTypeMeta,
+    ListTypeMeta,
+    TimeUnit,
+    TimestampTypeMeta,
+};
+use crate::buffer::buffer_manager::NopBufferManager;
+use crate::functions::cast::format::{
     BoolFormatter,
     Date32Formatter,
     Date64Formatter,
@@ -41,14 +49,6 @@ use crate::arrays::compute::cast::format::{
     UInt64Formatter,
     UInt128Formatter,
 };
-use crate::arrays::datatype::{
-    DataType,
-    DecimalTypeMeta,
-    ListTypeMeta,
-    TimeUnit,
-    TimestampTypeMeta,
-};
-use crate::buffer::buffer_manager::NopBufferManager;
 
 /// A single scalar value.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

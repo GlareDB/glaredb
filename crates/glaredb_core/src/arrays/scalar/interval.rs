@@ -4,7 +4,7 @@ use glaredb_error::Result;
 use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
-use crate::arrays::compute::cast::format::{Formatter, IntervalFormatter};
+use crate::functions::cast::format::{Formatter, IntervalFormatter};
 
 /// A representation of an interval with nanosecond resolution.
 #[derive(

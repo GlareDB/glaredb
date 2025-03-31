@@ -30,9 +30,9 @@ use glaredb_core::arrays::array::physical_type::{
     PhysicalUtf8,
 };
 use glaredb_core::arrays::batch::Batch;
-use glaredb_core::arrays::compute::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
 use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::execution::operators::PollPull;
+use glaredb_core::functions::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
 use glaredb_core::io::file::AsyncReadStream;
 use glaredb_core::storage::projections::Projections;
 use glaredb_error::{DbError, Result, ResultExt};

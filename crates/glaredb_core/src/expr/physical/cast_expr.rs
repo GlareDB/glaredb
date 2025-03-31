@@ -7,9 +7,9 @@ use super::{ExpressionState, PhysicalScalarExpression};
 use crate::arrays::array::Array;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
-use crate::arrays::compute::cast::array::cast_array;
-use crate::arrays::compute::cast::behavior::CastFailBehavior;
 use crate::arrays::datatype::DataType;
+use crate::functions::cast::array::cast_array;
+use crate::functions::cast::behavior::CastFailBehavior;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalCastExpr {

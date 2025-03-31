@@ -3,7 +3,6 @@ use glaredb_parser::ast::{self, QueryNode};
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ExpressionColumnBinder;
-use crate::arrays::compute::cast::parse::{Decimal64Parser, Decimal128Parser, Parser};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::decimal::{
     Decimal64Scalar,
@@ -28,6 +27,7 @@ use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
 use crate::expr::{self, Expression, bind_aggregate_function};
+use crate::functions::cast::parse::{Decimal64Parser, Decimal128Parser, Parser};
 use crate::functions::scalar::builtin::datetime::FUNCTION_SET_DATE_PART;
 use crate::functions::scalar::builtin::is::{
     FUNCTION_SET_IS_FALSE,
