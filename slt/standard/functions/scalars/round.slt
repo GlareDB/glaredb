@@ -1,0 +1,26 @@
+# round function
+
+query R
+SELECT round(1.2);
+----
+1
+
+query R
+SELECT round(1.8);
+----
+2
+
+query R
+SELECT round(1.5);
+----
+2
+
+query R
+SELECT round(-1.5);
+----
+-2
+
+query R
+SELECT round(NULL::FLOAT);
+----
+NULL
