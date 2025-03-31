@@ -7,8 +7,6 @@ use num_traits::Float;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
-    PhysicalF16,
-    PhysicalF32,
     PhysicalF64,
 };
 use crate::arrays::batch::Batch;
@@ -31,20 +29,6 @@ pub const FUNCTION_SET_POWER: ScalarFunctionSet = ScalarFunctionSet {
         example: None,
     }],
     functions: &[
-        RawScalarFunction::new(
-            &Signature::new(
-                &[DataTypeId::Float16, DataTypeId::Float16],
-                DataTypeId::Float16,
-            ),
-            &Power::<PhysicalF16>::new(&DataType::Float16),
-        ),
-        RawScalarFunction::new(
-            &Signature::new(
-                &[DataTypeId::Float32, DataTypeId::Float32],
-                DataTypeId::Float32,
-            ),
-            &Power::<PhysicalF32>::new(&DataType::Float32),
-        ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Float64, DataTypeId::Float64],
