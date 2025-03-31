@@ -1,0 +1,51 @@
+# POWER function tests
+query I
+SELECT power(2, 3);
+----
+8
+
+query I
+SELECT power(2, 0);
+----
+1
+
+query I
+SELECT power(0, 0);
+----
+1
+
+query R
+SELECT power(2.5, 2);
+----
+6.25
+
+query R
+SELECT power(4, 0.5);
+----
+2
+
+query R
+SELECT power(27, 1.0/3.0);
+----
+3
+
+query T
+SELECT power(NULL, 2);
+----
+NULL
+
+query T
+SELECT power(2, NULL);
+----
+NULL
+
+query T
+SELECT pow(2, 3);
+----
+8
+
+# Alias tests
+query T
+SELECT pow(4, 0.5);
+----
+2
