@@ -18,7 +18,6 @@ use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::RawScalarFunction;
 use crate::util::iter::IntoExactSizeIterator;
 
-
 pub const FUNCTION_SET_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
     name: "trunc",
     aliases: &[],
