@@ -6,7 +6,6 @@ use super::cast_expr::PhysicalCastExpr;
 use super::column_expr::PhysicalColumnExpr;
 use super::literal_expr::PhysicalLiteralExpr;
 use super::scalar_function_expr::PhysicalScalarFunctionExpr;
-use crate::arrays::scalar::BorrowedScalarValue;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::case_expr::PhysicalWhenThen;
 use crate::expr::{AsScalarFunctionSet, Expression};
@@ -109,6 +108,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
             Expression::Cast(expr) => Ok(PhysicalScalarExpression::Cast(PhysicalCastExpr {
                 to: expr.to.clone(),
                 expr: Box::new(self.plan_scalar(table_refs, &expr.expr)?),
+                cast_function: expr.cast_function.clone(),
             })),
             Expression::Comparison(expr) => self.plan_as_scalar_function(
                 table_refs,
@@ -139,15 +139,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                     })
                     .collect::<Result<Vec<_>>>()?;
 
-                let else_expr = match &expr.else_expr {
-                    Some(else_expr) => self.plan_scalar(table_refs, else_expr)?,
-                    None => PhysicalScalarExpression::Cast(PhysicalCastExpr {
-                        to: datatype.clone(),
-                        expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                            literal: BorrowedScalarValue::Null,
-                        })),
-                    }),
-                };
+                let else_expr = self.plan_scalar(table_refs, &expr.else_expr)?;
 
                 Ok(PhysicalScalarExpression::Case(PhysicalCaseExpr {
                     cases,

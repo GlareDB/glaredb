@@ -16,7 +16,6 @@ use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::expr::aggregate_expr::AggregateExpr;
 use crate::expr::arith_expr::ArithOperator;
 use crate::expr::case_expr::{CaseExpr, WhenThen};
-use crate::expr::cast_expr::CastExpr;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::conjunction_expr::ConjunctionOperator;
 use crate::expr::grouping_set_expr::GroupingSetExpr;
@@ -469,7 +468,7 @@ impl<'a> BaseExpressionBinder<'a> {
                 // update cast rules for arrays and scalars at the same time.
                 //
                 // let scalar = cast_scalar(scalar, &datatype)?;
-                Ok(expr::cast(expr::lit(value.clone()), datatype.clone()).into())
+                Ok(expr::cast(expr::lit(value.clone()), datatype.clone())?.into())
             }
             ast::Expr::Cast { datatype, expr } => {
                 let expr = self.bind_expression(
@@ -482,7 +481,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     },
                 )?;
 
-                Ok(expr::cast(expr, datatype.clone()).into())
+                Ok(expr::cast(expr, datatype.clone())?.into())
             }
             ast::Expr::Like {
                 expr,
@@ -628,7 +627,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         let expr = expr::arith(op, interval, expr)?;
                         Ok(expr.into())
                     }
-                    None => Ok(expr::cast(expr, DataType::Interval).into()),
+                    None => Ok(expr::cast(expr, DataType::Interval)?.into()),
                 }
             }
             ast::Expr::Between {
@@ -753,10 +752,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         cases.first().expect("at least one case").then.datatype()?;
 
                     if expr.datatype()? != first_case_dt {
-                        else_expr = Some(Expression::Cast(CastExpr {
-                            to: first_case_dt,
-                            expr: Box::new(expr),
-                        }));
+                        else_expr = Some(expr::cast(expr, first_case_dt)?.into());
                     } else {
                         else_expr = Some(expr);
                     }
@@ -859,10 +855,7 @@ impl<'a> BaseExpressionBinder<'a> {
             SubqueryType::Any { expr, op } => {
                 if expr.datatype()? != return_type {
                     SubqueryType::Any {
-                        expr: Box::new(Expression::Cast(CastExpr {
-                            to: query_return_type,
-                            expr,
-                        })),
+                        expr: Box::new(expr::cast(*expr, query_return_type)?.into()),
                         op,
                     }
                 } else {

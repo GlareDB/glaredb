@@ -95,7 +95,7 @@ impl<'a> ValuesBinder<'a> {
             for (expr, datatype) in row.iter_mut().zip(&types) {
                 if &expr.datatype()? != datatype {
                     // TODO: Could try to take instead of clone.
-                    *expr = cast(expr.clone(), datatype.clone()).into()
+                    *expr = cast(expr.clone(), datatype.clone())?.into()
                 }
             }
         }

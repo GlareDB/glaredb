@@ -292,12 +292,12 @@ where
         // decimal metas for the type.
         if cast_left {
             let left_type = D::datatype_from_decimal_meta(l_meta);
-            left = expr::cast(left, left_type).into();
+            left = expr::cast(left, left_type)?.into();
         }
 
         if cast_right {
             let right_type = D::datatype_from_decimal_meta(r_meta);
-            right = expr::cast(right, right_type).into();
+            right = expr::cast(right, right_type)?.into();
         }
 
         Ok(BindState {

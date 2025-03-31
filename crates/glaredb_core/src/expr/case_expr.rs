@@ -4,7 +4,9 @@ use glaredb_error::{DbError, Result};
 
 use super::Expression;
 use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::ScalarValue;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::expr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WhenThen {
@@ -36,7 +38,7 @@ impl ContextDisplay for WhenThen {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CaseExpr {
     pub cases: Vec<WhenThen>,
-    pub else_expr: Option<Box<Expression>>,
+    pub else_expr: Box<Expression>,
     pub datatype: DataType,
 }
 
@@ -63,6 +65,15 @@ impl CaseExpr {
             }
         }
 
+        let else_expr = match else_expr {
+            Some(expr) => expr,
+            None => {
+                // No "else" given, create a typed null expression with the same
+                // datatype as the output of this expression.
+                Box::new(expr::cast(expr::lit(ScalarValue::Null), datatype.clone())?.into())
+            }
+        };
+
         Ok(CaseExpr {
             cases,
             else_expr,
@@ -82,13 +93,11 @@ impl ContextDisplay for CaseExpr {
             write!(f, "{} ", ContextDisplayWrapper::with_mode(case, mode),)?;
         }
 
-        if let Some(else_expr) = self.else_expr.as_ref() {
-            write!(
-                f,
-                "ELSE {}",
-                ContextDisplayWrapper::with_mode(else_expr.as_ref(), mode),
-            )?;
-        }
+        write!(
+            f,
+            "ELSE {}",
+            ContextDisplayWrapper::with_mode(self.else_expr.as_ref(), mode),
+        )?;
 
         Ok(())
     }

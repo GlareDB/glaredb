@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn fold_string_to_float_cast() {
-        let expr = cast(lit("3.1"), DataType::Float64);
+        let expr = cast(lit("3.1"), DataType::Float64).unwrap();
 
         let expected: Expression = lit(3.1_f64).into();
 

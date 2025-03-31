@@ -194,7 +194,6 @@ mod tests {
     use crate::arrays::datatype::DataType;
     use crate::arrays::scalar::ScalarValue;
     use crate::buffer::buffer_manager::NopBufferManager;
-    use crate::expr::physical::cast_expr::PhysicalCastExpr;
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
     use crate::functions::scalar::builtin::is::FUNCTION_SET_IS_NULL;
@@ -202,6 +201,13 @@ mod tests {
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::testutil::exprs::plan_scalar;
     use crate::{expr, generate_array, generate_batch};
+
+    fn typed_null(datatype: DataType) -> PhysicalScalarExpression {
+        plan_scalar(
+            &TableList::empty(),
+            expr::cast(expr::lit(ScalarValue::Null), datatype).unwrap(),
+        )
+    }
 
     #[test]
     fn case_simple() {
@@ -296,7 +302,7 @@ mod tests {
 
         let expr = PhysicalCaseExpr {
             cases,
-            else_expr: Box::new(PhysicalCastExpr::typed_null(DataType::Int32).into()),
+            else_expr: Box::new(typed_null(DataType::Int32)),
             datatype: DataType::Int32,
         };
 
@@ -349,7 +355,7 @@ mod tests {
 
         let expr = PhysicalCaseExpr {
             cases,
-            else_expr: Box::new(PhysicalCastExpr::typed_null(DataType::Utf8).into()),
+            else_expr: Box::new(typed_null(DataType::Utf8)),
             datatype: DataType::Utf8,
         };
 
@@ -465,7 +471,7 @@ mod tests {
 
         let expr = PhysicalCaseExpr {
             cases,
-            else_expr: Box::new(PhysicalCastExpr::typed_null(DataType::Int32).into()),
+            else_expr: Box::new(typed_null(DataType::Int32)),
             datatype: DataType::Int32,
         };
 

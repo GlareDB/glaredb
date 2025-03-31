@@ -1,8 +1,7 @@
 use glaredb_error::{DbError, Result};
 
-use crate::expr::Expression;
-use crate::expr::cast_expr::CastExpr;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
+use crate::expr::{self, Expression};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::bind_query::bind_setop::{BoundSetOp, SetOpCastRequirement};
 use crate::logical::binder::table_list::{Table, TableRef};
@@ -155,10 +154,7 @@ impl SetOpPlanner {
                 continue;
             }
 
-            cast_exprs.push(Expression::Cast(CastExpr {
-                to: need_type.clone(),
-                expr: Box::new(col_expr),
-            }));
+            cast_exprs.push(expr::cast(col_expr, need_type.clone())?.into());
         }
 
         Ok(cast_exprs)

@@ -20,8 +20,6 @@ const NULL_TO_LIST_SCORE: u32 = 10;
 ///
 /// This is a best-effort attempt to determine if casting from one type to
 /// another is valid and won't lose precision.
-///
-/// `allow_from_utf8` determines if we should allow implicit casting from strings.
 pub fn implicit_cast_score(have: DataTypeId, want: DataTypeId) -> Option<u32> {
     if want == DataTypeId::Any {
         return Some(TO_ANY_SCORE);
@@ -30,8 +28,6 @@ pub fn implicit_cast_score(have: DataTypeId, want: DataTypeId) -> Option<u32> {
     if have == DataTypeId::Null && matches!(want, DataTypeId::List(_)) {
         return Some(NULL_TO_LIST_SCORE);
     }
-
-    println!("HAVE: {have} WANT {want}");
 
     // TODO: Pass in the function sets. This should be in the catalog.
     for cast_set in BUILTIN_CAST_FUNCTION_SETS {

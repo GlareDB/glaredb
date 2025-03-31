@@ -538,7 +538,7 @@ where
 
             let left = if l_meta != new_meta {
                 // Cast left.
-                expr::cast(left, new_datatype.clone()).into()
+                expr::cast(left, new_datatype.clone())?.into()
             } else {
                 // Left is unchanged.
                 left
@@ -546,7 +546,7 @@ where
 
             let right = if r_meta != new_meta {
                 // Cast right.
-                expr::cast(right, new_datatype).into()
+                expr::cast(right, new_datatype)?.into()
             } else {
                 // Right is unchanged.
                 right

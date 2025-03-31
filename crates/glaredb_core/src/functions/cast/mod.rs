@@ -131,6 +131,9 @@ pub struct RawCastFunction {
     vtable: &'static RawCastFunctionVTable,
 }
 
+unsafe impl Send for RawCastFunction {}
+unsafe impl Sync for RawCastFunction {}
+
 impl RawCastFunction {
     pub const fn new<F>(src: DataTypeId, function: &'static F, rule: CastRule) -> Self
     where
@@ -143,6 +146,10 @@ impl RawCastFunction {
             rule,
             vtable: F::VTABLE,
         }
+    }
+
+    pub fn call_bind(&self, src: &DataType, target: &DataType) -> Result<RawCastBindState> {
+        unsafe { (self.vtable.bind_fn)(self.function, src, target) }
     }
 }
 
