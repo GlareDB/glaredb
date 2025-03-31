@@ -644,9 +644,9 @@ impl DataType {
         }
     }
 
-    pub fn try_get_timestamp_unit(&self) -> Result<TimeUnit> {
+    pub fn try_get_timestamp_type_meta(&self) -> Result<TimestampTypeMeta> {
         match self {
-            Self::Timestamp(unit) => Ok(unit),
+            Self::Timestamp(m) => Ok(m),
             other => Err(DbError::new(format!(
                 "Cannot get timestamp time unit from type {other}"
             ))),
