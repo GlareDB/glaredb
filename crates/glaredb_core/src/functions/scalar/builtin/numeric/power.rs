@@ -21,7 +21,6 @@ use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
-
 pub const FUNCTION_SET_POWER: ScalarFunctionSet = ScalarFunctionSet {
     name: "power",
     aliases: &["pow"],
