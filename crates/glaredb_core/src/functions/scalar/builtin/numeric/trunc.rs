@@ -18,6 +18,7 @@ use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::RawScalarFunction;
 use crate::util::iter::IntoExactSizeIterator;
 
+// TODO: Implement `trunc` for decimals
 pub const FUNCTION_SET_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
     name: "trunc",
     aliases: &[],
