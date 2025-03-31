@@ -5,10 +5,7 @@ use glaredb_error::Result;
 use num_traits::Float;
 
 use crate::arrays::array::Array;
-use crate::arrays::array::physical_type::{
-    MutableScalarStorage,
-    PhysicalF64,
-};
+use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalF64};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::OutBuffer;
@@ -28,15 +25,13 @@ pub const FUNCTION_SET_POWER: ScalarFunctionSet = ScalarFunctionSet {
         arguments: &["base", "exponent"],
         example: None,
     }],
-    functions: &[
-        RawScalarFunction::new(
-            &Signature::new(
-                &[DataTypeId::Float64, DataTypeId::Float64],
-                DataTypeId::Float64,
-            ),
-            &Power::<PhysicalF64>::new(&DataType::Float64),
+    functions: &[RawScalarFunction::new(
+        &Signature::new(
+            &[DataTypeId::Float64, DataTypeId::Float64],
+            DataTypeId::Float64,
         ),
-    ],
+        &Power::<PhysicalF64>::new(&DataType::Float64),
+    )],
 };
 
 #[derive(Debug, Clone, Copy)]
