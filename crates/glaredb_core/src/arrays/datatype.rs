@@ -643,6 +643,15 @@ impl DataType {
             ))),
         }
     }
+
+    pub fn try_get_timestamp_unit(&self) -> Result<TimeUnit> {
+        match self {
+            Self::Timestamp(unit) => Ok(unit),
+            other => Err(DbError::new(format!(
+                "Cannot get timestamp time unit from type {other}"
+            ))),
+        }
+    }
 }
 
 impl ProtoConv for DataType {
