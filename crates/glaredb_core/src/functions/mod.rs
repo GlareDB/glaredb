@@ -14,6 +14,7 @@ pub mod function_set;
 pub mod implicit;
 pub mod scalar;
 pub mod table;
+pub mod cast;
 
 use candidate::CandidateSignature;
 

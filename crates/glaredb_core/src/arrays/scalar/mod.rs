@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
 use crate::arrays::array::Array;
-use crate::arrays::compute::cast::format::{
+use crate::functions::cast::format::{
     BoolFormatter,
     Date32Formatter,
     Date64Formatter,

@@ -3,7 +3,7 @@ use glaredb_parser::ast::{self, QueryNode};
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ExpressionColumnBinder;
-use crate::arrays::compute::cast::parse::{Decimal64Parser, Decimal128Parser, Parser};
+use crate::functions::cast::parse::{Decimal64Parser, Decimal128Parser, Parser};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::decimal::{
     Decimal64Scalar,
