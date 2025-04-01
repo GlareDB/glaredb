@@ -438,7 +438,9 @@ impl Parser for TimestampParser {
                 crate::arrays::datatype::TimeUnit::Second => Some(dt.timestamp()),
                 crate::arrays::datatype::TimeUnit::Millisecond => Some(dt.timestamp_millis()),
                 crate::arrays::datatype::TimeUnit::Microsecond => Some(dt.timestamp_micros()),
-                crate::arrays::datatype::TimeUnit::Nanosecond => Some(dt.timestamp_nanos_opt().unwrap()),
+                crate::arrays::datatype::TimeUnit::Nanosecond => {
+                    Some(dt.timestamp_nanos_opt().unwrap())
+                }
             }
         } else if let Ok(dt) = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S") {
             let dt = DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc);
@@ -446,15 +448,20 @@ impl Parser for TimestampParser {
                 crate::arrays::datatype::TimeUnit::Second => Some(dt.timestamp()),
                 crate::arrays::datatype::TimeUnit::Millisecond => Some(dt.timestamp_millis()),
                 crate::arrays::datatype::TimeUnit::Microsecond => Some(dt.timestamp_micros()),
-                crate::arrays::datatype::TimeUnit::Nanosecond => Some(dt.timestamp_nanos_opt().unwrap()),
+                crate::arrays::datatype::TimeUnit::Nanosecond => {
+                    Some(dt.timestamp_nanos_opt().unwrap())
+                }
             }
         } else if let Ok(dt) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
-            let dt = DateTime::<Utc>::from_naive_utc_and_offset(dt.and_hms_opt(0, 0, 0).unwrap(), Utc);
+            let dt =
+                DateTime::<Utc>::from_naive_utc_and_offset(dt.and_hms_opt(0, 0, 0).unwrap(), Utc);
             match self.unit {
                 crate::arrays::datatype::TimeUnit::Second => Some(dt.timestamp()),
                 crate::arrays::datatype::TimeUnit::Millisecond => Some(dt.timestamp_millis()),
                 crate::arrays::datatype::TimeUnit::Microsecond => Some(dt.timestamp_micros()),
-                crate::arrays::datatype::TimeUnit::Nanosecond => Some(dt.timestamp_nanos_opt().unwrap()),
+                crate::arrays::datatype::TimeUnit::Nanosecond => {
+                    Some(dt.timestamp_nanos_opt().unwrap())
+                }
             }
         } else if let Ok(unix_timestamp) = s.parse::<i64>() {
             let dt = DateTime::<Utc>::from_timestamp(unix_timestamp, 0).unwrap();
@@ -462,7 +469,9 @@ impl Parser for TimestampParser {
                 crate::arrays::datatype::TimeUnit::Second => Some(dt.timestamp()),
                 crate::arrays::datatype::TimeUnit::Millisecond => Some(dt.timestamp_millis()),
                 crate::arrays::datatype::TimeUnit::Microsecond => Some(dt.timestamp_micros()),
-                crate::arrays::datatype::TimeUnit::Nanosecond => Some(dt.timestamp_nanos_opt().unwrap()),
+                crate::arrays::datatype::TimeUnit::Nanosecond => {
+                    Some(dt.timestamp_nanos_opt().unwrap())
+                }
             }
         } else {
             None

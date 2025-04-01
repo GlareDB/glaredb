@@ -9,7 +9,10 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::cast::behavior::CastErrorState;
 use crate::functions::cast::parse::{Parser, TimestampParser};
 use crate::functions::cast::{
-    CastFunction, CastFunctionSet, RawCastFunction, TO_TIMESTAMP_CAST_RULE,
+    CastFunction,
+    CastFunctionSet,
+    RawCastFunction,
+    TO_TIMESTAMP_CAST_RULE,
 };
 use crate::util::iter::IntoExactSizeIterator;
 
