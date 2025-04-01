@@ -1,4 +1,4 @@
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 
 use super::null::NullToAnything;
 use crate::arrays::array::Array;
@@ -9,10 +9,7 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::cast::behavior::CastErrorState;
 use crate::functions::cast::parse::{Parser, TimestampParser};
 use crate::functions::cast::{
-    CastFunction,
-    CastFunctionSet,
-    RawCastFunction,
-    TO_TIMESTAMP_CAST_RULE,
+    CastFunction, CastFunctionSet, RawCastFunction, TO_TIMESTAMP_CAST_RULE,
 };
 use crate::util::iter::IntoExactSizeIterator;
 
@@ -32,15 +29,13 @@ impl CastFunction for Utf8ToTimestamp {
     type State = TimeUnit;
 
     fn bind(&self, _src: &DataType, target: &DataType) -> Result<Self::State> {
-        match target {
-            DataType::Timestamp(meta) => Ok(meta.unit),
-            _ => Ok(TimeUnit::Microsecond), // Default to microseconds
-        }
+        let meta = target.try_get_timestamp_type_meta()?;
+        Ok(meta.unit)
     }
 
     fn cast(
         unit: &Self::State,
-        error_state: CastErrorState,
+        mut error_state: CastErrorState,
         src: &Array,
         sel: impl IntoExactSizeIterator<Item = usize>,
         out: &mut Array,
@@ -54,6 +49,9 @@ impl CastFunction for Utf8ToTimestamp {
             |v, buf| match parser.parse(v) {
                 Some(v) => buf.put(&v),
                 None => {
+                    error_state.set_error(|| {
+                        DbError::new(format!("Failed to parse '{v}' as a timestamp"))
+                    });
                     buf.put_null();
                 }
             },
