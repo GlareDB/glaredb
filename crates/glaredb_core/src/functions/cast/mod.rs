@@ -103,7 +103,7 @@ impl Eq for PlannedCastFunction {}
 impl Hash for PlannedCastFunction {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.name.hash(state);
-        self.raw.src;
+        self.raw.src.hash(state);
     }
 }
 
