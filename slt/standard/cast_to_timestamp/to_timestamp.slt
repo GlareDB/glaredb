@@ -18,28 +18,14 @@ SELECT CAST('2023-01-01' AS TIMESTAMP);
 ----
 2023-01-01 00:00:00 UTC
 
-
-
 # Casting NULL
 query T
 SELECT CAST(NULL AS TIMESTAMP);
 ----
 NULL
 
-# Invalid format should return NULL
-query T
-SELECT CAST('not a timestamp' AS TIMESTAMP);
-----
-NULL
-
-# Test error message when casting invalid timestamp with precision
-statement ok
-CREATE TEMPORARY TABLE test_timestamp(val VARCHAR);
-
-statement ok
-INSERT INTO test_timestamp VALUES ('not a timestamp');
-
+# Invalid format should fail with error
 query error
-SELECT CAST(val AS TIMESTAMP(3)) FROM test_timestamp;
+SELECT CAST('not a timestamp' AS TIMESTAMP);
 ----
 Failed to parse 'not a timestamp' as a timestamp

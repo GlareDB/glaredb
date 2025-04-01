@@ -44,10 +44,6 @@ impl CastFunction for Utf8ToTimestamp {
         out: &mut Array,
     ) -> Result<()> {
         let mut parser = TimestampParser { unit: *unit };
-        let is_explicit_cast = match out.datatype() {
-            DataType::Timestamp(meta) => meta.unit != TimeUnit::Microsecond,
-            _ => false,
-        };
 
         UnaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _>(
             src,
@@ -56,11 +52,9 @@ impl CastFunction for Utf8ToTimestamp {
             |v, buf| match parser.parse(v) {
                 Some(v) => buf.put(&v),
                 None => {
-                    if is_explicit_cast {
-                        error_state.set_error(|| {
-                            DbError::new(format!("Failed to parse '{v}' as a timestamp"))
-                        });
-                    }
+                    error_state.set_error(|| {
+                        DbError::new(format!("Failed to parse '{v}' as a timestamp"))
+                    });
                     buf.put_null();
                 }
             },
