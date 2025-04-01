@@ -260,7 +260,7 @@ statement error Failed to cast value '128' from Int32 to Int8
 select 128::TINYINT;
 
 statement error Failed to cast value '-129' from Int32 to Int8
-select -129::TINYINT;
+select (-129)::TINYINT;
 
 # Overflow errors for SMALLINT
 statement error Failed to cast value '32768' from Int32 to Int16
