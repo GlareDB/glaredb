@@ -1,0 +1,74 @@
+# DISTINCT tests
+
+statement ok
+CREATE TEMP TABLE ints (a INT, b INT);
+
+statement ok
+INSERT INTO ints VALUES
+  (1,     2),
+  (3,     4),
+  (1,     4),
+  (1,     2),
+  (NULL,  4),
+  (1,     NULL),
+  (NULL,  NULL);
+
+query II
+SELECT DISTINCT a, b FROM ints ORDER BY 1,2;
+----
+1     2
+1     4
+1     NULL
+3     4
+NULL  4
+NULL  NULL
+
+query I
+SELECT DISTINCT a FROM ints ORDER BY 1;
+----
+1
+3
+NULL
+
+query I
+SELECT DISTINCT b FROM ints ORDER BY 1;
+----
+2
+4
+NULL
+
+# Should include all rows as input to agg, the output of agg should be distinct.
+query I
+SELECT DISTINCT SUM(a) FROM ints ORDER BY 1;
+----
+7
+
+query I
+SELECT DISTINCT MIN(a) FROM ints ORDER BY 1;
+----
+1
+
+query II
+SELECT DISTINCT b, MIN(a) FROM ints GROUP BY b ORDER BY 1;
+----
+2     1
+4     1
+NULL  1
+
+query II
+SELECT DISTINCT a, (SELECT ints.a + 2) FROM ints ORDER BY a;
+----
+1     3
+3     5
+NULL  NULL
+
+query II
+SELECT DISTINCT a, (SELECT min(m1.a) FROM ints AS m1 WHERE m1.a = m2.a) FROM ints AS m2 ORDER BY 1;
+----
+1     1
+3     3
+NULL  NULL
+
+# query II
+# SELECT * FROM generate_series(1, 5) g(x), (SELECT DISTINCT * FROM (VALUES (x), (x), (x))) ORDER BY 1;
+# ----

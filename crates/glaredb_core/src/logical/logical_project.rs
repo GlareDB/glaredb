@@ -6,6 +6,7 @@ use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
+/// Simple projection.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalProject {
     pub projections: Vec<Expression>,
