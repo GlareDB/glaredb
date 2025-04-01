@@ -281,25 +281,25 @@ statement error Failed to cast value '256' from Int32 to UInt8
 select 256::UTINYINT;
 
 statement error Failed to cast value '-1' from Int32 to UInt8
-select -1::UTINYINT;
+select (-1)::UTINYINT;
 
 # Overflow errors for USMALLINT
 statement error Failed to cast value '65536' from Int32 to UInt16
 select 65536::USMALLINT;
 
 statement error Failed to cast value '-1' from Int32 to UInt16
-select -1::USMALLINT;
+select (-1)::USMALLINT;
 
 # Overflow errors for UINT
 statement error Failed to cast value '4294967296' from Int64 to UInt32
 select 4294967296::UINT;
 
 statement error Failed to cast value '-1' from Int32 to UInt32
-select -1::UINT;
+select (-1)::UINT;
 
 # Overflow errors for UBIGINT
 statement error Failed to cast value '-1' from Int32 to UInt64
-select -1::UBIGINT;
+select (-1)::UBIGINT;
 
 # Test casting from larger to smaller types (where values fit)
 query I
