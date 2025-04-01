@@ -267,14 +267,14 @@ statement error Failed to cast value '32768' from Int32 to Int16
 select 32768::SMALLINT;
 
 statement error Failed to cast value '-32769' from Int32 to Int16
-select -32769::SMALLINT;
+select (-32769)::SMALLINT;
 
 # Overflow errors for INT
 statement error Failed to cast value '2147483648' from Int64 to Int32
 select 2147483648::INT;
 
 statement error Failed to cast value '-2147483649' from Int64 to Int32
-select -2147483649::INT;
+select (-2147483649)::INT;
 
 # Overflow errors for UTINYINT
 statement error Failed to cast value '256' from Int32 to UInt8
