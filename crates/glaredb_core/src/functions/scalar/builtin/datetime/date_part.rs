@@ -18,7 +18,7 @@ pub const FUNCTION_SET_DATE_PART: ScalarFunctionSet = ScalarFunctionSet {
     name: "date_part",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Date,
+        category: Category::DateTime,
         description: "Get a subfield.",
         arguments: &["part", "date"],
         example: Some(Example {

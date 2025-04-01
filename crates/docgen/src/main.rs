@@ -16,6 +16,15 @@ use tracing::info;
 
 const FILES: &[DocFile] = &[
     DocFile {
+        path: "docs/reference/functions/aggregate.md",
+        sections: &[(
+            "aggregate_functions",
+            &FunctionSectionWriter {
+                category: Category::Aggregate,
+            },
+        )],
+    },
+    DocFile {
         path: "docs/reference/functions/numeric.md",
         sections: &[(
             "numeric_functions",
@@ -30,6 +39,33 @@ const FILES: &[DocFile] = &[
             "string_functions",
             &FunctionSectionWriter {
                 category: Category::String,
+            },
+        )],
+    },
+    DocFile {
+        path: "docs/reference/functions/regexp.md",
+        sections: &[(
+            "regexp_functions",
+            &FunctionSectionWriter {
+                category: Category::Regexp,
+            },
+        )],
+    },
+    DocFile {
+        path: "docs/reference/functions/date_time.md",
+        sections: &[(
+            "date_time_functions",
+            &FunctionSectionWriter {
+                category: Category::DateTime,
+            },
+        )],
+    },
+    DocFile {
+        path: "docs/reference/functions/general.md",
+        sections: &[(
+            "general_functions",
+            &FunctionSectionWriter {
+                category: Category::General,
             },
         )],
     },
