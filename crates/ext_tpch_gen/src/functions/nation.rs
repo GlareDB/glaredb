@@ -16,20 +16,15 @@ use tpchgen::generators::{Nation, NationGenerator, NationGeneratorIterator};
 
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
-pub static NATION_DOC: Documentation = Documentation {
-    category: Category::Table,
-    description: "Generates TPC-H nation data with the specified scale factor. Scale factor has no effect as nation data is fixed.",
-    arguments: &["scale_factor"],
-    example: Some(Example {
-        example: "SELECT COUNT(*) FROM tpch_gen.nation(1);",
-        output: "25",
-    }),
-};
-
 pub const FUNCTION_SET_NATION: TableFunctionSet = TableFunctionSet {
     name: "nation",
     aliases: &[],
-    doc: &[&NATION_DOC],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "Generates TPC-H nation data with the specified scale factor. Scale factor has no effect as nation data is fixed.",
+        arguments: &["scale_factor"],
+        example: None,
+    }],
     functions: &[
         // nation(sf)
         RawTableFunction::new_scan(

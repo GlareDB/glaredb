@@ -18,20 +18,15 @@ use tpchgen::generators::{LineItem, LineItemGenerator, LineItemGeneratorIterator
 use super::convert;
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
-pub static LINEITEM_DOC: Documentation = Documentation {
-    category: Category::Table,
-    description: "Generates TPC-H lineitem data with the specified scale factor.",
-    arguments: &["scale_factor"],
-    example: Some(Example {
-        example: "SELECT COUNT(*) FROM tpch_gen.lineitem(1);",
-        output: "6001215",
-    }),
-};
-
 pub const FUNCTION_SET_LINEITEM: TableFunctionSet = TableFunctionSet {
     name: "lineitem",
     aliases: &[],
-    doc: &[&LINEITEM_DOC],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "Generates TPC-H lineitem data with the specified scale factor.",
+        arguments: &["scale_factor"],
+        example: None,
+    }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Table),
         &TableGen::new(LineItemTable),

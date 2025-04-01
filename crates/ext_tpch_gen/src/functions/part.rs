@@ -19,20 +19,15 @@ use tpchgen::generators::{Part, PartGenerator, PartGeneratorIterator};
 
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
-pub static PART_DOC: Documentation = Documentation {
-    category: Category::Table,
-    description: "Generates TPC-H part data with the specified scale factor.",
-    arguments: &["scale_factor"],
-    example: Some(Example {
-        example: "SELECT COUNT(*) FROM tpch_gen.part(1);",
-        output: "200000",
-    }),
-};
-
 pub const FUNCTION_SET_PART: TableFunctionSet = TableFunctionSet {
     name: "part",
     aliases: &[],
-    doc: &[&PART_DOC],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "Generates TPC-H part data with the specified scale factor.",
+        arguments: &["scale_factor"],
+        example: None,
+    }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Table),
         &TableGen::new(PartTable),

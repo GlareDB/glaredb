@@ -19,20 +19,15 @@ use tpchgen::generators::{Customer, CustomerGenerator, CustomerGeneratorIterator
 
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
-pub static CUSTOMER_DOC: Documentation = Documentation {
-    category: Category::Table,
-    description: "Generates TPC-H customer data with the specified scale factor.",
-    arguments: &["scale_factor"],
-    example: Some(Example {
-        example: "SELECT COUNT(*) FROM tpch_gen.customer(1);",
-        output: "150000",
-    }),
-};
-
 pub const FUNCTION_SET_CUSTOMER: TableFunctionSet = TableFunctionSet {
     name: "customer",
     aliases: &[],
-    doc: &[&CUSTOMER_DOC],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "Generates TPC-H customer data with the specified scale factor.",
+        arguments: &["scale_factor"],
+        example: None,
+    }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Table),
         &TableGen::new(CustomerTable),

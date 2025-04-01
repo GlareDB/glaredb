@@ -20,20 +20,15 @@ use tpchgen::generators::{Order, OrderGenerator, OrderGeneratorIterator};
 use super::convert;
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
-pub static ORDERS_DOC: Documentation = Documentation {
-    category: Category::Table,
-    description: "Generates TPC-H orders data with the specified scale factor.",
-    arguments: &["scale_factor"],
-    example: Some(Example {
-        example: "SELECT COUNT(*) FROM tpch_gen.orders(1);",
-        output: "1500000",
-    }),
-};
-
 pub const FUNCTION_SET_ORDERS: TableFunctionSet = TableFunctionSet {
     name: "orders",
     aliases: &[],
-    doc: &[&ORDERS_DOC],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "Generates TPC-H orders data with the specified scale factor.",
+        arguments: &["scale_factor"],
+        example: None,
+    }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Table),
         &TableGen::new(OrdersTable),

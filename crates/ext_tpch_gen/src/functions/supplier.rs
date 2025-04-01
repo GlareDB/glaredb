@@ -19,20 +19,15 @@ use tpchgen::generators::{Supplier, SupplierGenerator, SupplierGeneratorIterator
 
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
-pub static SUPPLIER_DOC: Documentation = Documentation {
-    category: Category::Table,
-    description: "Generates TPC-H supplier data with the specified scale factor.",
-    arguments: &["scale_factor"],
-    example: Some(Example {
-        example: "SELECT COUNT(*) FROM tpch_gen.supplier(1);",
-        output: "10000",
-    }),
-};
-
 pub const FUNCTION_SET_SUPPLIER: TableFunctionSet = TableFunctionSet {
     name: "supplier",
     aliases: &[],
-    doc: &[&SUPPLIER_DOC],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "Generates TPC-H supplier data with the specified scale factor.",
+        arguments: &["scale_factor"],
+        example: None,
+    }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Table),
         &TableGen::new(SupplierTable),

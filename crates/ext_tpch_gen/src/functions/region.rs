@@ -16,20 +16,15 @@ use tpchgen::generators::{Region, RegionGenerator, RegionGeneratorIterator};
 
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
-pub static REGION_DOC: Documentation = Documentation {
-    category: Category::Table,
-    description: "Generates TPC-H region data with the specified scale factor. Scale factor has no effect as region data is fixed.",
-    arguments: &["scale_factor"],
-    example: Some(Example {
-        example: "SELECT * FROM tpch_gen.region(1);",
-        output: "5 rows",
-    }),
-};
-
 pub const FUNCTION_SET_REGION: TableFunctionSet = TableFunctionSet {
     name: "region",
     aliases: &[],
-    doc: &[&REGION_DOC],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "Generates TPC-H region data with the specified scale factor. Scale factor has no effect as region data is fixed.",
+        arguments: &["scale_factor"],
+        example: None,
+    }],
     functions: &[
         // region(sf)
         RawTableFunction::new_scan(
