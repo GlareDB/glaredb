@@ -27,7 +27,7 @@ pub const FUNCTION_SET_LIST_SCHEMAS: TableFunctionSet = TableFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
-        description: "Lists all schemas in the database",
+        description: "Lists all schemas this session has access to",
         arguments: &[],
         example: None,
     }],

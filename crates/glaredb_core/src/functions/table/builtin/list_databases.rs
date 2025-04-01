@@ -23,7 +23,7 @@ pub const FUNCTION_SET_LIST_DATABASES: TableFunctionSet = TableFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
-        description: "Lists all databases in the system",
+        description: "Lists databases this session has access to",
         arguments: &[],
         example: None,
     }],
