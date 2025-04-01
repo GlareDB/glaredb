@@ -101,7 +101,7 @@ impl RawScalarFunction {
         unsafe { (self.vtable.bind_fn)(self.function, inputs) }
     }
 
-    pub fn signature(&self) -> &Signature {
+    pub fn signature(&self) -> &'static Signature {
         self.signature
     }
 

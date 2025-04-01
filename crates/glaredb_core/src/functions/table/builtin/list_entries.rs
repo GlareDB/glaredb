@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::sync::Arc;
 use std::task::Context;
 
@@ -5,16 +6,17 @@ use futures::TryStreamExt;
 use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
-use crate::arrays::array::validity::Validity;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::arrays::field::{ColumnSchema, Field};
+use crate::arrays::scalar::ScalarValue;
 use crate::catalog::context::DatabaseContext;
 use crate::catalog::database::Database;
-use crate::catalog::entry::{CatalogEntry, CatalogEntryType};
+use crate::catalog::entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType};
 use crate::catalog::{Catalog, Schema};
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
+use crate::functions::documentation::Documentation;
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::TableScanFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
@@ -351,6 +353,32 @@ impl TableScanFunction for ListViews {
 #[derive(Debug, Clone, Copy)]
 pub struct ListFunctions;
 
+#[derive(Debug, Clone, Default)]
+pub struct ListFunctionsPartitionState {
+    offset: usize,
+    entries: Vec<NamespacedFunction>,
+}
+
+#[derive(Debug, Clone)]
+struct NamespacedFunction {
+    entry: NamespacedEntry,
+    signature: &'static Signature,
+    doc: Option<&'static Documentation>,
+}
+
+/// Get the documentation object that matches the provided arity.
+///
+/// This is best effort, we might have a cleaner way of lining up which doc goes
+/// to which sig in the future.
+fn get_doc_for_arity(
+    docs: &'static [&'static Documentation],
+    arity: usize,
+) -> Option<&'static Documentation> {
+    docs.iter()
+        .find(|&doc| doc.arguments.len() == arity)
+        .copied()
+}
+
 impl ListFunctions {
     fn try_function_type_as_str(ent: &CatalogEntry) -> Result<&'static str> {
         Ok(match ent.entry_type() {
@@ -366,7 +394,7 @@ impl ListFunctions {
 impl TableScanFunction for ListFunctions {
     type BindState = ListEntriesBindState;
     type OperatorState = ListEntriesOperatorState;
-    type PartitionState = ListEntriesPartitionState;
+    type PartitionState = ListFunctionsPartitionState;
 
     async fn bind(
         &'static self,
@@ -374,7 +402,7 @@ impl TableScanFunction for ListFunctions {
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         let databases: Vec<_> = db_context.iter_databases().cloned().collect();
-        // TODO: Do we want COPY functions in the output?
+        // TODO: Do we want COPY functions in the output? Not yet
         let state = ListEntriesBindState::load_entries(
             databases,
             |_| true,
@@ -385,7 +413,6 @@ impl TableScanFunction for ListFunctions {
                     CatalogEntryType::TableFunction
                         | CatalogEntryType::ScalarFunction
                         | CatalogEntryType::AggregateFunction
-                        | CatalogEntryType::CopyToFunction
                 )
             },
         )
@@ -429,11 +456,45 @@ impl TableScanFunction for ListFunctions {
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionState>> {
-        let mut states = vec![ListEntriesPartitionState::default(); partitions];
+        let mut states = vec![ListFunctionsPartitionState::default(); partitions];
 
         for (idx, chunk) in op_state.entries.chunks(props.batch_size).enumerate() {
             let part_idx = idx % states.len();
-            states[part_idx].entries.extend(chunk.iter().cloned());
+
+            // TODO: Do I care about perf here?
+            for entry in chunk {
+                // entry entry entry
+                match &entry.ent.entry {
+                    CatalogEntryInner::ScalarFunction(f) => {
+                        for sig in f.function.functions.iter().map(|f| f.signature()) {
+                            states[part_idx].entries.push(NamespacedFunction {
+                                entry: entry.clone(),
+                                signature: sig,
+                                doc: get_doc_for_arity(f.function.doc, sig.positional_args.len()),
+                            });
+                        }
+                    }
+                    CatalogEntryInner::AggregateFunction(f) => {
+                        for sig in f.function.functions.iter().map(|f| f.signature()) {
+                            states[part_idx].entries.push(NamespacedFunction {
+                                entry: entry.clone(),
+                                signature: sig,
+                                doc: get_doc_for_arity(f.function.doc, sig.positional_args.len()),
+                            });
+                        }
+                    }
+                    CatalogEntryInner::TableFunction(f) => {
+                        for sig in f.function.functions.iter().map(|f| f.signature()) {
+                            states[part_idx].entries.push(NamespacedFunction {
+                                entry: entry.clone(),
+                                signature: sig,
+                                doc: get_doc_for_arity(f.function.doc, sig.positional_args.len()),
+                            });
+                        }
+                    }
+                    _ => return Err(DbError::new("Unexpected catalog entry type")),
+                }
+            }
         }
 
         Ok(states)
@@ -448,8 +509,6 @@ impl TableScanFunction for ListFunctions {
         let cap = output.write_capacity()?;
         let count = usize::min(cap, state.entries.len() - state.offset);
 
-        // TODO: Need a row for each function arity.
-
         op_state
             .projections
             .for_each_column(output, &mut |col_idx, output| match col_idx {
@@ -457,7 +516,7 @@ impl TableScanFunction for ListFunctions {
                     // Catalog name
                     let mut db_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
-                        db_names.put(idx, &state.entries[idx + state.offset].catalog);
+                        db_names.put(idx, &state.entries[idx + state.offset].entry.catalog);
                     }
                     Ok(())
                 }
@@ -465,7 +524,7 @@ impl TableScanFunction for ListFunctions {
                     // Schema name
                     let mut schema_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
-                        schema_names.put(idx, &state.entries[idx + state.offset].schema);
+                        schema_names.put(idx, &state.entries[idx + state.offset].entry.schema);
                     }
                     Ok(())
                 }
@@ -473,7 +532,7 @@ impl TableScanFunction for ListFunctions {
                     // Function name
                     let mut function_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
-                        function_names.put(idx, &state.entries[idx + state.offset].ent.name);
+                        function_names.put(idx, &state.entries[idx + state.offset].entry.ent.name);
                     }
                     Ok(())
                 }
@@ -481,45 +540,87 @@ impl TableScanFunction for ListFunctions {
                     // Function type
                     let mut function_types = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
-                        let typ =
-                            Self::try_function_type_as_str(&state.entries[idx + state.offset].ent)?;
+                        let typ = Self::try_function_type_as_str(
+                            &state.entries[idx + state.offset].entry.ent,
+                        )?;
                         function_types.put(idx, typ);
                     }
                     Ok(())
                 }
                 4 => {
                     // Argument types
-                    // TODO
-                    let validity = Validity::new_all_invalid(output.logical_len());
-                    output.put_validity(validity)?;
+                    for idx in 0..count {
+                        let mut types = Vec::new(); // TODO: No need to allocate every time.
+
+                        types.extend(
+                            state.entries[idx + state.offset]
+                                .signature
+                                .positional_args
+                                .iter()
+                                .map(|arg_type| ScalarValue::Utf8(arg_type.to_string().into())),
+                        );
+
+                        // TODO: Not sure I care about efficiency here.
+                        output.set_value(idx, &ScalarValue::List(types))?;
+                    }
+
                     Ok(())
                 }
                 5 => {
                     // Return type
-                    // TODO
-                    let validity = Validity::new_all_invalid(output.logical_len());
-                    output.put_validity(validity)?;
+                    let mut ret_types = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
+                    let mut s_buf = String::new();
+                    for idx in 0..count {
+                        s_buf.clear();
+                        write!(
+                            s_buf,
+                            "{}",
+                            state.entries[idx + state.offset].signature.return_type
+                        )?;
+                        ret_types.put(idx, &s_buf);
+                    }
                     Ok(())
                 }
                 6 => {
                     // Description
-                    // TODO
-                    let validity = Validity::new_all_invalid(output.logical_len());
-                    output.put_validity(validity)?;
+                    let (data, validity) = output.data_and_validity_mut();
+                    let mut descriptions = PhysicalUtf8::get_addressable_mut(data)?;
+                    for idx in 0..count {
+                        match state.entries[idx + state.offset].doc {
+                            Some(doc) => descriptions.put(idx, doc.description),
+                            None => validity.set_invalid(idx),
+                        }
+                    }
                     Ok(())
                 }
                 7 => {
                     // Example
-                    // TODO
-                    let validity = Validity::new_all_invalid(output.logical_len());
-                    output.put_validity(validity)?;
+                    let (data, validity) = output.data_and_validity_mut();
+                    let mut examples = PhysicalUtf8::get_addressable_mut(data)?;
+                    for idx in 0..count {
+                        match state.entries[idx + state.offset]
+                            .doc
+                            .and_then(|d| d.example.as_ref())
+                        {
+                            Some(example) => examples.put(idx, example.example),
+                            None => validity.set_invalid(idx),
+                        }
+                    }
                     Ok(())
                 }
                 8 => {
                     // Example output
-                    // TODO
-                    let validity = Validity::new_all_invalid(output.logical_len());
-                    output.put_validity(validity)?;
+                    let (data, validity) = output.data_and_validity_mut();
+                    let mut example_outputs = PhysicalUtf8::get_addressable_mut(data)?;
+                    for idx in 0..count {
+                        match state.entries[idx + state.offset]
+                            .doc
+                            .and_then(|d| d.example.as_ref())
+                        {
+                            Some(example) => example_outputs.put(idx, example.output),
+                            None => validity.set_invalid(idx),
+                        }
+                    }
                     Ok(())
                 }
                 other => panic!("unexpected projection: {other}"),
