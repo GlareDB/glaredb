@@ -7,20 +7,33 @@ use std::io;
 
 use file::DocFile;
 use glaredb_core::engine::single_user::SingleUserEngine;
+use glaredb_core::functions::documentation::Category;
 use glaredb_error::Result;
 use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io};
-use section::{AggregateFunctionWriter, ScalarFunctionWriter, TableFunctionWriter};
+use section::FunctionSectionWriter;
 use session::DocsSession;
 use tracing::info;
 
-const FILES: &[DocFile] = &[DocFile {
-    path: "docs/sql/functions.md",
-    sections: &[
-        ("scalar_functions", &ScalarFunctionWriter),
-        ("aggregate_functions", &AggregateFunctionWriter),
-        ("table_functions", &TableFunctionWriter),
-    ],
-}];
+const FILES: &[DocFile] = &[
+    DocFile {
+        path: "docs/reference/functions/numeric.md",
+        sections: &[(
+            "numeric_functions",
+            &FunctionSectionWriter {
+                category: Category::Numeric,
+            },
+        )],
+    },
+    DocFile {
+        path: "docs/reference/functions/string.md",
+        sections: &[(
+            "string_functions",
+            &FunctionSectionWriter {
+                category: Category::String,
+            },
+        )],
+    },
+];
 
 fn main() -> Result<()> {
     logutil::configure_global_logger(

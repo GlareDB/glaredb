@@ -52,34 +52,34 @@ pub fn write_markdown_table<'a>(
     Ok(())
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use glaredb_core::arrays::datatype::DataType;
-//     use glaredb_core::arrays::field::Field;
-//     use glaredb_core::generate_batch;
+#[cfg(test)]
+mod tests {
+    use glaredb_core::arrays::datatype::DataType;
+    use glaredb_core::arrays::field::Field;
+    use glaredb_core::generate_batch;
 
-//     use super::*;
+    use super::*;
 
-//     #[test]
-//     fn simple() {
-//         let batch = generate_batch!([1, 2, 3], ["cat", "dog", "mouse"]);
+    #[test]
+    fn simple() {
+        let batch = generate_batch!([1, 2, 3], ["cat", "dog", "mouse"]);
 
-//         let schema = ColumnSchema::new([
-//             Field::new("Numbers", DataType::Int32, false),
-//             Field::new("Strings", DataType::Utf8, false),
-//         ]);
+        let schema = ColumnSchema::new([
+            Field::new("Numbers", DataType::Int32, false),
+            Field::new("Strings", DataType::Utf8, false),
+        ]);
 
-//         let mut buf = String::new();
+        let mut buf = String::new();
 
-//         write_markdown_table(&mut buf, &schema, [&batch]).unwrap();
+        write_markdown_table(&mut buf, &schema, [&batch]).unwrap();
 
-//         let expected = r#"| Numbers | Strings |
-// | --- | --- |
-// | 1 | cat |
-// | 2 | dog |
-// | 3 | mouse |
-// "#;
+        let expected = r#"| Numbers | Strings |
+| --- | --- |
+| 1 | cat |
+| 2 | dog |
+| 3 | mouse |
+"#;
 
-//         assert_eq!(expected, buf);
-//     }
-// }
+        assert_eq!(expected, buf);
+    }
+}
