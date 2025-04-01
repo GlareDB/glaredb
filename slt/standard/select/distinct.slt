@@ -69,6 +69,11 @@ SELECT DISTINCT a, (SELECT min(m1.a) FROM ints AS m1 WHERE m1.a = m2.a) FROM int
 3     3
 NULL  NULL
 
-# query II
-# SELECT * FROM generate_series(1, 5) g(x), (SELECT DISTINCT * FROM (VALUES (x), (x), (x))) ORDER BY 1;
-# ----
+query II
+SELECT * FROM generate_series(1, 5) g(x), (SELECT DISTINCT * FROM (VALUES (x), (x), (x))) ORDER BY 1;
+----
+1  1
+2  2
+3  3
+4  4
+5  5
