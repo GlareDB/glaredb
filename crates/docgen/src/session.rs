@@ -31,6 +31,7 @@ impl DocsSession {
 
 #[derive(Debug)]
 pub struct DocsQueryResult {
+    #[allow(unused)]
     pub schema: ColumnSchema,
     pub batches: Vec<Batch>,
 }
