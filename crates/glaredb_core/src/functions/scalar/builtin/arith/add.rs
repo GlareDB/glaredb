@@ -29,13 +29,22 @@ use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
 use crate::expr::{self, Expression};
 use crate::functions::Signature;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_ADD: ScalarFunctionSet = ScalarFunctionSet {
     name: "+",
     aliases: &["add"],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::Numeric,
+        description: "Adds two numeric values together.",
+        arguments: &["left", "right"],
+        example: Some(Example {
+            example: "5 + 3",
+            output: "8",
+        }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(
