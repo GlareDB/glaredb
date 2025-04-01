@@ -22,14 +22,14 @@ pub enum CatalogEntryType {
 impl fmt::Display for CatalogEntryType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Table => write!(f, "Table"),
-            Self::Schema => write!(f, "Schema"),
-            Self::View => write!(f, "View"),
-            Self::ScalarFunction => write!(f, "ScalarFunction"),
-            Self::AggregateFunction => write!(f, "AggregateFunction"),
-            Self::TableFunction => write!(f, "TableFunction"),
-            Self::CopyToFunction => write!(f, "CopyToFunction"),
-            Self::CastFunction => write!(f, "CastFunction"),
+            Self::Table => write!(f, "table"),
+            Self::Schema => write!(f, "schema"),
+            Self::View => write!(f, "view"),
+            Self::ScalarFunction => write!(f, "scalar function"),
+            Self::AggregateFunction => write!(f, "aggregate function"),
+            Self::TableFunction => write!(f, "table function"),
+            Self::CopyToFunction => write!(f, "copy to function"),
+            Self::CastFunction => write!(f, "cast function"),
         }
     }
 }
