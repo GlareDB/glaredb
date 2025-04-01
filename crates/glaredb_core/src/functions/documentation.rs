@@ -15,6 +15,25 @@ pub enum Category {
     System,
 }
 
+impl Category {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::General => "general",
+            Self::Aggregate => "aggregate",
+            Self::Numeric => "numeric",
+            Self::Date => "date",
+            Self::Time => "time",
+            Self::Interval => "interval",
+            Self::List => "list",
+            Self::String => "string",
+            Self::Regexp => "regexp",
+            Self::Binary => "binary",
+            Self::Table => "table",
+            Self::System => "system",
+        }
+    }
+}
+
 /// Documentation for a single function variant.
 // TODO: Allow multiple arguments+example pairs for different arity functions.
 //

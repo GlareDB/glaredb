@@ -442,6 +442,7 @@ impl TableScanFunction for ListFunctions {
                 Field::new("schema_name", DataType::Utf8, false),
                 Field::new("function_name", DataType::Utf8, false),
                 Field::new("function_type", DataType::Utf8, false),
+                Field::new("category", DataType::Utf8, false),
                 Field::new(
                     "arguments",
                     DataType::List(ListTypeMeta::new(DataType::Utf8)),
@@ -569,6 +570,18 @@ impl TableScanFunction for ListFunctions {
                     Ok(())
                 }
                 4 => {
+                    // Category
+                    let (data, validity) = output.data_and_validity_mut();
+                    let mut categories = PhysicalUtf8::get_addressable_mut(data)?;
+                    for idx in 0..count {
+                        match state.entries[idx + state.offset].doc.as_ref() {
+                            Some(doc) => categories.put(idx, doc.category.as_str()),
+                            None => validity.set_invalid(idx),
+                        }
+                    }
+                    Ok(())
+                }
+                5 => {
                     // Arguments
                     for idx in 0..count {
                         let ent = &state.entries[idx + state.offset];
@@ -595,7 +608,7 @@ impl TableScanFunction for ListFunctions {
 
                     Ok(())
                 }
-                5 => {
+                6 => {
                     // Argument types
                     for idx in 0..count {
                         let mut types = Vec::new(); // TODO: No need to allocate every time.
@@ -614,7 +627,7 @@ impl TableScanFunction for ListFunctions {
 
                     Ok(())
                 }
-                6 => {
+                7 => {
                     // Return type
                     let mut ret_types = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     let mut s_buf = String::new();
@@ -629,7 +642,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                7 => {
+                8 => {
                     // Description
                     let (data, validity) = output.data_and_validity_mut();
                     let mut descriptions = PhysicalUtf8::get_addressable_mut(data)?;
@@ -641,7 +654,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                8 => {
+                9 => {
                     // Example
                     let (data, validity) = output.data_and_validity_mut();
                     let mut examples = PhysicalUtf8::get_addressable_mut(data)?;
@@ -656,7 +669,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                9 => {
+                10 => {
                     // Example output
                     let (data, validity) = output.data_and_validity_mut();
                     let mut example_outputs = PhysicalUtf8::get_addressable_mut(data)?;
