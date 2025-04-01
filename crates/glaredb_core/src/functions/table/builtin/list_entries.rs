@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Write;
 use std::sync::Arc;
 use std::task::Context;
@@ -442,14 +443,19 @@ impl TableScanFunction for ListFunctions {
                 Field::new("function_name", DataType::Utf8, false),
                 Field::new("function_type", DataType::Utf8, false),
                 Field::new(
+                    "arguments",
+                    DataType::List(ListTypeMeta::new(DataType::Utf8)),
+                    false,
+                ),
+                Field::new(
                     "argument_types",
                     DataType::List(ListTypeMeta::new(DataType::Utf8)),
                     false,
                 ),
                 Field::new("return_type", DataType::Utf8, false),
-                Field::new("description", DataType::Utf8, false),
-                Field::new("example", DataType::Utf8, false),
-                Field::new("example_output", DataType::Utf8, false),
+                Field::new("description", DataType::Utf8, true),
+                Field::new("example", DataType::Utf8, true),
+                Field::new("example_output", DataType::Utf8, true),
             ]),
             cardinality: StatisticsValue::Unknown,
         })
@@ -563,6 +569,33 @@ impl TableScanFunction for ListFunctions {
                     Ok(())
                 }
                 4 => {
+                    // Arguments
+                    for idx in 0..count {
+                        let ent = &state.entries[idx + state.offset];
+                        // TODO: No need to allocate every time.
+                        let args = match ent.doc {
+                            Some(doc) => doc
+                                .arguments
+                                .iter()
+                                .map(|&arg| ScalarValue::Utf8(Cow::Borrowed(arg)))
+                                .collect(),
+                            None => {
+                                // We don't have documentation for this function
+                                // arity, just use const names.
+                                vec![
+                                    ScalarValue::Utf8("col".into());
+                                    ent.signature.positional_args.len()
+                                ]
+                            }
+                        };
+
+                        // TODO: Not sure I care about efficiency here.
+                        output.set_value(idx, &ScalarValue::List(args))?;
+                    }
+
+                    Ok(())
+                }
+                5 => {
                     // Argument types
                     for idx in 0..count {
                         let mut types = Vec::new(); // TODO: No need to allocate every time.
@@ -581,7 +614,7 @@ impl TableScanFunction for ListFunctions {
 
                     Ok(())
                 }
-                5 => {
+                6 => {
                     // Return type
                     let mut ret_types = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     let mut s_buf = String::new();
@@ -596,7 +629,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                6 => {
+                7 => {
                     // Description
                     let (data, validity) = output.data_and_validity_mut();
                     let mut descriptions = PhysicalUtf8::get_addressable_mut(data)?;
@@ -608,7 +641,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                7 => {
+                8 => {
                     // Example
                     let (data, validity) = output.data_and_validity_mut();
                     let mut examples = PhysicalUtf8::get_addressable_mut(data)?;
@@ -623,7 +656,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                8 => {
+                9 => {
                     // Example output
                     let (data, validity) = output.data_and_validity_mut();
                     let mut example_outputs = PhysicalUtf8::get_addressable_mut(data)?;
