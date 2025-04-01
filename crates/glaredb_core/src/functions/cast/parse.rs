@@ -463,16 +463,7 @@ impl Parser for TimestampParser {
                     Some(dt.timestamp_nanos_opt().unwrap())
                 }
             }
-        } else if let Ok(unix_timestamp) = s.parse::<i64>() {
-            let dt = DateTime::<Utc>::from_timestamp(unix_timestamp, 0).unwrap();
-            match self.unit {
-                crate::arrays::datatype::TimeUnit::Second => Some(dt.timestamp()),
-                crate::arrays::datatype::TimeUnit::Millisecond => Some(dt.timestamp_millis()),
-                crate::arrays::datatype::TimeUnit::Microsecond => Some(dt.timestamp_micros()),
-                crate::arrays::datatype::TimeUnit::Nanosecond => {
-                    Some(dt.timestamp_nanos_opt().unwrap())
-                }
-            }
+
         } else {
             None
         }
