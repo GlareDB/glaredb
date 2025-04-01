@@ -52,7 +52,9 @@ impl CastFunction for Utf8ToTimestamp {
             |v, buf| match parser.parse(v) {
                 Some(v) => buf.put(&v),
                 None => {
-                    error_state.set_error(|| DbError::new(format!("Failed to parse '{v}' as a timestamp")));
+                    error_state.set_error(|| {
+                        DbError::new(format!("Failed to parse '{v}' as a timestamp"))
+                    });
                     buf.put_null();
                 }
             },

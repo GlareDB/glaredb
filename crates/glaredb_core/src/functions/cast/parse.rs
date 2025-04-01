@@ -463,7 +463,6 @@ impl Parser for TimestampParser {
                     Some(dt.timestamp_nanos_opt().unwrap())
                 }
             }
-
         } else {
             None
         }
