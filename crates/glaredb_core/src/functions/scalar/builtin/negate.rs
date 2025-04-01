@@ -21,13 +21,22 @@ use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_NEGATE: ScalarFunctionSet = ScalarFunctionSet {
     name: "negate",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::Numeric,
+        description: "Returns the result of multiplying the input value by -1.",
+        arguments: &["value"],
+        example: Some(Example {
+            example: "negate(-3.5)",
+            output: "3.5",
+        }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
@@ -67,7 +76,15 @@ pub const FUNCTION_SET_NEGATE: ScalarFunctionSet = ScalarFunctionSet {
 pub const FUNCTION_SET_NOT: ScalarFunctionSet = ScalarFunctionSet {
     name: "not",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::General,
+        description: "Returns TRUE if the input is FALSE, and FALSE if the input is TRUE.",
+        arguments: &["value"],
+        example: Some(Example {
+            example: "not(TRUE)",
+            output: "FALSE",
+        }),
+    }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
         &Not,
