@@ -31,3 +31,9 @@ query T
 SELECT CAST('not a timestamp' AS TIMESTAMP);
 ----
 NULL
+
+# Test error message when casting invalid timestamp
+query error
+SELECT CAST('not a timestamp' AS TIMESTAMP(3));
+----
+Failed to parse 'not a timestamp' as a timestamp
