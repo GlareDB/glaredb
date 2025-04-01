@@ -7,6 +7,7 @@ use glaredb_core::arrays::array::physical_type::{
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::datatype::{DataType, DataTypeId};
 use glaredb_core::functions::Signature;
+use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
 use glaredb_core::storage::projections::Projections;
@@ -18,7 +19,12 @@ use super::table_gen::{TableGen, TpchColumn, TpchTable};
 pub const FUNCTION_SET_NATION: TableFunctionSet = TableFunctionSet {
     name: "nation",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "Generates TPC-H nation data with the specified scale factor. Scale factor has no effect as nation data is fixed.",
+        arguments: &["scale_factor"],
+        example: None,
+    }],
     functions: &[
         // nation(sf)
         RawTableFunction::new_scan(
