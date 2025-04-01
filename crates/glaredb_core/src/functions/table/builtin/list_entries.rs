@@ -16,7 +16,7 @@ use crate::catalog::entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType};
 use crate::catalog::{Catalog, Schema};
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
-use crate::functions::documentation::Documentation;
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::TableScanFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
@@ -26,7 +26,12 @@ use crate::storage::projections::Projections;
 pub const FUNCTION_SET_LIST_TABLES: TableFunctionSet = TableFunctionSet {
     name: "list_tables",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::System,
+        description: "Lists all tables this session has access to",
+        arguments: &[],
+        example: None,
+    }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[], DataTypeId::Table),
         &ListTables,
@@ -36,7 +41,12 @@ pub const FUNCTION_SET_LIST_TABLES: TableFunctionSet = TableFunctionSet {
 pub const FUNCTION_SET_LIST_VIEWS: TableFunctionSet = TableFunctionSet {
     name: "list_views",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::System,
+        description: "Lists all views this session has access to",
+        arguments: &[],
+        example: None,
+    }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[], DataTypeId::Table),
         &ListViews,
@@ -46,7 +56,12 @@ pub const FUNCTION_SET_LIST_VIEWS: TableFunctionSet = TableFunctionSet {
 pub const FUNCTION_SET_LIST_FUNCTIONS: TableFunctionSet = TableFunctionSet {
     name: "list_functions",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::System,
+        description: "Lists all functions in the database with their types and metadata",
+        arguments: &[],
+        example: None,
+    }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[], DataTypeId::Table),
         &ListFunctions,

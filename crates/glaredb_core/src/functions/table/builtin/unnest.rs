@@ -9,6 +9,7 @@ use crate::arrays::datatype::DataTypeId;
 use crate::arrays::field::{ColumnSchema, Field};
 use crate::execution::operators::{ExecutionProperties, PollExecute, PollFinalize};
 use crate::functions::Signature;
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::execute::TableExecuteFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
@@ -19,7 +20,12 @@ use crate::logical::statistics::StatisticsValue;
 pub const FUNCTION_SET_UNNEST: TableFunctionSet = TableFunctionSet {
     name: "unnest",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::List,
+        description: "Converts a list into a table with one row per list element",
+        arguments: &["list"],
+        example: None,
+    }],
     functions: &[
         // unnest(list)
         RawTableFunction::new_execute(
