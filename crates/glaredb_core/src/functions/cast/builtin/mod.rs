@@ -1,8 +1,14 @@
+pub mod to_boolean;
+pub mod to_date;
 pub mod to_decimal;
+pub mod to_interval;
 pub mod to_primitive;
 pub mod to_string;
 
+use to_boolean::FUNCTION_SET_TO_BOOLEAN;
+use to_date::FUNCTION_SET_TO_DATE32;
 use to_decimal::{FUNCTION_SET_TO_DECIMAL64, FUNCTION_SET_TO_DECIMAL128};
+use to_interval::FUNCTION_SET_TO_INTERVAL;
 use to_primitive::{
     FUNCTION_SET_TO_FLOAT16,
     FUNCTION_SET_TO_FLOAT32,
@@ -25,6 +31,8 @@ use super::CastFunctionSet;
 pub const BUILTIN_CAST_FUNCTION_SETS: &[CastFunctionSet] = &[
     // String
     FUNCTION_SET_TO_STRING,
+    // Boolean
+    FUNCTION_SET_TO_BOOLEAN,
     // Numeric primitives
     FUNCTION_SET_TO_INT8,
     FUNCTION_SET_TO_INT16,
@@ -42,6 +50,10 @@ pub const BUILTIN_CAST_FUNCTION_SETS: &[CastFunctionSet] = &[
     // Decimals
     FUNCTION_SET_TO_DECIMAL64,
     FUNCTION_SET_TO_DECIMAL128,
+    // Date
+    FUNCTION_SET_TO_DATE32,
+    // Interval
+    FUNCTION_SET_TO_INTERVAL,
 ];
 
 mod null {

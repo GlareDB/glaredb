@@ -35,6 +35,7 @@ use crate::functions::cast::{
     CastFunctionSet,
     CastRule,
     RawCastFunction,
+    TO_F16_CAST_RULE,
     TO_F32_CAST_RULE,
     TO_F64_CAST_RULE,
     TO_INT8_CAST_RULE,
@@ -333,25 +334,28 @@ pub const FUNCTION_SET_TO_FLOAT16: CastFunctionSet = CastFunctionSet {
     #[rustfmt::skip]
     functions: &[
         // Null -> Float16
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_F16_CAST_RULE),
         // Utf8 -> Float16
         RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalF16>::new(), CastRule::Explicit),
         // Int_ -> Float16
-        RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalF16>::new(), CastRule::Explicit),
-        RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalF16>::new(), CastRule::Explicit),
-        RawCastFunction::new(DataTypeId::Int32, &PrimToPrim::<PhysicalI32, PhysicalF16>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalF16>::new(), TO_F16_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalF16>::new(), TO_F16_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Int32, &PrimToPrim::<PhysicalI32, PhysicalF16>::new(), TO_F16_CAST_RULE), // TODO: This might a bit sketch.
         RawCastFunction::new(DataTypeId::Int64, &PrimToPrim::<PhysicalI64, PhysicalF16>::new(), CastRule::Explicit),
         RawCastFunction::new(DataTypeId::Int128, &PrimToPrim::<PhysicalI128, PhysicalF16>::new(), CastRule::Explicit),
         // UInt_ -> Float16
-        RawCastFunction::new(DataTypeId::UInt8, &PrimToPrim::<PhysicalU8, PhysicalF16>::new(), CastRule::Explicit),
-        RawCastFunction::new(DataTypeId::UInt16, &PrimToPrim::<PhysicalU16, PhysicalF16>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::UInt8, &PrimToPrim::<PhysicalU8, PhysicalF16>::new(), TO_F16_CAST_RULE),
+        RawCastFunction::new(DataTypeId::UInt16, &PrimToPrim::<PhysicalU16, PhysicalF16>::new(), TO_F16_CAST_RULE),
         RawCastFunction::new(DataTypeId::UInt32, &PrimToPrim::<PhysicalU32, PhysicalF16>::new(), CastRule::Explicit),
         RawCastFunction::new(DataTypeId::UInt64, &PrimToPrim::<PhysicalU64, PhysicalF16>::new(), CastRule::Explicit),
         RawCastFunction::new(DataTypeId::UInt128, &PrimToPrim::<PhysicalU128, PhysicalF16>::new(), CastRule::Explicit),
         // Float_ -> Float16
-        RawCastFunction::new(DataTypeId::Float16, &PrimToPrim::<PhysicalF16, PhysicalF16>::new(), CastRule::Explicit),
-        RawCastFunction::new(DataTypeId::Float32, &PrimToPrim::<PhysicalF32, PhysicalF16>::new(), CastRule::Explicit),
-        RawCastFunction::new(DataTypeId::Float64, &PrimToPrim::<PhysicalF64, PhysicalF16>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Float16, &PrimToPrim::<PhysicalF16, PhysicalF16>::new(), TO_F16_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Float32, &PrimToPrim::<PhysicalF32, PhysicalF16>::new(), TO_F16_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Float64, &PrimToPrim::<PhysicalF64, PhysicalF16>::new(), TO_F16_CAST_RULE),
+        // Decimal_ -> Float16
+        RawCastFunction::new(DataTypeId::Decimal64, &DecimalToFloat::<Decimal64Type, PhysicalF16>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Decimal128, &DecimalToFloat::<Decimal128Type, PhysicalF16>::new(), CastRule::Explicit),
     ],
 };
 

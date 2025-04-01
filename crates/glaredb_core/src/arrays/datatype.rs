@@ -395,6 +395,7 @@ impl DataType {
     /// Try to generate a datatype for casting `from` type id to `to` type id.
     ///
     /// Errors if a suitable datatype cannot be created.
+    // TODO: This should probably move.
     pub fn try_generate_cast_datatype(from: DataType, to: DataTypeId) -> Result<Self> {
         Ok(match to {
             DataTypeId::Any => {

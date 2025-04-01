@@ -20,6 +20,14 @@ use crate::util::iter::IntoExactSizeIterator;
 // TODO: Need to update the implicit "from utf8" casts to be "from utf8
 // literals".
 
+// Implicit rule constants.
+//
+// Higher the score, the more preferred that cast is.
+
+pub const TO_BOOL_CAST_RULE: CastRule = CastRule::Implicit(100);
+pub const TO_DATE32_CAST_RULE: CastRule = CastRule::Implicit(100);
+pub const TO_INTERVAL_CAST_RULE: CastRule = CastRule::Implicit(100);
+
 pub const TO_INT8_CAST_RULE: CastRule = CastRule::Implicit(191);
 pub const TO_UINT8_CAST_RULE: CastRule = CastRule::Implicit(190);
 
@@ -32,8 +40,9 @@ pub const TO_UINT32_CAST_RULE: CastRule = CastRule::Implicit(170);
 pub const TO_INT64_CAST_RULE: CastRule = CastRule::Implicit(161);
 pub const TO_UINT64_CAST_RULE: CastRule = CastRule::Implicit(160);
 
-pub const TO_F64_CAST_RULE: CastRule = CastRule::Implicit(151);
-pub const TO_F32_CAST_RULE: CastRule = CastRule::Implicit(150);
+pub const TO_F16_CAST_RULE: CastRule = CastRule::Implicit(152);
+pub const TO_F32_CAST_RULE: CastRule = CastRule::Implicit(151);
+pub const TO_F64_CAST_RULE: CastRule = CastRule::Implicit(150);
 
 pub const TO_DECIMAL64_CAST_RULE: CastRule = CastRule::Implicit(131);
 pub const TO_DECIMAL128_CAST_RULE: CastRule = CastRule::Implicit(130);
