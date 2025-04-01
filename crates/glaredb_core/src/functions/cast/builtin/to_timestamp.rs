@@ -44,7 +44,10 @@ impl CastFunction for Utf8ToTimestamp {
         out: &mut Array,
     ) -> Result<()> {
         let mut parser = TimestampParser { unit: *unit };
-        let is_explicit_cast = out.datatype().has_type_meta();
+        let is_explicit_cast = match out.datatype() {
+            DataType::Timestamp(meta) => meta.unit != TimeUnit::Microsecond,
+            _ => false,
+        };
 
         UnaryExecutor::execute::<PhysicalUtf8, PhysicalI64, _>(
             src,
