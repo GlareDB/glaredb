@@ -26,6 +26,7 @@ use crate::util::iter::IntoExactSizeIterator;
 pub const TO_BOOL_CAST_RULE: CastRule = CastRule::Implicit(100);
 pub const TO_DATE32_CAST_RULE: CastRule = CastRule::Implicit(100);
 pub const TO_INTERVAL_CAST_RULE: CastRule = CastRule::Implicit(100);
+pub const TO_TIMESTAMP_CAST_RULE: CastRule = CastRule::Implicit(100);
 
 pub const TO_INT8_CAST_RULE: CastRule = CastRule::Implicit(191);
 pub const TO_UINT8_CAST_RULE: CastRule = CastRule::Implicit(190);

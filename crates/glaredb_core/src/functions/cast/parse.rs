@@ -3,7 +3,7 @@ use std::fmt::Write;
 use std::marker::PhantomData;
 use std::str::FromStr;
 
-use chrono::{Datelike, NaiveDate};
+use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, Utc};
 use half::f16;
 use num_traits::PrimInt;
 
@@ -422,5 +422,50 @@ mod tests {
             expected,
             IntervalParser::default().parse("1.5 days 2 hours").unwrap()
         );
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TimestampParser {
+    pub unit: crate::arrays::datatype::TimeUnit,
+}
+
+impl Parser for TimestampParser {
+    type Type = i64;
+    fn parse(&mut self, s: &str) -> Option<Self::Type> {
+        if let Ok(dt) = DateTime::parse_from_rfc3339(s) {
+            match self.unit {
+                crate::arrays::datatype::TimeUnit::Second => Some(dt.timestamp()),
+                crate::arrays::datatype::TimeUnit::Millisecond => Some(dt.timestamp_millis()),
+                crate::arrays::datatype::TimeUnit::Microsecond => Some(dt.timestamp_micros()),
+                crate::arrays::datatype::TimeUnit::Nanosecond => Some(dt.timestamp_nanos_opt().unwrap()),
+            }
+        } else if let Ok(dt) = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S") {
+            let dt = DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc);
+            match self.unit {
+                crate::arrays::datatype::TimeUnit::Second => Some(dt.timestamp()),
+                crate::arrays::datatype::TimeUnit::Millisecond => Some(dt.timestamp_millis()),
+                crate::arrays::datatype::TimeUnit::Microsecond => Some(dt.timestamp_micros()),
+                crate::arrays::datatype::TimeUnit::Nanosecond => Some(dt.timestamp_nanos_opt().unwrap()),
+            }
+        } else if let Ok(dt) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+            let dt = DateTime::<Utc>::from_naive_utc_and_offset(dt.and_hms_opt(0, 0, 0).unwrap(), Utc);
+            match self.unit {
+                crate::arrays::datatype::TimeUnit::Second => Some(dt.timestamp()),
+                crate::arrays::datatype::TimeUnit::Millisecond => Some(dt.timestamp_millis()),
+                crate::arrays::datatype::TimeUnit::Microsecond => Some(dt.timestamp_micros()),
+                crate::arrays::datatype::TimeUnit::Nanosecond => Some(dt.timestamp_nanos_opt().unwrap()),
+            }
+        } else if let Ok(unix_timestamp) = s.parse::<i64>() {
+            let dt = DateTime::<Utc>::from_timestamp(unix_timestamp, 0).unwrap();
+            match self.unit {
+                crate::arrays::datatype::TimeUnit::Second => Some(dt.timestamp()),
+                crate::arrays::datatype::TimeUnit::Millisecond => Some(dt.timestamp_millis()),
+                crate::arrays::datatype::TimeUnit::Microsecond => Some(dt.timestamp_micros()),
+                crate::arrays::datatype::TimeUnit::Nanosecond => Some(dt.timestamp_nanos_opt().unwrap()),
+            }
+        } else {
+            None
+        }
     }
 }
