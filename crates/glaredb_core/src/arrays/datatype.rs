@@ -395,6 +395,7 @@ impl DataType {
     /// Try to generate a datatype for casting `from` type id to `to` type id.
     ///
     /// Errors if a suitable datatype cannot be created.
+    // TODO: This should probably move.
     pub fn try_generate_cast_datatype(from: DataType, to: DataTypeId) -> Result<Self> {
         Ok(match to {
             DataTypeId::Any => {
@@ -640,6 +641,15 @@ impl DataType {
             Self::List(m) => Ok(m),
             other => Err(DbError::new(format!(
                 "Cannot get list type meta from type {other}"
+            ))),
+        }
+    }
+
+    pub fn try_get_timestamp_type_meta(&self) -> Result<&TimestampTypeMeta> {
+        match self {
+            Self::Timestamp(m) => Ok(m),
+            other => Err(DbError::new(format!(
+                "Cannot get timestamp time unit from type {other}"
             ))),
         }
     }

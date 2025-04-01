@@ -226,12 +226,12 @@ where
         // Cast the inputs if needed.
         match D::decimal_meta_opt(&l_type) {
             Some(meta) if meta == info.meta => (), // Nothing to do.
-            _ => left = expr::cast(left, return_type.clone()).into(),
+            _ => left = expr::cast(left, return_type.clone()).unwrap().into(),
         }
 
         match D::decimal_meta_opt(&r_type) {
             Some(meta) if meta == info.meta => (), // Nothing to do.
-            _ => right = expr::cast(right, return_type.clone()).into(),
+            _ => right = expr::cast(right, return_type.clone()).unwrap().into(),
         }
 
         Ok(BindState {

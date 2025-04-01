@@ -8,23 +8,16 @@ use crate::arrays::array::Array;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::functions::cast::array::cast_array;
-use crate::functions::cast::behavior::CastFailBehavior;
+use crate::functions::cast::PlannedCastFunction;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalCastExpr {
     pub to: DataType,
     pub expr: Box<PhysicalScalarExpression>,
+    pub cast_function: PlannedCastFunction,
 }
 
 impl PhysicalCastExpr {
-    pub fn new(expr: impl Into<PhysicalScalarExpression>, to: DataType) -> Self {
-        PhysicalCastExpr {
-            to,
-            expr: Box::new(expr.into()),
-        }
-    }
-
     pub(crate) fn create_state(&self, batch_size: usize) -> Result<ExpressionState> {
         let inputs = vec![self.expr.create_state(batch_size)?];
         let buffer = Batch::new([self.expr.datatype()], batch_size)?;
@@ -59,12 +52,8 @@ impl PhysicalCastExpr {
         //
         // Note we discard the previous selection since the child would have
         // written the rows starting at 0 up to selection len.
-        cast_array(
-            child_output,
-            Selection::linear(0, sel.len()),
-            output,
-            CastFailBehavior::Error,
-        )?;
+        self.cast_function
+            .call_cast(child_output, Selection::linear(0, sel.len()), output)?;
 
         Ok(())
     }
@@ -80,17 +69,21 @@ impl fmt::Display for PhysicalCastExpr {
 mod tests {
     use super::*;
     use crate::buffer::buffer_manager::NopBufferManager;
-    use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
+    use crate::expr;
+    use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::assert_arrays_eq_sel;
+    use crate::testutil::exprs::plan_scalar;
     use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
     fn cast_expr_literal_string_to_i32() {
-        let expr = PhysicalCastExpr {
-            to: DataType::Int32,
-            expr: Box::new(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                literal: "35".into(),
-            })),
+        let expr = plan_scalar(
+            &TableList::empty(),
+            expr::cast(expr::lit("35"), DataType::Int32).unwrap(),
+        );
+        let expr = match expr {
+            PhysicalScalarExpression::Cast(cast) => cast,
+            other => panic!("unexpected expression: {other:?}"),
         };
 
         let mut state = expr.create_state(1024).unwrap();

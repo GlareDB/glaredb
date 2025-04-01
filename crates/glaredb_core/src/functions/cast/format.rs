@@ -15,7 +15,7 @@ pub trait Formatter {
     type Type;
 
     /// Write the value to the buffer.
-    fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result;
+    fn write<W: fmt::Write>(&self, val: &Self::Type, buf: &mut W) -> fmt::Result;
 }
 
 /// Formatter that uses the type's `Display` implmentation.
@@ -26,7 +26,7 @@ pub struct DisplayFormatter<T: Display> {
 
 impl<T: Display> Formatter for DisplayFormatter<T> {
     type Type = T;
-    fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result {
+    fn write<W: fmt::Write>(&self, val: &Self::Type, buf: &mut W) -> fmt::Result {
         write!(buf, "{val}")
     }
 }
@@ -74,7 +74,7 @@ where
     T: DecimalPrimitive,
 {
     type Type = T;
-    fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result {
+    fn write<W: fmt::Write>(&self, val: &Self::Type, buf: &mut W) -> fmt::Result {
         let mut val = *val;
 
         if val.is_negative() {
@@ -157,7 +157,7 @@ pub type TimestampNanosecondsFormatter = TimestampFormatter<DateTimeFromNanoseco
 
 impl<T: DateTimeFromTimestamp> Formatter for TimestampFormatter<T> {
     type Type = i64;
-    fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result {
+    fn write<W: fmt::Write>(&self, val: &Self::Type, buf: &mut W) -> fmt::Result {
         let datetime = T::from(*val).ok_or(fmt::Error)?;
         write!(buf, "{datetime}")
     }
@@ -168,7 +168,7 @@ pub struct Date32Formatter;
 
 impl Formatter for Date32Formatter {
     type Type = i32;
-    fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result {
+    fn write<W: fmt::Write>(&self, val: &Self::Type, buf: &mut W) -> fmt::Result {
         let datetime =
             DateTime::from_timestamp((*val as i64) * SECONDS_IN_DAY, 0).ok_or(fmt::Error)?;
         write!(buf, "{}", datetime.format("%Y-%m-%d"))
@@ -180,7 +180,7 @@ pub struct Date64Formatter;
 
 impl Formatter for Date64Formatter {
     type Type = i64;
-    fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result {
+    fn write<W: fmt::Write>(&self, val: &Self::Type, buf: &mut W) -> fmt::Result {
         let datetime = DateTime::from_timestamp_millis(*val).ok_or(fmt::Error)?;
         write!(buf, "{datetime}")
     }
@@ -191,7 +191,7 @@ pub struct IntervalFormatter;
 
 impl Formatter for IntervalFormatter {
     type Type = Interval;
-    fn write<W: fmt::Write>(&mut self, val: &Self::Type, buf: &mut W) -> fmt::Result {
+    fn write<W: fmt::Write>(&self, val: &Self::Type, buf: &mut W) -> fmt::Result {
         let years = val.months / 12;
         let months = val.months % 12;
 
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn decimal_positive_scale() {
-        let mut formatter = Decimal64Formatter::new(6, 3);
+        let formatter = Decimal64Formatter::new(6, 3);
         let mut buf = String::new();
         formatter.write(&123450, &mut buf).unwrap();
         assert_eq!("123.450", buf);
@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn decimal_negative_scale() {
-        let mut formatter = Decimal64Formatter::new(6, -3);
+        let formatter = Decimal64Formatter::new(6, -3);
         let mut buf = String::new();
         formatter.write(&123450, &mut buf).unwrap();
         assert_eq!("123450000", buf);
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn decimal_zero_scale() {
-        let mut formatter = Decimal64Formatter::new(6, 0);
+        let formatter = Decimal64Formatter::new(6, 0);
         let mut buf = String::new();
         formatter.write(&123450, &mut buf).unwrap();
         assert_eq!("123450", buf);
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn decimal_negative_value() {
-        let mut formatter = Decimal64Formatter::new(3, 2);
+        let formatter = Decimal64Formatter::new(3, 2);
         let mut buf = String::new();
         formatter.write(&-49, &mut buf).unwrap();
         assert_eq!("-0.49", buf);
@@ -311,7 +311,7 @@ mod tests {
 
     #[test]
     fn decimal_negative_value_with_left_padding_in_decimal() {
-        let mut formatter = Decimal64Formatter::new(4, 3);
+        let formatter = Decimal64Formatter::new(4, 3);
         let mut buf = String::new();
         formatter.write(&-49, &mut buf).unwrap();
         assert_eq!("-0.049", buf);
@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn decimal_negative_value_with_non_zero_int() {
-        let mut formatter = Decimal64Formatter::new(5, 3);
+        let formatter = Decimal64Formatter::new(5, 3);
         let mut buf = String::new();
         formatter.write(&-24049, &mut buf).unwrap();
         assert_eq!("-24.049", buf);
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn decimal_negative_value_with_trailing_zero_in_decimal() {
-        let mut formatter = Decimal64Formatter::new(4, 3);
+        let formatter = Decimal64Formatter::new(4, 3);
         let mut buf = String::new();
         formatter.write(&-490, &mut buf).unwrap();
         assert_eq!("-0.490", buf);
@@ -335,7 +335,7 @@ mod tests {
 
     #[test]
     fn decimal_zero_right_of_decimal() {
-        let mut formatter = Decimal64Formatter::new(4, 1);
+        let formatter = Decimal64Formatter::new(4, 1);
         let mut buf = String::new();
         formatter.write(&30, &mut buf).unwrap();
         assert_eq!("3.0", buf);
@@ -343,7 +343,7 @@ mod tests {
 
     #[test]
     fn date32_basic() {
-        let mut formatter = Date32Formatter;
+        let formatter = Date32Formatter;
         let mut buf = String::new();
         formatter.write(&8319, &mut buf).unwrap();
         assert_eq!("1992-10-11", buf);

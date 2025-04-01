@@ -146,9 +146,7 @@ impl Expression {
                     func(&mut when_then.when)?;
                     func(&mut when_then.then)?;
                 }
-                if let Some(else_expr) = case.else_expr.as_mut() {
-                    func(else_expr)?;
-                }
+                func(&mut case.else_expr)?;
             }
             Self::Column(_) => (),
             Self::Comparison(comp) => {
@@ -220,9 +218,7 @@ impl Expression {
                     func(&when_then.when)?;
                     func(&when_then.then)?;
                 }
-                if let Some(else_expr) = case.else_expr.as_ref() {
-                    func(else_expr)?;
-                }
+                func(&case.else_expr)?;
             }
             Self::Column(_) => (),
             Self::Comparison(comp) => {
@@ -633,14 +629,11 @@ pub fn lit(scalar: impl Into<ScalarValue>) -> LiteralExpr {
     }
 }
 
-/// Wraps an expression in a cast.
+/// Wraps an expression in a cast using the default casting rules.
 ///
-/// Does not verify that the cast is valid.
-pub fn cast(expr: impl Into<Expression>, to: DataType) -> CastExpr {
-    CastExpr {
-        to,
-        expr: Box::new(expr.into()),
-    }
+/// Errors if no default casting rule can handle the types.
+pub fn cast(expr: impl Into<Expression>, to: DataType) -> Result<CastExpr> {
+    CastExpr::new_using_default_casts(expr, to)
 }
 
 impl fmt::Display for Expression {
@@ -846,17 +839,17 @@ where
                 .zip(datatypes.into_iter().zip(candidate.casts))
                 .map(|(input, (from_dt, cast_to))| {
                     Ok(match cast_to {
-                        CastType::Cast { to, .. } => Expression::Cast(CastExpr {
-                            to: DataType::try_generate_cast_datatype(from_dt, to).context_fn(
+                        CastType::Cast { to, .. } => {
+                            let to = DataType::try_generate_cast_datatype(from_dt, to).context_fn(
                                 || {
                                     format!(
                                         "Failed to create cast datatype for function '{}'",
                                         function.name
                                     )
                                 },
-                            )?,
-                            expr: Box::new(input),
-                        }),
+                            )?;
+                            cast(input, to)?.into()
+                        }
                         CastType::NoCastNeeded => input,
                     })
                 })
@@ -888,7 +881,7 @@ mod tests {
         let expr = add(lit(4), lit(5_i64)).unwrap();
         // Construction of the expression should lookup the function, and add a
         // cast where needed.
-        let expected = add(cast(lit(4), DataType::Int64), lit(5_i64)).unwrap();
+        let expected = add(cast(lit(4), DataType::Int64).unwrap(), lit(5_i64)).unwrap();
 
         assert_eq!(expected, expr);
     }

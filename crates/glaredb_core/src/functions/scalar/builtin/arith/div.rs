@@ -24,8 +24,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::BinaryExecutor;
-use crate::expr::Expression;
-use crate::expr::cast_expr::CastExpr;
+use crate::expr::{self, Expression};
 use crate::functions::Signature;
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
@@ -185,14 +184,8 @@ impl ScalarFunction for DivDecimal {
     fn bind(&self, mut inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         // Wrap decimals in float casts. Then we'll just do the div on floats.
         debug_assert_eq!(2, inputs.len());
-        let right = Expression::Cast(CastExpr {
-            to: DataType::Float64,
-            expr: Box::new(inputs.pop().unwrap()),
-        });
-        let left = Expression::Cast(CastExpr {
-            to: DataType::Float64,
-            expr: Box::new(inputs.pop().unwrap()),
-        });
+        let right = expr::cast(inputs.pop().unwrap(), DataType::Float64)?.into();
+        let left = expr::cast(inputs.pop().unwrap(), DataType::Float64)?.into();
 
         Ok(BindState {
             state: (),

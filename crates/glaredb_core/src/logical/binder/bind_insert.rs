@@ -125,7 +125,7 @@ impl<'a> InsertBinder<'a> {
             });
 
             if have.2 != want {
-                expr = cast(expr, want.clone()).into();
+                expr = cast(expr, want.clone())?.into();
                 has_cast = true;
             }
 
