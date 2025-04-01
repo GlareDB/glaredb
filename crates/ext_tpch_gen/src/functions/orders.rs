@@ -10,6 +10,7 @@ use glaredb_core::arrays::array::physical_type::{
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use glaredb_core::functions::Signature;
+use glaredb_core::functions::documentation::{Category, Documentation, Example};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
 use glaredb_core::storage::projections::Projections;
@@ -19,10 +20,20 @@ use tpchgen::generators::{Order, OrderGenerator, OrderGeneratorIterator};
 use super::convert;
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
+pub static ORDERS_DOC: Documentation = Documentation {
+    category: Category::Table,
+    description: "Generates TPC-H orders data with the specified scale factor.",
+    arguments: &["scale_factor"],
+    example: Some(Example {
+        example: "SELECT COUNT(*) FROM tpch_gen.orders(1);",
+        output: "1500000",
+    }),
+};
+
 pub const FUNCTION_SET_ORDERS: TableFunctionSet = TableFunctionSet {
     name: "orders",
     aliases: &[],
-    doc: &[],
+    doc: &[&ORDERS_DOC],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Table),
         &TableGen::new(OrdersTable),

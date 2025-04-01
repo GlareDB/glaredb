@@ -7,6 +7,7 @@ use glaredb_core::arrays::array::physical_type::{
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::datatype::{DataType, DataTypeId};
 use glaredb_core::functions::Signature;
+use glaredb_core::functions::documentation::{Category, Documentation, Example};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
 use glaredb_core::storage::projections::Projections;
@@ -15,10 +16,20 @@ use tpchgen::generators::{Region, RegionGenerator, RegionGeneratorIterator};
 
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
+pub static REGION_DOC: Documentation = Documentation {
+    category: Category::Table,
+    description: "Generates TPC-H region data with the specified scale factor. Scale factor has no effect as region data is fixed.",
+    arguments: &["scale_factor"],
+    example: Some(Example {
+        example: "SELECT * FROM tpch_gen.region(1);",
+        output: "5 rows",
+    }),
+};
+
 pub const FUNCTION_SET_REGION: TableFunctionSet = TableFunctionSet {
     name: "region",
     aliases: &[],
-    doc: &[],
+    doc: &[&REGION_DOC],
     functions: &[
         // region(sf)
         RawTableFunction::new_scan(

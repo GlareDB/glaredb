@@ -8,6 +8,7 @@ use glaredb_core::arrays::array::physical_type::{
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use glaredb_core::functions::Signature;
+use glaredb_core::functions::documentation::{Category, Documentation, Example};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
 use glaredb_core::storage::projections::Projections;
@@ -17,10 +18,20 @@ use tpchgen::generators::{LineItem, LineItemGenerator, LineItemGeneratorIterator
 use super::convert;
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
+pub static LINEITEM_DOC: Documentation = Documentation {
+    category: Category::Table,
+    description: "Generates TPC-H lineitem data with the specified scale factor.",
+    arguments: &["scale_factor"],
+    example: Some(Example {
+        example: "SELECT COUNT(*) FROM tpch_gen.lineitem(1);",
+        output: "6001215",
+    }),
+};
+
 pub const FUNCTION_SET_LINEITEM: TableFunctionSet = TableFunctionSet {
     name: "lineitem",
     aliases: &[],
-    doc: &[],
+    doc: &[&LINEITEM_DOC],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Table),
         &TableGen::new(LineItemTable),
