@@ -26,13 +26,22 @@ use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::expr::{self, Expression};
 use crate::functions::Signature;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_DIV: ScalarFunctionSet = ScalarFunctionSet {
     name: "/",
     aliases: &["div"],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::Numeric,
+        description: "Divides the left value by the right value.",
+        arguments: &["left", "right"],
+        example: Some(Example {
+            example: "15 / 3",
+            output: "5",
+        }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(

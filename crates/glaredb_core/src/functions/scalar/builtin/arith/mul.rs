@@ -32,13 +32,22 @@ use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType}
 use crate::arrays::scalar::interval::Interval;
 use crate::expr::{self, Expression};
 use crate::functions::Signature;
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_MUL: ScalarFunctionSet = ScalarFunctionSet {
     name: "*",
     aliases: &["mul"],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::Numeric,
+        description: "Multiplies two numeric values.",
+        arguments: &["left", "right"],
+        example: Some(Example {
+            example: "5 * 3",
+            output: "15",
+        }),
+    }],
     functions: &[
         RawScalarFunction::new(
             &Signature::new(
