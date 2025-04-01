@@ -1,0 +1,383 @@
+# Test casting to min and max integer values of varying sizes
+
+# Test min/max values for TINYINT (Int8)
+query I
+select (-128)::TINYINT;
+----
+-128
+
+query I
+select 127::TINYINT;
+----
+127
+
+# Test min/max values for SMALLINT (Int16)
+query I
+select (-32768)::SMALLINT;
+----
+-32768
+
+query I
+select 32767::SMALLINT;
+----
+32767
+
+# Test min/max values for INT (Int32)
+query I
+select (-2147483648)::INT;
+----
+-2147483648
+
+query I
+select 2147483647::INT;
+----
+2147483647
+
+# Test min/max values for BIGINT (Int64)
+query I
+select (-9223372036854775808)::BIGINT;
+----
+-9223372036854775808
+
+query I
+select 9223372036854775807::BIGINT;
+----
+9223372036854775807
+
+# Test min/max values for UTINYINT (UInt8)
+query I
+select 0::UTINYINT;
+----
+0
+
+query I
+select 255::UTINYINT;
+----
+255
+
+# Test min/max values for USMALLINT (UInt16)
+query I
+select 0::USMALLINT;
+----
+0
+
+query I
+select 65535::USMALLINT;
+----
+65535
+
+# Test min/max values for UINT (UInt32)
+query I
+select 0::UINT;
+----
+0
+
+query I
+select 4294967295::UINT;
+----
+4294967295
+
+# Test min/max values for UBIGINT (UInt64)
+query I
+select 0::UBIGINT;
+----
+0
+
+query I
+select 18446744073709551615::UBIGINT;
+----
+18446744073709551615
+
+# Test NULL values
+query I
+select NULL::TINYINT;
+----
+NULL
+
+query I
+select NULL::SMALLINT;
+----
+NULL
+
+query I
+select NULL::INT;
+----
+NULL
+
+query I
+select NULL::BIGINT;
+----
+NULL
+
+# Test casting min/max values between signed integer types
+# TINYINT to larger types
+query I
+select (-128)::TINYINT::SMALLINT;
+----
+-128
+
+query I
+select 127::TINYINT::SMALLINT;
+----
+127
+
+query I
+select (-128)::TINYINT::INT;
+----
+-128
+
+query I
+select 127::TINYINT::INT;
+----
+127
+
+query I
+select (-128)::TINYINT::BIGINT;
+----
+-128
+
+query I
+select 127::TINYINT::BIGINT;
+----
+127
+
+# SMALLINT to larger types
+query I
+select (-32768)::SMALLINT::INT;
+----
+-32768
+
+query I
+select 32767::SMALLINT::INT;
+----
+32767
+
+query I
+select (-32768)::SMALLINT::BIGINT;
+----
+-32768
+
+query I
+select 32767::SMALLINT::BIGINT;
+----
+32767
+
+# INT to larger types
+query I
+select (-2147483648)::INT::BIGINT;
+----
+-2147483648
+
+query I
+select 2147483647::INT::BIGINT;
+----
+2147483647
+
+# Test casting from string literals to min/max integer values
+query I
+select '-128'::TINYINT;
+----
+-128
+
+query I
+select '127'::TINYINT;
+----
+127
+
+query I
+select '-32768'::SMALLINT;
+----
+-32768
+
+query I
+select '32767'::SMALLINT;
+----
+32767
+
+query I
+select '-2147483648'::INT;
+----
+-2147483648
+
+query I
+select '2147483647'::INT;
+----
+2147483647
+
+query I
+select '-9223372036854775808'::BIGINT;
+----
+-9223372036854775808
+
+query I
+select '9223372036854775807'::BIGINT;
+----
+9223372036854775807
+
+query I
+select '0'::UTINYINT;
+----
+0
+
+query I
+select '255'::UTINYINT;
+----
+255
+
+query I
+select '0'::USMALLINT;
+----
+0
+
+query I
+select '65535'::USMALLINT;
+----
+65535
+
+query I
+select '0'::UINT;
+----
+0
+
+query I
+select '4294967295'::UINT;
+----
+4294967295
+
+query I
+select '0'::UBIGINT;
+----
+0
+
+query I
+select '18446744073709551615'::UBIGINT;
+----
+18446744073709551615
+
+# Test overflow/underflow errors when casting between types
+# Overflow errors for TINYINT
+statement error Failed to cast value '128' from Int32 to Int8
+select 128::TINYINT;
+
+statement error Failed to cast value '-129' from Int32 to Int8
+select (-129)::TINYINT;
+
+# Overflow errors for SMALLINT
+statement error Failed to cast value '32768' from Int32 to Int16
+select 32768::SMALLINT;
+
+statement error Failed to cast value '-32769' from Int32 to Int16
+select (-32769)::SMALLINT;
+
+# Overflow errors for INT
+statement error Failed to cast value '2147483648' from Int64 to Int32
+select 2147483648::INT;
+
+statement error Failed to cast value '-2147483649' from Int64 to Int32
+select (-2147483649)::INT;
+
+# Overflow errors for UTINYINT
+statement error Failed to cast value '256' from Int32 to UInt8
+select 256::UTINYINT;
+
+statement error Failed to cast value '-1' from Int32 to UInt8
+select (-1)::UTINYINT;
+
+# Overflow errors for USMALLINT
+statement error Failed to cast value '65536' from Int32 to UInt16
+select 65536::USMALLINT;
+
+statement error Failed to cast value '-1' from Int32 to UInt16
+select (-1)::USMALLINT;
+
+# Overflow errors for UINT
+statement error Failed to cast value '4294967296' from Int64 to UInt32
+select 4294967296::UINT;
+
+statement error Failed to cast value '-1' from Int32 to UInt32
+select (-1)::UINT;
+
+# Overflow errors for UBIGINT
+statement error Failed to cast value '-1' from Int32 to UInt64
+select (-1)::UBIGINT;
+
+# Test casting from larger to smaller types (where values fit)
+query I
+select 100::INT::SMALLINT;
+----
+100
+
+query I
+select 100::INT::TINYINT;
+----
+100
+
+query I
+select 100::SMALLINT::TINYINT;
+----
+100
+
+# Test casting between signed and unsigned types (where values fit)
+query I
+select 100::INT::UINT;
+----
+100
+
+query I
+select 100::TINYINT::UTINYINT;
+----
+100
+
+query I
+select 100::SMALLINT::USMALLINT;
+----
+100
+
+query I
+select 100::BIGINT::UBIGINT;
+----
+100
+
+query I
+select 100::UINT::INT;
+----
+100
+
+query I
+select 100::UTINYINT::TINYINT;
+----
+100
+
+query I
+select 100::USMALLINT::SMALLINT;
+----
+100
+
+query I
+select 100::UBIGINT::BIGINT;
+----
+100
+
+# Test describe for all integer types
+query TT
+DESCRIBE SELECT 
+    a,
+    a::TINYINT, 
+    a::SMALLINT, 
+    a::INT, 
+    a::BIGINT,
+    a::UTINYINT, 
+    a::USMALLINT, 
+    a::UINT, 
+    a::UBIGINT
+FROM VALUES (10), (20), (30) v(a) ORDER BY 1;
+----
+a         Int32
+?column?  Int8
+?column?  Int16
+?column?  Int32
+?column?  Int64
+?column?  UInt8
+?column?  UInt16
+?column?  UInt32
+?column?  UInt64
