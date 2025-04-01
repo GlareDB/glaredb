@@ -170,7 +170,7 @@ impl<'a> SelectListBinder<'a> {
             windows,
             grouping_functions_table: groupings_table,
             grouping_set_references: groupings,
-            distinct_mofier: distinct,
+            distinct_modifier: distinct,
         })
     }
 

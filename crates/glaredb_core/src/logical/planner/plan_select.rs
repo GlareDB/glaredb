@@ -133,7 +133,7 @@ impl SelectPlanner {
 
         // Handle DISTINCT. Note this comes after the UNNESTing since we'd want
         // to distinct the results of the unnested output.
-        if select.select_list.distinct_mofier == BoundDistinctModifier::Distinct {
+        if select.select_list.distinct_modifier == BoundDistinctModifier::Distinct {
             plan = LogicalOperator::Distinct(Node {
                 node: LogicalDistinct {},
                 location: LocationRequirement::Any,

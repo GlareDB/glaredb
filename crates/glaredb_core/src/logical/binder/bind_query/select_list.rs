@@ -64,7 +64,7 @@ pub struct BoundSelectList {
     ///
     /// If ALL, then a normal projection is used. If DISTINCT, then a distinct
     /// project will be used.
-    pub distinct_mofier: BoundDistinctModifier,
+    pub distinct_modifier: BoundDistinctModifier,
 }
 
 #[derive(Debug)]
@@ -97,7 +97,7 @@ pub struct SelectList {
     /// All extracted GROUPING function calls.
     pub grouping_set_references: Vec<Expression>,
     /// Distinct modifer from the select list.
-    pub distinct_mofier: BoundDistinctModifier,
+    pub distinct_modifier: BoundDistinctModifier,
 }
 
 impl SelectList {
@@ -185,7 +185,7 @@ impl SelectList {
             grouping_functions_table: self.grouping_functions_table,
             grouping_functions,
 
-            distinct_mofier: self.distinct_mofier,
+            distinct_modifier: self.distinct_modifier,
         })
     }
 
