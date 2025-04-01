@@ -134,7 +134,12 @@ pub const FUNCTION_SET_EXECUTION_PROFILE: TableFunctionSet = TableFunctionSet {
 pub const FUNCTION_SET_QUERY_INFO: TableFunctionSet = TableFunctionSet {
     name: "query_info",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::System,
+        description: "Get information about executed queries",
+        arguments: &[],
+        example: None,
+    }],
     functions: &[
         // query_info()
         // Get info for most recent query.

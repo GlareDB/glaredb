@@ -1,13 +1,19 @@
 use super::debug::ScalarNotImplemented;
 use crate::arrays::datatype::DataTypeId;
 use crate::functions::Signature;
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::RawScalarFunction;
 
 pub const FUNCTION_SET_STRUCT_PACK: ScalarFunctionSet = ScalarFunctionSet {
     name: "struct_pack",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::General,
+        description: "Creates a struct from the provided values",
+        arguments: &["values..."],
+        example: None,
+    }],
     functions: &[RawScalarFunction::new(
         &Signature {
             positional_args: &[],
@@ -21,7 +27,12 @@ pub const FUNCTION_SET_STRUCT_PACK: ScalarFunctionSet = ScalarFunctionSet {
 pub const FUNCTION_SET_STRUCT_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
     name: "struct_extract",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::General,
+        description: "Extracts a value from a struct",
+        arguments: &["struct"],
+        example: None,
+    }],
     functions: &[RawScalarFunction::new(
         &Signature {
             positional_args: &[DataTypeId::Struct],
