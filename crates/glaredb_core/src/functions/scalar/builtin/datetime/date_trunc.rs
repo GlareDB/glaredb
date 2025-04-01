@@ -10,6 +10,7 @@ use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -18,7 +19,12 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 pub const FUNCTION_SET_DATE_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
     name: "date_trunc",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::Date,
+        description: "Truncates a timestamp to the specified precision",
+        arguments: &["field", "timestamp"],
+        example: None,
+    }],
     // TODO: Date32/64
     functions: &[RawScalarFunction::new(
         &Signature::new(

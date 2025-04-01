@@ -11,6 +11,7 @@ use crate::catalog::context::DatabaseContext;
 use crate::catalog::database::Database;
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::TableScanFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
@@ -20,7 +21,12 @@ use crate::storage::projections::Projections;
 pub const FUNCTION_SET_LIST_DATABASES: TableFunctionSet = TableFunctionSet {
     name: "list_databases",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::System,
+        description: "Lists all databases in the system",
+        arguments: &[],
+        example: None,
+    }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[], DataTypeId::Table),
         &ListDatabases,

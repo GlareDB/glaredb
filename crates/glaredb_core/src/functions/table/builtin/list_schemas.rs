@@ -18,13 +18,19 @@ use crate::functions::Signature;
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::TableScanFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
+use crate::functions::documentation::{Category, Documentation};
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::projections::Projections;
 
 pub const FUNCTION_SET_LIST_SCHEMAS: TableFunctionSet = TableFunctionSet {
     name: "list_schemas",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::System,
+        description: "Lists all schemas in the database",
+        arguments: &[],
+        example: None,
+    }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[], DataTypeId::Table),
         &ListSchemas,

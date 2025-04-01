@@ -10,6 +10,7 @@ use crate::catalog::context::DatabaseContext;
 use crate::catalog::{Catalog, Schema};
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
+use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::TableScanFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
@@ -20,7 +21,12 @@ use crate::storage::projections::Projections;
 pub const FUNCTION_SET_MEMORY_SCAN: TableFunctionSet = TableFunctionSet {
     name: "memory_scan",
     aliases: &[],
-    doc: &[],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "Scans a memory table in the database",
+        arguments: &["catalog", "schema", "table"],
+        example: None,
+    }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(
             &[DataTypeId::Utf8, DataTypeId::Utf8, DataTypeId::Utf8],
