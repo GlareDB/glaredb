@@ -160,8 +160,9 @@ impl<'a> SetOpBinder<'a> {
         let modifier_binder =
             ModifierBinder::new(vec![left_scope, right_scope], self.resolve_context);
         // TODO: This select list should be able to reference aliases in the output.
+        // TODO: What do we do with distinct? Is None ok?
         let mut empty_select_list = SelectListBinder::new(self.current, self.resolve_context)
-            .bind(bind_context, Vec::new())?;
+            .bind(bind_context, Vec::new(), None)?;
         let order_by = order_by
             .map(|order_by| {
                 modifier_binder.bind_order_by(bind_context, &mut empty_select_list, order_by)

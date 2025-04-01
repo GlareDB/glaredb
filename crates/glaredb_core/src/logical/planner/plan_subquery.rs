@@ -650,6 +650,10 @@ impl DependentJoinPushdown {
                 has_correlation = self.any_expression_has_correlation(&project.node.projections);
                 has_correlation |= self.find_correlations_in_children(&project.children)?;
             }
+            LogicalOperator::Distinct(distinct) => {
+                // TODO: ON distinctions need to be checked once that's in.
+                has_correlation |= self.find_correlations_in_children(&distinct.children)?;
+            }
             LogicalOperator::Filter(filter) => {
                 has_correlation = self.expression_has_correlation(&filter.node.filter);
                 has_correlation |= self.find_correlations_in_children(&filter.children)?;
@@ -845,6 +849,19 @@ impl DependentJoinPushdown {
                         },
                     );
                 }
+
+                Ok(())
+            }
+            LogicalOperator::Distinct(distinct) => {
+                self.pushdown_children(bind_context, &mut distinct.children)?;
+
+                // TODO: ON distinctions will need to updated here once
+                // supported. Decorrelated columns will need to be added the
+                // existing ON expressions.
+                //
+                // Maybe? If we add to ON expressions, we'll need to add a table
+                // ref for the distinct node to allow parents to reference the
+                // decorrelated expression.
 
                 Ok(())
             }

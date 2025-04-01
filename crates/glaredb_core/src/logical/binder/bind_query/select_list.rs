@@ -12,6 +12,15 @@ use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_aggregate::GroupingFunction;
 use crate::logical::resolver::ResolvedMeta;
 
+// TODO: On
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BoundDistinctModifier {
+    /// Distinct on all columns,
+    Distinct,
+    /// No distinct, return all rows.
+    All,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutputProjectionTable {
     /// Table containing just column references.
@@ -51,6 +60,11 @@ pub struct BoundSelectList {
     pub grouping_functions_table: TableRef,
     /// List of grouping functions.
     pub grouping_functions: Vec<GroupingFunction>,
+    /// Distinct modifer.
+    ///
+    /// If ALL, then a normal projection is used. If DISTINCT, then a distinct
+    /// project will be used.
+    pub distinct_modifier: BoundDistinctModifier,
 }
 
 #[derive(Debug)]
@@ -82,6 +96,8 @@ pub struct SelectList {
     pub grouping_functions_table: TableRef,
     /// All extracted GROUPING function calls.
     pub grouping_set_references: Vec<Expression>,
+    /// Distinct modifer from the select list.
+    pub distinct_modifier: BoundDistinctModifier,
 }
 
 impl SelectList {
@@ -168,6 +184,8 @@ impl SelectList {
 
             grouping_functions_table: self.grouping_functions_table,
             grouping_functions,
+
+            distinct_modifier: self.distinct_modifier,
         })
     }
 

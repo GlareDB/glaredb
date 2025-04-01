@@ -200,8 +200,8 @@ where
         }
     } else {
         for (idx, hash) in sel.zip(hashes.iter_mut()) {
-            let sel_idx = arr.selection.get(idx).unwrap();
-            if arr.validity.is_valid(sel_idx) {
+            if arr.validity.is_valid(idx) {
+                let sel_idx = arr.selection.get(idx).unwrap();
                 let v = values.get(sel_idx).unwrap();
                 H::set_hash(hash, DefaultHasher::hash(v));
             } else {
@@ -367,6 +367,22 @@ mod tests {
 
         assert_ne!(0, hashes[0]);
         assert_eq!(DefaultHasher::NULL_HASH, hashes[1]);
+    }
+
+    #[test]
+    fn hash_dictionary() {
+        let mut hashes = vec![0; 4];
+        let mut arr =
+            Array::try_from_iter([Some(1), None, Some(3), Some(4), None, None, Some(8)]).unwrap();
+        // [NULL, 3, 4, NULL]
+        arr.select(&NopBufferManager, [1, 2, 3, 5]).unwrap();
+
+        hash_array(&arr, 0..4, &mut hashes).unwrap();
+
+        assert_eq!(DefaultHasher::NULL_HASH, hashes[0]);
+        assert_ne!(DefaultHasher::NULL_HASH, hashes[1]);
+        assert_ne!(DefaultHasher::NULL_HASH, hashes[2]);
+        assert_eq!(DefaultHasher::NULL_HASH, hashes[3]);
     }
 
     #[test]

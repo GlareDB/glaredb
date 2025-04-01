@@ -85,6 +85,10 @@ impl AstParseable for LimitModifier<Raw> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum DistinctModifier<T: AstMeta> {
+    /// DISTINCT
+    Distinct,
+    /// DISTINCT ON
     On(Vec<Expr<T>>),
+    /// ALL
     All,
 }

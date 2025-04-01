@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use glaredb_error::{DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::ast;
 
 use super::select_expr_expander::ExpandedSelectExpr;
-use super::select_list::SelectList;
+use super::select_list::{BoundDistinctModifier, SelectList};
 use crate::expr::Expression;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
@@ -32,6 +32,7 @@ impl<'a> SelectListBinder<'a> {
         &mut self,
         bind_context: &mut BindContext,
         projections: Vec<ExpandedSelectExpr>,
+        distinct: Option<ast::DistinctModifier<ResolvedMeta>>,
     ) -> Result<SelectList> {
         let mut alias_map = HashMap::new();
 
@@ -148,6 +149,16 @@ impl<'a> SelectListBinder<'a> {
             Self::extract_windows(windows_table, bind_context, expr, &mut windows)?;
         }
 
+        // Determine distinctness of the projections.
+        //
+        // TODO: When ON is supported, that may include expressions not part of
+        // the projection, so we'd need to add those in
+        let distinct = match distinct {
+            Some(ast::DistinctModifier::Distinct) => BoundDistinctModifier::Distinct,
+            Some(ast::DistinctModifier::On(_)) => not_implemented!("DISTINCT ON"),
+            Some(ast::DistinctModifier::All) | None => BoundDistinctModifier::All,
+        };
+
         Ok(SelectList {
             projections_table,
             alias_map,
@@ -159,6 +170,7 @@ impl<'a> SelectListBinder<'a> {
             windows,
             grouping_functions_table: groupings_table,
             grouping_set_references: groupings,
+            distinct_modifier: distinct,
         })
     }
 

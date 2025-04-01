@@ -3,7 +3,9 @@ use glaredb_error::Result;
 use super::plan_unnest::UnnestPlanner;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_query::bind_select::BoundSelect;
+use crate::logical::binder::bind_query::select_list::BoundDistinctModifier;
 use crate::logical::logical_aggregate::LogicalAggregate;
+use crate::logical::logical_distinct::LogicalDistinct;
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_limit::LogicalLimit;
 use crate::logical::logical_order::LogicalOrder;
@@ -126,8 +128,19 @@ impl SelectPlanner {
             children: vec![plan],
             estimated_cardinality: StatisticsValue::Unknown,
         });
-        // Handle possible UNNESTing.
+        // Handle possible UNNESTing from the projection.
         plan = UnnestPlanner.plan_unnests(bind_context, plan)?;
+
+        // Handle DISTINCT. Note this comes after the UNNESTing since we'd want
+        // to distinct the results of the unnested output.
+        if select.select_list.distinct_modifier == BoundDistinctModifier::Distinct {
+            plan = LogicalOperator::Distinct(Node {
+                node: LogicalDistinct {},
+                location: LocationRequirement::Any,
+                children: vec![plan],
+                estimated_cardinality: StatisticsValue::Unknown,
+            })
+        }
 
         // Handle ORDER BY
         if let Some(order_by) = select.order_by {

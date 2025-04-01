@@ -1,4 +1,4 @@
-use glaredb_error::{DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, DistinctModifier, Expr, FromNode, Ident, ObjectReference};
@@ -25,7 +25,24 @@ pub struct SelectNode<T: AstMeta> {
 
 impl AstParseable for SelectNode<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
-        // TODO: distinct
+        let mut distinct = None;
+        if parser.parse_keyword(Keyword::ALL) {
+            distinct = Some(DistinctModifier::All);
+        }
+
+        if parser.parse_keyword(Keyword::DISTINCT) {
+            if distinct.is_some() {
+                return Err(DbError::new("Cannot specify both ALL and DISTINCT"));
+            }
+
+            if parser.parse_keyword(Keyword::ON) {
+                //  SELECT DISTINCT ON (<expr>) <select-list>
+                not_implemented!("DISTINCT ON")
+            } else {
+                //  SELECT DISTINCT <select-list>
+                distinct = Some(DistinctModifier::Distinct)
+            }
+        }
 
         // Select list
         let projections = parser.parse_comma_separated(SelectExpr::parse)?;
@@ -59,7 +76,7 @@ impl AstParseable for SelectNode<Raw> {
         };
 
         Ok(SelectNode {
-            distinct: None,
+            distinct,
             projections,
             from,
             where_expr,

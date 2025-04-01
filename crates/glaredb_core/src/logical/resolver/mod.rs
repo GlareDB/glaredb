@@ -729,6 +729,7 @@ impl<'a> Resolver<'a> {
                     }
                     ast::DistinctModifier::On(bound)
                 }
+                ast::DistinctModifier::Distinct => ast::DistinctModifier::Distinct,
                 ast::DistinctModifier::All => ast::DistinctModifier::All,
             }),
             None => None,

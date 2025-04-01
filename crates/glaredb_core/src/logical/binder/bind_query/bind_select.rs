@@ -68,8 +68,11 @@ impl<'a> SelectBinder<'a> {
             return Err(DbError::new("Cannot SELECT * without a FROM clause"));
         }
 
-        let mut select_list = SelectListBinder::new(from_bind_ref, self.resolve_context)
-            .bind(bind_context, projections)?;
+        let mut select_list = SelectListBinder::new(from_bind_ref, self.resolve_context).bind(
+            bind_context,
+            projections,
+            select.distinct,
+        )?;
 
         // Handle WHERE
         let where_expr = select
@@ -89,7 +92,7 @@ impl<'a> SelectBinder<'a> {
             })
             .transpose()?;
 
-        // Handle ORDER BY, LIMIT, DISTINCT (todo)
+        // Handle ORDER BY, LIMIT
         let modifier_binder = ModifierBinder::new(vec![from_bind_ref], self.resolve_context);
         let order_by = order_by
             .map(|order_by| modifier_binder.bind_order_by(bind_context, &mut select_list, order_by))
