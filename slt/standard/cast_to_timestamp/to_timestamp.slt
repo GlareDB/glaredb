@@ -25,7 +25,5 @@ SELECT CAST(NULL AS TIMESTAMP);
 NULL
 
 # Invalid format should fail with error
-query error
+statement error Failed to parse 'not a timestamp' as a timestamp
 SELECT CAST('not a timestamp' AS TIMESTAMP);
-----
-Failed to parse 'not a timestamp' as a timestamp
