@@ -6,119 +6,119 @@ title: String functions
 
 <!-- DOCSGEN_START string_functions -->
 
-## ascii
+## `ascii`
 
 Get the ascii code of the first character of the argument.
 
-## bit_length
+## `bit_length`
 
 Get the number of bits in a string or blob.
 
-## btrim
+## `btrim`
 
 Trim matching characters from both sides of the string.
 
-## byte_length
+## `byte_length`
 
 Get the number of bytes in a string or blob.
 
-## char_length
+## `char_length`
 
 Get the number of characters in a string.
 
-## character_length
+## `character_length`
 
 character_lengthf characters in a string.
 
-## concat
+## `concat`
 
 Concatenate many strings into a single string.
 
-## contains
+## `contains`
 
 Check if string contains a search string.
 
-## ends_with
+## `ends_with`
 
 Check if a string ends with a suffix.
 
-## left
+## `left`
 
 Get the leftmost N characters of a string.
 
-## length
+## `length`
 
 Get the number of characters in a string.
 
-## like
+## `like`
 
 Check if a string matches the given pattern.
 
-## lower
+## `lower`
 
 Convert the string to lowercase.
 
-## lpad
+## `lpad`
 
 Left pad a string with spaces until the resulting string contains 'count' characters.
 
-## ltrim
+## `ltrim`
 
 Trim matching characters from the left side of the string.
 
-## octet_length
+## `octet_length`
 
 Get the number of bytes in a string or blob.
 
-## prefix
+## `prefix`
 
 Check if a string starts with a prefix.
 
-## repeat
+## `repeat`
 
 Repeat a string some number of times.
 
-## reverse
+## `reverse`
 
 Reverse the input string.
 
-## right
+## `right`
 
 Get the rightmost N characters of a string.
 
-## rpad
+## `rpad`
 
 Right pad a string with spaces until the resulting string contains 'count' characters.
 
-## rtrim
+## `rtrim`
 
 Trim whitespace from the right side of the string.
 
-## starts_with
+## `starts_with`
 
 Check if a string starts with a prefix.
 
-## strpos
+## `strpos`
 
 Returns the position of a substring within a string. Returns 0 if the substring is not found.
 
-## substr
+## `substr`
 
 Get a substring of a string starting at an index until the end of the string. The index is 1-based.
 
-## substring
+## `substring`
 
 Get a substring of a string starting at an index until the end of the string. The index is 1-based.
 
-## suffix
+## `suffix`
 
 Check if a string ends with a suffix.
 
-## trim
+## `trim`
 
 Trim matching characters from both sides of the string.
 
-## upper
+## `upper`
 
 Convert the string to uppercase.
 

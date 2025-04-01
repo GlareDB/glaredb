@@ -6,147 +6,147 @@ title: Numeric functions
 
 <!-- DOCSGEN_START numeric_functions -->
 
-## %
+## `%`
 
 Returns the remainder after dividing the left value by the right value.
 
-## *
+## `*`
 
 Multiplies two numeric values.
 
-## +
+## `+`
 
 Adds two numeric values together.
 
-## -
+## `-`
 
 Subtracts the right value from the left value.
 
-## /
+## `/`
 
 Divides the left value by the right value.
 
-## abs
+## `abs`
 
 Compute the absolute value of a number
 
-## acos
+## `acos`
 
 Compute the arccosine of value
 
-## add
+## `add`
 
 Adds two numeric values together.
 
-## asin
+## `asin`
 
 Compute the arcsine of value
 
-## atan
+## `atan`
 
 Compute the arctangent of value
 
-## cbrt
+## `cbrt`
 
 Compute the cube root of value
 
-## ceil
+## `ceil`
 
 Round number up
 
-## cos
+## `cos`
 
 Compute the cosine of a value
 
-## degrees
+## `degrees`
 
 Convert radians to degrees
 
-## div
+## `div`
 
 Divides the left value by the right value.
 
-## exp
+## `exp`
 
 Compute `e ^ val`
 
-## floor
+## `floor`
 
 Round number down
 
-## is_nan
+## `is_nan`
 
 Return if the given float is a NaN.
 
-## isfinite
+## `isfinite`
 
 Return if the given float is finite
 
-## isinf
+## `isinf`
 
 Return if the given float is infinite (positive or negative infinity).
 
-## ln
+## `ln`
 
 Compute natural log of value
 
-## log
+## `log`
 
 Compute base-10 log of value
 
-## log2
+## `log2`
 
 Compute base-2 log of value
 
-## mul
+## `mul`
 
 Multiplies two numeric values.
 
-## pi
+## `pi`
 
 Return the value of pi.
 
-## pow
+## `pow`
 
 Compute base raised to the power of exponent
 
-## power
+## `power`
 
 Compute base raised to the power of exponent
 
-## radians
+## `radians`
 
 Convert degrees to radians
 
-## random
+## `random`
 
 Return a random float.
 
-## rem
+## `rem`
 
 Returns the remainder after dividing the left value by the right value.
 
-## round
+## `round`
 
 Round number to the nearest whole value
 
-## sin
+## `sin`
 
 Compute the sin of value
 
-## sqrt
+## `sqrt`
 
 Compute the square root of value
 
-## sub
+## `sub`
 
 Subtracts the right value from the left value.
 
-## tan
+## `tan`
 
 Compute the tangent of value
 
-## trunc
+## `trunc`
 
 Truncate number towards zero
 

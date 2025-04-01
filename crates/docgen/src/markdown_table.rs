@@ -10,6 +10,7 @@ const FORMATTER: Formatter = Formatter::new(FormatOptions {
     empty_string: "",
 });
 
+#[allow(unused)]
 pub fn write_markdown_table<'a>(
     output: &mut dyn fmt::Write,
     schema: &ColumnSchema,

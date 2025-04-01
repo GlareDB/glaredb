@@ -42,7 +42,7 @@ impl SectionWriter for FunctionSectionWriter {
                 let function_name = FORMATTER.format_array_value(&batch.arrays()[0], row)?;
                 let description = FORMATTER.format_array_value(&batch.arrays()[1], row)?;
 
-                writeln!(output, "## {}\n", function_name)?;
+                writeln!(output, "## `{}`\n", function_name)?;
                 writeln!(output, "{}\n", description)?;
             }
         }
