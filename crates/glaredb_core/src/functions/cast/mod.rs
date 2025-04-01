@@ -1,4 +1,3 @@
-pub mod array;
 pub mod behavior;
 pub mod builtin;
 pub mod format;
