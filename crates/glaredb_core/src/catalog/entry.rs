@@ -16,6 +16,7 @@ pub enum CatalogEntryType {
     AggregateFunction,
     TableFunction,
     CopyToFunction,
+    CastFunction,
 }
 
 impl fmt::Display for CatalogEntryType {
@@ -28,6 +29,7 @@ impl fmt::Display for CatalogEntryType {
             Self::AggregateFunction => write!(f, "aggregate function"),
             Self::TableFunction => write!(f, "table function"),
             Self::CopyToFunction => write!(f, "copy to function"),
+            Self::CastFunction => write!(f, "cast function"),
         }
     }
 }
