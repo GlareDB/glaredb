@@ -19,7 +19,7 @@ impl Category {
             Self::General => "general",
             Self::Aggregate => "aggregate",
             Self::Numeric => "numeric",
-            Self::DateTime => "date",
+            Self::DateTime => "datetime",
             Self::List => "list",
             Self::String => "string",
             Self::Regexp => "regexp",
@@ -31,9 +31,6 @@ impl Category {
 }
 
 /// Documentation for a single function variant.
-// TODO: Allow multiple arguments+example pairs for different arity functions.
-//
-// Previously had docs on signatures, but that's unecessary.
 #[derive(Debug, Clone, Copy)]
 pub struct Documentation {
     /// Category this function belongs in.
