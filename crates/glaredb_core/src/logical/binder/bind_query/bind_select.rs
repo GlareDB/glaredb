@@ -1,4 +1,4 @@
-use glaredb_error::{DbError, Result, not_implemented};
+use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
 use super::bind_from::{BoundFrom, FromBinder};
@@ -12,7 +12,6 @@ use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
-use crate::logical::binder::table_list::TableRef;
 use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
 
@@ -93,17 +92,12 @@ impl<'a> SelectBinder<'a> {
             })
             .transpose()?;
 
-        // Handle ORDER BY, LIMIT, DISTINCT
+        // Handle ORDER BY, LIMIT
         let modifier_binder = ModifierBinder::new(vec![from_bind_ref], self.resolve_context);
         let order_by = order_by
             .map(|order_by| modifier_binder.bind_order_by(bind_context, &mut select_list, order_by))
             .transpose()?;
         let limit = modifier_binder.bind_limit(bind_context, limit)?;
-        // let distinct = match select.distinct.as_ref() {
-        //     Some(ast::DistinctModifier::Distinct) => BoundDistinct::Distinct,
-        //     Some(ast::DistinctModifier::On(_)) => not_implemented!("DISTINCT ON"),
-        //     None | Some(ast::DistinctModifier::All) => BoundDistinct::All,
-        // };
 
         // Handle GROUP BY
         let mut group_by = select
