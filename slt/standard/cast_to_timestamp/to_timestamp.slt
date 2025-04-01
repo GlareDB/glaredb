@@ -32,8 +32,14 @@ SELECT CAST('not a timestamp' AS TIMESTAMP);
 ----
 NULL
 
-# Test error message when casting invalid timestamp
+# Test error message when casting invalid timestamp with precision
+statement ok
+CREATE TEMPORARY TABLE test_timestamp(val VARCHAR);
+
+statement ok
+INSERT INTO test_timestamp VALUES ('not a timestamp');
+
 query error
-SELECT CAST('not a timestamp' AS TIMESTAMP(3));
+SELECT CAST(val AS TIMESTAMP(3)) FROM test_timestamp;
 ----
 Failed to parse 'not a timestamp' as a timestamp
