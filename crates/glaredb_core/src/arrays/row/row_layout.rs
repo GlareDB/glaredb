@@ -258,7 +258,8 @@ pub(crate) const fn row_width_for_physical_type(phys_type: PhysicalType) -> usiz
         PhysicalType::Interval => std::mem::size_of::<Interval>(),
         PhysicalType::Binary => std::mem::size_of::<StringPtr>(),
         PhysicalType::Utf8 => std::mem::size_of::<StringPtr>(),
-        _ => unimplemented!(),
+        PhysicalType::List => 0,   // TODO: Probably metadata
+        PhysicalType::Struct => 0, // TODO: Probaby metadata
     }
 }
 
