@@ -175,7 +175,7 @@ select 2147483647::INT::BIGINT;
 
 # Test casting from string literals to min/max integer values
 query I
-select '(-128)'::TINYINT;
+select '-128'::TINYINT;
 ----
 -128
 
@@ -185,7 +185,7 @@ select '127'::TINYINT;
 127
 
 query I
-select '(-32768)'::SMALLINT;
+select '-32768'::SMALLINT;
 ----
 -32768
 
@@ -195,7 +195,7 @@ select '32767'::SMALLINT;
 32767
 
 query I
-select '(-2147483648)'::INT;
+select '-2147483648'::INT;
 ----
 -2147483648
 
@@ -205,7 +205,7 @@ select '2147483647'::INT;
 2147483647
 
 query I
-select '(-9223372036854775808)'::BIGINT;
+select '-9223372036854775808'::BIGINT;
 ----
 -9223372036854775808
 
