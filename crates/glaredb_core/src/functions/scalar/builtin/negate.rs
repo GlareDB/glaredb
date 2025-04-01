@@ -29,20 +29,13 @@ pub const FUNCTION_SET_NEGATE: ScalarFunctionSet = ScalarFunctionSet {
     name: "negate",
     aliases: &[],
     doc: &[&Documentation {
-        signature: "negate(x) -> same as input",
-        summary: "Returns the negation of the input value.",
+        category: Category::Numeric,
         description: "Returns the result of multiplying the input value by -1.",
-        category: Category::Math,
-        examples: &[
-            Example {
-                sql: "SELECT negate(5)",
-                result: "-5",
-            },
-            Example {
-                sql: "SELECT negate(-3.5)",
-                result: "3.5",
-            },
-        ],
+        arguments: &["value"],
+        example: Some(Example {
+            example: "negate(-3.5)",
+            output: "3.5",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(
@@ -84,20 +77,13 @@ pub const FUNCTION_SET_NOT: ScalarFunctionSet = ScalarFunctionSet {
     name: "not",
     aliases: &[],
     doc: &[&Documentation {
-        signature: "not(x) -> boolean",
-        summary: "Returns the logical negation of the input value.",
+        category: Category::General,
         description: "Returns TRUE if the input is FALSE, and FALSE if the input is TRUE.",
-        category: Category::Logical,
-        examples: &[
-            Example {
-                sql: "SELECT not(TRUE)",
-                result: "FALSE",
-            },
-            Example {
-                sql: "SELECT not(FALSE)",
-                result: "TRUE",
-            },
-        ],
+        arguments: &["value"],
+        example: Some(Example {
+            example: "not(TRUE)",
+            output: "FALSE",
+        }),
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
