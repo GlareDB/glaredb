@@ -54,7 +54,7 @@ SELECT COALESCE((SELECT NULL), (SELECT 4));
 ----
 4
 
-# TODO: This should return 4, currently returns no rows.
-# query I
-# SELECT COALESCE((SELECT 8 WHERE false), (SELECT 4));
-# ----
+query I
+SELECT COALESCE((SELECT 8 WHERE false), (SELECT 4));
+----
+4
