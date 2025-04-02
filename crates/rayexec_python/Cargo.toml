@@ -17,5 +17,5 @@ glaredb_rt_native = { path = '../glaredb_rt_native' }
 futures = { workspace = true }
 parking_lot = { workspace = true }
 tracing = { workspace = true }
-pyo3 = { version = "0.24.0", features = ["abi3-py37", "extension-module"] }
+pyo3 = { version = "0.24.1", features = ["abi3-py37", "extension-module"] }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
