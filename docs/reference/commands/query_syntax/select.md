@@ -11,20 +11,6 @@ expressions to transform the results.
 The `SELECT` clause contains a list of expressions to specify the results of a
 query.
 
-## DISTINCT clause
-
-The `DISTINCT` clause removes duplicate rows from the result set.
-
-```sql
-SELECT DISTINCT name, state_abbr FROM cities;
-```
-
-By default, `ALL` is used, which returns all rows including duplicates.
-
-```sql
-SELECT ALL name, state_abbr FROM cities;
-```
-
 ## Star expressions
 
 `*` will be expanded to select all columns from the base tables in the query.
@@ -122,5 +108,19 @@ Get the min and max `population` from a `cities` table:
 
 ```sql
 SELECT min(population), max(population) FROM cities;
+```
+
+## DISTINCT clause
+
+The `DISTINCT` clause removes duplicate rows from the result set.
+
+```sql
+SELECT DISTINCT name, state_abbr FROM cities;
+```
+
+By default, `ALL` is used, which returns all rows including duplicates.
+
+```sql
+SELECT ALL name, state_abbr FROM cities;
 ```
 
