@@ -91,6 +91,7 @@ impl ScalarFunction for RegexpLike {
                         buf.put(&b);
                     }
                     Err(_) => {
+                        // TODO: Handle error
                         buf.put(&false);
                     }
                 },
