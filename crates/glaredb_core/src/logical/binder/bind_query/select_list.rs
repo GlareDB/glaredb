@@ -126,6 +126,16 @@ impl SelectList {
             group_by,
         )?;
 
+        // Update names in the current projection scope to only be the
+        // user-provided alias. Finalizing the select list means we're finalize
+        // the subquery, and we should only expose the user alias, not the
+        // original name.
+        let projections_table = bind_context.get_table_mut(self.projections_table)?;
+        for (alias, col_idx) in self.alias_map {
+            let col_name = projections_table.column_names.get_mut(col_idx).ok_or_else(|| DbError::new(format!("Attempted to set the column alias '{alias}' for out-of-bounds column {col_idx}")))?;
+            *col_name = alias;
+        }
+
         // If we had appended column, ensure we have a pruned table that only
         // contains the original projections.
         let pruned_table = if !self.appended.is_empty() {

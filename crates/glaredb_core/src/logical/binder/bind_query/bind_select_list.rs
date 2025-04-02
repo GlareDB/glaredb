@@ -57,6 +57,9 @@ impl<'a> SelectListBinder<'a> {
         // Bind the expressions.
         let expr_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
         let mut exprs = Vec::with_capacity(projections.len());
+        // We compute the names based on the expression themselves. When we
+        // finalize the select list, these names will be overwritten with any
+        // user provide alias.
         let mut names = Vec::with_capacity(projections.len());
 
         for (idx, proj) in projections.into_iter().enumerate() {
@@ -114,7 +117,8 @@ impl<'a> SelectListBinder<'a> {
                     names.push(name);
                     exprs.push(bound_expr);
                 }
-                ExpandedSelectExpr::Column { expr, .. } => {
+                ExpandedSelectExpr::Column { expr, name } => {
+                    names.push(name);
                     exprs.push(Expression::Column(expr));
                 }
             }
