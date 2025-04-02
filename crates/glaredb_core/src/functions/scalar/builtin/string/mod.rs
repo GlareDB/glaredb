@@ -50,3 +50,6 @@ pub use strpos::*;
 
 mod reverse;
 pub use reverse::*;
+
+mod regexp_count;
+pub use regexp_count::*;
