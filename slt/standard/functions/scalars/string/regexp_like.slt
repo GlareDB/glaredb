@@ -64,7 +64,7 @@ INSERT INTO regex_test VALUES
 query TBT
 SELECT input_text, regexp_like(input_text, pattern), pattern FROM regex_test ORDER BY input_text, pattern;
 ----
-alphabet true [ae]
-alphabet false [xy]
-cat dog house false bird
-cat dog house true dog
+alphabet       true   [ae]
+alphabet       false  [xy]
+cat dog house  false  bird
+cat dog house  true   dog
