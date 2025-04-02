@@ -36,32 +36,66 @@ impl<'a> SelectListBinder<'a> {
     ) -> Result<SelectList> {
         let mut alias_map = HashMap::new();
 
-        // Track aliases to allow referencing them in GROUP BY and ORDER BY.
+        // Track all aliases up front. This allows us to give a better error
+        // if a user tries to reference an alias before it's been bound,
+        //
+        // E.g. we don't allow the following:
+        // ```
+        // SELECT a + 8, 10 AS a;
+        // ```
+        //
+        // But we do allow:
+        // ```
+        // SELECT 10 AS a, a + 8
+        // ```
         for (idx, projection) in projections.iter().enumerate() {
             if let Some(alias) = projection.get_alias() {
                 alias_map.insert(alias.to_string(), idx);
             }
         }
 
-        // Generate column names from ast expressions.
-        //
-        // We do this before binding the expressions in the select, as
-        // projections in the select can bind to previously bound projections.
-        //
-        // This enables queries like `select 1 as a, a + 2`.
-        //
-        // This is also useful for function chaining, e.g.:
-        // ```
-        // SELECT
-        //     string_col.upper() as u,
-        //     u.contains("ABC") as c,
-        //     ...
-        // ```
-        let mut names = projections
-            .iter()
-            .map(|expr| {
-                Ok(match expr {
-                    ExpandedSelectExpr::Expr { expr, .. } => match expr {
+        // Bind the expressions.
+        let expr_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
+        let mut exprs = Vec::with_capacity(projections.len());
+        let mut names = Vec::with_capacity(projections.len());
+
+        for (idx, proj) in projections.into_iter().enumerate() {
+            match proj {
+                ExpandedSelectExpr::Expr { expr, .. } => {
+                    // We pass in the alias map to allow for expressions to bind
+                    // to previously bound expressions.
+                    //
+                    // This enables queries like `select 1 as a, a + 2`.
+                    //
+                    // This is also useful for function chaining, e.g.:
+                    // ```
+                    // SELECT
+                    //     string_col.upper() as u,
+                    //     u.contains("ABC") as c,
+                    //     ...
+                    // ```
+                    let mut col_binder = SelectAliasColumnBinder {
+                        current_idx: idx,
+                        alias_map: &alias_map,
+                        previous_exprs: &exprs,
+                    };
+
+                    let bound_expr = expr_binder.bind_expression(
+                        bind_context,
+                        &expr,
+                        &mut col_binder,
+                        RecursionContext {
+                            allow_windows: true,
+                            allow_aggregates: true,
+                            is_root: true,
+                        },
+                    )?;
+
+                    // Figure out the name to use for the expression.
+                    //
+                    // - Indents => use the ident
+                    // - Functions => use the function name.
+                    let name = match expr {
                         ast::Expr::Ident(ident) => ident.as_normalized_string(),
                         ast::Expr::CompoundIdent(idents) => idents
                             .last()
@@ -75,43 +109,10 @@ impl<'a> SelectListBinder<'a> {
                             func.name().to_string()
                         }
                         _ => "?column?".to_string(),
-                    },
-                    ExpandedSelectExpr::Column { name, .. } => name.clone(),
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        // Update with user provided aliases
-        //
-        // TODO: This should be updated in finalize, GROUP BY may reference an
-        // unaliased column.
-        for (alias, idx) in &alias_map {
-            names[*idx] = alias.clone();
-        }
-
-        // Bind the expressions.
-        let expr_binder = BaseExpressionBinder::new(self.current, self.resolve_context);
-        let mut exprs = Vec::with_capacity(projections.len());
-        for (idx, proj) in projections.into_iter().enumerate() {
-            match proj {
-                ExpandedSelectExpr::Expr { expr, .. } => {
-                    let mut col_binder = SelectAliasColumnBinder {
-                        current_idx: idx,
-                        alias_map: &alias_map,
-                        previous_exprs: &exprs,
                     };
 
-                    let expr = expr_binder.bind_expression(
-                        bind_context,
-                        &expr,
-                        &mut col_binder,
-                        RecursionContext {
-                            allow_windows: true,
-                            allow_aggregates: true,
-                            is_root: true,
-                        },
-                    )?;
-                    exprs.push(expr);
+                    names.push(name);
+                    exprs.push(bound_expr);
                 }
                 ExpandedSelectExpr::Column { expr, .. } => {
                     exprs.push(Expression::Column(expr));
