@@ -968,6 +968,8 @@ impl<'a> BaseExpressionBinder<'a> {
         // TODO: This should probably assert that location == any since
         // I don't think it makes sense to try to handle different sets
         // of scalar/aggs in the hybrid case yet.
+        //
+        // TODO: We should probably start to factor these out.
         match reference {
             (ResolvedFunction::Special(special), _) => {
                 match special {
@@ -1049,6 +1051,68 @@ impl<'a> BaseExpressionBinder<'a> {
                             .collect::<Result<Vec<_>>>()?;
 
                         Ok(Expression::GroupingSet(GroupingSetExpr { inputs }))
+                    }
+                    SpecialBuiltinFunction::Coalesce => {
+                        // LAZY
+
+                        if func.distinct || func.filter.is_some() || func.over.is_some() {
+                            return Err(DbError::new(
+                                "COALESCE does not support DISTINCT, FILTER, or OVER",
+                            ));
+                        }
+                        if func.args.is_empty() {
+                            return Err(DbError::new("COALESCE requires at least one argument"));
+                        }
+
+                        let inputs = func
+                            .args
+                            .iter()
+                            .map(|arg| match arg {
+                                ast::FunctionArg::Named { .. } => {
+                                    Err(DbError::new("GROUPING does not accept named arguments"))
+                                }
+                                ast::FunctionArg::Unnamed { arg } => match arg {
+                                    ast::FunctionArgExpr::Wildcard => Err(DbError::new(
+                                        "GROUPING does not support wildcard arguments",
+                                    )),
+                                    ast::FunctionArgExpr::Expr(expr) => self.bind_expression(
+                                        bind_context,
+                                        expr,
+                                        column_binder,
+                                        RecursionContext {
+                                            is_root: false,
+                                            ..recur
+                                        },
+                                    ),
+                                },
+                            })
+                            .collect::<Result<Vec<_>>>()?;
+
+                        // Rewrite COALESCE to CASE.
+                        //
+                        // COALESCE(a,b,c)
+                        // =>
+                        // CASE
+                        //   a IS NOT NULL THEN a
+                        //   b IS NOT NULL THEN b
+                        //   c IS NOT NULL THEN c
+                        let mut cases = Vec::with_capacity(inputs.len());
+                        for input in inputs {
+                            let is_not_null = expr::scalar_function(
+                                &FUNCTION_SET_IS_NOT_NULL,
+                                vec![input.clone()],
+                            )?;
+
+                            cases.push(WhenThen {
+                                when: is_not_null.into(),
+                                then: input,
+                            });
+                        }
+
+                        // Default cast rules.
+                        let case_expr = CaseExpr::try_new(cases, None)?;
+
+                        Ok(case_expr.into())
                     }
                 }
             }

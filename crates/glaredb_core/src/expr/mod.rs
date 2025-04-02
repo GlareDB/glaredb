@@ -261,9 +261,9 @@ impl Expression {
     }
 
     /// Replace this expression using a replacement function.
-    pub fn replace_with<F>(&mut self, replace_fn: F)
+    pub fn replace_with<F>(&mut self, replace_fn: F) -> Result<()>
     where
-        F: FnOnce(Expression) -> Expression,
+        F: FnOnce(Expression) -> Result<Expression>,
     {
         let expr = std::mem::replace(
             self,
@@ -272,8 +272,10 @@ impl Expression {
             }),
         );
 
-        let out = replace_fn(expr);
+        let out = replace_fn(expr)?;
         *self = out;
+
+        Ok(())
     }
 
     pub fn contains_subquery(&self) -> bool {
