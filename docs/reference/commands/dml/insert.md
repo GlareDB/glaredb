@@ -28,12 +28,6 @@ Insert values into a table:
 INSERT INTO cities VALUES ('New York', 'NY', 8804190);
 ```
 
-Insert values into specific columns:
-
-```sql
-INSERT INTO cities (name, state_code) VALUES ('Chicago', 'IL');
-```
-
 Insert multiple rows at once:
 
 ```sql
