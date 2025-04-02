@@ -1,0 +1,70 @@
+# regexp_like function
+
+query B
+SELECT regexp_like('cat dog house', 'dog');
+----
+true
+
+query B
+SELECT regexp_like('cat dog house', 'cat');
+----
+true
+
+query B
+SELECT regexp_like('cat dog house', 'bird');
+----
+false
+
+query B
+SELECT regexp_like('cat dog house', '^dog');
+----
+false
+
+query B
+SELECT regexp_like('cat dog house', 'dog$');
+----
+false
+
+query B
+SELECT regexp_like('cat dog house', '^cat.*house$');
+----
+true
+
+query B
+SELECT regexp_like('alphabet', '[ae]');
+----
+true
+
+query B
+SELECT regexp_like('alphabet', '[xy]');
+----
+false
+
+query B
+SELECT regexp_like('', '.*');
+----
+true
+
+query B
+SELECT regexp_like('', '.+');
+----
+false
+
+# Test with table data
+statement ok
+CREATE TEMP TABLE regex_test (input_text TEXT, pattern TEXT)
+
+statement ok
+INSERT INTO regex_test VALUES 
+  ('cat dog house', 'dog'),
+  ('cat dog house', 'bird'),
+  ('alphabet', '[ae]'),
+  ('alphabet', '[xy]')
+
+query TBT
+SELECT input_text, regexp_like(input_text, pattern), pattern FROM regex_test ORDER BY input_text, pattern;
+----
+alphabet       true   [ae]
+alphabet       false  [xy]
+cat dog house  false  bird
+cat dog house  true   dog
