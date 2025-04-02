@@ -110,3 +110,17 @@ Get the min and max `population` from a `cities` table:
 SELECT min(population), max(population) FROM cities;
 ```
 
+## DISTINCT clause
+
+The `DISTINCT` clause removes duplicate rows from the result set.
+
+```sql
+SELECT DISTINCT name, state_abbr FROM cities;
+```
+
+By default, `ALL` is used, which returns all rows including duplicates.
+
+```sql
+SELECT ALL name, state_abbr FROM cities;
+```
+
