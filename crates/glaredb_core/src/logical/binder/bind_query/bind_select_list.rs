@@ -7,6 +7,7 @@ use super::select_expr_expander::ExpandedSelectExpr;
 use super::select_list::{BoundDistinctModifier, SelectList};
 use crate::expr::Expression;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
+use crate::expr::subquery_expr::SubqueryType;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::{DefaultColumnBinder, ExpressionColumnBinder};
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
@@ -94,25 +95,12 @@ impl<'a> SelectListBinder<'a> {
                         },
                     )?;
 
-                    // Figure out the name to use for the expression.
-                    //
-                    // - Indents => use the ident
-                    // - Functions => use the function name.
-                    let name = match expr {
-                        ast::Expr::Ident(ident) => ident.as_normalized_string(),
-                        ast::Expr::CompoundIdent(idents) => idents
-                            .last()
-                            .map(|i| i.as_normalized_string())
-                            .unwrap_or_else(|| "?column?".to_string()),
-                        ast::Expr::Function(func) => {
-                            let (func, _) = self
-                                .resolve_context
-                                .functions
-                                .try_get_bound(func.reference)?;
-                            func.name().to_string()
-                        }
-                        _ => "?column?".to_string(),
-                    };
+                    let name = generate_column_name(
+                        bind_context,
+                        self.resolve_context,
+                        &expr,
+                        &bound_expr,
+                    )?;
 
                     names.push(name);
                     exprs.push(bound_expr);
@@ -362,4 +350,47 @@ impl ExpressionColumnBinder for SelectAliasColumnBinder<'_> {
     ) -> Result<Option<Expression>> {
         DefaultColumnBinder.bind_from_idents(bind_scope, bind_context, idents, recur)
     }
+}
+
+/// Generates column names to use for an expression.
+///
+/// - Indents: Use the base identifier.
+/// - Functions: Use the function name.
+/// - Scalar subqueries: Use the output column name of the subquery's scope.
+///
+/// Expressions that we cannot (or don't want to) generate a column name for
+/// will get the postgres-inspired name of "?column?".
+fn generate_column_name(
+    bind_context: &BindContext,
+    resolve_context: &ResolveContext,
+    ast_expr: &ast::Expr<ResolvedMeta>,
+    bound_expr: &Expression,
+) -> Result<String> {
+    /// Column name to use if we can't generate one.
+    const UNKNOWN_COLUMN: &str = "?column?";
+
+    Ok(match ast_expr {
+        ast::Expr::Ident(ident) => ident.as_normalized_string(),
+        ast::Expr::CompoundIdent(idents) => idents
+            .last()
+            .map(|i| i.as_normalized_string())
+            .unwrap_or_else(|| UNKNOWN_COLUMN.to_string()),
+        ast::Expr::Function(func) => {
+            // Using the resolve context lets us keep the names for the
+            // "special" functions like GROUPING, COALESCE.
+            //
+            // TBD on how I want to change that with rewrite rules.
+            let (func, _) = resolve_context.functions.try_get_bound(func.reference)?;
+            func.name().to_string()
+        }
+        _ => match bound_expr {
+            Expression::Subquery(subquery) if subquery.subquery_type == SubqueryType::Scalar => {
+                // Use the output column names for scalar subqueries.
+                let table_ref = subquery.subquery.output_table_ref();
+                let (col_name, _) = bind_context.get_column((table_ref, 0))?;
+                col_name.to_string()
+            }
+            _ => UNKNOWN_COLUMN.to_string(),
+        },
+    })
 }

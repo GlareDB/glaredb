@@ -118,7 +118,10 @@ impl ExpressionColumnBinder for GroupByColumnBinder<'_> {
         }
 
         // Try to bind to a user-provided alias.
-        if let Some(col) = self.select_list.column_by_user_alias(bind_context, ident)? {
+        if let Some(col) = self
+            .select_list
+            .column_by_user_alias_or_name(bind_context, ident)?
+        {
             return Ok(Some(Expression::Column(col)));
         }
 
