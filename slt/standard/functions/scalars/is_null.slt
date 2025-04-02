@@ -72,3 +72,15 @@ query T
 SELECT NULL + 2 IS NOT NULL;
 ----
 false
+
+# Literal sanity checks
+query B
+SELECT NULL IS NULL;
+----
+true
+
+query B
+SELECT NULL IS NOT NULL;
+----
+false
+
