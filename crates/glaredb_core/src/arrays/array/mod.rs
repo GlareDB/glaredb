@@ -732,13 +732,20 @@ fn set_value_inner(
             PhysicalBinary::get_addressable_mut(buffer)?.put(data_idx, val);
         }
         BorrowedScalarValue::List(val) => {
+            // TODO: Needs unit tests.
+            // TODO: List stuff needs a lot of polish.
+
             let list_buf = buffer.get_list_buffer_mut()?;
 
             // Ensure we have enough space to push.
-            let rem_cap = list_buf.logical_len() - list_buf.current_offset;
-            if val.len() > rem_cap {
-                // Resize the secondary buffers.
-                list_buf.try_reserve_child_buffers(val.len() - rem_cap)?;
+            if list_buf.current_offset >= list_buf.logical_len() {
+                list_buf.try_reserve_child_buffers(val.len())?;
+            } else {
+                let rem_cap = list_buf.logical_len() - list_buf.current_offset;
+                if val.len() > rem_cap {
+                    // Resize the secondary buffers.
+                    list_buf.try_reserve_child_buffers(val.len() - rem_cap)?;
+                }
             }
 
             let child_buffer = &mut list_buf.child_buffer;
