@@ -21,6 +21,9 @@ SELECT regexp_count('', 'a');
 0
 
 # Test with a complex regex pattern
+# Note: PostgreSQL uses '\y' for word boundaries instead of '\b'
+# The equivalent query in PostgreSQL would be: SELECT regexp_count('hello world hello', '\y\w+\y')
+# GlareDB uses the Rust regex crate which supports '\b' for word boundaries
 query I
 SELECT regexp_count('hello world hello', '\b\w+\b');
 ----
