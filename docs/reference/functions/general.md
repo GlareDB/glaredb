@@ -62,13 +62,17 @@ Check if a value is NULL.
 
 Check if a value is true.
 
+## `not`
+
+Returns TRUE if the input is FALSE, and FALSE if the input is TRUE.
+
 ## `or`
 
 Boolean or all inputs.
 
 ## `struct_extract`
 
-struct_extractue from a struct
+struct_extractue from a struct.
 
 
 <!-- DOCSGEN_END -->
