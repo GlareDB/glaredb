@@ -107,3 +107,15 @@ query I
 select b from t1 where (select sum(d) from (values (333), (444)) v(d)) = a;
 ----
 888
+
+# Handle subqueries that return no rows.
+
+query T
+SELECT (SELECT 'hello' WHERE false);
+----
+NULL
+
+query IT
+SELECT 4, (SELECT 'hello' WHERE false);
+----
+4  NULL

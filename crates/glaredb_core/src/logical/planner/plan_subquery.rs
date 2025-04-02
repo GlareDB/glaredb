@@ -10,6 +10,7 @@ use crate::expr::negate_expr::NegateOperator;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::{self, Expression, bind_aggregate_function};
 use crate::functions::aggregate::builtin::count::FUNCTION_SET_COUNT;
+use crate::functions::aggregate::builtin::first::FUNCTION_SET_FIRST;
 use crate::logical::binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef};
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_join::{
@@ -353,6 +354,7 @@ impl SubqueryPlanner {
         Ok(([left, subquery_plan], conditions, mat_ref))
     }
 
+    /// Plan an uncorrelated subquery.
     fn plan_uncorrelated(
         &self,
         bind_context: &mut BindContext,
@@ -369,6 +371,9 @@ impl SubqueryPlanner {
                 // Cross join the subquery with the original input, replace
                 // the subquery expression with a reference to the new
                 // column.
+                //
+                // The subquery should have already been verified to return a
+                // single column.
 
                 // Generate column expr that references the scalar being joined
                 // to the plan.
@@ -382,15 +387,42 @@ impl SubqueryPlanner {
                     datatype: bind_context.get_column_type(subquery_col_reference)?,
                 };
 
-                // Limit original subquery to only one row.
-                let subquery_plan = LogicalOperator::Limit(Node {
-                    node: LogicalLimit {
-                        offset: None,
-                        limit: 1,
+                // TODO: Need to check if anything needs to be done for
+                // correlated subqueries.
+
+                // Limit original subquery to only one row using a FIRST
+                // aggregate because we always want to a return a row, even if
+                // there are no input rows.
+                let first_agg =
+                    expr::bind_aggregate_function(&FUNCTION_SET_FIRST, vec![column.into()])?;
+
+                let agg_table_ref = bind_context.new_ephemeral_table_with_columns(
+                    vec![first_agg.state.return_type.clone()],
+                    vec!["__generated_first_subquery_row".to_string()],
+                )?;
+
+                let output_col =
+                    ColumnExpr::new((agg_table_ref, 0), first_agg.state.return_type.clone());
+
+                let agg_expr = Expression::Aggregate(AggregateExpr {
+                    agg: first_agg,
+                    filter: None,
+                    distinct: false,
+                });
+
+                let subquery_plan = LogicalOperator::Aggregate(Node {
+                    node: LogicalAggregate {
+                        aggregates_table: agg_table_ref,
+                        aggregates: vec![agg_expr],
+                        group_table: None,
+                        group_exprs: Vec::new(),
+                        grouping_sets: None,
+                        grouping_functions: Vec::new(),
+                        grouping_functions_table: None,
                     },
                     location: LocationRequirement::Any,
                     children: vec![subquery_plan],
-                    estimated_cardinality: StatisticsValue::Unknown,
+                    estimated_cardinality: StatisticsValue::Exact(1),
                 });
 
                 // Cross join!
@@ -402,7 +434,7 @@ impl SubqueryPlanner {
                     estimated_cardinality: StatisticsValue::Unknown,
                 });
 
-                Ok(Expression::Column(column))
+                Ok(Expression::Column(output_col))
             }
             SubqueryType::Exists { negated } => {
                 // Exists subquery.
