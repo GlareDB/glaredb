@@ -98,29 +98,3 @@ impl ScalarFunction for RegexpLike {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_regexp_like() {
-        let test_cases = [
-            ("cat dog house", "dog", true),
-            ("cat dog house", "^dog", false),
-            ("cat dog house", "dog$", false),
-            ("cat dog house", "^cat dog house$", true),
-            ("cat dog house", "^cat.*house$", true),
-            ("alphabet", "[ae]", true),
-            ("alphabet", "[xy]", false),
-            ("", ".*", true),
-            ("", ".+", false),
-        ];
-
-        for (input, pattern, expected) in test_cases {
-            let regex = Regex::new(pattern).unwrap();
-            let result = regex.is_match(input);
-            assert_eq!(expected, result);
-        }
-    }
-}
