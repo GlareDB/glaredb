@@ -28,10 +28,7 @@ pub const FUNCTION_SET_REGEXP_COUNT: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }],
     functions: &[RawScalarFunction::new(
-        &Signature::new(
-            &[DataTypeId::Utf8, DataTypeId::Utf8],
-            DataTypeId::Int64,
-        ),
+        &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Int64),
         &RegexpCount,
     )],
 };
@@ -60,9 +57,7 @@ impl ScalarFunction for RegexpCount {
         };
 
         Ok(BindState {
-            state: RegexpCountState {
-                pattern,
-            },
+            state: RegexpCountState { pattern },
             return_type: DataType::Int64,
             inputs,
         })
@@ -72,39 +67,35 @@ impl ScalarFunction for RegexpCount {
         let sel = input.selection();
 
         match state.pattern.as_ref() {
-            Some(pattern) => {
-                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalI64, _>(
-                    &input.arrays()[0],
-                    sel,
-                    &input.arrays()[1],
-                    sel,
-                    OutBuffer::from_array(output)?,
-                    |s, _pattern, buf| {
-                        let count = pattern.find_iter(s).count() as i64;
-                        buf.put(&count);
-                    },
-                )
-            }
-            None => {
-                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalI64, _>(
-                    &input.arrays()[0],
-                    sel,
-                    &input.arrays()[1],
-                    sel,
-                    OutBuffer::from_array(output)?,
-                    |s, pattern, buf| {
-                        let pattern = match Regex::new(pattern) {
-                            Ok(pattern) => pattern,
-                            Err(_) => {
-                                return;
-                            }
-                        };
+            Some(pattern) => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalI64, _>(
+                &input.arrays()[0],
+                sel,
+                &input.arrays()[1],
+                sel,
+                OutBuffer::from_array(output)?,
+                |s, _pattern, buf| {
+                    let count = pattern.find_iter(s).count() as i64;
+                    buf.put(&count);
+                },
+            ),
+            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalI64, _>(
+                &input.arrays()[0],
+                sel,
+                &input.arrays()[1],
+                sel,
+                OutBuffer::from_array(output)?,
+                |s, pattern, buf| {
+                    let pattern = match Regex::new(pattern) {
+                        Ok(pattern) => pattern,
+                        Err(_) => {
+                            return;
+                        }
+                    };
 
-                        let count = pattern.find_iter(s).count() as i64;
-                        buf.put(&count);
-                    },
-                )
-            }
+                    let count = pattern.find_iter(s).count() as i64;
+                    buf.put(&count);
+                },
+            ),
         }
     }
 }
