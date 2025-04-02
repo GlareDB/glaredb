@@ -23,7 +23,7 @@ pub const FUNCTION_SET_ASIN: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Compute the arcsine of value",
+        description: "Compute the arcsine of value.",
         arguments: &["float"],
         example: None,
     }],

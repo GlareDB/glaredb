@@ -23,7 +23,7 @@ pub const FUNCTION_SET_COS: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Compute the cosine of a value",
+        description: "Compute the cosine of a value.",
         arguments: &["float"],
         example: None,
     }],

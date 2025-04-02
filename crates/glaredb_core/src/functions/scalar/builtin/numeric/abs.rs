@@ -23,7 +23,7 @@ pub const FUNCTION_SET_ABS: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Compute the absolute value of a number",
+        description: "Compute the absolute value of a number.",
         arguments: &["float"],
         example: None,
     }],

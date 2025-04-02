@@ -17,7 +17,7 @@ pub const FUNCTION_SET_EXPM1: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Computes the exponential of the given value minus one",
+        description: "Computes the exponential of the given value minus one.",
         arguments: &["value"],
         example: None,
     }],

@@ -23,7 +23,7 @@ pub const FUNCTION_SET_EXP: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Compute `e ^ val`",
+        description: "Compute `e ^ val`.",
         arguments: &["float"],
         example: None,
     }],

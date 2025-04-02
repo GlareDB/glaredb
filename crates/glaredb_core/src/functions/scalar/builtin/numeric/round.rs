@@ -23,7 +23,7 @@ pub const FUNCTION_SET_ROUND: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Round number to the nearest whole value",
+        description: "Round number to the nearest whole value.",
         arguments: &["float"],
         example: None,
     }],

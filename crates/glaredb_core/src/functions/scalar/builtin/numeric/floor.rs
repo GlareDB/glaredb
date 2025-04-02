@@ -23,7 +23,7 @@ pub const FUNCTION_SET_FLOOR: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Round number down",
+        description: "Round number down.",
         arguments: &["float"],
         example: None,
     }],

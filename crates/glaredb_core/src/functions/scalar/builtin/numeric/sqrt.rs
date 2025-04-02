@@ -23,7 +23,7 @@ pub const FUNCTION_SET_SQRT: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Compute the square root of value",
+        description: "Compute the square root of value.",
         arguments: &["float"],
         example: None,
     }],

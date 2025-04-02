@@ -15,7 +15,7 @@ pub const FUNCTION_SET_LIST_VALUES: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::List,
-        description: "Create a list fromt the given values.",
+        description: "Create a list from the given values.",
         arguments: &["var_arg"],
         example: Some(Example {
             example: "list_values('cat', 'dog', 'mouse')",

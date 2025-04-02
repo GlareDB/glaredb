@@ -23,7 +23,7 @@ pub const FUNCTION_SET_TAN: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Compute the tangent of value",
+        description: "Compute the tangent of value.",
         arguments: &["float"],
         example: None,
     }],

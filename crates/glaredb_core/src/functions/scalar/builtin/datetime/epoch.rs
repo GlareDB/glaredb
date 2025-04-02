@@ -18,7 +18,7 @@ pub const FUNCTION_SET_EPOCH: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &["epoch_s"],
     doc: &[&Documentation {
         category: Category::DateTime,
-        description: "Converts a Unix timestamp in seconds to a timestamp",
+        description: "Converts a Unix timestamp in seconds to a timestamp.",
         arguments: &["seconds"],
         example: None,
     }],
@@ -33,7 +33,7 @@ pub const FUNCTION_SET_EPOCH_MS: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::DateTime,
-        description: "Converts a Unix timestamp in milliseconds to a timestamp",
+        description: "Converts a Unix timestamp in milliseconds to a timestamp.",
         arguments: &["milliseconds"],
         example: None,
     }],

@@ -23,7 +23,7 @@ pub const FUNCTION_SET_DEGREES: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Convert radians to degrees",
+        description: "Convert radians to degrees.",
         arguments: &["float"],
         example: None,
     }],
