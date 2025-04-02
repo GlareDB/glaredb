@@ -119,3 +119,25 @@ query IT
 SELECT 4, (SELECT 'hello' WHERE false);
 ----
 4  NULL
+
+# TODO: Alias isn't being propagate out of the subquery
+# query TT
+# DESCRIBE SELECT 4, (SELECT 'hello' AS my_alias WHERE false);
+# ----
+# ?column? Int32
+# my_alias Utf8
+
+# The subquery column should still be referenceable using the original name.
+# TODO: Doesn't work yet.
+# query IT
+# SELECT 4, (SELECT 'hello' AS my_alias WHERE false) ORDER BY my_alias;
+# ----
+# 4  NULL
+
+# TODO: Name not propogate
+# query TT
+# DESCRIBE SELECT 4, (SELECT a FROM (VALUES ('hello')) v(a) WHERE false);
+# ----
+# ?column? Int32
+# a        Utf8
+

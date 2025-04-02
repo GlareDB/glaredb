@@ -382,9 +382,11 @@ impl SubqueryPlanner {
                     table_scope: subquery_table,
                     column: 0,
                 };
+                let (subquery_col_name, subquery_col_type) =
+                    bind_context.get_column(subquery_col_reference)?;
                 let column = ColumnExpr {
                     reference: subquery_col_reference,
-                    datatype: bind_context.get_column_type(subquery_col_reference)?,
+                    datatype: subquery_col_type.clone(),
                 };
 
                 // TODO: Need to check if anything needs to be done for
@@ -398,7 +400,7 @@ impl SubqueryPlanner {
 
                 let agg_table_ref = bind_context.new_ephemeral_table_with_columns(
                     vec![first_agg.state.return_type.clone()],
-                    vec!["__generated_first_subquery_row".to_string()],
+                    vec![subquery_col_name.to_string()], // Keep the original column name for nicer explains.
                 )?;
 
                 let output_col =
