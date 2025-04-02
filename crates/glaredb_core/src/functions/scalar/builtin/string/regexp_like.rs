@@ -27,12 +27,10 @@ pub const FUNCTION_SET_REGEXP_LIKE: ScalarFunctionSet = ScalarFunctionSet {
             output: "true",
         }),
     }],
-    functions: &[
-        RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Boolean),
-            &RegexpLike,
-        ),
-    ],
+    functions: &[RawScalarFunction::new(
+        &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Boolean),
+        &RegexpLike,
+    )],
 };
 
 #[derive(Debug)]
@@ -81,26 +79,22 @@ impl ScalarFunction for RegexpLike {
                     buf.put(&b);
                 },
             ),
-            None => {
-                BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
-                    strings,
-                    sel,
-                    patterns,
-                    sel,
-                    OutBuffer::from_array(output)?,
-                    |s, pattern, buf| {
-                        match Regex::new(pattern) {
-                            Ok(regex) => {
-                                let b = regex.is_match(s);
-                                buf.put(&b);
-                            }
-                            Err(_) => {
-                                buf.put(&false);
-                            }
-                        }
-                    },
-                )
-            }
+            None => BinaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, PhysicalBool, _>(
+                strings,
+                sel,
+                patterns,
+                sel,
+                OutBuffer::from_array(output)?,
+                |s, pattern, buf| match Regex::new(pattern) {
+                    Ok(regex) => {
+                        let b = regex.is_match(s);
+                        buf.put(&b);
+                    }
+                    Err(_) => {
+                        buf.put(&false);
+                    }
+                },
+            ),
         }
     }
 }
@@ -108,7 +102,7 @@ impl ScalarFunction for RegexpLike {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_regexp_like() {
         let test_cases = [
@@ -122,7 +116,7 @@ mod tests {
             ("", ".*", true),
             ("", ".+", false),
         ];
-        
+
         for (input, pattern, expected) in test_cases {
             let regex = Regex::new(pattern).unwrap();
             let result = regex.is_match(input);
