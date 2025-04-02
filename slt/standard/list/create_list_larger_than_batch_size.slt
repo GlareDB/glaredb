@@ -1,0 +1,10 @@
+# Creates a list array whose underlying buffer exceeds the batch size.
+
+halt
+
+statement ok
+SET batch_size TO 4;
+
+query ?
+SELECT [a,b,c] FROM (VALUES (2, 3, 4)) v(a,b,c), generate_series(1, 5);
+----
