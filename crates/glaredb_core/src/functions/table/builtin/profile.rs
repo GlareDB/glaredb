@@ -136,7 +136,7 @@ pub const FUNCTION_SET_QUERY_INFO: TableFunctionSet = TableFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
-        description: "Get information about executed queries",
+        description: "Get information about executed queries.",
         arguments: &[],
         example: None,
     }],

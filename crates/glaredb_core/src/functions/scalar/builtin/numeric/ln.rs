@@ -23,7 +23,7 @@ pub const FUNCTION_SET_LN: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Compute natural log of value",
+        description: "Compute natural log of value.",
         arguments: &["float"],
         example: None,
     }],

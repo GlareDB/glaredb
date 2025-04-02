@@ -21,7 +21,7 @@ pub const FUNCTION_SET_DATE_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::DateTime,
-        description: "Truncates a timestamp to the specified precision",
+        description: "Truncates a timestamp to the specified precision.",
         arguments: &["field", "timestamp"],
         example: None,
     }],

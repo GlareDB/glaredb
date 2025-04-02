@@ -23,7 +23,7 @@ pub const FUNCTION_SET_SIN: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Compute the sin of value",
+        description: "Compute the sin of value.",
         arguments: &["float"],
         example: None,
     }],

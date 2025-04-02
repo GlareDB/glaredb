@@ -23,7 +23,7 @@ pub const FUNCTION_SET_LOG: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Compute base-10 log of value",
+        description: "Compute base-10 log of value.",
         arguments: &["float"],
         example: None,
     }],
@@ -70,7 +70,7 @@ pub const FUNCTION_SET_LOG_2: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Compute base-2 log of value",
+        description: "Compute base-2 log of value.",
         arguments: &["float"],
         example: None,
     }],

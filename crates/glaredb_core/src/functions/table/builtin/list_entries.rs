@@ -29,7 +29,7 @@ pub const FUNCTION_SET_LIST_TABLES: TableFunctionSet = TableFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
-        description: "Lists all tables this session has access to",
+        description: "Lists all tables this session has access to.",
         arguments: &[],
         example: None,
     }],
@@ -44,7 +44,7 @@ pub const FUNCTION_SET_LIST_VIEWS: TableFunctionSet = TableFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
-        description: "Lists all views this session has access to",
+        description: "Lists all views this session has access to.",
         arguments: &[],
         example: None,
     }],
@@ -59,7 +59,7 @@ pub const FUNCTION_SET_LIST_FUNCTIONS: TableFunctionSet = TableFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
-        description: "Lists all functions in the database with their types and metadata",
+        description: "Lists all functions in the database with their types and metadata.",
         arguments: &[],
         example: None,
     }],

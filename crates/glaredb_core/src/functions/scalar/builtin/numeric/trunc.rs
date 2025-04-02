@@ -24,7 +24,7 @@ pub const FUNCTION_SET_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Truncate number towards zero",
+        description: "Truncate number towards zero.",
         arguments: &["float"],
         example: Some(Example {
             example: "trunc(-1.9)",

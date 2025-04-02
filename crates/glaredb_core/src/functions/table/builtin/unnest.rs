@@ -22,7 +22,7 @@ pub const FUNCTION_SET_UNNEST: TableFunctionSet = TableFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::List,
-        description: "Converts a list into a table with one row per list element",
+        description: "Converts a list into a table with one row per list element.",
         arguments: &["list"],
         example: None,
     }],

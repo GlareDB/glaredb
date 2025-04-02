@@ -21,7 +21,7 @@ pub const FUNCTION_SET_POWER: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &["pow"],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Compute base raised to the power of exponent",
+        description: "Compute base raised to the power of exponent.",
         arguments: &["base", "exponent"],
         example: None,
     }],

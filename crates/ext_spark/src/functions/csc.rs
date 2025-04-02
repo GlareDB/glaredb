@@ -17,7 +17,7 @@ pub const FUNCTION_SET_CSC: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Computes the cosecant of the input",
+        description: "Computes the cosecant of the input.",
         arguments: &["value"],
         example: None,
     }],

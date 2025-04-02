@@ -23,7 +23,7 @@ pub const FUNCTION_SET_CEIL: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Round number up",
+        description: "Round number up.",
         arguments: &["float"],
         example: None,
     }],

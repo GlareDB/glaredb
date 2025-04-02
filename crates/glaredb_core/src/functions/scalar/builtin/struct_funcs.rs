@@ -10,7 +10,7 @@ pub const FUNCTION_SET_STRUCT_PACK: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::General,
-        description: "Creates a struct from the provided values",
+        description: "Creates a struct from the provided values.",
         arguments: &["values..."],
         example: None,
     }],
@@ -29,7 +29,7 @@ pub const FUNCTION_SET_STRUCT_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::General,
-        description: "Extracts a value from a struct",
+        description: "Extracts a value from a struct.",
         arguments: &["struct"],
         example: None,
     }],

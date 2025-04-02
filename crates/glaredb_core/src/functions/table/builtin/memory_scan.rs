@@ -23,7 +23,7 @@ pub const FUNCTION_SET_MEMORY_SCAN: TableFunctionSet = TableFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,
-        description: "Scans a memory table in the database",
+        description: "Scans a memory table in the database.",
         arguments: &["catalog", "schema", "table"],
         example: None,
     }],
