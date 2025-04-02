@@ -43,30 +43,56 @@ pub struct CaseExpr {
 }
 
 impl CaseExpr {
-    pub fn try_new(cases: Vec<WhenThen>, else_expr: Option<Box<Expression>>) -> Result<Self> {
-        let mut case_iter = cases.iter();
-        let datatype = match case_iter.next() {
-            Some(case) => case.then.datatype()?,
-            None => {
-                return Err(DbError::new(
-                    "Case expression must have at least one condition",
-                ));
+    pub fn try_new(mut cases: Vec<WhenThen>, else_expr: Option<Box<Expression>>) -> Result<Self> {
+        // Find the data type of this expression.
+        let mut datatype = DataType::Null;
+        for case in &cases {
+            let case_datatype = case.then.datatype()?;
+            if case_datatype.is_null() {
+                continue;
             }
-        };
+            if datatype.is_null() {
+                datatype = case_datatype;
+                continue;
+            }
 
-        for case in case_iter {
-            let next_datatype = case.then.datatype()?;
-            // TODO: Union or cast.
-            if next_datatype != datatype {
+            // TODO: We should be increasing the domain of the data type as much
+            // as we can.
+            if case_datatype != datatype {
                 return Err(DbError::new(format!(
                     "Case expression produces two different types: {} and {}",
-                    datatype, next_datatype
+                    datatype, case_datatype
                 )));
             }
         }
 
+        // Now check that all 'then' expression return the right type, casting
+        // if needed.
+        //
+        // TODO: This really only casts nulls for now. We need to change the
+        // above loop in order for this to do more than that.
+        for case in &mut cases {
+            let case_datatype = case.then.datatype()?;
+            if case_datatype != datatype {
+                // Need to cast.
+                case.then.replace_with(|then| {
+                    let cast = expr::cast(then, datatype.clone())?;
+                    Ok(cast.into())
+                })?;
+            }
+        }
+
         let else_expr = match else_expr {
-            Some(expr) => expr,
+            Some(expr) => {
+                if expr.datatype()? != datatype {
+                    // Need to cast.
+                    let cast = expr::cast(*expr, datatype.clone())?;
+                    Box::new(cast.into())
+                } else {
+                    // Return as-is
+                    expr
+                }
+            }
             None => {
                 // No "else" given, create a typed null expression with the same
                 // datatype as the output of this expression.

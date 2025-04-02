@@ -1,0 +1,60 @@
+# COALESCE tests
+#
+# Special function, gets rewritten to a bunch of CASE expressions.
+
+statement error COALESCE requires at least one argument
+SELECT COALESCE();
+
+query I
+SELECT COALESCE(4, NULL);
+----
+4
+
+query I
+SELECT COALESCE(NULL, 4);
+----
+4
+
+query II
+SELECT a, COALESCE(a, 52) FROM VALUES (4), (5), (NULL), (7) v(a) ORDER BY 1;
+----
+4     4
+5     5
+7     7
+NULL  52
+
+query II
+SELECT a, COALESCE(a + 4, 52) FROM VALUES (4), (5), (NULL), (7) v(a) ORDER BY 1;
+----
+4     8
+5     9
+7     11
+NULL  52
+
+statement ok
+CREATE TEMP TABLE c_test (a TEXT, b TEXT, c TEXT);
+
+statement ok
+INSERT INTO c_test VALUES
+  ('cat',  NULL,   NULL),
+  (NULL,   'dog',  NULL),
+  (NULL,   NULL,   'goose'),
+  (NULL,   NULL,   NULL);
+
+query TTTT
+SELECT a, b, c, COALESCE(a,b,c) FROM c_test ORDER BY 1,2,3;
+----
+cat   NULL  NULL   cat
+NULL  dog   NULL   dog
+NULL  NULL  goose  goose
+NULL  NULL  NULL   NULL
+
+query I
+SELECT COALESCE((SELECT NULL), (SELECT 4));
+----
+4
+
+# TODO: This should return 4, currently returns no rows.
+# query I
+# SELECT COALESCE((SELECT 8 WHERE false), (SELECT 4));
+# ----

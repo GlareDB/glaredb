@@ -29,7 +29,7 @@ pub const FUNCTION_SET_IS_NULL: ScalarFunctionSet = ScalarFunctionSet {
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Any], DataTypeId::Boolean),
-        &IsNull::<false>,
+        &CheckNull::<true>,
     )],
 };
 
@@ -47,14 +47,15 @@ pub const FUNCTION_SET_IS_NOT_NULL: ScalarFunctionSet = ScalarFunctionSet {
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Any], DataTypeId::Boolean),
-        &IsNull::<true>,
+        &CheckNull::<false>,
     )],
 };
 
+/// Return RETURN if a value is null.
 #[derive(Debug, Clone, Copy)]
-pub struct IsNull<const NEGATE: bool>;
+pub struct CheckNull<const RETURN: bool>;
 
-impl<const NEGATE: bool> ScalarFunction for IsNull<NEGATE> {
+impl<const RETURN: bool> ScalarFunction for CheckNull<RETURN> {
     type State = ();
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
@@ -72,7 +73,7 @@ impl<const NEGATE: bool> ScalarFunction for IsNull<NEGATE> {
         let out = PhysicalBool::get_addressable_mut(&mut output.data)?;
         if input.physical_type() == PhysicalType::UntypedNull {
             // Everything null, just set to default value.
-            out.slice.iter_mut().for_each(|v| *v = NEGATE);
+            out.slice.iter_mut().for_each(|v| *v = RETURN);
             return Ok(());
         }
 
@@ -81,9 +82,9 @@ impl<const NEGATE: bool> ScalarFunction for IsNull<NEGATE> {
         for (output_idx, idx) in sel.into_iter().enumerate() {
             let is_valid = flat.validity.is_valid(idx);
             if is_valid {
-                out.slice[output_idx] = NEGATE;
+                out.slice[output_idx] = !RETURN;
             } else {
-                out.slice[output_idx] = !NEGATE;
+                out.slice[output_idx] = RETURN;
             }
         }
 
@@ -198,5 +199,35 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunction for IsBool<NOT, BOOL> {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::testutil::arrays::assert_arrays_eq;
+    use crate::{generate_array, generate_batch};
+
+    #[test]
+    fn is_null() {
+        let input = generate_batch!([Some(4), None, Some(5)]);
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+
+        CheckNull::<true>::execute(&(), &input, &mut out).unwrap();
+
+        let expected = generate_array!([false, true, false]);
+        assert_arrays_eq(&expected, &out);
+    }
+
+    #[test]
+    fn is_not_null() {
+        let input = generate_batch!([Some(4), None, Some(5)]);
+        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+
+        CheckNull::<false>::execute(&(), &input, &mut out).unwrap();
+
+        let expected = generate_array!([true, false, true]);
+        assert_arrays_eq(&expected, &out);
     }
 }
