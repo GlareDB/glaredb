@@ -6,12 +6,19 @@ use glaredb_parser::statement::RawStatement;
 use hashbrown::HashMap;
 use uuid::Uuid;
 
-use super::query_result::{Output, QueryResult, StreamOutput};
+use super::query_result::{
+    Output,
+    QueryResult,
+    StreamOutput,
+    VerifyQueryHandle,
+    VerifyStreamOutput,
+};
+use crate::arrays::collection::concurrent::ConcurrentColumnCollection;
 use crate::arrays::field::{ColumnSchema, Field};
 use crate::catalog::context::DatabaseContext;
 use crate::catalog::profile::{PlanningProfile, QueryProfile};
 use crate::config::execution::OperatorPlanConfig;
-use crate::config::session::SessionConfig;
+use crate::config::session::{DEFAULT_BATCH_SIZE, SessionConfig};
 use crate::execution::operators::results::streaming::{PhysicalStreamingResults, ResultStream};
 use crate::execution::operators::{ExecutionProperties, PushOperator};
 use crate::execution::pipeline::ExecutablePipelineGraph;
@@ -71,9 +78,8 @@ pub struct Session<P: PipelineRuntime, R: IoRuntime> {
     portals: HashMap<String, ExecutablePortal>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct PreparedStatement {
-    verifier: Option<()>,
     statement: RawStatement,
 }
 
@@ -116,9 +122,20 @@ struct ExecutablePortal {
     result_stream: ResultStream,
     /// Profile data we've collected during resolving/binding/planning.
     profile: PlanningProfile,
-    /// Optional verifier that we're carrying through planning.
-    #[expect(unused)]
-    verifier: Option<()>,
+    /// Optional verification state.
+    verification: Option<VerificationState>,
+}
+
+/// State for query verification.
+#[derive(Debug)]
+struct VerificationState {
+    /// Output result stream.
+    result_stream: ResultStream,
+    /// Pipelines we'll be executing on this node.
+    executable_graph: ExecutablePipelineGraph,
+    /// Output schema of the query, this should be the same as the output schema
+    /// of the query that's being verified against this one.
+    output_schema: ColumnSchema,
 }
 
 impl<P, R> Session<P, R>
@@ -165,20 +182,15 @@ where
 
     // TODO: Typed parameters at some point.
     pub fn prepare(&mut self, prepared_name: impl Into<String>, stmt: RawStatement) -> Result<()> {
-        let verifier = if self.config.verify_optimized_plan {
-            not_implemented!("Query verification")
-        } else {
-            None
-        };
-
-        self.prepared.insert(
-            prepared_name.into(),
-            PreparedStatement {
-                statement: stmt,
-                verifier,
-            },
-        );
+        self.prepared
+            .insert(prepared_name.into(), PreparedStatement { statement: stmt });
         Ok(())
+    }
+
+    fn get_prepared_by_name(&self, name: &str) -> Result<&PreparedStatement> {
+        self.prepared
+            .get(name)
+            .ok_or_else(|| DbError::new(format!("Missing named prepared statement: '{name}'")))
     }
 
     /// Gets a prepared statement by name and generates intermedidate executable
@@ -188,17 +200,49 @@ where
         prepared_name: &str,
         portal_name: impl Into<String>,
     ) -> Result<()> {
-        let stmt = self.prepared.get(prepared_name).ok_or_else(|| {
-            DbError::new(format!(
-                "Missing named prepared statement: '{prepared_name}'"
-            ))
-        })?;
-        let verifier = stmt.verifier;
+        let stmt = self.get_prepared_by_name(prepared_name)?;
+        let is_query = matches!(stmt.statement, RawStatement::Query(_));
 
-        let mut profile = PlanningProfile::default();
+        let profile = PlanningProfile::default();
+        let mut portal = self.bind_prepared(profile, stmt.clone()).await?;
 
+        // If we're verifying the query, go ahead and plan it with optimization
+        // disabled, and attach to this portal.
+        if self.config.verify_optimized_plan && is_query {
+            let stmt = self.get_prepared_by_name(prepared_name)?;
+
+            let orig_optimizer = self.config.enable_optimizer;
+
+            // Note we don't return the error here, we need to reset the config
+            // before doing so.
+            //
+            // TODO: We should be able to pass in a materializing sink here
+            // instead of getting a result stream.
+            let result = self
+                .bind_prepared(PlanningProfile::default(), stmt.clone())
+                .await;
+            self.config.enable_optimizer = orig_optimizer;
+
+            let verify_portal = result?;
+
+            portal.verification = Some(VerificationState {
+                result_stream: verify_portal.result_stream,
+                executable_graph: verify_portal.executable_graph,
+                output_schema: verify_portal.output_schema,
+            });
+        }
+
+        self.portals.insert(portal_name.into(), portal);
+
+        Ok(())
+    }
+
+    async fn bind_prepared(
+        &mut self,
+        mut profile: PlanningProfile,
+        stmt: PreparedStatement,
+    ) -> Result<ExecutablePortal> {
         let resolve_mode = ResolveMode::Normal;
-
         let timer = Timer::<R::Instant>::start();
         let (resolved_stmt, resolve_context) = Resolver::new(
             resolve_mode,
@@ -232,20 +276,15 @@ where
         )?;
         profile.plan_executable_step = Some(timer.stop());
 
-        self.portals.insert(
-            portal_name.into(),
-            ExecutablePortal {
-                query_id: intermediate_portal.query_id,
-                execution_mode: intermediate_portal.execution_mode,
-                executable_graph: pipeline_graph,
-                output_schema: intermediate_portal.output_schema,
-                result_stream: stream,
-                profile,
-                verifier,
-            },
-        );
-
-        Ok(())
+        Ok(ExecutablePortal {
+            query_id: intermediate_portal.query_id,
+            execution_mode: intermediate_portal.execution_mode,
+            executable_graph: pipeline_graph,
+            output_schema: intermediate_portal.output_schema,
+            result_stream: stream,
+            profile,
+            verification: None,
+        })
     }
 
     /// Plans the intermediate pipelines from a resolved statement.
@@ -265,24 +304,10 @@ where
     {
         match resolve_mode {
             ResolveMode::Hybrid if resolve_context.any_unresolved() => {
-                // // Hybrid planning, send to remote to complete planning.
-                // let hybrid_client = self.hybrid_client.clone().required("hybrid_client")?;
-                // let resp = hybrid_client
-                //     .remote_plan(stmt, resolve_context, &self.context)
-                //     .await?;
-
-                unimplemented!()
-                // Ok(IntermediatePortal {
-                //     query_id: resp.query_id,
-                //     execution_mode: ExecutionMode::Hybrid,
-                //     intermediate_pipelines: resp.pipelines,
-                //     intermediate_materializations: IntermediateMaterializationGroup::default(), // TODO: Need to get these somehow.
-                //     output_schema: resp.schema,
-                // })
+                not_implemented!("hybrid resolve mode")
             }
             _ => {
                 // Normal all-local planning.
-
                 let binder = StatementBinder {
                     session_config: &self.config,
                     resolve_context: &resolve_context,
@@ -437,12 +462,68 @@ where
             execution: None,
         };
 
-        let output = Output::Stream(StreamOutput::new(
-            portal.result_stream,
-            profile,
-            handle,
-            self.context.profiles().clone(),
-        ));
+        let output = match portal.verification {
+            Some(verification) => {
+                // Set up execution for the verification query.
+                if verification.output_schema != portal.output_schema {
+                    return Err(DbError::new("Queries have different output schemas")
+                        .with_field("left", format!("{:?}", verification.output_schema))
+                        .with_field("right", format!("{:?}", portal.output_schema)));
+                }
+
+                let left_collection = Arc::new(ConcurrentColumnCollection::new(
+                    portal
+                        .output_schema
+                        .fields
+                        .iter()
+                        .map(|f| f.datatype.clone()),
+                    4,
+                    DEFAULT_BATCH_SIZE,
+                ));
+                let right_collection = Arc::new(ConcurrentColumnCollection::new(
+                    portal
+                        .output_schema
+                        .fields
+                        .iter()
+                        .map(|f| f.datatype.clone()),
+                    4,
+                    DEFAULT_BATCH_SIZE,
+                ));
+
+                let left_pipelines = verification
+                    .executable_graph
+                    .create_partition_pipelines(props, partitions)?;
+
+                let left_handle = self.executor.spawn_pipelines(
+                    left_pipelines,
+                    Arc::new(verification.result_stream.error_sink()),
+                );
+
+                Output::VerifyStream(VerifyStreamOutput {
+                    left_stream: verification.result_stream,
+                    left_collection,
+
+                    right_profile: Some(profile),
+                    right_profiles: self.context.profiles().clone(),
+                    right_stream: portal.result_stream,
+                    right_collection,
+
+                    handle: Arc::new(VerifyQueryHandle {
+                        left: left_handle,
+                        right: handle,
+                    }),
+                })
+            }
+            None => {
+                // No verification, just a normal stream.
+                Output::Stream(StreamOutput::new(
+                    portal.result_stream,
+                    profile,
+                    handle,
+                    self.context.profiles().clone(),
+                ))
+            }
+        };
 
         Ok(QueryResult {
             query_id: portal.query_id,

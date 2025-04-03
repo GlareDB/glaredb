@@ -143,14 +143,9 @@ pub struct PlanMaterialization {
     pub table_refs: Vec<TableRef>,
 }
 
-impl Default for BindContext {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl BindContext {
-    pub fn new() -> Self {
+    /// Creates a new empty bind context with a single root-level scope.
+    pub fn new_for_root() -> Self {
         BindContext {
             scopes: vec![BindScope {
                 parent: None,

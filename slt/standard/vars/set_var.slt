@@ -26,3 +26,6 @@ show batch_size;
 
 statement ok
 reset batch_size
+
+statement error Missing setting for 'this_variable_does_not_exist'
+SET this_variable_does_not_exist TO true;

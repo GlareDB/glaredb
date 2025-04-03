@@ -39,7 +39,7 @@ impl SessionConfig {
     pub fn set_from_scalar(&mut self, name: &str, value: BorrowedScalarValue) -> Result<()> {
         let func = GET_SET_FUNCTIONS
             .get(name)
-            .ok_or_else(|| DbError::new("Missing setting for '{name}'"))?;
+            .ok_or_else(|| DbError::new(format!("Missing setting for '{name}'")))?;
 
         (func.set)(value, self)
     }
@@ -47,7 +47,7 @@ impl SessionConfig {
     pub fn get_as_scalar(&self, name: &str) -> Result<ScalarValue> {
         let func = GET_SET_FUNCTIONS
             .get(name)
-            .ok_or_else(|| DbError::new("Missing setting for '{name}'"))?;
+            .ok_or_else(|| DbError::new(format!("Missing setting for '{name}'")))?;
 
         let val = (func.get)(self);
         Ok(val)
@@ -63,7 +63,7 @@ impl SessionConfig {
 
         let func = GET_SET_FUNCTIONS
             .get(name)
-            .ok_or_else(|| DbError::new("Missing setting for '{name}'"))?;
+            .ok_or_else(|| DbError::new(format!("Missing setting for '{name}'")))?;
 
         let scalar = (func.get)(&def_conf);
         (func.set)(scalar, self)
@@ -105,6 +105,7 @@ static GET_SET_FUNCTIONS: LazyLock<HashMap<&'static str, SettingFunctions>> = La
     insert_setting::<ApplicationName>(&mut map);
     insert_setting::<Partitions>(&mut map);
     insert_setting::<BatchSize>(&mut map);
+    insert_setting::<VerifyOptimizedPlan>(&mut map);
     insert_setting::<EnableFunctionChaining>(&mut map);
     insert_setting::<PerPartitionCounts>(&mut map);
 
