@@ -19,3 +19,18 @@ select b + 2 as c1 from t1 order by c1;
 3
 4
 5
+
+# We should also be able to order by the original column name too.
+query T
+SELECT a AS c1 FROM t1 ORDER BY a;
+----
+a
+c
+c
+
+query T
+SELECT a AS c1 FROM t1 ORDER BY t1.a;
+----
+a
+c
+c

@@ -22,3 +22,23 @@ select 1 as a, sum(b) from t1 group by a;
 ----
 1  1
 1  5
+
+# We should also be able to group by the original column name.
+query TI rowsort
+SELECT a AS c1, sum(b) FROM t1 GROUP BY a;
+----
+a  1
+c  5
+
+query TI rowsort
+SELECT a AS c1, sum(b) FROM t1 GROUP BY t1.a;
+----
+a  1
+c  5
+
+# Group by same group twice using name and alias.
+query TI rowsort
+SELECT a AS c1, sum(b) FROM t1 GROUP BY a, c1;
+----
+a  1
+c  5

@@ -40,3 +40,17 @@ SELECT sum(j) AS sum_j FROM (values(1,2),(3,4)) t(j,k) GROUP BY k ORDER BY sum_j
 ----
 1
 3
+
+# Group by and order by same column but using different idents.
+query II
+SELECT k AS my_alias, sum(j) AS sum_j FROM (values(1,2),(3,4)) t(j,k) GROUP BY my_alias ORDER BY k;
+----
+2  1
+4  3
+
+# Same thing, just flipped
+query II
+SELECT k AS my_alias, sum(j) AS sum_j FROM (values(1,2),(3,4)) t(j,k) GROUP BY k ORDER BY my_alias;
+----
+2  1
+4  3

@@ -126,6 +126,16 @@ impl SelectList {
             group_by,
         )?;
 
+        // Update names in the current projection scope to only be the
+        // user-provided alias. Finalizing the select list means we're finalize
+        // the subquery, and we should only expose the user alias, not the
+        // original name.
+        let projections_table = bind_context.get_table_mut(self.projections_table)?;
+        for (alias, col_idx) in self.alias_map {
+            let col_name = projections_table.column_names.get_mut(col_idx).ok_or_else(|| DbError::new(format!("Attempted to set the column alias '{alias}' for out-of-bounds column {col_idx}")))?;
+            *col_name = alias;
+        }
+
         // If we had appended column, ensure we have a pruned table that only
         // contains the original projections.
         let pruned_table = if !self.appended.is_empty() {
@@ -280,10 +290,13 @@ impl SelectList {
         })
     }
 
-    /// Try to get a column by a user-provided alias.
+    /// Try to get a column by either a user-provided alias or the column name
     ///
-    /// Returns Ok(None) if a column with the given ident alias doesn't exist.
-    pub fn column_by_user_alias(
+    /// User aliases get preference.
+    ///
+    /// Returns Ok(None) if a column with the given ident alias or name doesn't
+    /// exist.
+    pub fn column_by_user_alias_or_name(
         &self,
         bind_context: &BindContext,
         ident: &ast::Ident,
@@ -304,7 +317,34 @@ impl SelectList {
             }));
         }
 
-        Ok(None)
+        // Now check the bind scope of the projections to see if we're
+        // referencing something there.
+        let mut column_expr = None;
+        let table = bind_context.get_table(self.projections_table)?;
+
+        // Iter over all columns in the select list that were part of the
+        // original selection.
+        for (col_idx, (col_name, col_type)) in table
+            .iter_names_and_types()
+            .enumerate()
+            .take(self.projections.len())
+        {
+            if name == col_name {
+                // We got our column!
+                if column_expr.is_some() {
+                    // But we got more than one...
+                    return Err(DbError::new(format!(
+                        "Ambiguous column name in select '{col_name}'"
+                    )));
+                }
+                column_expr = Some(ColumnExpr {
+                    reference: (table.reference, col_idx).into(),
+                    datatype: col_type.clone(),
+                })
+            }
+        }
+
+        Ok(column_expr)
     }
 
     /// Get a column reference by ordinal.
@@ -324,6 +364,8 @@ impl SelectList {
                 )))?;
             }
 
+            // TODO: We might to check that the ordinal is referencing the
+            // original columns, and not any of the appended ones.
             let reference = ColumnReference {
                 table_scope: self.projections_table,
                 column: n as usize - 1, // SQL is 1 indexed
