@@ -4,6 +4,7 @@ pub mod to_decimal;
 pub mod to_interval;
 pub mod to_primitive;
 pub mod to_string;
+pub mod to_timestamp;
 
 use to_boolean::FUNCTION_SET_TO_BOOLEAN;
 use to_date::FUNCTION_SET_TO_DATE32;
@@ -25,6 +26,7 @@ use to_primitive::{
     FUNCTION_SET_TO_UINT128,
 };
 use to_string::FUNCTION_SET_TO_STRING;
+use to_timestamp::FUNCTION_SET_TO_TIMESTAMP;
 
 use super::CastFunctionSet;
 
@@ -54,6 +56,7 @@ pub const BUILTIN_CAST_FUNCTION_SETS: &[CastFunctionSet] = &[
     FUNCTION_SET_TO_DATE32,
     // Interval
     FUNCTION_SET_TO_INTERVAL,
+    FUNCTION_SET_TO_TIMESTAMP,
 ];
 
 mod null {

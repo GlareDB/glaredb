@@ -1,0 +1,29 @@
+# Test cast from UTF8 to timestamp
+
+# Casting ISO8601 format
+query T
+SELECT CAST('2023-01-01T12:30:45Z' AS TIMESTAMP);
+----
+2023-01-01 12:30:45 UTC
+
+# Casting date-time format
+query T
+SELECT CAST('2023-01-01 12:30:45' AS TIMESTAMP);
+----
+2023-01-01 12:30:45 UTC
+
+# Casting date only format (should be start of day)
+query T
+SELECT CAST('2023-01-01' AS TIMESTAMP);
+----
+2023-01-01 00:00:00 UTC
+
+# Casting NULL
+query T
+SELECT CAST(NULL AS TIMESTAMP);
+----
+NULL
+
+# Invalid format should fail with error
+statement error Failed to parse 'not a timestamp' as a timestamp
+SELECT CAST('not a timestamp' AS TIMESTAMP);
