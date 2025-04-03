@@ -22,6 +22,7 @@ pub struct QueryResult {
     pub output: Output,
 }
 
+// TODO: Cleanup. I got confused with profile vs profiles.
 #[derive(Debug)]
 pub struct StreamOutput {
     profile: Option<QueryProfile>,

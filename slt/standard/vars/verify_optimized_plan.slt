@@ -1,0 +1,16 @@
+# Ensure 'verify_optimized_plan' actually fails when expected.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query I
+SELECT 4;
+----
+4
+
+# This should fail since the query is being ran twice, and a random value is
+# generated every time.
+#
+# TODO: This might need to change if we keep a random state/seed on the session.
+statement error Query verification failed
+SELECT random(), random();
