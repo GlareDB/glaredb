@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn bind_context_projection_in_scope() {
         let resolve_context = ResolveContext::default();
-        let mut bind_context = BindContext::new();
+        let mut bind_context = BindContext::new_for_root();
 
         let binder = SelectBinder {
             current: bind_context.root_scope_ref(),

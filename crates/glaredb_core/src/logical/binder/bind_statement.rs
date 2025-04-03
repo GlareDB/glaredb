@@ -60,7 +60,7 @@ impl StatementBinder<'_> {
         &self,
         statement: Statement<ResolvedMeta>,
     ) -> Result<(BoundStatement, BindContext)> {
-        let mut context = BindContext::new();
+        let mut context = BindContext::new_for_root();
         let root_scope = context.root_scope_ref();
 
         let statement = match statement {

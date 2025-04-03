@@ -143,14 +143,9 @@ pub struct PlanMaterialization {
     pub table_refs: Vec<TableRef>,
 }
 
-impl Default for BindContext {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl BindContext {
-    pub fn new() -> Self {
+    /// Creates a new empty bind context with a single root-level scope.
+    pub fn new_for_root() -> Self {
         BindContext {
             scopes: vec![BindScope {
                 parent: None,
@@ -162,6 +157,34 @@ impl BindContext {
             tables: TableList::empty(),
             ctes: Vec::new(),
             materializations: Vec::new(),
+        }
+    }
+
+    /// Clones this bind context.
+    ///
+    /// We do not derive Clone for the bind context as cloning the context needs
+    /// be deliberate.
+    ///
+    /// The only use case for cloning the bind context is for verifying
+    /// optimized query execution with its unoptimized counterpart, which this
+    /// method is for.
+    pub fn clone_for_verification(&self) -> BindContext {
+        let materializations = self
+            .materializations
+            .iter()
+            .map(|mat| PlanMaterialization {
+                mat_ref: mat.mat_ref,
+                plan: mat.plan.clone(),
+                scan_count: mat.scan_count,
+                table_refs: mat.table_refs.clone(),
+            })
+            .collect();
+
+        BindContext {
+            scopes: self.scopes.clone(),
+            tables: self.tables.clone(),
+            ctes: self.ctes.clone(),
+            materializations,
         }
     }
 

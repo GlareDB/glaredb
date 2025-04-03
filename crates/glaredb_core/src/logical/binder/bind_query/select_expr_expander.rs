@@ -318,7 +318,7 @@ mod tests {
 
     #[test]
     fn expand_none() {
-        let bind_context = BindContext::new();
+        let bind_context = BindContext::new_for_root();
         let expander = SelectExprExpander::new(bind_context.root_scope_ref(), &bind_context);
 
         let exprs = vec![
@@ -343,7 +343,7 @@ mod tests {
 
     #[test]
     fn expand_unqualified() {
-        let mut bind_context = BindContext::new();
+        let mut bind_context = BindContext::new_for_root();
         let table_ref = bind_context
             .push_table(
                 bind_context.root_scope_ref(),
@@ -393,7 +393,7 @@ mod tests {
 
     #[test]
     fn expand_qualified() {
-        let mut bind_context = BindContext::new();
+        let mut bind_context = BindContext::new_for_root();
         // Add 't1'
         let t1_table_ref = bind_context
             .push_table(

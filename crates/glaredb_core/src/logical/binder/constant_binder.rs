@@ -27,7 +27,7 @@ impl<'a> ConstantBinder<'a> {
     /// Try to bind an AST expression as a constant value.
     pub fn bind_constant_expression(&self, expr: &ast::Expr<ResolvedMeta>) -> Result<Expression> {
         // TODO: Probably want to check that we didn't bind a subquery.
-        let mut bind_context = BindContext::new();
+        let mut bind_context = BindContext::new_for_root();
         let expr = BaseExpressionBinder::new(bind_context.root_scope_ref(), self.resolve_context)
             .bind_expression(
             &mut bind_context,
