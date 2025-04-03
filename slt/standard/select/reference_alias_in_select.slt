@@ -36,3 +36,22 @@ query TT
 SELECT 'select' AS a, upper(a);
 ----
 select  SELECT
+
+# Technically this should be an ambiguous error.
+statement error 'a' can only be referenced after it's been defined in the SELECT list
+SELECT 4 AS a, a + 2 AS a, a + 4 AS a;
+
+query III
+SELECT 4 AS a, a + 2 AS b, b + 4 AS c
+----
+4 6 10
+
+query III
+SELECT 4 AS a, a + 2 AS b, b + 4 AS c ORDER BY a,b,c;
+----
+4 6 10
+
+query III
+SELECT 4 AS a, a + 2 AS b, b + a AS c;
+----
+4 6 10

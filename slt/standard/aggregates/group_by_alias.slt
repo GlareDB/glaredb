@@ -35,3 +35,10 @@ SELECT a AS c1, sum(b) FROM t1 GROUP BY t1.a;
 ----
 a  1
 c  5
+
+# Group by same group twice using name and alias.
+query TI rowsort
+SELECT a AS c1, sum(b) FROM t1 GROUP BY a, c1;
+----
+a  1
+c  5
