@@ -1,6 +1,9 @@
 # COLUMNS expression in select list
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 (col_a INT, col_b INT, col_c INT, other INT);
 
 statement ok

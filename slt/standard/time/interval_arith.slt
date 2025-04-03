@@ -1,5 +1,8 @@
 # Interval arithmetic
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 select interval '1 day' * 3;
 ----

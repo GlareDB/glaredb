@@ -4,6 +4,10 @@
 # TODO: Also verify with unoptimized.
 # TODO: Eliminate joins with constant fals conditions.
 
+# NULL
+# statement ok
+# SET verify_optimized_plan TO true;
+
 query I
 SELECT a FROM VALUES (1), (2), (NULL) v(a) WHERE 1 = 1 ORDER BY 1;
 ----

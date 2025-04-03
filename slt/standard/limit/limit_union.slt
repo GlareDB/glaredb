@@ -1,5 +1,8 @@
 # LIMIT with union
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 SELECT count(*) FROM (
   SELECT * FROM generate_series(1, 3) UNION SELECT * FROM generate_series(4, 7) LIMIT 4

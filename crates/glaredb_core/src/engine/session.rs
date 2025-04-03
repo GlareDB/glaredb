@@ -96,10 +96,16 @@ enum ExecutionMode {
 /// execution.
 #[derive(Debug)]
 struct IntermediatePortal {
+    /// ID for the query.
     query_id: Uuid,
+    /// Execution mode to use for the query.
     execution_mode: ExecutionMode,
+    /// The query graph.
     query_graph: PlannedQueryGraph,
+    /// Output schema for the query.
     output_schema: ColumnSchema,
+    /// If the query was optimized.
+    optimized: bool,
 }
 
 /// Portal containing executable pipelines.
@@ -122,6 +128,8 @@ struct ExecutablePortal {
     result_stream: ResultStream,
     /// Profile data we've collected during resolving/binding/planning.
     profile: PlanningProfile,
+    /// If the query was optimized.
+    optimized: bool,
     /// Optional verification state.
     verification: Option<VerificationState>,
 }
@@ -209,9 +217,10 @@ where
         // If we're verifying the query, go ahead and plan it with optimization
         // disabled, and attach to this portal.
         if self.config.verify_optimized_plan && is_query {
-            let stmt = self.get_prepared_by_name(prepared_name)?;
-
             let orig_optimizer = self.config.enable_optimizer;
+            self.config.enable_optimizer = false;
+
+            let stmt = self.get_prepared_by_name(prepared_name)?;
 
             // Note we don't return the error here, we need to reset the config
             // before doing so.
@@ -224,6 +233,10 @@ where
             self.config.enable_optimizer = orig_optimizer;
 
             let verify_portal = result?;
+            debug_assert!(
+                !verify_portal.optimized,
+                "Verification query unexpectedly optimized"
+            );
 
             portal.verification = Some(VerificationState {
                 result_stream: verify_portal.result_stream,
@@ -283,6 +296,7 @@ where
             output_schema: intermediate_portal.output_schema,
             result_stream: stream,
             profile,
+            optimized: intermediate_portal.optimized,
             verification: None,
         })
     }
@@ -320,10 +334,12 @@ where
                 let mut logical = StatementPlanner.plan(&mut bind_context, bound_stmt)?;
                 profile.plan_logical_step = Some(timer.stop());
 
+                let mut optimized = false;
                 if self.config.enable_optimizer {
                     let mut optimizer = Optimizer::new();
                     logical = optimizer.optimize::<R::Instant>(&mut bind_context, logical)?;
                     profile.plan_optimize_step = Some(optimizer.profile_data);
+                    optimized = true;
                 }
 
                 // If we're an explain, put a copy of the optimized plan on the
@@ -422,6 +438,7 @@ where
                     execution_mode: ExecutionMode::LocalOnly,
                     query_graph,
                     output_schema: schema,
+                    optimized,
                 })
             }
         }

@@ -1,5 +1,8 @@
 # VALUES reference lateral columns.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE SELECT * FROM (VALUES (2), (3)) v1(a), (VALUES (a + 1, a * 2)) v2(b, c);
 ----

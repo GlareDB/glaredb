@@ -1,5 +1,8 @@
 # Materialized CTEs
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 with cte1 as materialized (select 4) select * from cte1;
 ----

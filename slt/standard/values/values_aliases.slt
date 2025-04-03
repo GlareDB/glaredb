@@ -1,5 +1,8 @@
 # Alias the columns for VALUES
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE SELECT * FROM (VALUES (1,2.0,3)) v(a,b,c);
 ----

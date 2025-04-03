@@ -1,6 +1,9 @@
 # Ensure we can properly push down through cross joins and turn them into inner joins.
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 (a INT);
 
 statement ok

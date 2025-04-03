@@ -4,6 +4,9 @@
 # SUM. Will add casting/specializations at some point.
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 create temp table t1 (c1 bigint, c2 bigint)
 
 statement ok

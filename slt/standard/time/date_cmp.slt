@@ -1,5 +1,8 @@
 # Comparison between dates
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query B
 select '1998-09-02'::date == '1998-09-02'::date;
 ----

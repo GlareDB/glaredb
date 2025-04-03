@@ -1,5 +1,8 @@
 # Allow referencing previously defined aliases in later select items.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query II
 SELECT 1 AS a, a + 2;
 ----

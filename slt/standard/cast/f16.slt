@@ -1,5 +1,8 @@
 # Cast to/from f16
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 DESCRIBE SELECT 2.0::HALF;
 ----

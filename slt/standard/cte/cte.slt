@@ -1,5 +1,8 @@
 # Non-recursive, non-materialized CTE tests
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 with cte1 as (select 4) select * from cte1;
 ----

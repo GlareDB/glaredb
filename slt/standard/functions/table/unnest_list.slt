@@ -1,5 +1,8 @@
 # UNNEST as a table function operating on lists.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE SELECT * FROM unnest([3,4,5]) ORDER BY 1;
 ----

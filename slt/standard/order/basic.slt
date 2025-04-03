@@ -1,5 +1,8 @@
 # ORDER BY
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 select * from (values ('a'), ('c'), ('b')) order by column1;
 ----

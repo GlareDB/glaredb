@@ -1,5 +1,8 @@
 # Decimal casts
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 select 0::DECIMAL;
 ----

@@ -1,5 +1,8 @@
 # Interval casts
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 select '1'::interval;
 ----

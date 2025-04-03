@@ -1,5 +1,8 @@
 # ORDER BY large number of input rows.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT a::TEXT AS s FROM generate_series(1, 99999) g(a) ORDER BY s LIMIT 10;
 ----

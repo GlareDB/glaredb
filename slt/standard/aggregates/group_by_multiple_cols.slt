@@ -1,6 +1,9 @@
 # GROUP BY multiple columns
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 create temp table t1 (i bigint, j bigint, k bigint);
 
 statement ok

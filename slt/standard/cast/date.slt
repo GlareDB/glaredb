@@ -1,5 +1,8 @@
 # Date casts
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 select '1992-10-11'::DATE
 ----

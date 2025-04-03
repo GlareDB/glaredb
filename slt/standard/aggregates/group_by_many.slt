@@ -1,6 +1,9 @@
 # GROUP BY many columns
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 (
     first_name  TEXT,
     last_name   TEXT,

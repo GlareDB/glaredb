@@ -1,5 +1,8 @@
 # Error cases for GROUP BY
 
+statement ok
+SET verify_optimized_plan TO true;
+
 statement error Column 'i' must appear in the GROUP BY clause or be used in an aggregate function
 SELECT j * 2, i * 2 FROM (values (1,2),(3,4)) t(i,j) GROUP BY j * 2;
 

@@ -12,6 +12,9 @@
 # return nothing.
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 (i INT);
 
 statement ok
