@@ -1,6 +1,9 @@
 # Using view in a subquery.
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 (a INT, b INT);
 
 statement ok

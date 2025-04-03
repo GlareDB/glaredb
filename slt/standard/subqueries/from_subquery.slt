@@ -1,5 +1,8 @@
 # Subquery in FROM
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 select * from (select 23);
 ----

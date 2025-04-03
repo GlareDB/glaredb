@@ -1,6 +1,9 @@
 # Ensure limit is global by producing values from multiple partitions.
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 SET partitions TO 2;
 
 query I

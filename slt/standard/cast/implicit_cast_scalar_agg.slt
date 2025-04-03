@@ -1,5 +1,8 @@
 # Test implicit casting of scalar func on output of agg.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 SELECT avg(a) FROM (VALUES (1.2), (3.4)) AS v(a)
 ----

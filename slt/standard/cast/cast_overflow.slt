@@ -1,6 +1,9 @@
 # Test the errors we get back when attempting to cast ints that would lead to an
 # overflow.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 # Sanity check
 statement ok
 SELECT 127::TINYINT;

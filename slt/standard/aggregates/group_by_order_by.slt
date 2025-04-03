@@ -1,5 +1,8 @@
 # GROUP BY and ORDER BY
 
+statement ok
+SET verify_optimized_plan TO true;
+
 # Basic
 query I
 SELECT sum(j) FROM (values(1,2),(3,4)) t(j,k) GROUP BY k ORDER BY k

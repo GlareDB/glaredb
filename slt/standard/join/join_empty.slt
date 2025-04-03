@@ -1,5 +1,9 @@
 # Correct results when joining on empty inputs.
 
+# NULL
+# statement ok
+# SET verify_optimized_plan TO true;
+
 statement ok
 create temp table t1 (a int);
 

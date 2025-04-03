@@ -1,6 +1,9 @@
 # GROUP BY alias
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 create temp table t1 (a text, b int);
 
 statement ok

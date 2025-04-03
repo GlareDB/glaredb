@@ -1,5 +1,8 @@
 # Assert error messages when trying to select from tables that don't exist.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 statement error Missing table or view for reference 'table_does_not_exist'
 select * from table_does_not_exist
 

@@ -1,6 +1,9 @@
 # GROUP BY string
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 create temp table t1 as
     select * from (values ('mario', 12), ('yoshi', 13), ('mario', 14)) as v(a, b);
 

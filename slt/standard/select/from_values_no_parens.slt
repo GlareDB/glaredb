@@ -1,5 +1,8 @@
 # Assert querying from VALUES without surrounding in parenthesis.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TI
 SELECT * FROM VALUES ('cat', 2), ('dog', 1) ORDER BY 1;
 ----

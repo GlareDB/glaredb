@@ -1,6 +1,9 @@
 # Duplicated conditions in where clause
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 (x INT);
 
 statement ok

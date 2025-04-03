@@ -1,5 +1,8 @@
 # Date arithmetic
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT date '2001-09-28' + 7;
 ----

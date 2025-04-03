@@ -1,6 +1,9 @@
 # Ensure we can reference columns qualified by view name.
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP VIEW v1 AS SELECT * FROM (VALUES ('cat', 3), ('dog', 4)) v(a, b);
 
 query TI

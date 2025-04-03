@@ -3,6 +3,9 @@
 # (Taken from duckdb's test_having.test, incomplete)
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE test (a BIGINT, b BIGINT);
 
 statement ok

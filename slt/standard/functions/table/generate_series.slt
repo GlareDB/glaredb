@@ -1,5 +1,8 @@
 # generate_series
 
+statement ok
+SET verify_optimized_plan TO true;
+
 statement error
 select * from generate_series(1);
 

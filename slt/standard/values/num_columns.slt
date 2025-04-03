@@ -1,5 +1,8 @@
 # Test different numbers of columns per row.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 # TODO: Could have a Display impl for the tokens to make these sorts of messages
 # a bit cleaner.
 statement error Unexpected token 'RightParen'. Expected expression.
