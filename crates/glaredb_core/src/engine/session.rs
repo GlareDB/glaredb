@@ -201,13 +201,14 @@ where
         portal_name: impl Into<String>,
     ) -> Result<()> {
         let stmt = self.get_prepared_by_name(prepared_name)?;
+        let is_query = matches!(stmt.statement, RawStatement::Query(_));
 
         let profile = PlanningProfile::default();
         let mut portal = self.bind_prepared(profile, stmt.clone()).await?;
 
         // If we're verifying the query, go ahead and plan it with optimization
         // disabled, and attach to this portal.
-        if self.config.verify_optimized_plan {
+        if self.config.verify_optimized_plan && is_query {
             let stmt = self.get_prepared_by_name(prepared_name)?;
 
             let orig_optimizer = self.config.enable_optimizer;

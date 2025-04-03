@@ -14,3 +14,16 @@ SELECT 4;
 # TODO: This might need to change if we keep a random state/seed on the session.
 statement error Query verification failed
 SELECT random(), random();
+
+# Ensure it doesn't run twice for non-SELECT queries.
+statement ok
+CREATE TEMP TABLE t1 (a INT);
+
+statement ok
+INSERT INTO t1 VALUES (4), (5);
+
+query I
+SELECT * FROM t1 ORDER BY a;
+----
+4
+5
