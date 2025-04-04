@@ -1,5 +1,8 @@
 # STRING_AGG tests
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT string_agg('hello', ',');
 ----

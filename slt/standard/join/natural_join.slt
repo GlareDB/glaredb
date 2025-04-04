@@ -1,6 +1,9 @@
 # Natural join tests
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 (num INT, name TEXT);
 
 statement ok

@@ -1,5 +1,8 @@
 # COVAR_POP and COVAR_SAMP functions
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 SELECT covar_pop(1, 1);
 ----

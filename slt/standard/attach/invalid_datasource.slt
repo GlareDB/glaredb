@@ -1,5 +1,8 @@
 # Try to attach invalid data source
 
+statement ok
+SET verify_optimized_plan TO true;
+
 halt
 
 statement error Hybrid execution not enabled. Cannot verify attaching a 'snowbricks' data source

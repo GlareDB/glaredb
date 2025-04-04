@@ -1,5 +1,8 @@
 # regexp_replace function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT regexp_replace('alphabet', 'bet', 'DOG');
 ----

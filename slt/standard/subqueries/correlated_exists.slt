@@ -1,6 +1,9 @@
 # Correlated EXIST subqueries
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE ints (i INT);
 
 statement ok

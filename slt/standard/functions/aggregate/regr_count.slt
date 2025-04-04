@@ -1,5 +1,8 @@
 # REGR_COUNT
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 SELECT regr_count(1, 2);
 ----

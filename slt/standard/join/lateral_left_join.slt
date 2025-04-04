@@ -1,6 +1,9 @@
 # LEFT JOIN LATERAL
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t (a INT);
 
 statement ok

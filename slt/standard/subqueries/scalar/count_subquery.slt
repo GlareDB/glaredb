@@ -1,6 +1,9 @@
 # Scalar subqueries and COUNT
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 create temp table t1 (a bigint, b bigint, c bigint);
 
 statement ok

@@ -1,5 +1,8 @@
 # lpad function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT lpad('aaa', 6, 'bb');
 ----

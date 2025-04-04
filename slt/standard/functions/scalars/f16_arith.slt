@@ -1,5 +1,8 @@
 # Arith with f16
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE SELECT (1.0 + 2.0)::HALF;
 ----

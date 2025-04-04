@@ -1,5 +1,8 @@
 # Ensure we can call functions partially and fully qualified.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 SELECT default.abs(-48);
 ----

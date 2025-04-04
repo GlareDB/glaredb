@@ -1,5 +1,8 @@
 # date_trunc function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT date_trunc('second', epoch(1731462995));
 ----

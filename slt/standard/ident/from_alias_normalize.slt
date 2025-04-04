@@ -1,5 +1,8 @@
 # Normalize column names in from aliases
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I rowsort
 select A from (values (1), (2)) as t(a);
 ----

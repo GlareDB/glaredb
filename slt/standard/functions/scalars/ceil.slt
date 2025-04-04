@@ -1,5 +1,8 @@
 # ceil functions
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 SELECT ceil(1.2);
 ----

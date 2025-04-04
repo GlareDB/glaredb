@@ -11,6 +11,9 @@
 
 # TODO: DOENS'T EXHIBIT THE ISSUE!!!!
 
+statement ok
+SET verify_optimized_plan TO true;
+
 halt
 
 statement ok

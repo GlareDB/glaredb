@@ -1,6 +1,9 @@
 # ORDER BY many columns.
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 (a TEXT, b TEXT, c INT);
 
 statement ok

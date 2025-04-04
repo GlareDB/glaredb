@@ -1,6 +1,9 @@
 # GROUPING function call
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE items_sold (
   make TEXT,
   model TEXT,

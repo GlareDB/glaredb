@@ -1,5 +1,8 @@
 # Creates a list array whose underlying buffer exceeds the batch size.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 halt
 
 statement ok

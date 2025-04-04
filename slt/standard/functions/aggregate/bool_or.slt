@@ -1,6 +1,10 @@
 # bool_or
 
+statement ok
+SET verify_optimized_plan TO true;
+
 # Test with all TRUE values
+
 query T
 SELECT bool_or(b) FROM (VALUES (TRUE), (TRUE), (TRUE)) AS t(b);
 ----

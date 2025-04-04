@@ -2,6 +2,9 @@
 
 # TODO: Unary (-) precedence
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 select 10::UTINYINT;
 ----

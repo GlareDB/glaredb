@@ -1,5 +1,8 @@
 # stddev_pop, stddev_samp (and variance)
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 SELECT stddev_pop(4);
 ----

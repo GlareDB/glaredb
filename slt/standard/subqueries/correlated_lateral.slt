@@ -3,6 +3,9 @@
 # TODO: Need to check tables with null values as well.
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 (v INT);
 
 statement ok

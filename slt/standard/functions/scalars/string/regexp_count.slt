@@ -1,5 +1,8 @@
 # regexp_count function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 SELECT regexp_count('abacad', 'a|b');
 ----

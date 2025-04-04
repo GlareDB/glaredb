@@ -1,6 +1,9 @@
 # INSERT INTO with invalid data
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 create temp table t1 (a int, b text);
 
 # Invalid number of columns

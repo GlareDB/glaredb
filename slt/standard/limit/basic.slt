@@ -2,6 +2,9 @@
 
 # NO ORDER BY (cannot assert order into limit operator, use the same values)
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 select * from (values (1), (1), (1)) limit 4
 ----

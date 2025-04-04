@@ -1,5 +1,8 @@
 # round function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 SELECT round(1.2);
 ----

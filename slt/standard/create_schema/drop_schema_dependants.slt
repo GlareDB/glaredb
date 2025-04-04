@@ -1,6 +1,9 @@
 # DROP SCHEMA ... [CASCASE | RESTRICT]
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 create schema temp.s1;
 
 statement ok

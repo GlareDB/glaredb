@@ -1,6 +1,9 @@
 # is_true/is_not_true/is_false/is_not_false
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 AS (SELECT * FROM (VALUES (true), (false), (NULL)) v(a))
 
 query T rowsort

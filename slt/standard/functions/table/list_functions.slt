@@ -1,5 +1,8 @@
 # list_functions function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 SELECT function_name, function_type FROM list_functions() WHERE function_name = 'regr_count';
 ----

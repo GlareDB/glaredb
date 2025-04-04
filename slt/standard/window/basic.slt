@@ -1,5 +1,8 @@
 # Basic WINDOW tests
 
+statement ok
+SET verify_optimized_plan TO true;
+
 halt
 
 query I

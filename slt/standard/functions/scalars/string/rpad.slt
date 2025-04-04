@@ -1,5 +1,8 @@
 # rpad function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT rpad('aaa', 6, 'bb');
 ----

@@ -1,6 +1,9 @@
 # list_tables function
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE hello (a INT);
 
 query T

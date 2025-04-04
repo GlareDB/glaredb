@@ -1,5 +1,8 @@
 # isfinite
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query B
 select isfinite(1.0);
 ----

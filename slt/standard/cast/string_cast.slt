@@ -1,5 +1,8 @@
 # Cast to/from string
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 select '2'::INT;
 ----

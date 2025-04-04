@@ -1,5 +1,8 @@
 # ADD on decimals
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 DESCRIBE SELECT 8 + '4.20'::DECIMAL
 ----

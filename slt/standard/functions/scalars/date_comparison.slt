@@ -1,6 +1,9 @@
 # Comparisons with DATEs
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE dates (i INT, d DATE);
 
 statement ok

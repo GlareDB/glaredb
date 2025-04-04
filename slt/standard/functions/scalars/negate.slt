@@ -1,5 +1,8 @@
 # NEGATE (unary minus)
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 select -4;
 ----

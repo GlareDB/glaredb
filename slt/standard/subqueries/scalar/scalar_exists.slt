@@ -1,5 +1,8 @@
 # EXISTS
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query B
 select exists (select 1);
 ----

@@ -1,5 +1,8 @@
 # Implicit casting in VALUES to ensure every row has the same types.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE SELECT * FROM (VALUES (4), (NULL));
 ----

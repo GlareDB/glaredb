@@ -1,6 +1,10 @@
 # bool_and
 
+statement ok
+SET verify_optimized_plan TO true;
+
 # Test with all TRUE values
+
 query T
 SELECT bool_and(b) FROM (VALUES (TRUE), (TRUE), (TRUE)) AS t(b);
 ----

@@ -1,5 +1,8 @@
 # ltrim, rtrim, btrim functions
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT btrim('xyxtrimyyx', 'xy');
 ----

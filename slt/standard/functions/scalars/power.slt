@@ -1,4 +1,7 @@
 # POWER function tests
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 SELECT power(2, 3);
 ----

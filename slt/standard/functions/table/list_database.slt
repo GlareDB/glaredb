@@ -1,5 +1,8 @@
 # list_databases system function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 select * from list_databases() where database_name = 'temp';
 ----

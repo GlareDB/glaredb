@@ -1,5 +1,8 @@
 # concat (string) function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 statement error  Invalid inputs to 'concat'
 select concat();
 

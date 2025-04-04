@@ -2,6 +2,9 @@
 
 # Function call
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query B
 select like('aaa', 'aaa');
 ----

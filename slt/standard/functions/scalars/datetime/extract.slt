@@ -1,5 +1,8 @@
 # EXTRACT function (essentially an alias for date_part)
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 SELECT EXTRACT(day FROM DATE '2012-07-04');
 ----

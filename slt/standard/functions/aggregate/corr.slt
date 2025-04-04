@@ -1,5 +1,8 @@
 # CORR function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 SELECT corr(1, 1);
 ----

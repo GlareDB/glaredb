@@ -1,5 +1,8 @@
 # FIRST and LAST
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 SELECT first(4);
 ----

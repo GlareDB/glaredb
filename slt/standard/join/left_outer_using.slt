@@ -1,6 +1,9 @@
 # LEFT JOIN with USING
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 (a int, b int, c int);
 
 statement ok

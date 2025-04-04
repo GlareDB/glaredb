@@ -1,5 +1,8 @@
 # Type string casts
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query B
 select bool 'true';
 ----

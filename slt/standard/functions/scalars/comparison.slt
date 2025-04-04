@@ -1,5 +1,8 @@
 # EQ
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query B
 select 1 = 1;
 ----

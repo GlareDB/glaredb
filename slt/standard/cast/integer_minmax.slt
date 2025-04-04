@@ -1,6 +1,10 @@
 # Test casting to min and max integer values of varying sizes
 
+statement ok
+SET verify_optimized_plan TO true;
+
 # Test min/max values for TINYINT (Int8)
+
 query I
 select (-128)::TINYINT;
 ----
