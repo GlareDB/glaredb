@@ -1,8 +1,9 @@
 # Test bit_or aggregate function
 
-# Test with Int8 values
 statement ok
 SET verify_optimized_plan TO true;
+
+# Test with Int8 values
 
 query I
 SELECT bit_or(v) FROM (VALUES (CAST(96 AS TINYINT)), (CAST(9 AS TINYINT)), (CAST(6 AS TINYINT))) AS t(v);
