@@ -2,6 +2,9 @@
 #
 # Special function, gets rewritten to a bunch of CASE expressions.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 statement error COALESCE requires at least one argument
 SELECT COALESCE();
 
