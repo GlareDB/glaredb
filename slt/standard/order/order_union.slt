@@ -1,12 +1,7 @@
 # ORDER BY of UNION
 
-# TODO: Need non-empty select list: https://github.com/glaredb/rayexec/blob/0ca90850d3533ee06f96dd97d914312d57e49d70/crates/rayexec_execution/src/logical/binder/bind_query/bind_setop.rs#L168-L169
-# query I
-# SELECT * FROM generate_series(1, 3) UNION SELECT * FROM generate_series(4, 7) ORDER BY 1;
 statement ok
 SET verify_optimized_plan TO true;
-
-# ORDER BY of UNION
 
 # TODO: Need non-empty select list: https://github.com/glaredb/rayexec/blob/0ca90850d3533ee06f96dd97d914312d57e49d70/crates/rayexec_execution/src/logical/binder/bind_query/bind_setop.rs#L168-L169
 # query I
