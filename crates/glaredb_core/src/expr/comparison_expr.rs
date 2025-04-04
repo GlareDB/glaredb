@@ -7,6 +7,8 @@ use crate::functions::scalar::builtin::comparison::{
     FUNCTION_SET_EQ,
     FUNCTION_SET_GT,
     FUNCTION_SET_GT_EQ,
+    FUNCTION_SET_IS_DISTINCT_FROM,
+    FUNCTION_SET_IS_NOT_DISTINCT_FROM,
     FUNCTION_SET_LT,
     FUNCTION_SET_LT_EQ,
     FUNCTION_SET_NEQ,
@@ -61,8 +63,8 @@ impl AsScalarFunctionSet for ComparisonOperator {
             ComparisonOperator::LtEq => &FUNCTION_SET_LT_EQ,
             ComparisonOperator::Gt => &FUNCTION_SET_GT,
             ComparisonOperator::GtEq => &FUNCTION_SET_GT_EQ,
-            ComparisonOperator::IsDistinctFrom => unimplemented!(),
-            ComparisonOperator::IsNotDistinctFrom => unimplemented!(),
+            ComparisonOperator::IsDistinctFrom => &FUNCTION_SET_IS_DISTINCT_FROM,
+            ComparisonOperator::IsNotDistinctFrom => &FUNCTION_SET_IS_NOT_DISTINCT_FROM,
         }
     }
 }

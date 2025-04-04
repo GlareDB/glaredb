@@ -128,10 +128,10 @@ impl BinaryExecutor {
                 .zip(sel2.into_exact_size_iter())
                 .enumerate()
             {
-                let sel1 = array1.selection.get(input1_idx).unwrap();
-                let sel2 = array2.selection.get(input2_idx).unwrap();
-
                 if validity1.is_valid(input1_idx) && validity2.is_valid(input2_idx) {
+                    let sel1 = array1.selection.get(input1_idx).unwrap();
+                    let sel2 = array2.selection.get(input2_idx).unwrap();
+
                     let val1 = input1.get(sel1).unwrap();
                     let val2 = input2.get(sel2).unwrap();
 
