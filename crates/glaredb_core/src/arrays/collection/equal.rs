@@ -7,7 +7,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::buffer::buffer_manager::NopBufferManager;
 use crate::expr;
-use crate::functions::scalar::builtin::comparison::FUNCTION_SET_EQ;
+use crate::functions::scalar::builtin::comparison::FUNCTION_SET_IS_NOT_DISTINCT_FROM;
 use crate::storage::projections::Projections;
 use crate::util::fmt::displayable::IntoDisplayableSlice;
 
@@ -15,9 +15,6 @@ use crate::util::fmt::displayable::IntoDisplayableSlice;
 ///
 /// `batch_size` determines the size of the intermediates batches to use when
 /// scanning both collections.
-// TODO: Use this when verifying the results of an optimized query with the
-// unoptimized query.
-#[allow(unused)]
 pub fn verify_collections_eq(
     left: &ConcurrentColumnCollection,
     right: &ConcurrentColumnCollection,
@@ -53,7 +50,7 @@ pub fn verify_collections_eq(
 
         // TODO: This should be using IS NOT DISTINCT FROM. Currently fails on nulls...
         let eq_func = expr::scalar_function(
-            &FUNCTION_SET_EQ,
+            &FUNCTION_SET_IS_NOT_DISTINCT_FROM,
             vec![
                 expr::column((0, 0), datatype.clone()),
                 expr::column((1, 0), datatype.clone()),
