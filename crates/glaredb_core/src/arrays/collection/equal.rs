@@ -186,6 +186,28 @@ mod tests {
     }
 
     #[test]
+    fn verify_equal_with_nulls() {
+        let c1 = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 2, 2);
+        let c2 = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 2, 2);
+
+        let mut s1 = c1.init_append_state();
+        let mut s2 = c2.init_append_state();
+
+        let b1 = generate_batch!([Some(4), None, Some(6)], [Some("a"), Some("b"), None]);
+        c1.append_batch(&mut s1, &b1).unwrap();
+        c2.append_batch(&mut s2, &b1).unwrap();
+
+        let b2 = generate_batch!([Some(7), Some(8), None], [Some("d"), Some("e"), Some("f")]);
+        c1.append_batch(&mut s1, &b2).unwrap();
+        c2.append_batch(&mut s2, &b2).unwrap();
+
+        c1.flush(&mut s1).unwrap();
+        c2.flush(&mut s2).unwrap();
+
+        verify_collections_eq(&c1, &c2, 2048).unwrap();
+    }
+
+    #[test]
     fn verify_equal_different_segment_chunk_size() {
         // Ensure our batch slicing logic works.
 
