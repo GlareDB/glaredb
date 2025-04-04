@@ -5,11 +5,9 @@ use std::fmt::Debug;
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use glaredb_error::Result;
-
-/// A boxed future.
-pub type FileFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 pub trait File: Debug + Sync + Send + 'static {
     /// Get the size in bytes of this file.
@@ -17,16 +15,16 @@ pub trait File: Debug + Sync + Send + 'static {
 
     /// Read from the current position into the buffer, returning the number of
     /// bytes read.
-    fn read(&mut self, buf: &mut [u8]) -> impl Future<Output = Result<usize>> + Send;
+    fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>>;
 
     /// Write at the current position, returning the number of bytes written.
-    fn write(&mut self, buf: &mut [u8]) -> impl Future<Output = Result<usize>> + Send;
+    fn poll_write(&mut self, buf: &mut [u8]) -> Poll<Result<usize>>;
 
     /// Seek the provided position in the file.
-    fn seek(&mut self, seek: io::SeekFrom) -> impl Future<Output = Result<()>> + Send;
+    fn poll_seek(&mut self, seek: io::SeekFrom) -> Poll<Result<()>>;
 
     /// Flush the file to disk (or persistent storage).
-    fn flush(&mut self) -> impl Future<Output = Result<()>> + Send;
+    fn poll_flush(&mut self) -> Poll<Result<()>>;
 }
 
 #[derive(Debug)]
@@ -46,14 +44,14 @@ impl AnyFile {
         }
     }
 
-    pub fn call_read<'a>(&'a mut self, buf: &'a mut [u8]) -> FileFuture<'a, Result<usize>> {
-        (self.vtable.read_fn)(self.file.as_mut(), buf)
+    pub fn call_poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
+        (self.vtable.poll_read_fn)(self.file.as_mut(), cx, buf)
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileVTable {
-    read_fn: for<'a> fn(&'a mut dyn Any, buf: &'a mut [u8]) -> FileFuture<'a, Result<usize>>,
+    poll_read_fn: fn(&mut dyn Any, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>>,
 }
 
 trait FileVTable {
@@ -65,9 +63,9 @@ where
     F: File,
 {
     const VTABLE: &'static RawFileVTable = &RawFileVTable {
-        read_fn: |file, buf| {
+        poll_read_fn: |file, cx, buf| {
             let file = file.downcast_mut::<Self>().unwrap();
-            Box::pin(async { file.read(buf).await })
+            file.poll_read(cx, buf)
         },
     };
 }
@@ -81,6 +79,9 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Returns if this filesystem is able to handle the provided path.
     fn can_handle_path(&self, path: &str) -> bool;
 }
+
+/// A boxed future.
+pub type FileSystemFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 #[derive(Debug)]
 pub struct AnyFileSystem {
@@ -99,7 +100,7 @@ impl AnyFileSystem {
         }
     }
 
-    pub fn call_open<'a>(&'a self, path: &'a str) -> FileFuture<'a, Result<AnyFile>> {
+    pub fn call_open<'a>(&'a self, path: &'a str) -> FileSystemFuture<'a, Result<AnyFile>> {
         (self.vtable.open_fn)(self.filesystem.as_ref(), path)
     }
 
@@ -110,7 +111,7 @@ impl AnyFileSystem {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileSystemVTable {
-    open_fn: for<'a> fn(fs: &'a dyn Any, path: &'a str) -> FileFuture<'a, Result<AnyFile>>,
+    open_fn: for<'a> fn(fs: &'a dyn Any, path: &'a str) -> FileSystemFuture<'a, Result<AnyFile>>,
     can_handle_path_fn: fn(fs: &dyn Any, path: &str) -> bool,
 }
 
