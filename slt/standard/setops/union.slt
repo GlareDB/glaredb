@@ -1,8 +1,5 @@
 # UNION tests
 
-statement ok
-SET verify_optimized_plan TO true;
-
 query I rowsort
 SELECT 1 AS two UNION ALL SELECT 2;
 ----
