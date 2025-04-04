@@ -3,6 +3,9 @@
 # Keep minimal since explain formats will probably change.
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 explain select 1;
 
 # ----

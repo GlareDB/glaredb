@@ -1,5 +1,8 @@
 # regexp_like function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query B
 SELECT regexp_like('cat dog house', 'dog');
 ----

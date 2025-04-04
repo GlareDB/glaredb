@@ -1,6 +1,9 @@
 # SHOW DATABASES
 
 # TODO: We probably want to prune out what we actually show.
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SHOW DATABASES;
 ----

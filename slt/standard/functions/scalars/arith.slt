@@ -1,5 +1,8 @@
 # ADD
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 select add(1.0, 2);
 ----

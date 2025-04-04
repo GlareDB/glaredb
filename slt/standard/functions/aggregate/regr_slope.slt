@@ -1,5 +1,8 @@
 # REGR_SLOP function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 SELECT regr_slope(4, 5);
 ----

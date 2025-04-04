@@ -1,5 +1,8 @@
 # LOWER
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT lower('abc');
 ----

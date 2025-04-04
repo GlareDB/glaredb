@@ -1,5 +1,8 @@
 # Tests to ensure UNION (without ALL) properly make rows distinct.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I rowsort
 SELECT * FROM (VALUES (1), (2)) UNION SELECT * FROM generate_series(1, 5);
 ----

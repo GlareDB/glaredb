@@ -3,6 +3,9 @@
 # query TT
 # explain select (select 1);
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 select (select 1);
 ----

@@ -1,6 +1,9 @@
 # isinf
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 as (SELECT * FROM (VALUES ('Infinity'::FLOAT), ('-Infinity'::FLOAT), (1.0), (0.0), (NULL)) v(a));
 
 query IT rowsort

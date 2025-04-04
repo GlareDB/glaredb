@@ -1,5 +1,8 @@
 # epoch functions
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT epoch(0);
 ----

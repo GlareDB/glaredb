@@ -1,6 +1,9 @@
 # Correlated subqueries
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 create temp table t1 (a int);
 
 statement ok

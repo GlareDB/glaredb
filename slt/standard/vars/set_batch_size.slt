@@ -1,5 +1,8 @@
 # Verify validation of batch size.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 statement error Batch size cannot be less than 1
 SET batch_size TO 0;
 

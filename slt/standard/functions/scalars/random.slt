@@ -1,5 +1,8 @@
 # random()
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query B
 select random() < 1;
 ----

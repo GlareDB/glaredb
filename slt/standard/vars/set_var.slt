@@ -1,6 +1,9 @@
 # SET/SHOW
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 set application_name to 'test';
 
 query T

@@ -1,5 +1,8 @@
 # Verify validation of setting partitons.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 statement error Partition count cannot be less than 1
 SET partitions TO 0;
 

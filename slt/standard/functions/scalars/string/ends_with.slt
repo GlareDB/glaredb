@@ -1,5 +1,8 @@
 # ends_with function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query B
 select ends_with('alphabet', 'bet');
 ----

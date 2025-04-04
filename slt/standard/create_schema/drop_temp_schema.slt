@@ -1,5 +1,8 @@
 # DROP SCHEMA inside temp catalog
 
+statement ok
+SET verify_optimized_plan TO true;
+
 statement error Missing schema: my_schema
 drop schema temp.my_schema;
 

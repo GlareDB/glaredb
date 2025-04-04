@@ -1,5 +1,8 @@
 # AVG
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 select avg(1);
 ----

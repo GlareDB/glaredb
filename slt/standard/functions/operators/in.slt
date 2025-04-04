@@ -1,5 +1,8 @@
 # IN (list)
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT 2 IN (2, 3);
 ----

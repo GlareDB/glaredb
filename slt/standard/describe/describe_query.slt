@@ -1,5 +1,8 @@
 # DESCRIBE <query>
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 describe select 1
 ----

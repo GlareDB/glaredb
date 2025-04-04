@@ -1,5 +1,8 @@
 # LEFT
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT left('hello', 3);
 ----

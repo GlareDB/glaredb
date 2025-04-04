@@ -1,5 +1,8 @@
 # Comparision between decimals.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query ?
 SELECT 1.3::DECIMAL < 1.4::DECIMAL;
 ----

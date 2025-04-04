@@ -1,6 +1,9 @@
 # is_null/is_not_null
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP TABLE t1 as (SELECT * FROM (VALUES (1), (2), (NULL)) v(a));
 
 query IT rowsort

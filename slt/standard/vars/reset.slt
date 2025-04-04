@@ -1,6 +1,9 @@
 # RESET
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 reset application_name;
 
 query T

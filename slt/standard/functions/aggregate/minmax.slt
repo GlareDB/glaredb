@@ -1,5 +1,8 @@
 # MIN/MAX
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 select min(2);
 ----

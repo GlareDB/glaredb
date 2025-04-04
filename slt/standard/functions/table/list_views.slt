@@ -1,6 +1,9 @@
 # list_views function
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 CREATE TEMP VIEW hello AS SELECT 1;
 
 query T

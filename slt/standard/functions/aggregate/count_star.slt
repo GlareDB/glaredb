@@ -1,6 +1,9 @@
 # COUNT(*)
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 create temp table t1 (c1 text, c2 int);
 
 statement ok

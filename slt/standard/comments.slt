@@ -1,5 +1,8 @@
 # Tests to ensure we ignore comments in queries.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query II
 -- A comment
 select 1, 2;

@@ -1,5 +1,8 @@
 # pi
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 SELECT pi()::DECIMAL(10, 2);
 ----

@@ -1,6 +1,9 @@
 # Arbitrary partition values
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 set partitions = 1;
 
 query I

@@ -2,6 +2,9 @@
 #
 # Queries used in the dashboard
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 SELECT count(*) FROM list_databases() d LEFT JOIN list_tables() t ON d.database_name = t.database_name;
 ----

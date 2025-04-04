@@ -1,6 +1,9 @@
 # INSERT INTO with parallel partitions
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 create temp table ints (a int, b int, c int);
 
 statement ok

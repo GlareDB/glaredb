@@ -1,5 +1,8 @@
 # REGR_AVGY and REGR_AVGX
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query RR
 SELECT regr_avgy(4, 5), regr_avgx(4, 5);
 ----

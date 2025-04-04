@@ -1,6 +1,9 @@
 # Test bit_and aggregate function
 
 # Test with Int8 values
+statement ok
+SET verify_optimized_plan TO true;
+
 query I
 SELECT bit_and(v) FROM (VALUES (CAST(127 AS TINYINT)), (CAST(123 AS TINYINT)), (CAST(103 AS TINYINT))) AS t(v);
 ----

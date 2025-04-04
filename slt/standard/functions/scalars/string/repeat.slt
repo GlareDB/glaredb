@@ -1,5 +1,8 @@
 # REPEAT
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 select repeat('abc', 3);
 ----

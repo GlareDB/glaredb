@@ -3,4 +3,7 @@
 # No asserts yet, need to be able to filter out tables to make testing
 # consistent.
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 SHOW TABLES

@@ -1,5 +1,8 @@
 # REGR_R2 function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 SELECT regr_r2(4, 5);
 ----

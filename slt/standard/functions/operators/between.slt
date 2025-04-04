@@ -1,5 +1,8 @@
 # BETWEEN
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query T
 SELECT 4 BETWEEN 2 AND 8;
 ----

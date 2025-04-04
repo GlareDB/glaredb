@@ -1,6 +1,9 @@
 # CREATE SCHEMA inside temp catalog
 
 statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
 create schema temp.my_schema1;
 
 statement error Duplicate schema name: 'my_schema1'

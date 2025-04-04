@@ -3,5 +3,8 @@
 # Currently don't have a user catalog hooked up. This should be temp until
 # lakefront deployed.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 statement error Persistent tables not yet supported, use CREATE TEMP TABLE
 CREATE TABLE t1 (a INT);

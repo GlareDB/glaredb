@@ -1,5 +1,8 @@
 # Arith on Decimals (with casting)
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 select 8 - '4.20'::decimal
 ----

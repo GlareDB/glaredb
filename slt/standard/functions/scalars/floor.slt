@@ -1,5 +1,8 @@
 # floor function
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query R
 SELECT floor(1.2);
 ----
