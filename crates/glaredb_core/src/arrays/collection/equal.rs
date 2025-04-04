@@ -48,7 +48,6 @@ pub fn verify_collections_eq(
         let mut left_batch = Batch::new([datatype.clone()], batch_size).unwrap();
         let mut right_batch = Batch::new([datatype.clone()], batch_size).unwrap();
 
-        // TODO: This should be using IS NOT DISTINCT FROM. Currently fails on nulls...
         let eq_func = expr::scalar_function(
             &FUNCTION_SET_IS_NOT_DISTINCT_FROM,
             vec![
