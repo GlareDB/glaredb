@@ -158,7 +158,7 @@ pub const FUNCTION_SET_IS_NOT_DISTINCT_FROM: ScalarFunctionSet = ScalarFunctionS
             output: "false",
         }),
     }],
-    functions: &generate_distinct_functions::<IsDistinctFromOperation>(),
+    functions: &generate_distinct_functions::<IsNotDistinctFromOperation>(),
 };
 
 /// Describes a comparison operation between a left and right element and takes
