@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::fmt::Debug;
 use std::io;
+use std::sync::Arc;
 
 use glaredb_error::Result;
 
@@ -24,7 +25,7 @@ pub trait File: Debug + Sync + Send {
 
 #[derive(Debug)]
 pub struct AnyFile {
-    pub(crate) vtable: RawFileVTable,
+    pub(crate) vtable: &'static RawFileVTable,
     pub(crate) file: Box<dyn Any + Sync + Send>,
 }
 
@@ -42,4 +43,36 @@ where
     F: File,
 {
     const VTABLE: &'static RawFileVTable = &RawFileVTable {};
+}
+
+pub trait FileSystem: Debug + Sync + Send {
+    type File: File;
+
+    /// Open a file at a given path.
+    fn open(&self, path: &str) -> impl Future<Output = Result<Self::File>>;
+
+    /// Returns if this filesystem is able to handle the provided path.
+    fn can_handle_path(&self, path: &str) -> bool;
+}
+
+#[derive(Debug)]
+pub struct AnyFileSystem {
+    pub(crate) vtable: &'static RawFileSystemVTable,
+    pub(crate) filesystem: Arc<dyn Any + Sync + Send>,
+}
+
+impl AnyFileSystem {}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RawFileSystemVTable {}
+
+trait FileSystemVTable {
+    const VTABLE: &'static RawFileSystemVTable = &RawFileSystemVTable {};
+}
+
+impl<S> FileSystemVTable for S
+where
+    S: FileSystem,
+{
+    const VTABLE: &'static RawFileSystemVTable = &RawFileSystemVTable {};
 }
