@@ -1,0 +1,36 @@
+# IS DISTINCT FROM
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query B
+SELECT is_distinct_from(NULL, NULL);
+----
+false
+
+query B
+SELECT is_distinct_from('cat', NULL)
+----
+true
+
+query B
+SELECT is_distinct_from('cat', 'cat')
+----
+false
+
+# Operator syntax
+
+query B
+SELECT NULL IS DISTINCT FROM NULL;
+----
+false
+
+query B
+SELECT 'cat' IS DISTINCT FROM NULL;
+----
+true
+
+query B
+SELECT 'cat' IS DISTINCT FROM 'cat';
+----
+false

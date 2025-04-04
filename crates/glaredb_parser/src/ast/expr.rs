@@ -72,6 +72,10 @@ pub enum BinaryOperator {
     BitwiseAnd,
     /// Bitwise XOR, e.g. `a ^ b`
     BitwiseXor,
+    /// IS DISTINCT FROM
+    IsDistinctFrom,
+    /// IS NOT DISTINCT FROM
+    IsNotDistinctFrom,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -654,6 +658,15 @@ impl Expr<Raw> {
                         val: false,
                         negated: false,
                     }),
+                    Keyword::DISTINCT => {
+                        parser.expect_keyword(Keyword::FROM)?;
+                        let right = Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?;
+                        Ok(Expr::BinaryExpr {
+                            left: Box::new(prefix),
+                            right: Box::new(right),
+                            op: BinaryOperator::IsDistinctFrom,
+                        })
+                    }
                     Keyword::NOT => match parser.next_keyword()? {
                         Keyword::NULL => Ok(Expr::IsNull {
                             expr: Box::new(prefix),
@@ -669,6 +682,15 @@ impl Expr<Raw> {
                             val: false,
                             negated: true,
                         }),
+                        Keyword::DISTINCT => {
+                            parser.expect_keyword(Keyword::FROM)?;
+                            let right = Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?;
+                            Ok(Expr::BinaryExpr {
+                                left: Box::new(prefix),
+                                right: Box::new(right),
+                                op: BinaryOperator::IsNotDistinctFrom,
+                            })
+                        }
                         other => Err(DbError::new(format!(
                             "Unexpected keyword in IS NOT expression: {other}"
                         ))),

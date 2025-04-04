@@ -267,6 +267,14 @@ impl<'a> BaseExpressionBinder<'a> {
                         let op = ComparisonOperator::GtEq;
                         expr::compare(op, left, right)?.into()
                     }
+                    ast::BinaryOperator::IsDistinctFrom => {
+                        let op = ComparisonOperator::IsDistinctFrom;
+                        expr::compare(op, left, right)?.into()
+                    }
+                    ast::BinaryOperator::IsNotDistinctFrom => {
+                        let op = ComparisonOperator::IsNotDistinctFrom;
+                        expr::compare(op, left, right)?.into()
+                    }
                     ast::BinaryOperator::Plus => {
                         let op = ArithOperator::Add;
                         expr::arith(op, left, right)?.into()

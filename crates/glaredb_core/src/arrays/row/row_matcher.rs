@@ -34,16 +34,16 @@ use crate::arrays::string::StringPtr;
 use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::functions::scalar::builtin::comparison::{
+    DistinctComparisonOperation,
     EqOperation,
     GtEqOperation,
     GtOperation,
-    IsDistinctFromOperator,
+    IsDistinctFromOperation,
     IsNotDistinctFromOperation,
     LtEqOperation,
     LtOperation,
     NotEqOperation,
     NullCoercedComparison,
-    NullableComparisonOperation,
 };
 
 /// Matches rows by comparing encoded values with non-encoded values.
@@ -137,7 +137,7 @@ fn create_predicate_matcher_from_operator(
             create_predicate_matcher::<NullCoercedComparison<GtEqOperation>>(phys_type)
         }
         ComparisonOperator::IsDistinctFrom => {
-            create_predicate_matcher::<IsDistinctFromOperator>(phys_type)
+            create_predicate_matcher::<IsDistinctFromOperation>(phys_type)
         }
         ComparisonOperator::IsNotDistinctFrom => {
             create_predicate_matcher::<IsNotDistinctFromOperation>(phys_type)
@@ -148,7 +148,7 @@ fn create_predicate_matcher_from_operator(
 /// Creates a predicate match for a comparison operation.
 fn create_predicate_matcher<C>(phys_type: PhysicalType) -> Box<dyn Matcher<NopBufferManager>>
 where
-    C: NullableComparisonOperation,
+    C: DistinctComparisonOperation,
 {
     match phys_type {
         PhysicalType::UntypedNull => Box::new(ScalarMatcher::<C, PhysicalUntypedNull>::new()),
@@ -186,14 +186,14 @@ trait Matcher<B: BufferManager>: Debug + Sync + Send + 'static {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct ScalarMatcher<C: NullableComparisonOperation, S: ScalarStorage> {
+struct ScalarMatcher<C: DistinctComparisonOperation, S: ScalarStorage> {
     _c: PhantomData<C>,
     _s: PhantomData<S>,
 }
 
 impl<C, S> ScalarMatcher<C, S>
 where
-    C: NullableComparisonOperation,
+    C: DistinctComparisonOperation,
     S: ScalarStorage,
 {
     const fn new() -> Self {
@@ -206,7 +206,7 @@ where
 
 impl<C, S> Matcher<NopBufferManager> for ScalarMatcher<C, S>
 where
-    C: NullableComparisonOperation,
+    C: DistinctComparisonOperation,
     S: ScalarStorage,
     S::StorageType: PartialEq + PartialOrd + Copy + Sized,
 {
@@ -263,13 +263,13 @@ where
 }
 
 #[derive(Debug, Clone, Copy)]
-struct BinaryMatcher<C: NullableComparisonOperation> {
+struct BinaryMatcher<C: DistinctComparisonOperation> {
     _c: PhantomData<C>,
 }
 
 impl<C> BinaryMatcher<C>
 where
-    C: NullableComparisonOperation,
+    C: DistinctComparisonOperation,
 {
     const fn new() -> Self {
         BinaryMatcher { _c: PhantomData }
@@ -278,7 +278,7 @@ where
 
 impl<C> Matcher<NopBufferManager> for BinaryMatcher<C>
 where
-    C: NullableComparisonOperation,
+    C: DistinctComparisonOperation,
 {
     unsafe fn compute_matches(
         &self,
