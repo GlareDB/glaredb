@@ -7,40 +7,36 @@ use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_core::io::access::AccessConfig;
 use glaredb_core::io::file::FileOpener;
 use glaredb_core::io::memory::MemoryFileSource;
-use glaredb_core::runtime::io::IoRuntime;
+use glaredb_core::runtime::filesystem::dispatch::FileSystemDispatch;
 use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
 use glaredb_core::runtime::profile_buffer::{ProfileBuffer, ProfileSink};
+use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::{Result, not_implemented};
 use parking_lot::Mutex;
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::http::WasmHttpClient;
 use crate::time::PerformanceInstant;
 
 #[derive(Debug, Clone)]
-pub struct WasmRuntime {
-    // TODO: Shared memory fs
+pub struct WasmSystemRuntime {
+    dispatch: Arc<FileSystemDispatch>,
 }
 
-impl WasmRuntime {
+impl WasmSystemRuntime {
     pub fn try_new() -> Result<Self> {
-        Ok(WasmRuntime {})
+        // TODO: Shared memory fs
+        Ok(WasmSystemRuntime {
+            dispatch: Arc::new(FileSystemDispatch::empty()),
+        })
     }
 }
 
-impl IoRuntime for WasmRuntime {
-    type HttpClient = WasmHttpClient;
-    type FileProvider = WasmFileProvider;
+impl SystemRuntime for WasmSystemRuntime {
     type Instant = PerformanceInstant;
 
-    fn file_provider(&self) -> Arc<Self::FileProvider> {
-        // TODO: Could probably remove this arc.
-        Arc::new(WasmFileProvider {})
-    }
-
-    fn http_client(&self) -> Self::HttpClient {
-        WasmHttpClient::new(reqwest::Client::default())
+    fn filesystem_dispatch(&self) -> &FileSystemDispatch {
+        &self.dispatch
     }
 }
 
@@ -158,33 +154,5 @@ impl Wake for WasmWaker {
             state: self.state.clone(),
         };
         spawn_local(async move { task.execute() })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct WasmFileProvider {}
-
-#[derive(Debug)]
-pub struct StubAccess {}
-
-impl AccessConfig for StubAccess {
-    fn from_options(
-        _unnamed: &[ScalarValue],
-        _named: &HashMap<String, ScalarValue>,
-    ) -> Result<Self> {
-        not_implemented!("access from args")
-    }
-}
-
-impl FileOpener for WasmFileProvider {
-    type AccessConfig = StubAccess;
-    type ReadFile = MemoryFileSource;
-
-    async fn list_prefix(&self, _prefix: &str) -> Result<Vec<String>> {
-        Ok(Vec::new())
-    }
-
-    fn open_for_read(&self, _conf: &Self::AccessConfig) -> Result<Self::ReadFile> {
-        not_implemented!("open for read")
     }
 }

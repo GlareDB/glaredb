@@ -17,8 +17,8 @@ use tracing::trace;
 
 use crate::arrays::format::pretty::table::PrettyTable;
 use crate::engine::single_user::SingleUserEngine;
-use crate::runtime::io::IoRuntime;
 use crate::runtime::pipeline::PipelineRuntime;
+use crate::runtime::system::SystemRuntime;
 
 /// Trait for enabling/disabling raw mode in a terminal.
 pub trait RawModeTerm: Copy {
@@ -91,14 +91,14 @@ trait DotCommand: Debug + Clone + Copy + Sized {
     where
         W: io::Write,
         P: PipelineRuntime,
-        R: IoRuntime,
+        R: SystemRuntime,
         T: RawModeTerm;
 
     fn print_usage<W, P, R, T>(shell: &mut Shell<W, P, R, T>) -> Result<DotSignal>
     where
         W: io::Write,
         P: PipelineRuntime,
-        R: IoRuntime,
+        R: SystemRuntime,
         T: RawModeTerm,
     {
         let mut writer = RawTerminalWriter::new(shell.editor.writer_mut());
@@ -119,7 +119,7 @@ impl DotCommand for DotCommandMaxRows {
     where
         W: io::Write,
         P: PipelineRuntime,
-        R: IoRuntime,
+        R: SystemRuntime,
         T: RawModeTerm,
     {
         let num = args
@@ -143,7 +143,7 @@ impl DotCommand for DotCommandDatabases {
     where
         W: io::Write,
         P: PipelineRuntime,
-        R: IoRuntime,
+        R: SystemRuntime,
         T: RawModeTerm,
     {
         if !args.is_empty() {
@@ -166,7 +166,7 @@ impl DotCommand for DotCommandTables {
     where
         W: io::Write,
         P: PipelineRuntime,
-        R: IoRuntime,
+        R: SystemRuntime,
         T: RawModeTerm,
     {
         if !args.is_empty() {
@@ -189,7 +189,7 @@ impl DotCommand for DotCommandHelp {
     where
         W: io::Write,
         P: PipelineRuntime,
-        R: IoRuntime,
+        R: SystemRuntime,
         T: RawModeTerm,
     {
         if !args.is_empty() {
@@ -220,14 +220,14 @@ impl DotCommand for DotCommandHelp {
 }
 
 #[derive(Debug)]
-pub struct Shell<W: io::Write, P: PipelineRuntime, R: IoRuntime, T: RawModeTerm> {
+pub struct Shell<W: io::Write, P: PipelineRuntime, R: SystemRuntime, T: RawModeTerm> {
     editor: LineEditor<W>,
     engine: EngineWithConfig<P, R>,
     term: T,
 }
 
 #[derive(Debug)]
-struct EngineWithConfig<P: PipelineRuntime, R: IoRuntime> {
+struct EngineWithConfig<P: PipelineRuntime, R: SystemRuntime> {
     engine: SingleUserEngine<P, R>,
     pending: Option<String>,
     config: ShellConfig,
@@ -237,7 +237,7 @@ impl<W, P, R, T> Shell<W, P, R, T>
 where
     W: io::Write,
     P: PipelineRuntime,
-    R: IoRuntime,
+    R: SystemRuntime,
     T: RawModeTerm,
 {
     pub fn start(

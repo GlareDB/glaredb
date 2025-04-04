@@ -14,7 +14,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use convert::{batches_to_rows, schema_to_types};
 use glaredb_error::{DbError, Result, ResultExt};
-use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
 use libtest_mimic::{Arguments, Trial};
 use sqllogictest::DefaultColumnType;
 use tracing::info;
@@ -41,7 +41,7 @@ pub const DEBUG_PRINT_PROFILE_VAR: &str = "DEBUG_PRINT_PROFILE";
 #[derive(Debug)]
 pub struct RunConfig {
     /// The session to use for this run.
-    pub engine: SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>,
+    pub engine: SingleUserEngine<ThreadedNativeExecutor, NativeSystemRuntime>,
 
     /// Variables to replace in the query.
     ///

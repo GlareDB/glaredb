@@ -3,6 +3,9 @@ use std::time::Duration;
 /// Instant provides an abstraction around getting the current time, and
 /// computing a duration from two instances.
 ///
+/// This should be a high-performance instant type as it's used to generating
+/// timing for operator execution.
+///
 /// This trait is needed to allow for runtime-specific implementations since
 /// WASM does not support fetching the current time using the std function.
 pub trait RuntimeInstant {
