@@ -231,15 +231,23 @@ where
                 let validity_buf = layout.validity_buffer(lhs_row_ptr);
                 let lhs_valid =
                     BitmapView::new(validity_buf, layout.num_columns()).value(lhs_column);
-                let lhs_ptr = lhs_row_ptr.byte_add(layout.offsets[lhs_column]);
-                let lhs_ptr = lhs_ptr.cast::<S::StorageType>();
-                let lhs_val = lhs_ptr.read_unaligned();
+                let lhs_val = if lhs_valid {
+                    let lhs_ptr = lhs_row_ptr.byte_add(layout.offsets[lhs_column]);
+                    let lhs_ptr = lhs_ptr.cast::<S::StorageType>();
+                    Some(lhs_ptr.read_unaligned())
+                } else {
+                    None
+                };
 
                 let rhs_valid = rhs_column.validity.is_valid(sel_idx);
-                let rhs_sel = rhs_column.selection.get(sel_idx).unwrap();
-                let rhs_val = rhs_data.get(rhs_sel).unwrap();
+                let rhs_val = if rhs_valid {
+                    let rhs_sel = rhs_column.selection.get(sel_idx).unwrap();
+                    Some(*rhs_data.get(rhs_sel).unwrap())
+                } else {
+                    None
+                };
 
-                if C::compare_with_valid(lhs_val, *rhs_val, lhs_valid, rhs_valid) {
+                if C::compare_nullable(lhs_val, rhs_val) {
                     selection[matches] = sel_idx;
                     matches += 1;
                 } else {
@@ -293,17 +301,30 @@ where
                 let validity_buf = layout.validity_buffer(lhs_row_ptr);
                 let lhs_valid =
                     BitmapView::new(validity_buf, layout.num_columns()).value(lhs_column);
+
+                // Reading the ptr even if invalid is fine, just as long as
+                // we don't try to read the bytes unless it really is valid.
+                //
+                // Getting the pointer outisde the `if` is done to satisfy the
+                // lifetime of the return slice.
                 let lhs_ptr = lhs_row_ptr.byte_add(layout.offsets[lhs_column]);
                 let lhs_ptr = lhs_ptr.cast::<StringPtr>();
                 let string_ptr = lhs_ptr.read_unaligned();
-
-                let lhs_val = string_ptr.as_bytes();
+                let lhs_val = if lhs_valid {
+                    Some(string_ptr.as_bytes())
+                } else {
+                    None
+                };
 
                 let rhs_valid = rhs_column.validity.is_valid(sel_idx);
-                let rhs_sel = rhs_column.selection.get(sel_idx).unwrap();
-                let rhs_val = rhs_data.get(rhs_sel).unwrap();
+                let rhs_val = if rhs_valid {
+                    let rhs_sel = rhs_column.selection.get(sel_idx).unwrap();
+                    Some(rhs_data.get(rhs_sel).unwrap())
+                } else {
+                    None
+                };
 
-                if C::compare_with_valid(lhs_val, rhs_val, lhs_valid, rhs_valid) {
+                if C::compare_nullable(lhs_val, rhs_val) {
                     selection[matches] = sel_idx;
                     matches += 1;
                 } else {
