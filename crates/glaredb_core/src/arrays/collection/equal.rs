@@ -7,7 +7,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::buffer::buffer_manager::NopBufferManager;
 use crate::expr;
-use crate::functions::scalar::builtin::comparison::FUNCTION_SET_EQ;
+use crate::functions::scalar::builtin::comparison::FUNCTION_SET_IS_NOT_DISTINCT_FROM;
 use crate::storage::projections::Projections;
 use crate::util::fmt::displayable::IntoDisplayableSlice;
 
@@ -15,9 +15,6 @@ use crate::util::fmt::displayable::IntoDisplayableSlice;
 ///
 /// `batch_size` determines the size of the intermediates batches to use when
 /// scanning both collections.
-// TODO: Use this when verifying the results of an optimized query with the
-// unoptimized query.
-#[allow(unused)]
 pub fn verify_collections_eq(
     left: &ConcurrentColumnCollection,
     right: &ConcurrentColumnCollection,
@@ -51,9 +48,8 @@ pub fn verify_collections_eq(
         let mut left_batch = Batch::new([datatype.clone()], batch_size).unwrap();
         let mut right_batch = Batch::new([datatype.clone()], batch_size).unwrap();
 
-        // TODO: This should be using IS NOT DISTINCT FROM. Currently fails on nulls...
         let eq_func = expr::scalar_function(
-            &FUNCTION_SET_EQ,
+            &FUNCTION_SET_IS_NOT_DISTINCT_FROM,
             vec![
                 expr::column((0, 0), datatype.clone()),
                 expr::column((1, 0), datatype.clone()),
@@ -180,6 +176,28 @@ mod tests {
         c2.append_batch(&mut s2, &b1).unwrap();
 
         let b2 = generate_batch!([7, 8, 9], ["d", "e", "f"]);
+        c1.append_batch(&mut s1, &b2).unwrap();
+        c2.append_batch(&mut s2, &b2).unwrap();
+
+        c1.flush(&mut s1).unwrap();
+        c2.flush(&mut s2).unwrap();
+
+        verify_collections_eq(&c1, &c2, 2048).unwrap();
+    }
+
+    #[test]
+    fn verify_equal_with_nulls() {
+        let c1 = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 2, 2);
+        let c2 = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 2, 2);
+
+        let mut s1 = c1.init_append_state();
+        let mut s2 = c2.init_append_state();
+
+        let b1 = generate_batch!([Some(4), None, Some(6)], [Some("a"), Some("b"), None]);
+        c1.append_batch(&mut s1, &b1).unwrap();
+        c2.append_batch(&mut s2, &b1).unwrap();
+
+        let b2 = generate_batch!([Some(7), Some(8), None], [Some("d"), Some("e"), Some("f")]);
         c1.append_batch(&mut s1, &b2).unwrap();
         c2.append_batch(&mut s2, &b2).unwrap();
 
