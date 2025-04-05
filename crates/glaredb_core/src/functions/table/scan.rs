@@ -32,7 +32,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
         &'static self,
         scan_context: ScanContext,
         input: TableFunctionInput,
-    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + Sync + Send;
+    ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + Send;
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,

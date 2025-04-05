@@ -244,8 +244,7 @@ impl RawTableFunction {
     }
 }
 
-type ScanBindFut<'a> =
-    Pin<Box<dyn Future<Output = Result<RawTableFunctionBindState>> + Sync + Send + 'a>>;
+type ScanBindFut<'a> = Pin<Box<dyn Future<Output = Result<RawTableFunctionBindState>> + Send + 'a>>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct RawTableFunctionVTable {

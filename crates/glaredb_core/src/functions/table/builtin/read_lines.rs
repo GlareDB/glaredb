@@ -1,6 +1,6 @@
 use std::task::Context;
 
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataTypeId;
@@ -11,6 +11,8 @@ use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::storage::projections::Projections;
 
 pub const FUNCTION_SET_READ_LINES: TableFunctionSet = TableFunctionSet {
@@ -51,6 +53,17 @@ impl TableScanFunction for ReadLines {
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
+        let path = ConstFold::rewrite(input.positional[0].clone())?
+            .try_into_scalar()?
+            .try_into_string()?;
+
+        let fs = scan_context.dispatch.filesystem_for_path(&path)?;
+        match fs.call_stat(&path).await? {
+            Some(stat) if stat.file_type.is_file() => (), // We have a file.
+            Some(_) => return Err(DbError::new("Cannot read lines from a directory")), // TODO: Globbing and stuff
+            None => return Err(DbError::new(format!("Missing file for path '{path}'"))),
+        }
+
         unimplemented!()
     }
 

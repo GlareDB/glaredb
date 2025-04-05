@@ -70,20 +70,47 @@ where
     };
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileType {
+    File,
+    Directory,
+}
+
+impl FileType {
+    pub const fn is_file(&self) -> bool {
+        matches!(self, FileType::File)
+    }
+
+    pub const fn is_dir(&self) -> bool {
+        matches!(self, FileType::Directory)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileStat {
+    pub file_type: FileType,
+}
+
 pub trait FileSystem: Debug + Sync + Send + 'static {
     type File: File;
 
     /// Open a file at a given path.
     fn open(&self, path: &str) -> impl Future<Output = Result<Self::File>> + Send;
 
+    /// Stat the file.
+    ///
+    /// This should return Ok(None) if the request was successful, but the file
+    /// doesn't exist.
+    fn stat(&self, path: &str) -> impl Future<Output = Result<Option<FileStat>>> + Send;
+
     /// Returns if this filesystem is able to handle the provided path.
     fn can_handle_path(&self, path: &str) -> bool;
 }
 
 /// A boxed future.
-pub type FileSystemFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+pub type FileSystemFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AnyFileSystem {
     pub(crate) vtable: &'static RawFileSystemVTable,
     pub(crate) filesystem: Arc<dyn Any + Sync + Send>,
@@ -104,6 +131,13 @@ impl AnyFileSystem {
         (self.vtable.open_fn)(self.filesystem.as_ref(), path)
     }
 
+    pub fn call_stat<'a>(
+        &'a self,
+        path: &'a str,
+    ) -> FileSystemFuture<'a, Result<Option<FileStat>>> {
+        (self.vtable.stat_fn)(self.filesystem.as_ref(), path)
+    }
+
     pub fn call_can_handle_path(&self, path: &str) -> bool {
         (self.vtable.can_handle_path_fn)(self.filesystem.as_ref(), path)
     }
@@ -112,6 +146,10 @@ impl AnyFileSystem {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileSystemVTable {
     open_fn: for<'a> fn(fs: &'a dyn Any, path: &'a str) -> FileSystemFuture<'a, Result<AnyFile>>,
+    stat_fn: for<'a> fn(
+        fs: &'a dyn Any,
+        path: &'a str,
+    ) -> FileSystemFuture<'a, Result<Option<FileStat>>>,
     can_handle_path_fn: fn(fs: &dyn Any, path: &str) -> bool,
 }
 
@@ -130,6 +168,11 @@ where
                 let file = fs.open(path).await?;
                 Ok(AnyFile::from_file(file))
             })
+        },
+
+        stat_fn: |fs, path| {
+            let fs = fs.downcast_ref::<Self>().unwrap();
+            Box::pin(async { fs.stat(path).await })
         },
 
         can_handle_path_fn: |fs, path| {

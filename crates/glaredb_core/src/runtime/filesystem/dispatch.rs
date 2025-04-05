@@ -1,4 +1,4 @@
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 
 use super::{AnyFileSystem, FileSystem};
 
@@ -24,12 +24,17 @@ impl FileSystemDispatch {
     }
 
     /// Try to find a filesystem that can handle `path`.
-    pub fn filesystem_for_path(&self, path: &str) -> Option<&AnyFileSystem> {
+    pub fn filesystem_for_path_opt(&self, path: &str) -> Option<&AnyFileSystem> {
         for fs in &self.filesystems {
             if fs.call_can_handle_path(path) {
                 return Some(fs);
             }
         }
         None
+    }
+
+    pub fn filesystem_for_path(&self, path: &str) -> Result<&AnyFileSystem> {
+        self.filesystem_for_path_opt(path)
+            .ok_or_else(|| DbError::new(format!("Could not find a filesystem to handle '{path}'")))
     }
 }
