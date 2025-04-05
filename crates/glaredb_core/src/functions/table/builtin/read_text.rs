@@ -163,8 +163,8 @@ impl TableScanFunction for ReadText {
                         .projections
                         .for_each_column(output, &mut |col, arr| match col {
                             ProjectedColumn::Data(0) => {
-                                let read_buf = &mut buf[*buf_offset..];
                                 loop {
+                                    let read_buf = &mut buf[*buf_offset..];
                                     match file.call_poll_read(cx, read_buf)? {
                                         Poll::Ready(n) => {
                                             if n == 0 {
