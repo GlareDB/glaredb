@@ -3,7 +3,7 @@ pub mod list_entries;
 pub mod list_schemas;
 pub mod memory_scan;
 pub mod profile;
-pub mod read_lines;
+pub mod read_text;
 pub mod series;
 pub mod unnest;
 
@@ -21,7 +21,7 @@ use profile::{
     FUNCTION_SET_PLANNING_PROFILE,
     FUNCTION_SET_QUERY_INFO,
 };
-use read_lines::FUNCTION_SET_READ_LINES;
+use read_text::FUNCTION_SET_READ_TEXT;
 use series::FUNCTION_SET_GENERATE_SERIES;
 use unnest::FUNCTION_SET_UNNEST;
 
@@ -44,5 +44,5 @@ pub const BUILTIN_TABLE_FUNCTION_SETS: &[TableFunctionSet] = &[
     // Scan functions.
     FUNCTION_SET_MEMORY_SCAN,
     // File functions.
-    FUNCTION_SET_READ_LINES,
+    FUNCTION_SET_READ_TEXT,
 ];

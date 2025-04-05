@@ -340,7 +340,7 @@ impl AddressableMut for StringViewAddressableMut<'_> {
     }
 
     fn put(&mut self, idx: usize, val: &Self::T) {
-        let view = self.buffer.push_bytes(val.as_bytes()).unwrap(); // TODO
+        let view = self.buffer.push_bytes_as_row(val.as_bytes()).unwrap(); // TODO
         self.metadata[idx] = view;
     }
 
@@ -396,7 +396,7 @@ impl AddressableMut for BinaryViewAddressableMut<'_> {
     }
 
     fn put(&mut self, idx: usize, val: &Self::T) {
-        let view = self.buffer.push_bytes(val).unwrap(); // TODO
+        let view = self.buffer.push_bytes_as_row(val).unwrap(); // TODO
         self.metadata[idx] = view;
     }
 

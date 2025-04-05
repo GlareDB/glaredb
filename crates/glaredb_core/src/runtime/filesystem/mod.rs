@@ -15,6 +15,9 @@ pub trait File: Debug + Sync + Send + 'static {
 
     /// Read from the current position into the buffer, returning the number of
     /// bytes read.
+    ///
+    /// A return of Ok(0) indicates either an EOF or the provided buffer has a
+    /// length of zero.
     fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>>;
 
     /// Write at the current position, returning the number of bytes written.
@@ -44,6 +47,11 @@ impl AnyFile {
         }
     }
 
+    pub fn call_size(&self) -> usize {
+        // TODO: We could probably just stick the size on the struct.
+        (self.vtable.size_fn)(self.file.as_ref())
+    }
+
     pub fn call_poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
         (self.vtable.poll_read_fn)(self.file.as_mut(), cx, buf)
     }
@@ -51,6 +59,7 @@ impl AnyFile {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileVTable {
+    size_fn: fn(&dyn Any) -> usize,
     poll_read_fn: fn(&mut dyn Any, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>>,
 }
 
@@ -63,6 +72,11 @@ where
     F: File,
 {
     const VTABLE: &'static RawFileVTable = &RawFileVTable {
+        size_fn: |file| {
+            let file = file.downcast_ref::<Self>().unwrap();
+            file.size()
+        },
+
         poll_read_fn: |file, cx, buf| {
             let file = file.downcast_mut::<Self>().unwrap();
             file.poll_read(cx, buf)
@@ -95,20 +109,20 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     type File: File;
 
     /// Open a file at a given path.
-    fn open(&self, path: &str) -> impl Future<Output = Result<Self::File>> + Send;
+    fn open(&self, path: &str) -> impl Future<Output = Result<Self::File>> + Sync + Send;
 
     /// Stat the file.
     ///
     /// This should return Ok(None) if the request was successful, but the file
     /// doesn't exist.
-    fn stat(&self, path: &str) -> impl Future<Output = Result<Option<FileStat>>> + Send;
+    fn stat(&self, path: &str) -> impl Future<Output = Result<Option<FileStat>>> + Sync + Send;
 
     /// Returns if this filesystem is able to handle the provided path.
     fn can_handle_path(&self, path: &str) -> bool;
 }
 
 /// A boxed future.
-pub type FileSystemFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+pub type FileSystemFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'a>>;
 
 #[derive(Debug, Clone)]
 pub struct AnyFileSystem {
@@ -131,6 +145,16 @@ impl AnyFileSystem {
         (self.vtable.open_fn)(self.filesystem.as_ref(), path)
     }
 
+    /// Like `call_open`, but returns a static boxed future.
+    // TODO: I don't really want to do this, but I also don't care enough to
+    // whip out unsafe since it's just for opening a file.
+    pub fn call_open_static(
+        &self,
+        path: impl Into<String>,
+    ) -> FileSystemFuture<'static, Result<AnyFile>> {
+        (self.vtable.open_static_fn)(self.clone(), path.into())
+    }
+
     pub fn call_stat<'a>(
         &'a self,
         path: &'a str,
@@ -146,6 +170,9 @@ impl AnyFileSystem {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileSystemVTable {
     open_fn: for<'a> fn(fs: &'a dyn Any, path: &'a str) -> FileSystemFuture<'a, Result<AnyFile>>,
+    open_static_fn:
+        fn(fs: AnyFileSystem, path: String) -> FileSystemFuture<'static, Result<AnyFile>>,
+
     stat_fn: for<'a> fn(
         fs: &'a dyn Any,
         path: &'a str,
@@ -166,6 +193,14 @@ where
             let fs = fs.downcast_ref::<Self>().unwrap();
             Box::pin(async {
                 let file = fs.open(path).await?;
+                Ok(AnyFile::from_file(file))
+            })
+        },
+
+        open_static_fn: |any_fs, path| {
+            Box::pin(async move {
+                let fs = any_fs.filesystem.downcast_ref::<Self>().unwrap();
+                let file = fs.open(&path).await?;
                 Ok(AnyFile::from_file(file))
             })
         },

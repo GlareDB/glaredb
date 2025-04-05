@@ -54,6 +54,10 @@ impl Projections {
         }
     }
 
+    pub fn has_data_column(&self, idx: usize) -> bool {
+        self.data_indices.contains(&idx)
+    }
+
     /// Returns a reference to the data indices.
     pub fn data_indices(&self) -> &[usize] {
         &self.data_indices
