@@ -595,11 +595,11 @@ where
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ProfileTableGenOperatorState {
-            projections: projections.clone(),
+            projections,
             profile: bind_state.profile.clone(),
         })
     }

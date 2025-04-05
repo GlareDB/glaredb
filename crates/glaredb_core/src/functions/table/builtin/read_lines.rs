@@ -56,7 +56,7 @@ impl TableScanFunction for ReadLines {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         unimplemented!()

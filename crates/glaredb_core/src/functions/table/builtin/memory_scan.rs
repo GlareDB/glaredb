@@ -100,11 +100,11 @@ impl TableScanFunction for MemoryScan {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(MemoryScanOperatorState {
-            projections: projections.clone(),
+            projections,
             table: bind_state.table.clone(),
         })
     }

@@ -84,11 +84,11 @@ impl TableScanFunction for ListSchemas {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListSchemasOperatorState {
-            projections: projections.clone(),
+            projections,
             databases: bind_state.databases.clone(),
         })
     }

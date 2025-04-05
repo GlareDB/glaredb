@@ -148,7 +148,7 @@ impl RawTableFunction {
     pub fn call_create_pull_operator_state(
         &self,
         bind_state: &RawTableFunctionBindState,
-        projections: &Projections,
+        projections: Projections,
         props: ExecutionProperties,
     ) -> Result<AnyTableOperatorState> {
         unsafe {
@@ -263,7 +263,7 @@ pub struct RawTableFunctionVTable {
 
     create_pull_operator_state_fn: unsafe fn(
         bind_state: &dyn Any,
-        projections: &Projections,
+        projections: Projections,
         props: ExecutionProperties,
     ) -> Result<AnyTableOperatorState>,
 

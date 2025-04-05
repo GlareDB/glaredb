@@ -77,11 +77,11 @@ impl TableScanFunction for ListDatabases {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListDatabasesOperatorState {
-            projections: projections.clone(),
+            projections,
             databases: bind_state.databases.clone(),
         })
     }

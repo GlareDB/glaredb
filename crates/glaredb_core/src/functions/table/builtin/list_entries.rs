@@ -182,11 +182,11 @@ impl TableScanFunction for ListTables {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListEntriesOperatorState {
-            projections: projections.clone(),
+            projections,
             entries: bind_state.entries.clone(),
         })
     }
@@ -292,11 +292,11 @@ impl TableScanFunction for ListViews {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListEntriesOperatorState {
-            projections: projections.clone(),
+            projections,
             entries: bind_state.entries.clone(),
         })
     }
@@ -464,11 +464,11 @@ impl TableScanFunction for ListFunctions {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListEntriesOperatorState {
-            projections: projections.clone(),
+            projections,
             entries: bind_state.entries.clone(),
         })
     }

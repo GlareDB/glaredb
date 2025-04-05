@@ -8,7 +8,15 @@ use super::{TableFunctionBindState, TableFunctionInput};
 use crate::arrays::batch::Batch;
 use crate::catalog::context::DatabaseContext;
 use crate::execution::operators::{ExecutionProperties, PollPull};
+use crate::runtime::filesystem::dispatch::FileSystemDispatch;
 use crate::storage::projections::Projections;
+
+/// Context providing dependencies for a scan.
+#[derive(Debug, Clone, Copy)]
+pub struct ScanContext<'a> {
+    pub database_context: &'a DatabaseContext,
+    pub dispatch: &'a FileSystemDispatch,
+}
 
 /// Scan function that produces batches.
 pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
@@ -28,7 +36,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         props: ExecutionProperties,
     ) -> Result<Self::OperatorState>;
 

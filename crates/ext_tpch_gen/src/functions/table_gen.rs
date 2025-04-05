@@ -125,12 +125,12 @@ where
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(TableGenOperatorState {
             scale_factor: bind_state.scale_factor,
-            projections: projections.clone(),
+            projections,
         })
     }
 
