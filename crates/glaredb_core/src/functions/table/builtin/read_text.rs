@@ -16,7 +16,7 @@ use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFun
 use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
-use crate::runtime::filesystem::{AnyFile, AnyFileSystem, FileSystemFuture};
+use crate::runtime::filesystem::{AnyFile, AnyFileSystem, FileSystemFuture, OpenFlags};
 use crate::storage::projections::{ProjectedColumn, Projections};
 
 pub const FUNCTION_SET_READ_TEXT: TableFunctionSet = TableFunctionSet {
@@ -116,7 +116,9 @@ impl TableScanFunction for ReadText {
         // Single partition reads for now.
         let mut states = vec![ReadTextPartitionState::Opening {
             buf: Vec::new(),
-            open_fut: op_state.fs.call_open_static(op_state.path.clone()),
+            open_fut: op_state
+                .fs
+                .call_open_static(OpenFlags::READ, op_state.path.clone()),
         }];
         states.resize_with(partitions, || ReadTextPartitionState::Exhausted);
 
@@ -155,33 +157,37 @@ impl TableScanFunction for ReadText {
                 } => {
                     let mut is_pending = false;
 
+                    // TODO: So clean...
                     op_state
                         .projections
                         .for_each_column(output, &mut |col, arr| match col {
                             ProjectedColumn::Data(0) => {
                                 let read_buf = &mut buf[*buf_offset..];
-                                match file.call_poll_read(cx, read_buf)? {
-                                    Poll::Ready(n) => {
-                                        if n == 0 {
-                                            // Read complete, write it to
-                                            // the array.
-                                            let mut data =
-                                                PhysicalUtf8::get_addressable_mut(&mut arr.data)?;
-                                            let s =
-                                                std::str::from_utf8(buf).context("Invalid UTF8")?;
-                                            data.put(0, s);
-                                        } else {
-                                            // Still reading, come back for
-                                            // more.
-                                            *buf_offset += n;
+                                loop {
+                                    match file.call_poll_read(cx, read_buf)? {
+                                        Poll::Ready(n) => {
+                                            if n == 0 {
+                                                // Read complete, write it to
+                                                // the array.
+                                                let mut data = PhysicalUtf8::get_addressable_mut(
+                                                    &mut arr.data,
+                                                )?;
+                                                let s = std::str::from_utf8(buf)
+                                                    .context("Invalid UTF8")?;
+                                                data.put(0, s);
+                                                return Ok(());
+                                            } else {
+                                                // Still reading, come back for
+                                                // more.
+                                                *buf_offset += n;
+                                            }
                                         }
-                                    }
-                                    Poll::Pending => {
-                                        is_pending = true;
-                                    }
-                                };
-
-                                Ok(())
+                                        Poll::Pending => {
+                                            is_pending = true;
+                                            return Ok(());
+                                        }
+                                    };
+                                }
                             }
                             other => panic!("invalid projection: {other:?}"),
                         })?;

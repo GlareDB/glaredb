@@ -11,6 +11,7 @@ use glaredb_error::Result;
 
 pub trait File: Debug + Sync + Send + 'static {
     /// Get the size in bytes of this file.
+    // TODO: Probably u64
     fn size(&self) -> usize;
 
     /// Read from the current position into the buffer, returning the number of
@@ -105,11 +106,44 @@ pub struct FileStat {
     pub file_type: FileType,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OpenFlags(u16);
+
+impl OpenFlags {
+    pub const READ: OpenFlags = OpenFlags(1 << 0);
+    pub const WRITE: OpenFlags = OpenFlags(1 << 1);
+    pub const CREATE: OpenFlags = OpenFlags(1 << 2);
+
+    pub fn new(flags: impl IntoIterator<Item = OpenFlags>) -> Self {
+        let mut result = 0;
+        for f in flags {
+            result |= f.0;
+        }
+        OpenFlags(result)
+    }
+
+    pub const fn is_read(&self) -> bool {
+        self.0 & Self::READ.0 != 0
+    }
+
+    pub const fn is_write(&self) -> bool {
+        self.0 & Self::WRITE.0 != 0
+    }
+
+    pub const fn is_create(&self) -> bool {
+        self.0 & Self::CREATE.0 != 0
+    }
+}
+
 pub trait FileSystem: Debug + Sync + Send + 'static {
     type File: File;
 
     /// Open a file at a given path.
-    fn open(&self, path: &str) -> impl Future<Output = Result<Self::File>> + Sync + Send;
+    fn open(
+        &self,
+        flags: OpenFlags,
+        path: &str,
+    ) -> impl Future<Output = Result<Self::File>> + Sync + Send;
 
     /// Stat the file.
     ///
@@ -141,8 +175,12 @@ impl AnyFileSystem {
         }
     }
 
-    pub fn call_open<'a>(&'a self, path: &'a str) -> FileSystemFuture<'a, Result<AnyFile>> {
-        (self.vtable.open_fn)(self.filesystem.as_ref(), path)
+    pub fn call_open<'a>(
+        &'a self,
+        flags: OpenFlags,
+        path: &'a str,
+    ) -> FileSystemFuture<'a, Result<AnyFile>> {
+        (self.vtable.open_fn)(self.filesystem.as_ref(), flags, path)
     }
 
     /// Like `call_open`, but returns a static boxed future.
@@ -150,9 +188,10 @@ impl AnyFileSystem {
     // whip out unsafe since it's just for opening a file.
     pub fn call_open_static(
         &self,
+        flags: OpenFlags,
         path: impl Into<String>,
     ) -> FileSystemFuture<'static, Result<AnyFile>> {
-        (self.vtable.open_static_fn)(self.clone(), path.into())
+        (self.vtable.open_static_fn)(self.clone(), flags, path.into())
     }
 
     pub fn call_stat<'a>(
@@ -169,14 +208,23 @@ impl AnyFileSystem {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileSystemVTable {
-    open_fn: for<'a> fn(fs: &'a dyn Any, path: &'a str) -> FileSystemFuture<'a, Result<AnyFile>>,
-    open_static_fn:
-        fn(fs: AnyFileSystem, path: String) -> FileSystemFuture<'static, Result<AnyFile>>,
+    open_fn: for<'a> fn(
+        fs: &'a dyn Any,
+        flags: OpenFlags,
+        path: &'a str,
+    ) -> FileSystemFuture<'a, Result<AnyFile>>,
+
+    open_static_fn: fn(
+        fs: AnyFileSystem,
+        flags: OpenFlags,
+        path: String,
+    ) -> FileSystemFuture<'static, Result<AnyFile>>,
 
     stat_fn: for<'a> fn(
         fs: &'a dyn Any,
         path: &'a str,
     ) -> FileSystemFuture<'a, Result<Option<FileStat>>>,
+
     can_handle_path_fn: fn(fs: &dyn Any, path: &str) -> bool,
 }
 
@@ -189,18 +237,18 @@ where
     S: FileSystem,
 {
     const VTABLE: &'static RawFileSystemVTable = &RawFileSystemVTable {
-        open_fn: |fs, path| {
+        open_fn: |fs, flags, path| {
             let fs = fs.downcast_ref::<Self>().unwrap();
-            Box::pin(async {
-                let file = fs.open(path).await?;
+            Box::pin(async move {
+                let file = fs.open(flags, path).await?;
                 Ok(AnyFile::from_file(file))
             })
         },
 
-        open_static_fn: |any_fs, path| {
+        open_static_fn: |any_fs, flags, path| {
             Box::pin(async move {
                 let fs = any_fs.filesystem.downcast_ref::<Self>().unwrap();
-                let file = fs.open(&path).await?;
+                let file = fs.open(flags, &path).await?;
                 Ok(AnyFile::from_file(file))
             })
         },

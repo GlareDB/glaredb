@@ -8,6 +8,7 @@ use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::{Result, ResultExt};
 use tokio::runtime::Handle as TokioHandle;
 
+use crate::filesystem::LocalFileSystem;
 use crate::threaded::ThreadedScheduler;
 use crate::time::NativeInstant;
 
@@ -86,9 +87,10 @@ pub struct NativeSystemRuntime {
 
 impl NativeSystemRuntime {
     pub fn new(_handle: TokioHandle) -> Self {
-        let dispatch = FileSystemDispatch::empty();
+        let mut dispatch = FileSystemDispatch::empty();
 
         // TODO: native fs, http stuff. Tokio wil be use there.
+        dispatch.register_filesystem(LocalFileSystem {});
 
         NativeSystemRuntime {
             dispatch: Arc::new(dispatch),

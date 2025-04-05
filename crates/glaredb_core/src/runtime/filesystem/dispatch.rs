@@ -15,12 +15,11 @@ impl FileSystemDispatch {
     }
 
     /// Register a new filesystem with the dispatcher.
-    pub fn register_filesystem<F>(&mut self, fs: F) -> Result<()>
+    pub fn register_filesystem<F>(&mut self, fs: F)
     where
         F: FileSystem,
     {
         self.filesystems.push(AnyFileSystem::from_filesystem(fs));
-        Ok(())
     }
 
     /// Try to find a filesystem that can handle `path`.
