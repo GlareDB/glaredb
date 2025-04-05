@@ -1,9 +1,7 @@
 use std::fs::{self, File as StdFile, OpenOptions};
-use std::io::{ErrorKind, Read, Seek, SeekFrom};
-use std::path::Path;
+use std::io::{ErrorKind, Read, SeekFrom};
 use std::task::{Context, Poll};
 
-use glaredb_core::io::file::{AsyncReadStream, FileSource};
 use glaredb_core::runtime::filesystem::{File, FileStat, FileSystem, FileType, OpenFlags};
 use glaredb_error::{DbError, Result, ResultExt};
 
@@ -23,16 +21,22 @@ impl File for LocalFile {
         Poll::Ready(result)
     }
 
-    fn poll_write(&mut self, buf: &mut [u8]) -> Poll<Result<usize>> {
-        unimplemented!()
+    fn poll_write(&mut self, _buf: &mut [u8]) -> Poll<Result<usize>> {
+        Poll::Ready(Err(DbError::new(
+            "not implemented: poll write for local file",
+        )))
     }
 
-    fn poll_seek(&mut self, seek: SeekFrom) -> Poll<Result<()>> {
-        unimplemented!()
+    fn poll_seek(&mut self, _seek: SeekFrom) -> Poll<Result<()>> {
+        Poll::Ready(Err(DbError::new(
+            "not implemented: poll seek for local file",
+        )))
     }
 
     fn poll_flush(&mut self) -> Poll<Result<()>> {
-        unimplemented!()
+        Poll::Ready(Err(DbError::new(
+            "not implemented: poll flush for local file",
+        )))
     }
 }
 

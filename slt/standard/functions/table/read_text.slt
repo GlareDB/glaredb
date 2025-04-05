@@ -1,0 +1,12 @@
+# read_text
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query B
+SELECT contains(content, 'GlareDB') FROM read_text('../README.md');
+----
+true
+
+statement error Missing file for path '../helloworld.md'
+SELECT contains(content, 'GlareDB') FROM read_text('../helloworld.md');

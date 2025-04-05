@@ -6,7 +6,7 @@ use glaredb_core::runtime::filesystem::dispatch::FileSystemDispatch;
 use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
 use glaredb_core::runtime::profile_buffer::{ProfileBuffer, ProfileSink};
 use glaredb_core::runtime::system::SystemRuntime;
-use glaredb_error::{Result, not_implemented};
+use glaredb_error::Result;
 use parking_lot::Mutex;
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;

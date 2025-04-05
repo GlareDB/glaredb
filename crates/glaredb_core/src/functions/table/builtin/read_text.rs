@@ -34,7 +34,8 @@ pub const FUNCTION_SET_READ_TEXT: TableFunctionSet = TableFunctionSet {
     )],
 };
 
-/// Test function for checking interface sanity for the filesystem stuff.
+/// Test function for checking interface sanity for the filesystem stuff. Also
+/// for other things like virtual columns.
 #[derive(Debug, Clone, Copy)]
 pub struct ReadText;
 
