@@ -33,7 +33,7 @@ pub struct PhysicalScan {
 impl PhysicalScan {
     pub fn new(projections: Projections, function: PlannedTableFunction) -> Self {
         let output_types = projections
-            .indices()
+            .data_indices()
             .iter()
             .map(|&idx| function.bind_state.schema.fields[idx].datatype.clone())
             .collect();
@@ -54,7 +54,7 @@ impl BaseOperator for PhysicalScan {
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
         let op_state = self.function.raw.call_create_pull_operator_state(
             &self.function.bind_state,
-            &self.projections,
+            self.projections.clone(),
             props,
         )?;
 

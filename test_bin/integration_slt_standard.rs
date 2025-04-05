@@ -3,7 +3,11 @@ use std::time::Duration;
 
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::Result;
-use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io};
+use glaredb_rt_native::runtime::{
+    NativeSystemRuntime,
+    ThreadedNativeExecutor,
+    new_tokio_runtime_for_io,
+};
 use glaredb_slt::{ReplacementVars, RunConfig};
 
 pub fn main() -> Result<()> {
@@ -15,7 +19,7 @@ pub fn main() -> Result<()> {
 
 fn run_with_executor(executor: ThreadedNativeExecutor, tag: &str) -> Result<()> {
     let tokio_rt = new_tokio_runtime_for_io()?;
-    let rt = NativeRuntime::new(tokio_rt.handle().clone());
+    let rt = NativeSystemRuntime::new(tokio_rt.handle().clone());
 
     let paths = glaredb_slt::find_files(Path::new("../slt/standard")).unwrap();
     glaredb_slt::run(

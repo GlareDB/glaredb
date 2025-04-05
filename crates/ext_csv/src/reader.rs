@@ -34,7 +34,7 @@ use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::execution::operators::PollPull;
 use glaredb_core::functions::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
 use glaredb_core::io::file::AsyncReadStream;
-use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_error::{DbError, Result, ResultExt};
 
 use crate::decoder::{ByteRecords, CsvDecoder};
@@ -153,41 +153,44 @@ impl CsvReader {
         count: usize,
     ) -> Result<()> {
         self.projections
-            .for_each_column(batch, &mut |col_idx, array| {
-                match array.datatype() {
-                    DataType::Boolean => self.write_primitive::<PhysicalBool, _>(
-                        records_offset,
-                        col_idx,
-                        array,
-                        write_offset,
-                        count,
-                        BoolParser,
-                    )?,
-                    DataType::Int64 => self.write_primitive::<PhysicalI64, _>(
-                        records_offset,
-                        col_idx,
-                        array,
-                        write_offset,
-                        count,
-                        Int64Parser::new(),
-                    )?,
-                    DataType::Float64 => self.write_primitive::<PhysicalF64, _>(
-                        records_offset,
-                        col_idx,
-                        array,
-                        write_offset,
-                        count,
-                        Float64Parser::new(),
-                    )?,
-                    DataType::Utf8 => {
-                        self.write_string(records_offset, col_idx, array, write_offset, count)?
+            .for_each_column(batch, &mut |col_idx, array| match col_idx {
+                ProjectedColumn::Data(col_idx) => {
+                    match array.datatype() {
+                        DataType::Boolean => self.write_primitive::<PhysicalBool, _>(
+                            records_offset,
+                            col_idx,
+                            array,
+                            write_offset,
+                            count,
+                            BoolParser,
+                        )?,
+                        DataType::Int64 => self.write_primitive::<PhysicalI64, _>(
+                            records_offset,
+                            col_idx,
+                            array,
+                            write_offset,
+                            count,
+                            Int64Parser::new(),
+                        )?,
+                        DataType::Float64 => self.write_primitive::<PhysicalF64, _>(
+                            records_offset,
+                            col_idx,
+                            array,
+                            write_offset,
+                            count,
+                            Float64Parser::new(),
+                        )?,
+                        DataType::Utf8 => {
+                            self.write_string(records_offset, col_idx, array, write_offset, count)?
+                        }
+                        other => {
+                            return Err(DbError::new("Unhandled datatype for csv scanning")
+                                .with_field("datatype", other.clone()));
+                        }
                     }
-                    other => {
-                        return Err(DbError::new("Unhandled datatype for csv scanning")
-                            .with_field("datatype", other.clone()));
-                    }
+                    Ok(())
                 }
-                Ok(())
+                other => panic!("invalid projection: {other:?}"),
             })?;
 
         Ok(())

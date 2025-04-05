@@ -8,12 +8,16 @@ use ext_spark::SparkExtension;
 use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
-use glaredb_core::runtime::io::IoRuntime;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
+use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_core::shell::lineedit::{KeyEvent, TermSize};
 use glaredb_core::shell::{RawModeTerm, Shell, ShellSignal};
 use glaredb_error::Result;
-use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io};
+use glaredb_rt_native::runtime::{
+    NativeSystemRuntime,
+    ThreadedNativeExecutor,
+    new_tokio_runtime_for_io,
+};
 
 #[derive(Parser)]
 #[clap(name = "glaredb")]
@@ -43,7 +47,7 @@ fn main() {
         let tokio_rt = new_tokio_runtime_for_io()?;
 
         let executor = ThreadedNativeExecutor::try_new().unwrap();
-        let runtime = NativeRuntime::new(tokio_rt.handle().clone());
+        let runtime = NativeSystemRuntime::new(tokio_rt.handle().clone());
 
         tokio_rt.block_on(async move { inner(args, executor, runtime).await })
     });
@@ -98,12 +102,12 @@ impl RawModeTerm for CrosstermRawModeTerm {
 async fn inner(
     args: Arguments,
     executor: impl PipelineRuntime,
-    runtime: impl IoRuntime,
+    runtime: impl SystemRuntime,
 ) -> Result<()> {
     let engine = SingleUserEngine::try_new(executor, runtime.clone())?;
     engine.register_extension(SparkExtension)?;
     engine.register_extension(TpchGenExtension)?;
-    engine.register_extension(CsvExtension::new(runtime.clone()))?;
+    engine.register_extension(CsvExtension::new())?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
     let mut stdout = BufWriter::new(std::io::stdout());

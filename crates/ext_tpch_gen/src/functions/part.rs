@@ -13,7 +13,7 @@ use glaredb_core::functions::Signature;
 use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
-use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_error::{OptionExt, Result};
 use tpchgen::generators::{Part, PartGenerator, PartGeneratorIterator};
 
@@ -65,14 +65,14 @@ impl TpchTable for PartTable {
         let mut s_buf = String::new();
 
         projections.for_each_column(output, &mut |col_idx, output| match col_idx {
-            0 => {
+            ProjectedColumn::Data(0) => {
                 let mut p_keys = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
                     p_keys.put(idx, &(part.p_partkey));
                 }
                 Ok(())
             }
-            1 => {
+            ProjectedColumn::Data(1) => {
                 let mut p_names = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
                     s_buf.clear();
@@ -81,7 +81,7 @@ impl TpchTable for PartTable {
                 }
                 Ok(())
             }
-            2 => {
+            ProjectedColumn::Data(2) => {
                 let mut p_mfgrs = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
                     s_buf.clear();
@@ -90,7 +90,7 @@ impl TpchTable for PartTable {
                 }
                 Ok(())
             }
-            3 => {
+            ProjectedColumn::Data(3) => {
                 let mut p_brands = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
                     s_buf.clear();
@@ -99,42 +99,42 @@ impl TpchTable for PartTable {
                 }
                 Ok(())
             }
-            4 => {
+            ProjectedColumn::Data(4) => {
                 let mut p_types = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
                     p_types.put(idx, part.p_type);
                 }
                 Ok(())
             }
-            5 => {
+            ProjectedColumn::Data(5) => {
                 let mut p_sizes = PhysicalI32::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
                     p_sizes.put(idx, &part.p_size);
                 }
                 Ok(())
             }
-            6 => {
+            ProjectedColumn::Data(6) => {
                 let mut p_containers = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
                     p_containers.put(idx, part.p_container);
                 }
                 Ok(())
             }
-            7 => {
+            ProjectedColumn::Data(7) => {
                 let mut p_prices = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
                     p_prices.put(idx, &part.p_retailprice.0);
                 }
                 Ok(())
             }
-            8 => {
+            ProjectedColumn::Data(8) => {
                 let mut p_comments = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, part) in rows.iter().enumerate() {
                     p_comments.put(idx, part.p_comment);
                 }
                 Ok(())
             }
-            other => panic!("invalid projection {other}"),
+            other => panic!("invalid projection {other:?}"),
         })
     }
 }

@@ -13,7 +13,7 @@ use glaredb_core::functions::Signature;
 use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
-use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_error::{OptionExt, Result};
 use tpchgen::generators::{Customer, CustomerGenerator, CustomerGeneratorIterator};
 
@@ -64,14 +64,14 @@ impl TpchTable for CustomerTable {
         let mut s_buf = String::new();
 
         projections.for_each_column(output, &mut |col_idx, output| match col_idx {
-            0 => {
+            ProjectedColumn::Data(0) => {
                 let mut c_keys = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, cust) in rows.iter().enumerate() {
                     c_keys.put(idx, &(cust.c_custkey));
                 }
                 Ok(())
             }
-            1 => {
+            ProjectedColumn::Data(1) => {
                 let mut c_names = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, cust) in rows.iter().enumerate() {
                     s_buf.clear();
@@ -80,7 +80,7 @@ impl TpchTable for CustomerTable {
                 }
                 Ok(())
             }
-            2 => {
+            ProjectedColumn::Data(2) => {
                 let mut c_addresses = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, cust) in rows.iter().enumerate() {
                     s_buf.clear();
@@ -89,14 +89,14 @@ impl TpchTable for CustomerTable {
                 }
                 Ok(())
             }
-            3 => {
+            ProjectedColumn::Data(3) => {
                 let mut c_nationkeys = PhysicalI32::get_addressable_mut(output.data_mut())?;
                 for (idx, cust) in rows.iter().enumerate() {
                     c_nationkeys.put(idx, &(cust.c_nationkey as i32));
                 }
                 Ok(())
             }
-            4 => {
+            ProjectedColumn::Data(4) => {
                 let mut c_phones = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, cust) in rows.iter().enumerate() {
                     s_buf.clear();
@@ -105,28 +105,28 @@ impl TpchTable for CustomerTable {
                 }
                 Ok(())
             }
-            5 => {
+            ProjectedColumn::Data(5) => {
                 let mut c_balances = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, cust) in rows.iter().enumerate() {
                     c_balances.put(idx, &cust.c_acctbal.0);
                 }
                 Ok(())
             }
-            6 => {
+            ProjectedColumn::Data(6) => {
                 let mut c_segments = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, cust) in rows.iter().enumerate() {
                     c_segments.put(idx, cust.c_mktsegment);
                 }
                 Ok(())
             }
-            7 => {
+            ProjectedColumn::Data(7) => {
                 let mut c_comments = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, cust) in rows.iter().enumerate() {
                     c_comments.put(idx, cust.c_comment);
                 }
                 Ok(())
             }
-            other => panic!("invalid projection {other}"),
+            other => panic!("invalid projection {other:?}"),
         })
     }
 }

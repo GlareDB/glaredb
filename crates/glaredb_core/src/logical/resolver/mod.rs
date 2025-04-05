@@ -36,7 +36,9 @@ use crate::catalog::system::{
     SHOW_TABLES_VIEW,
 };
 use crate::expr;
+use crate::functions::table::scan::ScanContext;
 use crate::logical::operator::LocationRequirement;
+use crate::runtime::system::SystemRuntime;
 
 /// An AST statement with references bound to data inside of the `resolve_context`.
 pub type ResolvedStatement = Statement<ResolvedMeta>;
@@ -111,21 +113,27 @@ pub struct ResolveConfig {
 
 /// Resolves references in a raw SQL AST with entries in the catalog.
 #[derive(Debug)]
-pub struct Resolver<'a> {
+pub struct Resolver<'a, R: SystemRuntime> {
     pub resolve_mode: ResolveMode,
     pub context: &'a DatabaseContext,
+    pub runtime: &'a R,
     pub config: ResolveConfig,
 }
 
-impl<'a> Resolver<'a> {
+impl<'a, R> Resolver<'a, R>
+where
+    R: SystemRuntime,
+{
     pub fn new(
         resolve_mode: ResolveMode,
         context: &'a DatabaseContext,
+        runtime: &'a R,
         config: ResolveConfig,
     ) -> Self {
         Resolver {
             resolve_mode,
             context,
+            runtime,
             config,
         }
     }
@@ -290,13 +298,13 @@ impl<'a> Resolver<'a> {
             ast::CopyToSource::Table(reference) => {
                 let table = match self.resolve_mode {
                     ResolveMode::Normal => {
-                        let table = NormalResolver::new(self.context)
+                        let table = NormalResolver::new(self.context, self.runtime)
                             .require_resolve_table_or_cte(&reference, resolve_context)
                             .await?;
                         MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
                     }
                     ResolveMode::Hybrid => {
-                        let table = NormalResolver::new(self.context)
+                        let table = NormalResolver::new(self.context, self.runtime)
                             .resolve_table_or_cte(&reference, resolve_context)
                             .await?;
 
@@ -476,7 +484,7 @@ impl<'a> Resolver<'a> {
             .map(|col| {
                 Ok(ColumnDef::<ResolvedMeta> {
                     name: col.name,
-                    datatype: Self::ast_datatype_to_exec_datatype(col.datatype)?,
+                    datatype: ast_datatype_to_exec_datatype(col.datatype)?,
                     opts: col.opts,
                 })
             })
@@ -538,13 +546,13 @@ impl<'a> Resolver<'a> {
     ) -> Result<ast::Insert<ResolvedMeta>> {
         let table = match self.resolve_mode {
             ResolveMode::Normal => {
-                let table = NormalResolver::new(self.context)
+                let table = NormalResolver::new(self.context, self.runtime)
                     .require_resolve_table_or_cte(&insert.table, resolve_context)
                     .await?;
                 MaybeResolved::Resolved(table, LocationRequirement::ClientLocal)
             }
             ResolveMode::Hybrid => {
-                let table = NormalResolver::new(self.context)
+                let table = NormalResolver::new(self.context, self.runtime)
                     .resolve_table_or_cte(&insert.table, resolve_context)
                     .await?;
 
@@ -585,11 +593,14 @@ impl<'a> Resolver<'a> {
         ///
         /// Pulled out so we can accurately set the bind data depth before and
         /// after this.
-        async fn resolve_query_inner(
-            resolver: &Resolver<'_>,
+        async fn resolve_query_inner<R>(
+            resolver: &Resolver<'_, R>,
             query: ast::QueryNode<Raw>,
             resolve_context: &mut ResolveContext,
-        ) -> Result<ast::QueryNode<ResolvedMeta>> {
+        ) -> Result<ast::QueryNode<ResolvedMeta>>
+        where
+            R: SystemRuntime,
+        {
             let ctes = match query.ctes {
                 Some(ctes) => Some(resolver.resolve_ctes(ctes, resolve_context).await?),
                 None => None,
@@ -838,7 +849,7 @@ impl<'a> Resolver<'a> {
             ast::FromNodeBody::BaseTable(ast::FromBaseTable { reference }) => {
                 match self.resolve_mode {
                     ResolveMode::Normal => {
-                        let table = NormalResolver::new(self.context)
+                        let table = NormalResolver::new(self.context, self.runtime)
                             .require_resolve_table_or_cte(&reference, resolve_context)
                             .await?;
 
@@ -932,16 +943,20 @@ impl<'a> Resolver<'a> {
 
                 let function = match self.resolve_mode {
                     ResolveMode::Normal => {
-                        let function = NormalResolver::new(self.context)
+                        let function = NormalResolver::new(self.context, self.runtime)
                             .require_resolve_table_function(&reference)?;
 
                         if function.is_scan_function() {
                             let binder = ConstantBinder::new(resolve_context);
                             let constant_args = binder.bind_constant_function_args(&args)?;
 
+                            let scan_context = ScanContext {
+                                dispatch: self.runtime.filesystem_dispatch(),
+                                database_context: self.context,
+                            };
                             let planned = expr::bind_table_scan_function(
                                 &function,
-                                self.context,
+                                scan_context,
                                 constant_args,
                             )
                             .await?;
@@ -1014,70 +1029,71 @@ impl<'a> Resolver<'a> {
             .map(|ident| ident.into_normalized_string())
             .collect()
     }
+}
 
-    fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> Result<DataType> {
-        Ok(match datatype {
-            ast::DataType::Varchar(_) => DataType::Utf8,
-            ast::DataType::TinyInt => DataType::Int8,
-            ast::DataType::SmallInt => DataType::Int16,
-            ast::DataType::Integer => DataType::Int32,
-            ast::DataType::BigInt => DataType::Int64,
-            ast::DataType::UnsignedTinyInt => DataType::UInt8,
-            ast::DataType::UnsignedSmallInt => DataType::UInt16,
-            ast::DataType::UnsignedInt => DataType::UInt32,
-            ast::DataType::UnsignedBigInt => DataType::UInt64,
-            ast::DataType::Half => DataType::Float16,
-            ast::DataType::Real => DataType::Float32,
-            ast::DataType::Double => DataType::Float64,
-            ast::DataType::Decimal(prec, scale) => {
-                // - Precision cannot be negative.
-                // - Specifying just precision defaults to a 0 scale.
-                // - Defaults to decimal64 prec and scale if neither provided.
-                match prec {
-                    Some(prec) if prec < 0 => {
-                        return Err(DbError::new("Precision cannot be negative"));
-                    }
-                    Some(prec) => {
-                        let prec: u8 = prec
-                            .try_into()
-                            .map_err(|_| DbError::new(format!("Precision too high: {prec}")))?;
-
-                        let scale: i8 = match scale {
-                            Some(scale) => scale
-                                .try_into()
-                                .map_err(|_| DbError::new(format!("Scale too high: {scale}")))?,
-                            None => 0, // TODO: I'm not sure what behavior we want here, but it seems to match postgres.
-                        };
-
-                        if scale as i16 > prec as i16 {
-                            return Err(DbError::new(
-                                "Decimal scale cannot be larger than precision",
-                            ));
-                        }
-
-                        if prec <= Decimal64Type::MAX_PRECISION {
-                            DataType::Decimal64(DecimalTypeMeta::new(prec, scale))
-                        } else if prec <= Decimal128Type::MAX_PRECISION {
-                            DataType::Decimal128(DecimalTypeMeta::new(prec, scale))
-                        } else {
-                            return Err(DbError::new(
-                                "Decimal precision too big for max decimal size",
-                            ));
-                        }
-                    }
-                    None => DataType::Decimal64(DecimalTypeMeta::new(
-                        Decimal64Type::MAX_PRECISION,
-                        Decimal64Type::DEFAULT_SCALE,
-                    )),
+/// Convert an AST datatype to an internal datatype.
+pub fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> Result<DataType> {
+    Ok(match datatype {
+        ast::DataType::Varchar(_) => DataType::Utf8,
+        ast::DataType::TinyInt => DataType::Int8,
+        ast::DataType::SmallInt => DataType::Int16,
+        ast::DataType::Integer => DataType::Int32,
+        ast::DataType::BigInt => DataType::Int64,
+        ast::DataType::UnsignedTinyInt => DataType::UInt8,
+        ast::DataType::UnsignedSmallInt => DataType::UInt16,
+        ast::DataType::UnsignedInt => DataType::UInt32,
+        ast::DataType::UnsignedBigInt => DataType::UInt64,
+        ast::DataType::Half => DataType::Float16,
+        ast::DataType::Real => DataType::Float32,
+        ast::DataType::Double => DataType::Float64,
+        ast::DataType::Decimal(prec, scale) => {
+            // - Precision cannot be negative.
+            // - Specifying just precision defaults to a 0 scale.
+            // - Defaults to decimal64 prec and scale if neither provided.
+            match prec {
+                Some(prec) if prec < 0 => {
+                    return Err(DbError::new("Precision cannot be negative"));
                 }
+                Some(prec) => {
+                    let prec: u8 = prec
+                        .try_into()
+                        .map_err(|_| DbError::new(format!("Precision too high: {prec}")))?;
+
+                    let scale: i8 = match scale {
+                        Some(scale) => scale
+                            .try_into()
+                            .map_err(|_| DbError::new(format!("Scale too high: {scale}")))?,
+                        None => 0, // TODO: I'm not sure what behavior we want here, but it seems to match postgres.
+                    };
+
+                    if scale as i16 > prec as i16 {
+                        return Err(DbError::new(
+                            "Decimal scale cannot be larger than precision",
+                        ));
+                    }
+
+                    if prec <= Decimal64Type::MAX_PRECISION {
+                        DataType::Decimal64(DecimalTypeMeta::new(prec, scale))
+                    } else if prec <= Decimal128Type::MAX_PRECISION {
+                        DataType::Decimal128(DecimalTypeMeta::new(prec, scale))
+                    } else {
+                        return Err(DbError::new(
+                            "Decimal precision too big for max decimal size",
+                        ));
+                    }
+                }
+                None => DataType::Decimal64(DecimalTypeMeta::new(
+                    Decimal64Type::MAX_PRECISION,
+                    Decimal64Type::DEFAULT_SCALE,
+                )),
             }
-            ast::DataType::Bool => DataType::Boolean,
-            ast::DataType::Date => DataType::Date32,
-            ast::DataType::Timestamp => {
-                // Microsecond matches postgres default.
-                DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
-            }
-            ast::DataType::Interval => DataType::Interval,
-        })
-    }
+        }
+        ast::DataType::Bool => DataType::Boolean,
+        ast::DataType::Date => DataType::Date32,
+        ast::DataType::Timestamp => {
+            // Microsecond matches postgres default.
+            DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+        }
+        ast::DataType::Interval => DataType::Interval,
+    })
 }

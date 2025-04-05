@@ -11,7 +11,7 @@ use wasm_bindgen_futures::spawn_local;
 use web_sys::KeyboardEvent;
 
 use crate::errors::Result;
-use crate::runtime::{WasmExecutor, WasmRuntime};
+use crate::runtime::{WasmExecutor, WasmSystemRuntime};
 use crate::session::WasmSession;
 
 #[wasm_bindgen]
@@ -115,7 +115,7 @@ pub struct WasmShell {
 
 #[derive(Debug)]
 pub(crate) struct WasmShellInner {
-    shell: Shell<TerminalBuffer, WasmExecutor, WasmRuntime, NopRawMode>,
+    shell: Shell<TerminalBuffer, WasmExecutor, WasmSystemRuntime, NopRawMode>,
     edit_guard: Option<WasmEditGuard>,
 }
 

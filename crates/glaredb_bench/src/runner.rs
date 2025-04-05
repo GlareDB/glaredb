@@ -3,7 +3,7 @@ use std::time::Instant;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::Result;
-use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
 
 use crate::benchmark::Benchmark;
 
@@ -24,7 +24,7 @@ pub struct BenchmarkTimes {
 
 #[derive(Debug)]
 pub struct BenchmarkRunner {
-    pub engine: SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>,
+    pub engine: SingleUserEngine<ThreadedNativeExecutor, NativeSystemRuntime>,
     pub benchmark: Benchmark,
 }
 

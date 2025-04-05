@@ -10,7 +10,7 @@ use glaredb_core::functions::Signature;
 use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
-use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_error::Result;
 use tpchgen::generators::{Nation, NationGenerator, NationGeneratorIterator};
 
@@ -59,35 +59,35 @@ impl TpchTable for NationTable {
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
         projections.for_each_column(output, &mut |col_idx, output| match col_idx {
-            0 => {
+            ProjectedColumn::Data(0) => {
                 let mut n_nationkeys = PhysicalI32::get_addressable_mut(output.data_mut())?;
                 for (idx, nation) in rows.iter().enumerate() {
                     n_nationkeys.put(idx, &(nation.n_nationkey as i32));
                 }
                 Ok(())
             }
-            1 => {
+            ProjectedColumn::Data(1) => {
                 let mut n_names = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, nation) in rows.iter().enumerate() {
                     n_names.put(idx, nation.n_name);
                 }
                 Ok(())
             }
-            2 => {
+            ProjectedColumn::Data(2) => {
                 let mut n_regionkeys = PhysicalI32::get_addressable_mut(output.data_mut())?;
                 for (idx, nation) in rows.iter().enumerate() {
                     n_regionkeys.put(idx, &(nation.n_regionkey as i32));
                 }
                 Ok(())
             }
-            3 => {
+            ProjectedColumn::Data(3) => {
                 let mut n_comments = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, nation) in rows.iter().enumerate() {
                     n_comments.put(idx, nation.n_comment);
                 }
                 Ok(())
             }
-            other => panic!("invalid projection {other}"),
+            other => panic!("invalid projection {other:?}"),
         })
     }
 }

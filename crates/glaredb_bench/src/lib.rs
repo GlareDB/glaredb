@@ -9,7 +9,11 @@ use benchmark::Benchmark;
 use clap::Parser;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::{DbError, Result, ResultExt};
-use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io};
+use glaredb_rt_native::runtime::{
+    NativeSystemRuntime,
+    ThreadedNativeExecutor,
+    new_tokio_runtime_for_io,
+};
 use runner::{BenchmarkRunner, BenchmarkTimes, RunnerConfig};
 use tokio::runtime::Runtime as TokioRuntime;
 
@@ -46,13 +50,13 @@ struct Arguments {
 pub struct EngineBuilder {
     tokio_rt: TokioRuntime,
     executor: ThreadedNativeExecutor,
-    runtime: NativeRuntime,
+    runtime: NativeSystemRuntime,
 }
 
 impl EngineBuilder {
     pub fn try_new() -> Result<Self> {
         let tokio_rt = new_tokio_runtime_for_io()?;
-        let runtime = NativeRuntime::new(tokio_rt.handle().clone());
+        let runtime = NativeSystemRuntime::new(tokio_rt.handle().clone());
 
         Ok(EngineBuilder {
             tokio_rt,
@@ -61,7 +65,7 @@ impl EngineBuilder {
         })
     }
 
-    fn build(&self) -> Result<SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>> {
+    fn build(&self) -> Result<SingleUserEngine<ThreadedNativeExecutor, NativeSystemRuntime>> {
         SingleUserEngine::try_new(self.executor.clone(), self.runtime.clone())
     }
 }

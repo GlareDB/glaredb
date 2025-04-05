@@ -4,8 +4,8 @@ use std::sync::LazyLock;
 use glaredb_error::{DbError, Result};
 
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
-use crate::runtime::io::IoRuntime;
 use crate::runtime::pipeline::PipelineRuntime;
+use crate::runtime::system::SystemRuntime;
 
 /// Configuration for the session.
 #[derive(Debug)]
@@ -23,7 +23,7 @@ impl SessionConfig {
     pub fn new<P, R>(executor: &P, _runtime: &R) -> Self
     where
         P: PipelineRuntime,
-        R: IoRuntime,
+        R: SystemRuntime,
     {
         SessionConfig {
             enable_optimizer: true,
@@ -56,7 +56,7 @@ impl SessionConfig {
     pub fn reset<P, R>(&mut self, name: &str, executor: &P, runtime: &R) -> Result<()>
     where
         P: PipelineRuntime,
-        R: IoRuntime,
+        R: SystemRuntime,
     {
         // TODO: I don't hate it, but could be more efficient.
         let def_conf = Self::new(executor, runtime);
@@ -72,7 +72,7 @@ impl SessionConfig {
     pub fn reset_all<P, R>(&mut self, executor: &P, runtime: &R)
     where
         P: PipelineRuntime,
-        R: IoRuntime,
+        R: SystemRuntime,
     {
         *self = Self::new(executor, runtime);
     }
