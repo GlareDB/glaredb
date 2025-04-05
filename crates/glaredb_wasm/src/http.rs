@@ -20,6 +20,7 @@ pub struct WasmHttpClient {
 }
 
 impl WasmHttpClient {
+    #[allow(unused)] // Will take care of this soon
     pub fn new(client: reqwest::Client) -> Self {
         WasmHttpClient { client }
     }

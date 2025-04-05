@@ -58,6 +58,7 @@ impl AnyFile {
     }
 }
 
+#[allow(clippy::type_complexity)] // I don't know how this is a complex type.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileVTable {
     size_fn: fn(&dyn Any) -> usize,
@@ -206,6 +207,7 @@ impl AnyFileSystem {
     }
 }
 
+#[allow(clippy::type_complexity)] // I do know how this is a complex type, but but that's kinda the point.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileSystemVTable {
     open_fn: for<'a> fn(

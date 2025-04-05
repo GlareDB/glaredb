@@ -24,12 +24,9 @@ impl FileSystemDispatch {
 
     /// Try to find a filesystem that can handle `path`.
     pub fn filesystem_for_path_opt(&self, path: &str) -> Option<&AnyFileSystem> {
-        for fs in &self.filesystems {
-            if fs.call_can_handle_path(path) {
-                return Some(fs);
-            }
-        }
-        None
+        self.filesystems
+            .iter()
+            .find(|&fs| fs.call_can_handle_path(path))
     }
 
     pub fn filesystem_for_path(&self, path: &str) -> Result<&AnyFileSystem> {

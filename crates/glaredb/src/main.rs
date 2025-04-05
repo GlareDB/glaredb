@@ -107,7 +107,7 @@ async fn inner(
     let engine = SingleUserEngine::try_new(executor, runtime.clone())?;
     engine.register_extension(SparkExtension)?;
     engine.register_extension(TpchGenExtension)?;
-    engine.register_extension(CsvExtension::new())?;
+    engine.register_extension(CsvExtension)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
     let mut stdout = BufWriter::new(std::io::stdout());

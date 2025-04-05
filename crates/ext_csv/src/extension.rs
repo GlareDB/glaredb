@@ -1,13 +1,7 @@
 use glaredb_core::extension::Extension;
 
 #[derive(Debug, Clone, Copy)]
-pub struct CsvExtension {}
-
-impl CsvExtension {
-    pub const fn new() -> Self {
-        CsvExtension {}
-    }
-}
+pub struct CsvExtension;
 
 impl Extension for CsvExtension {
     const NAME: &str = "csv";
