@@ -4,9 +4,8 @@ use std::task::Context;
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::arrays::field::{ColumnSchema, Field};
-use glaredb_core::catalog::context::DatabaseContext;
 use glaredb_core::execution::operators::{ExecutionProperties, PollPull};
-use glaredb_core::functions::table::scan::TableScanFunction;
+use glaredb_core::functions::table::scan::{ScanContext, TableScanFunction};
 use glaredb_core::functions::table::{TableFunctionBindState, TableFunctionInput};
 use glaredb_core::logical::statistics::StatisticsValue;
 use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -101,7 +100,7 @@ where
 
     async fn bind(
         &'static self,
-        _db_context: &DatabaseContext,
+        _scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         // TODO: Use named arguments.

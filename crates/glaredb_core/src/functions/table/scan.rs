@@ -30,7 +30,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
     /// This should determine the output schema of the table.
     fn bind(
         &'static self,
-        db_context: &DatabaseContext,
+        scan_context: ScanContext,
         input: TableFunctionInput,
     ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + Sync + Send;
 

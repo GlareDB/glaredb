@@ -11,7 +11,6 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::arrays::field::{ColumnSchema, Field};
 use crate::arrays::scalar::ScalarValue;
-use crate::catalog::context::DatabaseContext;
 use crate::catalog::database::Database;
 use crate::catalog::entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType};
 use crate::catalog::{Catalog, Schema};
@@ -19,7 +18,7 @@ use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
-use crate::functions::table::scan::TableScanFunction;
+use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::projections::{ProjectedColumn, Projections};
@@ -156,10 +155,14 @@ impl TableScanFunction for ListTables {
 
     async fn bind(
         &'static self,
-        db_context: &DatabaseContext,
+        scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let databases: Vec<_> = db_context.iter_databases().cloned().collect();
+        let databases: Vec<_> = scan_context
+            .database_context
+            .iter_databases()
+            .cloned()
+            .collect();
         let state = ListEntriesBindState::load_entries(
             databases,
             |_| true,
@@ -266,10 +269,14 @@ impl TableScanFunction for ListViews {
 
     async fn bind(
         &'static self,
-        db_context: &DatabaseContext,
+        scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let databases: Vec<_> = db_context.iter_databases().cloned().collect();
+        let databases: Vec<_> = scan_context
+            .database_context
+            .iter_databases()
+            .cloned()
+            .collect();
         let state = ListEntriesBindState::load_entries(
             databases,
             |_| true,
@@ -414,10 +421,14 @@ impl TableScanFunction for ListFunctions {
 
     async fn bind(
         &'static self,
-        db_context: &DatabaseContext,
+        scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let databases: Vec<_> = db_context.iter_databases().cloned().collect();
+        let databases: Vec<_> = scan_context
+            .database_context
+            .iter_databases()
+            .cloned()
+            .collect();
         // TODO: Do we want COPY functions in the output? Not yet
         let state = ListEntriesBindState::load_entries(
             databases,

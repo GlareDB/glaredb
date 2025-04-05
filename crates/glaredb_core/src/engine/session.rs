@@ -260,6 +260,7 @@ where
         let (resolved_stmt, resolve_context) = Resolver::new(
             resolve_mode,
             &self.context,
+            &self.runtime,
             ResolveConfig {
                 enable_function_chaining: self.config.enable_function_chaining,
             },

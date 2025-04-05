@@ -9,7 +9,6 @@ use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, 
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::field::{ColumnSchema, Field};
-use crate::catalog::context::DatabaseContext;
 use crate::catalog::database::Database;
 use crate::catalog::memory::MemorySchema;
 use crate::catalog::{Catalog, Schema};
@@ -17,7 +16,7 @@ use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
-use crate::functions::table::scan::TableScanFunction;
+use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::projections::{ProjectedColumn, Projections};
@@ -67,10 +66,14 @@ impl TableScanFunction for ListSchemas {
 
     async fn bind(
         &'static self,
-        db_context: &DatabaseContext,
+        scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let databases = db_context.iter_databases().cloned().collect();
+        let databases = scan_context
+            .database_context
+            .iter_databases()
+            .cloned()
+            .collect();
         Ok(TableFunctionBindState {
             state: ListSchemasBindState { databases },
             input,

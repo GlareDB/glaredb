@@ -40,7 +40,6 @@ use window_expr::WindowExpr;
 
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
-use crate::catalog::context::DatabaseContext;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::candidate::CastType;
@@ -52,6 +51,7 @@ use crate::functions::function_set::{
     TableFunctionSet,
 };
 use crate::functions::scalar::{FunctionVolatility, PlannedScalarFunction};
+use crate::functions::table::scan::ScanContext;
 use crate::functions::table::{
     PlannedTableFunction,
     RawTableFunction,
@@ -733,7 +733,7 @@ pub fn bind_table_execute_function(
 
 pub async fn bind_table_scan_function(
     function: &TableFunctionSet,
-    context: &DatabaseContext,
+    context: ScanContext<'_>,
     input: TableFunctionInput,
 ) -> Result<PlannedTableFunction> {
     let (func, input) = bind_table_function_signature(function, input)?;

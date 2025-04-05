@@ -1,12 +1,7 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};
 
-use glaredb_core::arrays::scalar::ScalarValue;
 use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
-use glaredb_core::io::access::AccessConfig;
-use glaredb_core::io::file::FileOpener;
-use glaredb_core::io::memory::MemoryFileSource;
 use glaredb_core::runtime::filesystem::dispatch::FileSystemDispatch;
 use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
 use glaredb_core::runtime::profile_buffer::{ProfileBuffer, ProfileSink};

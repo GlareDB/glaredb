@@ -13,12 +13,11 @@ use std::task::Context;
 
 use execute::TableExecuteFunction;
 use glaredb_error::{DbError, Result};
-use scan::TableScanFunction;
+use scan::{ScanContext, TableScanFunction};
 
 use super::Signature;
 use crate::arrays::batch::Batch;
 use crate::arrays::field::ColumnSchema;
-use crate::catalog::context::DatabaseContext;
 use crate::execution::operators::{ExecutionProperties, PollExecute, PollFinalize, PollPull};
 use crate::expr::Expression;
 use crate::logical::statistics::StatisticsValue;
@@ -129,12 +128,12 @@ impl RawTableFunction {
 
     pub async fn call_scan_bind(
         &self,
-        db_context: &DatabaseContext,
+        scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<RawTableFunctionBindState> {
         // SAFETY: The pointer we pass to the bind fn is the pointer we get from
         // the static reference we use to construct this object.
-        let fut = unsafe { (self.vtable.scan_bind_fn)(self.function, db_context, input)? };
+        let fut = unsafe { (self.vtable.scan_bind_fn)(self.function, scan_context, input)? };
         fut.await
     }
 
@@ -252,7 +251,7 @@ type ScanBindFut<'a> =
 pub struct RawTableFunctionVTable {
     scan_bind_fn: unsafe fn(
         function: *const (),
-        db_context: &DatabaseContext,
+        scan_context: ScanContext,
         input: TableFunctionInput,
     ) -> Result<ScanBindFut>,
 
@@ -393,10 +392,10 @@ where
     const FUNCTION_TYPE: TableFunctionType = TableFunctionType::Scan;
 
     const VTABLE: &'static RawTableFunctionVTable = &RawTableFunctionVTable {
-        scan_bind_fn: |function, db_context, input| {
+        scan_bind_fn: |function, scan_context, input| {
             let function = unsafe { function.cast::<F>().as_ref().unwrap() };
-            Ok(Box::pin(async {
-                let state = function.bind(db_context, input).await?;
+            Ok(Box::pin(async move {
+                let state = function.bind(scan_context, input).await?;
 
                 Ok(RawTableFunctionBindState {
                     state: Arc::new(state.state),

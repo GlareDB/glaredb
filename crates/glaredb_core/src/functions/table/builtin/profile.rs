@@ -18,13 +18,12 @@ use crate::arrays::array::physical_type::{
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::field::{ColumnSchema, Field};
-use crate::catalog::context::DatabaseContext;
 use crate::catalog::profile::QueryProfile;
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
-use crate::functions::table::scan::TableScanFunction;
+use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -559,9 +558,10 @@ where
 
     async fn bind(
         &'static self,
-        db_context: &DatabaseContext,
+        scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
+        let db_context = scan_context.database_context;
         let profile = match input.positional.first() {
             Some(arg) => {
                 // TODO: Do this automatically
