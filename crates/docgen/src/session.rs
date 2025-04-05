@@ -2,13 +2,13 @@ use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::Result;
-use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor};
+use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
 use tokio::runtime::Runtime as TokioRuntime;
 
 #[derive(Debug)]
 pub struct DocsSession {
     pub tokio_rt: TokioRuntime,
-    pub engine: SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>,
+    pub engine: SingleUserEngine<ThreadedNativeExecutor, NativeSystemRuntime>,
 }
 
 impl DocsSession {

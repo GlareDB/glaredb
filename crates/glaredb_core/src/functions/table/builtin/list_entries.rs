@@ -11,7 +11,6 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::arrays::field::{ColumnSchema, Field};
 use crate::arrays::scalar::ScalarValue;
-use crate::catalog::context::DatabaseContext;
 use crate::catalog::database::Database;
 use crate::catalog::entry::{CatalogEntry, CatalogEntryInner, CatalogEntryType};
 use crate::catalog::{Catalog, Schema};
@@ -19,10 +18,10 @@ use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
-use crate::functions::table::scan::TableScanFunction;
+use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::logical::statistics::StatisticsValue;
-use crate::storage::projections::Projections;
+use crate::storage::projections::{ProjectedColumn, Projections};
 
 pub const FUNCTION_SET_LIST_TABLES: TableFunctionSet = TableFunctionSet {
     name: "list_tables",
@@ -156,10 +155,14 @@ impl TableScanFunction for ListTables {
 
     async fn bind(
         &'static self,
-        db_context: &DatabaseContext,
+        scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let databases: Vec<_> = db_context.iter_databases().cloned().collect();
+        let databases: Vec<_> = scan_context
+            .database_context
+            .iter_databases()
+            .cloned()
+            .collect();
         let state = ListEntriesBindState::load_entries(
             databases,
             |_| true,
@@ -182,11 +185,11 @@ impl TableScanFunction for ListTables {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListEntriesOperatorState {
-            projections: projections.clone(),
+            projections,
             entries: bind_state.entries.clone(),
         })
     }
@@ -218,7 +221,7 @@ impl TableScanFunction for ListTables {
         op_state
             .projections
             .for_each_column(output, &mut |col_idx, output| match col_idx {
-                0 => {
+                ProjectedColumn::Data(0) => {
                     // Catalog name
                     let mut db_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -226,7 +229,7 @@ impl TableScanFunction for ListTables {
                     }
                     Ok(())
                 }
-                1 => {
+                ProjectedColumn::Data(1) => {
                     // Schema name
                     let mut schema_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -234,7 +237,7 @@ impl TableScanFunction for ListTables {
                     }
                     Ok(())
                 }
-                2 => {
+                ProjectedColumn::Data(2) => {
                     // Table name
                     let mut table_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -242,7 +245,7 @@ impl TableScanFunction for ListTables {
                     }
                     Ok(())
                 }
-                other => panic!("unexpected projection: {other}"),
+                other => panic!("unexpected projection: {other:?}"),
             })?;
 
         output.set_num_rows(count)?;
@@ -266,10 +269,14 @@ impl TableScanFunction for ListViews {
 
     async fn bind(
         &'static self,
-        db_context: &DatabaseContext,
+        scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let databases: Vec<_> = db_context.iter_databases().cloned().collect();
+        let databases: Vec<_> = scan_context
+            .database_context
+            .iter_databases()
+            .cloned()
+            .collect();
         let state = ListEntriesBindState::load_entries(
             databases,
             |_| true,
@@ -292,11 +299,11 @@ impl TableScanFunction for ListViews {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListEntriesOperatorState {
-            projections: projections.clone(),
+            projections,
             entries: bind_state.entries.clone(),
         })
     }
@@ -328,7 +335,7 @@ impl TableScanFunction for ListViews {
         op_state
             .projections
             .for_each_column(output, &mut |col_idx, output| match col_idx {
-                0 => {
+                ProjectedColumn::Data(0) => {
                     // Catalog name
                     let mut db_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -336,7 +343,7 @@ impl TableScanFunction for ListViews {
                     }
                     Ok(())
                 }
-                1 => {
+                ProjectedColumn::Data(1) => {
                     // Schema name
                     let mut schema_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -344,7 +351,7 @@ impl TableScanFunction for ListViews {
                     }
                     Ok(())
                 }
-                2 => {
+                ProjectedColumn::Data(2) => {
                     // View name
                     let mut table_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -352,7 +359,7 @@ impl TableScanFunction for ListViews {
                     }
                     Ok(())
                 }
-                other => panic!("unexpected projection: {other}"),
+                other => panic!("unexpected projection: {other:?}"),
             })?;
 
         output.set_num_rows(count)?;
@@ -414,10 +421,14 @@ impl TableScanFunction for ListFunctions {
 
     async fn bind(
         &'static self,
-        db_context: &DatabaseContext,
+        scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let databases: Vec<_> = db_context.iter_databases().cloned().collect();
+        let databases: Vec<_> = scan_context
+            .database_context
+            .iter_databases()
+            .cloned()
+            .collect();
         // TODO: Do we want COPY functions in the output? Not yet
         let state = ListEntriesBindState::load_entries(
             databases,
@@ -464,11 +475,11 @@ impl TableScanFunction for ListFunctions {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListEntriesOperatorState {
-            projections: projections.clone(),
+            projections,
             entries: bind_state.entries.clone(),
         })
     }
@@ -534,7 +545,7 @@ impl TableScanFunction for ListFunctions {
         op_state
             .projections
             .for_each_column(output, &mut |col_idx, output| match col_idx {
-                0 => {
+                ProjectedColumn::Data(0) => {
                     // Catalog name
                     let mut db_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -542,7 +553,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                1 => {
+                ProjectedColumn::Data(1) => {
                     // Schema name
                     let mut schema_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -550,7 +561,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                2 => {
+                ProjectedColumn::Data(2) => {
                     // Function name
                     let mut function_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -558,7 +569,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                3 => {
+                ProjectedColumn::Data(3) => {
                     // Function type
                     let mut function_types = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -569,7 +580,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                4 => {
+                ProjectedColumn::Data(4) => {
                     // Category
                     let (data, validity) = output.data_and_validity_mut();
                     let mut categories = PhysicalUtf8::get_addressable_mut(data)?;
@@ -581,7 +592,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                5 => {
+                ProjectedColumn::Data(5) => {
                     // Arguments
                     for idx in 0..count {
                         let ent = &state.entries[idx + state.offset];
@@ -608,7 +619,7 @@ impl TableScanFunction for ListFunctions {
 
                     Ok(())
                 }
-                6 => {
+                ProjectedColumn::Data(6) => {
                     // Argument types
                     for idx in 0..count {
                         let mut types = Vec::new(); // TODO: No need to allocate every time.
@@ -627,7 +638,7 @@ impl TableScanFunction for ListFunctions {
 
                     Ok(())
                 }
-                7 => {
+                ProjectedColumn::Data(7) => {
                     // Return type
                     let mut ret_types = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     let mut s_buf = String::new();
@@ -642,7 +653,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                8 => {
+                ProjectedColumn::Data(8) => {
                     // Description
                     let (data, validity) = output.data_and_validity_mut();
                     let mut descriptions = PhysicalUtf8::get_addressable_mut(data)?;
@@ -654,7 +665,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                9 => {
+                ProjectedColumn::Data(9) => {
                     // Example
                     let (data, validity) = output.data_and_validity_mut();
                     let mut examples = PhysicalUtf8::get_addressable_mut(data)?;
@@ -669,7 +680,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                10 => {
+                ProjectedColumn::Data(10) => {
                     // Example output
                     let (data, validity) = output.data_and_validity_mut();
                     let mut example_outputs = PhysicalUtf8::get_addressable_mut(data)?;
@@ -684,7 +695,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                other => panic!("unexpected projection: {other}"),
+                other => panic!("unexpected projection: {other:?}"),
             })?;
 
         output.set_num_rows(count)?;

@@ -3,7 +3,11 @@ use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::DbError;
-use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io};
+use glaredb_rt_native::runtime::{
+    NativeSystemRuntime,
+    ThreadedNativeExecutor,
+    new_tokio_runtime_for_io,
+};
 use pyo3::{Python, pyclass, pyfunction, pymethods};
 use tokio::runtime::Runtime as TokioRuntime;
 
@@ -16,7 +20,7 @@ const DEFAULT_TABLE_WIDTH: usize = 100;
 #[pyfunction]
 pub fn connect() -> Result<PythonSession> {
     let tokio_rt = new_tokio_runtime_for_io()?;
-    let runtime = NativeRuntime::new(tokio_rt.handle().clone());
+    let runtime = NativeSystemRuntime::new(tokio_rt.handle().clone());
     let executor = ThreadedNativeExecutor::try_new()?;
     let engine = SingleUserEngine::try_new(executor, runtime.clone())?;
 
@@ -34,7 +38,7 @@ pub struct PythonSession {
     ///
     /// Wrapped in an option so that we can properly drop it on close and error
     /// if the user tries to reuse the session.
-    pub(crate) engine: Option<SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>>,
+    pub(crate) engine: Option<SingleUserEngine<ThreadedNativeExecutor, NativeSystemRuntime>>,
 }
 
 #[pymethods]
@@ -78,7 +82,9 @@ impl PythonSession {
 }
 
 impl PythonSession {
-    fn try_get_engine(&self) -> Result<&SingleUserEngine<ThreadedNativeExecutor, NativeRuntime>> {
+    fn try_get_engine(
+        &self,
+    ) -> Result<&SingleUserEngine<ThreadedNativeExecutor, NativeSystemRuntime>> {
         let engine = self.engine.as_ref().ok_or_else(|| {
             DbError::new("Attempted to reuse session after it's already been closed")
         })?;

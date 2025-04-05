@@ -9,21 +9,21 @@ use tracing::trace;
 use wasm_bindgen::prelude::*;
 
 use crate::errors::Result;
-use crate::runtime::{WasmExecutor, WasmRuntime};
+use crate::runtime::{WasmExecutor, WasmSystemRuntime};
 
 #[wasm_bindgen]
 #[derive(Debug)]
 pub struct WasmSession {
     #[allow(unused)]
-    pub(crate) runtime: WasmRuntime,
+    pub(crate) runtime: WasmSystemRuntime,
     #[allow(unused)]
-    pub(crate) engine: SingleUserEngine<WasmExecutor, WasmRuntime>,
+    pub(crate) engine: SingleUserEngine<WasmExecutor, WasmSystemRuntime>,
 }
 
 #[wasm_bindgen]
 impl WasmSession {
     pub fn try_new() -> Result<WasmSession> {
-        let runtime = WasmRuntime::try_new()?;
+        let runtime = WasmSystemRuntime::try_new()?;
         let engine = SingleUserEngine::try_new(WasmExecutor, runtime.clone())?;
         engine.register_extension(SparkExtension)?;
 

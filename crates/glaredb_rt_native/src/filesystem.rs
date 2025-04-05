@@ -1,10 +1,9 @@
-use std::fs::{self, File as StdFile};
-use std::io::{Read, Seek, SeekFrom};
-use std::path::Path;
+use std::fs::{self, File as StdFile, OpenOptions};
+use std::io::{ErrorKind, Read, SeekFrom};
 use std::task::{Context, Poll};
 
-use glaredb_core::io::file::{AsyncReadStream, FileSource};
-use glaredb_error::{Result, ResultExt};
+use glaredb_core::runtime::filesystem::{File, FileStat, FileSystem, FileType, OpenFlags};
+use glaredb_error::{DbError, Result, ResultExt};
 
 #[derive(Debug)]
 pub struct LocalFile {
@@ -12,111 +11,76 @@ pub struct LocalFile {
     file: StdFile,
 }
 
-impl LocalFile {
-    pub fn open_for_read(&self, path: impl AsRef<Path>) -> Result<Self> {
-        let file = fs::OpenOptions::new()
-            .read(true)
-            .open(path.as_ref())
-            .context_fn(|| format!("failed to open file: {}", path.as_ref().to_string_lossy()))?;
-
-        let len = file.metadata()?.len() as usize;
-
-        Ok(LocalFile { len, file })
+impl File for LocalFile {
+    fn size(&self) -> usize {
+        self.len
     }
 
-    pub fn open_for_overwrite(&self, path: impl AsRef<Path>) -> Result<Self> {
-        let file = fs::OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .open(path.as_ref())
-            .context_fn(|| format!("failed to open file: {}", path.as_ref().to_string_lossy()))?;
-
-        Ok(LocalFile { len: 0, file })
-    }
-}
-
-impl FileSource for LocalFile {
-    type ReadStream = LocalFileRead;
-    type ReadRangeStream = LocalFileRead;
-
-    async fn size(&self) -> Result<usize> {
-        Ok(self.len)
+    fn poll_read(&mut self, _cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
+        let result = self.file.read(buf).context("Failed to read from file");
+        Poll::Ready(result)
     }
 
-    fn read(&mut self) -> Self::ReadStream {
-        LocalFileRead::Seeking {
-            file: self.file.try_clone().unwrap(),
-            seek_to: 0,
-            read_amount: self.len,
-        }
+    fn poll_write(&mut self, _buf: &mut [u8]) -> Poll<Result<usize>> {
+        Poll::Ready(Err(DbError::new(
+            "not implemented: poll write for local file",
+        )))
     }
 
-    fn read_range(&mut self, start: usize, len: usize) -> Self::ReadRangeStream {
-        LocalFileRead::Seeking {
-            file: self.file.try_clone().unwrap(),
-            seek_to: start as u64,
-            read_amount: len,
-        }
+    fn poll_seek(&mut self, _seek: SeekFrom) -> Poll<Result<()>> {
+        Poll::Ready(Err(DbError::new(
+            "not implemented: poll seek for local file",
+        )))
+    }
+
+    fn poll_flush(&mut self) -> Poll<Result<()>> {
+        Poll::Ready(Err(DbError::new(
+            "not implemented: poll flush for local file",
+        )))
     }
 }
 
 #[derive(Debug)]
-pub enum LocalFileRead {
-    Seeking {
-        file: StdFile,
-        seek_to: u64,
-        read_amount: usize,
-    },
-    Streaming {
-        file: StdFile,
-        remaining: usize,
-    },
-    Uninit,
-}
+pub struct LocalFileSystem {}
 
-impl AsyncReadStream for LocalFileRead {
-    fn poll_read(&mut self, _cx: &mut Context, mut buf: &mut [u8]) -> Result<Poll<Option<usize>>> {
-        let this = &mut *self;
+impl FileSystem for LocalFileSystem {
+    type File = LocalFile;
 
-        loop {
-            match this {
-                Self::Seeking { file, seek_to, .. } => {
-                    file.seek(SeekFrom::Start(*seek_to))
-                        .context_fn(|| format!("failed to seek to '{}' in file", seek_to))?;
+    async fn open(&self, flags: OpenFlags, path: &str) -> Result<Self::File> {
+        let file = OpenOptions::new()
+            .read(flags.is_read())
+            .write(flags.is_write())
+            .create(flags.is_create())
+            .open(path)?;
 
-                    let state = std::mem::replace(this, LocalFileRead::Uninit);
+        let metadata = file.metadata()?;
 
-                    match state {
-                        Self::Seeking {
-                            file, read_amount, ..
-                        } => {
-                            *this = LocalFileRead::Streaming {
-                                file,
-                                remaining: read_amount,
-                            }
-                        }
-                        _ => unreachable!(),
-                    }
+        Ok(LocalFile {
+            len: metadata.len() as usize,
+            file,
+        })
+    }
 
-                    // Move to streaming.
-                    continue;
-                }
-                Self::Streaming { file, remaining } => {
-                    if *remaining == 0 {
-                        return Ok(Poll::Ready(None));
-                    }
+    async fn stat(&self, path: &str) -> Result<Option<FileStat>> {
+        let metadata = match fs::metadata(path) {
+            Ok(metadata) => metadata,
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
 
-                    if buf.len() > *remaining {
-                        buf = &mut buf[0..*remaining];
-                    }
+        let file_type = if metadata.is_dir() {
+            FileType::Directory
+        } else if metadata.is_file() {
+            FileType::File
+        } else {
+            return Err(DbError::new("Unknown file type"));
+        };
 
-                    let n = file.read(buf).context("failed to read file")?;
-                    *remaining -= n;
+        Ok(Some(FileStat { file_type }))
+    }
 
-                    return Ok(Poll::Ready(Some(n)));
-                }
-                Self::Uninit => panic!("invalid state"),
-            }
-        }
+    fn can_handle_path(&self, _path: &str) -> bool {
+        // yes
+        true
     }
 }

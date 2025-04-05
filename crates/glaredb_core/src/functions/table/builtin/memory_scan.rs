@@ -6,13 +6,12 @@ use glaredb_error::Result;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataTypeId;
 use crate::arrays::field::ColumnSchema;
-use crate::catalog::context::DatabaseContext;
 use crate::catalog::{Catalog, Schema};
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
-use crate::functions::table::scan::TableScanFunction;
+use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::datatable::{DataTable, ParallelDataTableScanState};
@@ -62,7 +61,7 @@ impl TableScanFunction for MemoryScan {
 
     async fn bind(
         &'static self,
-        db_context: &DatabaseContext,
+        scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         // TODO: Avoid the clones.
@@ -80,7 +79,9 @@ impl TableScanFunction for MemoryScan {
             .try_into_scalar()?
             .try_into_string()?;
 
-        let database = db_context.require_get_database(&catalog)?;
+        let database = scan_context
+            .database_context
+            .require_get_database(&catalog)?;
 
         let ent = database
             .catalog
@@ -100,11 +101,11 @@ impl TableScanFunction for MemoryScan {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(MemoryScanOperatorState {
-            projections: projections.clone(),
+            projections,
             table: bind_state.table.clone(),
         })
     }

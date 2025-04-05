@@ -10,7 +10,7 @@ use glaredb_core::functions::Signature;
 use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
-use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_error::Result;
 use tpchgen::generators::{Region, RegionGenerator, RegionGeneratorIterator};
 
@@ -58,28 +58,28 @@ impl TpchTable for RegionTable {
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
         projections.for_each_column(output, &mut |col_idx, output| match col_idx {
-            0 => {
+            ProjectedColumn::Data(0) => {
                 let mut r_keys = PhysicalI32::get_addressable_mut(output.data_mut())?;
                 for (idx, region) in rows.iter().enumerate() {
                     r_keys.put(idx, &(region.r_regionkey as i32));
                 }
                 Ok(())
             }
-            1 => {
+            ProjectedColumn::Data(1) => {
                 let mut r_names = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, region) in rows.iter().enumerate() {
                     r_names.put(idx, region.r_name);
                 }
                 Ok(())
             }
-            2 => {
+            ProjectedColumn::Data(2) => {
                 let mut r_comments = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, region) in rows.iter().enumerate() {
                     r_comments.put(idx, region.r_comment);
                 }
                 Ok(())
             }
-            other => panic!("invalid projection {other}"),
+            other => panic!("invalid projection {other:?}"),
         })
     }
 }

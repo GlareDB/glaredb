@@ -19,12 +19,12 @@ use crate::catalog::database::{AccessMode, Database};
 use crate::catalog::system::{DEFAULT_SCHEMA, new_system_catalog};
 use crate::catalog::{Catalog, Schema};
 use crate::extension::Extension;
-use crate::runtime::io::IoRuntime;
 use crate::runtime::pipeline::PipelineRuntime;
+use crate::runtime::system::SystemRuntime;
 use crate::storage::storage_manager::StorageManager;
 
 #[derive(Debug)]
-pub struct Engine<P: PipelineRuntime, R: IoRuntime> {
+pub struct Engine<P: PipelineRuntime, R: SystemRuntime> {
     system_catalog: Arc<Database>,
     executor: P,
     runtime: R,
@@ -33,7 +33,7 @@ pub struct Engine<P: PipelineRuntime, R: IoRuntime> {
 impl<P, R> Engine<P, R>
 where
     P: PipelineRuntime,
-    R: IoRuntime,
+    R: SystemRuntime,
 {
     pub fn new(executor: P, runtime: R) -> Result<Self> {
         let system_catalog = Arc::new(Database {

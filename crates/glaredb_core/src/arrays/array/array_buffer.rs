@@ -283,7 +283,7 @@ impl ArrayBufferType {
         }
     }
 
-    pub fn get_string_buffer_mut(&self) -> Result<&StringBuffer> {
+    pub fn get_string_buffer_mut(&mut self) -> Result<&mut StringBuffer> {
         match self {
             Self::String(b) => Ok(b),
             other => Err(DbError::new(format!(
@@ -646,7 +646,8 @@ impl StringViewBuffer {
         }
     }
 
-    pub fn push_bytes(&mut self, value: &[u8]) -> Result<StringView> {
+    /// Push bytes as a new row value.
+    pub fn push_bytes_as_row(&mut self, value: &[u8]) -> Result<StringView> {
         if value.len() <= MAX_INLINE_LEN {
             Ok(StringView::new_inline(value))
         } else {
@@ -939,7 +940,7 @@ mod tests {
     #[test]
     fn string_view_buffer_push_inlined() {
         let mut buffer = StringViewBuffer::with_capacity(&NopBufferManager, 0).unwrap();
-        let m = buffer.push_bytes(&[0, 1, 2, 3]).unwrap();
+        let m = buffer.push_bytes_as_row(&[0, 1, 2, 3]).unwrap();
         assert!(m.is_inline());
 
         let got = buffer.get(&m);
@@ -949,13 +950,13 @@ mod tests {
     #[test]
     fn string_view_buffer_push_referenced() {
         let mut buffer = StringViewBuffer::with_capacity(&NopBufferManager, 0).unwrap();
-        let m1 = buffer.push_bytes(&vec![4; 32]).unwrap();
+        let m1 = buffer.push_bytes_as_row(&vec![4; 32]).unwrap();
         assert!(!m1.is_inline());
 
         let got = buffer.get(&m1);
         assert_eq!(&vec![4; 32], got);
 
-        let m2 = buffer.push_bytes(&vec![5; 32]).unwrap();
+        let m2 = buffer.push_bytes_as_row(&vec![5; 32]).unwrap();
         assert!(!m2.is_inline());
 
         let got = buffer.get(&m2);

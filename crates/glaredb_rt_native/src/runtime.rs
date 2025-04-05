@@ -1,18 +1,14 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use glaredb_core::arrays::scalar::ScalarValue;
 use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
-use glaredb_core::io::access::AccessConfig;
-use glaredb_core::io::file::FileOpener;
-use glaredb_core::runtime::io::IoRuntime;
+use glaredb_core::runtime::filesystem::dispatch::FileSystemDispatch;
 use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
-use glaredb_error::{Result, ResultExt, not_implemented};
+use glaredb_core::runtime::system::SystemRuntime;
+use glaredb_error::{Result, ResultExt};
 use tokio::runtime::Handle as TokioHandle;
 
-use crate::filesystem::LocalFile;
-use crate::http::TokioWrappedHttpClient;
+use crate::filesystem::LocalFileSystem;
 use crate::threaded::ThreadedScheduler;
 use crate::time::NativeInstant;
 
@@ -79,62 +75,33 @@ pub fn new_tokio_runtime_for_io() -> Result<tokio::runtime::Runtime> {
 pub type ThreadedNativeExecutor = NativeExecutor<ThreadedScheduler>;
 
 #[derive(Debug, Clone)]
-pub struct NativeRuntime {
-    handle: TokioHandle,
+pub struct NativeSystemRuntime {
+    // TODO: If we want to have dynamically registered filesystems, it's likely
+    // the dispatch would need to live on the session to get rid of arc.
+    //
+    // Which would be find, filesystems should internally be wrapped in an arc,
+    // so the engine could have 'default' filesystems, then the session could
+    // either be a super or subset of that.
+    dispatch: Arc<FileSystemDispatch>,
 }
 
-impl NativeRuntime {
-    pub fn new(handle: TokioHandle) -> Self {
-        NativeRuntime { handle }
+impl NativeSystemRuntime {
+    pub fn new(_handle: TokioHandle) -> Self {
+        let mut dispatch = FileSystemDispatch::empty();
+
+        // TODO: native fs, http stuff. Tokio wil be use there.
+        dispatch.register_filesystem(LocalFileSystem {});
+
+        NativeSystemRuntime {
+            dispatch: Arc::new(dispatch),
+        }
     }
 }
 
-impl IoRuntime for NativeRuntime {
-    type HttpClient = TokioWrappedHttpClient;
-    type FileProvider = NativeFileProvider;
+impl SystemRuntime for NativeSystemRuntime {
     type Instant = NativeInstant;
 
-    fn file_provider(&self) -> Arc<Self::FileProvider> {
-        Arc::new(NativeFileProvider {
-            _handle: Some(self.handle.clone()),
-        })
-    }
-
-    fn http_client(&self) -> Self::HttpClient {
-        TokioWrappedHttpClient::new(reqwest::Client::default(), self.handle.clone())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct NativeFileProvider {
-    /// For http (reqwest).
-    ///
-    /// If we don't have it, we return an error when attempting to access an
-    /// http file.
-    _handle: Option<tokio::runtime::Handle>,
-}
-
-#[derive(Debug)]
-pub struct StubAccess {}
-
-impl AccessConfig for StubAccess {
-    fn from_options(
-        _unnamed: &[ScalarValue],
-        _named: &HashMap<String, ScalarValue>,
-    ) -> Result<Self> {
-        not_implemented!("access from args")
-    }
-}
-
-impl FileOpener for NativeFileProvider {
-    type AccessConfig = StubAccess;
-    type ReadFile = LocalFile;
-
-    async fn list_prefix(&self, _prefix: &str) -> Result<Vec<String>> {
-        Ok(Vec::new())
-    }
-
-    fn open_for_read(&self, _conf: &Self::AccessConfig) -> Result<Self::ReadFile> {
-        not_implemented!("open for read")
+    fn filesystem_dispatch(&self) -> &FileSystemDispatch {
+        &self.dispatch
     }
 }

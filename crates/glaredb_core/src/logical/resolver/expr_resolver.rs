@@ -7,21 +7,25 @@ use glaredb_parser::meta::Raw;
 use super::resolve_normal::create_user_facing_resolve_err;
 use super::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
 use super::resolved_table_function::ConstantFunctionArgs;
-use super::{ResolveContext, ResolvedMeta, Resolver};
+use super::{ResolveContext, ResolvedMeta, Resolver, ast_datatype_to_exec_datatype};
 use crate::catalog::context::SYSTEM_CATALOG;
 use crate::catalog::entry::CatalogEntryType;
 use crate::catalog::system::DEFAULT_SCHEMA;
 use crate::catalog::{Catalog, Schema};
 use crate::logical::binder::expr_binder::BaseExpressionBinder;
 use crate::logical::operator::LocationRequirement;
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug)]
-pub struct ExpressionResolver<'a> {
-    resolver: &'a Resolver<'a>,
+pub struct ExpressionResolver<'a, R: SystemRuntime> {
+    resolver: &'a Resolver<'a, R>,
 }
 
-impl<'a> ExpressionResolver<'a> {
-    pub fn new(resolver: &'a Resolver) -> Self {
+impl<'a, R> ExpressionResolver<'a, R>
+where
+    R: SystemRuntime,
+{
+    pub fn new(resolver: &'a Resolver<R>) -> Self {
         ExpressionResolver { resolver }
     }
 
@@ -254,12 +258,12 @@ impl<'a> ExpressionResolver<'a> {
                     .await
             }
             ast::Expr::TypedString { datatype, value } => {
-                let datatype = Resolver::ast_datatype_to_exec_datatype(datatype)?;
+                let datatype = ast_datatype_to_exec_datatype(datatype)?;
                 Ok(ast::Expr::TypedString { datatype, value })
             }
             ast::Expr::Cast { datatype, expr } => {
                 let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
-                let datatype = Resolver::ast_datatype_to_exec_datatype(datatype)?;
+                let datatype = ast_datatype_to_exec_datatype(datatype)?;
                 Ok(ast::Expr::Cast {
                     datatype,
                     expr: Box::new(expr),
@@ -764,11 +768,14 @@ impl<'a> ExpressionResolver<'a> {
         over: ast::WindowSpec<Raw>,
         resolve_context: &mut ResolveContext,
     ) -> Result<ast::WindowSpec<ResolvedMeta>> {
-        async fn resolve_window_frame_bound(
-            resolver: &ExpressionResolver<'_>,
+        async fn resolve_window_frame_bound<R>(
+            resolver: &ExpressionResolver<'_, R>,
             bound: ast::WindowFrameBound<Raw>,
             resolve_context: &mut ResolveContext,
-        ) -> Result<ast::WindowFrameBound<ResolvedMeta>> {
+        ) -> Result<ast::WindowFrameBound<ResolvedMeta>>
+        where
+            R: SystemRuntime,
+        {
             Ok(match bound {
                 ast::WindowFrameBound::CurrentRow => ast::WindowFrameBound::CurrentRow,
                 ast::WindowFrameBound::UnboundedPreceding => {

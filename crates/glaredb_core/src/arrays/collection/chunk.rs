@@ -1,4 +1,4 @@
-use glaredb_error::Result;
+use glaredb_error::{Result, not_implemented};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::ArrayBuffer;
@@ -7,7 +7,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::compute::copy::copy_rows_raw;
 use crate::arrays::datatype::DataType;
 use crate::buffer::buffer_manager::AsRawBufferManager;
-use crate::storage::projections::Projections;
+use crate::storage::projections::{ProjectedColumn, Projections};
 
 #[derive(Debug)]
 pub struct ColumnChunk {
@@ -77,13 +77,15 @@ impl ColumnChunk {
     pub fn scan(&self, projections: &Projections, output: &mut Batch) -> Result<usize> {
         debug_assert!(
             projections
-                .indices()
+                .data_indices()
                 .iter()
                 .all(|&idx| idx < self.buffers.len())
         );
 
-        projections.for_each_column(output, &mut |col_idx, output| {
-            self.buffers[col_idx].clone_to_array(output)
+        projections.for_each_column(output, &mut |col_idx, output| match col_idx {
+            ProjectedColumn::Data(idx) => self.buffers[idx].clone_to_array(output),
+            ProjectedColumn::Virtual(0) => not_implemented!("materialized row id"),
+            other => panic!("invalid projection: {other:?}"),
         })?;
         output.set_num_rows(self.filled)?;
 

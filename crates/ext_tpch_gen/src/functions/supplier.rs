@@ -13,7 +13,7 @@ use glaredb_core::functions::Signature;
 use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
-use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_error::{OptionExt, Result};
 use tpchgen::generators::{Supplier, SupplierGenerator, SupplierGeneratorIterator};
 
@@ -63,14 +63,14 @@ impl TpchTable for SupplierTable {
         let mut s_buf = String::new();
 
         projections.for_each_column(output, &mut |col_idx, output| match col_idx {
-            0 => {
+            ProjectedColumn::Data(0) => {
                 let mut s_keys = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, supp) in rows.iter().enumerate() {
                     s_keys.put(idx, &(supp.s_suppkey));
                 }
                 Ok(())
             }
-            1 => {
+            ProjectedColumn::Data(1) => {
                 let mut s_names = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, supp) in rows.iter().enumerate() {
                     s_buf.clear();
@@ -79,7 +79,7 @@ impl TpchTable for SupplierTable {
                 }
                 Ok(())
             }
-            2 => {
+            ProjectedColumn::Data(2) => {
                 let mut s_addresses = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, supp) in rows.iter().enumerate() {
                     s_buf.clear();
@@ -88,14 +88,14 @@ impl TpchTable for SupplierTable {
                 }
                 Ok(())
             }
-            3 => {
+            ProjectedColumn::Data(3) => {
                 let mut s_nationkeys = PhysicalI32::get_addressable_mut(output.data_mut())?;
                 for (idx, supp) in rows.iter().enumerate() {
                     s_nationkeys.put(idx, &(supp.s_nationkey as i32));
                 }
                 Ok(())
             }
-            4 => {
+            ProjectedColumn::Data(4) => {
                 let mut s_phones = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, supp) in rows.iter().enumerate() {
                     s_buf.clear();
@@ -104,21 +104,21 @@ impl TpchTable for SupplierTable {
                 }
                 Ok(())
             }
-            5 => {
+            ProjectedColumn::Data(5) => {
                 let mut s_balances = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, supp) in rows.iter().enumerate() {
                     s_balances.put(idx, &supp.s_acctbal.0);
                 }
                 Ok(())
             }
-            6 => {
+            ProjectedColumn::Data(6) => {
                 let mut s_comments = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, supp) in rows.iter().enumerate() {
                     s_comments.put(idx, &supp.s_comment);
                 }
                 Ok(())
             }
-            other => panic!("invalid projection {other}"),
+            other => panic!("invalid projection {other:?}"),
         })
     }
 }

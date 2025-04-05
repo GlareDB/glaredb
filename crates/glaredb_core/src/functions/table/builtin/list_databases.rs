@@ -7,16 +7,15 @@ use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, 
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::field::{ColumnSchema, Field};
-use crate::catalog::context::DatabaseContext;
 use crate::catalog::database::Database;
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
-use crate::functions::table::scan::TableScanFunction;
+use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::logical::statistics::StatisticsValue;
-use crate::storage::projections::Projections;
+use crate::storage::projections::{ProjectedColumn, Projections};
 
 pub const FUNCTION_SET_LIST_DATABASES: TableFunctionSet = TableFunctionSet {
     name: "list_databases",
@@ -60,10 +59,14 @@ impl TableScanFunction for ListDatabases {
 
     async fn bind(
         &'static self,
-        db_context: &DatabaseContext,
+        scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let databases = db_context.iter_databases().cloned().collect();
+        let databases = scan_context
+            .database_context
+            .iter_databases()
+            .cloned()
+            .collect();
         Ok(TableFunctionBindState {
             state: ListDatabasesBindState { databases },
             input,
@@ -77,11 +80,11 @@ impl TableScanFunction for ListDatabases {
 
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
-        projections: &Projections,
+        projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListDatabasesOperatorState {
-            projections: projections.clone(),
+            projections,
             databases: bind_state.databases.clone(),
         })
     }
@@ -115,21 +118,21 @@ impl TableScanFunction for ListDatabases {
         op_state
             .projections
             .for_each_column(output, &mut |col_idx, output| match col_idx {
-                0 => {
+                ProjectedColumn::Data(0) => {
                     let mut names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
                         names.put(idx, &state.databases[idx + state.offset].name);
                     }
                     Ok(())
                 }
-                1 => {
+                ProjectedColumn::Data(1) => {
                     let mut access_modes = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
                         access_modes.put(idx, state.databases[idx + state.offset].mode.as_str());
                     }
                     Ok(())
                 }
-                other => panic!("unexpected projection: {other}"),
+                other => panic!("unexpected projection: {other:?}"),
             })?;
 
         output.set_num_rows(count)?;

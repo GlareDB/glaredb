@@ -10,14 +10,13 @@ use super::Engine;
 use super::query_result::QueryResult;
 use super::session::Session;
 use crate::extension::Extension;
-use crate::runtime::io::IoRuntime;
 use crate::runtime::pipeline::PipelineRuntime;
+use crate::runtime::system::SystemRuntime;
 
 /// A wrapper around a session and an engine for when running the database in a
 /// local, single user mode (e.g. in the CLI or through wasm).
 #[derive(Debug)]
-pub struct SingleUserEngine<P: PipelineRuntime, R: IoRuntime> {
-    pub runtime: R,
+pub struct SingleUserEngine<P: PipelineRuntime, R: SystemRuntime> {
     pub engine: Engine<P, R>,
     pub session: SingleUserSession<P, R>,
 }
@@ -25,20 +24,16 @@ pub struct SingleUserEngine<P: PipelineRuntime, R: IoRuntime> {
 impl<P, R> SingleUserEngine<P, R>
 where
     P: PipelineRuntime,
-    R: IoRuntime,
+    R: SystemRuntime,
 {
     /// Create a new single user engine using the provided runtime and registry.
     pub fn try_new(executor: P, runtime: R) -> Result<Self> {
-        let engine = Engine::new(executor, runtime.clone())?;
+        let engine = Engine::new(executor, runtime)?;
         let session = SingleUserSession {
             session: Arc::new(Mutex::new(engine.new_session()?)),
         };
 
-        Ok(SingleUserEngine {
-            runtime,
-            engine,
-            session,
-        })
+        Ok(SingleUserEngine { engine, session })
     }
 
     pub fn session(&self) -> &SingleUserSession<P, R> {
@@ -57,7 +52,7 @@ where
 ///
 /// Cheaply cloneable.
 #[derive(Debug, Clone)]
-pub struct SingleUserSession<P: PipelineRuntime, R: IoRuntime> {
+pub struct SingleUserSession<P: PipelineRuntime, R: SystemRuntime> {
     /// The underlying session.
     ///
     /// Wrapped in a mutex since planning may alter session state. Needs a
@@ -72,7 +67,7 @@ pub struct SingleUserSession<P: PipelineRuntime, R: IoRuntime> {
 impl<P, R> SingleUserSession<P, R>
 where
     P: PipelineRuntime,
-    R: IoRuntime,
+    R: SystemRuntime,
 {
     /// Execute a single sql query.
     pub async fn query(&self, sql: &str) -> Result<QueryResult> {
@@ -111,7 +106,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct PendingQuery<P: PipelineRuntime, R: IoRuntime> {
+pub struct PendingQuery<P: PipelineRuntime, R: SystemRuntime> {
     pub(crate) statement: RawStatement,
     pub(crate) session: Arc<Mutex<Session<P, R>>>,
 }
@@ -119,7 +114,7 @@ pub struct PendingQuery<P: PipelineRuntime, R: IoRuntime> {
 impl<P, R> PendingQuery<P, R>
 where
     P: PipelineRuntime,
-    R: IoRuntime,
+    R: SystemRuntime,
 {
     pub async fn execute(self) -> Result<QueryResult> {
         const UNNAMED: &str = "";

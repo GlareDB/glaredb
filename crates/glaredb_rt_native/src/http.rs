@@ -20,6 +20,7 @@ pub struct TokioWrappedHttpClient {
 }
 
 impl TokioWrappedHttpClient {
+    #[allow(unused)] // I will deal with soon
     pub fn new(client: reqwest::Client, handle: tokio::runtime::Handle) -> Self {
         TokioWrappedHttpClient { client, handle }
     }

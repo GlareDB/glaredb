@@ -9,7 +9,11 @@ use file::DocFile;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::functions::documentation::Category;
 use glaredb_error::Result;
-use glaredb_rt_native::runtime::{NativeRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io};
+use glaredb_rt_native::runtime::{
+    NativeSystemRuntime,
+    ThreadedNativeExecutor,
+    new_tokio_runtime_for_io,
+};
 use section::FunctionSectionWriter;
 use session::DocsSession;
 use tracing::info;
@@ -82,7 +86,7 @@ fn main() -> Result<()> {
 
     let tokio_rt = new_tokio_runtime_for_io()?;
     let executor = ThreadedNativeExecutor::try_new().unwrap();
-    let runtime = NativeRuntime::new(tokio_rt.handle().clone());
+    let runtime = NativeSystemRuntime::new(tokio_rt.handle().clone());
 
     let engine = SingleUserEngine::try_new(executor, runtime)?;
     let session = DocsSession { tokio_rt, engine };

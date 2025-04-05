@@ -11,7 +11,7 @@ use glaredb_core::functions::Signature;
 use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
-use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_error::{OptionExt, Result};
 use tpchgen::generators::{LineItem, LineItemGenerator, LineItemGeneratorIterator};
 
@@ -72,77 +72,77 @@ impl TpchTable for LineItemTable {
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
         projections.for_each_column(output, &mut |col_idx, output| match col_idx {
-            0 => {
+            ProjectedColumn::Data(0) => {
                 let mut l_orderkeys = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_orderkeys.put(idx, &lineitem.l_orderkey);
                 }
                 Ok(())
             }
-            1 => {
+            ProjectedColumn::Data(1) => {
                 let mut l_partkeys = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_partkeys.put(idx, &lineitem.l_partkey);
                 }
                 Ok(())
             }
-            2 => {
+            ProjectedColumn::Data(2) => {
                 let mut l_suppkeys = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_suppkeys.put(idx, &lineitem.l_suppkey);
                 }
                 Ok(())
             }
-            3 => {
+            ProjectedColumn::Data(3) => {
                 let mut l_linenumbers = PhysicalI32::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_linenumbers.put(idx, &lineitem.l_linenumber);
                 }
                 Ok(())
             }
-            4 => {
+            ProjectedColumn::Data(4) => {
                 let mut l_quantities = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_quantities.put(idx, &lineitem.l_quantity);
                 }
                 Ok(())
             }
-            5 => {
+            ProjectedColumn::Data(5) => {
                 let mut l_extended_prices = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_extended_prices.put(idx, &lineitem.l_extendedprice.0);
                 }
                 Ok(())
             }
-            6 => {
+            ProjectedColumn::Data(6) => {
                 let mut l_discounts = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_discounts.put(idx, &lineitem.l_discount.0);
                 }
                 Ok(())
             }
-            7 => {
+            ProjectedColumn::Data(7) => {
                 let mut l_taxes = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_taxes.put(idx, &lineitem.l_tax.0);
                 }
                 Ok(())
             }
-            8 => {
+            ProjectedColumn::Data(8) => {
                 let mut l_return_flags = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_return_flags.put(idx, lineitem.l_returnflag);
                 }
                 Ok(())
             }
-            9 => {
+            ProjectedColumn::Data(9) => {
                 let mut l_line_statuses = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_line_statuses.put(idx, lineitem.l_linestatus);
                 }
                 Ok(())
             }
-            10 => {
+            ProjectedColumn::Data(10) => {
                 let mut l_ship_dates = PhysicalI32::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_ship_dates.put(
@@ -152,7 +152,7 @@ impl TpchTable for LineItemTable {
                 }
                 Ok(())
             }
-            11 => {
+            ProjectedColumn::Data(11) => {
                 let mut l_commit_dates = PhysicalI32::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_commit_dates.put(
@@ -162,7 +162,7 @@ impl TpchTable for LineItemTable {
                 }
                 Ok(())
             }
-            12 => {
+            ProjectedColumn::Data(12) => {
                 let mut l_receipt_dates = PhysicalI32::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_receipt_dates.put(
@@ -172,28 +172,28 @@ impl TpchTable for LineItemTable {
                 }
                 Ok(())
             }
-            13 => {
+            ProjectedColumn::Data(13) => {
                 let mut l_shipinstructs = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_shipinstructs.put(idx, lineitem.l_shipinstruct);
                 }
                 Ok(())
             }
-            14 => {
+            ProjectedColumn::Data(14) => {
                 let mut l_shipmodes = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_shipmodes.put(idx, lineitem.l_shipmode);
                 }
                 Ok(())
             }
-            15 => {
+            ProjectedColumn::Data(15) => {
                 let mut l_comments = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, lineitem) in rows.iter().enumerate() {
                     l_comments.put(idx, lineitem.l_comment);
                 }
                 Ok(())
             }
-            other => panic!("invalid projection {other}"),
+            other => panic!("invalid projection {other:?}"),
         })
     }
 }

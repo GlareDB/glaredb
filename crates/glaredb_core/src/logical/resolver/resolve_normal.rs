@@ -21,6 +21,8 @@ use crate::catalog::{Catalog, Schema};
 use crate::expr;
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::TableFunctionInput;
+use crate::functions::table::scan::ScanContext;
+use crate::runtime::system::SystemRuntime;
 
 pub fn create_user_facing_resolve_err(
     schema_ent: Option<&MemorySchema>,
@@ -73,13 +75,17 @@ pub enum MaybeResolvedTable {
 
 // TODO: Search path
 #[derive(Debug)]
-pub struct NormalResolver<'a> {
+pub struct NormalResolver<'a, R: SystemRuntime> {
     pub context: &'a DatabaseContext,
+    pub runtime: &'a R,
 }
 
-impl<'a> NormalResolver<'a> {
-    pub fn new(context: &'a DatabaseContext) -> Self {
-        NormalResolver { context }
+impl<'a, R> NormalResolver<'a, R>
+where
+    R: SystemRuntime,
+{
+    pub fn new(context: &'a DatabaseContext, runtime: &'a R) -> Self {
+        NormalResolver { context, runtime }
     }
 
     /// Resolve a table function.
@@ -197,8 +203,12 @@ impl<'a> NormalResolver<'a> {
                         named: HashMap::new(),
                     };
 
+                    let scan_context = ScanContext {
+                        dispatch: self.runtime.filesystem_dispatch(),
+                        database_context: self.context,
+                    };
                     let planned =
-                        expr::bind_table_scan_function(&table_ent.function, self.context, inputs)
+                        expr::bind_table_scan_function(&table_ent.function, scan_context, inputs)
                             .await?;
 
                     return Ok(MaybeResolvedTable::Resolved(
