@@ -20,7 +20,7 @@ use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::TableScanFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::logical::statistics::StatisticsValue;
-use crate::storage::projections::Projections;
+use crate::storage::projections::{ProjectedColumn, Projections};
 
 pub const FUNCTION_SET_LIST_SCHEMAS: TableFunctionSet = TableFunctionSet {
     name: "list_schemas",
@@ -170,7 +170,7 @@ impl TableScanFunction for ListSchemas {
             .projections
             .for_each_column(output, &mut |col_idx, output| {
                 match col_idx {
-                    0 => {
+                    ProjectedColumn::Data(0) => {
                         let mut db_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                         for idx in 0..count {
                             // Note we're getting the same db every time.
@@ -178,7 +178,7 @@ impl TableScanFunction for ListSchemas {
                         }
                         Ok(())
                     }
-                    1 => {
+                    ProjectedColumn::Data(1) => {
                         let mut schema_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                         for idx in 0..count {
                             schema_names.put(

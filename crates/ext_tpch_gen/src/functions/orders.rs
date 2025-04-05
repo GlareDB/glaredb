@@ -13,7 +13,7 @@ use glaredb_core::functions::Signature;
 use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::RawTableFunction;
-use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_error::{OptionExt, Result};
 use tpchgen::generators::{Order, OrderGenerator, OrderGeneratorIterator};
 
@@ -64,35 +64,35 @@ impl TpchTable for OrdersTable {
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
         projections.for_each_column(output, &mut |col_idx, output| match col_idx {
-            0 => {
+            ProjectedColumn::Data(0) => {
                 let mut o_keys = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
                     o_keys.put(idx, &order.o_orderkey);
                 }
                 Ok(())
             }
-            1 => {
+            ProjectedColumn::Data(1) => {
                 let mut o_custkeys = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
                     o_custkeys.put(idx, &order.o_custkey);
                 }
                 Ok(())
             }
-            2 => {
+            ProjectedColumn::Data(2) => {
                 let mut o_statuses = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
                     o_statuses.put(idx, convert::status_to_str(order.o_orderstatus));
                 }
                 Ok(())
             }
-            3 => {
+            ProjectedColumn::Data(3) => {
                 let mut o_totalprices = PhysicalI64::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
                     o_totalprices.put(idx, &order.o_totalprice.0);
                 }
                 Ok(())
             }
-            4 => {
+            ProjectedColumn::Data(4) => {
                 let mut o_dates = PhysicalI32::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
                     o_dates.put(
@@ -102,14 +102,14 @@ impl TpchTable for OrdersTable {
                 }
                 Ok(())
             }
-            5 => {
+            ProjectedColumn::Data(5) => {
                 let mut o_priorities = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
                     o_priorities.put(idx, order.o_orderpriority);
                 }
                 Ok(())
             }
-            6 => {
+            ProjectedColumn::Data(6) => {
                 let mut s_buf = String::new();
                 let mut o_clerks = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
@@ -119,21 +119,21 @@ impl TpchTable for OrdersTable {
                 }
                 Ok(())
             }
-            7 => {
+            ProjectedColumn::Data(7) => {
                 let mut o_shipprios = PhysicalI32::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
                     o_shipprios.put(idx, &order.o_shippriority);
                 }
                 Ok(())
             }
-            8 => {
+            ProjectedColumn::Data(8) => {
                 let mut o_comments = PhysicalUtf8::get_addressable_mut(output.data_mut())?;
                 for (idx, order) in rows.iter().enumerate() {
                     o_comments.put(idx, order.o_comment);
                 }
                 Ok(())
             }
-            other => panic!("invalid projection {other}"),
+            other => panic!("invalid projection {other:?}"),
         })
     }
 }

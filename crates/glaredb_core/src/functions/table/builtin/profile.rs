@@ -29,7 +29,7 @@ use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFun
 use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
-use crate::storage::projections::Projections;
+use crate::storage::projections::{ProjectedColumn, Projections};
 
 // TODO: Should empty args for these just return the profiles for all queries?
 // Doing so would enable something like:
@@ -255,28 +255,28 @@ impl ProfileTable for PlanningProfileTable {
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
         projections.for_each_column(output, &mut |col_idx, array| match col_idx {
-            0 => {
+            ProjectedColumn::Data(0) => {
                 let mut ids = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     ids.put(idx, &row.query_id.to_string());
                 }
                 Ok(())
             }
-            1 => {
+            ProjectedColumn::Data(1) => {
                 let mut orders = PhysicalI32::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     orders.put(idx, &(row.step_order as i32));
                 }
                 Ok(())
             }
-            2 => {
+            ProjectedColumn::Data(2) => {
                 let mut steps = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     steps.put(idx, row.step);
                 }
                 Ok(())
             }
-            3 => {
+            ProjectedColumn::Data(3) => {
                 let (data, validity) = array.data_and_validity_mut();
                 let mut durations = PhysicalF64::get_addressable_mut(data)?;
                 for (idx, row) in rows.iter().enumerate() {
@@ -287,7 +287,7 @@ impl ProfileTable for PlanningProfileTable {
                 }
                 Ok(())
             }
-            other => panic!("invalid projection {other}"),
+            other => panic!("invalid projection {other:?}"),
         })
     }
 }
@@ -340,35 +340,35 @@ impl ProfileTable for OptimizerProfileTable {
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
         projections.for_each_column(output, &mut |col_idx, array| match col_idx {
-            0 => {
+            ProjectedColumn::Data(0) => {
                 let mut ids = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     ids.put(idx, &row.query_id.to_string());
                 }
                 Ok(())
             }
-            1 => {
+            ProjectedColumn::Data(1) => {
                 let mut orders = PhysicalI32::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     orders.put(idx, &(row.rule_order as i32));
                 }
                 Ok(())
             }
-            2 => {
+            ProjectedColumn::Data(2) => {
                 let mut rule_names = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     rule_names.put(idx, row.rule_name);
                 }
                 Ok(())
             }
-            3 => {
+            ProjectedColumn::Data(3) => {
                 let mut durations = PhysicalF64::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     durations.put(idx, &row.duration_seconds);
                 }
                 Ok(())
             }
-            other => panic!("invalid projection {other}"),
+            other => panic!("invalid projection {other:?}"),
         })
     }
 }
@@ -439,56 +439,56 @@ impl ProfileTable for ExecutionProfileTable {
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
         projections.for_each_column(output, &mut |col_idx, array| match col_idx {
-            0 => {
+            ProjectedColumn::Data(0) => {
                 let mut ids = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     ids.put(idx, &row.query_id.to_string());
                 }
                 Ok(())
             }
-            1 => {
+            ProjectedColumn::Data(1) => {
                 let mut names = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     names.put(idx, row.operator_name);
                 }
                 Ok(())
             }
-            2 => {
+            ProjectedColumn::Data(2) => {
                 let mut op_ids = PhysicalU32::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     op_ids.put(idx, &row.operator_id);
                 }
                 Ok(())
             }
-            3 => {
+            ProjectedColumn::Data(3) => {
                 let mut part_indices = PhysicalU32::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     part_indices.put(idx, &row.partition_idx);
                 }
                 Ok(())
             }
-            4 => {
+            ProjectedColumn::Data(4) => {
                 let mut rows_in = PhysicalU64::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     rows_in.put(idx, &row.rows_in);
                 }
                 Ok(())
             }
-            5 => {
+            ProjectedColumn::Data(5) => {
                 let mut rows_out = PhysicalU64::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     rows_out.put(idx, &row.rows_out);
                 }
                 Ok(())
             }
-            6 => {
+            ProjectedColumn::Data(6) => {
                 let mut times = PhysicalF64::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     times.put(idx, &row.execution_time_seconds);
                 }
                 Ok(())
             }
-            other => panic!("invalid projection {other}"),
+            other => panic!("invalid projection {other:?}"),
         })
     }
 }
@@ -506,14 +506,14 @@ impl ProfileTable for QueryInfoTable {
 
     fn scan(rows: &[Self::Row], projections: &Projections, output: &mut Batch) -> Result<()> {
         projections.for_each_column(output, &mut |col_idx, array| match col_idx {
-            0 => {
+            ProjectedColumn::Data(0) => {
                 let mut ids = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
                 for (idx, row) in rows.iter().enumerate() {
                     ids.put(idx, &row.to_string());
                 }
                 Ok(())
             }
-            other => panic!("invalid projection {other}"),
+            other => panic!("invalid projection {other:?}"),
         })
     }
 }

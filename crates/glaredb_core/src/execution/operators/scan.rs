@@ -33,7 +33,7 @@ pub struct PhysicalScan {
 impl PhysicalScan {
     pub fn new(projections: Projections, function: PlannedTableFunction) -> Self {
         let output_types = projections
-            .indices()
+            .data_indices()
             .iter()
             .map(|&idx| function.bind_state.schema.fields[idx].datatype.clone())
             .collect();

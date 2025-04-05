@@ -22,7 +22,7 @@ use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::TableScanFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::logical::statistics::StatisticsValue;
-use crate::storage::projections::Projections;
+use crate::storage::projections::{ProjectedColumn, Projections};
 
 pub const FUNCTION_SET_LIST_TABLES: TableFunctionSet = TableFunctionSet {
     name: "list_tables",
@@ -218,7 +218,7 @@ impl TableScanFunction for ListTables {
         op_state
             .projections
             .for_each_column(output, &mut |col_idx, output| match col_idx {
-                0 => {
+                ProjectedColumn::Data(0) => {
                     // Catalog name
                     let mut db_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -226,7 +226,7 @@ impl TableScanFunction for ListTables {
                     }
                     Ok(())
                 }
-                1 => {
+                ProjectedColumn::Data(1) => {
                     // Schema name
                     let mut schema_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -234,7 +234,7 @@ impl TableScanFunction for ListTables {
                     }
                     Ok(())
                 }
-                2 => {
+                ProjectedColumn::Data(2) => {
                     // Table name
                     let mut table_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -242,7 +242,7 @@ impl TableScanFunction for ListTables {
                     }
                     Ok(())
                 }
-                other => panic!("unexpected projection: {other}"),
+                other => panic!("unexpected projection: {other:?}"),
             })?;
 
         output.set_num_rows(count)?;
@@ -328,7 +328,7 @@ impl TableScanFunction for ListViews {
         op_state
             .projections
             .for_each_column(output, &mut |col_idx, output| match col_idx {
-                0 => {
+                ProjectedColumn::Data(0) => {
                     // Catalog name
                     let mut db_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -336,7 +336,7 @@ impl TableScanFunction for ListViews {
                     }
                     Ok(())
                 }
-                1 => {
+                ProjectedColumn::Data(1) => {
                     // Schema name
                     let mut schema_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -344,7 +344,7 @@ impl TableScanFunction for ListViews {
                     }
                     Ok(())
                 }
-                2 => {
+                ProjectedColumn::Data(2) => {
                     // View name
                     let mut table_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -352,7 +352,7 @@ impl TableScanFunction for ListViews {
                     }
                     Ok(())
                 }
-                other => panic!("unexpected projection: {other}"),
+                other => panic!("unexpected projection: {other:?}"),
             })?;
 
         output.set_num_rows(count)?;
@@ -534,7 +534,7 @@ impl TableScanFunction for ListFunctions {
         op_state
             .projections
             .for_each_column(output, &mut |col_idx, output| match col_idx {
-                0 => {
+                ProjectedColumn::Data(0) => {
                     // Catalog name
                     let mut db_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -542,7 +542,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                1 => {
+                ProjectedColumn::Data(1) => {
                     // Schema name
                     let mut schema_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -550,7 +550,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                2 => {
+                ProjectedColumn::Data(2) => {
                     // Function name
                     let mut function_names = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -558,7 +558,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                3 => {
+                ProjectedColumn::Data(3) => {
                     // Function type
                     let mut function_types = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -569,7 +569,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                4 => {
+                ProjectedColumn::Data(4) => {
                     // Category
                     let (data, validity) = output.data_and_validity_mut();
                     let mut categories = PhysicalUtf8::get_addressable_mut(data)?;
@@ -581,7 +581,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                5 => {
+                ProjectedColumn::Data(5) => {
                     // Arguments
                     for idx in 0..count {
                         let ent = &state.entries[idx + state.offset];
@@ -608,7 +608,7 @@ impl TableScanFunction for ListFunctions {
 
                     Ok(())
                 }
-                6 => {
+                ProjectedColumn::Data(6) => {
                     // Argument types
                     for idx in 0..count {
                         let mut types = Vec::new(); // TODO: No need to allocate every time.
@@ -627,7 +627,7 @@ impl TableScanFunction for ListFunctions {
 
                     Ok(())
                 }
-                7 => {
+                ProjectedColumn::Data(7) => {
                     // Return type
                     let mut ret_types = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     let mut s_buf = String::new();
@@ -642,7 +642,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                8 => {
+                ProjectedColumn::Data(8) => {
                     // Description
                     let (data, validity) = output.data_and_validity_mut();
                     let mut descriptions = PhysicalUtf8::get_addressable_mut(data)?;
@@ -654,7 +654,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                9 => {
+                ProjectedColumn::Data(9) => {
                     // Example
                     let (data, validity) = output.data_and_validity_mut();
                     let mut examples = PhysicalUtf8::get_addressable_mut(data)?;
@@ -669,7 +669,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                10 => {
+                ProjectedColumn::Data(10) => {
                     // Example output
                     let (data, validity) = output.data_and_validity_mut();
                     let mut example_outputs = PhysicalUtf8::get_addressable_mut(data)?;
@@ -684,7 +684,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                other => panic!("unexpected projection: {other}"),
+                other => panic!("unexpected projection: {other:?}"),
             })?;
 
         output.set_num_rows(count)?;
