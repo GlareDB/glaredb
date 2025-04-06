@@ -33,7 +33,7 @@ pub struct Read<'a, F: File + ?Sized> {
     buf: &'a mut [u8],
 }
 
-impl<'a, F> Future for Read<'a, F>
+impl<F> Future for Read<'_, F>
 where
     F: File + ?Sized,
 {
@@ -52,7 +52,7 @@ pub struct ReadFill<'a, F: File + ?Sized> {
     buf: &'a mut [u8],
 }
 
-impl<'a, F> Future for ReadFill<'a, F>
+impl<F> Future for ReadFill<'_, F>
 where
     F: File + ?Sized,
 {
