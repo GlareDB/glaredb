@@ -82,9 +82,9 @@ pub fn get_encoder<T: DataType>(encoding: Encoding) -> Result<Box<dyn Encoder<T>
     let encoder: Box<dyn Encoder<T>> = match encoding {
         Encoding::PLAIN => Box::new(PlainEncoder::new()),
         Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
-            return Err(DbError::new(format!(
-                "Cannot initialize this encoding through this function"
-            )));
+            return Err(DbError::new(
+                "Cannot initialize this encoding through this function",
+            ));
         }
         Encoding::RLE => Box::new(RleValueEncoder::new()),
         Encoding::DELTA_BINARY_PACKED => Box::new(DeltaBitPackEncoder::new()),

@@ -599,7 +599,7 @@ mod lz4_hadoop_codec {
                     }
                     Ok(n as u64)
                 }
-                Err(e) if !self.backward_compatible_lz4 => Err(e.into()),
+                Err(e) if !self.backward_compatible_lz4 => Err(e),
                 // Fallback done to be backward compatible with older versions of this
                 // library and older versions of parquet-cpp.
                 Err(_) => match LZ4Codec::new().decompress(input_buf, output_buf) {

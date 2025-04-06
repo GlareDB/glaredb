@@ -459,9 +459,9 @@ impl<'a> PrimitiveTypeBuilder<'a> {
             | PhysicalType::BYTE_ARRAY
             | PhysicalType::FIXED_LEN_BYTE_ARRAY => (),
             _ => {
-                return Err(DbError::new(format!(
-                    "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED_LEN_BYTE_ARRAY"
-                )));
+                return Err(DbError::new(
+                    "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED_LEN_BYTE_ARRAY",
+                ));
             }
         }
 
