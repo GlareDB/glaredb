@@ -10,12 +10,22 @@ pub trait FileExt: File {
     /// Read into the provided buffer, returning the amount of bytes read.
     ///
     /// `0` may be returned on EOF, or if the provided buffer's length is zero.
-    fn read(&mut self, buf: &mut [u8]) -> Read<'_, Self>;
+    fn read<'a>(&'a mut self, buf: &'a mut [u8]) -> Read<'a, Self> {
+        Read { file: self, buf }
+    }
 
     /// Read from the file until we've either filled up the given buffer, or we
     /// reach the end of the file.
-    fn read_fill(&mut self, buf: &mut [u8]) -> ReadFill<'_, Self>;
+    fn read_fill<'a>(&'a mut self, buf: &'a mut [u8]) -> ReadFill<'a, Self> {
+        ReadFill {
+            file: self,
+            read_count: 0,
+            buf,
+        }
+    }
 }
+
+impl<F> FileExt for F where F: File {}
 
 #[derive(Debug)]
 pub struct Read<'a, F: File + ?Sized> {
@@ -74,5 +84,33 @@ where
             // Keep looping, trying to read as much as we can until pending or
             // end of file/buffer.
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::runtime::filesystem::memory::MemoryFileHandle;
+    use crate::util::future::block_on;
+
+    #[test]
+    fn read_fill_small_buffer() {
+        let mut handle = MemoryFileHandle::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut out = vec![0; 4];
+
+        let count = block_on(handle.read_fill(&mut out)).unwrap();
+        assert_eq!(4, count);
+        assert_eq!(b"hell", &out[0..4]);
+    }
+
+    #[test]
+    fn read_fill_small_file() {
+        let mut handle = MemoryFileHandle::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut out = vec![0; 10];
+
+        let count = block_on(handle.read_fill(&mut out)).unwrap();
+        assert_eq!(5, count);
+        assert_eq!(b"hello", &out[0..5]);
     }
 }
