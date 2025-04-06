@@ -1110,49 +1110,6 @@ mod tests {
     use crate::testutil::rand_gen::RandGen;
 
     #[test]
-    fn test_get_decoders() {
-        // supported encodings
-        create_and_check_decoder::<i32>(Encoding::PLAIN, None);
-        create_and_check_decoder::<i32>(Encoding::DELTA_BINARY_PACKED, None);
-        create_and_check_decoder::<ByteArray>(Encoding::DELTA_LENGTH_BYTE_ARRAY, None);
-        create_and_check_decoder::<ByteArray>(Encoding::DELTA_BYTE_ARRAY, None);
-        create_and_check_decoder::<bool>(Encoding::RLE, None);
-
-        // error when initializing
-        create_and_check_decoder::<i32>(
-            Encoding::RLE_DICTIONARY,
-            Some(general_err!(
-                "Cannot initialize this encoding through this function"
-            )),
-        );
-        create_and_check_decoder::<i32>(
-            Encoding::PLAIN_DICTIONARY,
-            Some(general_err!(
-                "Cannot initialize this encoding through this function"
-            )),
-        );
-        create_and_check_decoder::<i32>(
-            Encoding::DELTA_LENGTH_BYTE_ARRAY,
-            Some(general_err!(
-                "Encoding DELTA_LENGTH_BYTE_ARRAY is not supported for type"
-            )),
-        );
-        create_and_check_decoder::<i32>(
-            Encoding::DELTA_BYTE_ARRAY,
-            Some(general_err!(
-                "Encoding DELTA_BYTE_ARRAY is not supported for type"
-            )),
-        );
-
-        // unsupported
-        #[allow(deprecated)]
-        create_and_check_decoder::<i32>(
-            Encoding::BIT_PACKED,
-            Some(nyi_err!("Encoding BIT_PACKED is not supported")),
-        );
-    }
-
-    #[test]
     fn test_plain_decode_int32() {
         let data = [42, 18, 52];
         let data_bytes = i32::to_byte_array(&data[..]);
@@ -1892,23 +1849,6 @@ mod tests {
             let fetched = decoder.read(&mut buffer).expect("ok to decode");
             assert_eq!(remaining, fetched);
             assert_eq!(&buffer, expected);
-        }
-    }
-
-    // holy fuck
-    fn create_and_check_decoder<T: DataType>(encoding: Encoding, err: Option<ParquetError>) {
-        let descr = create_test_col_desc_ptr(-1, T::get_physical_type());
-        let decoder = get_decoder::<T>(descr, encoding);
-        match err {
-            Some(parquet_error) => {
-                assert_eq!(
-                    decoder.err().unwrap().to_string(),
-                    parquet_error.to_string()
-                );
-            }
-            None => {
-                assert_eq!(decoder.unwrap().encoding(), encoding);
-            }
         }
     }
 

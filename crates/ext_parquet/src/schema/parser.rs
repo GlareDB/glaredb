@@ -600,17 +600,21 @@ mod tests {
 
     #[test]
     fn test_parse_message_type_invalid() {
-        assert_eq!(
-            parse("test").unwrap_err().to_string(),
-            "Parquet error: Message type does not start with 'message'"
+        assert!(
+            parse("test")
+                .unwrap_err()
+                .to_string()
+                .contains("Message type does not start with 'message'")
         );
     }
 
     #[test]
     fn test_parse_message_type_no_name() {
-        assert_eq!(
-            parse("message").unwrap_err().to_string(),
-            "Parquet error: Expected name, found None"
+        assert!(
+            parse("message")
+                .unwrap_err()
+                .to_string()
+                .contains("Expected name, found None")
         );
     }
 
@@ -621,9 +625,11 @@ mod tests {
               REQUIRED FIXED_LEN_BYTE_ARRAY col;
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Expected '(', found token 'col'"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Expected '(', found token 'col'")
         );
 
         let schema = "
@@ -642,9 +648,11 @@ mod tests {
               optional int64 f1 (INTEGER());
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse bit_width for INTEGER type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse bit_width for INTEGER type")
         );
 
         // Invalid integer syntax, needs both bit-width and UTC sign
@@ -653,9 +661,11 @@ mod tests {
       optional int64 f1 (INTEGER(32,));
     }
     ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Incorrect bit width 32 for INT64"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Incorrect bit width 32 for INT64")
         );
 
         // Invalid integer because of non-numeric bit width
@@ -664,9 +674,11 @@ mod tests {
               optional int32 f1 (INTEGER(eight,true));
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse bit_width for INTEGER type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse bit_width for INTEGER type")
         );
 
         // Valid types
@@ -693,9 +705,11 @@ mod tests {
               optional int64 f1 (TIMESTAMP();
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse timeunit for TIMESTAMP type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse timeunit for TIMESTAMP type")
         );
 
         // Invalid timestamp syntax, needs both unit and UTC adjustment
@@ -704,9 +718,11 @@ mod tests {
               optional int64 f1 (TIMESTAMP(MILLIS,));
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse timezone info for TIMESTAMP type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse timezone info for TIMESTAMP type")
         );
 
         // Invalid timestamp because of unknown unit
@@ -716,9 +732,11 @@ mod tests {
             }
         ";
 
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse timeunit for TIMESTAMP type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse timeunit for TIMESTAMP type")
         );
 
         // Valid types
@@ -747,9 +765,11 @@ mod tests {
               optional int32 f1 (DECIMAL();
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse precision for DECIMAL type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse precision for DECIMAL type")
         );
 
         // Invalid decimal, need precision and scale
@@ -758,9 +778,11 @@ mod tests {
               optional int32 f1 (DECIMAL());
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse precision for DECIMAL type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse precision for DECIMAL type")
         );
 
         // Invalid decimal because of `,` - has precision, needs scale
@@ -769,9 +791,11 @@ mod tests {
               optional int32 f1 (DECIMAL(8,));
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse scale for DECIMAL type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse scale for DECIMAL type")
         );
 
         // Invalid decimal because, we always require either precision or scale to be
@@ -781,9 +805,11 @@ mod tests {
               optional int32 f3 (DECIMAL);
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Expected ')', found token ';'"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Expected ')', found token ';'")
         );
 
         // Valid decimal (precision, scale)

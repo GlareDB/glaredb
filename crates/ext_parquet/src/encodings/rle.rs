@@ -38,8 +38,8 @@ use std::cmp;
 use std::mem::size_of;
 
 use bytes::Bytes;
+use glaredb_error::{DbError, Result};
 
-use crate::errors::{ParquetResult, eof_err};
 use crate::util::bit_util::{self, BitReader, BitWriter, FromBytes, from_le_slice};
 
 /// Maximum groups of 8 values per bit-packed run. Current value is 64.
@@ -336,7 +336,7 @@ impl RleDecoder {
     // that damage L1d-cache occupancy. This results in a ~18% performance drop
     #[inline(never)]
     #[allow(unused)]
-    pub fn get<T: FromBytes>(&mut self) -> ParquetResult<Option<T>> {
+    pub fn get<T: FromBytes>(&mut self) -> Result<Option<T>> {
         assert!(size_of::<T>() <= 8);
 
         while self.rle_left == 0 && self.bit_packed_left == 0 {
@@ -360,7 +360,7 @@ impl RleDecoder {
             let bit_reader = self.bit_reader.as_mut().expect("bit_reader should be Some");
             let bit_packed_value = bit_reader
                 .get_value(self.bit_width as usize)
-                .ok_or_else(|| eof_err!("Not enough data for 'bit_packed_value'"))?;
+                .ok_or_else(|| DbError::new("Not enough data for 'bit_packed_value'"))?;
             self.bit_packed_left -= 1;
             bit_packed_value
         };
@@ -369,7 +369,7 @@ impl RleDecoder {
     }
 
     #[inline(never)]
-    pub fn get_batch<T: FromBytes>(&mut self, buffer: &mut [T]) -> ParquetResult<usize> {
+    pub fn get_batch<T: FromBytes>(&mut self, buffer: &mut [T]) -> Result<usize> {
         assert!(size_of::<T>() <= 8);
 
         let mut values_read = 0;
@@ -408,7 +408,7 @@ impl RleDecoder {
     }
 
     #[inline(never)]
-    pub fn skip(&mut self, num_values: usize) -> ParquetResult<usize> {
+    pub fn skip(&mut self, num_values: usize) -> Result<usize> {
         let mut values_skipped = 0;
         while values_skipped < num_values {
             if self.rle_left > 0 {
@@ -442,7 +442,7 @@ impl RleDecoder {
         dict: &[T],
         buffer: &mut [T],
         max_values: usize,
-    ) -> ParquetResult<usize>
+    ) -> Result<usize>
     where
         T: Default + Clone,
     {

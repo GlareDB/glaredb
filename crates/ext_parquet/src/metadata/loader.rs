@@ -6,7 +6,7 @@ pub struct MetaDataLoader {
 }
 
 impl MetaDataLoader {
-    pub async fn load_from_file<F>(file: &mut F) -> Result<ParquetMetaData, ()> {
+    pub async fn load_from_file<F>(_file: &mut F) -> Result<ParquetMetaData, ()> {
         unimplemented!()
     }
 }

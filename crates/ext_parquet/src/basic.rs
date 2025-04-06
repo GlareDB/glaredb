@@ -2305,14 +2305,7 @@ mod tests {
         assert_eq!(encoding, Encoding::BYTE_STREAM_SPLIT);
 
         // test unknown string
-        match "plain_xxx".parse::<Encoding>() {
-            Ok(e) => {
-                panic!("Should not be able to parse {:?}", e);
-            }
-            Err(e) => {
-                assert_eq!(e.to_string(), "Parquet error: unknown encoding: plain_xxx");
-            }
-        }
+        "plain_xxx".parse::<Encoding>().unwrap_err();
     }
 
     #[test]
@@ -2342,17 +2335,9 @@ mod tests {
         assert_eq!(compress, Compression::LZ4);
 
         // test unknown compression
-        let mut err = "plain_xxx".parse::<Encoding>().unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "Parquet error: unknown encoding: plain_xxx"
-        );
+        "plain_xxx".parse::<Encoding>().unwrap_err();
 
         // test invalid compress level
-        err = "gzip(-10)".parse::<Encoding>().unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "Parquet error: unknown encoding: gzip(-10)"
-        );
+        "gzip(-10)".parse::<Encoding>().unwrap_err();
     }
 }

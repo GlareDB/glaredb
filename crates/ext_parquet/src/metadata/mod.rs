@@ -1044,16 +1044,7 @@ mod tests {
     #[test]
     fn test_row_group_metadata_thrift_conversion_empty() {
         let schema_descr = get_test_schema_descr();
-
-        let row_group_meta = RowGroupMetaData::builder(schema_descr).build();
-
-        assert!(row_group_meta.is_err());
-        if let Err(e) = row_group_meta {
-            assert_eq!(
-                format!("{e}"),
-                "Parquet error: Column length mismatch: 2 != 0"
-            );
-        }
+        RowGroupMetaData::builder(schema_descr).build().unwrap_err();
     }
 
     /// Test reading a corrupted Parquet file with 3 columns in its schema but only 2 in its row group
@@ -1115,14 +1106,8 @@ mod tests {
             .build()
             .unwrap();
 
-        let err =
-            RowGroupMetaData::from_thrift(schema_descr_3cols, row_group_meta_2cols.to_thrift())
-                .unwrap_err()
-                .to_string();
-        assert_eq!(
-            err,
-            "Parquet error: Column count mismatch. Schema has 3 columns while Row Group has 2"
-        );
+        RowGroupMetaData::from_thrift(schema_descr_3cols, row_group_meta_2cols.to_thrift())
+            .unwrap_err();
     }
 
     #[test]

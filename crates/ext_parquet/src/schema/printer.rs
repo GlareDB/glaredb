@@ -359,9 +359,10 @@ impl Printer<'_> {
 mod tests {
     use std::sync::Arc;
 
+    use glaredb_error::Result;
+
     use super::*;
     use crate::basic::{Repetition, Type as PhysicalType};
-    use crate::errors::ParquetResult;
     use crate::schema::parser::parse_message_type;
 
     fn assert_print_parse_message(message: Type) {
@@ -397,7 +398,7 @@ mod tests {
         logical_type: Option<LogicalType>,
         converted_type: ConvertedType,
         repetition: Repetition,
-    ) -> ParquetResult<Type> {
+    ) -> Result<Type> {
         Type::primitive_type_builder(name, physical_type)
             .with_repetition(repetition)
             .with_logical_type(logical_type)

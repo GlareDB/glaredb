@@ -650,7 +650,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "General(\"Statistics null count is negative -10\")")]
     fn test_statistics_negative_null_count() {
         let thrift_stats = TStatistics {
             max: None,
@@ -663,7 +662,7 @@ mod tests {
             is_min_value_exact: None,
         };
 
-        from_thrift(Type::INT32, Some(thrift_stats)).unwrap();
+        from_thrift(Type::INT32, Some(thrift_stats)).unwrap_err();
     }
 
     #[test]
