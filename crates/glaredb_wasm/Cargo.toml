@@ -19,6 +19,7 @@ glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
 
 ext_csv = { path = '../ext_csv' }
+ext_parquet = { path = '../ext_parquet' }
 ext_delta = { path = '../ext_delta' }
 ext_iceberg = { path = '../ext_iceberg' }
 ext_spark = { path = '../ext_spark' }
