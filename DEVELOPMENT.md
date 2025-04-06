@@ -88,12 +88,12 @@ Running SLTs (standard):
 $ cargo test slt/standard
 ```
 
-> Note there's currently a couple SLTs that need to fixed.
+> Note there's currently a couple SLTs that need to be fixed.
 > `./scripts/run_slt_standard.sh` can be used to skip the failing tests.
 
 All SLTs testing core features should be placed in the `./slt/standard`
 directory. SLTs for testing features outside of core should be placed in a
-relavent subdirectory of `./slt` (e.g. `./slt/tpch_gen` for the `tpch_gen`
+relevent subdirectory of `./slt` (e.g. `./slt/tpch_gen` for the `tpch_gen`
 extension) and an integration test runner added to `./test_bin`.
 
 ### Miri
