@@ -1,4 +1,5 @@
 pub mod dispatch;
+pub mod memory;
 
 use std::any::Any;
 use std::fmt::Debug;
