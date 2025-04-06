@@ -237,11 +237,6 @@ jobs:
       - name: Generate code coverage
         run: cargo llvm-cov -p glaredb_core --lcov --output-path lcov.info
 
-      - name: Upload to Coveralls
-        uses: coverallsapp/github-action@v2
-        with:
-          file: lcov.info
-
   wasm:
     name: Build wasm
     runs-on: ubuntu-latest
