@@ -29,24 +29,17 @@ rayexec_io = { path = "../rayexec_io" }
 glaredb_core = { path = "../glaredb_core" }
 
 ahash = { workspace = true }
-bytes = { version = "1.10", default-features = false, features = ["std"] }
+bytes = { version = "1.10", default-features = false, features = ["std"] } # TODO: Remove
 thrift = { version = "0.17", default-features = false }
 snap = { version = "1.0", default-features = false }
 brotli = { version = "6.0", default-features = false, features = ["std"] }
 flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
 lz4_flex = { version = "0.11", default-features = false, features = ["std", "frame"] }
 zstd = { version = "0.13", default-features = false, optional = true }
-chrono = { workspace = true }
-num = { version = "0.4", default-features = false }
-num-bigint = { version = "0.4", default-features = false }
-base64 = { version = "0.22", default-features = false, features = ["std", ] }
-# TODO: Where is serde used? Possibly remove.
+num = { version = "0.4", default-features = false } # TODO: Replace with num_traits
 seq-macro = { version = "0.3", default-features = false }
-futures = { workspace = true }
-# TODO: Where is tokio used?
 hashbrown = { version = "0.14", default-features = false }
 twox-hash = { version = "1.6", default-features = false }
-paste = { version = "1.0" }
 half = { workspace = true, features = ["num-traits"] }
 
 [dev-dependencies]
@@ -63,12 +56,10 @@ zstd = ["dep:zstd"]
 
 [[bench]]
 name = "compression"
-required-features = ["experimental", "default"]
 harness = false
 
 [[bench]]
 name = "encoding"
-required-features = ["experimental", "default"]
 harness = false
 
 [lib]

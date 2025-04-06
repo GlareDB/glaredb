@@ -748,21 +748,16 @@ name = "ext_parquet"
 version = "0.0.105"
 dependencies = [
  "ahash",
- "base64",
  "brotli",
  "bytes",
- "chrono",
  "criterion",
  "flate2",
- "futures",
  "glaredb_core",
  "glaredb_error",
  "half",
  "hashbrown 0.14.5",
  "lz4_flex",
  "num",
- "num-bigint",
- "paste",
  "rand 0.9.0",
  "rayexec_io",
  "seq-macro",
@@ -1867,12 +1862,6 @@ dependencies = [
  "smallvec",
  "windows-targets 0.48.5",
 ]
-
-[[package]]
-name = "paste"
-version = "1.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "percent-encoding"
