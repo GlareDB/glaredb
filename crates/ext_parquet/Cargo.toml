@@ -29,75 +29,37 @@ rayexec_io = { path = "../rayexec_io" }
 glaredb_core = { path = "../glaredb_core" }
 
 ahash = { workspace = true }
-bytes = { version = "1.10", default-features = false, features = ["std"] }
+bytes = { version = "1.10", default-features = false, features = ["std"] } # TODO: Remove
 thrift = { version = "0.17", default-features = false }
-snap = { version = "1.0", default-features = false, optional = true }
-brotli = { version = "6.0", default-features = false, features = ["std"], optional = true }
-flate2 = { version = "1.1", default-features = false, features = ["rust_backend"], optional = true }
-lz4_flex = { version = "0.11", default-features = false, features = ["std", "frame"], optional = true }
-zstd = { version = "0.13", optional = true, default-features = false }
-chrono = { workspace = true }
-num = { version = "0.4", default-features = false }
-num-bigint = { version = "0.4", default-features = false }
-base64 = { version = "0.22", default-features = false, features = ["std", ], optional = true }
-clap = { version = "4.5", default-features = false, features = ["std", "derive", "env", "help", "error-context", "usage"], optional = true }
-serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
-serde_json = { version = "1.0", default-features = false, features = ["std"], optional = true }
+snap = { version = "1.0", default-features = false }
+brotli = { version = "6.0", default-features = false, features = ["std"] }
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
+lz4_flex = { version = "0.11", default-features = false, features = ["std", "frame"] }
+zstd = { version = "0.13", default-features = false, optional = true }
+num = { version = "0.4", default-features = false } # TODO: Replace with num_traits
 seq-macro = { version = "0.3", default-features = false }
-futures = { workspace = true }
-tokio = { version = "1.44", optional = true, default-features = false, features = ["macros", "rt", "io-util"] }
 hashbrown = { version = "0.14", default-features = false }
 twox-hash = { version = "1.6", default-features = false }
-paste = { version = "1.0" }
-half = { version = "2.5", default-features = false, features = ["num-traits"] }
+half = { workspace = true, features = ["num-traits"] }
 
 [dev-dependencies]
-base64 = { version = "0.22", default-features = false, features = ["std"] }
 criterion = { version = "0.5", default-features = false }
-snap = { version = "1.0", default-features = false }
 tempfile = { version = "3.19", default-features = false }
-brotli = { version = "6.0", default-features = false, features = ["std"] }
-flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
-lz4_flex = { version = "0.11", default-features = false, features = ["std", "frame"] }
 zstd = { version = "0.13", default-features = false }
-serde_json = { version = "1.0", features = ["std"], default-features = false }
-tokio = { version = "1.44", default-features = false, features = ["macros", "rt", "io-util", "fs"] }
+# TODO: ?
+tokio = { workspace = true, default-features = false, features = ["macros", "rt", "io-util", "fs"] }
 rand = { workspace = true, features = ["std", "std_rng"] }
 
-# TODO: temporary to fix parquet wasm build
-# upstream issue: https://github.com/gyscos/zstd-rs/issues/269
-[target.'cfg(target_family = "wasm")'.dependencies]
-zstd-sys = { version = ">=2.0.0, <2.0.16", optional = true, default-features = false }
-
-[target.'cfg(target_family = "wasm")'.dev-dependencies]
-zstd-sys = { version = ">=2.0.0, <2.0.16", default-features = false }
-
-[package.metadata.docs.rs]
-all-features = true
-
 [features]
-default = ["snap", "brotli", "flate2", "lz4", "base64"]
-# Enable lz4
-lz4 = ["lz4_flex"]
-# Enable CLI tools
-cli = ["json", "base64", "clap", "serde"]
-# Enable JSON APIs
-json = ["serde_json", "base64"]
-# Experimental, unstable functionality primarily used for testing
-experimental = []
-# Enable async APIs
-async = ["tokio"]
-# Group Zstd dependencies
-zstd = ["dep:zstd", "zstd-sys"]
+# Issues building for wasm on macos
+zstd = ["dep:zstd"]
 
 [[bench]]
 name = "compression"
-required-features = ["experimental", "default"]
 harness = false
 
 [[bench]]
 name = "encoding"
-required-features = ["experimental", "default"]
 harness = false
 
 [lib]

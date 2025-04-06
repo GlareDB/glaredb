@@ -65,11 +65,7 @@
 
 pub mod basic;
 pub mod errors;
-
-/// Automatically generated code for reading parquet thrift definition.
-// see parquet/CONTRIBUTING.md for instructions on regenerating
 #[allow(clippy::derivable_impls, clippy::match_single_binding, clippy::doc_lazy_continuation)]
-// Don't try and format auto generated code
 #[rustfmt::skip]
 pub mod format;
 
