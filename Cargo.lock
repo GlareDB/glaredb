@@ -2794,6 +2794,7 @@ dependencies = [
 name = "test_bin"
 version = "0.0.105"
 dependencies = [
+ "ext_csv",
  "ext_tpch_gen",
  "glaredb_core",
  "glaredb_error",

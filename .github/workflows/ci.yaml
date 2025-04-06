@@ -59,17 +59,15 @@ jobs:
         if: always()
         run: cargo test slt/tpch_gen
 
+      - name: Extension - csv (SLT)
+        if: always()
+        run: cargo test slt/csv
+
       # - name: SLTs Parquet
       #   env:
       #     AWS_KEY: ${{ secrets.AWS_KEY }}
       #     AWS_SECRET: ${{ secrets.AWS_SECRET }}
       #   run: cargo test slt_datasource_parquet
-
-      # - name: SLTs CSV
-      #   env:
-      #     AWS_KEY: ${{ secrets.AWS_KEY }}
-      #     AWS_SECRET: ${{ secrets.AWS_SECRET }}
-      #   run: cargo test slt_datasource_csv
 
       # - name: SLTs Delta
       #   env:
