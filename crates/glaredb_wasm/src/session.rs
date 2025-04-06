@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use ext_csv::extension::CsvExtension;
+use ext_parquet::extension::ParquetExtension;
 use ext_spark::SparkExtension;
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::field::ColumnSchema;
@@ -28,6 +29,7 @@ impl WasmSession {
         let engine = SingleUserEngine::try_new(WasmExecutor, runtime.clone())?;
         engine.register_extension(SparkExtension)?;
         engine.register_extension(CsvExtension)?;
+        engine.register_extension(ParquetExtension)?;
 
         Ok(WasmSession { runtime, engine })
     }

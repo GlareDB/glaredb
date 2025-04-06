@@ -23,26 +23,11 @@
 use std::str::FromStr;
 use std::{fmt, str};
 
+use glaredb_error::{DbError, Result};
+
+// TODO: unpub
 pub use crate::compression::{BrotliLevel, GzipLevel, ZstdLevel};
-use crate::errors::{ParquetError, ParquetResult, general_err};
-use crate::format as parquet;
-// Re-export crate::format types used in this module
-pub use crate::format::{
-    BsonType,
-    DateType,
-    DecimalType,
-    EnumType,
-    IntType,
-    JsonType,
-    ListType,
-    MapType,
-    NullType,
-    StringType,
-    TimeType,
-    TimeUnit,
-    TimestampType,
-    UUIDType,
-};
+use crate::format::{self as parquet, DecimalType, IntType, TimeType, TimeUnit, TimestampType};
 
 // ----------------------------------------------------------------------
 // Types from the Thrift definition
@@ -317,9 +302,9 @@ pub enum Encoding {
 }
 
 impl FromStr for Encoding {
-    type Err = ParquetError;
+    type Err = DbError;
 
-    fn from_str(s: &str) -> ParquetResult<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "PLAIN" | "plain" => Ok(Encoding::PLAIN),
             "PLAIN_DICTIONARY" | "plain_dictionary" => Ok(Encoding::PLAIN_DICTIONARY),
@@ -333,7 +318,7 @@ impl FromStr for Encoding {
             "DELTA_BYTE_ARRAY" | "delta_byte_array" => Ok(Encoding::DELTA_BYTE_ARRAY),
             "RLE_DICTIONARY" | "rle_dictionary" => Ok(Encoding::RLE_DICTIONARY),
             "BYTE_STREAM_SPLIT" | "byte_stream_split" => Ok(Encoding::BYTE_STREAM_SPLIT),
-            _ => Err(general_err!("unknown encoding: {}", s)),
+            _ => Err(DbError::new(format!("unknown encoding: {}", s))),
         }
     }
 }
@@ -369,36 +354,34 @@ pub enum Compression {
     LZ4_RAW,
 }
 
-fn split_compression_string(str_setting: &str) -> ParquetResult<(&str, Option<u32>), ParquetError> {
+fn split_compression_string(str_setting: &str) -> Result<(&str, Option<u32>)> {
     let split_setting = str_setting.split_once('(');
 
     match split_setting {
         Some((codec, level_str)) => {
             let level = &level_str[..level_str.len() - 1]
                 .parse::<u32>()
-                .map_err(|_| {
-                    ParquetError::General(format!("invalid compression level: {}", level_str))
-                })?;
+                .map_err(|_| DbError::new(format!("invalid compression level: {}", level_str)))?;
             Ok((codec, Some(*level)))
         }
         None => Ok((str_setting, None)),
     }
 }
 
-fn check_level_is_none(level: &Option<u32>) -> ParquetResult<(), ParquetError> {
+fn check_level_is_none(level: &Option<u32>) -> Result<()> {
     if level.is_some() {
-        return Err(ParquetError::General("level is not support".to_string()));
+        return Err(DbError::new("level is not support"));
     }
 
     Ok(())
 }
 
-fn require_level(codec: &str, level: Option<u32>) -> ParquetResult<u32, ParquetError> {
-    level.ok_or(ParquetError::General(format!("{} require level", codec)))
+fn require_level(codec: &str, level: Option<u32>) -> Result<u32> {
+    level.ok_or(DbError::new(format!("{} require level", codec)))
 }
 
 impl FromStr for Compression {
-    type Err = ParquetError;
+    type Err = DbError;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let (codec, level) = split_compression_string(s)?;
@@ -437,9 +420,7 @@ impl FromStr for Compression {
                 Compression::LZ4_RAW
             }
             _ => {
-                return Err(ParquetError::General(format!(
-                    "unsupport compression {codec}"
-                )));
+                return Err(DbError::new(format!("unsupport compression {codec}")));
             }
         };
 
@@ -656,9 +637,9 @@ impl fmt::Display for ColumnOrder {
 // parquet::Type <=> Type conversion
 
 impl TryFrom<parquet::Type> for Type {
-    type Error = ParquetError;
+    type Error = DbError;
 
-    fn try_from(value: parquet::Type) -> ParquetResult<Self> {
+    fn try_from(value: parquet::Type) -> Result<Self> {
         Ok(match value {
             parquet::Type::BOOLEAN => Type::BOOLEAN,
             parquet::Type::INT32 => Type::INT32,
@@ -668,7 +649,12 @@ impl TryFrom<parquet::Type> for Type {
             parquet::Type::DOUBLE => Type::DOUBLE,
             parquet::Type::BYTE_ARRAY => Type::BYTE_ARRAY,
             parquet::Type::FIXED_LEN_BYTE_ARRAY => Type::FIXED_LEN_BYTE_ARRAY,
-            _ => return Err(general_err!("unexpected parquet type: {}", value.0)),
+            _ => {
+                return Err(DbError::new(format!(
+                    "unexpected parquet type: {}",
+                    value.0
+                )));
+            }
         })
     }
 }
@@ -692,9 +678,9 @@ impl From<Type> for parquet::Type {
 // parquet::ConvertedType <=> ConvertedType conversion
 
 impl TryFrom<Option<parquet::ConvertedType>> for ConvertedType {
-    type Error = ParquetError;
+    type Error = DbError;
 
-    fn try_from(option: Option<parquet::ConvertedType>) -> ParquetResult<Self> {
+    fn try_from(option: Option<parquet::ConvertedType>) -> Result<Self> {
         Ok(match option {
             None => ConvertedType::NONE,
             Some(value) => match value {
@@ -721,10 +707,10 @@ impl TryFrom<Option<parquet::ConvertedType>> for ConvertedType {
                 parquet::ConvertedType::BSON => ConvertedType::BSON,
                 parquet::ConvertedType::INTERVAL => ConvertedType::INTERVAL,
                 _ => {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "unexpected parquet converted type: {}",
                         value.0
-                    ));
+                    )));
                 }
             },
         })
@@ -896,18 +882,18 @@ impl From<Option<LogicalType>> for ConvertedType {
 // parquet::FieldRepetitionType <=> Repetition conversion
 
 impl TryFrom<parquet::FieldRepetitionType> for Repetition {
-    type Error = ParquetError;
+    type Error = DbError;
 
-    fn try_from(value: parquet::FieldRepetitionType) -> ParquetResult<Self> {
+    fn try_from(value: parquet::FieldRepetitionType) -> Result<Self> {
         Ok(match value {
             parquet::FieldRepetitionType::REQUIRED => Repetition::REQUIRED,
             parquet::FieldRepetitionType::OPTIONAL => Repetition::OPTIONAL,
             parquet::FieldRepetitionType::REPEATED => Repetition::REPEATED,
             _ => {
-                return Err(general_err!(
+                return Err(DbError::new(format!(
                     "unexpected parquet repetition type: {}",
                     value.0
-                ));
+                )));
             }
         })
     }
@@ -927,9 +913,9 @@ impl From<Repetition> for parquet::FieldRepetitionType {
 // parquet::Encoding <=> Encoding conversion
 
 impl TryFrom<parquet::Encoding> for Encoding {
-    type Error = ParquetError;
+    type Error = DbError;
 
-    fn try_from(value: parquet::Encoding) -> ParquetResult<Self> {
+    fn try_from(value: parquet::Encoding) -> Result<Self> {
         Ok(match value {
             parquet::Encoding::PLAIN => Encoding::PLAIN,
             parquet::Encoding::PLAIN_DICTIONARY => Encoding::PLAIN_DICTIONARY,
@@ -941,7 +927,12 @@ impl TryFrom<parquet::Encoding> for Encoding {
             parquet::Encoding::DELTA_BYTE_ARRAY => Encoding::DELTA_BYTE_ARRAY,
             parquet::Encoding::RLE_DICTIONARY => Encoding::RLE_DICTIONARY,
             parquet::Encoding::BYTE_STREAM_SPLIT => Encoding::BYTE_STREAM_SPLIT,
-            _ => return Err(general_err!("unexpected parquet encoding: {}", value.0)),
+            _ => {
+                return Err(DbError::new(format!(
+                    "unexpected parquet encoding: {}",
+                    value.0
+                )));
+            }
         })
     }
 }
@@ -967,9 +958,9 @@ impl From<Encoding> for parquet::Encoding {
 // parquet::CompressionCodec <=> Compression conversion
 
 impl TryFrom<parquet::CompressionCodec> for Compression {
-    type Error = ParquetError;
+    type Error = DbError;
 
-    fn try_from(value: parquet::CompressionCodec) -> ParquetResult<Self> {
+    fn try_from(value: parquet::CompressionCodec) -> Result<Self> {
         Ok(match value {
             parquet::CompressionCodec::UNCOMPRESSED => Compression::UNCOMPRESSED,
             parquet::CompressionCodec::SNAPPY => Compression::SNAPPY,
@@ -980,10 +971,10 @@ impl TryFrom<parquet::CompressionCodec> for Compression {
             parquet::CompressionCodec::ZSTD => Compression::ZSTD(Default::default()),
             parquet::CompressionCodec::LZ4_RAW => Compression::LZ4_RAW,
             _ => {
-                return Err(general_err!(
+                return Err(DbError::new(format!(
                     "unexpected parquet compression codec: {}",
                     value.0
-                ));
+                )));
             }
         })
     }
@@ -1008,15 +999,20 @@ impl From<Compression> for parquet::CompressionCodec {
 // parquet::PageType <=> PageType conversion
 
 impl TryFrom<parquet::PageType> for PageType {
-    type Error = ParquetError;
+    type Error = DbError;
 
-    fn try_from(value: parquet::PageType) -> ParquetResult<Self> {
+    fn try_from(value: parquet::PageType) -> Result<Self> {
         Ok(match value {
             parquet::PageType::DATA_PAGE => PageType::DATA_PAGE,
             parquet::PageType::INDEX_PAGE => PageType::INDEX_PAGE,
             parquet::PageType::DICTIONARY_PAGE => PageType::DICTIONARY_PAGE,
             parquet::PageType::DATA_PAGE_V2 => PageType::DATA_PAGE_V2,
-            _ => return Err(general_err!("unexpected parquet page type: {}", value.0)),
+            _ => {
+                return Err(DbError::new(format!(
+                    "unexpected parquet page type: {}",
+                    value.0
+                )));
+            }
         })
     }
 }
@@ -1036,22 +1032,25 @@ impl From<PageType> for parquet::PageType {
 // String conversions for schema parsing.
 
 impl str::FromStr for Repetition {
-    type Err = ParquetError;
+    type Err = DbError;
 
-    fn from_str(s: &str) -> ParquetResult<Self> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "REQUIRED" => Ok(Repetition::REQUIRED),
             "OPTIONAL" => Ok(Repetition::OPTIONAL),
             "REPEATED" => Ok(Repetition::REPEATED),
-            other => Err(general_err!("Invalid parquet repetition {}", other)),
+            other => Err(DbError::new(format!(
+                "Invalid parquet repetition {}",
+                other
+            ))),
         }
     }
 }
 
 impl str::FromStr for Type {
-    type Err = ParquetError;
+    type Err = DbError;
 
-    fn from_str(s: &str) -> ParquetResult<Self> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "BOOLEAN" => Ok(Type::BOOLEAN),
             "INT32" => Ok(Type::INT32),
@@ -1061,15 +1060,15 @@ impl str::FromStr for Type {
             "DOUBLE" => Ok(Type::DOUBLE),
             "BYTE_ARRAY" | "BINARY" => Ok(Type::BYTE_ARRAY),
             "FIXED_LEN_BYTE_ARRAY" => Ok(Type::FIXED_LEN_BYTE_ARRAY),
-            other => Err(general_err!("Invalid parquet type {}", other)),
+            other => Err(DbError::new(format!("Invalid parquet type {}", other))),
         }
     }
 }
 
 impl str::FromStr for ConvertedType {
-    type Err = ParquetError;
+    type Err = DbError;
 
-    fn from_str(s: &str) -> ParquetResult<Self> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "NONE" => Ok(ConvertedType::NONE),
             "UTF8" => Ok(ConvertedType::UTF8),
@@ -1094,15 +1093,18 @@ impl str::FromStr for ConvertedType {
             "JSON" => Ok(ConvertedType::JSON),
             "BSON" => Ok(ConvertedType::BSON),
             "INTERVAL" => Ok(ConvertedType::INTERVAL),
-            other => Err(general_err!("Invalid parquet converted type {}", other)),
+            other => Err(DbError::new(format!(
+                "Invalid parquet converted type {}",
+                other
+            ))),
         }
     }
 }
 
 impl str::FromStr for LogicalType {
-    type Err = ParquetError;
+    type Err = DbError;
 
-    fn from_str(s: &str) -> ParquetResult<Self> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             // The type is a placeholder that gets updated elsewhere
             "INTEGER" => Ok(LogicalType::Integer {
@@ -1130,11 +1132,14 @@ impl str::FromStr for LogicalType {
             "BSON" => Ok(LogicalType::Bson),
             "UUID" => Ok(LogicalType::Uuid),
             "UNKNOWN" => Ok(LogicalType::Unknown),
-            "INTERVAL" => Err(general_err!(
-                "Interval parquet logical type not yet supported"
+            "INTERVAL" => Err(DbError::new(
+                "Interval parquet logical type not yet supported",
             )),
             "FLOAT16" => Ok(LogicalType::Float16),
-            other => Err(general_err!("Invalid parquet logical type {}", other)),
+            other => Err(DbError::new(format!(
+                "Invalid parquet logical type {}",
+                other
+            ))),
         }
     }
 }
@@ -2300,14 +2305,7 @@ mod tests {
         assert_eq!(encoding, Encoding::BYTE_STREAM_SPLIT);
 
         // test unknown string
-        match "plain_xxx".parse::<Encoding>() {
-            Ok(e) => {
-                panic!("Should not be able to parse {:?}", e);
-            }
-            Err(e) => {
-                assert_eq!(e.to_string(), "Parquet error: unknown encoding: plain_xxx");
-            }
-        }
+        "plain_xxx".parse::<Encoding>().unwrap_err();
     }
 
     #[test]
@@ -2337,17 +2335,9 @@ mod tests {
         assert_eq!(compress, Compression::LZ4);
 
         // test unknown compression
-        let mut err = "plain_xxx".parse::<Encoding>().unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "Parquet error: unknown encoding: plain_xxx"
-        );
+        "plain_xxx".parse::<Encoding>().unwrap_err();
 
         // test invalid compress level
-        err = "gzip(-10)".parse::<Encoding>().unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "Parquet error: unknown encoding: gzip(-10)"
-        );
+        "gzip(-10)".parse::<Encoding>().unwrap_err();
     }
 }

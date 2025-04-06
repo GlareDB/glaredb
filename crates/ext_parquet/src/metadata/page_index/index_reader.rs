@@ -21,11 +21,12 @@
 
 use std::ops::Range;
 
+use glaredb_error::{Result, ResultExt};
+
 use crate::basic::Type;
 use crate::data_type::Int96;
-use crate::errors::ParquetError;
-use crate::file::page_index::index::{Index, NativeIndex};
 use crate::format::{ColumnIndex, OffsetIndex, PageLocation};
+use crate::metadata::page_index::index::{Index, NativeIndex};
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 
 /// Computes the covering range of two optional ranges
@@ -38,16 +39,18 @@ pub(crate) fn acc_range(a: Option<Range<usize>>, b: Option<Range<usize>>) -> Opt
     }
 }
 
-pub(crate) fn decode_offset_index(data: &[u8]) -> Result<Vec<PageLocation>, ParquetError> {
+pub(crate) fn decode_offset_index(data: &[u8]) -> Result<Vec<PageLocation>> {
     let mut prot = TCompactSliceInputProtocol::new(data);
-    let offset = OffsetIndex::read_from_in_protocol(&mut prot)?;
+    let offset =
+        OffsetIndex::read_from_in_protocol(&mut prot).context("failed read offset index")?;
     Ok(offset.page_locations)
 }
 
-pub(crate) fn decode_column_index(data: &[u8], column_type: Type) -> Result<Index, ParquetError> {
+pub(crate) fn decode_column_index(data: &[u8], column_type: Type) -> Result<Index> {
     let mut prot = TCompactSliceInputProtocol::new(data);
 
-    let index = ColumnIndex::read_from_in_protocol(&mut prot)?;
+    let index =
+        ColumnIndex::read_from_in_protocol(&mut prot).context("failed to read column index")?;
 
     let index = match column_type {
         Type::BOOLEAN => Index::BOOLEAN(NativeIndex::<bool>::try_new(index)?),

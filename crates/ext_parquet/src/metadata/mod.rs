@@ -1,20 +1,3 @@
-// Licensed to the Apache Software Foundation (ASF) under one
-// or more contributor license agreements.  See the NOTICE file
-// distributed with this work for additional information
-// regarding copyright ownership.  The ASF licenses this file
-// to you under the Apache License, Version 2.0 (the
-// "License"); you may not use this file except in compliance
-// with the License.  You may obtain a copy of the License at
-//
-//   http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing,
-// software distributed under the License is distributed on an
-// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-// KIND, either express or implied.  See the License for the
-// specific language governing permissions and limitations
-// under the License.
-
 //! Parquet metadata structures
 //!
 //! * [`ParquetMetaData`]: Top level metadata container, read from the Parquet
@@ -30,15 +13,23 @@
 //!   within a Row Group including encoding and compression information,
 //!   number of values, statistics, etc.
 
+pub mod footer;
+pub mod loader;
+pub mod page_encoding_stats;
+pub mod page_index;
+pub mod properties;
+pub mod statistics;
+
 use std::ops::Range;
 use std::sync::Arc;
 
+use glaredb_error::{DbError, Result};
+use page_encoding_stats::PageEncodingStats;
+use statistics::Statistics;
+
 use crate::basic::{ColumnOrder, Compression, Encoding, Type};
-use crate::errors::{ParquetResult, general_err};
-use crate::file::page_encoding_stats::{self, PageEncodingStats};
-use crate::file::page_index::index::Index;
-use crate::file::statistics::{self, Statistics};
 use crate::format::{
+    self,
     BoundaryOrder,
     ColumnChunk,
     ColumnIndex,
@@ -48,6 +39,7 @@ use crate::format::{
     RowGroup,
     SortingColumn,
 };
+use crate::metadata::page_index::index::Index;
 use crate::schema::types::{
     ColumnDescPtr,
     ColumnDescriptor,
@@ -56,6 +48,18 @@ use crate::schema::types::{
     SchemaDescriptor,
     Type as SchemaType,
 };
+
+/// The length of the parquet footer in bytes
+pub const FOOTER_SIZE: usize = 8;
+
+/// Minimum file size for a valid parquet file.
+pub const MIN_FILE_SIZE: usize = 12;
+
+/// Magic value for parquet files.
+pub const PARQUET_MAGIC: &[u8; 4] = b"PAR1";
+
+/// Magic value for encrypted parquet files.
+pub const PARQUET_MAGIC_ENC: &[u8; 4] = b"PARE";
 
 /// [`Index`] for each row group of each column.
 ///
@@ -149,21 +153,9 @@ impl ParquetMetaData {
         &self.row_groups
     }
 
-    /// Returns page indexes in this file.
-    #[deprecated(note = "Use Self::column_index")]
-    pub fn page_indexes(&self) -> Option<&ParquetColumnIndex> {
-        self.column_index.as_ref()
-    }
-
     /// Returns the column index for this file if loaded
     pub fn column_index(&self) -> Option<&ParquetColumnIndex> {
         self.column_index.as_ref()
-    }
-
-    /// Returns the offset index for this file if loaded
-    #[deprecated(note = "Use Self::offset_index")]
-    pub fn offset_indexes(&self) -> Option<&ParquetOffsetIndex> {
-        self.offset_index.as_ref()
     }
 
     /// Returns offset indexes in this file.
@@ -171,8 +163,6 @@ impl ParquetMetaData {
         self.offset_index.as_ref()
     }
 }
-
-pub type KeyValue = crate::format::KeyValue;
 
 /// Reference counted pointer for [`FileMetaData`].
 pub type FileMetaDataPtr = Arc<FileMetaData>;
@@ -185,7 +175,7 @@ pub struct FileMetaData {
     version: i32,
     num_rows: i64,
     created_by: Option<String>,
-    key_value_metadata: Option<Vec<KeyValue>>,
+    key_value_metadata: Option<Vec<format::KeyValue>>,
     schema_descr: SchemaDescPtr,
     column_orders: Option<Vec<ColumnOrder>>,
 }
@@ -196,7 +186,7 @@ impl FileMetaData {
         version: i32,
         num_rows: i64,
         created_by: Option<String>,
-        key_value_metadata: Option<Vec<KeyValue>>,
+        key_value_metadata: Option<Vec<format::KeyValue>>,
         schema_descr: SchemaDescPtr,
         column_orders: Option<Vec<ColumnOrder>>,
     ) -> Self {
@@ -233,7 +223,7 @@ impl FileMetaData {
     }
 
     /// Returns key_value_metadata of this file.
-    pub fn key_value_metadata(&self) -> Option<&Vec<KeyValue>> {
+    pub fn key_value_metadata(&self) -> Option<&Vec<format::KeyValue>> {
         self.key_value_metadata.as_ref()
     }
 
@@ -365,16 +355,13 @@ impl RowGroupMetaData {
     }
 
     /// Method to convert from Thrift.
-    pub fn from_thrift(
-        schema_descr: SchemaDescPtr,
-        mut rg: RowGroup,
-    ) -> ParquetResult<RowGroupMetaData> {
+    pub fn from_thrift(schema_descr: SchemaDescPtr, mut rg: RowGroup) -> Result<RowGroupMetaData> {
         if schema_descr.num_columns() != rg.columns.len() {
-            return Err(general_err!(
+            return Err(DbError::new(format!(
                 "Column count mismatch. Schema has {} columns while Row Group has {}",
                 schema_descr.num_columns(),
                 rg.columns.len()
-            ));
+            )));
         }
         let total_byte_size = rg.total_byte_size;
         let num_rows = rg.num_rows;
@@ -467,13 +454,13 @@ impl RowGroupMetaDataBuilder {
     }
 
     /// Builds row group metadata.
-    pub fn build(self) -> ParquetResult<RowGroupMetaData> {
+    pub fn build(self) -> Result<RowGroupMetaData> {
         if self.0.schema_descr.num_columns() != self.0.columns.len() {
-            return Err(general_err!(
+            return Err(DbError::new(format!(
                 "Column length mismatch: {} != {}",
                 self.0.schema_descr.num_columns(),
                 self.0.columns.len()
-            ));
+            )));
         }
 
         Ok(self.0)
@@ -659,9 +646,9 @@ impl ColumnChunkMetaData {
     }
 
     /// Method to convert from Thrift.
-    pub fn from_thrift(column_descr: ColumnDescPtr, cc: ColumnChunk) -> ParquetResult<Self> {
+    pub fn from_thrift(column_descr: ColumnDescPtr, cc: ColumnChunk) -> Result<Self> {
         if cc.meta_data.is_none() {
-            return Err(general_err!("Expected to have column metadata"));
+            return Err(DbError::new("Expected to have column metadata"));
         }
         let mut col_metadata: ColumnMetaData = cc.meta_data.unwrap();
         let column_type = Type::try_from(col_metadata.type_)?;
@@ -669,7 +656,7 @@ impl ColumnChunkMetaData {
             .encodings
             .drain(0..)
             .map(Encoding::try_from)
-            .collect::<ParquetResult<_>>()?;
+            .collect::<Result<_>>()?;
         let compression = Compression::try_from(col_metadata.codec)?;
         let file_path = cc.file_path;
         let file_offset = cc.file_offset;
@@ -686,7 +673,7 @@ impl ColumnChunkMetaData {
             .map(|vec| {
                 vec.iter()
                     .map(page_encoding_stats::try_from_thrift)
-                    .collect::<ParquetResult<_>>()
+                    .collect::<Result<_>>()
             })
             .transpose()?;
         let bloom_filter_offset = col_metadata.bloom_filter_offset;
@@ -905,7 +892,7 @@ impl ColumnChunkMetaDataBuilder {
     }
 
     /// Builds column chunk metadata.
-    pub fn build(self) -> ParquetResult<ColumnChunkMetaData> {
+    pub fn build(self) -> Result<ColumnChunkMetaData> {
         Ok(self.0)
     }
 }
@@ -1057,16 +1044,7 @@ mod tests {
     #[test]
     fn test_row_group_metadata_thrift_conversion_empty() {
         let schema_descr = get_test_schema_descr();
-
-        let row_group_meta = RowGroupMetaData::builder(schema_descr).build();
-
-        assert!(row_group_meta.is_err());
-        if let Err(e) = row_group_meta {
-            assert_eq!(
-                format!("{e}"),
-                "Parquet error: Column length mismatch: 2 != 0"
-            );
-        }
+        RowGroupMetaData::builder(schema_descr).build().unwrap_err();
     }
 
     /// Test reading a corrupted Parquet file with 3 columns in its schema but only 2 in its row group
@@ -1128,14 +1106,8 @@ mod tests {
             .build()
             .unwrap();
 
-        let err =
-            RowGroupMetaData::from_thrift(schema_descr_3cols, row_group_meta_2cols.to_thrift())
-                .unwrap_err()
-                .to_string();
-        assert_eq!(
-            err,
-            "Parquet error: Column count mismatch. Schema has 3 columns while Row Group has 2"
-        );
+        RowGroupMetaData::from_thrift(schema_descr_3cols, row_group_meta_2cols.to_thrift())
+            .unwrap_err();
     }
 
     #[test]

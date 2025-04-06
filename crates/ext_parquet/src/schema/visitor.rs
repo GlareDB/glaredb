@@ -15,15 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use glaredb_error::{DbError, Result};
+
 use crate::basic::{ConvertedType, Repetition};
-use crate::errors::ParquetError::General;
-use crate::errors::ParquetResult;
 use crate::schema::types::{Type, TypePtr};
 
 /// A utility trait to help user to traverse against parquet type.
 pub trait TypeVisitor<R, C> {
     /// Called when a primitive type hit.
-    fn visit_primitive(&mut self, primitive_type: TypePtr, context: C) -> ParquetResult<R>;
+    fn visit_primitive(&mut self, primitive_type: TypePtr, context: C) -> Result<R>;
 
     /// Default implementation when visiting a list.
     ///
@@ -37,15 +37,15 @@ pub trait TypeVisitor<R, C> {
     ///
     /// ```text
     /// required/optional group my_list (LIST) {
-    //    repeated group list {
-    //      required/optional binary element (UTF8);
-    //    }
-    //  }
+    ///    repeated group list {
+    ///      required/optional binary element (UTF8);
+    ///    }
+    ///  }
     /// ```
-    /// 
+    ///
     /// In such a case, [`Self::visit_list_with_item`] will be called with `my_list` as the list
     /// type, and `element` as the `item_type`
-    fn visit_list(&mut self, list_type: TypePtr, context: C) -> ParquetResult<R> {
+    fn visit_list(&mut self, list_type: TypePtr, context: C) -> Result<R> {
         match list_type.as_ref() {
             Type::PrimitiveType { .. } => {
                 panic!("{list_type:?} is a list type and must be a group type")
@@ -61,8 +61,8 @@ pub trait TypeVisitor<R, C> {
                         if list_item.get_basic_info().repetition() == Repetition::REPEATED {
                             self.visit_list_with_item(list_type.clone(), list_item.clone(), context)
                         } else {
-                            Err(General(
-                                "Primitive element type of list must be repeated.".to_string(),
+                            Err(DbError::new(
+                                "Primitive element type of list must be repeated.",
                             ))
                         }
                     }
@@ -85,20 +85,20 @@ pub trait TypeVisitor<R, C> {
                     }
                 }
             }
-            _ => Err(General(
+            _ => Err(DbError::new(
                 "Group element type of list can only contain one field.".to_string(),
             )),
         }
     }
 
     /// Called when a struct type hit.
-    fn visit_struct(&mut self, struct_type: TypePtr, context: C) -> ParquetResult<R>;
+    fn visit_struct(&mut self, struct_type: TypePtr, context: C) -> Result<R>;
 
     /// Called when a map type hit.
-    fn visit_map(&mut self, map_type: TypePtr, context: C) -> ParquetResult<R>;
+    fn visit_map(&mut self, map_type: TypePtr, context: C) -> Result<R>;
 
     /// A utility method which detects input type and calls corresponding method.
-    fn dispatch(&mut self, cur_type: TypePtr, context: C) -> ParquetResult<R> {
+    fn dispatch(&mut self, cur_type: TypePtr, context: C) -> Result<R> {
         if cur_type.is_primitive() {
             self.visit_primitive(cur_type, context)
         } else {
@@ -118,16 +118,15 @@ pub trait TypeVisitor<R, C> {
         list_type: TypePtr,
         item_type: TypePtr,
         context: C,
-    ) -> ParquetResult<R>;
+    ) -> Result<R>;
 }
 
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
-    use super::TypeVisitor;
+    use super::*;
     use crate::basic::Type as PhysicalType;
-    use crate::errors::ParquetResult;
     use crate::schema::parser::parse_message_type;
     use crate::schema::types::TypePtr;
 
@@ -144,7 +143,7 @@ mod tests {
             &mut self,
             primitive_type: TypePtr,
             _context: TestVisitorContext,
-        ) -> ParquetResult<bool> {
+        ) -> Result<bool> {
             assert_eq!(
                 self.get_field_by_name(primitive_type.name()).as_ref(),
                 primitive_type.as_ref()
@@ -157,7 +156,7 @@ mod tests {
             &mut self,
             struct_type: TypePtr,
             _context: TestVisitorContext,
-        ) -> ParquetResult<bool> {
+        ) -> Result<bool> {
             assert_eq!(
                 self.get_field_by_name(struct_type.name()).as_ref(),
                 struct_type.as_ref()
@@ -166,11 +165,7 @@ mod tests {
             Ok(true)
         }
 
-        fn visit_map(
-            &mut self,
-            _map_type: TypePtr,
-            _context: TestVisitorContext,
-        ) -> ParquetResult<bool> {
+        fn visit_map(&mut self, _map_type: TypePtr, _context: TestVisitorContext) -> Result<bool> {
             unimplemented!()
         }
 
@@ -179,7 +174,7 @@ mod tests {
             list_type: TypePtr,
             item_type: TypePtr,
             _context: TestVisitorContext,
-        ) -> ParquetResult<bool> {
+        ) -> Result<bool> {
             assert_eq!(
                 self.get_field_by_name(list_type.name()).as_ref(),
                 list_type.as_ref()

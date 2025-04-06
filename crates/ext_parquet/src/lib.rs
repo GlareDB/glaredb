@@ -15,56 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! This crate contains the official Native Rust implementation of
-//! [Apache Parquet](https://parquet.apache.org/), part of
-//! the [Apache Arrow](https://arrow.apache.org/) project.
-//! The crate provides a number of APIs to read and write Parquet files,
-//! covering a range of use cases.
-//!
-//! Please see the [parquet crates.io](https://crates.io/crates/parquet)
-//! page for feature flags and tips to improve performance.
-//!
-//! # Format Overview
-//!
-//! Parquet is a columnar format, which means that unlike row formats like [CSV], values are
-//! iterated along columns instead of rows. Parquet is similar in spirit to [Arrow], but
-//! focuses on storage efficiency whereas Arrow prioritizes compute efficiency.
-//!
-//! Parquet files are partitioned for scalability. Each file contains metadata,
-//! along with zero or more "row groups", each row group containing one or
-//! more columns. The APIs in this crate reflect this structure.
-//!
-//! Data in Parquet files is strongly typed and differentiates between logical
-//! and physical types (see [`schema`]). In addition, Parquet files may contain
-//! other metadata, such as statistics, which can be used to optimize reading
-//! (see [`file::metadata`]).
-//! For more details about the Parquet format itself, see the [Parquet spec]
-//!
-//! [Parquet spec]: https://github.com/apache/parquet-format/blob/master/README.md#file-format
-//!
-//! # APIs
-//!
-//! This crate exposes a number of APIs for different use-cases.
-//!
-//! ## Metadata and Schema
-//!
-//! The [`schema`] module provides APIs to work with Parquet schemas. The
-//! [`file::metadata`] module provides APIs to work with Parquet metadata.
-//!
-//! ## Read/Write Parquet
-//!
-//! Workloads needing finer-grained control, or avoid a dependence on arrow,
-//! can use the lower-level APIs in [`mod@file`]. These APIs expose the underlying parquet
-//! data model, and therefore require knowledge of the underlying parquet format,
-//! including the details of [Dremel] record shredding and [Logical Types]. Most workloads
-//! should prefer the arrow interfaces.
-//!
-//! [CSV]: https://en.wikipedia.org/wiki/Comma-separated_values
-//! [Dremel]: https://research.google/pubs/pub36632/
-//! [Logical Types]: https://github.com/apache/parquet-format/blob/master/LogicalTypes.md
-
 pub mod basic;
-pub mod errors;
 #[allow(clippy::derivable_impls, clippy::match_single_binding, clippy::doc_lazy_continuation)]
 #[rustfmt::skip]
 pub mod format;
@@ -77,12 +28,14 @@ mod util;
 
 pub mod bloom_filter;
 pub mod column;
-pub mod file;
 pub mod page;
 pub mod row_groups_reader;
 pub mod schema;
 
 pub mod thrift;
+
+pub mod extension;
+pub mod metadata;
 
 mod compression;
 mod encodings;

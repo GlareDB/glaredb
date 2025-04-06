@@ -19,10 +19,11 @@
 
 use std::fmt::Debug;
 
+use glaredb_error::Result;
+
 use crate::basic::Type;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::{ByteArray, FixedLenByteArray, Int96};
-use crate::errors::ParquetError;
 use crate::format::{BoundaryOrder, ColumnIndex};
 use crate::util::bit_util::from_le_slice;
 
@@ -56,13 +57,13 @@ impl<T> PageIndex<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-#[allow(non_camel_case_types)]
 /// Typed statistics for a data page in a column chunk.
 ///
 /// This structure is part of the "Page Index" and is optionally part of
 /// [ColumnIndex] in the parquet file and can be used to skip decoding pages
 /// while reading the file data.
+#[derive(Debug, Clone, PartialEq)]
+#[allow(non_camel_case_types)]
 pub enum Index {
     /// Sometimes reading page index from parquet file
     /// will only return pageLocations without min_max index,
@@ -121,7 +122,7 @@ impl<T: ParquetValueType> NativeIndex<T> {
     pub const PHYSICAL_TYPE: Type = T::PHYSICAL_TYPE;
 
     /// Creates a new [`NativeIndex`]
-    pub(crate) fn try_new(index: ColumnIndex) -> Result<Self, ParquetError> {
+    pub(crate) fn try_new(index: ColumnIndex) -> Result<Self> {
         let len = index.min_values.len();
 
         let null_counts = index
@@ -149,7 +150,7 @@ impl<T: ParquetValueType> NativeIndex<T> {
                     null_count,
                 })
             })
-            .collect::<Result<Vec<_>, ParquetError>>()?;
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(Self {
             indexes,

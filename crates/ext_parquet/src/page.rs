@@ -1,9 +1,9 @@
 //! Sane page types.
+use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::basic::{Encoding, Type};
-use crate::errors::{ParquetError, ParquetResult, nyi_err};
-use crate::file::statistics::{self, Statistics};
 use crate::format;
+use crate::metadata::statistics::{self, Statistics};
 
 #[derive(Debug, PartialEq)]
 pub struct DataPageHeader {
@@ -54,12 +54,13 @@ pub struct PageHeader {
 }
 
 impl PageHeader {
-    pub fn try_from_format(header: format::PageHeader, physical_type: Type) -> ParquetResult<Self> {
+    pub fn try_from_format(header: format::PageHeader, physical_type: Type) -> Result<Self> {
         let page_type = match header.type_ {
             format::PageType::DICTIONARY_PAGE => {
-                let dict_header = header.dictionary_page_header.as_ref().ok_or_else(|| {
-                    ParquetError::General("Missing dictionary page header".to_string())
-                })?;
+                let dict_header = header
+                    .dictionary_page_header
+                    .as_ref()
+                    .ok_or_else(|| DbError::new("Missing dictionary page header"))?;
                 let is_sorted = dict_header.is_sorted.unwrap_or(false);
                 PageType::Dictionary(DictionaryPageHeader {
                     num_values: dict_header.num_values.try_into()?,
@@ -68,9 +69,9 @@ impl PageHeader {
                 })
             }
             format::PageType::DATA_PAGE => {
-                let header = header.data_page_header.ok_or_else(|| {
-                    ParquetError::General("Missing V1 data page header".to_string())
-                })?;
+                let header = header
+                    .data_page_header
+                    .ok_or_else(|| DbError::new("Missing V1 data page header"))?;
                 PageType::DataPage(DataPageHeader {
                     num_values: header.num_values.try_into()?,
                     encoding: Encoding::try_from(header.encoding)?,
@@ -80,9 +81,9 @@ impl PageHeader {
                 })
             }
             format::PageType::DATA_PAGE_V2 => {
-                let header = header.data_page_header_v2.ok_or_else(|| {
-                    ParquetError::General("Missing V2 data page header".to_string())
-                })?;
+                let header = header
+                    .data_page_header_v2
+                    .ok_or_else(|| DbError::new("Missing V2 data page header"))?;
                 // Missing 'is_compressed' should be interpreted as true
                 // according to spec when using v2 pages.
                 let is_compressed = header.is_compressed.unwrap_or(true);
@@ -97,7 +98,9 @@ impl PageHeader {
                     statistics: statistics::from_thrift(physical_type, header.statistics)?,
                 })
             }
-            _ => return Err(nyi_err!("Decoding page header type: {:?}", header.type_)),
+            _ => {
+                not_implemented!("Decoding page header type: {:?}", header.type_);
+            }
         };
 
         let metadata = PageMetadata {

@@ -24,8 +24,7 @@ use std::sync::Arc;
 
 use crate::basic::{Compression, Encoding};
 use crate::compression::{CodecOptions, CodecOptionsBuilder};
-use crate::file::metadata::KeyValue;
-use crate::format::SortingColumn;
+use crate::format::{self, SortingColumn};
 use crate::schema::types::ColumnPath;
 
 /// Default value for [`WriterProperties::data_page_size_limit`]
@@ -105,7 +104,7 @@ pub struct WriterProperties {
     max_row_group_size: usize,
     writer_version: WriterVersion,
     created_by: String,
-    pub(crate) key_value_metadata: Option<Vec<KeyValue>>,
+    pub(crate) key_value_metadata: Option<Vec<format::KeyValue>>,
     default_column_properties: ColumnProperties,
     column_properties: HashMap<ColumnPath, ColumnProperties>,
     sorting_columns: Option<Vec<SortingColumn>>,
@@ -200,7 +199,7 @@ impl WriterProperties {
     }
 
     /// Returns `key_value_metadata` KeyValue pairs.
-    pub fn key_value_metadata(&self) -> Option<&Vec<KeyValue>> {
+    pub fn key_value_metadata(&self) -> Option<&Vec<format::KeyValue>> {
         self.key_value_metadata.as_ref()
     }
 
@@ -311,7 +310,7 @@ pub struct WriterPropertiesBuilder {
     max_row_group_size: usize,
     writer_version: WriterVersion,
     created_by: String,
-    key_value_metadata: Option<Vec<KeyValue>>,
+    key_value_metadata: Option<Vec<format::KeyValue>>,
     default_column_properties: ColumnProperties,
     column_properties: HashMap<ColumnPath, ColumnProperties>,
     sorting_columns: Option<Vec<SortingColumn>>,
@@ -369,16 +368,6 @@ impl WriterPropertiesBuilder {
 
     /// Sets best effort maximum size of a data page in bytes.
     ///
-    /// Note: this is a best effort limit based on value of
-    /// [`set_write_batch_size`](Self::set_write_batch_size).
-    #[deprecated(since = "41.0.0", note = "Use set_data_page_size_limit")]
-    pub fn set_data_pagesize_limit(mut self, value: usize) -> Self {
-        self.data_page_size_limit = value;
-        self
-    }
-
-    /// Sets best effort maximum size of a data page in bytes.
-    ///
     /// The parquet writer will attempt to limit the sizes of each
     /// `DataPage` to this many bytes. Reducing this value will result
     /// in larger parquet files, but may improve the effectiveness of
@@ -402,16 +391,6 @@ impl WriterPropertiesBuilder {
     /// [`set_write_batch_size`](Self::set_write_batch_size).
     pub fn set_data_page_row_count_limit(mut self, value: usize) -> Self {
         self.data_page_row_count_limit = value;
-        self
-    }
-
-    /// Sets best effort maximum dictionary page size, in bytes.
-    ///
-    /// Note: this is a best effort limit based on value of
-    /// [`set_write_batch_size`](Self::set_write_batch_size).
-    #[deprecated(since = "41.0.0", note = "Use set_dictionary_page_size_limit")]
-    pub fn set_dictionary_pagesize_limit(mut self, value: usize) -> Self {
-        self.dictionary_page_size_limit = value;
         self
     }
 
@@ -458,7 +437,7 @@ impl WriterPropertiesBuilder {
     }
 
     /// Sets "key_value_metadata" property.
-    pub fn set_key_value_metadata(mut self, value: Option<Vec<KeyValue>>) -> Self {
+    pub fn set_key_value_metadata(mut self, value: Option<Vec<format::KeyValue>>) -> Self {
         self.key_value_metadata = value;
         self
     }
@@ -696,28 +675,36 @@ impl Default for EnabledStatistics {
 /// Controls the bloom filter to be computed by the writer.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BloomFilterProperties {
-    /// False positive probability, should be always between 0 and 1 exclusive. Defaults to [`DEFAULT_BLOOM_FILTER_FPP`].
+    /// False positive probability, should be always between 0 and 1 exclusive.
+    /// Defaults to [`DEFAULT_BLOOM_FILTER_FPP`].
     ///
-    /// You should set this value by calling [`WriterPropertiesBuilder::set_bloom_filter_fpp`].
+    /// You should set this value by calling
+    /// [`WriterPropertiesBuilder::set_bloom_filter_fpp`].
     ///
-    /// The bloom filter data structure is a trade of between disk and memory space versus fpp, the
-    /// smaller the fpp, the more memory and disk space is required, thus setting it to a reasonable value
-    /// e.g. 0.1, 0.05, or 0.001 is recommended.
+    /// The bloom filter data structure is a trade of between disk and memory
+    /// space versus fpp, the smaller the fpp, the more memory and disk space is
+    /// required, thus setting it to a reasonable value e.g. 0.1, 0.05, or 0.001
+    /// is recommended.
     ///
-    /// Setting to very small number diminishes the value of the filter itself, as the bitset size is
-    /// even larger than just storing the whole value. You are also expected to set `ndv` if it can
-    /// be known in advance in order to largely reduce space usage.
+    /// Setting to very small number diminishes the value of the filter itself,
+    /// as the bitset size is even larger than just storing the whole value. You
+    /// are also expected to set `ndv` if it can be known in advance in order to
+    /// largely reduce space usage.
     pub fpp: f64,
-    /// Number of distinct values, should be non-negative to be meaningful. Defaults to [`DEFAULT_BLOOM_FILTER_NDV`].
+    /// Number of distinct values, should be non-negative to be meaningful.
+    /// Defaults to [`DEFAULT_BLOOM_FILTER_NDV`].
     ///
-    /// You should set this value by calling [`WriterPropertiesBuilder::set_bloom_filter_ndv`].
+    /// You should set this value by calling
+    /// [`WriterPropertiesBuilder::set_bloom_filter_ndv`].
     ///
-    /// Usage of bloom filter is most beneficial for columns with large cardinality, so a good heuristic
-    /// is to set ndv to number of rows. However it can reduce disk size if you know in advance a smaller
-    /// number of distinct values. For very small ndv value it is probably not worth it to use bloom filter
-    /// anyway.
+    /// Usage of bloom filter is most beneficial for columns with large
+    /// cardinality, so a good heuristic is to set ndv to number of rows.
+    /// However it can reduce disk size if you know in advance a smaller number
+    /// of distinct values. For very small ndv value it is probably not worth it
+    /// to use bloom filter anyway.
     ///
-    /// Increasing this value (without increasing fpp) will result in an increase in disk or memory size.
+    /// Increasing this value (without increasing fpp) will result in an
+    /// increase in disk or memory size.
     pub ndv: u64,
 }
 
@@ -810,8 +797,8 @@ impl ColumnProperties {
             .fpp = value;
     }
 
-    /// Sets the number of distinct (unique) values for bloom filter for this column, and implicitly
-    /// enables bloom filter if not previously enabled.
+    /// Sets the number of distinct (unique) values for bloom filter for this
+    /// column, and implicitly enables bloom filter if not previously enabled.
     fn set_bloom_filter_ndv(&mut self, value: u64) {
         self.bloom_filter_properties
             .get_or_insert_with(Default::default)
@@ -828,15 +815,16 @@ impl ColumnProperties {
         self.codec
     }
 
-    /// Returns `Some(true)` if dictionary encoding is enabled for this column, if
-    /// disabled then returns `Some(false)`. If result is `None`, then no setting has
-    /// been provided.
+    /// Returns `Some(true)` if dictionary encoding is enabled for this column,
+    /// if disabled then returns `Some(false)`. If result is `None`, then no
+    /// setting has been provided.
     fn dictionary_enabled(&self) -> Option<bool> {
         self.dictionary_enabled
     }
 
-    /// Returns `Some(true)` if statistics are enabled for this column, if disabled then
-    /// returns `Some(false)`. If result is `None`, then no setting has been provided.
+    /// Returns `Some(true)` if statistics are enabled for this column, if
+    /// disabled then returns `Some(false)`. If result is `None`, then no
+    /// setting has been provided.
     fn statistics_enabled(&self) -> Option<EnabledStatistics> {
         self.statistics_enabled
     }
@@ -910,12 +898,14 @@ impl ReaderPropertiesBuilder {
 
     /// Enable/disable backward compatible LZ4.
     ///
-    /// If backward compatible LZ4 is enable, on LZ4_HADOOP error it will fallback
-    /// to the older versions LZ4 algorithms. That is LZ4_FRAME, for backward compatibility
-    /// with files generated by older versions of this library, and LZ4_RAW, for backward
-    /// compatibility with files generated by older versions of parquet-cpp.
+    /// If backward compatible LZ4 is enable, on LZ4_HADOOP error it will
+    /// fallback to the older versions LZ4 algorithms. That is LZ4_FRAME, for
+    /// backward compatibility with files generated by older versions of this
+    /// library, and LZ4_RAW, for backward compatibility with files generated by
+    /// older versions of parquet-cpp.
     ///
-    /// If backward compatible LZ4 is disabled, on LZ4_HADOOP error it will return the error.
+    /// If backward compatible LZ4 is disabled, on LZ4_HADOOP error it will
+    /// return the error.
     pub fn set_backward_compatible_lz4(mut self, value: bool) -> Self {
         self.codec_options_builder = self
             .codec_options_builder
@@ -925,8 +915,9 @@ impl ReaderPropertiesBuilder {
 
     /// Enable/disable reading bloom filter
     ///
-    /// If reading bloom filter is enabled, bloom filter will be read from the file.
-    /// If reading bloom filter is disabled, bloom filter will not be read from the file.
+    /// If reading bloom filter is enabled, bloom filter will be read from the
+    /// file. If reading bloom filter is disabled, bloom filter will not be read
+    /// from the file.
     ///
     /// By default bloom filter is set to be read.
     pub fn set_read_bloom_filter(mut self, value: bool) -> Self {
@@ -1044,7 +1035,7 @@ mod tests {
             .set_write_batch_size(30)
             .set_max_row_group_size(40)
             .set_created_by("default".to_owned())
-            .set_key_value_metadata(Some(vec![KeyValue::new(
+            .set_key_value_metadata(Some(vec![format::KeyValue::new(
                 "key".to_string(),
                 "value".to_string(),
             )]))
@@ -1073,9 +1064,10 @@ mod tests {
         assert_eq!(props.created_by(), "default");
         assert_eq!(
             props.key_value_metadata(),
-            Some(&vec![
-                KeyValue::new("key".to_string(), "value".to_string(),)
-            ])
+            Some(&vec![format::KeyValue::new(
+                "key".to_string(),
+                "value".to_string(),
+            )])
         );
 
         assert_eq!(

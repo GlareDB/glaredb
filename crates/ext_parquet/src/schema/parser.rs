@@ -21,14 +21,16 @@
 
 use std::sync::Arc;
 
-use crate::basic::{ConvertedType, LogicalType, Repetition, TimeUnit, Type as PhysicalType};
-use crate::errors::{ParquetResult, general_err};
+use glaredb_error::{DbError, Result};
+
+use crate::basic::{ConvertedType, LogicalType, Repetition, Type as PhysicalType};
+use crate::format::TimeUnit;
 use crate::schema::types::{Type, TypePtr};
 
 /// Parses message type as string into a Parquet [`Type`]
 /// which, for example, could be used to extract individual columns. Returns Parquet
 /// general error when parsing or validation fails.
-pub fn parse_message_type(message_type: &str) -> ParquetResult<Type> {
+pub fn parse_message_type(message_type: &str) -> Result<Type> {
     let mut parser = Parser {
         tokenizer: &mut Tokenizer::from_str(message_type),
     };
@@ -111,42 +113,37 @@ struct Parser<'a> {
 }
 
 // Utility function to assert token on validity.
-fn assert_token(token: Option<&str>, expected: &str) -> ParquetResult<()> {
+fn assert_token(token: Option<&str>, expected: &str) -> Result<()> {
     match token {
         Some(value) if value == expected => Ok(()),
-        Some(other) => Err(general_err!(
+        Some(other) => Err(DbError::new(format!(
             "Expected '{}', found token '{}'",
-            expected,
-            other
-        )),
-        None => Err(general_err!(
+            expected, other
+        ))),
+        None => Err(DbError::new(format!(
             "Expected '{}', but no token found (None)",
             expected
-        )),
+        ))),
     }
 }
 
 // Utility function to parse i32 or return general error.
 #[inline]
-fn parse_i32(value: Option<&str>, not_found_msg: &str, parse_fail_msg: &str) -> ParquetResult<i32> {
+fn parse_i32(value: Option<&str>, not_found_msg: &str, parse_fail_msg: &str) -> Result<i32> {
     value
-        .ok_or_else(|| general_err!(not_found_msg))
-        .and_then(|v| v.parse::<i32>().map_err(|_| general_err!(parse_fail_msg)))
+        .ok_or_else(|| DbError::new(not_found_msg))
+        .and_then(|v| v.parse::<i32>().map_err(|_| DbError::new(parse_fail_msg)))
 }
 
 // Utility function to parse boolean or return general error.
 #[inline]
-fn parse_bool(
-    value: Option<&str>,
-    not_found_msg: &str,
-    parse_fail_msg: &str,
-) -> ParquetResult<bool> {
+fn parse_bool(value: Option<&str>, not_found_msg: &str, parse_fail_msg: &str) -> Result<bool> {
     value
-        .ok_or_else(|| general_err!(not_found_msg))
+        .ok_or_else(|| DbError::new(not_found_msg))
         .and_then(|v| {
             v.to_lowercase()
                 .parse::<bool>()
-                .map_err(|_| general_err!(parse_fail_msg))
+                .map_err(|_| DbError::new(parse_fail_msg))
         })
 }
 
@@ -155,38 +152,38 @@ fn parse_timeunit(
     value: Option<&str>,
     not_found_msg: &str,
     parse_fail_msg: &str,
-) -> ParquetResult<TimeUnit> {
+) -> Result<TimeUnit> {
     value
-        .ok_or_else(|| general_err!(not_found_msg))
+        .ok_or_else(|| DbError::new(not_found_msg))
         .and_then(|v| match v.to_uppercase().as_str() {
             "MILLIS" => Ok(TimeUnit::MILLIS(Default::default())),
             "MICROS" => Ok(TimeUnit::MICROS(Default::default())),
             "NANOS" => Ok(TimeUnit::NANOS(Default::default())),
-            _ => Err(general_err!(parse_fail_msg)),
+            _ => Err(DbError::new(parse_fail_msg)),
         })
 }
 
 impl Parser<'_> {
     // Entry function to parse message type, uses internal tokenizer.
-    fn parse_message_type(&mut self) -> ParquetResult<Type> {
+    fn parse_message_type(&mut self) -> Result<Type> {
         // Check that message type starts with "message".
         match self.tokenizer.next() {
             Some("message") => {
                 let name = self
                     .tokenizer
                     .next()
-                    .ok_or_else(|| general_err!("Expected name, found None"))?;
+                    .ok_or_else(|| DbError::new("Expected name, found None"))?;
                 Type::group_type_builder(name)
                     .with_fields(self.parse_child_types()?)
                     .build()
             }
-            _ => Err(general_err!("Message type does not start with 'message'")),
+            _ => Err(DbError::new("Message type does not start with 'message'")),
         }
     }
 
     // Parses child types for a current group type.
     // This is only invoked on root and group types.
-    fn parse_child_types(&mut self) -> ParquetResult<Vec<TypePtr>> {
+    fn parse_child_types(&mut self) -> Result<Vec<TypePtr>> {
         assert_token(self.tokenizer.next(), "{")?;
         let mut vec = Vec::new();
         while let Some(value) = self.tokenizer.next() {
@@ -200,12 +197,12 @@ impl Parser<'_> {
         Ok(vec)
     }
 
-    fn add_type(&mut self) -> ParquetResult<Type> {
+    fn add_type(&mut self) -> Result<Type> {
         // Parse repetition
         let repetition = self
             .tokenizer
             .next()
-            .ok_or_else(|| general_err!("Expected repetition, found None"))
+            .ok_or_else(|| DbError::new("Expected repetition, found None"))
             .and_then(|v| v.to_uppercase().parse::<Repetition>())?;
 
         match self.tokenizer.next() {
@@ -214,23 +211,23 @@ impl Parser<'_> {
                 let physical_type = type_string.to_uppercase().parse::<PhysicalType>()?;
                 self.add_primitive_type(repetition, physical_type)
             }
-            None => Err(general_err!("Invalid type, could not extract next token")),
+            None => Err(DbError::new("Invalid type, could not extract next token")),
         }
     }
 
-    fn add_group_type(&mut self, repetition: Option<Repetition>) -> ParquetResult<Type> {
+    fn add_group_type(&mut self, repetition: Option<Repetition>) -> Result<Type> {
         // Parse name of the group type
         let name = self
             .tokenizer
             .next()
-            .ok_or_else(|| general_err!("Expected name, found None"))?;
+            .ok_or_else(|| DbError::new("Expected name, found None"))?;
 
         // Parse logical or converted type if exists
         let (logical_type, converted_type) = if let Some("(") = self.tokenizer.next() {
             let tpe = self
                 .tokenizer
                 .next()
-                .ok_or_else(|| general_err!("Expected converted type, found None"))
+                .ok_or_else(|| DbError::new("Expected converted type, found None"))
                 .and_then(|v| {
                     // Try logical type first
                     let upper = v.to_uppercase();
@@ -272,7 +269,7 @@ impl Parser<'_> {
         &mut self,
         repetition: Repetition,
         physical_type: PhysicalType,
-    ) -> ParquetResult<Type> {
+    ) -> Result<Type> {
         // Read type length if the type is FIXED_LEN_BYTE_ARRAY.
         let mut length: i32 = -1;
         if physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY {
@@ -289,7 +286,7 @@ impl Parser<'_> {
         let name = self
             .tokenizer
             .next()
-            .ok_or_else(|| general_err!("Expected name, found None"))?;
+            .ok_or_else(|| DbError::new("Expected name, found None"))?;
 
         // Parse converted type
         let (logical_type, converted_type, precision, scale) = if let Some("(") =
@@ -298,7 +295,7 @@ impl Parser<'_> {
             let (mut logical, mut converted) = self
                 .tokenizer
                 .next()
-                .ok_or_else(|| general_err!("Expected logical or converted type, found None"))
+                .ok_or_else(|| DbError::new("Expected logical or converted type, found None"))
                 .and_then(|v| {
                     let upper = v.to_uppercase();
                     let logical = upper.parse::<LogicalType>();
@@ -399,25 +396,25 @@ impl Parser<'_> {
                                 PhysicalType::INT32 => match bit_width {
                                     8 | 16 | 32 => {}
                                     _ => {
-                                        return Err(general_err!(
+                                        return Err(DbError::new(format!(
                                             "Incorrect bit width {} for INT32",
                                             bit_width
-                                        ));
+                                        )));
                                     }
                                 },
                                 PhysicalType::INT64 => {
                                     if bit_width != 64 {
-                                        return Err(general_err!(
+                                        return Err(DbError::new(format!(
                                             "Incorrect bit width {} for INT64",
                                             bit_width
-                                        ));
+                                        )));
                                     }
                                 }
                                 _ => {
-                                    return Err(general_err!(
+                                    return Err(DbError::new(format!(
                                         "Logical type Integer cannot be used with physical type {}",
                                         physical_type
-                                    ));
+                                    )));
                                 }
                             }
                             if let Some(",") = self.tokenizer.next() {
@@ -499,7 +496,6 @@ impl Parser<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::ParquetError;
 
     #[test]
     fn test_tokenize_empty_string() {
@@ -594,7 +590,7 @@ mod tests {
         assert!(assert_token(None, "b").is_err());
     }
 
-    fn parse(schema: &str) -> ParquetResult<Type, ParquetError> {
+    fn parse(schema: &str) -> Result<Type> {
         let mut iter = Tokenizer::from_str(schema);
         Parser {
             tokenizer: &mut iter,
@@ -604,17 +600,21 @@ mod tests {
 
     #[test]
     fn test_parse_message_type_invalid() {
-        assert_eq!(
-            parse("test").unwrap_err().to_string(),
-            "Parquet error: Message type does not start with 'message'"
+        assert!(
+            parse("test")
+                .unwrap_err()
+                .to_string()
+                .contains("Message type does not start with 'message'")
         );
     }
 
     #[test]
     fn test_parse_message_type_no_name() {
-        assert_eq!(
-            parse("message").unwrap_err().to_string(),
-            "Parquet error: Expected name, found None"
+        assert!(
+            parse("message")
+                .unwrap_err()
+                .to_string()
+                .contains("Expected name, found None")
         );
     }
 
@@ -625,9 +625,11 @@ mod tests {
               REQUIRED FIXED_LEN_BYTE_ARRAY col;
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Expected '(', found token 'col'"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Expected '(', found token 'col'")
         );
 
         let schema = "
@@ -646,9 +648,11 @@ mod tests {
               optional int64 f1 (INTEGER());
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse bit_width for INTEGER type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse bit_width for INTEGER type")
         );
 
         // Invalid integer syntax, needs both bit-width and UTC sign
@@ -657,9 +661,11 @@ mod tests {
       optional int64 f1 (INTEGER(32,));
     }
     ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Incorrect bit width 32 for INT64"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Incorrect bit width 32 for INT64")
         );
 
         // Invalid integer because of non-numeric bit width
@@ -668,9 +674,11 @@ mod tests {
               optional int32 f1 (INTEGER(eight,true));
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse bit_width for INTEGER type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse bit_width for INTEGER type")
         );
 
         // Valid types
@@ -697,9 +705,11 @@ mod tests {
               optional int64 f1 (TIMESTAMP();
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse timeunit for TIMESTAMP type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse timeunit for TIMESTAMP type")
         );
 
         // Invalid timestamp syntax, needs both unit and UTC adjustment
@@ -708,9 +718,11 @@ mod tests {
               optional int64 f1 (TIMESTAMP(MILLIS,));
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse timezone info for TIMESTAMP type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse timezone info for TIMESTAMP type")
         );
 
         // Invalid timestamp because of unknown unit
@@ -720,9 +732,11 @@ mod tests {
             }
         ";
 
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse timeunit for TIMESTAMP type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse timeunit for TIMESTAMP type")
         );
 
         // Valid types
@@ -751,9 +765,11 @@ mod tests {
               optional int32 f1 (DECIMAL();
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse precision for DECIMAL type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse precision for DECIMAL type")
         );
 
         // Invalid decimal, need precision and scale
@@ -762,9 +778,11 @@ mod tests {
               optional int32 f1 (DECIMAL());
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse precision for DECIMAL type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse precision for DECIMAL type")
         );
 
         // Invalid decimal because of `,` - has precision, needs scale
@@ -773,9 +791,11 @@ mod tests {
               optional int32 f1 (DECIMAL(8,));
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Failed to parse scale for DECIMAL type"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse scale for DECIMAL type")
         );
 
         // Invalid decimal because, we always require either precision or scale to be
@@ -785,9 +805,11 @@ mod tests {
               optional int32 f3 (DECIMAL);
             }
         ";
-        assert_eq!(
-            parse(schema).unwrap_err().to_string(),
-            "Parquet error: Expected ')', found token ';'"
+        assert!(
+            parse(schema)
+                .unwrap_err()
+                .to_string()
+                .contains("Expected ')', found token ';'")
         );
 
         // Valid decimal (precision, scale)

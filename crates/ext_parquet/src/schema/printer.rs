@@ -21,8 +21,9 @@
 
 use std::{fmt, io};
 
-use crate::basic::{ConvertedType, LogicalType, TimeUnit, Type as PhysicalType};
-use crate::file::metadata::{ColumnChunkMetaData, FileMetaData, ParquetMetaData, RowGroupMetaData};
+use crate::basic::{ConvertedType, LogicalType, Type as PhysicalType};
+use crate::format::TimeUnit;
+use crate::metadata::{ColumnChunkMetaData, FileMetaData, ParquetMetaData, RowGroupMetaData};
 use crate::schema::types::Type;
 
 /// Prints Parquet metadata [`ParquetMetaData`] information.
@@ -358,9 +359,10 @@ impl Printer<'_> {
 mod tests {
     use std::sync::Arc;
 
+    use glaredb_error::Result;
+
     use super::*;
     use crate::basic::{Repetition, Type as PhysicalType};
-    use crate::errors::ParquetResult;
     use crate::schema::parser::parse_message_type;
 
     fn assert_print_parse_message(message: Type) {
@@ -396,7 +398,7 @@ mod tests {
         logical_type: Option<LogicalType>,
         converted_type: ConvertedType,
         repetition: Repetition,
-    ) -> ParquetResult<Type> {
+    ) -> Result<Type> {
         Type::primitive_type_builder(name, physical_type)
             .with_repetition(repetition)
             .with_logical_type(logical_type)

@@ -78,11 +78,11 @@ use std::hash::Hasher;
 use std::io::Write;
 
 use bytes::Bytes;
+use glaredb_error::{DbError, Result, ResultExt};
 use thrift::protocol::{TCompactOutputProtocol, TOutputProtocol};
 use twox_hash::XxHash64;
 
 use crate::data_type::AsBytes;
-use crate::errors::ParquetError;
 use crate::format::{
     BloomFilterAlgorithm,
     BloomFilterCompression,
@@ -199,21 +199,22 @@ pub(crate) const SBBF_HEADER_SIZE_ESTIMATE: usize = 20;
 pub(crate) fn chunk_read_bloom_filter_header_and_offset(
     offset: u64,
     buffer: Bytes,
-) -> Result<(BloomFilterHeader, u64), ParquetError> {
+) -> Result<(BloomFilterHeader, u64)> {
     let (header, length) = read_bloom_filter_header_and_length(buffer)?;
     Ok((header, offset + length))
 }
 
 /// given a [Bytes] buffer, try to read out a bloom filter header and return both the header and
 /// length of the header.
+// TODO: Just take a slice
 #[inline]
 pub(crate) fn read_bloom_filter_header_and_length(
     buffer: Bytes,
-) -> Result<(BloomFilterHeader, u64), ParquetError> {
+) -> Result<(BloomFilterHeader, u64)> {
     let total_length = buffer.len();
     let mut prot = TCompactSliceInputProtocol::new(buffer.as_ref());
     let header = BloomFilterHeader::read_from_in_protocol(&mut prot)
-        .map_err(|e| ParquetError::General(format!("Could not read bloom filter header: {e}")))?;
+        .context("Could not read bloom filter header")?;
     Ok((header, (total_length - prot.as_slice().len()) as u64))
 }
 
@@ -240,9 +241,9 @@ fn num_of_bits_from_ndv_fpp(ndv: u64, fpp: f64) -> usize {
 impl Sbbf {
     /// Create a new [Sbbf] with given number of distinct values and false positive probability.
     /// Will return an error if `fpp` is greater than or equal to 1.0 or less than 0.0.
-    pub(crate) fn new_with_ndv_fpp(ndv: u64, fpp: f64) -> Result<Self, ParquetError> {
+    pub(crate) fn new_with_ndv_fpp(ndv: u64, fpp: f64) -> Result<Self> {
         if !(0.0..1.0).contains(&fpp) {
-            return Err(ParquetError::General(format!(
+            return Err(DbError::new(format!(
                 "False positive probability must be between 0.0 and 1.0, got {fpp}"
             )));
         }
@@ -275,25 +276,23 @@ impl Sbbf {
     /// Write the bloom filter data (header and then bitset) to the output. This doesn't
     /// flush the writer in order to boost performance of bulk writing all blocks. Caller
     /// must remember to flush the writer.
-    pub(crate) fn write<W: Write>(&self, mut writer: W) -> Result<(), ParquetError> {
+    pub(crate) fn write<W: Write>(&self, mut writer: W) -> Result<()> {
         let mut protocol = TCompactOutputProtocol::new(&mut writer);
         let header = self.header();
-        header.write_to_out_protocol(&mut protocol).map_err(|e| {
-            ParquetError::General(format!("Could not write bloom filter header: {e}"))
-        })?;
-        protocol.flush()?;
+        header
+            .write_to_out_protocol(&mut protocol)
+            .context("Could not write bloom filter header")?;
+        protocol.flush().context("failed to flush")?;
         self.write_bitset(&mut writer)?;
         Ok(())
     }
 
     /// Write the bitset in serialized form to the writer.
-    fn write_bitset<W: Write>(&self, mut writer: W) -> Result<(), ParquetError> {
+    fn write_bitset<W: Write>(&self, mut writer: W) -> Result<()> {
         for block in &self.0 {
             writer
                 .write_all(block.to_le_bytes().as_slice())
-                .map_err(|e| {
-                    ParquetError::General(format!("Could not write bloom filter bit set: {e}"))
-                })?;
+                .context("Could not write bloom filter bit set")?;
         }
         Ok(())
     }

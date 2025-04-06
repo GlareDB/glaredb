@@ -22,15 +22,17 @@
 
 use std::fmt;
 
+use glaredb_error::{DbError, Result};
+
 use crate::basic::Type;
 use crate::data_type::private::ParquetValueType;
-use crate::data_type::*;
-use crate::errors::{ParquetError, ParquetResult};
+use crate::data_type::{ByteArray, DataType, FixedLenByteArray, Int96};
 use crate::format::Statistics as TStatistics;
 use crate::util::bit_util::from_le_slice;
 
 pub(crate) mod private {
     use super::*;
+    use crate::data_type::{ByteArray, FixedLenByteArray, Int96};
 
     pub trait MakeStatistics {
         fn make_statistics(statistics: ValueStatistics<Self>) -> Statistics
@@ -102,14 +104,14 @@ macro_rules! statistics_enum_func {
 pub fn from_thrift(
     physical_type: Type,
     thrift_stats: Option<TStatistics>,
-) -> ParquetResult<Option<Statistics>> {
+) -> Result<Option<Statistics>> {
     Ok(match thrift_stats {
         Some(stats) => {
             // Number of nulls recorded, when it is not available, we just mark it as 0.
             let null_count = stats.null_count.unwrap_or(0);
 
             if null_count < 0 {
-                return Err(ParquetError::General(format!(
+                return Err(DbError::new(format!(
                     "Statistics null count is negative {}",
                     null_count
                 )));
@@ -626,6 +628,7 @@ impl<T: ParquetValueType> fmt::Debug for ValueStatistics<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data_type::AsBytes;
 
     #[test]
     fn test_statistics_min_max_bytes() {
@@ -647,7 +650,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "General(\"Statistics null count is negative -10\")")]
     fn test_statistics_negative_null_count() {
         let thrift_stats = TStatistics {
             max: None,
@@ -660,7 +662,7 @@ mod tests {
             is_min_value_exact: None,
         };
 
-        from_thrift(Type::INT32, Some(thrift_stats)).unwrap();
+        from_thrift(Type::INT32, Some(thrift_stats)).unwrap_err();
     }
 
     #[test]

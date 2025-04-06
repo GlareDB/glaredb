@@ -972,6 +972,7 @@ dependencies = [
  "clap",
  "crossterm",
  "ext_csv",
+ "ext_parquet",
  "ext_spark",
  "ext_tpch_gen",
  "futures",

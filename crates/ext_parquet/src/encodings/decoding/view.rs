@@ -11,10 +11,10 @@ use std::marker::PhantomData;
 use bytes::Bytes;
 use glaredb_core::arrays::array::physical_type::{AddressableMut, BinaryViewAddressableMut};
 use glaredb_core::buffer::buffer_manager::BufferManager;
+use glaredb_error::{DbError, Result, ResultExt};
 
 use super::Encoding;
 use crate::encodings::rle::RleDecoder;
-use crate::errors::{ParquetError, ParquetResult, general_err};
 
 #[derive(Debug)]
 pub struct ViewBuffer<'a, B: BufferManager> {
@@ -39,11 +39,11 @@ where
         self.current_idx = 0;
     }
 
-    pub fn try_push(&mut self, data: &[u8], validate_utf8: bool) -> ParquetResult<()> {
+    pub fn try_push(&mut self, data: &[u8], validate_utf8: bool) -> Result<()> {
         if validate_utf8 {
             // We don't care about the output, just that bytes we're storing is
             // valid utf8.
-            let _ = std::str::from_utf8(data)?;
+            let _ = std::str::from_utf8(data).context("not valid utf8")?;
         }
 
         self.buffer.put(self.current_idx, data);
@@ -75,7 +75,7 @@ impl ViewDecoder {
         num_levels: usize,
         num_values: Option<usize>,
         validate_utf8: bool,
-    ) -> ParquetResult<Self> {
+    ) -> Result<Self> {
         let decoder = match encoding {
             Encoding::PLAIN => Self::Plain(PlainViewDecoder::new(
                 data,
@@ -93,10 +93,10 @@ impl ViewDecoder {
             //     ByteArrayDecoder::DeltaByteArray(ByteArrayDecoderDelta::new(data, validate_utf8)?)
             // }
             _ => {
-                return Err(general_err!(
+                return Err(DbError::new(format!(
                     "unsupported encoding for byte array: {}",
                     encoding
-                ));
+                )));
             }
         };
 
@@ -108,7 +108,7 @@ impl ViewDecoder {
         buffer: &mut ViewBuffer<B>,
         num_values: usize,
         dict: Option<&ViewBuffer<B>>,
-    ) -> ParquetResult<usize>
+    ) -> Result<usize>
     where
         B: BufferManager,
     {
@@ -116,18 +116,14 @@ impl ViewDecoder {
             Self::Plain(d) => d.read(buffer, num_values),
             Self::Dictionary(d) => {
                 let dict =
-                    dict.ok_or_else(|| general_err!("missing dictionary page for column"))?;
+                    dict.ok_or_else(|| DbError::new("missing dictionary page for column"))?;
 
                 d.read(buffer, dict, num_values)
             }
         }
     }
 
-    pub fn skip<B>(
-        &mut self,
-        num_values: usize,
-        dict: Option<&ViewBuffer<B>>,
-    ) -> ParquetResult<usize>
+    pub fn skip<B>(&mut self, num_values: usize, dict: Option<&ViewBuffer<B>>) -> Result<usize>
     where
         B: BufferManager,
     {
@@ -135,7 +131,7 @@ impl ViewDecoder {
             Self::Plain(d) => d.skip(num_values),
             Self::Dictionary(d) => {
                 let dict =
-                    dict.ok_or_else(|| general_err!("missing dictionary page for column"))?;
+                    dict.ok_or_else(|| DbError::new("missing dictionary page for column"))?;
 
                 d.skip(dict, num_values)
             }
@@ -172,7 +168,7 @@ impl PlainViewDecoder {
         }
     }
 
-    pub fn read<B>(&mut self, buffer: &mut ViewBuffer<B>, num_vals: usize) -> ParquetResult<usize>
+    pub fn read<B>(&mut self, buffer: &mut ViewBuffer<B>, num_vals: usize) -> Result<usize>
     where
         B: BufferManager,
     {
@@ -195,7 +191,7 @@ impl PlainViewDecoder {
         let buf = &self.buf;
         while self.offset < self.buf.len() && num_read != to_read {
             if self.offset + 4 > buf.len() {
-                return Err(ParquetError::EOF("eof decoding byte array".into()));
+                return Err(DbError::new("eof decoding byte array"));
             }
             let len_bytes: [u8; 4] = buf[self.offset..self.offset + 4].try_into().unwrap();
             let len = u32::from_le_bytes(len_bytes) as usize;
@@ -214,14 +210,14 @@ impl PlainViewDecoder {
         Ok(num_read)
     }
 
-    pub fn skip(&mut self, num_vals: usize) -> ParquetResult<usize> {
+    pub fn skip(&mut self, num_vals: usize) -> Result<usize> {
         let to_skip = usize::min(num_vals, self.max_remaining_values);
 
         let mut skip = 0;
         let buf = &self.buf;
         while self.offset < self.buf.len() && skip != to_skip {
             if self.offset + 4 > buf.len() {
-                return Err(ParquetError::EOF("eof decoding byte array".into()));
+                return Err(DbError::new("eof decoding byte array"));
             }
             let len_bytes: [u8; 4] = buf[self.offset..self.offset + 4].try_into().unwrap();
             let len = u32::from_le_bytes(len_bytes) as usize;
@@ -254,7 +250,7 @@ impl DictionaryViewDecoder {
         buffer: &mut ViewBuffer<B>,
         dict: &ViewBuffer<B>,
         num_vals: usize,
-    ) -> ParquetResult<usize>
+    ) -> Result<usize>
     where
         B: BufferManager,
     {
@@ -264,9 +260,9 @@ impl DictionaryViewDecoder {
 
         self.decoder.read(num_vals, |keys| {
             for &key in keys {
-                let val = dict
-                    .get(key as usize)
-                    .ok_or_else(|| general_err!("Missing dictionary value at index {key}"))?;
+                let val = dict.get(key as usize).ok_or_else(|| {
+                    DbError::new(format!("Missing dictionary value at index {key}"))
+                })?;
                 // If we're pushing from a dictionary, we don't need to validate
                 // that the bytes are utf8 since that happens when we create the
                 // values in the dictionary.
@@ -276,7 +272,7 @@ impl DictionaryViewDecoder {
         })
     }
 
-    pub fn skip<B>(&mut self, _dict: &ViewBuffer<B>, num_vals: usize) -> ParquetResult<usize>
+    pub fn skip<B>(&mut self, _dict: &ViewBuffer<B>, num_vals: usize) -> Result<usize>
     where
         B: BufferManager,
     {
@@ -324,11 +320,7 @@ impl DictIndexDecoder {
     /// and calling `f` with each decoded dictionary index
     ///
     /// Will short-circuit and return on error
-    pub fn read<F: FnMut(&[i32]) -> ParquetResult<()>>(
-        &mut self,
-        len: usize,
-        mut f: F,
-    ) -> ParquetResult<usize> {
+    pub fn read<F: FnMut(&[i32]) -> Result<()>>(&mut self, len: usize, mut f: F) -> Result<usize> {
         let mut values_read = 0;
 
         while values_read != len && self.max_remaining_values != 0 {
@@ -356,7 +348,7 @@ impl DictIndexDecoder {
     }
 
     /// Skip up to `to_skip` values, returning the number of values skipped
-    pub fn skip(&mut self, to_skip: usize) -> ParquetResult<usize> {
+    pub fn skip(&mut self, to_skip: usize) -> Result<usize> {
         let to_skip = to_skip.min(self.max_remaining_values);
 
         let mut values_skip = 0;

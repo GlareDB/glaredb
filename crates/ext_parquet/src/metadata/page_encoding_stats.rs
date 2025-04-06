@@ -17,8 +17,9 @@
 
 //! Per-page encoding information.
 
+use glaredb_error::Result;
+
 use crate::basic::{Encoding, PageType};
-use crate::errors::ParquetResult;
 use crate::format::{
     Encoding as TEncoding,
     PageEncodingStats as TPageEncodingStats,
@@ -37,9 +38,7 @@ pub struct PageEncodingStats {
 }
 
 /// Converts Thrift definition into `PageEncodingStats`.
-pub fn try_from_thrift(
-    thrift_encoding_stats: &TPageEncodingStats,
-) -> ParquetResult<PageEncodingStats> {
+pub fn try_from_thrift(thrift_encoding_stats: &TPageEncodingStats) -> Result<PageEncodingStats> {
     let page_type = PageType::try_from(thrift_encoding_stats.page_type)?;
     let encoding = Encoding::try_from(thrift_encoding_stats.encoding)?;
     let count = thrift_encoding_stats.count;
