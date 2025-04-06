@@ -77,7 +77,7 @@ impl MemoryFileHandle {
     ///
     /// The seek position will be at the beginning of the buffer.
     ///
-    /// This file handle will not be associated with any filesyste (and is
+    /// This file handle will not be associated with any filesystem (and is
     /// really only useful for tests).
     pub fn from_bytes(manager: &impl AsRawBufferManager, bytes: impl AsRef<[u8]>) -> Result<Self> {
         let bytes = bytes.as_ref();
@@ -111,7 +111,7 @@ impl File for MemoryFileHandle {
         Poll::Ready(Ok(count))
     }
 
-    fn poll_write(&mut self, _buf: &mut [u8]) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, _buf: &[u8]) -> Poll<Result<usize>> {
         Poll::Ready(Err(DbError::new(
             "Write unsupported for memory file handle",
         ))) // For now

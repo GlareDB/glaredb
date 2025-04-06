@@ -1,4 +1,5 @@
 pub mod dispatch;
+pub mod file_ext;
 pub mod memory;
 
 use std::any::Any;
@@ -23,7 +24,7 @@ pub trait File: Debug + Sync + Send + 'static {
     fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>>;
 
     /// Write at the current position, returning the number of bytes written.
-    fn poll_write(&mut self, buf: &mut [u8]) -> Poll<Result<usize>>;
+    fn poll_write(&mut self, buf: &[u8]) -> Poll<Result<usize>>;
 
     /// Seek the provided position in the file.
     fn poll_seek(&mut self, seek: io::SeekFrom) -> Poll<Result<()>>;
@@ -138,6 +139,10 @@ impl OpenFlags {
 }
 
 pub trait FileSystem: Debug + Sync + Send + 'static {
+    // TODO: Probably remove this and just return `AnyFile` from open.
+    //
+    // This would allow us to return different kinds of file handles depending
+    // on the open flags used.
     type File: File;
 
     /// Open a file at a given path.
