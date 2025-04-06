@@ -22,8 +22,8 @@
 use std::{fmt, io};
 
 use crate::basic::{ConvertedType, LogicalType, Type as PhysicalType};
-use crate::file::metadata::{ColumnChunkMetaData, FileMetaData, ParquetMetaData, RowGroupMetaData};
 use crate::format::TimeUnit;
+use crate::metadata::{ColumnChunkMetaData, FileMetaData, ParquetMetaData, RowGroupMetaData};
 use crate::schema::types::Type;
 
 /// Prints Parquet metadata [`ParquetMetaData`] information.

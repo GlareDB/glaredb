@@ -1,20 +1,3 @@
-// Licensed to the Apache Software Foundation (ASF) under one
-// or more contributor license agreements.  See the NOTICE file
-// distributed with this work for additional information
-// regarding copyright ownership.  The ASF licenses this file
-// to you under the Apache License, Version 2.0 (the
-// "License"); you may not use this file except in compliance
-// with the License.  You may obtain a copy of the License at
-//
-//   http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing,
-// software distributed under the License is distributed on an
-// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-// KIND, either express or implied.  See the License for the
-// specific language governing permissions and limitations
-// under the License.
-
 //! Parquet metadata structures
 //!
 //! * [`ParquetMetaData`]: Top level metadata container, read from the Parquet
@@ -30,15 +13,22 @@
 //!   within a Row Group including encoding and compression information,
 //!   number of values, statistics, etc.
 
+pub mod footer;
+pub mod page_encoding_stats;
+pub mod page_index;
+pub mod properties;
+pub mod statistics;
+
 use std::ops::Range;
 use std::sync::Arc;
 
+use page_encoding_stats::PageEncodingStats;
+use statistics::Statistics;
+
 use crate::basic::{ColumnOrder, Compression, Encoding, Type};
 use crate::errors::{ParquetResult, general_err};
-use crate::file::page_encoding_stats::{self, PageEncodingStats};
-use crate::file::page_index::index::Index;
-use crate::file::statistics::{self, Statistics};
 use crate::format::{
+    self,
     BoundaryOrder,
     ColumnChunk,
     ColumnIndex,
@@ -48,6 +38,7 @@ use crate::format::{
     RowGroup,
     SortingColumn,
 };
+use crate::metadata::page_index::index::Index;
 use crate::schema::types::{
     ColumnDescPtr,
     ColumnDescriptor,
@@ -56,6 +47,15 @@ use crate::schema::types::{
     SchemaDescriptor,
     Type as SchemaType,
 };
+
+/// The length of the parquet footer in bytes
+pub const FOOTER_SIZE: usize = 8;
+
+/// Magic value for parquet files.
+pub const PARQUET_MAGIC: &[u8; 4] = b"PAR1";
+
+/// Magic value for encrypted parquet files.
+pub const PARQUET_MAGIC_ENC: &[u8; 4] = b"PARE";
 
 /// [`Index`] for each row group of each column.
 ///
@@ -149,21 +149,9 @@ impl ParquetMetaData {
         &self.row_groups
     }
 
-    /// Returns page indexes in this file.
-    #[deprecated(note = "Use Self::column_index")]
-    pub fn page_indexes(&self) -> Option<&ParquetColumnIndex> {
-        self.column_index.as_ref()
-    }
-
     /// Returns the column index for this file if loaded
     pub fn column_index(&self) -> Option<&ParquetColumnIndex> {
         self.column_index.as_ref()
-    }
-
-    /// Returns the offset index for this file if loaded
-    #[deprecated(note = "Use Self::offset_index")]
-    pub fn offset_indexes(&self) -> Option<&ParquetOffsetIndex> {
-        self.offset_index.as_ref()
     }
 
     /// Returns offset indexes in this file.
@@ -171,8 +159,6 @@ impl ParquetMetaData {
         self.offset_index.as_ref()
     }
 }
-
-pub type KeyValue = crate::format::KeyValue;
 
 /// Reference counted pointer for [`FileMetaData`].
 pub type FileMetaDataPtr = Arc<FileMetaData>;
@@ -185,7 +171,7 @@ pub struct FileMetaData {
     version: i32,
     num_rows: i64,
     created_by: Option<String>,
-    key_value_metadata: Option<Vec<KeyValue>>,
+    key_value_metadata: Option<Vec<format::KeyValue>>,
     schema_descr: SchemaDescPtr,
     column_orders: Option<Vec<ColumnOrder>>,
 }
@@ -196,7 +182,7 @@ impl FileMetaData {
         version: i32,
         num_rows: i64,
         created_by: Option<String>,
-        key_value_metadata: Option<Vec<KeyValue>>,
+        key_value_metadata: Option<Vec<format::KeyValue>>,
         schema_descr: SchemaDescPtr,
         column_orders: Option<Vec<ColumnOrder>>,
     ) -> Self {
@@ -233,7 +219,7 @@ impl FileMetaData {
     }
 
     /// Returns key_value_metadata of this file.
-    pub fn key_value_metadata(&self) -> Option<&Vec<KeyValue>> {
+    pub fn key_value_metadata(&self) -> Option<&Vec<format::KeyValue>> {
         self.key_value_metadata.as_ref()
     }
 

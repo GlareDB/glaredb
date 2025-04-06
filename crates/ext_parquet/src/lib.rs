@@ -29,7 +29,6 @@ mod util;
 
 pub mod bloom_filter;
 pub mod column;
-pub mod file;
 pub mod page;
 pub mod row_groups_reader;
 pub mod schema;
@@ -37,6 +36,7 @@ pub mod schema;
 pub mod thrift;
 
 pub mod extension;
+pub mod metadata;
 
 mod compression;
 mod encodings;

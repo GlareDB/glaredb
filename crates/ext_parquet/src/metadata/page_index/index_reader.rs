@@ -24,8 +24,8 @@ use std::ops::Range;
 use crate::basic::Type;
 use crate::data_type::Int96;
 use crate::errors::ParquetError;
-use crate::file::page_index::index::{Index, NativeIndex};
 use crate::format::{ColumnIndex, OffsetIndex, PageLocation};
+use crate::metadata::page_index::index::{Index, NativeIndex};
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 
 /// Computes the covering range of two optional ranges

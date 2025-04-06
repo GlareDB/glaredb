@@ -17,11 +17,16 @@
 
 use std::sync::Arc;
 
-use super::PARQUET_MAGIC_ENC;
+use super::{
+    FOOTER_SIZE,
+    FileMetaData,
+    PARQUET_MAGIC,
+    PARQUET_MAGIC_ENC,
+    ParquetMetaData,
+    RowGroupMetaData,
+};
 use crate::basic::ColumnOrder;
 use crate::errors::{ParquetError, ParquetResult, general_err};
-use crate::file::metadata::*;
-use crate::file::{FOOTER_SIZE, PARQUET_MAGIC};
 use crate::format::{ColumnOrder as TColumnOrder, FileMetaData as TFileMetaData};
 use crate::schema::types::{self, SchemaDescriptor};
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
