@@ -22,3 +22,6 @@ lcov.info
 
 # Debug for lineedit
 lineedit.log
+
+# Python builds
+**/dist
