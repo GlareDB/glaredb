@@ -49,6 +49,7 @@ impl fmt::Debug for ByteRecords {
 }
 
 impl ByteRecords {
+    /// Create a new bytes records object with `cap` byte capacity.
     pub fn with_buffer_capacity(cap: usize) -> Self {
         ByteRecords {
             buf: Vec::with_capacity(cap),
