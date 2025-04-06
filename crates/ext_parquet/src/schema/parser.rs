@@ -21,8 +21,9 @@
 
 use std::sync::Arc;
 
-use crate::basic::{ConvertedType, LogicalType, Repetition, TimeUnit, Type as PhysicalType};
+use crate::basic::{ConvertedType, LogicalType, Repetition, Type as PhysicalType};
 use crate::errors::{ParquetResult, general_err};
+use crate::format::TimeUnit;
 use crate::schema::types::{Type, TypePtr};
 
 /// Parses message type as string into a Parquet [`Type`]

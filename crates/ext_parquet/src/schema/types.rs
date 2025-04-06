@@ -27,11 +27,10 @@ use crate::basic::{
     LogicalType,
     Repetition,
     SortOrder,
-    TimeUnit,
     Type as PhysicalType,
 };
 use crate::errors::{ParquetResult, general_err};
-use crate::format::SchemaElement;
+use crate::format::{SchemaElement, TimeUnit};
 
 // ----------------------------------------------------------------------
 // Parquet Type definitions

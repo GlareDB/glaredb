@@ -25,24 +25,7 @@ use std::{fmt, str};
 
 pub use crate::compression::{BrotliLevel, GzipLevel, ZstdLevel};
 use crate::errors::{ParquetError, ParquetResult, general_err};
-use crate::format as parquet;
-// Re-export crate::format types used in this module
-pub use crate::format::{
-    BsonType,
-    DateType,
-    DecimalType,
-    EnumType,
-    IntType,
-    JsonType,
-    ListType,
-    MapType,
-    NullType,
-    StringType,
-    TimeType,
-    TimeUnit,
-    TimestampType,
-    UUIDType,
-};
+use crate::format::{self as parquet, DecimalType, IntType, TimeType, TimeUnit, TimestampType};
 
 // ----------------------------------------------------------------------
 // Types from the Thrift definition

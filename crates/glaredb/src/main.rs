@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
 use ext_csv::extension::CsvExtension;
+use ext_parquet::extension::ParquetExtension;
 use ext_spark::SparkExtension;
 use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
@@ -108,6 +109,7 @@ async fn inner(
     engine.register_extension(SparkExtension)?;
     engine.register_extension(TpchGenExtension)?;
     engine.register_extension(CsvExtension)?;
+    engine.register_extension(ParquetExtension)?;
 
     let (cols, _rows) = crossterm::terminal::size()?;
     let mut stdout = BufWriter::new(std::io::stdout());
