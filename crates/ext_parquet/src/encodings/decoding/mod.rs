@@ -25,6 +25,7 @@ use std::marker::PhantomData;
 use std::{cmp, mem};
 
 use bytes::Bytes;
+use glaredb_error::{DbError, Result, ResultExt};
 use num::FromPrimitive;
 use num::traits::WrappingAdd;
 
@@ -32,13 +33,13 @@ use super::rle::RleDecoder;
 use crate::basic::*;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
-use crate::errors::{ParquetResult, eof_err, general_err};
 use crate::schema::types::ColumnDescPtr;
 use crate::util::bit_util::{self, BitReader};
 
 pub(crate) mod private {
+    // TODO: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
     use super::*;
-    use crate::errors::{general_err, nyi_err};
 
     /// A trait that allows getting a [`Decoder`] implementation for a [`DataType`] with
     /// the corresponding [`ParquetValueType`]. This is necessary to support
@@ -48,7 +49,7 @@ pub(crate) mod private {
         fn get_decoder<T: DataType<T = Self>>(
             descr: ColumnDescPtr,
             encoding: Encoding,
-        ) -> ParquetResult<Box<dyn Decoder<T>>> {
+        ) -> Result<Box<dyn Decoder<T>>> {
             get_decoder_default(descr, encoding)
         }
     }
@@ -56,20 +57,20 @@ pub(crate) mod private {
     fn get_decoder_default<T: DataType>(
         descr: ColumnDescPtr,
         encoding: Encoding,
-    ) -> ParquetResult<Box<dyn Decoder<T>>> {
+    ) -> Result<Box<dyn Decoder<T>>> {
         match encoding {
             Encoding::PLAIN => Ok(Box::new(PlainDecoder::new(descr.type_length()))),
-            Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => Err(general_err!(
-                "Cannot initialize this encoding through this function"
+            Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => Err(DbError::new(
+                "Cannot initialize this encoding through this function",
             )),
             Encoding::RLE
             | Encoding::DELTA_BINARY_PACKED
             | Encoding::DELTA_BYTE_ARRAY
-            | Encoding::DELTA_LENGTH_BYTE_ARRAY => Err(general_err!(
+            | Encoding::DELTA_LENGTH_BYTE_ARRAY => Err(DbError::new(format!(
                 "Encoding {} is not supported for type",
-                encoding
-            )),
-            e => Err(nyi_err!("Encoding {} is not supported", e)),
+                encoding,
+            ))),
+            e => Err(DbError::new(format!("Encoding {} is not supported", e))),
         }
     }
 
@@ -77,7 +78,7 @@ pub(crate) mod private {
         fn get_decoder<T: DataType<T = Self>>(
             descr: ColumnDescPtr,
             encoding: Encoding,
-        ) -> ParquetResult<Box<dyn Decoder<T>>> {
+        ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
                 Encoding::RLE => Ok(Box::new(RleValueDecoder::new())),
                 _ => get_decoder_default(descr, encoding),
@@ -89,7 +90,7 @@ pub(crate) mod private {
         fn get_decoder<T: DataType<T = Self>>(
             descr: ColumnDescPtr,
             encoding: Encoding,
-        ) -> ParquetResult<Box<dyn Decoder<T>>> {
+        ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
                 Encoding::DELTA_BINARY_PACKED => Ok(Box::new(DeltaBitPackDecoder::new())),
                 _ => get_decoder_default(descr, encoding),
@@ -101,7 +102,7 @@ pub(crate) mod private {
         fn get_decoder<T: DataType<T = Self>>(
             descr: ColumnDescPtr,
             encoding: Encoding,
-        ) -> ParquetResult<Box<dyn Decoder<T>>> {
+        ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
                 Encoding::DELTA_BINARY_PACKED => Ok(Box::new(DeltaBitPackDecoder::new())),
                 _ => get_decoder_default(descr, encoding),
@@ -113,7 +114,7 @@ pub(crate) mod private {
         fn get_decoder<T: DataType<T = Self>>(
             descr: ColumnDescPtr,
             encoding: Encoding,
-        ) -> ParquetResult<Box<dyn Decoder<T>>> {
+        ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
                 Encoding::BYTE_STREAM_SPLIT => Ok(Box::new(
                     byte_stream_split_decoder::ByteStreamSplitDecoder::new(),
@@ -126,7 +127,7 @@ pub(crate) mod private {
         fn get_decoder<T: DataType<T = Self>>(
             descr: ColumnDescPtr,
             encoding: Encoding,
-        ) -> ParquetResult<Box<dyn Decoder<T>>> {
+        ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
                 Encoding::BYTE_STREAM_SPLIT => Ok(Box::new(
                     byte_stream_split_decoder::ByteStreamSplitDecoder::new(),
@@ -140,7 +141,7 @@ pub(crate) mod private {
         fn get_decoder<T: DataType<T = Self>>(
             descr: ColumnDescPtr,
             encoding: Encoding,
-        ) -> ParquetResult<Box<dyn Decoder<T>>> {
+        ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
                 Encoding::DELTA_BYTE_ARRAY => Ok(Box::new(DeltaByteArrayDecoder::new())),
                 Encoding::DELTA_LENGTH_BYTE_ARRAY => {
@@ -155,7 +156,7 @@ pub(crate) mod private {
         fn get_decoder<T: DataType<T = Self>>(
             descr: ColumnDescPtr,
             encoding: Encoding,
-        ) -> ParquetResult<Box<dyn Decoder<T>>> {
+        ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
                 Encoding::DELTA_BYTE_ARRAY => Ok(Box::new(DeltaByteArrayDecoder::new())),
                 _ => get_decoder_default(descr, encoding),
@@ -173,7 +174,7 @@ pub(crate) mod private {
 pub trait Decoder<T: DataType>: Send + Debug {
     /// Sets the data to decode to be `data`, which should contain `num_values` of values
     /// to decode.
-    fn set_data(&mut self, data: Bytes, num_values: usize) -> ParquetResult<()>;
+    fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()>;
 
     /// Consumes values from this decoder and write the results to `buffer`. This will try
     /// to fill up `buffer`.
@@ -181,7 +182,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
     /// Returns the actual number of values decoded, which should be equal to
     /// `buffer.len()` unless the remaining number of values is less than
     /// `buffer.len()`.
-    fn read(&mut self, buffer: &mut [T::T]) -> ParquetResult<usize>;
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize>;
 
     /// Consume values from this decoder and write the results to `buffer`, leaving
     /// "spaces" for null values.
@@ -200,7 +201,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
         buffer: &mut [T::T],
         null_count: usize,
         valid_bits: &[u8],
-    ) -> ParquetResult<usize> {
+    ) -> Result<usize> {
         assert!(buffer.len() >= null_count);
 
         // TODO: check validity of the input arguments?
@@ -212,11 +213,10 @@ pub trait Decoder<T: DataType>: Send + Debug {
         let values_to_read = num_values - null_count;
         let values_read = self.read(buffer)?;
         if values_read != values_to_read {
-            return Err(general_err!(
+            return Err(DbError::new(format!(
                 "Number of values read: {}, doesn't match expected: {}",
-                values_read,
-                values_to_read
-            ));
+                values_read, values_to_read
+            )));
         }
         let mut values_to_move = values_read;
         for i in (0..num_values).rev() {
@@ -236,7 +236,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
     fn encoding(&self) -> Encoding;
 
     /// Skip the specified number of values in this decoder stream.
-    fn skip(&mut self, num_values: usize) -> ParquetResult<usize>;
+    fn skip(&mut self, num_values: usize) -> Result<usize>;
 }
 
 /// Gets a decoder for the column descriptor `descr` and encoding type `encoding`.
@@ -247,7 +247,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
 pub fn get_decoder<T: DataType>(
     descr: ColumnDescPtr,
     encoding: Encoding,
-) -> ParquetResult<Box<dyn Decoder<T>>> {
+) -> Result<Box<dyn Decoder<T>>> {
     use self::private::GetDecoder;
     T::T::get_decoder(descr, encoding)
 }
@@ -305,7 +305,7 @@ impl<T: DataType> PlainDecoder<T> {
 
 impl<T: DataType> Decoder<T> for PlainDecoder<T> {
     #[inline]
-    fn set_data(&mut self, data: Bytes, num_values: usize) -> ParquetResult<()> {
+    fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
         T::T::set_data(&mut self.inner, data, num_values);
         Ok(())
     }
@@ -321,12 +321,12 @@ impl<T: DataType> Decoder<T> for PlainDecoder<T> {
     }
 
     #[inline]
-    fn read(&mut self, buffer: &mut [T::T]) -> ParquetResult<usize> {
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
         T::T::decode(buffer, &mut self.inner)
     }
 
     #[inline]
-    fn skip(&mut self, num_values: usize) -> ParquetResult<usize> {
+    fn skip(&mut self, num_values: usize) -> Result<usize> {
         T::T::skip(&mut self.inner, num_values)
     }
 }
@@ -372,7 +372,7 @@ impl<T: DataType> DictDecoder<T> {
 
     /// Decodes and sets values for dictionary using `decoder` decoder.
     #[allow(unused)]
-    pub fn set_dict(&mut self, mut decoder: Box<dyn Decoder<T>>) -> ParquetResult<()> {
+    pub fn set_dict(&mut self, mut decoder: Box<dyn Decoder<T>>) -> Result<()> {
         let num_values = decoder.values_left();
         self.dictionary.resize(num_values, T::T::default());
         let _ = decoder.read(&mut self.dictionary)?;
@@ -382,7 +382,7 @@ impl<T: DataType> DictDecoder<T> {
 }
 
 impl<T: DataType> Decoder<T> for DictDecoder<T> {
-    fn set_data(&mut self, data: Bytes, num_values: usize) -> ParquetResult<()> {
+    fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
         // First byte in `data` is bit width
         let bit_width = data.as_ref()[0];
         let mut rle_decoder = RleDecoder::new(bit_width);
@@ -392,7 +392,7 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
         Ok(())
     }
 
-    fn read(&mut self, buffer: &mut [T::T]) -> ParquetResult<usize> {
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
         assert!(self.rle_decoder.is_some());
         assert!(self.has_dictionary, "Must call set_dict() first!");
 
@@ -410,7 +410,7 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
         Encoding::RLE_DICTIONARY
     }
 
-    fn skip(&mut self, num_values: usize) -> ParquetResult<usize> {
+    fn skip(&mut self, num_values: usize) -> Result<usize> {
         assert!(self.rle_decoder.is_some());
         assert!(self.has_dictionary, "Must call set_dict() first!");
 
@@ -451,7 +451,7 @@ impl<T: DataType> RleValueDecoder<T> {
 
 impl<T: DataType> Decoder<T> for RleValueDecoder<T> {
     #[inline]
-    fn set_data(&mut self, data: Bytes, num_values: usize) -> ParquetResult<()> {
+    fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
         // Only support RLE value reader for boolean values with bit width of 1.
         ensure_phys_ty!(Type::BOOLEAN, "RleValueDecoder only supports bool");
 
@@ -476,7 +476,7 @@ impl<T: DataType> Decoder<T> for RleValueDecoder<T> {
     }
 
     #[inline]
-    fn read(&mut self, buffer: &mut [T::T]) -> ParquetResult<usize> {
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
         let num_values = cmp::min(buffer.len(), self.values_left);
         let values_read = self.decoder.get_batch(&mut buffer[..num_values])?;
         self.values_left -= values_read;
@@ -484,7 +484,7 @@ impl<T: DataType> Decoder<T> for RleValueDecoder<T> {
     }
 
     #[inline]
-    fn skip(&mut self, num_values: usize) -> ParquetResult<usize> {
+    fn skip(&mut self, num_values: usize) -> Result<usize> {
         let num_values = cmp::min(num_values, self.values_left);
         let values_skipped = self.decoder.skip(num_values)?;
         self.values_left -= values_skipped;
@@ -580,14 +580,14 @@ where
 
     /// Initializes the next block and the first mini block within it
     #[inline]
-    fn next_block(&mut self) -> ParquetResult<()> {
+    fn next_block(&mut self) -> Result<()> {
         let min_delta = self
             .bit_reader
             .get_zigzag_vlq_int()
-            .ok_or_else(|| eof_err!("Not enough data to decode 'min_delta'"))?;
+            .ok_or_else(|| DbError::new("Not enough data to decode 'min_delta'"))?;
 
         self.min_delta =
-            T::T::from_i64(min_delta).ok_or_else(|| general_err!("'min_delta' too large"))?;
+            T::T::from_i64(min_delta).ok_or_else(|| DbError::new("'min_delta' too large"))?;
 
         self.mini_block_bit_widths.clear();
         self.bit_reader
@@ -609,7 +609,7 @@ where
         self.block_end_offset = offset;
 
         if self.mini_block_bit_widths.len() != self.mini_blocks_per_block {
-            return Err(eof_err!("insufficient mini block bit widths"));
+            return Err(DbError::new("insufficient mini block bit widths"));
         }
 
         self.mini_block_remaining = self.values_per_mini_block;
@@ -620,7 +620,7 @@ where
 
     /// Initializes the next mini block
     #[inline]
-    fn next_mini_block(&mut self) -> ParquetResult<()> {
+    fn next_mini_block(&mut self) -> Result<()> {
         if self.mini_block_idx + 1 < self.mini_block_bit_widths.len() {
             self.mini_block_idx += 1;
             self.mini_block_remaining = self.values_per_mini_block;
@@ -637,7 +637,7 @@ where
 {
     // # of total values is derived from encoding
     #[inline]
-    fn set_data(&mut self, data: Bytes, _index: usize) -> ParquetResult<()> {
+    fn set_data(&mut self, data: Bytes, _index: usize) -> Result<()> {
         self.bit_reader = BitReader::new(data);
         self.initialized = true;
 
@@ -645,45 +645,44 @@ where
         self.block_size = self
             .bit_reader
             .get_vlq_int()
-            .ok_or_else(|| eof_err!("Not enough data to decode 'block_size'"))?
+            .ok_or_else(|| DbError::new("Not enough data to decode 'block_size'"))?
             .try_into()
-            .map_err(|_| general_err!("invalid 'block_size'"))?;
+            .context("invalid 'block_size'")?;
 
         self.mini_blocks_per_block = self
             .bit_reader
             .get_vlq_int()
-            .ok_or_else(|| eof_err!("Not enough data to decode 'mini_blocks_per_block'"))?
+            .ok_or_else(|| DbError::new("Not enough data to decode 'mini_blocks_per_block'"))?
             .try_into()
-            .map_err(|_| general_err!("invalid 'mini_blocks_per_block'"))?;
+            .context("invalid 'mini_blocks_per_block'")?;
 
         self.values_left = self
             .bit_reader
             .get_vlq_int()
-            .ok_or_else(|| eof_err!("Not enough data to decode 'values_left'"))?
+            .ok_or_else(|| DbError::new("Not enough data to decode 'values_left'"))?
             .try_into()
-            .map_err(|_| general_err!("invalid 'values_left'"))?;
+            .context("invalid 'values_left'")?;
 
         let first_value = self
             .bit_reader
             .get_zigzag_vlq_int()
-            .ok_or_else(|| eof_err!("Not enough data to decode 'first_value'"))?;
+            .ok_or_else(|| DbError::new("Not enough data to decode 'first_value'"))?;
 
         self.first_value =
-            Some(T::T::from_i64(first_value).ok_or_else(|| general_err!("first value too large"))?);
+            Some(T::T::from_i64(first_value).ok_or_else(|| DbError::new("first value too large"))?);
 
         if self.block_size % 128 != 0 {
-            return Err(general_err!(
+            return Err(DbError::new(format!(
                 "'block_size' must be a multiple of 128, got {}",
                 self.block_size
-            ));
+            )));
         }
 
         if self.block_size % self.mini_blocks_per_block != 0 {
-            return Err(general_err!(
+            return Err(DbError::new(format!(
                 "'block_size' must be a multiple of 'mini_blocks_per_block' got {} and {}",
-                self.block_size,
-                self.mini_blocks_per_block
-            ));
+                self.block_size, self.mini_blocks_per_block
+            )));
         }
 
         // Reset decoding state
@@ -693,16 +692,16 @@ where
         self.mini_block_bit_widths.clear();
 
         if self.values_per_mini_block % 32 != 0 {
-            return Err(general_err!(
+            return Err(DbError::new(format!(
                 "'values_per_mini_block' must be a multiple of 32 got {}",
                 self.values_per_mini_block
-            ));
+            )));
         }
 
         Ok(())
     }
 
-    fn read(&mut self, buffer: &mut [T::T]) -> ParquetResult<usize> {
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
         assert!(self.initialized, "Bit reader is not initialized");
         if buffer.is_empty() {
             return Ok(0);
@@ -731,11 +730,10 @@ where
                 .get_batch(&mut buffer[read..read + batch_to_read], bit_width);
 
             if batch_read != batch_to_read {
-                return Err(general_err!(
+                return Err(DbError::new(format!(
                     "Expected to read {} values from miniblock got {}",
-                    batch_to_read,
-                    batch_read
-                ));
+                    batch_to_read, batch_read
+                )));
             }
 
             // At this point we have read the deltas to `buffer` we now need to offset
@@ -767,7 +765,7 @@ where
         Encoding::DELTA_BINARY_PACKED
     }
 
-    fn skip(&mut self, num_values: usize) -> ParquetResult<usize> {
+    fn skip(&mut self, num_values: usize) -> Result<usize> {
         let mut skip = 0;
         let to_skip = num_values.min(self.values_left);
         if to_skip == 0 {
@@ -802,11 +800,10 @@ where
                 .get_batch(&mut skip_buffer[0..mini_block_to_skip], bit_width);
 
             if skip_count != mini_block_to_skip {
-                return Err(general_err!(
+                return Err(DbError::new(format!(
                     "Expected to skip {} values from mini block got {}.",
-                    mini_block_batch_size,
-                    skip_count
-                ));
+                    mini_block_batch_size, skip_count
+                )));
             }
 
             for v in &mut skip_buffer[0..skip_count] {
@@ -877,7 +874,7 @@ impl<T: DataType> DeltaLengthByteArrayDecoder<T> {
 }
 
 impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
-    fn set_data(&mut self, data: Bytes, num_values: usize) -> ParquetResult<()> {
+    fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
         match T::get_physical_type() {
             Type::BYTE_ARRAY => {
                 let mut len_decoder = DeltaBitPackDecoder::<i32>::new();
@@ -892,13 +889,13 @@ impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
                 self.num_values = num_lengths;
                 Ok(())
             }
-            _ => Err(general_err!(
-                "DeltaLengthByteArrayDecoder only support ByteArray"
+            _ => Err(DbError::new(
+                "DeltaLengthByteArrayDecoder only support ByteArray",
             )),
         }
     }
 
-    fn read(&mut self, buffer: &mut [T::T]) -> ParquetResult<usize> {
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
         match T::get_physical_type() {
             Type::BYTE_ARRAY => {
                 assert!(self.data.is_some());
@@ -921,8 +918,8 @@ impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
                 self.num_values -= num_values;
                 Ok(num_values)
             }
-            _ => Err(general_err!(
-                "DeltaLengthByteArrayDecoder only support ByteArray"
+            _ => Err(DbError::new(
+                "DeltaLengthByteArrayDecoder only support ByteArray",
             )),
         }
     }
@@ -935,7 +932,7 @@ impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
         Encoding::DELTA_LENGTH_BYTE_ARRAY
     }
 
-    fn skip(&mut self, num_values: usize) -> ParquetResult<usize> {
+    fn skip(&mut self, num_values: usize) -> Result<usize> {
         match T::get_physical_type() {
             Type::BYTE_ARRAY => {
                 let num_values = cmp::min(num_values, self.num_values);
@@ -951,10 +948,10 @@ impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
                 self.num_values -= num_values;
                 Ok(num_values)
             }
-            other_type => Err(general_err!(
+            other_type => Err(DbError::new(format!(
                 "DeltaLengthByteArrayDecoder not support {}, only support byte array",
                 other_type
-            )),
+            ))),
         }
     }
 }
@@ -1011,7 +1008,7 @@ impl<T: DataType> DeltaByteArrayDecoder<T> {
 }
 
 impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
-    fn set_data(&mut self, data: Bytes, num_values: usize) -> ParquetResult<()> {
+    fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
         match T::get_physical_type() {
             Type::BYTE_ARRAY | Type::FIXED_LEN_BYTE_ARRAY => {
                 let mut prefix_len_decoder = DeltaBitPackDecoder::<i32>::new();
@@ -1029,13 +1026,13 @@ impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
                 self.previous_value.clear();
                 Ok(())
             }
-            _ => Err(general_err!(
-                "DeltaByteArrayDecoder only supports ByteArray and FixedLenByteArray"
+            _ => Err(DbError::new(
+                "DeltaByteArrayDecoder only supports ByteArray and FixedLenByteArray",
             )),
         }
     }
 
-    fn read(&mut self, buffer: &mut [T::T]) -> ParquetResult<usize> {
+    fn read(&mut self, buffer: &mut [T::T]) -> Result<usize> {
         match T::get_physical_type() {
             ty @ Type::BYTE_ARRAY | ty @ Type::FIXED_LEN_BYTE_ARRAY => {
                 let num_values = cmp::min(buffer.len(), self.num_values);
@@ -1081,8 +1078,8 @@ impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
                 self.num_values -= num_values;
                 Ok(num_values)
             }
-            _ => Err(general_err!(
-                "DeltaByteArrayDecoder only supports ByteArray and FixedLenByteArray"
+            _ => Err(DbError::new(
+                "DeltaByteArrayDecoder only supports ByteArray and FixedLenByteArray",
             )),
         }
     }
@@ -1095,7 +1092,7 @@ impl<T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
         Encoding::DELTA_BYTE_ARRAY
     }
 
-    fn skip(&mut self, num_values: usize) -> ParquetResult<usize> {
+    fn skip(&mut self, num_values: usize) -> Result<usize> {
         let mut buffer = vec![T::T::default(); num_values];
         self.read(&mut buffer)
     }
@@ -1109,7 +1106,6 @@ mod tests {
 
     use super::super::encoding::*;
     use super::*;
-    use crate::errors::{ParquetError, nyi_err};
     use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
     use crate::testutil::rand_gen::RandGen;
 
@@ -1899,6 +1895,7 @@ mod tests {
         }
     }
 
+    // holy fuck
     fn create_and_check_decoder<T: DataType>(encoding: Encoding, err: Option<ParquetError>) {
         let descr = create_test_col_desc_ptr(-1, T::get_physical_type());
         let decoder = get_decoder::<T>(descr, encoding);

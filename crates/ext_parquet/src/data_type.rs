@@ -23,10 +23,10 @@ use std::str::from_utf8;
 use std::{fmt, mem};
 
 use bytes::Bytes;
+use glaredb_error::{DbError, Result, ResultExt};
 use half::f16;
 
 use crate::basic::Type;
-use crate::errors::{ParquetResult, general_err};
 use crate::util::bit_util::FromBytes;
 
 // TODO: Delete me
@@ -198,12 +198,12 @@ impl ByteArray {
         )
     }
 
-    pub fn as_utf8(&self) -> ParquetResult<&str> {
+    pub fn as_utf8(&self) -> Result<&str> {
         self.data
             .as_ref()
             .map(|ptr| ptr.as_ref())
-            .ok_or_else(|| general_err!("Can't convert empty byte array to utf8"))
-            .and_then(|bytes| from_utf8(bytes).map_err(|e| e.into()))
+            .ok_or_else(|| DbError::new("Can't convert empty byte array to utf8"))
+            .and_then(|bytes| from_utf8(bytes).context("Not valid utf8"))
     }
 }
 
@@ -599,11 +599,11 @@ impl AsBytes for str {
 
 pub(crate) mod private {
     use bytes::Bytes;
+    use glaredb_error::{DbError, Result};
 
-    use super::{ParquetResult, SliceAsBytes, general_err};
+    use super::SliceAsBytes;
     use crate::basic::Type;
     use crate::encodings::decoding::PlainDecoderDetails;
-    use crate::errors::eof_err;
     use crate::util::bit_util::{BitReader, BitWriter, read_num_bytes};
 
     /// Sealed trait to start to remove specialisation from implementations
@@ -632,15 +632,15 @@ pub(crate) mod private {
             values: &[Self],
             writer: &mut W,
             bit_writer: &mut BitWriter,
-        ) -> ParquetResult<()>;
+        ) -> Result<()>;
 
         /// Establish the data that will be decoded in a buffer
         fn set_data(decoder: &mut PlainDecoderDetails, data: Bytes, num_values: usize);
 
         /// Decode the value from a given buffer for a higher level decoder
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize>;
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize>;
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize>;
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize>;
 
         /// Return the encoded size for a type
         fn dict_encoding_size(&self) -> (usize, usize) {
@@ -651,17 +651,17 @@ pub(crate) mod private {
         ///
         /// This is essentially the same as `std::convert::TryInto<i64>` but can't be
         /// implemented for `f32` and `f64`, types that would fail orphan rules
-        fn as_i64(&self) -> ParquetResult<i64> {
-            Err(general_err!("Type cannot be converted to i64"))
+        fn as_i64(&self) -> Result<i64> {
+            Err(DbError::new("Type cannot be converted to i64"))
         }
 
         /// Return the value as u64 if possible
         ///
         /// This is essentially the same as `std::convert::TryInto<u64>` but can't be
         /// implemented for `f32` and `f64`, types that would fail orphan rules
-        fn as_u64(&self) -> ParquetResult<u64> {
+        fn as_u64(&self) -> Result<u64> {
             self.as_i64()
-                .map_err(|_| general_err!("Type cannot be converted to u64"))
+                .map_err(|_| DbError::new("Type cannot be converted to u64"))
                 .map(|x| x as u64)
         }
 
@@ -680,7 +680,7 @@ pub(crate) mod private {
             values: &[Self],
             _: &mut W,
             bit_writer: &mut BitWriter,
-        ) -> ParquetResult<()> {
+        ) -> Result<()> {
             for value in values {
                 bit_writer.put_value(*value as u64, 1)
             }
@@ -694,7 +694,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
             let bit_reader = decoder.bit_reader.as_mut().unwrap();
             let num_values = std::cmp::min(buffer.len(), decoder.num_values);
             let values_read = bit_reader.get_batch(&mut buffer[..num_values], 1);
@@ -702,7 +702,7 @@ pub(crate) mod private {
             Ok(values_read)
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
             let bit_reader = decoder.bit_reader.as_mut().unwrap();
             let num_values = std::cmp::min(num_values, decoder.num_values);
             let values_read = bit_reader.skip(num_values, 1);
@@ -711,7 +711,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn as_i64(&self) -> ParquetResult<i64> {
+        fn as_i64(&self) -> Result<i64> {
             Ok(*self as i64)
         }
 
@@ -732,7 +732,7 @@ pub(crate) mod private {
                 const PHYSICAL_TYPE: Type = $physical_ty;
 
                 #[inline]
-                fn encode<W: std::io::Write>(values: &[Self], writer: &mut W, _: &mut BitWriter) -> ParquetResult<()> {
+                fn encode<W: std::io::Write>(values: &[Self], writer: &mut W, _: &mut BitWriter) -> Result<()> {
                     let raw = unsafe {
                         std::slice::from_raw_parts(
                             values.as_ptr() as *const u8,
@@ -752,14 +752,14 @@ pub(crate) mod private {
                 }
 
                 #[inline]
-                fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
+                fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
                     let data = decoder.data.as_ref().expect("set_data should have been called");
                     let num_values = std::cmp::min(buffer.len(), decoder.num_values);
                     let bytes_left = data.len() - decoder.start;
                     let bytes_to_decode = std::mem::size_of::<Self>() * num_values;
 
                     if bytes_left < bytes_to_decode {
-                        return Err(crate::errors::eof_err!("Not enough bytes to decode"));
+                        return Err(DbError::new("Not enough bytes to decode"));
                     }
 
                     // SAFETY: Raw types should be as per the standard rust bit-vectors
@@ -776,14 +776,14 @@ pub(crate) mod private {
                 }
 
                 #[inline]
-                fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
+                fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
                     let data = decoder.data.as_ref().expect("set_data should have been called");
                     let num_values = num_values.min(decoder.num_values);
                     let bytes_left = data.len() - decoder.start;
                     let bytes_to_skip = std::mem::size_of::<Self>() * num_values;
 
                     if bytes_left < bytes_to_skip {
-                        return Err(crate::errors::eof_err!("Not enough bytes to skip"));
+                        return Err(DbError::new("Not enough bytes to skip"));
                     }
 
                     decoder.start += bytes_to_skip;
@@ -793,7 +793,7 @@ pub(crate) mod private {
                 }
 
                 #[inline]
-                fn as_i64(&$self) -> ParquetResult<i64> {
+                fn as_i64(&$self) -> Result<i64> {
                     $as_i64
                 }
 
@@ -812,8 +812,8 @@ pub(crate) mod private {
 
     impl_from_raw!(i32, Type::INT32, self => { Ok(*self as i64) });
     impl_from_raw!(i64, Type::INT64, self => { Ok(*self) });
-    impl_from_raw!(f32, Type::FLOAT, self => { Err(general_err!("Type cannot be converted to i64")) });
-    impl_from_raw!(f64, Type::DOUBLE, self => { Err(general_err!("Type cannot be converted to i64")) });
+    impl_from_raw!(f32, Type::FLOAT, self => { Err(DbError::new("Type cannot be converted to i64")) });
+    impl_from_raw!(f64, Type::DOUBLE, self => { Err(DbError::new("Type cannot be converted to i64")) });
 
     impl ParquetValueType for super::Int96 {
         const PHYSICAL_TYPE: Type = Type::INT96;
@@ -823,7 +823,7 @@ pub(crate) mod private {
             values: &[Self],
             writer: &mut W,
             _: &mut BitWriter,
-        ) -> ParquetResult<()> {
+        ) -> Result<()> {
             for value in values {
                 let raw = unsafe {
                     std::slice::from_raw_parts(value.data() as *const [u32] as *const u8, 12)
@@ -841,7 +841,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
             // TODO - Remove the duplication between this and the general slice method
             let data = decoder
                 .data
@@ -852,7 +852,7 @@ pub(crate) mod private {
             let bytes_to_decode = 12 * num_values;
 
             if bytes_left < bytes_to_decode {
-                return Err(eof_err!("Not enough bytes to decode"));
+                return Err(DbError::new("Not enough bytes to decode"));
             }
 
             let data_range = data.slice(decoder.start..decoder.start + bytes_to_decode);
@@ -873,7 +873,7 @@ pub(crate) mod private {
             Ok(num_values)
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
             let data = decoder
                 .data
                 .as_ref()
@@ -883,7 +883,7 @@ pub(crate) mod private {
             let bytes_to_skip = 12 * num_values;
 
             if bytes_left < bytes_to_skip {
-                return Err(eof_err!("Not enough bytes to skip"));
+                return Err(DbError::new("Not enough bytes to skip"));
             }
             decoder.start += bytes_to_skip;
             decoder.num_values -= num_values;
@@ -910,7 +910,7 @@ pub(crate) mod private {
             values: &[Self],
             writer: &mut W,
             _: &mut BitWriter,
-        ) -> ParquetResult<()> {
+        ) -> Result<()> {
             for value in values {
                 let len: u32 = value.len().try_into().unwrap();
                 writer.write_all(&len.to_ne_bytes())?;
@@ -928,7 +928,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
             let data = decoder
                 .data
                 .as_mut()
@@ -940,7 +940,7 @@ pub(crate) mod private {
                 decoder.start += std::mem::size_of::<u32>();
 
                 if data.len() < decoder.start + len {
-                    return Err(eof_err!("Not enough bytes to decode"));
+                    return Err(DbError::new("Not enough bytes to decode"));
                 }
 
                 let val: &mut Self = val_array.as_mut_any().downcast_mut().unwrap();
@@ -953,7 +953,7 @@ pub(crate) mod private {
             Ok(num_values)
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
             let data = decoder
                 .data
                 .as_mut()
@@ -994,7 +994,7 @@ pub(crate) mod private {
             values: &[Self],
             writer: &mut W,
             _: &mut BitWriter,
-        ) -> ParquetResult<()> {
+        ) -> Result<()> {
             for value in values {
                 let raw = value.data();
                 writer.write_all(raw)?;
@@ -1010,7 +1010,7 @@ pub(crate) mod private {
         }
 
         #[inline]
-        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> ParquetResult<usize> {
+        fn decode(buffer: &mut [Self], decoder: &mut PlainDecoderDetails) -> Result<usize> {
             assert!(decoder.type_length > 0);
 
             let data = decoder
@@ -1023,7 +1023,7 @@ pub(crate) mod private {
                 let len = decoder.type_length as usize;
 
                 if data.len() < decoder.start + len {
-                    return Err(eof_err!("Not enough bytes to decode"));
+                    return Err(DbError::new("Not enough bytes to decode"));
                 }
 
                 item.set_data(data.slice(decoder.start..decoder.start + len));
@@ -1034,7 +1034,7 @@ pub(crate) mod private {
             Ok(num_values)
         }
 
-        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> ParquetResult<usize> {
+        fn skip(decoder: &mut PlainDecoderDetails, num_values: usize) -> Result<usize> {
             assert!(decoder.type_length > 0);
 
             let data = decoder
@@ -1046,7 +1046,7 @@ pub(crate) mod private {
                 let len = decoder.type_length as usize;
 
                 if data.len() < decoder.start + len {
-                    return Err(eof_err!("Not enough bytes to skip"));
+                    return Err(DbError::new("Not enough bytes to skip"));
                 }
 
                 decoder.start += len;

@@ -19,9 +19,9 @@ use std::cmp;
 use std::mem::size_of;
 
 use bytes::Bytes;
+use glaredb_error::{DbError, Result};
 
 use crate::data_type::{AsBytes, ByteArray, FixedLenByteArray, Int96};
-use crate::errors::{ParquetResult, general_err};
 use crate::util::bit_pack::{unpack8, unpack16, unpack32, unpack64};
 
 #[inline]
@@ -31,21 +31,21 @@ pub fn from_le_slice<T: FromBytes>(bs: &[u8]) -> T {
 }
 
 #[inline]
-fn array_from_slice<const N: usize>(bs: &[u8]) -> ParquetResult<[u8; N]> {
+fn array_from_slice<const N: usize>(bs: &[u8]) -> Result<[u8; N]> {
     // Need to slice as may be called with zero-padded values
     match bs.get(..N) {
         Some(b) => Ok(b.try_into().unwrap()),
-        None => Err(general_err!(
+        None => Err(DbError::new(format!(
             "error converting value, expected {} bytes got {}",
             N,
             bs.len()
-        )),
+        ))),
     }
 }
 
 pub trait FromBytes: Sized {
     type Buffer: AsMut<[u8]> + Default;
-    fn try_from_le_slice(b: &[u8]) -> ParquetResult<Self>;
+    fn try_from_le_slice(b: &[u8]) -> Result<Self>;
     fn from_le_bytes(bs: Self::Buffer) -> Self;
 }
 
@@ -54,7 +54,7 @@ macro_rules! from_le_bytes {
         $(
         impl FromBytes for $ty {
             type Buffer = [u8; size_of::<Self>()];
-            fn try_from_le_slice(b: &[u8]) -> ParquetResult<Self> {
+            fn try_from_le_slice(b: &[u8]) -> Result<Self> {
                 Ok(Self::from_le_bytes(array_from_slice(b)?))
             }
             fn from_le_bytes(bs: Self::Buffer) -> Self {
@@ -70,7 +70,7 @@ from_le_bytes! { u8, u16, u32, u64, i8, i16, i32, i64, f32, f64 }
 impl FromBytes for bool {
     type Buffer = [u8; 1];
 
-    fn try_from_le_slice(b: &[u8]) -> ParquetResult<Self> {
+    fn try_from_le_slice(b: &[u8]) -> Result<Self> {
         Ok(Self::from_le_bytes(array_from_slice(b)?))
     }
     fn from_le_bytes(bs: Self::Buffer) -> Self {
@@ -81,7 +81,7 @@ impl FromBytes for bool {
 impl FromBytes for Int96 {
     type Buffer = [u8; 12];
 
-    fn try_from_le_slice(b: &[u8]) -> ParquetResult<Self> {
+    fn try_from_le_slice(b: &[u8]) -> Result<Self> {
         Ok(Self::from_le_bytes(array_from_slice(b)?))
     }
 
@@ -99,7 +99,7 @@ impl FromBytes for Int96 {
 impl FromBytes for ByteArray {
     type Buffer = Vec<u8>;
 
-    fn try_from_le_slice(b: &[u8]) -> ParquetResult<Self> {
+    fn try_from_le_slice(b: &[u8]) -> Result<Self> {
         Ok(b.to_vec().into())
     }
     fn from_le_bytes(bs: Self::Buffer) -> Self {
@@ -110,7 +110,7 @@ impl FromBytes for ByteArray {
 impl FromBytes for FixedLenByteArray {
     type Buffer = Vec<u8>;
 
-    fn try_from_le_slice(b: &[u8]) -> ParquetResult<Self> {
+    fn try_from_le_slice(b: &[u8]) -> Result<Self> {
         Ok(b.to_vec().into())
     }
     fn from_le_bytes(bs: Self::Buffer) -> Self {

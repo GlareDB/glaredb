@@ -16,7 +16,6 @@
 // under the License.
 
 pub mod basic;
-pub mod errors;
 #[allow(clippy::derivable_impls, clippy::match_single_binding, clippy::doc_lazy_continuation)]
 #[rustfmt::skip]
 pub mod format;

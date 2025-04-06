@@ -17,6 +17,8 @@
 
 use std::sync::Arc;
 
+use glaredb_error::{DbError, Result, ResultExt};
+
 use super::{
     FOOTER_SIZE,
     FileMetaData,
@@ -26,7 +28,6 @@ use super::{
     RowGroupMetaData,
 };
 use crate::basic::ColumnOrder;
-use crate::errors::{ParquetError, ParquetResult, general_err};
 use crate::format::{ColumnOrder as TColumnOrder, FileMetaData as TFileMetaData};
 use crate::schema::types::{self, SchemaDescriptor};
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
@@ -38,11 +39,11 @@ use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 /// by the [Parquet Spec].
 ///
 /// [Parquet Spec]: https://github.com/apache/parquet-format#metadata
-pub fn decode_metadata(buf: &[u8]) -> ParquetResult<ParquetMetaData> {
+pub fn decode_metadata(buf: &[u8]) -> Result<ParquetMetaData> {
     // TODO: row group filtering
     let mut prot = TCompactSliceInputProtocol::new(buf);
-    let t_file_metadata: TFileMetaData = TFileMetaData::read_from_in_protocol(&mut prot)
-        .map_err(|e| ParquetError::General(format!("Could not parse metadata: {e}")))?;
+    let t_file_metadata: TFileMetaData =
+        TFileMetaData::read_from_in_protocol(&mut prot).context("Could not parse metadata")?;
     let schema = types::from_thrift(&t_file_metadata.schema)?;
     let schema_descr = Arc::new(SchemaDescriptor::new(schema));
     let mut row_groups = Vec::new();
@@ -73,14 +74,14 @@ pub fn decode_metadata(buf: &[u8]) -> ParquetResult<ParquetMetaData> {
 /// | len | 'PAR1' |
 /// +-----+--------+
 /// ```
-pub fn decode_footer(slice: &[u8; FOOTER_SIZE]) -> ParquetResult<usize> {
+pub fn decode_footer(slice: &[u8; FOOTER_SIZE]) -> Result<usize> {
     // check this is indeed a parquet file
     if &slice[4..] == PARQUET_MAGIC_ENC {
-        return Err(general_err!("Encrypted parquet files not yet supported"));
+        return Err(DbError::new("Encrypted parquet files not yet supported"));
     }
 
     if &slice[4..] != PARQUET_MAGIC {
-        return Err(general_err!("Invalid Parquet file. Corrupt footer"));
+        return Err(DbError::new("Invalid Parquet file. Corrupt footer"));
     }
 
     // get the metadata length from the footer

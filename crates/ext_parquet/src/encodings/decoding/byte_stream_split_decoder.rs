@@ -18,11 +18,11 @@
 use std::marker::PhantomData;
 
 use bytes::Bytes;
+use glaredb_error::{DbError, Result};
 
 use super::Decoder;
 use crate::basic::Encoding;
 use crate::data_type::{DataType, SliceAsBytes};
-use crate::errors::{ParquetResult, general_err};
 
 #[derive(Debug)]
 pub struct ByteStreamSplitDecoder<T: DataType> {
@@ -63,7 +63,7 @@ fn join_streams_const<const TYPE_SIZE: usize>(
 }
 
 impl<T: DataType> Decoder<T> for ByteStreamSplitDecoder<T> {
-    fn set_data(&mut self, data: Bytes, num_values: usize) -> ParquetResult<()> {
+    fn set_data(&mut self, data: Bytes, num_values: usize) -> Result<()> {
         self.encoded_bytes = data;
         self.total_num_values = num_values;
         self.values_decoded = 0;
@@ -71,7 +71,7 @@ impl<T: DataType> Decoder<T> for ByteStreamSplitDecoder<T> {
         Ok(())
     }
 
-    fn read(&mut self, buffer: &mut [<T as DataType>::T]) -> ParquetResult<usize> {
+    fn read(&mut self, buffer: &mut [<T as DataType>::T]) -> Result<usize> {
         let total_remaining_values = self.values_left();
         let num_values = buffer.len().min(total_remaining_values);
         let buffer = &mut buffer[..num_values];
@@ -94,10 +94,10 @@ impl<T: DataType> Decoder<T> for ByteStreamSplitDecoder<T> {
                 self.values_decoded,
             ),
             _ => {
-                return Err(general_err!(
+                return Err(DbError::new(format!(
                     "byte stream split unsupported for data types of size {} bytes",
                     type_size
-                ));
+                )));
             }
         }
         self.values_decoded += num_values;
@@ -113,7 +113,7 @@ impl<T: DataType> Decoder<T> for ByteStreamSplitDecoder<T> {
         Encoding::BYTE_STREAM_SPLIT
     }
 
-    fn skip(&mut self, num_values: usize) -> ParquetResult<usize> {
+    fn skip(&mut self, num_values: usize) -> Result<usize> {
         let to_skip = usize::min(self.values_left(), num_values);
         self.values_decoded += to_skip;
         Ok(to_skip)

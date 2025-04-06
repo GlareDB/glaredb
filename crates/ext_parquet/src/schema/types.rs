@@ -21,6 +21,8 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
+use glaredb_error::{DbError, Result};
+
 use crate::basic::{
     ColumnOrder,
     ConvertedType,
@@ -29,7 +31,6 @@ use crate::basic::{
     SortOrder,
     Type as PhysicalType,
 };
-use crate::errors::{ParquetResult, general_err};
 use crate::format::{SchemaElement, TimeUnit};
 
 // ----------------------------------------------------------------------
@@ -272,7 +273,7 @@ impl<'a> PrimitiveTypeBuilder<'a> {
 
     /// Creates a new `PrimitiveType` instance from the collected attributes.
     /// Returns `Err` in case of any building conditions are not met.
-    pub fn build(self) -> ParquetResult<Type> {
+    pub fn build(self) -> Result<Type> {
         let mut basic_info = BasicTypeInfo {
             name: String::from(self.name),
             repetition: Some(self.repetition),
@@ -283,11 +284,10 @@ impl<'a> PrimitiveTypeBuilder<'a> {
 
         // Check length before logical type, since it is used for logical type validation.
         if self.physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY && self.length < 0 {
-            return Err(general_err!(
+            return Err(DbError::new(format!(
                 "Invalid FIXED_LEN_BYTE_ARRAY length: {} for field '{}'",
-                self.length,
-                self.name
-            ));
+                self.length, self.name
+            )));
         }
 
         if let Some(logical_type) = &self.logical_type {
@@ -295,12 +295,10 @@ impl<'a> PrimitiveTypeBuilder<'a> {
             // its logical type
             if self.converted_type != ConvertedType::NONE {
                 if ConvertedType::from(self.logical_type.clone()) != self.converted_type {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "Logical type {:?} is incompatible with converted type {} for field '{}'",
-                        logical_type,
-                        self.converted_type,
-                        self.name
-                    ));
+                        logical_type, self.converted_type, self.name
+                    )));
                 }
             } else {
                 // Populate the converted type for backwards compatibility
@@ -309,30 +307,25 @@ impl<'a> PrimitiveTypeBuilder<'a> {
             // Check that logical type and physical type are compatible
             match (logical_type, self.physical_type) {
                 (LogicalType::Map, _) | (LogicalType::List, _) => {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "{:?} cannot be applied to a primitive type for field '{}'",
-                        logical_type,
-                        self.name
-                    ));
+                        logical_type, self.name
+                    )));
                 }
                 (LogicalType::Enum, PhysicalType::BYTE_ARRAY) => {}
                 (LogicalType::Decimal { scale, precision }, _) => {
                     // Check that scale and precision are consistent with legacy values
                     if *scale != self.scale {
-                        return Err(general_err!(
+                        return Err(DbError::new(format!(
                             "DECIMAL logical type scale {} must match self.scale {} for field '{}'",
-                            scale,
-                            self.scale,
-                            self.name
-                        ));
+                            scale, self.scale, self.name
+                        )));
                     }
                     if *precision != self.precision {
-                        return Err(general_err!(
+                        return Err(DbError::new(format!(
                             "DECIMAL logical type precision {} must match self.precision {} for field '{}'",
-                            precision,
-                            self.precision,
-                            self.name
-                        ));
+                            precision, self.precision, self.name
+                        )));
                     }
                     self.check_decimal_precision_scale()?;
                 }
@@ -346,10 +339,10 @@ impl<'a> PrimitiveTypeBuilder<'a> {
                 ) => {}
                 (LogicalType::Time { unit, .. }, PhysicalType::INT64) => {
                     if *unit == TimeUnit::MILLIS(Default::default()) {
-                        return Err(general_err!(
+                        return Err(DbError::new(format!(
                             "Cannot use millisecond unit on INT64 type for field '{}'",
                             self.name
-                        ));
+                        )));
                     }
                 }
                 (LogicalType::Timestamp { .. }, PhysicalType::INT64) => {}
@@ -364,25 +357,23 @@ impl<'a> PrimitiveTypeBuilder<'a> {
                 (LogicalType::Bson, PhysicalType::BYTE_ARRAY) => {}
                 (LogicalType::Uuid, PhysicalType::FIXED_LEN_BYTE_ARRAY) if self.length == 16 => {}
                 (LogicalType::Uuid, PhysicalType::FIXED_LEN_BYTE_ARRAY) => {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "UUID cannot annotate field '{}' because it is not a FIXED_LEN_BYTE_ARRAY(16) field",
                         self.name
-                    ));
+                    )));
                 }
                 (LogicalType::Float16, PhysicalType::FIXED_LEN_BYTE_ARRAY) if self.length == 2 => {}
                 (LogicalType::Float16, PhysicalType::FIXED_LEN_BYTE_ARRAY) => {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "FLOAT16 cannot annotate field '{}' because it is not a FIXED_LEN_BYTE_ARRAY(2) field",
                         self.name
-                    ));
+                    )));
                 }
                 (a, b) => {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "Cannot annotate {:?} from {} for field '{}'",
-                        a,
-                        b,
-                        self.name
-                    ));
+                        a, b, self.name
+                    )));
                 }
             }
         }
@@ -391,11 +382,10 @@ impl<'a> PrimitiveTypeBuilder<'a> {
             ConvertedType::NONE => {}
             ConvertedType::UTF8 | ConvertedType::BSON | ConvertedType::JSON => {
                 if self.physical_type != PhysicalType::BYTE_ARRAY {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "{} cannot annotate field '{}' because it is not a BYTE_ARRAY field",
-                        self.converted_type,
-                        self.name
-                    ));
+                        self.converted_type, self.name
+                    )));
                 }
             }
             ConvertedType::DECIMAL => {
@@ -410,11 +400,10 @@ impl<'a> PrimitiveTypeBuilder<'a> {
             | ConvertedType::INT_16
             | ConvertedType::INT_32 => {
                 if self.physical_type != PhysicalType::INT32 {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "{} cannot annotate field '{}' because it is not a INT32 field",
-                        self.converted_type,
-                        self.name
-                    ));
+                        self.converted_type, self.name
+                    )));
                 }
             }
             ConvertedType::TIME_MICROS
@@ -423,35 +412,33 @@ impl<'a> PrimitiveTypeBuilder<'a> {
             | ConvertedType::UINT_64
             | ConvertedType::INT_64 => {
                 if self.physical_type != PhysicalType::INT64 {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "{} cannot annotate field '{}' because it is not a INT64 field",
-                        self.converted_type,
-                        self.name
-                    ));
+                        self.converted_type, self.name
+                    )));
                 }
             }
             ConvertedType::INTERVAL => {
                 if self.physical_type != PhysicalType::FIXED_LEN_BYTE_ARRAY || self.length != 12 {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "INTERVAL cannot annotate field '{}' because it is not a FIXED_LEN_BYTE_ARRAY(12) field",
                         self.name
-                    ));
+                    )));
                 }
             }
             ConvertedType::ENUM => {
                 if self.physical_type != PhysicalType::BYTE_ARRAY {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "ENUM cannot annotate field '{}' because it is not a BYTE_ARRAY field",
                         self.name
-                    ));
+                    )));
                 }
             }
             _ => {
-                return Err(general_err!(
+                return Err(DbError::new(format!(
                     "{} cannot be applied to primitive field '{}'",
-                    self.converted_type,
-                    self.name
-                ));
+                    self.converted_type, self.name
+                )));
             }
         }
 
@@ -465,70 +452,69 @@ impl<'a> PrimitiveTypeBuilder<'a> {
     }
 
     #[inline]
-    fn check_decimal_precision_scale(&self) -> ParquetResult<()> {
+    fn check_decimal_precision_scale(&self) -> Result<()> {
         match self.physical_type {
             PhysicalType::INT32
             | PhysicalType::INT64
             | PhysicalType::BYTE_ARRAY
             | PhysicalType::FIXED_LEN_BYTE_ARRAY => (),
             _ => {
-                return Err(general_err!(
+                return Err(DbError::new(format!(
                     "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED_LEN_BYTE_ARRAY"
-                ));
+                )));
             }
         }
 
         // Precision is required and must be a non-zero positive integer.
         if self.precision < 1 {
-            return Err(general_err!(
+            return Err(DbError::new(format!(
                 "Invalid DECIMAL precision: {}",
                 self.precision
-            ));
+            )));
         }
 
         // Scale must be zero or a positive integer less than the precision.
         if self.scale < 0 {
-            return Err(general_err!("Invalid DECIMAL scale: {}", self.scale));
+            return Err(DbError::new(format!(
+                "Invalid DECIMAL scale: {}",
+                self.scale
+            )));
         }
 
         if self.scale > self.precision {
-            return Err(general_err!(
-                "Invalid DECIMAL: scale ({}) cannot be greater than precision \
-             ({})",
-                self.scale,
-                self.precision
-            ));
+            return Err(DbError::new(format!(
+                "Invalid DECIMAL: scale ({}) cannot be greater than precision ({})",
+                self.scale, self.precision
+            )));
         }
 
         // Check precision and scale based on physical type limitations.
         match self.physical_type {
             PhysicalType::INT32 => {
                 if self.precision > 9 {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "Cannot represent INT32 as DECIMAL with precision {}",
                         self.precision
-                    ));
+                    )));
                 }
             }
             PhysicalType::INT64 => {
                 if self.precision > 18 {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "Cannot represent INT64 as DECIMAL with precision {}",
                         self.precision
-                    ));
+                    )));
                 }
             }
             PhysicalType::FIXED_LEN_BYTE_ARRAY => {
                 let max_precision = (2f64.powi(8 * self.length - 1) - 1f64).log10().floor() as i32;
 
                 if self.precision > max_precision {
-                    return Err(general_err!(
+                    return Err(DbError::new(format!(
                         "Cannot represent FIXED_LEN_BYTE_ARRAY as DECIMAL with length {} and \
                         precision {}. The max precision can only be {}",
-                        self.length,
-                        self.precision,
-                        max_precision
-                    ));
+                        self.length, self.precision, max_precision
+                    )));
                 }
             }
             _ => (), // For BYTE_ARRAY precision is not limited
@@ -597,7 +583,7 @@ impl<'a> GroupTypeBuilder<'a> {
     }
 
     /// Creates a new `GroupType` instance from the gathered attributes.
-    pub fn build(self) -> ParquetResult<Type> {
+    pub fn build(self) -> Result<Type> {
         let mut basic_info = BasicTypeInfo {
             name: String::from(self.name),
             repetition: self.repetition,
@@ -1029,7 +1015,7 @@ fn build_tree<'a>(
 }
 
 /// Method to convert from Thrift.
-pub fn from_thrift(elements: &[SchemaElement]) -> ParquetResult<TypePtr> {
+pub fn from_thrift(elements: &[SchemaElement]) -> Result<TypePtr> {
     let mut index = 0;
     let mut schema_nodes = Vec::new();
     while index < elements.len() {
@@ -1038,10 +1024,10 @@ pub fn from_thrift(elements: &[SchemaElement]) -> ParquetResult<TypePtr> {
         schema_nodes.push(t.1);
     }
     if schema_nodes.len() != 1 {
-        return Err(general_err!(
+        return Err(DbError::new(format!(
             "Expected exactly one root node, but found {}",
             schema_nodes.len()
-        ));
+        )));
     }
 
     Ok(schema_nodes.remove(0))
@@ -1051,17 +1037,17 @@ pub fn from_thrift(elements: &[SchemaElement]) -> ParquetResult<TypePtr> {
 /// The first result is the starting index for the next Type after this one. If it is
 /// equal to `elements.len()`, then this Type is the last one.
 /// The second result is the result Type.
-fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> ParquetResult<(usize, TypePtr)> {
+fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> Result<(usize, TypePtr)> {
     // Whether or not the current node is root (message type).
     // There is only one message type node in the schema tree.
     let is_root_node = index == 0;
 
     if index > elements.len() {
-        return Err(general_err!(
+        return Err(DbError::new(format!(
             "Index out of bound, index = {}, len = {}",
             index,
             elements.len()
-        ));
+        )));
     }
     let element = &elements[index];
     let converted_type = ConvertedType::try_from(element.converted_type)?;
@@ -1081,8 +1067,8 @@ fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> ParquetResult
         None | Some(0) => {
             // primitive type
             if elements[index].repetition_type.is_none() {
-                return Err(general_err!(
-                    "Repetition level must be defined for a primitive type"
+                return Err(DbError::new(
+                    "Repetition level must be defined for a primitive type",
                 ));
             }
             let repetition = Repetition::try_from(elements[index].repetition_type.unwrap())?;
@@ -1156,9 +1142,9 @@ fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> ParquetResult
 }
 
 /// Method to convert to Thrift.
-pub fn to_thrift(schema: &Type) -> ParquetResult<Vec<SchemaElement>> {
+pub fn to_thrift(schema: &Type) -> Result<Vec<SchemaElement>> {
     if !schema.is_group() {
-        return Err(general_err!("Root schema must be Group type"));
+        return Err(DbError::new("Root schema must be Group type"));
     }
     let mut elements: Vec<SchemaElement> = Vec::new();
     to_thrift_helper(schema, &mut elements);
@@ -1627,7 +1613,7 @@ mod tests {
         );
     }
 
-    fn test_column_descriptor_helper() -> ParquetResult<()> {
+    fn test_column_descriptor_helper() -> Result<()> {
         let tp = Type::primitive_type_builder("name", PhysicalType::BYTE_ARRAY)
             .with_converted_type(ConvertedType::UTF8)
             .build()?;
@@ -1658,7 +1644,7 @@ mod tests {
     }
 
     // A helper fn to avoid handling the results from type creation
-    fn test_schema_descriptor_helper() -> ParquetResult<()> {
+    fn test_schema_descriptor_helper() -> Result<()> {
         let mut fields = vec![];
 
         let inta = Type::primitive_type_builder("a", PhysicalType::INT32)
