@@ -6,7 +6,7 @@ use std::task::{Context, Poll};
 use glaredb_error::{DbError, Result, not_implemented};
 
 use super::{File, FileStat, FileSystem, FileType, OpenFlags};
-use crate::buffer::buffer_manager::RawBufferManager;
+use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 use crate::buffer::typed::ByteBuffer;
 
 #[derive(Debug)]
@@ -16,6 +16,15 @@ pub struct MemoryFileSystem {
     buffer_manager: RawBufferManager,
     /// Simple mapping of a flat name to byte buffer.
     files: scc::HashMap<String, Arc<ByteBuffer>>,
+}
+
+impl MemoryFileSystem {
+    pub fn new(buffer_manager: &impl AsRawBufferManager) -> Self {
+        MemoryFileSystem {
+            buffer_manager: buffer_manager.as_raw_buffer_manager(),
+            files: scc::HashMap::new(),
+        }
+    }
 }
 
 impl FileSystem for MemoryFileSystem {
@@ -63,6 +72,27 @@ pub struct MemoryFileHandle {
     buffer: Arc<ByteBuffer>,
 }
 
+impl MemoryFileHandle {
+    /// Create an ephemeral file handle containg the provided bytes.
+    ///
+    /// The seek position will be at the beginning of the buffer.
+    ///
+    /// This file handle will not be associated with any filesyste (and is
+    /// really only useful for tests).
+    pub fn from_bytes(manager: &impl AsRawBufferManager, bytes: impl AsRef<[u8]>) -> Result<Self> {
+        let bytes = bytes.as_ref();
+        let mut buffer = ByteBuffer::try_with_capacity(manager, bytes.len())?;
+
+        let slice = &mut buffer.as_slice_mut()[..bytes.len()]; // We may have allocated more than requested
+        slice.copy_from_slice(bytes);
+
+        Ok(MemoryFileHandle {
+            pos: 0,
+            buffer: Arc::new(buffer),
+        })
+    }
+}
+
 impl File for MemoryFileHandle {
     fn size(&self) -> usize {
         self.buffer.capacity()
@@ -72,8 +102,9 @@ impl File for MemoryFileHandle {
         let rem = self.buffer.capacity() - self.pos;
         let count = usize::min(buf.len(), rem);
 
-        let file_buf = &self.buffer.as_slice()[self.pos..(self.pos + count)];
-        buf.copy_from_slice(file_buf);
+        let src = &self.buffer.as_slice()[self.pos..(self.pos + count)];
+        let dest = &mut buf[..count];
+        dest.copy_from_slice(src);
 
         self.pos += count;
 
@@ -144,6 +175,8 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
+    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::util::task::noop_context;
 
     #[test]
     fn valid_file_names() {
@@ -168,5 +201,45 @@ mod tests {
         get_normalized_file_name(&PathBuf::from("./dir/test.parquet")).unwrap_err();
         get_normalized_file_name(&PathBuf::from("/dir/test.parquet")).unwrap_err();
         get_normalized_file_name(&PathBuf::from("/../test.parquet")).unwrap_err();
+    }
+
+    #[test]
+    fn memory_file_read_complete() {
+        let mut handle = MemoryFileHandle::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut out = vec![0; 10];
+
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut out)
+            .map(|r| r.unwrap());
+        assert_eq!(Poll::Ready(5), poll);
+        assert_eq!(b"hello", &out[0..5]);
+
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut out)
+            .map(|r| r.unwrap());
+        assert_eq!(Poll::Ready(0), poll);
+    }
+
+    #[test]
+    fn memory_file_read_partial() {
+        let mut handle = MemoryFileHandle::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut out = vec![0; 4];
+
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut out)
+            .map(|r| r.unwrap());
+        assert_eq!(Poll::Ready(4), poll);
+        assert_eq!(b"hell", &out[0..4]);
+
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut out)
+            .map(|r| r.unwrap());
+        assert_eq!(Poll::Ready(1), poll);
+        assert_eq!(b"o", &out[0..1]);
+
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut out)
+            .map(|r| r.unwrap());
+        assert_eq!(Poll::Ready(0), poll);
     }
 }
