@@ -21,7 +21,7 @@ impl File for LocalFile {
         Poll::Ready(result)
     }
 
-    fn poll_write(&mut self, _buf: &mut [u8]) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, _buf: &[u8]) -> Poll<Result<usize>> {
         Poll::Ready(Err(DbError::new(
             "not implemented: poll write for local file",
         )))

@@ -1,4 +1,6 @@
 pub mod dispatch;
+pub mod file_ext;
+pub mod memory;
 
 use std::any::Any;
 use std::fmt::Debug;
@@ -7,6 +9,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use file_ext::FileExt;
 use glaredb_error::Result;
 
 pub trait File: Debug + Sync + Send + 'static {
@@ -22,7 +25,7 @@ pub trait File: Debug + Sync + Send + 'static {
     fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>>;
 
     /// Write at the current position, returning the number of bytes written.
-    fn poll_write(&mut self, buf: &mut [u8]) -> Poll<Result<usize>>;
+    fn poll_write(&mut self, buf: &[u8]) -> Poll<Result<usize>>;
 
     /// Seek the provided position in the file.
     fn poll_seek(&mut self, seek: io::SeekFrom) -> Poll<Result<()>>;
@@ -56,13 +59,27 @@ impl AnyFile {
     pub fn call_poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
         (self.vtable.poll_read_fn)(self.file.as_mut(), cx, buf)
     }
+
+    pub fn call_read<'a>(&'a mut self, buf: &'a mut [u8]) -> FileSystemFuture<'a, Result<usize>> {
+        (self.vtable.read_fn)(self.file.as_mut(), buf)
+    }
+
+    pub fn call_read_fill<'a>(
+        &'a mut self,
+        buf: &'a mut [u8],
+    ) -> FileSystemFuture<'a, Result<usize>> {
+        (self.vtable.read_fill_fn)(self.file.as_mut(), buf)
+    }
 }
 
-#[allow(clippy::type_complexity)] // I don't know how this is a complex type.
+#[allow(clippy::type_complexity)]
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileVTable {
     size_fn: fn(&dyn Any) -> usize,
     poll_read_fn: fn(&mut dyn Any, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>>,
+    read_fn: for<'a> fn(&'a mut dyn Any, buf: &'a mut [u8]) -> FileSystemFuture<'a, Result<usize>>,
+    read_fill_fn:
+        for<'a> fn(&'a mut dyn Any, buf: &'a mut [u8]) -> FileSystemFuture<'a, Result<usize>>,
 }
 
 trait FileVTable {
@@ -82,6 +99,16 @@ where
         poll_read_fn: |file, cx, buf| {
             let file = file.downcast_mut::<Self>().unwrap();
             file.poll_read(cx, buf)
+        },
+
+        read_fn: |file, buf| {
+            let file = file.downcast_mut::<Self>().unwrap();
+            Box::pin(file.read(buf))
+        },
+
+        read_fill_fn: |file, buf| {
+            let file = file.downcast_mut::<Self>().unwrap();
+            Box::pin(file.read_fill(buf))
         },
     };
 }
@@ -137,6 +164,10 @@ impl OpenFlags {
 }
 
 pub trait FileSystem: Debug + Sync + Send + 'static {
+    // TODO: Probably remove this and just return `AnyFile` from open.
+    //
+    // This would allow us to return different kinds of file handles depending
+    // on the open flags used.
     type File: File;
 
     /// Open a file at a given path.

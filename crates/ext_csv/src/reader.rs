@@ -33,7 +33,7 @@ use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::execution::operators::PollPull;
 use glaredb_core::functions::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
-use glaredb_core::io::file::AsyncReadStream;
+use glaredb_core::runtime::filesystem::AnyFile;
 use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_error::{DbError, Result, ResultExt};
 
@@ -46,8 +46,8 @@ pub struct CsvReader {
     /// Buffered decoded records.
     output: ByteRecords,
     decoder: CsvDecoder,
-    /// Source stream.
-    stream: Box<dyn AsyncReadStream>,
+    /// Source file.
+    file: AnyFile,
     projections: Projections,
     /// Current write state.
     write_state: WriteState,
@@ -63,7 +63,7 @@ struct WriteState {
 
 impl CsvReader {
     pub fn new(
-        stream: Box<dyn AsyncReadStream>,
+        file: AnyFile,
         skip_header: bool,
         projections: Projections,
         read_buf: Vec<u8>,
@@ -74,7 +74,7 @@ impl CsvReader {
             read_buf,
             output,
             decoder,
-            stream,
+            file,
             projections,
             write_state: WriteState {
                 read_record_offset: if skip_header { 1 } else { 0 },
@@ -126,19 +126,18 @@ impl CsvReader {
                 }
             }
 
-            match self.stream.as_mut().poll_read(cx, &mut self.read_buf)? {
-                Poll::Ready(Some(count)) => {
-                    // We got bytes, send to decoder.
-                    let _ = self
-                        .decoder
-                        .decode(&self.read_buf[0..count], &mut self.output);
+            match self.file.call_poll_read(cx, &mut self.read_buf)? {
+                Poll::Ready(n) => {
+                    if n == 0 {
+                        // Stream is exhausted, we would've written all records to
+                        // the batch already.
+                        return Ok(PollPull::Exhausted);
+                    }
 
-                    // Continue...
-                }
-                Poll::Ready(None) => {
-                    // Stream is exhausted, we would've written all records to
-                    // the batch already.
-                    return Ok(PollPull::Exhausted);
+                    // We got bytes, send to decoder.
+                    let _ = self.decoder.decode(&self.read_buf[0..n], &mut self.output);
+
+                    // And continue...
                 }
                 Poll::Pending => return Ok(PollPull::Pending),
             }
@@ -265,18 +264,16 @@ impl CsvReader {
 mod tests {
     use glaredb_core::buffer::buffer_manager::NopBufferManager;
     use glaredb_core::generate_batch;
-    use glaredb_core::io::file::FileSource;
-    use glaredb_core::io::memory::MemoryFileSource;
+    use glaredb_core::runtime::filesystem::memory::MemoryFileHandle;
     use glaredb_core::testutil::arrays::assert_batches_eq;
     use glaredb_core::util::task::noop_context;
 
     use super::*;
     use crate::dialect::DialectOptions;
 
-    fn make_stream(bytes: impl AsRef<[u8]>) -> Box<dyn AsyncReadStream> {
-        let mut source = MemoryFileSource::new(&NopBufferManager, bytes).unwrap();
-        let stream = source.read();
-        Box::new(stream)
+    fn make_file(bytes: impl AsRef<[u8]>) -> AnyFile {
+        let file = MemoryFileHandle::from_bytes(&NopBufferManager, bytes).unwrap();
+        AnyFile::from_file(file)
     }
 
     #[test]
@@ -285,11 +282,11 @@ mod tests {
 wario,10.0,950
 yoshi,4.5,10000
 "#;
-        let stream = make_stream(input);
+        let file = make_file(input);
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            stream,
+            file,
             false,
             Projections::new([0, 1, 2]),
             vec![0; 256],
@@ -318,11 +315,11 @@ yoshi,4.5,10000
 wario,10.0,950
 yoshi,4.5,10000
 "#;
-        let stream = make_stream(input);
+        let file = make_file(input);
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            stream,
+            file,
             false,
             Projections::new([0, 1, 2]),
             vec![0; 16],
@@ -350,11 +347,11 @@ yoshi,4.5,10000
 wario,10.0,950
 yoshi,4.5,10000
 "#;
-        let stream = make_stream(input);
+        let file = make_file(input);
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            stream,
+            file,
             false,
             Projections::new([0, 1, 2]),
             vec![0; 256],
@@ -387,11 +384,11 @@ yoshi,4.5,10000
 wario,10.0,950
 yoshi,4.5,10000
 "#;
-        let stream = make_stream(input);
+        let file = make_file(input);
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            stream,
+            file,
             false,
             Projections::new([0, 1, 2]),
             vec![0; 16],
@@ -422,11 +419,11 @@ mario,9.5,8000
 wario,10.0,950
 yoshi,4.5,10000
 "#;
-        let stream = make_stream(input);
+        let file = make_file(input);
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            stream,
+            file,
             true,
             Projections::new([0, 1, 2]),
             vec![0; 256],
