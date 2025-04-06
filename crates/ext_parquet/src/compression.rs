@@ -119,31 +119,26 @@ pub fn create_codec(
     codec: CodecType,
     _options: &CodecOptions,
 ) -> ParquetResult<Option<Box<dyn Codec>>> {
-    #[allow(unreachable_code, unused_variables)]
     match codec {
         CodecType::BROTLI(level) => {
-            #[cfg(any(feature = "brotli", test))]
             return Ok(Some(Box::new(BrotliCodec::new(level))));
             Err(ParquetError::General(
                 "Disabled feature at compile time: brotli".into(),
             ))
         }
         CodecType::GZIP(level) => {
-            #[cfg(any(feature = "flate2", test))]
             return Ok(Some(Box::new(GZipCodec::new(level))));
             Err(ParquetError::General(
                 "Disabled feature at compile time: flate2".into(),
             ))
         }
         CodecType::SNAPPY => {
-            #[cfg(any(feature = "snap", test))]
             return Ok(Some(Box::new(SnappyCodec::new())));
             Err(ParquetError::General(
                 "Disabled feature at compile time: snap".into(),
             ))
         }
         CodecType::LZ4 => {
-            #[cfg(any(feature = "lz4", test))]
             return Ok(Some(Box::new(LZ4HadoopCodec::new(
                 _options.backward_compatible_lz4,
             ))));
@@ -159,7 +154,6 @@ pub fn create_codec(
             ))
         }
         CodecType::LZ4_RAW => {
-            #[cfg(any(feature = "lz4", test))]
             return Ok(Some(Box::new(LZ4RawCodec::new())));
             Err(ParquetError::General(
                 "Disabled feature at compile time: lz4".into(),
@@ -170,7 +164,6 @@ pub fn create_codec(
     }
 }
 
-#[cfg(any(feature = "snap", test))]
 mod snappy_codec {
     use snap::raw::{Decoder, Encoder, max_compress_len};
 
@@ -211,10 +204,8 @@ mod snappy_codec {
         }
     }
 }
-#[cfg(any(feature = "snap", test))]
 pub use snappy_codec::*;
 
-#[cfg(any(feature = "flate2", test))]
 mod gzip_codec {
     use std::io::{self, Cursor, Write};
 
@@ -251,7 +242,6 @@ mod gzip_codec {
         }
     }
 }
-#[cfg(any(feature = "flate2", test))]
 pub use gzip_codec::*;
 
 /// Represents a valid gzip compression level.
@@ -285,7 +275,6 @@ impl GzipLevel {
     }
 }
 
-#[cfg(any(feature = "brotli", test))]
 mod brotli_codec {
 
     use std::io::{self, Cursor, Write};
@@ -329,7 +318,6 @@ mod brotli_codec {
         }
     }
 }
-#[cfg(any(feature = "brotli", test))]
 pub use brotli_codec::*;
 
 /// Represents a valid brotli compression level.
@@ -361,7 +349,6 @@ impl BrotliLevel {
     }
 }
 
-#[cfg(any(feature = "lz4", test))]
 mod lz4_codec {
     use std::io::{self, Cursor, Write};
 
@@ -407,9 +394,8 @@ mod lz4_codec {
     }
 }
 
-// TODO: ?
-// #[cfg(all(feature = "experimental", any(feature = "lz4", test)))]
-// pub use lz4_codec::*;
+#[allow(unused)] // TODO: Is this really not used?
+pub use lz4_codec::*;
 
 #[cfg(any(feature = "zstd", test))]
 mod zstd_codec {
@@ -482,7 +468,6 @@ impl Default for ZstdLevel {
     }
 }
 
-#[cfg(any(feature = "lz4", test))]
 mod lz4_raw_codec {
     use crate::compression::Codec;
     use crate::errors::{ParquetError, ParquetResult};
@@ -519,10 +504,8 @@ mod lz4_raw_codec {
         }
     }
 }
-#[cfg(any(feature = "lz4", test))]
 pub use lz4_raw_codec::*;
 
-#[cfg(any(feature = "lz4", test))]
 mod lz4_hadoop_codec {
     use std::io;
 
@@ -668,7 +651,6 @@ mod lz4_hadoop_codec {
         }
     }
 }
-#[cfg(any(feature = "lz4", test))]
 pub use lz4_hadoop_codec::*;
 
 #[cfg(test)]
