@@ -38,8 +38,8 @@ impl HttpClient for WasmHttpClient {
             Ok(resp) => Ok(WasmHttpResponse(resp)),
             Err(e) => Err(DbError::with_source("Failed to make request", Box::new(e))),
         });
-        let stream = unsafe { FakeSyncSendFuture::new(Box::pin(fut)) };
-        Box::pin(stream)
+        let fut = unsafe { FakeSyncSendFuture::new(Box::pin(fut)) };
+        Box::pin(fut)
     }
 }
 
