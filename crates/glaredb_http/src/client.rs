@@ -1,9 +1,10 @@
 use std::fmt::Debug;
 
 use bytes::Bytes;
+use futures::Stream;
 use glaredb_error::Result;
-use reqwest::header::{HeaderMap, RANGE};
-use reqwest::{Method, Request, Response, StatusCode};
+use reqwest::header::HeaderMap;
+use reqwest::{Request, StatusCode};
 
 pub trait HttpClient: Sync + Send + Debug + Clone + 'static {
     type Response: HttpResponse;
@@ -14,14 +15,11 @@ pub trait HttpClient: Sync + Send + Debug + Clone + 'static {
 }
 
 pub trait HttpResponse: Sync + Send {
-    type ChunkFuture: Future<Output = Result<Option<Bytes>>> + Sync + Send + Unpin;
+    type BytesStream: Stream<Item = Result<Bytes>> + Sync + Send + Unpin;
 
     fn status(&self) -> StatusCode;
     fn headers(&self) -> &HeaderMap;
 
-    /// Stream a chunk of the response body.
-    ///
-    /// The future resolves to Ok(None) when there's no more bytes left to
-    /// stream.
-    fn chunk(&mut self) -> Self::ChunkFuture;
+    /// Convert the response body into a byte stream.
+    fn into_bytes_stream(self) -> Self::BytesStream;
 }

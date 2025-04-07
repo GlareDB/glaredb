@@ -1082,6 +1082,7 @@ dependencies = [
  "futures",
  "glaredb_core",
  "glaredb_error",
+ "glaredb_http",
  "num_cpus",
  "parking_lot",
  "rayexec_io",

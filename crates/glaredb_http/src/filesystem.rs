@@ -2,7 +2,7 @@ use std::task::{Context, Poll};
 use std::{fmt, io};
 
 use bytes::Bytes;
-use futures::FutureExt;
+use futures::{FutureExt, StreamExt};
 use glaredb_core::runtime::filesystem::{File, FileStat, FileSystem, FileType, OpenFlags};
 use glaredb_error::{DbError, Result, ResultExt, not_implemented};
 use reqwest::header::{CONTENT_LENGTH, RANGE};
@@ -98,14 +98,12 @@ enum ChunkReadState<C: HttpClient> {
     Requesting { req_fut: C::RequestFuture },
     /// We're streaming a new chunk.
     Streaming {
-        /// The response we're reading from.
-        resp: C::Response,
-        /// Future returning the chunk.
-        chunk_fut: <C::Response as HttpResponse>::ChunkFuture,
+        /// Stream returning chunks.
+        stream: <C::Response as HttpResponse>::BytesStream,
     },
     /// We're reading a chunk.
     Reading {
-        resp: C::Response,
+        stream: <C::Response as HttpResponse>::BytesStream,
         /// Position within the chunk.
         pos: usize,
         /// The chunk.
@@ -174,18 +172,23 @@ where
         loop {
             match &mut self.chunk {
                 ChunkReadState::Requesting { req_fut } => {
-                    let mut resp = match req_fut.poll_unpin(cx)? {
+                    let resp = match req_fut.poll_unpin(cx)? {
                         Poll::Ready(resp) => resp,
                         Poll::Pending => return Poll::Pending,
                     };
 
-                    let chunk_fut = resp.chunk();
-                    self.chunk = ChunkReadState::Streaming { resp, chunk_fut };
+                    let stream = resp.into_bytes_stream();
+                    self.chunk = ChunkReadState::Streaming { stream };
                     // Continue...
                 }
-                ChunkReadState::Streaming { chunk_fut, .. } => {
-                    let chunk = match chunk_fut.poll_unpin(cx)? {
-                        Poll::Ready(chunk) => chunk,
+                ChunkReadState::Streaming { stream, .. } => {
+                    let chunk = match stream.poll_next_unpin(cx)? {
+                        Poll::Ready(Some(chunk)) => chunk,
+                        Poll::Ready(None) => {
+                            // Stream finished.
+                            self.chunk = ChunkReadState::None; // TODO: Do we need to do this?
+                            return Poll::Ready(Ok(count));
+                        }
                         Poll::Pending => {
                             if count > 0 {
                                 // If we have a non-zero count, it means we
@@ -199,22 +202,13 @@ where
                         }
                     };
 
-                    let chunk = match chunk {
-                        Some(chunk) => chunk,
-                        None => {
-                            // Stream finished.
-                            self.chunk = ChunkReadState::None; // TODO: Do we need to do this?
-                            return Poll::Ready(Ok(count));
-                        }
-                    };
-
-                    let resp = match std::mem::replace(&mut self.chunk, ChunkReadState::None) {
-                        ChunkReadState::Streaming { resp, .. } => resp,
+                    let stream = match std::mem::replace(&mut self.chunk, ChunkReadState::None) {
+                        ChunkReadState::Streaming { stream, .. } => stream,
                         other => unreachable!("{other:?}"),
                     };
 
                     self.chunk = ChunkReadState::Reading {
-                        resp,
+                        stream,
                         pos: 0,
                         chunk,
                     }
@@ -239,14 +233,13 @@ where
 
                     if *pos >= chunk.len() {
                         // We've exhuasted this chunk. Get more from the stream.
-                        let mut resp =
-                            match std::mem::replace(&mut self.chunk, ChunkReadState::None) {
-                                ChunkReadState::Reading { resp, .. } => resp,
-                                other => unreachable!("{other:?}"),
-                            };
+                        let stream = match std::mem::replace(&mut self.chunk, ChunkReadState::None)
+                        {
+                            ChunkReadState::Reading { stream, .. } => stream,
+                            other => unreachable!("{other:?}"),
+                        };
 
-                        let chunk_fut = resp.chunk();
-                        self.chunk = ChunkReadState::Streaming { resp, chunk_fut };
+                        self.chunk = ChunkReadState::Streaming { stream };
 
                         // Go back to requesting the next chunk.
                         continue;

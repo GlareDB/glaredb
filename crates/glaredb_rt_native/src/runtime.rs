@@ -6,9 +6,11 @@ use glaredb_core::runtime::filesystem::dispatch::FileSystemDispatch;
 use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
 use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::{Result, ResultExt};
+use glaredb_http::filesystem::HttpFileSystem;
 use tokio::runtime::Handle as TokioHandle;
 
 use crate::filesystem::LocalFileSystem;
+use crate::http::TokioWrappedHttpClient;
 use crate::threaded::ThreadedScheduler;
 use crate::time::NativeInstant;
 
@@ -86,10 +88,16 @@ pub struct NativeSystemRuntime {
 }
 
 impl NativeSystemRuntime {
-    pub fn new(_handle: TokioHandle) -> Self {
+    pub fn new(handle: TokioHandle) -> Self {
         let mut dispatch = FileSystemDispatch::empty();
 
-        // TODO: native fs, http stuff. Tokio wil be use there.
+        // Register http filesystem.
+        let client = reqwest::Client::new();
+        let client = TokioWrappedHttpClient::new(client, handle);
+        let http_fs = HttpFileSystem::new(client);
+        dispatch.register_filesystem(http_fs);
+
+        // Register normal local filesyste.
         dispatch.register_filesystem(LocalFileSystem {});
 
         NativeSystemRuntime {
