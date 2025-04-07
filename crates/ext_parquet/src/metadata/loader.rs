@@ -10,10 +10,9 @@ use crate::schema::types::{self, SchemaDescriptor};
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 use crate::{basic, format};
 
+// TODO: Caching and stuff.
 #[derive(Debug)]
-pub struct MetaDataLoader {
-    // TODO: Caching and stuff.
-}
+pub struct MetaDataLoader {}
 
 impl MetaDataLoader {
     pub fn new() -> Self {
@@ -21,7 +20,7 @@ impl MetaDataLoader {
     }
 
     /// Loads parquet metadata from a file.
-    pub async fn load_from_file(file: &mut AnyFile) -> Result<ParquetMetaData> {
+    pub async fn load_from_file(&self, file: &mut AnyFile) -> Result<ParquetMetaData> {
         let size = file.call_size();
         if size < MIN_FILE_SIZE {
             return Err(DbError::new(format!(
@@ -32,7 +31,7 @@ impl MetaDataLoader {
 
         let mut read_buf = vec![0; FOOTER_SIZE];
         // Read the footer.
-        file.call_seek(io::SeekFrom::End(FOOTER_SIZE as i64))
+        file.call_seek(io::SeekFrom::End(-(FOOTER_SIZE as i64)))
             .await?;
         file.call_read_exact(&mut read_buf).await?;
 
@@ -48,7 +47,7 @@ impl MetaDataLoader {
 
         // Read the metadata.
         read_buf.resize(metadata_len as usize, 0);
-        file.call_seek(io::SeekFrom::End(metadata_pos_from_end))
+        file.call_seek(io::SeekFrom::End(-metadata_pos_from_end))
             .await?;
         file.call_read_exact(&mut read_buf).await?;
 

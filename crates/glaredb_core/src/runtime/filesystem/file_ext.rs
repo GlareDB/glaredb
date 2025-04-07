@@ -124,7 +124,11 @@ where
                 if n == self.fill.buf.len() {
                     Poll::Ready(Ok(()))
                 } else {
-                    Poll::Ready(Err(DbError::new("Unexpected EOF")))
+                    Poll::Ready(Err(DbError::new(format!(
+                        "Unexpected EOF, read {} bytes, expected to read {} bytes",
+                        n,
+                        self.fill.buf.len()
+                    ))))
                 }
             }
             Poll::Ready(Err(e)) => Poll::Ready(Err(e)),

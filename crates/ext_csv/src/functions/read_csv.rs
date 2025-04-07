@@ -86,7 +86,7 @@ impl TableScanFunction for ReadCsv {
         let fs = scan_context.dispatch.filesystem_for_path(&path)?;
         match fs.call_stat(&path).await? {
             Some(stat) if stat.file_type.is_file() => (), // We have a file.
-            Some(_) => return Err(DbError::new("Cannot read lines from a directory")),
+            Some(_) => return Err(DbError::new("Cannot read csv from a directory")),
             None => return Err(DbError::new(format!("Missing file for path '{path}'"))),
         }
 

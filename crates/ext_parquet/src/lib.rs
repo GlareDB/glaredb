@@ -35,6 +35,7 @@ pub mod schema;
 pub mod thrift;
 
 pub mod extension;
+pub mod functions;
 pub mod metadata;
 
 mod compression;

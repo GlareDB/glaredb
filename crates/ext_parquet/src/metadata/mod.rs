@@ -131,7 +131,8 @@ impl ParquetMetaData {
 
 /// File level metadata for a Parquet file.
 ///
-/// Includes the version of the file, metadata, number of rows, schema, and column orders
+/// Includes the version of the file, metadata, number of rows, schema, and
+/// column orders
 #[derive(Debug, Clone)]
 pub struct FileMetaData {
     /// Version of this file.
