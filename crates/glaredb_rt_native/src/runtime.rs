@@ -97,7 +97,7 @@ impl NativeSystemRuntime {
         let http_fs = HttpFileSystem::new(client);
         dispatch.register_filesystem(http_fs);
 
-        // Register normal local filesyste.
+        // Register normal local filesystem.
         dispatch.register_filesystem(LocalFileSystem {});
 
         NativeSystemRuntime {

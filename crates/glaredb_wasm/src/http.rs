@@ -3,16 +3,18 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use futures::Stream;
 use futures::future::FutureExt;
 use futures::stream::StreamExt;
-use glaredb_error::{DbError, Result, ResultExt};
-use rayexec_io::http::{HttpClient, HttpResponse};
+use futures::{Stream, TryStreamExt};
+use glaredb_error::{DbError, Result};
+use glaredb_http::client::{HttpClient, HttpResponse};
 use reqwest::header::HeaderMap;
 use reqwest::{Request, StatusCode};
 
-// TODO: Figure this shit out. How many layers of boxing do we actually need?
-// Can we alter types/traits to be a bit more sane?
+// TODO: The amount of boxing here kinda sucks, but I did the best I could with
+// these types. If someone who cares little about their sanity sees this and
+// thinks they reduce the boxing while keeping the amount of angle brackets to
+// less than 100, go for it. Just make sure it compiles with wasm-pack.
 
 #[derive(Debug, Clone)]
 pub struct WasmHttpClient {
@@ -27,32 +29,28 @@ impl WasmHttpClient {
 }
 
 impl HttpClient for WasmHttpClient {
-    type Response = WasmBoxingResponse;
-    // TODO: Rust is disgusting
-    type RequestFuture = FakeSyncSendFuture<
-        Result<Self::Response>,
-        Pin<Box<dyn Future<Output = Result<Self::Response>> + 'static>>,
-    >;
+    type Response = WasmHttpResponse;
+    type RequestFuture =
+        Pin<Box<dyn Future<Output = Result<Self::Response>> + Sync + Send + 'static>>;
 
     fn do_request(&self, request: Request) -> Self::RequestFuture {
         let fut = self.client.execute(request).map(|result| match result {
-            Ok(resp) => Ok(WasmBoxingResponse(resp)),
+            Ok(resp) => Ok(WasmHttpResponse(resp)),
             Err(e) => Err(DbError::with_source("Failed to make request", Box::new(e))),
         });
-
-        unsafe { FakeSyncSendFuture::new(Box::pin(fut) as _) }
+        let stream = unsafe { FakeSyncSendFuture::new(Box::pin(fut)) };
+        Box::pin(stream)
     }
 }
 
 #[derive(Debug)]
-pub struct WasmBoxingResponse(pub reqwest::Response);
+pub struct WasmHttpResponse(reqwest::Response);
 
 /// Same rationale as below for the fake send future/stream.
-unsafe impl Send for WasmBoxingResponse {}
-unsafe impl Sync for WasmBoxingResponse {}
+unsafe impl Send for WasmHttpResponse {}
+unsafe impl Sync for WasmHttpResponse {}
 
-impl HttpResponse for WasmBoxingResponse {
-    type BytesFuture = Pin<Box<dyn Future<Output = Result<Bytes>> + Sync + Send + 'static>>;
+impl HttpResponse for WasmHttpResponse {
     type BytesStream = Pin<Box<dyn Stream<Item = Result<Bytes>> + Sync + Send + 'static>>;
 
     fn status(&self) -> StatusCode {
@@ -63,16 +61,13 @@ impl HttpResponse for WasmBoxingResponse {
         self.0.headers()
     }
 
-    fn bytes(self) -> Self::BytesFuture {
-        let fut = Box::pin(self.0.bytes());
-        let fut = unsafe { FakeSyncSendFuture::new(fut) };
-        Box::pin(fut.map(|r| r.context("failed to get byte response")))
-    }
-
-    fn bytes_stream(self) -> Self::BytesStream {
-        let stream = Box::pin(self.0.bytes_stream());
-        let stream = unsafe { FakeSyncSendStream::new(stream) };
-        Box::pin(stream.map(|r| r.context("failed to get byte stream")))
+    fn into_bytes_stream(self) -> Self::BytesStream {
+        let stream = self
+            .0
+            .bytes_stream()
+            .map_err(|e| DbError::with_source("Failed to stream body", Box::new(e)));
+        let stream = unsafe { FakeSyncSendStream::new(Box::pin(stream)) };
+        Box::pin(stream)
     }
 }
 
@@ -112,6 +107,7 @@ impl<O, F: Future<Output = O> + Unpin> FakeSyncSendFuture<O, F> {
 
 impl<O, F: Future<Output = O> + Unpin> Future for FakeSyncSendFuture<O, F> {
     type Output = O;
+
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut self.as_mut().fut;
         fut.poll_unpin(cx)
@@ -135,6 +131,7 @@ impl<O, S: Stream<Item = O> + Unpin> FakeSyncSendStream<O, S> {
 
 impl<O, S: Stream<Item = O> + Unpin> Stream for FakeSyncSendStream<O, S> {
     type Item = O;
+
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.stream.poll_next_unpin(cx)
     }

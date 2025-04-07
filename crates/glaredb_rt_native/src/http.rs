@@ -46,7 +46,7 @@ impl HttpClient for TokioWrappedHttpClient {
 #[derive(Debug)]
 pub struct TokioWrappedResponse {
     response: reqwest::Response,
-    #[allow(unused)]
+    #[allow(unused)] // TODO: Might possibly need this, don't know yet.
     handle: tokio::runtime::Handle,
 }
 

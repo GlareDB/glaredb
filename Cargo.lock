@@ -1127,6 +1127,7 @@ dependencies = [
  "getrandom 0.3.2",
  "glaredb_core",
  "glaredb_error",
+ "glaredb_http",
  "js-sys",
  "parking_lot",
  "rayexec_io",
