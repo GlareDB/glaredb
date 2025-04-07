@@ -13,3 +13,8 @@ SELECT * FROM parquet_rowgroup_metadata('../testdata/parquet/userdata0.parquet')
 ----
 ../testdata/parquet/userdata0.parquet  1000  13  112492
 
+# Same thing, but over http
+query ????
+SELECT * FROM parquet_rowgroup_metadata('https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata0.parquet');
+----
+https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata0.parquet  1000  13  112492

@@ -17,6 +17,7 @@ web-sys = { version = "0.3.77", features = [
 
 glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
+glaredb_http = { path = '../glaredb_http' }
 
 ext_csv = { path = '../ext_csv' }
 ext_parquet = { path = '../ext_parquet' }

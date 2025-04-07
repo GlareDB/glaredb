@@ -1,18 +1,14 @@
 use std::pin::Pin;
-use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use futures::future::FutureExt;
-use futures::stream::StreamExt;
-use futures::{Future, Stream};
+use futures::{Future, Stream, TryStreamExt};
 use glaredb_error::{DbError, Result, ResultExt};
-use rayexec_io::http::{HttpClient, HttpResponse};
+use glaredb_http::client::{HttpClient, HttpResponse};
 use reqwest::header::HeaderMap;
 use reqwest::{Request, StatusCode};
-use tokio::task::JoinHandle;
 
-/// Wrapper around a reqwest client that ensures are request are done in a tokio
-/// context.
+/// Wrapper around a reqwest client that ensures all requests are done in a
+/// tokio context.
 #[derive(Debug, Clone)]
 pub struct TokioWrappedHttpClient {
     client: reqwest::Client,
@@ -20,81 +16,57 @@ pub struct TokioWrappedHttpClient {
 }
 
 impl TokioWrappedHttpClient {
-    #[allow(unused)] // I will deal with soon
     pub fn new(client: reqwest::Client, handle: tokio::runtime::Handle) -> Self {
         TokioWrappedHttpClient { client, handle }
     }
 }
 
 impl HttpClient for TokioWrappedHttpClient {
-    type Response = BoxingResponse;
-    type RequestFuture = ResponseJoinHandle;
+    type Response = TokioWrappedResponse;
+    type RequestFuture =
+        Pin<Box<dyn Future<Output = Result<Self::Response>> + Sync + Send + 'static>>;
 
     fn do_request(&self, request: Request) -> Self::RequestFuture {
         let fut = self.client.execute(request);
-        let join_handle = self.handle.spawn(async move {
-            let result = fut.await;
+        let handle = self.handle.clone();
 
-            if result.is_err() {
-                println!("ERROR: {result:?}");
-            }
+        Box::pin(async move {
+            let join = handle.spawn(fut).await.context("Failed to join")?;
+            let resp = join.context("Failed to send request")?;
 
-            let resp = result.context("Failed to send request")?;
-
-            Ok(BoxingResponse(resp))
-        });
-
-        ResponseJoinHandle { join_handle }
+            Ok(TokioWrappedResponse {
+                response: resp,
+                handle,
+            })
+        })
     }
 }
 
-/// Wrapper around a reqwest response that boxes the futures and streams.
+/// Wrapper around a reqwest response.
 #[derive(Debug)]
-pub struct BoxingResponse(pub reqwest::Response);
+pub struct TokioWrappedResponse {
+    response: reqwest::Response,
+    #[allow(unused)] // TODO: Might possibly need this, don't know yet.
+    handle: tokio::runtime::Handle,
+}
 
-impl HttpResponse for BoxingResponse {
-    type BytesFuture = Pin<Box<dyn Future<Output = Result<Bytes>> + Sync + Send + 'static>>;
+impl HttpResponse for TokioWrappedResponse {
     type BytesStream = Pin<Box<dyn Stream<Item = Result<Bytes>> + Sync + Send + 'static>>;
 
     fn status(&self) -> StatusCode {
-        self.0.status()
+        self.response.status()
     }
 
     fn headers(&self) -> &HeaderMap {
-        self.0.headers()
+        self.response.headers()
     }
 
-    fn bytes(self) -> Self::BytesFuture {
-        Box::pin(
-            self.0
-                .bytes()
-                .map(|r| r.context("failed to get byte response")),
-        )
-    }
+    fn into_bytes_stream(self) -> Self::BytesStream {
+        let stream = self
+            .response
+            .bytes_stream()
+            .map_err(|e| DbError::with_source("Failed to stream body", Box::new(e)));
 
-    fn bytes_stream(self) -> Self::BytesStream {
-        Box::pin(
-            self.0
-                .bytes_stream()
-                .map(|r| r.context("failed to get byte stream")),
-        )
-    }
-}
-
-/// Wrapper around a tokio join handle waiting on a boxed response.
-pub struct ResponseJoinHandle {
-    join_handle: JoinHandle<Result<BoxingResponse>>,
-}
-
-impl Future for ResponseJoinHandle {
-    type Output = Result<BoxingResponse>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.join_handle.poll_unpin(cx) {
-            Poll::Ready(Err(_)) => Poll::Ready(Err(DbError::new("tokio join error"))),
-            Poll::Ready(Ok(Err(e))) => Poll::Ready(Err(e)),
-            Poll::Ready(Ok(Ok(b))) => Poll::Ready(Ok(b)),
-            Poll::Pending => Poll::Pending,
-        }
+        Box::pin(stream)
     }
 }

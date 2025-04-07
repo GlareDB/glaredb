@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 glaredb_error = { path = "../glaredb_error" }
 glaredb_core = { path = "../glaredb_core" }
+glaredb_http = { path = "../glaredb_http" }
 rayexec_io = { path = "../rayexec_io" }
 rayon = { workspace = true }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }

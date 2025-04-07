@@ -23,6 +23,9 @@ impl FileSystemDispatch {
     }
 
     /// Try to find a filesystem that can handle `path`.
+    ///
+    /// File systems are checked in the order they were registered in. More
+    /// generic filesystems should be registered last.
     pub fn filesystem_for_path_opt(&self, path: &str) -> Option<&AnyFileSystem> {
         self.filesystems
             .iter()

@@ -1033,6 +1033,26 @@ name = "glaredb_error"
 version = "0.0.105"
 
 [[package]]
+name = "glaredb_http"
+version = "0.0.105"
+dependencies = [
+ "bytes",
+ "chrono",
+ "futures",
+ "glaredb_core",
+ "glaredb_error",
+ "hmac",
+ "parking_lot",
+ "percent-encoding",
+ "quick-xml",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "url",
+]
+
+[[package]]
 name = "glaredb_parser"
 version = "0.0.105"
 dependencies = [
@@ -1062,6 +1082,7 @@ dependencies = [
  "futures",
  "glaredb_core",
  "glaredb_error",
+ "glaredb_http",
  "num_cpus",
  "parking_lot",
  "rayexec_io",
@@ -1106,6 +1127,7 @@ dependencies = [
  "getrandom 0.3.2",
  "glaredb_core",
  "glaredb_error",
+ "glaredb_http",
  "js-sys",
  "parking_lot",
  "rayexec_io",
