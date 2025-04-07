@@ -48,6 +48,21 @@ pub const FUNCTION_SET_PARQUET_FILE_METADATA: TableFunctionSet = TableFunctionSe
     )],
 };
 
+pub const FUNCTION_SET_PARQUET_ROWGROUP_METADATA: TableFunctionSet = TableFunctionSet {
+    name: "parquet_rowgroup_metadata",
+    aliases: &[],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "Get the metadata for all row groups in a file.",
+        arguments: &["path"],
+        example: None,
+    }],
+    functions: &[RawTableFunction::new_scan(
+        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+        &ParquetMetadataFunction::<RowGroupMetadataTable>::new(),
+    )],
+};
+
 #[derive(Debug)]
 pub struct MetadataColumn {
     pub name: &'static str,
@@ -161,6 +176,81 @@ impl MetadataTable for FileMetadataTable {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct RowGroupMetadataTable;
+
+#[derive(Debug, Default)]
+pub struct RowGroupMetadataTableState {
+    row_group_offset: usize,
+}
+
+impl MetadataTable for RowGroupMetadataTable {
+    const COLUMNS: &[MetadataColumn] = &[
+        MetadataColumn::new("file_name", DataType::Utf8),
+        MetadataColumn::new("num_rows", DataType::Int64),
+        MetadataColumn::new("num_columns", DataType::Int64),
+        MetadataColumn::new("uncompressed_size", DataType::Int64),
+    ];
+
+    type State = RowGroupMetadataTableState;
+
+    fn scan(
+        state: &mut Self::State,
+        projections: &Projections,
+        file: &FileWithMetadata,
+        output: &mut Batch,
+    ) -> Result<()> {
+        let cap = output.write_capacity()?;
+        let rem = file.metadata.row_groups.len() - state.row_group_offset;
+        if rem == 0 {
+            output.set_num_rows(0)?;
+            return Ok(());
+        }
+
+        let count = usize::min(cap, rem);
+        let row_groups =
+            &file.metadata.row_groups[state.row_group_offset..(state.row_group_offset + count)];
+
+        projections.for_each_column(output, &mut |col, arr| match col {
+            ProjectedColumn::Data(0) => {
+                let mut names = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
+                for idx in 0..count {
+                    names.put(idx, file.file.call_path());
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(1) => {
+                let mut num_rows = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                for (idx, row_group) in row_groups.iter().enumerate() {
+                    num_rows.put(idx, &row_group.num_rows);
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(2) => {
+                let mut num_cols = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                for (idx, row_group) in row_groups.iter().enumerate() {
+                    num_cols.put(idx, &(row_group.num_columns() as i64));
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(3) => {
+                let mut uncompressed_sizes = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                for (idx, row_group) in row_groups.iter().enumerate() {
+                    uncompressed_sizes.put(idx, &row_group.total_byte_size);
+                }
+                Ok(())
+            }
+
+            other => panic!("invalid projection: {other:?}"),
+        })?;
+
+        output.set_num_rows(count)?;
+        state.row_group_offset += count;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct ParquetMetadataFunction<T> {
     _t: PhantomData<T>,
 }
@@ -192,7 +282,6 @@ pub struct ParquetMetadataPartitionState<T: MetadataTable> {
 
 #[derive(Debug)]
 pub struct FileWithMetadata {
-    #[allow(unused)]
     file: AnyFile,
     metadata: ParquetMetaData,
 }
