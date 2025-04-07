@@ -25,7 +25,6 @@ edition = { workspace = true }
 
 [dependencies]
 glaredb_error = { path = "../glaredb_error" }
-rayexec_io = { path = "../rayexec_io" }
 glaredb_core = { path = "../glaredb_core" }
 
 ahash = { workspace = true }
@@ -41,6 +40,7 @@ seq-macro = { version = "0.3", default-features = false }
 hashbrown = { version = "0.14", default-features = false }
 twox-hash = { version = "1.6", default-features = false }
 half = { workspace = true, features = ["num-traits"] }
+futures = { workspace = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", default-features = false }

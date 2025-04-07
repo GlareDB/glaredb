@@ -1,7 +1,9 @@
+use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use glaredb_error::Result;
+use futures::FutureExt;
+use glaredb_error::{DbError, Result};
 
 use super::File;
 
@@ -22,6 +24,24 @@ pub trait FileExt: File {
             read_count: 0,
             buf,
         }
+    }
+
+    /// Completely fill the buffering before resolving.
+    ///
+    /// Errors if we reach the end of the file before filling the buffer.
+    fn read_exact<'a>(&'a mut self, buf: &'a mut [u8]) -> ReadExact<'a, Self> {
+        ReadExact {
+            fill: ReadFill {
+                file: self,
+                read_count: 0,
+                buf,
+            },
+        }
+    }
+
+    /// Set the seek position for the file.
+    fn seek(&mut self, seek: io::SeekFrom) -> Seek<'_, Self> {
+        Seek { seek, file: self }
     }
 }
 
@@ -84,6 +104,54 @@ where
             // Keep looping, trying to read as much as we can until pending or
             // end of file/buffer.
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct ReadExact<'a, F: File + ?Sized> {
+    fill: ReadFill<'a, F>,
+}
+
+impl<F> Future for ReadExact<'_, F>
+where
+    F: File + ?Sized,
+{
+    type Output = Result<()>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.fill.poll_unpin(cx) {
+            Poll::Ready(Ok(n)) => {
+                if n == self.fill.buf.len() {
+                    Poll::Ready(Ok(()))
+                } else {
+                    Poll::Ready(Err(DbError::new(format!(
+                        "Unexpected EOF, read {} bytes, expected to read {} bytes",
+                        n,
+                        self.fill.buf.len()
+                    ))))
+                }
+            }
+            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Seek<'a, F: File + ?Sized> {
+    seek: io::SeekFrom,
+    file: &'a mut F,
+}
+
+impl<F> Future for Seek<'_, F>
+where
+    F: File + ?Sized,
+{
+    type Output = Result<()>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let seek = self.seek;
+        self.file.poll_seek(cx, seek)
     }
 }
 

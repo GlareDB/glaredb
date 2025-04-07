@@ -1,5 +1,5 @@
 use std::fs::{self, File as StdFile, OpenOptions};
-use std::io::{ErrorKind, Read, SeekFrom};
+use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::task::{Context, Poll};
 
 use glaredb_core::runtime::filesystem::{File, FileStat, FileSystem, FileType, OpenFlags};
@@ -7,11 +7,16 @@ use glaredb_error::{DbError, Result, ResultExt};
 
 #[derive(Debug)]
 pub struct LocalFile {
+    path: String,
     len: usize,
     file: StdFile,
 }
 
 impl File for LocalFile {
+    fn path(&self) -> &str {
+        &self.path
+    }
+
     fn size(&self) -> usize {
         self.len
     }
@@ -21,19 +26,17 @@ impl File for LocalFile {
         Poll::Ready(result)
     }
 
-    fn poll_write(&mut self, _buf: &[u8]) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, _cx: &mut Context, _buf: &[u8]) -> Poll<Result<usize>> {
         Poll::Ready(Err(DbError::new(
             "not implemented: poll write for local file",
         )))
     }
 
-    fn poll_seek(&mut self, _seek: SeekFrom) -> Poll<Result<()>> {
-        Poll::Ready(Err(DbError::new(
-            "not implemented: poll seek for local file",
-        )))
+    fn poll_seek(&mut self, _cx: &mut Context, seek: SeekFrom) -> Poll<Result<()>> {
+        Poll::Ready(self.file.seek(seek).context("Failed to seek").map(|_| ()))
     }
 
-    fn poll_flush(&mut self) -> Poll<Result<()>> {
+    fn poll_flush(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
         Poll::Ready(Err(DbError::new(
             "not implemented: poll flush for local file",
         )))
@@ -56,6 +59,7 @@ impl FileSystem for LocalFileSystem {
         let metadata = file.metadata()?;
 
         Ok(LocalFile {
+            path: path.to_string(),
             len: metadata.len() as usize,
             file,
         })

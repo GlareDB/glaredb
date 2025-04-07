@@ -29,13 +29,13 @@ use crate::schema::types::Type;
 /// Prints Parquet metadata [`ParquetMetaData`] information.
 #[allow(unused_must_use)]
 pub fn print_parquet_metadata(out: &mut dyn io::Write, metadata: &ParquetMetaData) {
-    print_file_metadata(out, metadata.file_metadata());
+    print_file_metadata(out, &metadata.file_metadata);
     writeln!(out);
     writeln!(out);
     writeln!(out, "num of row groups: {}", metadata.num_row_groups());
     writeln!(out, "row groups:");
     writeln!(out);
-    for (i, rg) in metadata.row_groups().iter().enumerate() {
+    for (i, rg) in metadata.row_groups.iter().enumerate() {
         writeln!(out, "row group {i}:");
         print_dashes(out, 80);
         print_row_group_metadata(out, rg);
@@ -45,12 +45,12 @@ pub fn print_parquet_metadata(out: &mut dyn io::Write, metadata: &ParquetMetaDat
 /// Prints file metadata [`FileMetaData`] information.
 #[allow(unused_must_use)]
 pub fn print_file_metadata(out: &mut dyn io::Write, file_metadata: &FileMetaData) {
-    writeln!(out, "version: {}", file_metadata.version());
-    writeln!(out, "num of rows: {}", file_metadata.num_rows());
-    if let Some(created_by) = file_metadata.created_by().as_ref() {
+    writeln!(out, "version: {}", file_metadata.version);
+    writeln!(out, "num of rows: {}", file_metadata.num_rows);
+    if let Some(created_by) = file_metadata.created_by.as_ref() {
         writeln!(out, "created by: {created_by}");
     }
-    if let Some(metadata) = file_metadata.key_value_metadata() {
+    if let Some(metadata) = file_metadata.key_value_metadata.as_ref() {
         writeln!(out, "metadata:");
         for kv in metadata.iter() {
             writeln!(
@@ -80,12 +80,12 @@ pub fn print_schema(out: &mut dyn io::Write, tp: &Type) {
 
 #[allow(unused_must_use)]
 fn print_row_group_metadata(out: &mut dyn io::Write, rg_metadata: &RowGroupMetaData) {
-    writeln!(out, "total byte size: {}", rg_metadata.total_byte_size());
-    writeln!(out, "num of rows: {}", rg_metadata.num_rows());
+    writeln!(out, "total byte size: {}", rg_metadata.total_byte_size);
+    writeln!(out, "num of rows: {}", rg_metadata.num_rows);
     writeln!(out);
     writeln!(out, "num of columns: {}", rg_metadata.num_columns());
     writeln!(out, "columns: ");
-    for (i, cc) in rg_metadata.columns().iter().enumerate() {
+    for (i, cc) in rg_metadata.columns.iter().enumerate() {
         writeln!(out);
         writeln!(out, "column {i}:");
         print_dashes(out, 80);
@@ -98,68 +98,68 @@ fn print_column_chunk_metadata(out: &mut dyn io::Write, cc_metadata: &ColumnChun
     writeln!(out, "column type: {}", cc_metadata.column_type());
     writeln!(out, "column path: {}", cc_metadata.column_path());
     let encoding_strs: Vec<_> = cc_metadata
-        .encodings()
+        .encodings
         .iter()
         .map(|e| format!("{e}"))
         .collect();
     writeln!(out, "encodings: {}", encoding_strs.join(" "));
-    let file_path_str = cc_metadata.file_path().unwrap_or("N/A");
+    let file_path_str = cc_metadata.file_path.as_deref().unwrap_or("N/A");
     writeln!(out, "file path: {file_path_str}");
-    writeln!(out, "file offset: {}", cc_metadata.file_offset());
-    writeln!(out, "num of values: {}", cc_metadata.num_values());
-    writeln!(out, "compression: {}", cc_metadata.compression());
+    writeln!(out, "file offset: {}", cc_metadata.file_offset);
+    writeln!(out, "num of values: {}", cc_metadata.num_values);
+    writeln!(out, "compression: {}", cc_metadata.compression);
     writeln!(
         out,
         "total compressed size (in bytes): {}",
-        cc_metadata.compressed_size()
+        cc_metadata.total_compressed_size
     );
     writeln!(
         out,
         "total uncompressed size (in bytes): {}",
-        cc_metadata.uncompressed_size()
+        cc_metadata.total_uncompressed_size
     );
-    writeln!(out, "data page offset: {}", cc_metadata.data_page_offset());
-    let index_page_offset_str = match cc_metadata.index_page_offset() {
+    writeln!(out, "data page offset: {}", cc_metadata.data_page_offset);
+    let index_page_offset_str = match cc_metadata.index_page_offset {
         None => "N/A".to_owned(),
         Some(ipo) => ipo.to_string(),
     };
     writeln!(out, "index page offset: {index_page_offset_str}");
-    let dict_page_offset_str = match cc_metadata.dictionary_page_offset() {
+    let dict_page_offset_str = match cc_metadata.dictionary_page_offset {
         None => "N/A".to_owned(),
         Some(dpo) => dpo.to_string(),
     };
     writeln!(out, "dictionary page offset: {dict_page_offset_str}");
-    let statistics_str = match cc_metadata.statistics() {
+    let statistics_str = match cc_metadata.statistics.as_ref() {
         None => "N/A".to_owned(),
         Some(stats) => stats.to_string(),
     };
     writeln!(out, "statistics: {statistics_str}");
-    let bloom_filter_offset_str = match cc_metadata.bloom_filter_offset() {
+    let bloom_filter_offset_str = match cc_metadata.bloom_filter_offset {
         None => "N/A".to_owned(),
         Some(bfo) => bfo.to_string(),
     };
     writeln!(out, "bloom filter offset: {bloom_filter_offset_str}");
-    let bloom_filter_length_str = match cc_metadata.bloom_filter_length() {
+    let bloom_filter_length_str = match cc_metadata.bloom_filter_length {
         None => "N/A".to_owned(),
         Some(bfo) => bfo.to_string(),
     };
     writeln!(out, "bloom filter length: {bloom_filter_length_str}");
-    let offset_index_offset_str = match cc_metadata.offset_index_offset() {
+    let offset_index_offset_str = match cc_metadata.offset_index_offset {
         None => "N/A".to_owned(),
         Some(oio) => oio.to_string(),
     };
     writeln!(out, "offset index offset: {offset_index_offset_str}");
-    let offset_index_length_str = match cc_metadata.offset_index_length() {
+    let offset_index_length_str = match cc_metadata.offset_index_length {
         None => "N/A".to_owned(),
         Some(oil) => oil.to_string(),
     };
     writeln!(out, "offset index length: {offset_index_length_str}");
-    let column_index_offset_str = match cc_metadata.column_index_offset() {
+    let column_index_offset_str = match cc_metadata.column_index_offset {
         None => "N/A".to_owned(),
         Some(cio) => cio.to_string(),
     };
     writeln!(out, "column index offset: {column_index_offset_str}");
-    let column_index_length_str = match cc_metadata.column_index_length() {
+    let column_index_length_str = match cc_metadata.column_index_length {
         None => "N/A".to_owned(),
         Some(cil) => cil.to_string(),
     };

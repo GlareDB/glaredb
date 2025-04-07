@@ -13,6 +13,9 @@ use file_ext::FileExt;
 use glaredb_error::Result;
 
 pub trait File: Debug + Sync + Send + 'static {
+    /// Get the path of this file.
+    fn path(&self) -> &str;
+
     /// Get the size in bytes of this file.
     // TODO: Probably u64
     fn size(&self) -> usize;
@@ -25,13 +28,13 @@ pub trait File: Debug + Sync + Send + 'static {
     fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>>;
 
     /// Write at the current position, returning the number of bytes written.
-    fn poll_write(&mut self, buf: &[u8]) -> Poll<Result<usize>>;
+    fn poll_write(&mut self, cx: &mut Context, buf: &[u8]) -> Poll<Result<usize>>;
 
     /// Seek the provided position in the file.
-    fn poll_seek(&mut self, seek: io::SeekFrom) -> Poll<Result<()>>;
+    fn poll_seek(&mut self, cx: &mut Context, seek: io::SeekFrom) -> Poll<Result<()>>;
 
     /// Flush the file to disk (or persistent storage).
-    fn poll_flush(&mut self) -> Poll<Result<()>>;
+    fn poll_flush(&mut self, cx: &mut Context) -> Poll<Result<()>>;
 }
 
 #[derive(Debug)]
@@ -49,6 +52,10 @@ impl AnyFile {
             vtable: F::VTABLE,
             file: Box::new(file),
         }
+    }
+
+    pub fn call_path(&self) -> &str {
+        (self.vtable.path_fn)(self.file.as_ref())
     }
 
     pub fn call_size(&self) -> usize {
@@ -70,16 +77,31 @@ impl AnyFile {
     ) -> FileSystemFuture<'a, Result<usize>> {
         (self.vtable.read_fill_fn)(self.file.as_mut(), buf)
     }
+
+    pub fn call_read_exact<'a>(
+        &'a mut self,
+        buf: &'a mut [u8],
+    ) -> FileSystemFuture<'a, Result<()>> {
+        (self.vtable.read_exact_fn)(self.file.as_mut(), buf)
+    }
+
+    pub fn call_seek(&mut self, seek: io::SeekFrom) -> FileSystemFuture<'_, Result<()>> {
+        (self.vtable.seek_fn)(self.file.as_mut(), seek)
+    }
 }
 
 #[allow(clippy::type_complexity)]
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileVTable {
+    path_fn: fn(&dyn Any) -> &str,
     size_fn: fn(&dyn Any) -> usize,
     poll_read_fn: fn(&mut dyn Any, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>>,
     read_fn: for<'a> fn(&'a mut dyn Any, buf: &'a mut [u8]) -> FileSystemFuture<'a, Result<usize>>,
     read_fill_fn:
         for<'a> fn(&'a mut dyn Any, buf: &'a mut [u8]) -> FileSystemFuture<'a, Result<usize>>,
+    read_exact_fn:
+        for<'a> fn(&'a mut dyn Any, buf: &'a mut [u8]) -> FileSystemFuture<'a, Result<()>>,
+    seek_fn: for<'a> fn(&'a mut dyn Any, seek: io::SeekFrom) -> FileSystemFuture<'a, Result<()>>,
 }
 
 trait FileVTable {
@@ -91,6 +113,11 @@ where
     F: File,
 {
     const VTABLE: &'static RawFileVTable = &RawFileVTable {
+        path_fn: |file| {
+            let file = file.downcast_ref::<Self>().unwrap();
+            file.path()
+        },
+
         size_fn: |file| {
             let file = file.downcast_ref::<Self>().unwrap();
             file.size()
@@ -109,6 +136,16 @@ where
         read_fill_fn: |file, buf| {
             let file = file.downcast_mut::<Self>().unwrap();
             Box::pin(file.read_fill(buf))
+        },
+
+        read_exact_fn: |file, buf| {
+            let file = file.downcast_mut::<Self>().unwrap();
+            Box::pin(file.read_exact(buf))
+        },
+
+        seek_fn: |file, seek| {
+            let file = file.downcast_mut::<Self>().unwrap();
+            Box::pin(file.seek(seek))
         },
     };
 }

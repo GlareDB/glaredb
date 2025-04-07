@@ -63,11 +63,9 @@ jobs:
         if: always()
         run: cargo test slt/csv
 
-      # - name: SLTs Parquet
-      #   env:
-      #     AWS_KEY: ${{ secrets.AWS_KEY }}
-      #     AWS_SECRET: ${{ secrets.AWS_SECRET }}
-      #   run: cargo test slt_datasource_parquet
+      - name: Extension - parquet (SLT)
+        if: always()
+        run: cargo test slt/parquet
 
       # - name: SLTs Delta
       #   env:

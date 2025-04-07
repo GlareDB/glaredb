@@ -1,5 +1,7 @@
 # DESCRIBE <parquet-file>
 
+halt
+
 query TT
 describe '../testdata/parquet/userdata0.parquet';
 ----

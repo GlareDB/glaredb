@@ -13,6 +13,7 @@ glaredb_slt = { path = '../crates/glaredb_slt' }
 
 ext_tpch_gen = { path = '../crates/ext_tpch_gen' }
 ext_csv = { path = '../crates/ext_csv' }
+ext_parquet = { path = '../crates/ext_parquet' }
 
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
 

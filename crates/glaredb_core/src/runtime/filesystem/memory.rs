@@ -45,7 +45,11 @@ impl FileSystem for MemoryFileSystem {
             .map(|ent| ent.clone())
             .ok_or_else(|| DbError::new(format!("Cannot find file '{path}'")))?;
 
-        Ok(MemoryFileHandle { pos: 0, buffer })
+        Ok(MemoryFileHandle {
+            path: path.to_string(),
+            pos: 0,
+            buffer,
+        })
     }
 
     async fn stat(&self, path: &str) -> Result<Option<FileStat>> {
@@ -68,6 +72,7 @@ impl FileSystem for MemoryFileSystem {
 
 #[derive(Debug)]
 pub struct MemoryFileHandle {
+    path: String,
     pos: usize,
     buffer: Arc<ByteBuffer>,
 }
@@ -87,6 +92,7 @@ impl MemoryFileHandle {
         slice.copy_from_slice(bytes);
 
         Ok(MemoryFileHandle {
+            path: String::new(),
             pos: 0,
             buffer: Arc::new(buffer),
         })
@@ -94,6 +100,10 @@ impl MemoryFileHandle {
 }
 
 impl File for MemoryFileHandle {
+    fn path(&self) -> &str {
+        &self.path
+    }
+
     fn size(&self) -> usize {
         self.buffer.capacity()
     }
@@ -111,17 +121,17 @@ impl File for MemoryFileHandle {
         Poll::Ready(Ok(count))
     }
 
-    fn poll_write(&mut self, _buf: &[u8]) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, _cx: &mut Context, _buf: &[u8]) -> Poll<Result<usize>> {
         Poll::Ready(Err(DbError::new(
             "Write unsupported for memory file handle",
         ))) // For now
     }
 
-    fn poll_seek(&mut self, _seek: SeekFrom) -> Poll<Result<()>> {
+    fn poll_seek(&mut self, _cx: &mut Context, _seek: SeekFrom) -> Poll<Result<()>> {
         Poll::Ready(Err(DbError::new("Seek unsupported for memory file handle"))) // For now
     }
 
-    fn poll_flush(&mut self) -> Poll<Result<()>> {
+    fn poll_flush(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
         Poll::Ready(Err(DbError::new(
             "Flush unsupported for memory file handle",
         ))) // For now

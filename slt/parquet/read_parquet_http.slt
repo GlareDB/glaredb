@@ -1,5 +1,7 @@
 # read_parquet with http source
 
+halt
+
 query I
 select last_name
   from read_parquet('https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata0.parquet')
