@@ -1,29 +1,95 @@
-use std::marker::PhantomData;
 use std::task::{Context, Poll};
 use std::{fmt, io};
 
 use bytes::Bytes;
 use futures::FutureExt;
-use glaredb_core::runtime::filesystem::{File, FileSystemFuture};
-use glaredb_error::{DbError, Result};
-use reqwest::header::RANGE;
-use reqwest::{Method, Request};
+use glaredb_core::runtime::filesystem::{File, FileStat, FileSystem, FileType, OpenFlags};
+use glaredb_error::{DbError, Result, ResultExt, not_implemented};
+use reqwest::header::{CONTENT_LENGTH, RANGE};
+use reqwest::{Method, Request, StatusCode};
 use url::Url;
 
 use crate::client::{HttpClient, HttpResponse};
 
 #[derive(Debug)]
 pub struct HttpFileSystem<C: HttpClient> {
-    _c: PhantomData<C>,
+    client: C,
 }
 
 impl<C> HttpFileSystem<C>
 where
     C: HttpClient,
 {
-    #[allow(clippy::new_without_default)] // TODO: Honestly probably just globally disable this.
-    pub const fn new() -> Self {
-        HttpFileSystem { _c: PhantomData }
+    pub fn new(client: C) -> Self {
+        HttpFileSystem { client }
+    }
+}
+
+impl<C> FileSystem for HttpFileSystem<C>
+where
+    C: HttpClient,
+{
+    type File = HttpFileHandle<C>;
+
+    async fn open(&self, flags: OpenFlags, path: &str) -> Result<Self::File> {
+        if flags.is_write() {
+            not_implemented!("write support for http filesystem")
+        }
+        if flags.is_create() {
+            not_implemented!("create support for http filesystem")
+        }
+
+        let url = Url::parse(path).context("Failed to parse http filesystem path as a URL")?;
+        let request = Request::new(Method::HEAD, url.clone());
+        let resp = self.client.do_request(request).await?;
+
+        // TODO: If we can't get content length, we can optionally just download
+        // the whole file and buffer it.
+        let len = match resp.headers().get(CONTENT_LENGTH) {
+            Some(v) => v
+                .to_str()
+                .context("Failed convert Content-Length header to string")?
+                .parse::<usize>()
+                .context("Failed to parse Content-Length")?,
+            None => return Err(DbError::new("Missing Content-Length header for file")),
+        };
+
+        Ok(HttpFileHandle {
+            url,
+            pos: 0,
+            chunk: ChunkReadState::None,
+            len,
+            client: self.client.clone(),
+        })
+    }
+
+    async fn stat(&self, path: &str) -> Result<Option<FileStat>> {
+        let url = Url::parse(path).context("Failed to parse http filesystem path as a URL")?;
+        let request = Request::new(Method::HEAD, url.clone());
+        let resp = self.client.do_request(request).await?;
+
+        let status = resp.status();
+        if status == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+
+        if status.is_success() {
+            return Ok(Some(FileStat {
+                file_type: FileType::File,
+            }));
+        }
+
+        Err(DbError::new(format!("Unexpected status code: {status}")))
+    }
+
+    fn can_handle_path(&self, path: &str) -> bool {
+        match Url::parse(path) {
+            Ok(url) => {
+                let scheme = url.scheme();
+                scheme == "http" || scheme == "https"
+            }
+            Err(_) => false,
+        }
     }
 }
 
@@ -186,6 +252,7 @@ where
                         continue;
                     } else {
                         // Otherwise return what we have.
+                        self.chunk = ChunkReadState::None; // TODO: Do we need to do this?
                         return Poll::Ready(Ok(count));
                     }
                 }
