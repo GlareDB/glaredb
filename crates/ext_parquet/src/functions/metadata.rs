@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::task::{Context, Poll};
 
 use futures::FutureExt;
@@ -43,30 +44,154 @@ pub const FUNCTION_SET_PARQUET_FILE_METADATA: TableFunctionSet = TableFunctionSe
     }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
-        &ParquetFileMetadataFunction,
+        &ParquetMetadataFunction::<FileMetadataTable>::new(),
     )],
 };
 
-#[derive(Debug, Clone, Copy)]
-pub struct ParquetFileMetadataFunction;
+#[derive(Debug)]
+pub struct MetadataColumn {
+    pub name: &'static str,
+    pub datatype: DataType,
+}
 
-pub struct ParquetFileMetadataBindState {
+impl MetadataColumn {
+    pub const fn new(name: &'static str, datatype: DataType) -> Self {
+        MetadataColumn { name, datatype }
+    }
+}
+
+pub trait MetadataTable: Debug + Clone + Copy + Sync + Send + 'static {
+    /// Columns in the table.
+    const COLUMNS: &[MetadataColumn];
+
+    /// Mutable state passed to `scan`.
+    ///
+    /// A new state is created for every file.
+    type State: Default + Sync + Send;
+
+    /// Output schema of the table.
+    fn column_schema() -> ColumnSchema {
+        ColumnSchema::new(
+            Self::COLUMNS
+                .iter()
+                .map(|c| Field::new(c.name.to_string(), c.datatype.clone(), true)),
+        )
+    }
+
+    /// Scan the table, updating state as needed.
+    ///
+    /// If the output batch has zero rows, the file is considered exhausted and
+    /// and the next file will be loaded (and new state created).
+    fn scan(
+        state: &mut Self::State,
+        projections: &Projections,
+        file: &FileWithMetadata,
+        output: &mut Batch,
+    ) -> Result<()>;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FileMetadataTable;
+
+#[derive(Debug, Default)]
+pub struct FileMetadataTableState {
+    finished: bool,
+}
+
+impl MetadataTable for FileMetadataTable {
+    const COLUMNS: &[MetadataColumn] = &[
+        MetadataColumn::new("file_name", DataType::Utf8),
+        MetadataColumn::new("version", DataType::Int32),
+        MetadataColumn::new("num_rows", DataType::Int64),
+        MetadataColumn::new("created_by", DataType::Utf8),
+        MetadataColumn::new("num_row_groups", DataType::Int64),
+    ];
+
+    type State = FileMetadataTableState;
+
+    fn scan(
+        state: &mut Self::State,
+        projections: &Projections,
+        file: &FileWithMetadata,
+        output: &mut Batch,
+    ) -> Result<()> {
+        if state.finished {
+            output.set_num_rows(0)?;
+            return Ok(());
+        }
+
+        projections.for_each_column(output, &mut |col, arr| match col {
+            ProjectedColumn::Data(0) => {
+                let mut names = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
+                names.put(0, file.file.call_path());
+                Ok(())
+            }
+            ProjectedColumn::Data(1) => {
+                let mut versions = PhysicalI32::get_addressable_mut(arr.data_mut())?;
+                versions.put(0, &file.metadata.file_metadata.version);
+                Ok(())
+            }
+            ProjectedColumn::Data(2) => {
+                let mut num_rows = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                num_rows.put(0, &file.metadata.file_metadata.num_rows);
+                Ok(())
+            }
+            ProjectedColumn::Data(3) => {
+                let (data, validity) = arr.data_and_validity_mut();
+                let mut created_by = PhysicalUtf8::get_addressable_mut(data)?;
+                match &file.metadata.file_metadata.created_by {
+                    Some(s) => created_by.put(0, s),
+                    None => validity.set_invalid(0),
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(4) => {
+                let mut num_row_groups = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                num_row_groups.put(0, &(file.metadata.row_groups.len() as i64));
+                Ok(())
+            }
+            other => panic!("invalid projection: {other:?}"),
+        })?;
+
+        output.set_num_rows(1)?;
+        state.finished = true;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ParquetMetadataFunction<T> {
+    _t: PhantomData<T>,
+}
+
+impl<T> ParquetMetadataFunction<T>
+where
+    T: MetadataTable,
+{
+    pub const fn new() -> Self {
+        ParquetMetadataFunction { _t: PhantomData }
+    }
+}
+
+pub struct ParquetMetadataBindState {
     fs: AnyFileSystem,
     path: String,
 }
 
-pub struct ParquetFileMetadataOperatorState {
+pub struct ParquetMetadataOperatorState {
     fs: AnyFileSystem,
     path: String,
     projections: Projections,
 }
 
-pub struct ParquetFileMetadataPartitionState {
+pub struct ParquetMetadataPartitionState<T: MetadataTable> {
+    table_state: T::State,
     scan_state: PartitionScanState,
 }
 
 #[derive(Debug)]
-struct FileWithMetadata {
+pub struct FileWithMetadata {
     #[allow(unused)]
     file: AnyFile,
     metadata: ParquetMetaData,
@@ -82,10 +207,13 @@ enum PartitionScanState {
     Exhausted,
 }
 
-impl TableScanFunction for ParquetFileMetadataFunction {
-    type BindState = ParquetFileMetadataBindState;
-    type OperatorState = ParquetFileMetadataOperatorState;
-    type PartitionState = ParquetFileMetadataPartitionState;
+impl<T> TableScanFunction for ParquetMetadataFunction<T>
+where
+    T: MetadataTable,
+{
+    type BindState = ParquetMetadataBindState;
+    type OperatorState = ParquetMetadataOperatorState;
+    type PartitionState = ParquetMetadataPartitionState<T>;
 
     async fn bind(
         &'static self,
@@ -104,20 +232,13 @@ impl TableScanFunction for ParquetFileMetadataFunction {
             None => return Err(DbError::new(format!("Missing file for path '{path}'"))),
         }
 
-        let schema = ColumnSchema::new([
-            Field::new("version", DataType::Int32, false),
-            Field::new("num_rows", DataType::Int64, false),
-            Field::new("created_by", DataType::Utf8, true),
-            Field::new("num_row_groups", DataType::Int64, false),
-        ]);
-
         Ok(TableFunctionBindState {
-            state: ParquetFileMetadataBindState {
+            state: ParquetMetadataBindState {
                 fs: fs.clone(),
                 path,
             },
             input,
-            schema,
+            schema: T::column_schema(),
             cardinality: StatisticsValue::Unknown,
         })
     }
@@ -127,7 +248,7 @@ impl TableScanFunction for ParquetFileMetadataFunction {
         projections: Projections,
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
-        Ok(ParquetFileMetadataOperatorState {
+        Ok(ParquetMetadataOperatorState {
             fs: bind_state.fs.clone(),
             path: bind_state.path.clone(),
             projections,
@@ -143,7 +264,8 @@ impl TableScanFunction for ParquetFileMetadataFunction {
         let open_fut = op_state
             .fs
             .call_open_static(OpenFlags::READ, op_state.path.clone());
-        let mut states = vec![ParquetFileMetadataPartitionState {
+        let mut states = vec![ParquetMetadataPartitionState {
+            table_state: Default::default(),
             scan_state: PartitionScanState::Opening {
                 open_fut: Box::pin(async move {
                     let mut file = open_fut.await?;
@@ -154,7 +276,8 @@ impl TableScanFunction for ParquetFileMetadataFunction {
             },
         }];
 
-        states.resize_with(partitions, || ParquetFileMetadataPartitionState {
+        states.resize_with(partitions, || ParquetMetadataPartitionState {
+            table_state: Default::default(),
             scan_state: PartitionScanState::Exhausted,
         });
 
@@ -179,41 +302,12 @@ impl TableScanFunction for ParquetFileMetadataFunction {
                     continue;
                 }
                 PartitionScanState::Scanning { file } => {
-                    op_state
-                        .projections
-                        .for_each_column(output, &mut |col, arr| match col {
-                            ProjectedColumn::Data(0) => {
-                                let mut versions =
-                                    PhysicalI32::get_addressable_mut(arr.data_mut())?;
-                                versions.put(0, &file.metadata.file_metadata.version);
-                                Ok(())
-                            }
-                            ProjectedColumn::Data(1) => {
-                                let mut num_rows =
-                                    PhysicalI64::get_addressable_mut(arr.data_mut())?;
-                                num_rows.put(0, &file.metadata.file_metadata.num_rows);
-                                Ok(())
-                            }
-                            ProjectedColumn::Data(2) => {
-                                let (data, validity) = arr.data_and_validity_mut();
-                                let mut created_by = PhysicalUtf8::get_addressable_mut(data)?;
-                                match &file.metadata.file_metadata.created_by {
-                                    Some(s) => created_by.put(0, s),
-                                    None => validity.set_invalid(0),
-                                }
-                                Ok(())
-                            }
-                            ProjectedColumn::Data(3) => {
-                                let mut num_row_groups =
-                                    PhysicalI64::get_addressable_mut(arr.data_mut())?;
-                                num_row_groups.put(0, &(file.metadata.row_groups.len() as i64));
-                                Ok(())
-                            }
-                            other => panic!("invalid projection: {other:?}"),
-                        })?;
-
-                    output.set_num_rows(1)?;
-                    return Ok(PollPull::Exhausted);
+                    T::scan(&mut state.table_state, &op_state.projections, file, output)?;
+                    if output.num_rows() == 0 {
+                        // TODO: Move to next file.
+                        return Ok(PollPull::Exhausted);
+                    }
+                    return Ok(PollPull::HasMore);
                 }
                 PartitionScanState::Exhausted => {
                     output.set_num_rows(0)?;
