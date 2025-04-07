@@ -7,10 +7,12 @@ use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
 use glaredb_core::runtime::profile_buffer::{ProfileBuffer, ProfileSink};
 use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::Result;
+use glaredb_http::filesystem::HttpFileSystem;
 use parking_lot::Mutex;
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
+use crate::http::WasmHttpClient;
 use crate::time::PerformanceInstant;
 
 #[derive(Debug, Clone)]
@@ -20,9 +22,18 @@ pub struct WasmSystemRuntime {
 
 impl WasmSystemRuntime {
     pub fn try_new() -> Result<Self> {
+        let mut dispatch = FileSystemDispatch::empty();
+
+        // Register http filesystem.
+        let client = reqwest::Client::new();
+        let client = WasmHttpClient::new(client);
+        let http_fs = HttpFileSystem::new(client);
+        dispatch.register_filesystem(http_fs);
+
         // TODO: Shared memory fs
+
         Ok(WasmSystemRuntime {
-            dispatch: Arc::new(FileSystemDispatch::empty()),
+            dispatch: Arc::new(dispatch),
         })
     }
 }
