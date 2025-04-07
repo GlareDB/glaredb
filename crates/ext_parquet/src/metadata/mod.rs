@@ -13,7 +13,6 @@
 //!   within a Row Group including encoding and compression information,
 //!   number of values, statistics, etc.
 
-pub mod footer;
 pub mod loader;
 pub mod page_encoding_stats;
 pub mod page_index;
