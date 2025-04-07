@@ -1,0 +1,15 @@
+# parquet_rowgroup_metadata
+
+query TT
+DESCRIBE parquet_rowgroup_metadata('../testdata/parquet/userdata0.parquet');
+----
+file_name          Utf8
+num_rows           Int64
+num_columns        Int64
+uncompressed_size  Int64
+
+query ????
+SELECT * FROM parquet_rowgroup_metadata('../testdata/parquet/userdata0.parquet');
+----
+../testdata/parquet/userdata0.parquet  1000  13  112492
+

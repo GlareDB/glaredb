@@ -1,0 +1,16 @@
+# parquet_file_metadata
+
+query TT
+DESCRIBE parquet_file_metadata('../testdata/parquet/userdata0.parquet');
+----
+file_name       Utf8
+version         Int32
+num_rows        Int64
+created_by      Utf8
+num_row_groups  Int64
+
+query ?????
+SELECT * FROM parquet_file_metadata('../testdata/parquet/userdata0.parquet');
+----
+../testdata/parquet/userdata0.parquet  1  1000  parquet-mr version 1.8.1 (build 4aba4dae7bb0d4edbcf7923ae1339f28fd3f7fcf)  1
+

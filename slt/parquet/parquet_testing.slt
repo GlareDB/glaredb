@@ -1,5 +1,7 @@
 # Queries that hit parquet files in the parquet-testing submodule.
 
+halt
+
 query TT
 describe '../submodules/parquet-testing/data/alltypes_plain.parquet';
 ----

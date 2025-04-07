@@ -2,6 +2,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use ext_csv::extension::CsvExtension;
+use ext_parquet::extension::ParquetExtension;
 use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
@@ -25,6 +26,9 @@ pub fn main() -> Result<()> {
 
     // CSV extension.
     run_with_all_thread_configurations::<CsvSetup>("../slt/csv", "slt_csv")?;
+
+    // Parquet extension.
+    run_with_all_thread_configurations::<ParquetSetup>("../slt/parquet", "slt_parquet")?;
 
     Ok(())
 }
@@ -74,6 +78,20 @@ where
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
         engine.register_extension(CsvExtension)?;
+        Ok(engine)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ParquetSetup;
+
+impl<E, R> EngineSetup<E, R> for ParquetSetup
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
+        engine.register_extension(ParquetExtension)?;
         Ok(engine)
     }
 }

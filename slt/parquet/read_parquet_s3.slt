@@ -1,5 +1,7 @@
 # Read parquet from s3
 
+halt
+
 query I
 select last_name
   from read_parquet('s3://glaredb-test/userdata1.parquet', region='us-east-1', key_id='__AWS_KEY__', secret='__AWS_SECRET__')
