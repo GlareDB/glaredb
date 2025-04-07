@@ -15,6 +15,7 @@ use crate::{basic, format};
 pub struct MetaDataLoader {}
 
 impl MetaDataLoader {
+    #[allow(clippy::new_without_default)] // Since we might be adding some buffers as arguments.
     pub fn new() -> Self {
         MetaDataLoader {}
     }

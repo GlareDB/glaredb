@@ -40,7 +40,7 @@ pub trait FileExt: File {
     }
 
     /// Set the seek position for the file.
-    fn seek<'a>(&'a mut self, seek: io::SeekFrom) -> Seek<'a, Self> {
+    fn seek(&mut self, seek: io::SeekFrom) -> Seek<'_, Self> {
         Seek { seek, file: self }
     }
 }

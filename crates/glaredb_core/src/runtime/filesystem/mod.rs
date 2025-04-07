@@ -85,7 +85,7 @@ impl AnyFile {
         (self.vtable.read_exact_fn)(self.file.as_mut(), buf)
     }
 
-    pub fn call_seek<'a>(&'a mut self, seek: io::SeekFrom) -> FileSystemFuture<'a, Result<()>> {
+    pub fn call_seek(&mut self, seek: io::SeekFrom) -> FileSystemFuture<'_, Result<()>> {
         (self.vtable.seek_fn)(self.file.as_mut(), seek)
     }
 }
