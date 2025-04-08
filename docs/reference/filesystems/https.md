@@ -8,7 +8,7 @@ The HTTP(S) file system allows GlareDB to read data files directly from publicly
 accessible URLs over HTTP or HTTPS. This is useful for quick access to hosted
 datasets, public repositories, or files stored on static hosting services.
 
-The HTTP(S) file system is enabled by defualt for the CLI, Python bindings, and
+The HTTP(S) file system is enabled by default for the CLI, Python bindings, and
 WebAssembly bindings.
 
 ## Usage
