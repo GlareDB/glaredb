@@ -181,7 +181,7 @@ where
                             "Cannot seek to before beginning of file",
                         )));
                     }
-                    self.pos -= count as usize;
+                    self.pos -= count;
                 }
             }
         }

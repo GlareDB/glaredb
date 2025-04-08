@@ -83,8 +83,8 @@ where
                 secret: secret.try_into_string()?,
             }),
             (None, None) => None,
-            (Some(_), None) => return Err(DbError::new("Missing 'secret' argument")),
-            (None, Some(_)) => return Err(DbError::new("Missing 'key_id' argument")),
+            (Some(_), None) => return Err(DbError::new("Missing 'secret_access_key' argument")),
+            (None, Some(_)) => return Err(DbError::new("Missing 'access_key_id' argument")),
         };
 
         // TODO: Get region from context.
