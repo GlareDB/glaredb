@@ -17,7 +17,7 @@ use url::Url;
 
 use super::credentials::{AwsCredentials, AwsRequestAuthorizer};
 use crate::client::{HttpClient, HttpResponse};
-use crate::filesystem::{ChunkReadState, HttpFileHandle};
+use crate::handle::{ChunkReadState, HttpFileHandle, RequestSigner};
 
 pub const AWS_ENDPOINT: &str = "amazonaws.com";
 
@@ -121,13 +121,16 @@ where
         };
 
         Ok(S3FileHandle {
-            state: state.clone(),
             handle: HttpFileHandle {
                 url: location,
                 pos: 0,
                 chunk: ChunkReadState::None,
                 len,
                 client: self.client.clone(),
+                signer: S3RequestSigner {
+                    region: state.region.clone(),
+                    creds: state.creds.clone(),
+                },
             },
         })
     }
@@ -167,25 +170,26 @@ where
 }
 
 #[derive(Debug)]
-pub struct S3FileHandle<C: HttpClient> {
-    state: S3FileSystemState,
-    handle: HttpFileHandle<C>,
+pub struct S3RequestSigner {
+    region: String,
+    creds: Option<AwsCredentials>,
 }
 
-impl<C> S3FileHandle<C>
-where
-    C: HttpClient,
-{
-    #[allow(unused)]
-    fn authorize_request(&self, request: Request) -> Result<Request> {
-        match &self.state.creds {
-            Some(creds) => authorize_request(creds, &self.state.region, request),
+impl RequestSigner for S3RequestSigner {
+    fn sign(&self, request: Request) -> Result<Request> {
+        match &self.creds {
+            Some(creds) => authorize_request(creds, &self.region, request),
             None => {
                 // Anonymous access, no need to sign/authorize the request.
                 Ok(request)
             }
         }
     }
+}
+
+#[derive(Debug)]
+pub struct S3FileHandle<C: HttpClient> {
+    handle: HttpFileHandle<C, S3RequestSigner>,
 }
 
 impl<C> File for S3FileHandle<C>
