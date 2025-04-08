@@ -1,0 +1,9 @@
+# Tests using s3://glaredb-public/simple.csv
+
+query TT
+DESCRIBE read_csv('s3://glaredb-public/simple.csv');
+----
+c1  Utf8
+c2  Utf8
+c3  Float64
+

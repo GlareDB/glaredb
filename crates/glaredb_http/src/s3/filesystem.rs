@@ -38,7 +38,7 @@ where
         // Assumes s3 format: 's3://bucket/file.csv'
         let bucket = match url.host().required("Missing host on url")? {
             url::Host::Domain(host) => host,
-            other => return Err(DbError::new(format!("Expected domanain, got {other:?}"))),
+            other => return Err(DbError::new(format!("Expected domain, got {other:?}"))),
         };
         let object = url.path(); // Should include leading '/';
         let region = self.default_region;
