@@ -24,8 +24,8 @@ This reads a remote CSV file over HTTPS and returns the parsed table.
 
 ## Supported Formats
 
-All supported file formats, such as CSV and Parquet, can be read from the local
-file system using their respective functions (e.g. `read_csv`).
+All supported file formats, such as CSV and Parquet, can be read using the
+http(s) file system using their respective functions (e.g. `read_csv`).
 
 ## Notes
 
