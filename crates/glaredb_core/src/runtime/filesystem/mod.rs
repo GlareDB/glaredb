@@ -227,17 +227,25 @@ impl<'a> FileOpenContext<'a> {
         }
     }
 
+    /// Get a value, returning Ok(None) if it doesn't exist.
+    ///
+    /// May return an error if the value exists, but the expression representing
+    /// the value isn't a constant.
+    // TODO: There's going to need to be a way to namespace keys here, since we
+    // wouldn't want to just look up "key_id" in the catalog since that could
+    // apply to many things.
+    pub fn get_value(&self, key: &str) -> Result<Option<ScalarValue>> {
+        self.named_arguments
+            .get(key)
+            .map(|expr| ConstFold::rewrite(expr.clone())?.try_into_scalar())
+            .transpose()
+    }
+
     /// Get a value, erroring if either the value doesn't exist, or it's not a
     /// constant scalar value.
-    pub fn get_value(&self, key: &str) -> Result<ScalarValue> {
-        let expr = self
-            .named_arguments
-            .get(key)
-            .ok_or_else(|| DbError::new(format!("Missing named argument '{key}'")))?;
-
-        let value = ConstFold::rewrite(expr.clone())?.try_into_scalar()?;
-
-        Ok(value)
+    pub fn require_value(&self, key: &str) -> Result<ScalarValue> {
+        self.get_value(key)?
+            .ok_or_else(|| DbError::new(format!("Missing named argument '{key}'")))
     }
 
     /// Get a value, or use a default value.
@@ -246,11 +254,7 @@ impl<'a> FileOpenContext<'a> {
         key: &str,
         default: impl FnOnce() -> ScalarValue,
     ) -> Result<ScalarValue> {
-        let value = match self.named_arguments.get(key) {
-            Some(expr) => ConstFold::rewrite(expr.clone())?.try_into_scalar()?,
-            None => default(),
-        };
-
+        let value = self.get_value(key)?.unwrap_or_else(default);
         Ok(value)
     }
 }

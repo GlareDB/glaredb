@@ -60,15 +60,39 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct S3FileSystemState {
+    region: String,
+    creds: Option<AwsCredentials>,
+}
+
 impl<C> FileSystem for S3FileSystem<C>
 where
     C: HttpClient,
 {
     type File = S3FileHandle<C>;
-    type State = ();
+    type State = S3FileSystemState;
 
     fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
-        unimplemented!()
+        let key_id = context.get_value("key_id")?;
+        let secret = context.get_value("secret")?;
+
+        let creds = match (key_id, secret) {
+            (Some(key_id), Some(secret)) => Some(AwsCredentials {
+                key_id: key_id.try_into_string()?,
+                secret: secret.try_into_string()?,
+            }),
+            (None, None) => None,
+            (Some(_), None) => return Err(DbError::new("Missing 'secret' argument")),
+            (None, Some(_)) => return Err(DbError::new("Missing 'key_id' argument")),
+        };
+
+        // TODO: Get region from context.
+
+        Ok(S3FileSystemState {
+            creds,
+            region: self.default_region.to_string(),
+        })
     }
 
     // TODO: Need a way to pass in region.
@@ -81,9 +105,11 @@ where
         }
         let location = self.s3_location_from_path(path)?;
 
-        let request = Request::new(Method::HEAD, location.clone());
-        // TODO: Sign if have creds, also need a way to pass them in...
-        // let request = authorize_request(creds, region, request)
+        let mut request = Request::new(Method::HEAD, location.clone());
+        // If we don't have creds, we can skip signing.
+        if let Some(creds) = &state.creds {
+            request = authorize_request(creds, &state.region, request)?;
+        }
         let resp = self.client.do_request(request).await?;
         let len = match resp.headers().get(CONTENT_LENGTH) {
             Some(v) => v
@@ -95,8 +121,7 @@ where
         };
 
         Ok(S3FileHandle {
-            creds: None, // TODO
-            region: self.default_region.to_string(),
+            state: state.clone(),
             handle: HttpFileHandle {
                 url: location,
                 pos: 0,
@@ -110,8 +135,10 @@ where
     async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
         let location = self.s3_location_from_path(path)?;
 
-        let request = Request::new(Method::HEAD, location.clone());
-        // TODO: Authorize
+        let mut request = Request::new(Method::HEAD, location.clone());
+        if let Some(creds) = &state.creds {
+            request = authorize_request(creds, &state.region, request)?;
+        }
         let resp = self.client.do_request(request).await?;
 
         let status = resp.status();
@@ -141,8 +168,7 @@ where
 
 #[derive(Debug)]
 pub struct S3FileHandle<C: HttpClient> {
-    creds: Option<AwsCredentials>,
-    region: String,
+    state: S3FileSystemState,
     handle: HttpFileHandle<C>,
 }
 
@@ -152,8 +178,8 @@ where
 {
     #[allow(unused)]
     fn authorize_request(&self, request: Request) -> Result<Request> {
-        match &self.creds {
-            Some(creds) => authorize_request(creds, &self.region, request),
+        match &self.state.creds {
+            Some(creds) => authorize_request(creds, &self.state.region, request),
             None => {
                 // Anonymous access, no need to sign/authorize the request.
                 Ok(request)
