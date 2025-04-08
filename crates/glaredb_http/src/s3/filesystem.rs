@@ -83,8 +83,8 @@ where
         })
     }
 
-    async fn stat(&self, path: &str) -> Result<Option<FileStat>> {
-        unimplemented!()
+    async fn stat(&self, _path: &str) -> Result<Option<FileStat>> {
+        not_implemented!("s3 stat") // yet
     }
 
     fn can_handle_path(&self, path: &str) -> bool {

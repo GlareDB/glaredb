@@ -8,6 +8,7 @@ use glaredb_core::runtime::profile_buffer::{ProfileBuffer, ProfileSink};
 use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::Result;
 use glaredb_http::filesystem::HttpFileSystem;
+use glaredb_http::s3::filesystem::S3FileSystem;
 use parking_lot::Mutex;
 use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
@@ -27,8 +28,12 @@ impl WasmSystemRuntime {
         // Register http filesystem.
         let client = reqwest::Client::new();
         let client = WasmHttpClient::new(client);
-        let http_fs = HttpFileSystem::new(client);
+        let http_fs = HttpFileSystem::new(client.clone());
         dispatch.register_filesystem(http_fs);
+
+        // Register s3 filesystem.
+        let s3_fs = S3FileSystem::new(client, "us-east-1");
+        dispatch.register_filesystem(s3_fs);
 
         // TODO: Shared memory fs
 
