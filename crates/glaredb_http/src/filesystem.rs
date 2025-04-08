@@ -39,7 +39,7 @@ where
             not_implemented!("create support for http filesystem")
         }
 
-        let url = Url::parse(path).context("Failed to parse http filesystem path as a URL")?;
+        let url = Url::parse(path).context_fn(|| format!("Failed to parse '{path}' as a URL"))?;
         let request = Request::new(Method::HEAD, url.clone());
         let resp = self.client.do_request(request).await?;
 
@@ -93,7 +93,7 @@ where
     }
 }
 
-enum ChunkReadState<C: HttpClient> {
+pub(crate) enum ChunkReadState<C: HttpClient> {
     /// We're making the initial request.
     Requesting { req_fut: C::RequestFuture },
     /// We're streaming a new chunk.
@@ -131,13 +131,15 @@ where
     }
 }
 
+// TODO: Add trait for modifying the request as needed, e.g. for request auth
+// for s3
 #[derive(Debug)]
 pub struct HttpFileHandle<C: HttpClient> {
-    url: Url,
-    pos: usize,
-    chunk: ChunkReadState<C>,
-    len: usize,
-    client: C,
+    pub(crate) url: Url,
+    pub(crate) pos: usize,
+    pub(crate) chunk: ChunkReadState<C>,
+    pub(crate) len: usize,
+    pub(crate) client: C,
 }
 
 impl<C> HttpFileSystem<C> where C: HttpClient {}

@@ -30,6 +30,9 @@ pub fn main() -> Result<()> {
     // Parquet extension.
     run_with_all_thread_configurations::<ParquetSetup>("../slt/parquet", "slt_parquet")?;
 
+    // Public S3 with CSV, parquet
+    run_with_all_thread_configurations::<S3PublicSetup>("../slt/s3/public", "slt_s3_public")?;
+
     Ok(())
 }
 
@@ -92,6 +95,22 @@ where
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
         engine.register_extension(ParquetExtension)?;
+        Ok(engine)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct S3PublicSetup;
+
+impl<E, R> EngineSetup<E, R> for S3PublicSetup
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
+        engine.register_extension(CsvExtension)?;
+        engine.register_extension(ParquetExtension)?;
+
         Ok(engine)
     }
 }
