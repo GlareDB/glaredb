@@ -18,7 +18,7 @@ You can query files using either relative or absolute paths.
 ### Reading with a relative path
 
 ```sql
-SELECT * FROM read_csv('./cities.csv);
+SELECT * FROM read_csv('./cities.csv');
 ```
 
 This reads the `cities.csv` file relative to the current working directory where
