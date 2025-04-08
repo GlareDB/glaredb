@@ -182,7 +182,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
 
                 // All inputs update the same "group".
                 ptr_buf.clear();
-                ptr_buf.extend(std::iter::repeat(values.as_mut_ptr()).take(input.num_rows));
+                ptr_buf.extend(std::iter::repeat_n(values.as_mut_ptr(), input.num_rows));
 
                 // SAFETY: The aggregate values buffer should have been
                 // allocated according to this layout.

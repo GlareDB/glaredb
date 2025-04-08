@@ -40,7 +40,7 @@ impl PhysicalLiteralExpr {
         output.set_value(0, &self.literal)?;
 
         // TODO: Need to be able to provide "constant" selection here.
-        output.select(&NopBufferManager, std::iter::repeat(0).take(sel.len()))?;
+        output.select(&NopBufferManager, std::iter::repeat_n(0, sel.len()))?;
 
         Ok(())
     }
