@@ -30,4 +30,4 @@ Returns metadata for each row group within a Parquet file.
 | file_name          | Name of the file being queried.              |
 | num_rows           | Number of rows in the row group.             |
 | num_columns        | Number of columns in the row group.          |
-| uncompressed_sized | Uncompressed size of the row group in bytes. |
+| uncompressed_size  | Uncompressed size of the row group in bytes. |
