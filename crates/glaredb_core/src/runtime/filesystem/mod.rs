@@ -3,6 +3,7 @@ pub mod file_ext;
 pub mod memory;
 
 use std::any::Any;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io;
 use std::pin::Pin;
@@ -10,7 +11,12 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use file_ext::FileExt;
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
+
+use crate::arrays::scalar::ScalarValue;
+use crate::expr::Expression;
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 pub trait File: Debug + Sync + Send + 'static {
     /// Get the path of this file.
@@ -197,6 +203,46 @@ impl OpenFlags {
 
     pub const fn is_create(&self) -> bool {
         self.0 & Self::CREATE.0 != 0
+    }
+}
+
+/// Context used for creating state needed by the file system to open files.
+#[derive(Debug)]
+pub struct FileOpenContext<'a> {
+    /// Named arguments provided to the scan function.
+    named_arguments: &'a HashMap<String, Expression>,
+}
+
+impl<'a> FileOpenContext<'a> {
+    pub fn new(named_arguments: &'a HashMap<String, Expression>) -> Self {
+        FileOpenContext { named_arguments }
+    }
+
+    /// Get a value, erroring if either the value doesn't exist, or it's not a
+    /// constant scalar value.
+    pub fn get_value(&self, key: &str) -> Result<ScalarValue> {
+        let expr = self
+            .named_arguments
+            .get(key)
+            .ok_or_else(|| DbError::new(format!("Missing named argument '{key}'")))?;
+
+        let value = ConstFold::rewrite(expr.clone())?.try_into_scalar()?;
+
+        Ok(value)
+    }
+
+    /// Get a value, or use a default value.
+    pub fn get_value_or_default(
+        &self,
+        key: &str,
+        default: impl FnOnce() -> ScalarValue,
+    ) -> Result<ScalarValue> {
+        let value = match self.named_arguments.get(key) {
+            Some(expr) => ConstFold::rewrite(expr.clone())?.try_into_scalar()?,
+            None => default(),
+        };
+
+        Ok(value)
     }
 }
 
