@@ -11,7 +11,7 @@ expressions to transform the results.
 The `SELECT` clause contains a list of expressions to specify the results of a
 query.
 
-## Star expressions
+## Star Expressions
 
 `*` will be expanded to select all columns from the base tables in the query.
 
@@ -31,7 +31,7 @@ FROM cities, states
 WHERE cities.state_code = state.code;
 ```
 
-### Excluding columns
+### Excluding Columns
 
 `EXCLUDE`/`EXCEPT` can be used to exclude certain columns from the output when
 combined with `*`.
@@ -48,7 +48,7 @@ SELECT * EXCLUDE (state_code) FROM cities;
 SELECT * EXCEPT (state_code) FROM cities;
 ```
 
-### Replacing columns
+### Replacing Columns
 
 `REPLACE` can be used to replace columns in the output with a different
 expression.
@@ -76,7 +76,7 @@ Then our results using `REPLACE (upper(name) AS name)` will become:
 | AKRON     | OH         |
 | CLEVELAND | OH         |
 
-### Dynamic columns
+### Dynamic Columns
 
 `COLUMNS` can be used to select columns that match a regular expression.
 
@@ -110,7 +110,7 @@ Get the min and max `population` from a `cities` table:
 SELECT min(population), max(population) FROM cities;
 ```
 
-## DISTINCT clause
+## DISTINCT Clause
 
 The `DISTINCT` clause removes duplicate rows from the result set.
 

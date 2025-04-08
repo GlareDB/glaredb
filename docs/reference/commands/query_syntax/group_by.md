@@ -22,7 +22,7 @@ GROUP BY state_abbr;
 A `GROUP BY` can be used even if there are no aggregates in the `SELECT`. This
 produces a single row for each group (e.g. `DISTINCT`).
 
-## Grouping sets
+## Grouping Sets
 
 `ROLLUP`, `CUBE`, or `GROUPING SETS` can be used to `GROUP BY` more than a
 single dimension. A `GROUPING SET` clause can be used to specify which

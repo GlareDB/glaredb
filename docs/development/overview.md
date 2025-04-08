@@ -2,7 +2,7 @@
 title: Overview
 ---
 
-# Development overview
+# Development Overview
 
 ## Building
 
@@ -69,7 +69,7 @@ Tests].
 
 Running tests requires that [protoc] be in your path.
 
-### Unit tests
+### Unit Tests
 
 Unit tests should be written to test code paths that cannot easily be tested
 through SQL.
@@ -112,9 +112,9 @@ $ ./scripts/run_miri.sh
 
 All unit tests in `glaredb_core` must pass Miri.
 
-## Code style
+## Code Style
 
-### Formatting and linting
+### Formatting and Linting
 
 [rustfmt] (nightly) and [clippy] are used for formatting and linting
 respectively.

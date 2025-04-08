@@ -8,7 +8,7 @@ The `WITH` clause allows you to define temporary result sets (Common Table
 Expressions or CTEs) that exist only for the duration of a query. CTEs can
 simplify complex queries by breaking them down into more manageable parts.
 
-## Basic syntax
+## Basic Syntax
 
 The basic syntax for `WITH` is:
 
@@ -78,7 +78,7 @@ This produces:
 | 8    | 7   |
 | 10   | 9   |
 
-## CTE references
+## CTE References
 
 CTEs defined earlier in the `WITH` clause can be referenced by CTEs defined
 later:

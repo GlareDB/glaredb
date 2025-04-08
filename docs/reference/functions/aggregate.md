@@ -2,7 +2,7 @@
 title: Aggregate functions
 ---
 
-# Aggregate function reference
+# Aggregate Function Reference
 
 <!-- DOCSGEN_START aggregate_functions -->
 

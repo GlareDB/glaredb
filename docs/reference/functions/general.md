@@ -2,7 +2,7 @@
 title: General functions
 ---
 
-# General function reference
+# General Function Reference
 
 <!-- DOCSGEN_START general_functions -->
 
