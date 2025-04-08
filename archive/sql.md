@@ -11,7 +11,7 @@ Default catalogs on session create:
 - "temp"
   - Contains temp objects that last the lifetime of a session.
 
-## Remote execution context
+## Remote Execution Context
 
 Catalogs on the "remote" side during distributed or hybrid execution.
 
@@ -21,7 +21,7 @@ Catalogs on the "remote" side during distributed or hybrid execution.
 
 ---
 
-# Resolving objects
+# Resolving Objects
 
 ---
 
@@ -61,7 +61,7 @@ CREATE SCHEMA IF NOT EXISTS temp.my_schema;
 
 ## `CREATE TABLE`
 
-### Persistent tables
+### Persistent Tables
 
 **unimplemented**
 
@@ -74,7 +74,7 @@ CREATE TABLE my_table (
 )
 ```
 
-### Temporary tables
+### Temporary Tables
 
 Create a temporary table.
 
@@ -93,17 +93,17 @@ CREATE TEMP TABLE my_table (
 
 **unimplemented**
 
-### Column constraints
+### Column Constraints
 
 `CHECK` and `NULL`/`NOT NULL`
 
 **unimplemented**
 
-### Foreign keys
+### Foreign Keys
 
 **unimplemented**
 
-### Generated columns
+### Generated Columns
 
 **unimplemented**
 
@@ -166,7 +166,7 @@ OFFSET <n>;
 
 **unimplemented**
 
-## `SET` / `RESET`
+## `SET`/`RESET`
 
 Set a variable local to the session.
 
@@ -220,7 +220,7 @@ RESET ALL;
 
 ---
 
-# Data types
+# Data Types
 
 | SQL data type               | Execution data type |
 |-----------------------------|---------------------|

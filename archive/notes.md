@@ -118,7 +118,7 @@ writing.
 
 Similar probably needs to happen with GCS: https://cloud.google.com/storage/docs/using-cors#console
 
-## Don't use usize for "long" in protocol messages
+## Don't Use Usize for "long" in Protocol Messages
 
 Because wasm is 32 bit.
 

@@ -1,4 +1,4 @@
-# Archived documents
+# Archived Documents
 
 Documents written during initial development of the new engine.
 

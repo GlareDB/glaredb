@@ -2,7 +2,7 @@
 title: String functions
 ---
 
-# String function reference
+# String Function Reference
 
 <!-- DOCSGEN_START string_functions -->
 

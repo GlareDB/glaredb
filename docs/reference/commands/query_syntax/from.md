@@ -28,7 +28,7 @@ Select from a table named `cities` in a schema named `census`:
 SELECT * FROM census.cities;
 ```
 
-## Table functions
+## Table Functions
 
 Table functions are functions that produce tabular data, and can be used in the
 `FROM` clause.
@@ -65,7 +65,7 @@ SELECT * FROM (VALUES ('cat', 4), ('dog', 5));
 Joins produce new tables by horizontally combining columns from multiple input
 tables.
 
-### Cross joins
+### Cross Joins
 
 A cross join is the simplest type of join, and produces all possible pairs
 between the left and right tables.
@@ -84,7 +84,7 @@ SELECT *
 FROM cities, states;
 ```
 
-### Conditional joins
+### Conditional Joins
 
 Conditional joins are joins that specify the predicate used when joining rows
 between tables.
@@ -133,7 +133,7 @@ predicate.
 - `FULL OUTER JOIN`: Return all matched rows, and all non-matched rows from the
   left and right table.
 
-### Lateral joins
+### Lateral Joins
 
 A lateral join allows a subquery in the `FROM` clause to reference columns from
 previous tables in the same `FROM` clause.

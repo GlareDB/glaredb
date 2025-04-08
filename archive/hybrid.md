@@ -1,10 +1,10 @@
-# Notes on hybrid execution
+# Notes on Hybrid Execution
 
 Notes on hybrid execution in the context of rayexec. While not an immediate
 focus, it's important that there's an idea of what this might look like as it's
 critical to the glaredb product.
 
-## Hybrid execution right now
+## Hybrid Execution Right Now
 
 Hybrid execution in glaredb currently relies on parsing, planning, and
 optimization all on the client side.
@@ -49,7 +49,7 @@ Assuming `local.csv` is left side of join...
 5. (Client) - Receive batch from remote
 6. Repeat steps as needed until completion
 
-## Hybrid execution in rayexec
+## Hybrid Execution in Rayexec
 
 ### Definitions
 

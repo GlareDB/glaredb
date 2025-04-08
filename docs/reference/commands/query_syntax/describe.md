@@ -7,7 +7,7 @@ title: DESCRIBE
 `DESCRIBE` statements provide information about the schema of queries, tables,
 table functions, or files.
 
-## Describing a query
+## Describing a Query
 
 `DESCRIBE` followed by a query can be used to show the names and data types that
 would be return by that query:
