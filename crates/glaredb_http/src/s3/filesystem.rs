@@ -2,10 +2,10 @@ use std::io::SeekFrom;
 use std::task::{Context, Poll};
 
 use chrono::Utc;
-use glaredb_core::runtime::filesystem::{File, FileStat, FileSystem, OpenFlags};
+use glaredb_core::runtime::filesystem::{File, FileStat, FileSystem, FileType, OpenFlags};
 use glaredb_error::{DbError, OptionExt, Result, ResultExt, not_implemented};
 use reqwest::header::CONTENT_LENGTH;
-use reqwest::{Method, Request};
+use reqwest::{Method, Request, StatusCode};
 use url::Url;
 
 use super::credentials::{AwsCredentials, AwsRequestAuthorizer};
@@ -30,6 +30,27 @@ where
             client,
         }
     }
+
+    /// Construct a url pointing to the s3 resource.
+    fn s3_location_from_path(&self, path: &str) -> Result<Url> {
+        let url = Url::parse(path).context_fn(|| format!("Failed to parse '{path}' as a URL"))?;
+
+        // Assumes s3 format: 's3://bucket/file.csv'
+        let bucket = match url.host().required("Missing host on url")? {
+            url::Host::Domain(host) => host,
+            other => return Err(DbError::new(format!("Expected domanain, got {other:?}"))),
+        };
+        let object = url.path(); // Should include leading '/';
+        let region = self.default_region;
+        let endpoint = AWS_ENDPOINT;
+
+        // - bucket: The bucket containing the object.
+        // - region: Region containing the bucket.
+        // - endpoint: The s3 endpoint to use.
+        // - object: Path to the object, this should include a leading '/'.
+        let formatted = format!("https://{bucket}.s3.{region}.{endpoint}{object}");
+        Url::parse(&formatted).context_fn(|| format!("Failed to parse '{formatted}' into url"))
+    }
 }
 
 impl<C> FileSystem for S3FileSystem<C>
@@ -46,16 +67,7 @@ where
         if flags.is_create() {
             not_implemented!("create support for s3 filesystem")
         }
-
-        let url = Url::parse(path).context_fn(|| format!("Failed to parse '{path}' as a URL"))?;
-
-        // Assumes s3 format: 's3://bucket/file.csv'
-        let bucket = match url.host().required("Missing host on url")? {
-            url::Host::Domain(host) => host,
-            other => return Err(DbError::new(format!("Expected domanain, got {other:?}"))),
-        };
-        let object = url.path(); // Should include leading '/';
-        let location = s3_location(bucket, self.default_region, AWS_ENDPOINT, object)?;
+        let location = self.s3_location_from_path(path)?;
 
         let request = Request::new(Method::HEAD, location.clone());
         // TODO: Sign if have creds, also need a way to pass them in...
@@ -83,8 +95,25 @@ where
         })
     }
 
-    async fn stat(&self, _path: &str) -> Result<Option<FileStat>> {
-        not_implemented!("s3 stat") // yet
+    async fn stat(&self, path: &str) -> Result<Option<FileStat>> {
+        let location = self.s3_location_from_path(path)?;
+
+        let request = Request::new(Method::HEAD, location.clone());
+        // TODO: Authorize
+        let resp = self.client.do_request(request).await?;
+
+        let status = resp.status();
+        if status == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+
+        if status.is_success() {
+            return Ok(Some(FileStat {
+                file_type: FileType::File,
+            }));
+        }
+
+        Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
     fn can_handle_path(&self, path: &str) -> bool {
@@ -161,15 +190,4 @@ fn authorize_request(creds: &AwsCredentials, region: &str, request: Request) -> 
         region,
     };
     authorizer.authorize(request)
-}
-
-/// Construct a url pointing to the s3 resource.
-///
-/// - bucket: The bucket containing the object.
-/// - region: Region containing the bucket.
-/// - endpoint: The s3 endpoint to use.
-/// - object: Path to the object, this should include a leading '/'.
-fn s3_location(bucket: &str, region: &str, endpoint: &str, object: &str) -> Result<Url> {
-    let formatted = format!("https://{bucket}.s3.{region}.{endpoint}{object}");
-    Url::parse(&formatted).context_fn(|| format!("Failed to parse '{formatted}' into url"))
 }
