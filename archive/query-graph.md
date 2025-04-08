@@ -1,9 +1,9 @@
-# Query Graph
+# Query graph
 
 Overview of the current operator interfaces as of May 2024 alongside
 alternatives considered during the implementation of various operators.
 
-## Comments on the Previous Interfaces
+## Comments on the previous interfaces
 
 Physical operators now currently implement a push-based interface, and a
 separate struct helps with execution across some number of operators. At a
@@ -11,7 +11,7 @@ high-level, this is what we want, and the current interfaces I think are a
 decent prototype. However there's a drawback where operators require a lot of
 unnecessary synchronization, making state management within operators tedious.
 
-### Physical Operators
+### Physical operators
 
 These interfaces define the core execution of individual steps during query
 execution.
@@ -135,7 +135,7 @@ Unknown:
   synchronization). I plan to address the performance metrics later in this
   document.
   
-### Operator Chain
+### Operator chain
 
 An operator chain is essentially a subset of the query.
 
@@ -201,13 +201,13 @@ Bad:
 
 Unknown:
 
-## Current Design
+## Current design
 
 Operator logic and operator states should be separate. By having the state
 separate from the logic (the actual operator itself), we can reduce
 synchronization across partitions, and provide better DX.
 
-### Global/local States
+### Global/local states
 
 Each (stateful) operator will define at least two states that will be used
 during execution; the "partition" state and the "operator" state. Partition
@@ -240,7 +240,7 @@ pub enum PartitionState {
 }
 ```
 
-### Operator Interfaces
+### Operator interfaces
 
 ```rust
 pub trait PhysicalOperator: Sync + Send + Explainable + Debug {
@@ -288,7 +288,7 @@ In the context of distributed execution, it's important that we're able to
 construct new states given just an operator, but the number of partitions to
 execute on should be determined by the node actually executing the pipeline.
 
-### Partition Pipeline
+### Partition pipeline
 
 Partition pipelines are a higher level struct responsible for managing the
 relationships between states and operators for a single partition. This struct
@@ -335,19 +335,19 @@ This new pipeline is then used during planning up until a join (ish) or
 repartition is reached. So planning may produce any number of partitions, which
 can all be thrown to scheduler without care.
 
-### Query Graph
+### Query graph
 
 More of a tree, but just holds a bunch of pipelines.
 
 More graph like execution might happen in the case of recursive CTEs.
 
-## Current Design Rationale
+## Current design rationale
 
 Various notes on the rationale of the current design. This will be appended to
 as changes are made, with some sections potentially moving to _Design
 alternatives_ if we move away from it.
 
-### "Polling" Operators
+### "Polling" operators
 
 Physical operators implement a `poll_push` and `poll_pull` method, which can be
 seen as a very specialized version of a Rust Future.
@@ -369,9 +369,9 @@ data) since we'll just be calling the required `poll_...` methods with the
 
 Essentially this makes our scheduler a very specialized async runtime.
 
-## Design Alternatives
+## Design alternatives
 
-### Using the Previous Implementation of Physical Operators
+### Using the previous implementation of physical operators
 
 The idea was good, but having the state+logic live on the operator itself led to
 a lot synchronization needing to happen across partitions, as well as a

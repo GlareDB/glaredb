@@ -1,4 +1,4 @@
-# Rayexec
+# rayexec
 
 An experimental push-based execution engine.
 
@@ -60,13 +60,13 @@ General purpose composability is not currently a goal.
 - No tokio.
 - Table binding could be made async in the future.
 
-### SQL Parser
+### SQL parser
 
 Custom parser based heavily on `sqlparser-rs` is used. This will let us have
 much more control over parsing while also being able to eschew certain features
 from `sqlparser-rs` that doesn't benefit us.
 
-### Logical Planning
+### Logical planning
 
 - Bind tables and column using some bind context. Tables and columns will be
   given numeric identifies, all future planning will use that identifier in
@@ -74,12 +74,12 @@ from `sqlparser-rs` that doesn't benefit us.
 - Bind contexts will be scoped, but have a reference to the outer scope to
   support LATERAL subqueries.
 
-### Logical Operators
+### Logical operators
 
 - Tree, each node knows about its children.
 - Each node knows its output schema.
   
-### Physical Operators
+### Physical operators
 
 - Pushed-based.
 - Operators do no know about its parents/children, just that it accepts inputs
@@ -99,7 +99,7 @@ from `sqlparser-rs` that doesn't benefit us.
 - No physical plan optimizations. Stuff like join selection should happen during
   planning.
 
-### Data Scans
+### Data scans
 
 - Everything's a function.
 - Dynamic dispatch based on arguments provided during binding.

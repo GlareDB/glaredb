@@ -1,8 +1,8 @@
-# Catalogs and Data Sources
+# Catalogs and data sources
 
 Data sources will be implemented in the context of catalogs.
 
-## Catalog Overview
+## Catalog overview
 
 The `Catalog` trait provides methods for returning dynamically dispatched
 `Schema`s which themselve provide access to entries in the catalog.
@@ -30,13 +30,13 @@ try to get the schema from the catalog, then try to get the fully resolved entry
 from the schema. The types returned from the schema are _concrete types_ (more
 on why later in the doc).
 
-## Database Context Overview
+## Database context overview
 
 The `DatabaseContext` struct holds all catalogs for session. Essentialy this
 maps database names to a catalog. When a session starts, a new database context
 is created containing two catalogs; the system catalog and a temp catalog.
 
-### System Catalog
+### System catalog
 
 The system catalog contains system entries like the `glare_catalog` and
 `pg_catalog` schemas, as well as the builtin functions. The system catalog is
@@ -44,12 +44,12 @@ namespaced under "system", so a query using a fully-qualified path to a system
 table would look like `SELECT * FROM system.glare_catalog.tables`. The system
 catalog is read-only.
 
-### Temp Catalog
+### Temp catalog
 
 The temp catalog contains entries that last only the lifetime of a session, and
 gets dropped at session end. This catalog will contain things like temp tables.
 
-### Default Catalog
+### Default catalog
 
 The default catalog would be the catalog created for the user for storing user
 tables and data. Tables in the default catalog would be accessed like `SELECT *
@@ -57,7 +57,7 @@ FROM default.public.my_table`.
 
 Creating the default catalog on session start is not a requirement.
 
-### Catalog Search Path
+### Catalog search path
 
 By default, builtins are placed in the `system.glare_catalog` schema. To avoid
 the user having to write `SELECT system.glare_catalog.sum(a) FROM ...`,
@@ -66,12 +66,12 @@ functions will default to resoling from `system.glare_catalog`.
 Similar considerations will be taken for user tables (the experience should not
 be worse than what we have now). I'm just not yet sure what this looks like.
 
-### Attaching/detaching Catalogs
+### Attaching/detaching catalogs
 
 Each session has full control over its `DatabaseContext`, and can attach and
 detach catalogs by name.
 
-## Data Sources as Catalogs
+## Data sources as catalogs
 
 Each data source will implement the `Catalog` and `Schema` traits. For example,
 the BigQuery data source would implement a `BigQueryCatalog` type, which returns
@@ -89,7 +89,7 @@ self.context.attach_catalog("my_bq", bq_catalog)?;
 The catalog will then be queryable like so: `SELECT * FROM
 my_bq.air_quality.metrics`.
 
-### External Tables
+### External tables
 
 TODO: Probably just a "symlink" into a data source catalog.
 
@@ -108,7 +108,7 @@ source for an org.
 Data source crates should contain all the implementation required for adding new
 data sources.
 
-### Implementation Details on the Actual Querying
+### Implementation details on the actual querying
 
 As mentioned above, the `Schema` implementation will return concrete catalog
 entry types instead of a trait. This is because the catalog/table entry will be
@@ -148,7 +148,7 @@ following steps:
 4. Remote node calls `create_states` to finish initializing everything.
 5. Remote node executes.
 
-## Multiple GlareDB Catalogs
+## Multiple GlareDB catalogs
 
 What this design also enables is allowing a single session to access multiple
 glaredb catalogs. So if I'm in my organization `glaredb_org`, and I have the
@@ -163,7 +163,7 @@ sibling catalogs to my GlareDB catalogs. If I "add" a BigQuery database to my
 org, then that data source can be accessible from any of my databases (minus any
 ACL stuff we do).
 
-### Default Catalog
+### Default catalog
 
 Related to the catalog search path, we should "default" to single catalog when
 initially connecting to database.
