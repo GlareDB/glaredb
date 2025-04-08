@@ -58,6 +58,7 @@ where
     C: HttpClient,
 {
     type File = S3FileHandle<C>;
+    type State = ();
 
     // TODO: Need a way to pass in region.
     async fn open(&self, flags: OpenFlags, path: &str) -> Result<Self::File> {

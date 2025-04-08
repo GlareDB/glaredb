@@ -207,6 +207,9 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     // on the open flags used.
     type File: File;
 
+    /// Extra state used when opening or statting a single file.
+    type State: Sync + Send;
+
     /// Open a file at a given path.
     fn open(
         &self,
@@ -226,6 +229,12 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
 
 /// A boxed future.
 pub type FileSystemFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'a>>;
+
+#[derive(Debug, Clone)]
+pub struct FileSystemWithState {
+    pub(crate) state: Arc<dyn Any + Sync + Send>,
+    pub(crate) fs: AnyFileSystem,
+}
 
 #[derive(Debug, Clone)]
 pub struct AnyFileSystem {

@@ -29,6 +29,7 @@ impl MemoryFileSystem {
 
 impl FileSystem for MemoryFileSystem {
     type File = MemoryFileHandle;
+    type State = ();
 
     async fn open(&self, flags: OpenFlags, path: &str) -> Result<Self::File> {
         if flags.is_write() {
