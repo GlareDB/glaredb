@@ -2,7 +2,14 @@ use std::fs::{self, File as StdFile, OpenOptions};
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::task::{Context, Poll};
 
-use glaredb_core::runtime::filesystem::{File, FileStat, FileSystem, FileType, OpenFlags};
+use glaredb_core::runtime::filesystem::{
+    File,
+    FileOpenContext,
+    FileStat,
+    FileSystem,
+    FileType,
+    OpenFlags,
+};
 use glaredb_error::{DbError, Result, ResultExt};
 
 #[derive(Debug)]
@@ -48,8 +55,13 @@ pub struct LocalFileSystem {}
 
 impl FileSystem for LocalFileSystem {
     type File = LocalFile;
+    type State = ();
 
-    async fn open(&self, flags: OpenFlags, path: &str) -> Result<Self::File> {
+    fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
+        Ok(())
+    }
+
+    async fn open(&self, flags: OpenFlags, path: &str, _state: &()) -> Result<Self::File> {
         let file = OpenOptions::new()
             .read(flags.is_read())
             .write(flags.is_write())
@@ -65,7 +77,7 @@ impl FileSystem for LocalFileSystem {
         })
     }
 
-    async fn stat(&self, path: &str) -> Result<Option<FileStat>> {
+    async fn stat(&self, path: &str, _state: &()) -> Result<Option<FileStat>> {
         let metadata = match fs::metadata(path) {
             Ok(metadata) => metadata,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),

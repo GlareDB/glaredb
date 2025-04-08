@@ -16,7 +16,13 @@ use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFun
 use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
-use crate::runtime::filesystem::{AnyFile, AnyFileSystem, FileSystemFuture, OpenFlags};
+use crate::runtime::filesystem::{
+    AnyFile,
+    FileOpenContext,
+    FileSystemFuture,
+    FileSystemWithState,
+    OpenFlags,
+};
 use crate::storage::projections::{ProjectedColumn, Projections};
 
 pub const FUNCTION_SET_READ_TEXT: TableFunctionSet = TableFunctionSet {
@@ -41,13 +47,13 @@ pub struct ReadText;
 
 #[derive(Debug)]
 pub struct ReadTextBindState {
-    fs: AnyFileSystem,
+    fs: FileSystemWithState,
     path: String,
 }
 
 #[derive(Debug)]
 pub struct ReadTextOperatorState {
-    fs: AnyFileSystem,
+    fs: FileSystemWithState,
     path: String,
     projections: Projections,
 }
@@ -80,7 +86,9 @@ impl TableScanFunction for ReadText {
             .try_into_string()?;
 
         let fs = scan_context.dispatch.filesystem_for_path(&path)?;
-        match fs.call_stat(&path).await? {
+        let context = FileOpenContext::new(scan_context.database_context, &input.named);
+        let fs = fs.try_with_context(context)?;
+        match fs.stat(&path).await? {
             Some(stat) if stat.file_type.is_file() => (), // We have a file.
             Some(_) => return Err(DbError::new("Cannot read lines from a directory")), // TODO: Globbing and stuff
             None => return Err(DbError::new(format!("Missing file for path '{path}'"))),
@@ -119,7 +127,7 @@ impl TableScanFunction for ReadText {
             buf: Vec::new(),
             open_fut: op_state
                 .fs
-                .call_open_static(OpenFlags::READ, op_state.path.clone()),
+                .open_static(OpenFlags::READ, op_state.path.clone()),
         }];
         states.resize_with(partitions, || ReadTextPartitionState::Exhausted);
 

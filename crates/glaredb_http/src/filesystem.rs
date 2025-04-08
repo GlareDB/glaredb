@@ -3,7 +3,14 @@ use std::{fmt, io};
 
 use bytes::Bytes;
 use futures::{FutureExt, StreamExt};
-use glaredb_core::runtime::filesystem::{File, FileStat, FileSystem, FileType, OpenFlags};
+use glaredb_core::runtime::filesystem::{
+    File,
+    FileOpenContext,
+    FileStat,
+    FileSystem,
+    FileType,
+    OpenFlags,
+};
 use glaredb_error::{DbError, Result, ResultExt, not_implemented};
 use reqwest::header::{CONTENT_LENGTH, RANGE};
 use reqwest::{Method, Request, StatusCode};
@@ -32,7 +39,11 @@ where
     type File = HttpFileHandle<C>;
     type State = ();
 
-    async fn open(&self, flags: OpenFlags, path: &str) -> Result<Self::File> {
+    fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
+        Ok(())
+    }
+
+    async fn open(&self, flags: OpenFlags, path: &str, _state: &()) -> Result<Self::File> {
         if flags.is_write() {
             not_implemented!("write support for http filesystem")
         }
@@ -64,7 +75,7 @@ where
         })
     }
 
-    async fn stat(&self, path: &str) -> Result<Option<FileStat>> {
+    async fn stat(&self, path: &str, _state: &()) -> Result<Option<FileStat>> {
         let url = Url::parse(path).context("Failed to parse http filesystem path as a URL")?;
         let request = Request::new(Method::HEAD, url.clone());
         let resp = self.client.do_request(request).await?;

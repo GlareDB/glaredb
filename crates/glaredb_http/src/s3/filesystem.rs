@@ -2,7 +2,14 @@ use std::io::SeekFrom;
 use std::task::{Context, Poll};
 
 use chrono::Utc;
-use glaredb_core::runtime::filesystem::{File, FileStat, FileSystem, FileType, OpenFlags};
+use glaredb_core::runtime::filesystem::{
+    File,
+    FileOpenContext,
+    FileStat,
+    FileSystem,
+    FileType,
+    OpenFlags,
+};
 use glaredb_error::{DbError, OptionExt, Result, ResultExt, not_implemented};
 use reqwest::header::CONTENT_LENGTH;
 use reqwest::{Method, Request, StatusCode};
@@ -60,8 +67,12 @@ where
     type File = S3FileHandle<C>;
     type State = ();
 
+    fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
+        unimplemented!()
+    }
+
     // TODO: Need a way to pass in region.
-    async fn open(&self, flags: OpenFlags, path: &str) -> Result<Self::File> {
+    async fn open(&self, flags: OpenFlags, path: &str, state: &Self::State) -> Result<Self::File> {
         if flags.is_write() {
             not_implemented!("write support for s3 filesystem")
         }
@@ -96,7 +107,7 @@ where
         })
     }
 
-    async fn stat(&self, path: &str) -> Result<Option<FileStat>> {
+    async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
         let location = self.s3_location_from_path(path)?;
 
         let request = Request::new(Method::HEAD, location.clone());

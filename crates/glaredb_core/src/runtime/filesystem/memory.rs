@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use glaredb_error::{DbError, Result, not_implemented};
 
-use super::{File, FileStat, FileSystem, FileType, OpenFlags};
+use super::{File, FileOpenContext, FileStat, FileSystem, FileType, OpenFlags};
 use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 use crate::buffer::typed::ByteBuffer;
 
@@ -31,7 +31,11 @@ impl FileSystem for MemoryFileSystem {
     type File = MemoryFileHandle;
     type State = ();
 
-    async fn open(&self, flags: OpenFlags, path: &str) -> Result<Self::File> {
+    fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
+        Ok(())
+    }
+
+    async fn open(&self, flags: OpenFlags, path: &str, _state: &()) -> Result<Self::File> {
         if flags.is_write() {
             not_implemented!("write support for memory filesystem")
         }
@@ -53,7 +57,7 @@ impl FileSystem for MemoryFileSystem {
         })
     }
 
-    async fn stat(&self, path: &str) -> Result<Option<FileStat>> {
+    async fn stat(&self, path: &str, _state: &()) -> Result<Option<FileStat>> {
         let path = get_normalized_file_name(Path::new(path))?;
         if !self.files.contains(path) {
             return Ok(None);
