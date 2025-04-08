@@ -150,7 +150,7 @@ impl AggregateHashTable {
         state.row_ptrs.clear();
         state
             .row_ptrs
-            .extend(std::iter::repeat(std::ptr::null_mut()).take(groups.num_rows));
+            .extend(std::iter::repeat_n(std::ptr::null_mut(), groups.num_rows));
 
         self.find_or_create_groups(
             &mut state.append_state,

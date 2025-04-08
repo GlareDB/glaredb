@@ -1,6 +1,6 @@
 /// Compute number of bytes needed for a bitmap to hold some number of entries.
 pub const fn num_bytes_for_bitmap(entries: usize) -> usize {
-    (entries + 7) / 8
+    entries.div_ceil(8)
 }
 
 /// View on top of a byte slice for LSB ordering within each byte.

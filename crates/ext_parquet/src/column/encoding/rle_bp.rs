@@ -29,7 +29,7 @@ impl RleBpDecoder {
     pub fn new(buffer: ReadBuffer, bit_width: u8) -> Self {
         assert!(bit_width <= 64);
 
-        let byte_enc_len = ((bit_width + 7) / 8) as usize;
+        let byte_enc_len = bit_width.div_ceil(8) as usize;
 
         RleBpDecoder {
             buffer,
