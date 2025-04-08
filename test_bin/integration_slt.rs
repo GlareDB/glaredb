@@ -15,7 +15,7 @@ use glaredb_rt_native::runtime::{
     new_tokio_runtime_for_io,
 };
 use glaredb_rt_native::threaded::ThreadedScheduler;
-use glaredb_slt::{ReplacementVars, RunConfig};
+use glaredb_slt::{ReplacementVars, RunConfig, VarValue};
 
 pub fn main() -> Result<()> {
     // Standard tests.
@@ -33,6 +33,9 @@ pub fn main() -> Result<()> {
     // Public S3 with CSV, parquet
     run_with_all_thread_configurations::<S3PublicSetup>("../slt/s3/public", "slt_s3_public")?;
 
+    // Private S3 with CSV, parquet
+    run_with_all_thread_configurations::<S3PrivateSetup>("../slt/s3/private", "slt_s3_private")?;
+
     Ok(())
 }
 
@@ -41,7 +44,8 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>>;
+    // TODO: Why not just return a run config?
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)>;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -52,8 +56,8 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
-        Ok(engine)
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
+        Ok((engine, ReplacementVars::default()))
     }
 }
 
@@ -65,9 +69,9 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
         engine.register_extension(TpchGenExtension)?;
-        Ok(engine)
+        Ok((engine, ReplacementVars::default()))
     }
 }
 
@@ -79,9 +83,9 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
         engine.register_extension(CsvExtension)?;
-        Ok(engine)
+        Ok((engine, ReplacementVars::default()))
     }
 }
 
@@ -93,9 +97,10 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
         engine.register_extension(ParquetExtension)?;
-        Ok(engine)
+
+        Ok((engine, ReplacementVars::default()))
     }
 }
 
@@ -107,11 +112,32 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
 
-        Ok(engine)
+        Ok((engine, ReplacementVars::default()))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct S3PrivateSetup;
+
+impl<E, R> EngineSetup<E, R> for S3PrivateSetup
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
+        engine.register_extension(CsvExtension)?;
+        engine.register_extension(ParquetExtension)?;
+
+        let mut vars = ReplacementVars::default();
+
+        vars.add_var("AWS_KEY", VarValue::sensitive_from_env("AWS_KEY"));
+        vars.add_var("AWS_SECRET", VarValue::sensitive_from_env("AWS_SECRET"));
+
+        Ok((engine, vars))
     }
 }
 
@@ -131,11 +157,11 @@ where
 
             async move {
                 let engine = SingleUserEngine::try_new(executor.clone(), rt.clone())?;
-                let engine = S::setup(engine)?;
+                let (engine, vars) = S::setup(engine)?;
 
                 Ok(RunConfig {
                     engine,
-                    vars: ReplacementVars::default(),
+                    vars,
                     create_slt_tmp: false,
                     query_timeout: Duration::from_secs(5),
                 })

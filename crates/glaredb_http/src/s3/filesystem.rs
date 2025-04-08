@@ -74,8 +74,8 @@ where
     type State = S3FileSystemState;
 
     fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
-        let key_id = context.get_value("key_id")?;
-        let secret = context.get_value("secret")?;
+        let key_id = context.get_value("access_key_id")?;
+        let secret = context.get_value("secret_access_key")?;
 
         let creds = match (key_id, secret) {
             (Some(key_id), Some(secret)) => Some(AwsCredentials {

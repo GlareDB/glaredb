@@ -71,6 +71,13 @@ jobs:
         if: always()
         run: cargo test slt/s3/public
 
+      - name: File System - S3 private (SLT)
+        if: always()
+        env:
+          AWS_KEY: ${{ secrets.AWS_KEY }}
+          AWS_SECRET: ${{ secrets.AWS_SECRET }}
+        run: cargo test slt/s3/private
+
       # - name: SLTs Delta
       #   env:
       #     AWS_KEY: ${{ secrets.AWS_KEY }}
