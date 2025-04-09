@@ -27,7 +27,7 @@ pub struct Reader {
     /// State for the fetching data from the file.
     fetch_state: FetchState,
     /// Column projections for this file.
-    projections: Projections,
+    projections: Projections, // TODO: Possibly arc
     /// Reader for the root of the schema.
     root: StructReader,
 }

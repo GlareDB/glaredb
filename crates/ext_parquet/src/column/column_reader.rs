@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use glaredb_core::arrays::array::Array;
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_error::{DbError, Result};

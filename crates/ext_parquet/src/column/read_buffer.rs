@@ -141,6 +141,9 @@ pub struct ReadBuffer {
     remaining: usize,
 }
 
+unsafe impl Sync for ReadBuffer {}
+unsafe impl Send for ReadBuffer {}
+
 impl ReadBuffer {
     /// Skips the pointer forward some number of bytes.
     pub unsafe fn skip_bytes_unchecked(&mut self, num_bytes: usize) {
