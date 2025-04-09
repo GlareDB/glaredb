@@ -247,16 +247,6 @@ impl<'a> FileOpenContext<'a> {
         self.get_value(key)?
             .ok_or_else(|| DbError::new(format!("Missing named argument '{key}'")))
     }
-
-    /// Get a value, or use a default value.
-    pub fn get_value_or_default(
-        &self,
-        key: &str,
-        default: impl FnOnce() -> ScalarValue,
-    ) -> Result<ScalarValue> {
-        let value = self.get_value(key)?.unwrap_or_else(default);
-        Ok(value)
-    }
 }
 
 pub trait FileSystem: Debug + Sync + Send + 'static {

@@ -39,7 +39,7 @@ where
     }
 
     /// Construct a url pointing to the s3 resource.
-    fn s3_location_from_path(&self, path: &str) -> Result<Url> {
+    fn s3_location_from_path(&self, path: &str, state: &S3FileSystemState) -> Result<Url> {
         let url = Url::parse(path).context_fn(|| format!("Failed to parse '{path}' as a URL"))?;
 
         // Assumes s3 format: 's3://bucket/file.csv'
@@ -48,7 +48,7 @@ where
             other => return Err(DbError::new(format!("Expected domain, got {other:?}"))),
         };
         let object = url.path(); // Should include leading '/';
-        let region = self.default_region;
+        let region = &state.region;
         let endpoint = AWS_ENDPOINT;
 
         // - bucket: The bucket containing the object.
@@ -76,6 +76,10 @@ where
     fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
         let key_id = context.get_value("access_key_id")?;
         let secret = context.get_value("secret_access_key")?;
+        let region = context
+            .get_value("region")?
+            .unwrap_or(self.default_region.into())
+            .try_into_string()?;
 
         let creds = match (key_id, secret) {
             (Some(key_id), Some(secret)) => Some(AwsCredentials {
@@ -87,12 +91,7 @@ where
             (None, Some(_)) => return Err(DbError::new("Missing 'access_key_id' argument")),
         };
 
-        // TODO: Get region from context.
-
-        Ok(S3FileSystemState {
-            creds,
-            region: self.default_region.to_string(),
-        })
+        Ok(S3FileSystemState { creds, region })
     }
 
     // TODO: Need a way to pass in region.
@@ -103,7 +102,7 @@ where
         if flags.is_create() {
             not_implemented!("create support for s3 filesystem")
         }
-        let location = self.s3_location_from_path(path)?;
+        let location = self.s3_location_from_path(path, state)?;
 
         let mut request = Request::new(Method::HEAD, location.clone());
         // If we don't have creds, we can skip signing.
@@ -136,7 +135,7 @@ where
     }
 
     async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
-        let location = self.s3_location_from_path(path)?;
+        let location = self.s3_location_from_path(path, state)?;
 
         let mut request = Request::new(Method::HEAD, location.clone());
         if let Some(creds) = &state.creds {
