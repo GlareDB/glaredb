@@ -6,8 +6,11 @@ use crate::column::encoding::{Definitions, PageDecoder};
 
 #[derive(Debug)]
 pub struct ColumnReader {
+    /// Page reader for this column.
     pub(crate) page_reader: PageReader,
+    /// Reusable buffer for definition levels.
     pub(crate) definitions: Vec<i16>,
+    /// Reusable buffer for repetition levels.
     pub(crate) repetitions: Vec<i16>,
 }
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use glaredb_core::buffer::typed::ByteBuffer;
-use glaredb_error::{DbError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt, not_implemented};
 
 use super::encoding::PageDecoder;
 use super::encoding::rle_bp::RleBpDecoder;
@@ -67,7 +67,7 @@ impl PageReader {
         match header.page_type {
             PageType::DataPage(page) => self.prepare_data_page(header.metadata, page)?,
             PageType::DataPageV2(page) => self.prepare_data_page_v2(header.metadata, page)?,
-            PageType::Dictionary(_) => unimplemented!(),
+            PageType::Dictionary(_) => not_implemented!("read dictionary page"),
         }
 
         Ok(())

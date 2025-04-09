@@ -37,6 +37,7 @@ pub mod thrift;
 pub mod extension;
 pub mod functions;
 pub mod metadata;
+pub mod reader;
 
 mod compression;
 mod encodings;

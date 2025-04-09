@@ -61,7 +61,7 @@ impl TypeVisitor<DataType, ()> for ColumnSchemaTypeVisitor {
         _item_type: &SchemaType,
         _context: (),
     ) -> Result<DataType> {
-        not_implemented!("Vist LIST with item")
+        not_implemented!("Visit LIST with item")
     }
 }
 

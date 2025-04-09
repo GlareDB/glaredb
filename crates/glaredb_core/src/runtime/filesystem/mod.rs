@@ -74,6 +74,10 @@ impl AnyFile {
         (self.vtable.poll_read_fn)(self.file.as_mut(), cx, buf)
     }
 
+    pub fn call_poll_seek(&mut self, cx: &mut Context, seek: io::SeekFrom) -> Poll<Result<()>> {
+        (self.vtable.poll_seek_fn)(self.file.as_mut(), cx, seek)
+    }
+
     pub fn call_read<'a>(&'a mut self, buf: &'a mut [u8]) -> FileSystemFuture<'a, Result<usize>> {
         (self.vtable.read_fn)(self.file.as_mut(), buf)
     }
@@ -103,6 +107,7 @@ pub(crate) struct RawFileVTable {
     path_fn: fn(&dyn Any) -> &str,
     size_fn: fn(&dyn Any) -> usize,
     poll_read_fn: fn(&mut dyn Any, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>>,
+    poll_seek_fn: fn(&mut dyn Any, cx: &mut Context, seek: io::SeekFrom) -> Poll<Result<()>>,
     read_fn: for<'a> fn(&'a mut dyn Any, buf: &'a mut [u8]) -> FileSystemFuture<'a, Result<usize>>,
     read_fill_fn:
         for<'a> fn(&'a mut dyn Any, buf: &'a mut [u8]) -> FileSystemFuture<'a, Result<usize>>,
@@ -133,6 +138,11 @@ where
         poll_read_fn: |file, cx, buf| {
             let file = file.downcast_mut::<Self>().unwrap();
             file.poll_read(cx, buf)
+        },
+
+        poll_seek_fn: |file, cx, seek| {
+            let file = file.downcast_mut::<Self>().unwrap();
+            file.poll_seek(cx, seek)
         },
 
         read_fn: |file, buf| {
