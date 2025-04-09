@@ -13,11 +13,15 @@ use glaredb_core::functions::table::{
     TableFunctionBindState,
     TableFunctionInput,
 };
+use glaredb_core::logical::statistics::StatisticsValue;
 use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
 use glaredb_core::optimizer::expr_rewrite::const_fold::ConstFold;
-use glaredb_core::runtime::filesystem::{FileOpenContext, FileSystemWithState};
+use glaredb_core::runtime::filesystem::{FileOpenContext, FileSystemWithState, OpenFlags};
 use glaredb_core::storage::projections::Projections;
 use glaredb_error::{DbError, Result, not_implemented};
+
+use crate::metadata::loader::MetaDataLoader;
+use crate::schema::convert::ColumnSchemaTypeVisitor;
 
 pub const FUNCTION_SET_READ_PARQUET: TableFunctionSet = TableFunctionSet {
     name: "read_parquet",
@@ -70,7 +74,20 @@ impl TableScanFunction for ReadParquet {
             None => return Err(DbError::new(format!("Missing file for path '{path}'"))),
         }
 
-        unimplemented!()
+        let mut file = fs.open(OpenFlags::READ, &path).await?;
+        let loader = MetaDataLoader::new();
+        let metadata = loader.load_from_file(&mut file).await?;
+
+        let schema =
+            ColumnSchemaTypeVisitor.convert_schema(&metadata.file_metadata.schema_descr)?;
+        let cardinality = metadata.file_metadata.num_rows as usize;
+
+        Ok(TableFunctionBindState {
+            state: ReadParquetBindState { fs, path },
+            input,
+            schema,
+            cardinality: StatisticsValue::Exact(cardinality),
+        })
     }
 
     fn create_pull_operator_state(

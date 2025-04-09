@@ -92,13 +92,6 @@ impl SchemaType {
         }
     }
 
-    pub fn unwrap_group_type(self) -> Arc<GroupType> {
-        match self {
-            Self::GroupType(group) => group,
-            Self::PrimitiveType(_) => panic!("Expected group type, got primitive type"),
-        }
-    }
-
     /// Returns this type's field name.
     pub fn name(&self) -> &str {
         self.get_basic_info().name()
@@ -113,23 +106,14 @@ impl SchemaType {
         }
     }
 
-    /// Gets physical type of this primitive type.
-    /// Note that this will panic if called on a non-primitive type.
-    pub fn get_physical_type(&self) -> PhysicalType {
-        match self {
-            SchemaType::PrimitiveType(prim) => prim.physical_type,
-            _ => panic!("Cannot call get_physical_type() on a non-primitive type"),
-        }
-    }
-
     /// Returns `true` if this type is a primitive type, `false` otherwise.
     pub fn is_primitive(&self) -> bool {
-        matches!(*self, SchemaType::PrimitiveType { .. })
+        matches!(self, SchemaType::PrimitiveType(_))
     }
 
     /// Returns `true` if this type is a group type, `false` otherwise.
     pub fn is_group(&self) -> bool {
-        matches!(*self, SchemaType::GroupType { .. })
+        matches!(*self, SchemaType::GroupType(_))
     }
 
     /// Returns `true` if this type is the top-level schema type (message type).
@@ -671,6 +655,7 @@ pub struct ColumnDescriptor {
     /// The maximum repetition level for this column
     pub max_rep_level: i16,
     /// The path of this column. For instance, "a.b.c.d".
+    // TODO: Why here?
     pub path: Arc<ColumnPath>,
 }
 
@@ -690,27 +675,11 @@ impl ColumnDescriptor {
         }
     }
 
-    /// Returns maximum definition level for this column.
-    #[inline]
-    pub const fn max_def_level(&self) -> i16 {
-        self.max_def_level
-    }
-
-    /// Returns maximum repetition level for this column.
-    #[inline]
-    pub const fn max_rep_level(&self) -> i16 {
-        self.max_rep_level
-    }
-
-    /// Returns [`ColumnPath`] for this column.
-    pub fn path(&self) -> &ColumnPath {
-        &self.path
-    }
-
     /// Returns column name.
     pub fn name(&self) -> &str {
         &self.primitive_type.basic_info.name
     }
+
     /// Returns [`ConvertedType`] for this column.
     pub fn converted_type(&self) -> ConvertedType {
         self.primitive_type.basic_info.converted_type()
@@ -753,12 +722,12 @@ pub struct SchemaDescriptor {
     ///
     /// This must be a [`Type::GroupType`] where each field is a root
     /// column type in the schema.
-    schema: Arc<GroupType>,
+    pub schema: Arc<GroupType>,
 
     /// The descriptors for the physical type of each leaf column in this schema
     ///
     /// Constructed from `schema` in DFS order.
-    leaves: Vec<ColumnDescriptor>,
+    pub leaves: Vec<ColumnDescriptor>,
 
     /// Mapping from a leaf column's index to the root column index that it
     /// comes from.
@@ -770,7 +739,7 @@ pub struct SchemaDescriptor {
     /// -- -- -- c  |
     /// -- -- -- -- d
     /// ```
-    leaf_to_base: Vec<usize>,
+    pub leaf_to_base: Vec<usize>,
 }
 
 impl fmt::Debug for SchemaDescriptor {
@@ -797,10 +766,6 @@ impl SchemaDescriptor {
             leaves,
             leaf_to_base,
         }
-    }
-
-    pub fn schema_type(&self) -> &GroupType {
-        &self.schema
     }
 
     /// Returns [`ColumnDescriptor`] for a field position.
@@ -1460,11 +1425,11 @@ mod tests {
 
         let descr = ColumnDescriptor::new(Arc::new(tp), 4, 1, Arc::new(ColumnPath::from("name")));
 
-        assert_eq!(descr.path(), &ColumnPath::from("name"));
+        assert_eq!(descr.path.as_ref(), &ColumnPath::from("name"));
         assert_eq!(descr.converted_type(), ConvertedType::UTF8);
         assert_eq!(descr.physical_type(), PhysicalType::BYTE_ARRAY);
-        assert_eq!(descr.max_def_level(), 4);
-        assert_eq!(descr.max_rep_level(), 1);
+        assert_eq!(descr.max_def_level, 4);
+        assert_eq!(descr.max_rep_level, 1);
         assert_eq!(descr.name(), "name");
         assert_eq!(descr.type_length(), -1);
         assert_eq!(descr.primitive_type.precision, -1);
@@ -1550,16 +1515,16 @@ mod tests {
 
         for i in 0..nleaves {
             let col = descr.column(i);
-            assert_eq!(col.max_def_level(), ex_max_def_levels[i], "{i}");
-            assert_eq!(col.max_rep_level(), ex_max_rep_levels[i], "{i}");
+            assert_eq!(col.max_def_level, ex_max_def_levels[i], "{i}");
+            assert_eq!(col.max_rep_level, ex_max_rep_levels[i], "{i}");
         }
 
-        assert_eq!(descr.column(0).path().to_string(), "a");
-        assert_eq!(descr.column(1).path().to_string(), "b");
-        assert_eq!(descr.column(2).path().to_string(), "c");
-        assert_eq!(descr.column(3).path().to_string(), "bag.records.item1");
-        assert_eq!(descr.column(4).path().to_string(), "bag.records.item2");
-        assert_eq!(descr.column(5).path().to_string(), "bag.records.item3");
+        assert_eq!(descr.column(0).path.to_string(), "a");
+        assert_eq!(descr.column(1).path.to_string(), "b");
+        assert_eq!(descr.column(2).path.to_string(), "c");
+        assert_eq!(descr.column(3).path.to_string(), "bag.records.item1");
+        assert_eq!(descr.column(4).path.to_string(), "bag.records.item2");
+        assert_eq!(descr.column(5).path.to_string(), "bag.records.item3");
 
         assert_eq!(descr.get_column_root(0).name(), "a");
         assert_eq!(descr.get_column_root(3).name(), "bag");
@@ -1588,17 +1553,17 @@ mod tests {
         let schema = parse_message_type(message_type).expect("should parse schema");
         let descr = SchemaDescriptor::new(Arc::new(schema));
         // required int32 a
-        assert_eq!(descr.column(0).max_def_level(), 0);
-        assert_eq!(descr.column(0).max_rep_level(), 0);
+        assert_eq!(descr.column(0).max_def_level, 0);
+        assert_eq!(descr.column(0).max_rep_level, 0);
         // optional int32 b._1
-        assert_eq!(descr.column(1).max_def_level(), 2);
-        assert_eq!(descr.column(1).max_rep_level(), 0);
+        assert_eq!(descr.column(1).max_def_level, 2);
+        assert_eq!(descr.column(1).max_rep_level, 0);
         // optional int32 b._2
-        assert_eq!(descr.column(2).max_def_level(), 2);
-        assert_eq!(descr.column(2).max_rep_level(), 0);
+        assert_eq!(descr.column(2).max_def_level, 2);
+        assert_eq!(descr.column(2).max_rep_level, 0);
         // repeated optional int32 c.list.element
-        assert_eq!(descr.column(3).max_def_level(), 3);
-        assert_eq!(descr.column(3).max_rep_level(), 1);
+        assert_eq!(descr.column(3).max_def_level, 3);
+        assert_eq!(descr.column(3).max_rep_level, 1);
     }
 
     #[test]

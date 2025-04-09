@@ -183,11 +183,9 @@ impl FileMetaData {
         }
     }
 
-    /// Returns Parquet [`GroupType`] that describes schema in this file.
-    ///
-    /// [`Type`]: crate::schema::types::Type
+    /// Returns Parquet `GroupType` that describes schema in this file.
     pub fn schema(&self) -> &GroupType {
-        self.schema_descr.schema_type()
+        &self.schema_descr.schema
     }
 
     /// Returns column order for `i`th column in this file.
@@ -423,7 +421,7 @@ impl ColumnChunkMetaData {
 
     /// Path (or identifier) of this column.
     pub fn column_path(&self) -> &ColumnPath {
-        self.column_descr.path()
+        &self.column_descr.path
     }
 
     /// Returns the offset and length in bytes of the column chunk within the file

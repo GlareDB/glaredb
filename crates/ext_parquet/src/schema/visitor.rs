@@ -168,7 +168,12 @@ mod tests {
             };
 
             assert_eq!("element", item_type.name());
-            assert_eq!(PhysicalType::INT32, item_type.get_physical_type());
+            match item_type {
+                SchemaType::PrimitiveType(prim) => {
+                    assert_eq!(PhysicalType::INT32, prim.physical_type)
+                }
+                other => panic!("expected primitive type, got {other:?}"),
+            }
             self.list_visited = true;
             Ok(true)
         }

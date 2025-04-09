@@ -294,6 +294,14 @@ pub struct StructTypeMeta {
     pub fields: Box<[Field]>,
 }
 
+impl StructTypeMeta {
+    pub fn new(fields: impl IntoIterator<Item = Field>) -> Self {
+        StructTypeMeta {
+            fields: fields.into_iter().collect(),
+        }
+    }
+}
+
 impl ProtoConv for StructTypeMeta {
     type ProtoType = glaredb_proto::generated::schema::StructTypeMeta;
 
