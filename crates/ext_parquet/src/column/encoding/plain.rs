@@ -30,9 +30,8 @@ pub trait PlainDecoder: Debug + Sync + Send {
 
 /// Reads a basic (primitive, mostly) column.
 #[derive(Debug)]
-pub struct BasicPlainDecoder<S, V>
+pub struct BasicPlainDecoder<V>
 where
-    S: MutableScalarStorage,
     V: ValueReader,
 {
     /// Optional dictionary buffer to read from.
@@ -43,15 +42,11 @@ where
     /// buffers should be provided in contiguous fashion to ensure the state
     /// remains consistent.
     value_reader: V,
-    /// Logic for describing how to convert a value read from the buffer to a
-    /// value that should be written to the array.
-    _storage: PhantomCovariant<S>,
 }
 
-impl<S, V> PlainDecoder for BasicPlainDecoder<S, V>
+impl<V> PlainDecoder for BasicPlainDecoder<V>
 where
-    S: MutableScalarStorage,
-    V: ValueReader<Storage = S>,
+    V: ValueReader,
 {
     fn read_plain(
         &mut self,
@@ -62,7 +57,7 @@ where
         count: usize,
     ) -> Result<()> {
         let (data, validity) = output.data_and_validity_mut();
-        let mut data = S::get_addressable_mut(data)?;
+        let mut data = <V::Storage>::get_addressable_mut(data)?;
 
         match definitions {
             Definitions::HasDefinitions { levels, max } => {
