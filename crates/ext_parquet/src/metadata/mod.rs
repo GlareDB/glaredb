@@ -153,10 +153,11 @@ pub struct FileMetaData {
     pub key_value_metadata: Option<Vec<format::KeyValue>>,
     /// A reference to schema descriptor.
     pub schema_descr: Arc<SchemaDescriptor>,
-    /// Column (sort) order used for `min` and `max` values of each column in this file.
+    /// Column (sort) order used for `min` and `max` values of each column in
+    /// this file.
     ///
-    /// Each column order corresponds to one column, determined by its position in the
-    /// list, matching the position of the column in the schema.
+    /// Each column order corresponds to one column, determined by its position
+    /// in the list, matching the position of the column in the schema.
     ///
     /// When `None`, there are no column orders available, and each column
     /// should be assumed to have undefined (legacy) column order.

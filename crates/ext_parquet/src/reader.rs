@@ -12,6 +12,7 @@ use glaredb_error::Result;
 
 use crate::column::column_reader::ColumnReader;
 use crate::column::struct_reader::StructReader;
+use crate::compression::{CodecOptions, create_codec};
 use crate::metadata::ParquetMetaData;
 
 #[derive(Debug)]
@@ -191,6 +192,10 @@ impl Reader {
                     let reader = &mut self.root.readers[*column_idx];
                     reader.page_reader.chunk_offset = 0;
                     reader.page_reader.chunk.reserve_for_size(len as usize)?;
+
+                    // Also set decompression codec...
+                    reader.page_reader.codec =
+                        create_codec(col.compression, &CodecOptions::default())?;
 
                     // Begin seeking to the start of this column chunk.
                     self.fetch_state = FetchState::Seeking {
