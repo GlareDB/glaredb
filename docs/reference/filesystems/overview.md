@@ -19,7 +19,9 @@ Which file system GlareDB chooses to use is based on the path provided to
 file-reading functions.
 
 Paths that can be parsed as a valid URL and have either "http" or "https" as its
-scheme will use the **HTTP(S) File System**.
+scheme will use the **HTTP(S) File System**. Paths that begin with "s3" will use
+the **S3 File System**.
+
 Otherwise, GlareDB will fall back to using the **Local File System**.
 
 > When using the WebAssembly bindings, GlareDB does not have access to the local
