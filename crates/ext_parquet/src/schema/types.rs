@@ -32,9 +32,6 @@ use crate::basic::{
 };
 use crate::format;
 
-/// Type alias for `Arc<ColumnDescriptor>`.
-pub type ColumnDescPtr = Arc<ColumnDescriptor>;
-
 /// Representation of a Parquet type.
 ///
 /// Used to describe primitive leaf fields and structs, including top-level schema.
@@ -614,39 +611,24 @@ impl BasicTypeInfo {
     }
 }
 
-// ----------------------------------------------------------------------
-// Parquet descriptor definitions
-
 /// Represents the location of a column in a Parquet schema
 #[derive(Clone, PartialEq, Debug, Eq, Hash)]
 pub struct ColumnPath {
-    parts: Vec<String>,
+    pub parts: Vec<String>,
 }
 
 impl ColumnPath {
     /// Creates new column path from vector of field names.
-    pub fn new(parts: Vec<String>) -> Self {
-        ColumnPath { parts }
-    }
-
-    /// Returns string representation of this column path.
-    pub fn string(&self) -> String {
-        self.parts.join(".")
-    }
-
-    /// Appends more components to end of column path.
-    pub fn append(&mut self, mut tail: Vec<String>) {
-        self.parts.append(&mut tail);
-    }
-
-    pub fn parts(&self) -> &[String] {
-        &self.parts
+    pub fn new(parts: impl IntoIterator<Item = String>) -> Self {
+        ColumnPath {
+            parts: parts.into_iter().collect(),
+        }
     }
 }
 
 impl fmt::Display for ColumnPath {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self.string())
+        write!(f, "{}", self.parts.join("."))
     }
 }
 
@@ -680,7 +662,7 @@ impl AsRef<[String]> for ColumnPath {
 ///
 /// Also includes the maximum definition and repetition levels required to
 /// re-assemble nested data.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ColumnDescriptor {
     /// The "leaf" primitive type of this column
     pub primitive_type: Arc<PrimitiveType>,
@@ -689,7 +671,7 @@ pub struct ColumnDescriptor {
     /// The maximum repetition level for this column
     pub max_rep_level: i16,
     /// The path of this column. For instance, "a.b.c.d".
-    pub path: ColumnPath,
+    pub path: Arc<ColumnPath>,
 }
 
 impl ColumnDescriptor {
@@ -698,7 +680,7 @@ impl ColumnDescriptor {
         primitive_type: Arc<PrimitiveType>,
         max_def_level: i16,
         max_rep_level: i16,
-        path: ColumnPath,
+        path: Arc<ColumnPath>,
     ) -> Self {
         Self {
             primitive_type,
@@ -776,7 +758,7 @@ pub struct SchemaDescriptor {
     /// The descriptors for the physical type of each leaf column in this schema
     ///
     /// Constructed from `schema` in DFS order.
-    leaves: Vec<ColumnDescPtr>,
+    leaves: Vec<ColumnDescriptor>,
 
     /// Mapping from a leaf column's index to the root column index that it
     /// comes from.
@@ -822,18 +804,20 @@ impl SchemaDescriptor {
     }
 
     /// Returns [`ColumnDescriptor`] for a field position.
-    pub fn column(&self, i: usize) -> ColumnDescPtr {
+    ///
+    /// Panics if `i` is out of bounds.
+    pub fn column(&self, i: usize) -> &ColumnDescriptor {
         assert!(
             i < self.leaves.len(),
             "Index out of bound: {} not in [0, {})",
             i,
             self.leaves.len()
         );
-        self.leaves[i].clone()
+        &self.leaves[i]
     }
 
     /// Returns slice of [`ColumnDescriptor`].
-    pub fn columns(&self) -> &[ColumnDescPtr] {
+    pub fn columns(&self) -> &[ColumnDescriptor] {
         &self.leaves
     }
 
@@ -877,7 +861,7 @@ fn build_tree<'a>(
     root_idx: usize,
     mut max_rep_level: i16,
     mut max_def_level: i16,
-    leaves: &mut Vec<ColumnDescPtr>,
+    leaves: &mut Vec<ColumnDescriptor>,
     leaf_to_base: &mut Vec<usize>,
     path_so_far: &mut Vec<&'a str>,
 ) {
@@ -899,12 +883,12 @@ fn build_tree<'a>(
         SchemaType::PrimitiveType(prim) => {
             let mut path: Vec<String> = vec![];
             path.extend(path_so_far.iter().copied().map(String::from));
-            leaves.push(Arc::new(ColumnDescriptor::new(
+            leaves.push(ColumnDescriptor::new(
                 prim.clone(),
                 max_def_level,
                 max_rep_level,
-                ColumnPath::new(path),
-            )));
+                Arc::new(ColumnPath::new(path)),
+            ));
             leaf_to_base.push(root_idx);
         }
         SchemaType::GroupType(group) => {
@@ -1474,7 +1458,7 @@ mod tests {
             .with_converted_type(ConvertedType::UTF8)
             .build()?;
 
-        let descr = ColumnDescriptor::new(Arc::new(tp), 4, 1, ColumnPath::from("name"));
+        let descr = ColumnDescriptor::new(Arc::new(tp), 4, 1, Arc::new(ColumnPath::from("name")));
 
         assert_eq!(descr.path(), &ColumnPath::from("name"));
         assert_eq!(descr.converted_type(), ConvertedType::UTF8);
@@ -1570,12 +1554,12 @@ mod tests {
             assert_eq!(col.max_rep_level(), ex_max_rep_levels[i], "{i}");
         }
 
-        assert_eq!(descr.column(0).path().string(), "a");
-        assert_eq!(descr.column(1).path().string(), "b");
-        assert_eq!(descr.column(2).path().string(), "c");
-        assert_eq!(descr.column(3).path().string(), "bag.records.item1");
-        assert_eq!(descr.column(4).path().string(), "bag.records.item2");
-        assert_eq!(descr.column(5).path().string(), "bag.records.item3");
+        assert_eq!(descr.column(0).path().to_string(), "a");
+        assert_eq!(descr.column(1).path().to_string(), "b");
+        assert_eq!(descr.column(2).path().to_string(), "c");
+        assert_eq!(descr.column(3).path().to_string(), "bag.records.item1");
+        assert_eq!(descr.column(4).path().to_string(), "bag.records.item2");
+        assert_eq!(descr.column(5).path().to_string(), "bag.records.item3");
 
         assert_eq!(descr.get_column_root(0).name(), "a");
         assert_eq!(descr.get_column_root(3).name(), "bag");

@@ -39,7 +39,7 @@ use crate::format::{
     SortingColumn,
 };
 use crate::metadata::page_index::index::Index;
-use crate::schema::types::{ColumnDescPtr, ColumnPath, GroupType, SchemaDescriptor};
+use crate::schema::types::{ColumnDescriptor, ColumnPath, GroupType, SchemaDescriptor};
 
 /// The length of the parquet footer in bytes
 pub const FOOTER_SIZE: usize = 8;
@@ -364,7 +364,7 @@ impl RowGroupMetaDataBuilder {
 /// Metadata for a column chunk.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ColumnChunkMetaData {
-    pub column_descr: ColumnDescPtr,
+    pub column_descr: ColumnDescriptor,
     /// All encodings used for this column.
     pub encodings: Vec<Encoding>,
     /// File where the column chunk is stored.
@@ -412,7 +412,7 @@ pub struct ColumnChunkMetaData {
 /// Represents common operations for a column chunk.
 impl ColumnChunkMetaData {
     /// Returns builder for column chunk metadata.
-    pub fn builder(column_descr: ColumnDescPtr) -> ColumnChunkMetaDataBuilder {
+    pub fn builder(column_descr: ColumnDescriptor) -> ColumnChunkMetaDataBuilder {
         ColumnChunkMetaDataBuilder::new(column_descr)
     }
 
@@ -457,7 +457,7 @@ impl ColumnChunkMetaData {
     }
 
     /// Method to convert from Thrift.
-    pub fn from_thrift(column_descr: ColumnDescPtr, cc: ColumnChunk) -> Result<Self> {
+    pub fn from_thrift(column_descr: ColumnDescriptor, cc: ColumnChunk) -> Result<Self> {
         if cc.meta_data.is_none() {
             return Err(DbError::new("Expected to have column metadata"));
         }
@@ -570,7 +570,7 @@ pub struct ColumnChunkMetaDataBuilder(ColumnChunkMetaData);
 
 impl ColumnChunkMetaDataBuilder {
     /// Creates new column chunk metadata builder.
-    fn new(column_descr: ColumnDescPtr) -> Self {
+    fn new(column_descr: ColumnDescriptor) -> Self {
         Self(ColumnChunkMetaData {
             column_descr,
             encodings: Vec::new(),
@@ -914,10 +914,10 @@ mod tests {
             .set_num_rows(1000)
             .set_total_byte_size(2000)
             .set_column_metadata(vec![
-                ColumnChunkMetaData::builder(schema_descr_2cols.column(0))
+                ColumnChunkMetaData::builder(schema_descr_2cols.column(0).clone())
                     .build()
                     .unwrap(),
-                ColumnChunkMetaData::builder(schema_descr_2cols.column(1))
+                ColumnChunkMetaData::builder(schema_descr_2cols.column(1).clone())
                     .build()
                     .unwrap(),
             ])
@@ -931,7 +931,7 @@ mod tests {
 
     #[test]
     fn test_column_chunk_metadata_thrift_conversion() {
-        let column_descr = get_test_schema_descr().column(0);
+        let column_descr = get_test_schema_descr().column(0).clone();
 
         let col_metadata = ColumnChunkMetaData::builder(column_descr.clone())
             .set_encodings(vec![Encoding::PLAIN, Encoding::RLE])
@@ -965,23 +965,25 @@ mod tests {
             .unwrap();
 
         let col_chunk_res =
-            ColumnChunkMetaData::from_thrift(column_descr, col_metadata.to_thrift()).unwrap();
+            ColumnChunkMetaData::from_thrift(column_descr.clone(), col_metadata.to_thrift())
+                .unwrap();
 
         assert_eq!(col_chunk_res, col_metadata);
     }
 
     #[test]
     fn test_column_chunk_metadata_thrift_conversion_empty() {
-        let column_descr = get_test_schema_descr().column(0);
+        let column_descr = get_test_schema_descr().column(0).clone();
 
         let col_metadata = ColumnChunkMetaData::builder(column_descr.clone())
             .build()
             .unwrap();
 
         let col_chunk_exp = col_metadata.to_thrift();
-        let col_chunk_res = ColumnChunkMetaData::from_thrift(column_descr, col_chunk_exp.clone())
-            .unwrap()
-            .to_thrift();
+        let col_chunk_res =
+            ColumnChunkMetaData::from_thrift(column_descr.clone(), col_chunk_exp.clone())
+                .unwrap()
+                .to_thrift();
 
         assert_eq!(col_chunk_res, col_chunk_exp);
     }
