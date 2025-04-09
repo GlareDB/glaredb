@@ -1,5 +1,5 @@
 ---
-title: General functions
+title: General Functions
 ---
 
 # General Function Reference

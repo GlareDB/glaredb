@@ -1,5 +1,5 @@
 ---
-title: String functions
+title: String Functions
 ---
 
 # String Function Reference
