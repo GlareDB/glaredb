@@ -25,7 +25,7 @@ use super::types::{GroupType, PrimitiveType};
 use crate::basic::{ConvertedType, LogicalType, Type as PhysicalType};
 use crate::format::TimeUnit;
 use crate::metadata::{ColumnChunkMetaData, FileMetaData, ParquetMetaData, RowGroupMetaData};
-use crate::schema::types::Type;
+use crate::schema::types::SchemaType;
 
 /// Prints Parquet metadata [`ParquetMetaData`] information.
 #[allow(unused_must_use)]
@@ -278,13 +278,13 @@ fn print_logical_and_converted(
 
 #[allow(unused_must_use)]
 impl Printer<'_> {
-    pub fn print(&mut self, tp: &Type) {
+    pub fn print(&mut self, tp: &SchemaType) {
         self.print_indent();
         match tp {
-            Type::PrimitiveType(prim) => {
+            SchemaType::PrimitiveType(prim) => {
                 self.print_primitive(prim);
             }
-            Type::GroupType(group) => {
+            SchemaType::GroupType(group) => {
                 self.print_group(group);
             }
         }
@@ -381,7 +381,7 @@ mod tests {
         let mut s = String::new();
         {
             let mut p = Printer::new(&mut s);
-            let field = Type::primitive_type_builder("field", PhysicalType::INT32)
+            let field = SchemaType::primitive_type_builder("field", PhysicalType::INT32)
                 .with_repetition(Repetition::REQUIRED)
                 .with_converted_type(ConvertedType::INT_32)
                 .build()
@@ -398,7 +398,7 @@ mod tests {
         converted_type: ConvertedType,
         repetition: Repetition,
     ) -> Result<PrimitiveType> {
-        Type::primitive_type_builder(name, physical_type)
+        SchemaType::primitive_type_builder(name, physical_type)
             .with_repetition(repetition)
             .with_logical_type(logical_type)
             .with_converted_type(converted_type)
@@ -600,7 +600,7 @@ mod tests {
     fn test_print_flba_logical_types() {
         let types_and_strings = vec![
             (
-                Type::primitive_type_builder("field", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+                SchemaType::primitive_type_builder("field", PhysicalType::FIXED_LEN_BYTE_ARRAY)
                     .with_logical_type(None)
                     .with_converted_type(ConvertedType::INTERVAL)
                     .with_length(12)
@@ -610,7 +610,7 @@ mod tests {
                 "REQUIRED FIXED_LEN_BYTE_ARRAY (12) field (INTERVAL);",
             ),
             (
-                Type::primitive_type_builder("field", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+                SchemaType::primitive_type_builder("field", PhysicalType::FIXED_LEN_BYTE_ARRAY)
                     .with_logical_type(Some(LogicalType::Uuid))
                     .with_length(16)
                     .with_repetition(Repetition::REQUIRED)
@@ -619,7 +619,7 @@ mod tests {
                 "REQUIRED FIXED_LEN_BYTE_ARRAY (16) field (UUID);",
             ),
             (
-                Type::primitive_type_builder("decimal", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+                SchemaType::primitive_type_builder("decimal", PhysicalType::FIXED_LEN_BYTE_ARRAY)
                     .with_logical_type(Some(LogicalType::Decimal {
                         precision: 32,
                         scale: 20,
@@ -633,7 +633,7 @@ mod tests {
                 "REPEATED FIXED_LEN_BYTE_ARRAY (14) decimal (DECIMAL(32,20));",
             ),
             (
-                Type::primitive_type_builder("decimal", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+                SchemaType::primitive_type_builder("decimal", PhysicalType::FIXED_LEN_BYTE_ARRAY)
                     .with_converted_type(ConvertedType::DECIMAL)
                     .with_precision(19)
                     .with_scale(4)
@@ -644,7 +644,7 @@ mod tests {
                 "OPTIONAL FIXED_LEN_BYTE_ARRAY (9) decimal (DECIMAL(19,4));",
             ),
             (
-                Type::primitive_type_builder("float16", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+                SchemaType::primitive_type_builder("float16", PhysicalType::FIXED_LEN_BYTE_ARRAY)
                     .with_logical_type(Some(LogicalType::Float16))
                     .with_length(2)
                     .with_repetition(Repetition::REQUIRED)
@@ -669,20 +669,20 @@ mod tests {
         let mut s = String::new();
         {
             let mut p = Printer::new(&mut s);
-            let f1 = Type::primitive_type_builder("f1", PhysicalType::INT32)
+            let f1 = SchemaType::primitive_type_builder("f1", PhysicalType::INT32)
                 .with_repetition(Repetition::REQUIRED)
                 .with_converted_type(ConvertedType::INT_32)
                 .with_id(Some(0))
                 .build();
-            let f2 = Type::primitive_type_builder("f2", PhysicalType::BYTE_ARRAY)
+            let f2 = SchemaType::primitive_type_builder("f2", PhysicalType::BYTE_ARRAY)
                 .with_converted_type(ConvertedType::UTF8)
                 .with_id(Some(1))
                 .build();
-            let f3 = Type::primitive_type_builder("f3", PhysicalType::BYTE_ARRAY)
+            let f3 = SchemaType::primitive_type_builder("f3", PhysicalType::BYTE_ARRAY)
                 .with_logical_type(Some(LogicalType::String))
                 .with_id(Some(1))
                 .build();
-            let f4 = Type::primitive_type_builder("f4", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+            let f4 = SchemaType::primitive_type_builder("f4", PhysicalType::FIXED_LEN_BYTE_ARRAY)
                 .with_repetition(Repetition::REPEATED)
                 .with_converted_type(ConvertedType::INTERVAL)
                 .with_length(12)
@@ -694,7 +694,7 @@ mod tests {
                 Arc::new(f2.unwrap()).into(),
                 Arc::new(f3.unwrap()).into(),
             ];
-            let field = Type::group_type_builder("field")
+            let field = SchemaType::group_type_builder("field")
                 .with_repetition(Repetition::OPTIONAL)
                 .with_fields(struct_fields)
                 .with_id(Some(1))
@@ -702,7 +702,7 @@ mod tests {
                 .unwrap();
 
             let fields = vec![Arc::new(field).into(), Arc::new(f4.unwrap()).into()];
-            let message = Type::group_type_builder("schema")
+            let message = SchemaType::group_type_builder("schema")
                 .with_fields(fields)
                 .with_id(Some(2))
                 .build()
@@ -722,13 +722,13 @@ mod tests {
 
     #[test]
     fn test_print_and_parse_primitive() {
-        let a2 = Type::primitive_type_builder("a2", PhysicalType::BYTE_ARRAY)
+        let a2 = SchemaType::primitive_type_builder("a2", PhysicalType::BYTE_ARRAY)
             .with_repetition(Repetition::REPEATED)
             .with_converted_type(ConvertedType::UTF8)
             .build()
             .unwrap();
 
-        let a1 = Type::group_type_builder("a1")
+        let a1 = SchemaType::group_type_builder("a1")
             .with_repetition(Repetition::OPTIONAL)
             .with_logical_type(Some(LogicalType::List))
             .with_converted_type(ConvertedType::LIST)
@@ -736,24 +736,24 @@ mod tests {
             .build()
             .unwrap();
 
-        let b3 = Type::primitive_type_builder("b3", PhysicalType::INT32)
+        let b3 = SchemaType::primitive_type_builder("b3", PhysicalType::INT32)
             .with_repetition(Repetition::OPTIONAL)
             .build()
             .unwrap();
 
-        let b4 = Type::primitive_type_builder("b4", PhysicalType::DOUBLE)
+        let b4 = SchemaType::primitive_type_builder("b4", PhysicalType::DOUBLE)
             .with_repetition(Repetition::OPTIONAL)
             .build()
             .unwrap();
 
-        let b2 = Type::group_type_builder("b2")
+        let b2 = SchemaType::group_type_builder("b2")
             .with_repetition(Repetition::REPEATED)
             .with_converted_type(ConvertedType::NONE)
             .with_fields(vec![Arc::new(b3).into(), Arc::new(b4).into()])
             .build()
             .unwrap();
 
-        let b1 = Type::group_type_builder("b1")
+        let b1 = SchemaType::group_type_builder("b1")
             .with_repetition(Repetition::OPTIONAL)
             .with_logical_type(Some(LogicalType::List))
             .with_converted_type(ConvertedType::LIST)
@@ -761,13 +761,13 @@ mod tests {
             .build()
             .unwrap();
 
-        let a0 = Type::group_type_builder("a0")
+        let a0 = SchemaType::group_type_builder("a0")
             .with_repetition(Repetition::REQUIRED)
             .with_fields(vec![Arc::new(a1).into(), Arc::new(b1).into()])
             .build()
             .unwrap();
 
-        let message = Type::group_type_builder("root")
+        let message = SchemaType::group_type_builder("root")
             .with_fields(vec![Arc::new(a0).into()])
             .build()
             .unwrap();
@@ -777,32 +777,32 @@ mod tests {
 
     #[test]
     fn test_print_and_parse_nested() {
-        let f1 = Type::primitive_type_builder("f1", PhysicalType::INT32)
+        let f1 = SchemaType::primitive_type_builder("f1", PhysicalType::INT32)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::INT_32)
             .build()
             .unwrap();
 
-        let f2 = Type::primitive_type_builder("f2", PhysicalType::BYTE_ARRAY)
+        let f2 = SchemaType::primitive_type_builder("f2", PhysicalType::BYTE_ARRAY)
             .with_repetition(Repetition::OPTIONAL)
             .with_converted_type(ConvertedType::UTF8)
             .build()
             .unwrap();
 
-        let field = Type::group_type_builder("field")
+        let field = SchemaType::group_type_builder("field")
             .with_repetition(Repetition::OPTIONAL)
             .with_fields(vec![Arc::new(f1).into(), Arc::new(f2).into()])
             .build()
             .unwrap();
 
-        let f3 = Type::primitive_type_builder("f3", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+        let f3 = SchemaType::primitive_type_builder("f3", PhysicalType::FIXED_LEN_BYTE_ARRAY)
             .with_repetition(Repetition::REPEATED)
             .with_converted_type(ConvertedType::INTERVAL)
             .with_length(12)
             .build()
             .unwrap();
 
-        let message = Type::group_type_builder("schema")
+        let message = SchemaType::group_type_builder("schema")
             .with_fields(vec![Arc::new(field).into(), Arc::new(f3).into()])
             .build()
             .unwrap();
@@ -812,7 +812,7 @@ mod tests {
 
     #[test]
     fn test_print_and_parse_decimal() {
-        let f1 = Type::primitive_type_builder("f1", PhysicalType::INT32)
+        let f1 = SchemaType::primitive_type_builder("f1", PhysicalType::INT32)
             .with_repetition(Repetition::OPTIONAL)
             .with_logical_type(Some(LogicalType::Decimal {
                 precision: 9,
@@ -824,7 +824,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let f2 = Type::primitive_type_builder("f2", PhysicalType::INT32)
+        let f2 = SchemaType::primitive_type_builder("f2", PhysicalType::INT32)
             .with_repetition(Repetition::OPTIONAL)
             .with_logical_type(Some(LogicalType::Decimal {
                 precision: 9,
@@ -836,7 +836,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let message = Type::group_type_builder("schema")
+        let message = SchemaType::group_type_builder("schema")
             .with_fields(vec![Arc::new(f1).into(), Arc::new(f2).into()])
             .build()
             .unwrap();

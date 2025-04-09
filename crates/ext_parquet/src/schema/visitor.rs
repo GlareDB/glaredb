@@ -19,7 +19,7 @@ use glaredb_error::{DbError, Result};
 
 use super::types::{GroupType, PrimitiveType};
 use crate::basic::{ConvertedType, Repetition};
-use crate::schema::types::Type;
+use crate::schema::types::SchemaType;
 
 /// A utility trait to help user to traverse against parquet type.
 pub trait TypeVisitor<R, C> {
@@ -55,7 +55,7 @@ pub trait TypeVisitor<R, C> {
 
         let list_item = list_type.fields.first().unwrap();
         match list_item {
-            Type::PrimitiveType(_) => {
+            SchemaType::PrimitiveType(_) => {
                 if list_item.get_basic_info().repetition() == Repetition::REPEATED {
                     self.visit_list_with_item(list_type, list_item, context)
                 } else {
@@ -64,7 +64,7 @@ pub trait TypeVisitor<R, C> {
                     ))
                 }
             }
-            Type::GroupType(group) => {
+            SchemaType::GroupType(group) => {
                 if group.fields.len() == 1
                     && list_item.name() != "array"
                     && list_item.name() != format!("{}_tuple", list_type.basic_info.name())
@@ -84,10 +84,10 @@ pub trait TypeVisitor<R, C> {
     fn visit_map(&mut self, map_type: &GroupType, context: C) -> Result<R>;
 
     /// A utility method which detects input type and calls corresponding method.
-    fn dispatch(&mut self, cur_type: &Type, context: C) -> Result<R> {
+    fn dispatch(&mut self, cur_type: &SchemaType, context: C) -> Result<R> {
         match cur_type {
-            Type::PrimitiveType(prim) => self.visit_primitive(prim, context),
-            Type::GroupType(group) => match group.basic_info.converted_type() {
+            SchemaType::PrimitiveType(prim) => self.visit_primitive(prim, context),
+            SchemaType::GroupType(group) => match group.basic_info.converted_type() {
                 ConvertedType::LIST => self.visit_list(group, context),
                 ConvertedType::MAP | ConvertedType::MAP_KEY_VALUE => self.visit_map(group, context),
                 _ => self.visit_struct(group, context),
@@ -100,7 +100,7 @@ pub trait TypeVisitor<R, C> {
     fn visit_list_with_item(
         &mut self,
         list_type: &GroupType,
-        item_type: &Type,
+        item_type: &SchemaType,
         context: C,
     ) -> Result<R>;
 }
@@ -128,7 +128,7 @@ mod tests {
             _context: TestVisitorContext,
         ) -> Result<bool> {
             match self.get_field_by_name(primitive_type.basic_info.name()) {
-                Type::PrimitiveType(field) => assert_eq!(field.as_ref(), primitive_type),
+                SchemaType::PrimitiveType(field) => assert_eq!(field.as_ref(), primitive_type),
                 other => panic!("other: {other:?}"),
             };
             self.primitive_visited = true;
@@ -141,7 +141,7 @@ mod tests {
             _context: TestVisitorContext,
         ) -> Result<bool> {
             match self.get_field_by_name(struct_type.basic_info.name()) {
-                Type::GroupType(group) => assert_eq!(group.as_ref(), struct_type),
+                SchemaType::GroupType(group) => assert_eq!(group.as_ref(), struct_type),
                 other => panic!("other: {other:?}"),
             };
             self.struct_visited = true;
@@ -159,11 +159,11 @@ mod tests {
         fn visit_list_with_item(
             &mut self,
             list_type: &GroupType,
-            item_type: &Type,
+            item_type: &SchemaType,
             _context: TestVisitorContext,
         ) -> Result<bool> {
             match self.get_field_by_name(list_type.basic_info.name()) {
-                Type::GroupType(group) => assert_eq!(group.as_ref(), list_type),
+                SchemaType::GroupType(group) => assert_eq!(group.as_ref(), list_type),
                 other => panic!("other: {other:?}"),
             };
 
@@ -184,7 +184,7 @@ mod tests {
             }
         }
 
-        fn get_field_by_name(&self, name: &str) -> &Type {
+        fn get_field_by_name(&self, name: &str) -> &SchemaType {
             self.root_type
                 .fields
                 .iter()

@@ -26,7 +26,7 @@ use glaredb_error::{DbError, Result};
 use super::types::{GroupType, PrimitiveType};
 use crate::basic::{ConvertedType, LogicalType, Repetition, Type as PhysicalType};
 use crate::format::TimeUnit;
-use crate::schema::types::Type;
+use crate::schema::types::SchemaType;
 
 /// Parses message type as string into a Parquet [`GroupType`]
 /// which, for example, could be used to extract individual columns. Returns Parquet
@@ -174,7 +174,7 @@ impl Parser<'_> {
                     .tokenizer
                     .next()
                     .ok_or_else(|| DbError::new("Expected name, found None"))?;
-                Type::group_type_builder(name)
+                SchemaType::group_type_builder(name)
                     .with_fields(self.parse_child_types()?)
                     .build()
             }
@@ -184,7 +184,7 @@ impl Parser<'_> {
 
     // Parses child types for a current group type.
     // This is only invoked on root and group types.
-    fn parse_child_types(&mut self) -> Result<Vec<Type>> {
+    fn parse_child_types(&mut self) -> Result<Vec<SchemaType>> {
         assert_token(self.tokenizer.next(), "{")?;
         let mut vec = Vec::new();
         while let Some(value) = self.tokenizer.next() {
@@ -198,7 +198,7 @@ impl Parser<'_> {
         Ok(vec)
     }
 
-    fn add_type(&mut self) -> Result<Type> {
+    fn add_type(&mut self) -> Result<SchemaType> {
         // Parse repetition
         let repetition = self
             .tokenizer
@@ -209,12 +209,12 @@ impl Parser<'_> {
         match self.tokenizer.next() {
             Some(group) if group.to_uppercase() == "GROUP" => {
                 let group = self.add_group_type(Some(repetition))?;
-                Ok(Type::GroupType(Arc::new(group)))
+                Ok(SchemaType::GroupType(Arc::new(group)))
             }
             Some(type_string) => {
                 let physical_type = type_string.to_uppercase().parse::<PhysicalType>()?;
                 let prim = self.add_primitive_type(repetition, physical_type)?;
-                Ok(Type::PrimitiveType(Arc::new(prim)))
+                Ok(SchemaType::PrimitiveType(Arc::new(prim)))
             }
             None => Err(DbError::new("Invalid type, could not extract next token")),
         }
@@ -259,7 +259,7 @@ impl Parser<'_> {
             None
         };
 
-        let mut builder = Type::group_type_builder(name)
+        let mut builder = SchemaType::group_type_builder(name)
             .with_logical_type(logical_type)
             .with_converted_type(converted_type)
             .with_fields(self.parse_child_types()?)
@@ -486,7 +486,7 @@ impl Parser<'_> {
         };
         assert_token(self.tokenizer.next(), ";")?;
 
-        Type::primitive_type_builder(name, physical_type)
+        SchemaType::primitive_type_builder(name, physical_type)
             .with_repetition(repetition)
             .with_logical_type(logical_type)
             .with_converted_type(converted_type)
@@ -838,10 +838,10 @@ mod tests {
         ";
         let message = parse(schema).unwrap();
 
-        let expected = Type::group_type_builder("root")
+        let expected = SchemaType::group_type_builder("root")
             .with_fields(vec![
                 Arc::new(
-                    Type::primitive_type_builder("f1", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+                    SchemaType::primitive_type_builder("f1", PhysicalType::FIXED_LEN_BYTE_ARRAY)
                         .with_logical_type(Some(LogicalType::Decimal {
                             precision: 9,
                             scale: 3,
@@ -855,7 +855,7 @@ mod tests {
                 )
                 .into(),
                 Arc::new(
-                    Type::primitive_type_builder("f2", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+                    SchemaType::primitive_type_builder("f2", PhysicalType::FIXED_LEN_BYTE_ARRAY)
                         .with_logical_type(Some(LogicalType::Decimal {
                             precision: 38,
                             scale: 18,
@@ -869,7 +869,7 @@ mod tests {
                 )
                 .into(),
                 Arc::new(
-                    Type::primitive_type_builder("f3", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+                    SchemaType::primitive_type_builder("f3", PhysicalType::FIXED_LEN_BYTE_ARRAY)
                         .with_logical_type(Some(LogicalType::Float16))
                         .with_length(2)
                         .build()
@@ -903,20 +903,20 @@ mod tests {
         ";
         let message = parse(schema).unwrap();
 
-        let expected = Type::group_type_builder("root")
+        let expected = SchemaType::group_type_builder("root")
             .with_fields(vec![
                 Arc::new(
-                    Type::group_type_builder("a0")
+                    SchemaType::group_type_builder("a0")
                         .with_repetition(Repetition::REQUIRED)
                         .with_fields(vec![
                             Arc::new(
-                                Type::group_type_builder("a1")
+                                SchemaType::group_type_builder("a1")
                                     .with_repetition(Repetition::OPTIONAL)
                                     .with_logical_type(Some(LogicalType::List))
                                     .with_converted_type(ConvertedType::LIST)
                                     .with_fields(vec![
                                         Arc::new(
-                                            Type::primitive_type_builder(
+                                            SchemaType::primitive_type_builder(
                                                 "a2",
                                                 PhysicalType::BYTE_ARRAY,
                                             )
@@ -932,17 +932,17 @@ mod tests {
                             )
                             .into(),
                             Arc::new(
-                                Type::group_type_builder("b1")
+                                SchemaType::group_type_builder("b1")
                                     .with_repetition(Repetition::OPTIONAL)
                                     .with_logical_type(Some(LogicalType::List))
                                     .with_converted_type(ConvertedType::LIST)
                                     .with_fields(vec![
                                         Arc::new(
-                                            Type::group_type_builder("b2")
+                                            SchemaType::group_type_builder("b2")
                                                 .with_repetition(Repetition::REPEATED)
                                                 .with_fields(vec![
                                                     Arc::new(
-                                                        Type::primitive_type_builder(
+                                                        SchemaType::primitive_type_builder(
                                                             "b3",
                                                             PhysicalType::INT32,
                                                         )
@@ -951,7 +951,7 @@ mod tests {
                                                     )
                                                     .into(),
                                                     Arc::new(
-                                                        Type::primitive_type_builder(
+                                                        SchemaType::primitive_type_builder(
                                                             "b4",
                                                             PhysicalType::DOUBLE,
                                                         )
@@ -997,7 +997,7 @@ mod tests {
 
         let fields = vec![
             Arc::new(
-                Type::primitive_type_builder("_1", PhysicalType::INT32)
+                SchemaType::primitive_type_builder("_1", PhysicalType::INT32)
                     .with_repetition(Repetition::REQUIRED)
                     .with_converted_type(ConvertedType::INT_8)
                     .build()
@@ -1005,7 +1005,7 @@ mod tests {
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_2", PhysicalType::INT32)
+                SchemaType::primitive_type_builder("_2", PhysicalType::INT32)
                     .with_repetition(Repetition::REQUIRED)
                     .with_converted_type(ConvertedType::INT_16)
                     .build()
@@ -1013,21 +1013,21 @@ mod tests {
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_3", PhysicalType::FLOAT)
+                SchemaType::primitive_type_builder("_3", PhysicalType::FLOAT)
                     .with_repetition(Repetition::REQUIRED)
                     .build()
                     .unwrap(),
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_4", PhysicalType::DOUBLE)
+                SchemaType::primitive_type_builder("_4", PhysicalType::DOUBLE)
                     .with_repetition(Repetition::REQUIRED)
                     .build()
                     .unwrap(),
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_5", PhysicalType::INT32)
+                SchemaType::primitive_type_builder("_5", PhysicalType::INT32)
                     .with_logical_type(Some(LogicalType::Date))
                     .with_converted_type(ConvertedType::DATE)
                     .build()
@@ -1035,7 +1035,7 @@ mod tests {
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_6", PhysicalType::BYTE_ARRAY)
+                SchemaType::primitive_type_builder("_6", PhysicalType::BYTE_ARRAY)
                     .with_converted_type(ConvertedType::UTF8)
                     .build()
                     .unwrap(),
@@ -1043,7 +1043,7 @@ mod tests {
             .into(),
         ];
 
-        let expected = Type::group_type_builder("root")
+        let expected = SchemaType::group_type_builder("root")
             .with_fields(fields)
             .build()
             .unwrap();
@@ -1070,7 +1070,7 @@ mod tests {
 
         let fields = vec![
             Arc::new(
-                Type::primitive_type_builder("_1", PhysicalType::INT32)
+                SchemaType::primitive_type_builder("_1", PhysicalType::INT32)
                     .with_repetition(Repetition::REQUIRED)
                     .with_logical_type(Some(LogicalType::Integer {
                         bit_width: 8,
@@ -1081,7 +1081,7 @@ mod tests {
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_2", PhysicalType::INT32)
+                SchemaType::primitive_type_builder("_2", PhysicalType::INT32)
                     .with_repetition(Repetition::REQUIRED)
                     .with_logical_type(Some(LogicalType::Integer {
                         bit_width: 16,
@@ -1092,28 +1092,28 @@ mod tests {
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_3", PhysicalType::FLOAT)
+                SchemaType::primitive_type_builder("_3", PhysicalType::FLOAT)
                     .with_repetition(Repetition::REQUIRED)
                     .build()
                     .unwrap(),
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_4", PhysicalType::DOUBLE)
+                SchemaType::primitive_type_builder("_4", PhysicalType::DOUBLE)
                     .with_repetition(Repetition::REQUIRED)
                     .build()
                     .unwrap(),
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_5", PhysicalType::INT32)
+                SchemaType::primitive_type_builder("_5", PhysicalType::INT32)
                     .with_logical_type(Some(LogicalType::Date))
                     .build()
                     .unwrap(),
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_6", PhysicalType::INT32)
+                SchemaType::primitive_type_builder("_6", PhysicalType::INT32)
                     .with_logical_type(Some(LogicalType::Time {
                         unit: TimeUnit::MILLIS(Default::default()),
                         is_adjusted_to_u_t_c: false,
@@ -1123,7 +1123,7 @@ mod tests {
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_7", PhysicalType::INT64)
+                SchemaType::primitive_type_builder("_7", PhysicalType::INT64)
                     .with_logical_type(Some(LogicalType::Time {
                         unit: TimeUnit::MICROS(Default::default()),
                         is_adjusted_to_u_t_c: true,
@@ -1133,7 +1133,7 @@ mod tests {
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_8", PhysicalType::INT64)
+                SchemaType::primitive_type_builder("_8", PhysicalType::INT64)
                     .with_logical_type(Some(LogicalType::Timestamp {
                         unit: TimeUnit::MILLIS(Default::default()),
                         is_adjusted_to_u_t_c: true,
@@ -1143,7 +1143,7 @@ mod tests {
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_9", PhysicalType::INT64)
+                SchemaType::primitive_type_builder("_9", PhysicalType::INT64)
                     .with_logical_type(Some(LogicalType::Timestamp {
                         unit: TimeUnit::NANOS(Default::default()),
                         is_adjusted_to_u_t_c: false,
@@ -1153,7 +1153,7 @@ mod tests {
             )
             .into(),
             Arc::new(
-                Type::primitive_type_builder("_10", PhysicalType::BYTE_ARRAY)
+                SchemaType::primitive_type_builder("_10", PhysicalType::BYTE_ARRAY)
                     .with_logical_type(Some(LogicalType::String))
                     .build()
                     .unwrap(),
@@ -1161,7 +1161,7 @@ mod tests {
             .into(),
         ];
 
-        let expected = Type::group_type_builder("root")
+        let expected = SchemaType::group_type_builder("root")
             .with_fields(fields)
             .build()
             .unwrap();

@@ -20,6 +20,7 @@ pub mod properties;
 pub mod statistics;
 
 use std::ops::Range;
+use std::sync::Arc;
 
 use glaredb_error::{DbError, Result};
 use page_encoding_stats::PageEncodingStats;
@@ -38,7 +39,7 @@ use crate::format::{
     SortingColumn,
 };
 use crate::metadata::page_index::index::Index;
-use crate::schema::types::{ColumnDescPtr, ColumnPath, GroupType, SchemaDescPtr};
+use crate::schema::types::{ColumnDescPtr, ColumnPath, GroupType, SchemaDescriptor};
 
 /// The length of the parquet footer in bytes
 pub const FOOTER_SIZE: usize = 8;
@@ -151,7 +152,7 @@ pub struct FileMetaData {
     /// Returns key_value_metadata of this file.
     pub key_value_metadata: Option<Vec<format::KeyValue>>,
     /// A reference to schema descriptor.
-    pub schema_descr: SchemaDescPtr,
+    pub schema_descr: Arc<SchemaDescriptor>,
     /// Column (sort) order used for `min` and `max` values of each column in this file.
     ///
     /// Each column order corresponds to one column, determined by its position in the
@@ -169,7 +170,7 @@ impl FileMetaData {
         num_rows: i64,
         created_by: Option<String>,
         key_value_metadata: Option<Vec<format::KeyValue>>,
-        schema_descr: SchemaDescPtr,
+        schema_descr: Arc<SchemaDescriptor>,
         column_orders: Option<Vec<ColumnOrder>>,
     ) -> Self {
         FileMetaData {
@@ -214,7 +215,7 @@ pub struct RowGroupMetaData {
     pub sorting_columns: Option<Vec<SortingColumn>>,
     /// Total byte size of all uncompressed column data in this row group.
     pub total_byte_size: i64,
-    pub schema_descr: SchemaDescPtr,
+    pub schema_descr: Arc<SchemaDescriptor>,
     /// File offset of this row group in file.
     ///
     /// We can't infer from file offset of first column since there may empty
@@ -229,7 +230,7 @@ pub struct RowGroupMetaData {
 
 impl RowGroupMetaData {
     /// Returns builder for row group metadata.
-    pub fn builder(schema_descr: SchemaDescPtr) -> RowGroupMetaDataBuilder {
+    pub fn builder(schema_descr: Arc<SchemaDescriptor>) -> RowGroupMetaDataBuilder {
         RowGroupMetaDataBuilder::new(schema_descr)
     }
 
@@ -244,7 +245,10 @@ impl RowGroupMetaData {
     }
 
     /// Method to convert from Thrift.
-    pub fn from_thrift(schema_descr: SchemaDescPtr, mut rg: RowGroup) -> Result<RowGroupMetaData> {
+    pub fn from_thrift(
+        schema_descr: Arc<SchemaDescriptor>,
+        mut rg: RowGroup,
+    ) -> Result<RowGroupMetaData> {
         if schema_descr.num_columns() != rg.columns.len() {
             return Err(DbError::new(format!(
                 "Column count mismatch. Schema has {} columns while Row Group has {}",
@@ -296,7 +300,7 @@ pub struct RowGroupMetaDataBuilder(RowGroupMetaData);
 
 impl RowGroupMetaDataBuilder {
     /// Creates new builder from schema descriptor.
-    fn new(schema_descr: SchemaDescPtr) -> Self {
+    fn new(schema_descr: Arc<SchemaDescriptor>) -> Self {
         Self(RowGroupMetaData {
             columns: Vec::with_capacity(schema_descr.num_columns()),
             schema_descr,
@@ -824,7 +828,7 @@ mod tests {
 
     use super::*;
     use crate::basic::PageType;
-    use crate::schema::types::{SchemaDescriptor, Type as SchemaType};
+    use crate::schema::types::{SchemaDescriptor, SchemaType};
 
     #[test]
     fn test_row_group_metadata_thrift_conversion() {
@@ -1008,7 +1012,7 @@ mod tests {
     }
 
     /// Returns sample schema descriptor so we can create column metadata.
-    fn get_test_schema_descr() -> SchemaDescPtr {
+    fn get_test_schema_descr() -> Arc<SchemaDescriptor> {
         let schema = SchemaType::group_type_builder("schema")
             .with_fields(vec![
                 Arc::new(

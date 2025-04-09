@@ -1106,7 +1106,7 @@ mod tests {
 
     use super::super::encoding::*;
     use super::*;
-    use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
+    use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, SchemaType};
     use crate::testutil::rand_gen::RandGen;
 
     #[test]

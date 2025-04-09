@@ -129,7 +129,7 @@ mod tests {
     use super::*;
     use crate::basic::{SortOrder, Type};
     use crate::format::TypeDefinedOrder;
-    use crate::schema::types::Type as SchemaType;
+    use crate::schema::types::SchemaType;
 
     #[test]
     fn test_metadata_column_orders_parse() {

@@ -21,7 +21,7 @@ use criterion::*;
 use ext_parquet::data_type::{DataType, f32, f64};
 use ext_parquet::decoding::{Decoder, get_decoder};
 use ext_parquet::encoding::get_encoder;
-use ext_parquet::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type};
+use ext_parquet::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, SchemaType};
 use parquet::basic::Encoding;
 use rand::prelude::*;
 
@@ -47,7 +47,7 @@ fn bench_typed<T: DataType>(c: &mut Criterion, values: &[T::T], encoding: Encodi
     let mut buffer = vec![T::T::default(); values.len()];
     let column_desc_ptr = ColumnDescPtr::new(ColumnDescriptor::new(
         Arc::new(
-            Type::primitive_type_builder("", T::get_physical_type())
+            SchemaType::primitive_type_builder("", T::get_physical_type())
                 .build()
                 .unwrap(),
         ),

@@ -30,17 +30,7 @@ use crate::basic::{
     SortOrder,
     Type as PhysicalType,
 };
-use crate::format::{SchemaElement, TimeUnit};
-
-// ----------------------------------------------------------------------
-// Parquet Type definitions
-
-/// Type alias for `Arc<Type>`.
-// TODO: Remove
-pub type TypePtr = Arc<Type>;
-
-/// Type alias for `Arc<SchemaDescriptor>`.
-pub type SchemaDescPtr = Arc<SchemaDescriptor>;
+use crate::format;
 
 /// Type alias for `Arc<ColumnDescriptor>`.
 pub type ColumnDescPtr = Arc<ColumnDescriptor>;
@@ -53,20 +43,20 @@ pub type ColumnDescPtr = Arc<ColumnDescriptor>;
 /// repetition is `None`.
 // TODO: Are these arcs actually required?
 #[derive(Clone, Debug, PartialEq)]
-pub enum Type {
+pub enum SchemaType {
     PrimitiveType(Arc<PrimitiveType>),
     GroupType(Arc<GroupType>),
 }
 
-impl From<Arc<PrimitiveType>> for Type {
+impl From<Arc<PrimitiveType>> for SchemaType {
     fn from(value: Arc<PrimitiveType>) -> Self {
-        Type::PrimitiveType(value)
+        SchemaType::PrimitiveType(value)
     }
 }
 
-impl From<Arc<GroupType>> for Type {
+impl From<Arc<GroupType>> for SchemaType {
     fn from(value: Arc<GroupType>) -> Self {
-        Type::GroupType(value)
+        SchemaType::GroupType(value)
     }
 }
 
@@ -82,10 +72,10 @@ pub struct PrimitiveType {
 #[derive(Debug, Clone, PartialEq)]
 pub struct GroupType {
     pub basic_info: BasicTypeInfo,
-    pub fields: Vec<Type>,
+    pub fields: Vec<SchemaType>,
 }
 
-impl Type {
+impl SchemaType {
     /// Creates primitive type builder with provided field name and physical
     /// type.
     pub fn primitive_type_builder(name: &str, physical_type: PhysicalType) -> PrimitiveTypeBuilder {
@@ -100,8 +90,8 @@ impl Type {
     /// Returns [`BasicTypeInfo`] information about the type.
     pub fn get_basic_info(&self) -> &BasicTypeInfo {
         match self {
-            Type::PrimitiveType(prim) => &prim.basic_info,
-            Type::GroupType(group) => &group.basic_info,
+            SchemaType::PrimitiveType(prim) => &prim.basic_info,
+            SchemaType::GroupType(group) => &group.basic_info,
         }
     }
 
@@ -119,9 +109,9 @@ impl Type {
 
     /// Gets the fields from this group type.
     /// Note that this will panic if called on a non-group type.
-    pub fn get_fields(&self) -> &[Type] {
+    pub fn get_fields(&self) -> &[SchemaType] {
         match self {
-            Type::GroupType(group) => &group.fields,
+            SchemaType::GroupType(group) => &group.fields,
             _ => panic!("Cannot call get_fields() on a non-group type"),
         }
     }
@@ -130,25 +120,25 @@ impl Type {
     /// Note that this will panic if called on a non-primitive type.
     pub fn get_physical_type(&self) -> PhysicalType {
         match self {
-            Type::PrimitiveType(prim) => prim.physical_type,
+            SchemaType::PrimitiveType(prim) => prim.physical_type,
             _ => panic!("Cannot call get_physical_type() on a non-primitive type"),
         }
     }
 
     /// Returns `true` if this type is a primitive type, `false` otherwise.
     pub fn is_primitive(&self) -> bool {
-        matches!(*self, Type::PrimitiveType { .. })
+        matches!(*self, SchemaType::PrimitiveType { .. })
     }
 
     /// Returns `true` if this type is a group type, `false` otherwise.
     pub fn is_group(&self) -> bool {
-        matches!(*self, Type::GroupType { .. })
+        matches!(*self, SchemaType::GroupType { .. })
     }
 
     /// Returns `true` if this type is the top-level schema type (message type).
     pub fn is_schema(&self) -> bool {
         match self {
-            Type::GroupType(group) => !group.basic_info.has_repetition(),
+            SchemaType::GroupType(group) => !group.basic_info.has_repetition(),
             _ => false,
         }
     }
@@ -301,13 +291,13 @@ impl<'a> PrimitiveTypeBuilder<'a> {
                 (LogicalType::Date, PhysicalType::INT32) => {}
                 (
                     LogicalType::Time {
-                        unit: TimeUnit::MILLIS(_),
+                        unit: format::TimeUnit::MILLIS(_),
                         ..
                     },
                     PhysicalType::INT32,
                 ) => {}
                 (LogicalType::Time { unit, .. }, PhysicalType::INT64) => {
-                    if *unit == TimeUnit::MILLIS(Default::default()) {
+                    if *unit == format::TimeUnit::MILLIS(Default::default()) {
                         return Err(DbError::new(format!(
                             "Cannot use millisecond unit on INT64 type for field '{}'",
                             self.name
@@ -501,7 +491,7 @@ pub struct GroupTypeBuilder<'a> {
     repetition: Option<Repetition>,
     converted_type: ConvertedType,
     logical_type: Option<LogicalType>,
-    fields: Vec<Type>,
+    fields: Vec<SchemaType>,
     id: Option<i32>,
 }
 
@@ -542,7 +532,7 @@ impl<'a> GroupTypeBuilder<'a> {
 
     /// Sets a list of fields that should be child nodes of this field.
     /// Returns updated self.
-    pub fn with_fields(self, fields: Vec<Type>) -> Self {
+    pub fn with_fields(self, fields: Vec<SchemaType>) -> Self {
         Self { fields, ..self }
     }
 
@@ -853,7 +843,7 @@ impl SchemaDescriptor {
     }
 
     /// Returns column root [`Type`] for a leaf position.
-    pub fn get_column_root(&self, i: usize) -> &Type {
+    pub fn get_column_root(&self, i: usize) -> &SchemaType {
         self.column_root_of(i)
     }
 
@@ -872,7 +862,7 @@ impl SchemaDescriptor {
             .unwrap_or_else(|| panic!("Expected a value for index {leaf} but found None"))
     }
 
-    fn column_root_of(&self, i: usize) -> &Type {
+    fn column_root_of(&self, i: usize) -> &SchemaType {
         &self.schema.fields[self.get_column_root_idx(i)]
     }
 
@@ -883,7 +873,7 @@ impl SchemaDescriptor {
 }
 
 fn build_tree<'a>(
-    tp: &'a Type,
+    tp: &'a SchemaType,
     root_idx: usize,
     mut max_rep_level: i16,
     mut max_def_level: i16,
@@ -906,7 +896,7 @@ fn build_tree<'a>(
     }
 
     match tp {
-        Type::PrimitiveType(prim) => {
+        SchemaType::PrimitiveType(prim) => {
             let mut path: Vec<String> = vec![];
             path.extend(path_so_far.iter().copied().map(String::from));
             leaves.push(Arc::new(ColumnDescriptor::new(
@@ -917,7 +907,7 @@ fn build_tree<'a>(
             )));
             leaf_to_base.push(root_idx);
         }
-        Type::GroupType(group) => {
+        SchemaType::GroupType(group) => {
             for field in &group.fields {
                 build_tree(
                     field,
@@ -935,7 +925,7 @@ fn build_tree<'a>(
 }
 
 /// Get the root schema type from the given elements.
-pub fn schema_from_thrift(elements: &[SchemaElement]) -> Result<Arc<GroupType>> {
+pub fn schema_from_thrift(elements: &[format::SchemaElement]) -> Result<Arc<GroupType>> {
     let mut index = 0;
     let mut schema_nodes = Vec::new();
     while index < elements.len() {
@@ -951,8 +941,8 @@ pub fn schema_from_thrift(elements: &[SchemaElement]) -> Result<Arc<GroupType>> 
     }
 
     match schema_nodes.remove(0) {
-        Type::GroupType(group) => Ok(group),
-        Type::PrimitiveType(_) => Err(DbError::new(
+        SchemaType::GroupType(group) => Ok(group),
+        SchemaType::PrimitiveType(_) => Err(DbError::new(
             "Expected a group type for the root schema type",
         )),
     }
@@ -962,7 +952,10 @@ pub fn schema_from_thrift(elements: &[SchemaElement]) -> Result<Arc<GroupType>> 
 /// first result is the starting index for the next Type after this one. If it
 /// is equal to `elements.len()`, then this Type is the last one. The second
 /// result is the result Type.
-fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> Result<(usize, Type)> {
+fn from_thrift_helper(
+    elements: &[format::SchemaElement],
+    index: usize,
+) -> Result<(usize, SchemaType)> {
     // Whether or not the current node is root (message type).
     // There is only one message type node in the schema tree.
     let is_root_node = index == 0;
@@ -1003,7 +996,7 @@ fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> Result<(usize
                 let scale = elements[index].scale.unwrap_or(-1);
                 let precision = elements[index].precision.unwrap_or(-1);
                 let name = &elements[index].name;
-                let builder = Type::primitive_type_builder(name, physical_type)
+                let builder = SchemaType::primitive_type_builder(name, physical_type)
                     .with_repetition(repetition)
                     .with_converted_type(converted_type)
                     .with_logical_type(logical_type)
@@ -1011,9 +1004,12 @@ fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> Result<(usize
                     .with_precision(precision)
                     .with_scale(scale)
                     .with_id(field_id);
-                Ok((index + 1, Type::PrimitiveType(Arc::new(builder.build()?))))
+                Ok((
+                    index + 1,
+                    SchemaType::PrimitiveType(Arc::new(builder.build()?)),
+                ))
             } else {
-                let mut builder = Type::group_type_builder(&elements[index].name)
+                let mut builder = SchemaType::group_type_builder(&elements[index].name)
                     .with_converted_type(converted_type)
                     .with_logical_type(logical_type)
                     .with_id(field_id);
@@ -1029,7 +1025,7 @@ fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> Result<(usize
                 }
                 Ok((
                     index + 1,
-                    Type::GroupType(Arc::new(builder.build().unwrap())),
+                    SchemaType::GroupType(Arc::new(builder.build().unwrap())),
                 ))
             }
         }
@@ -1047,7 +1043,7 @@ fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> Result<(usize
                 fields.push(child_result.1);
             }
 
-            let mut builder = Type::group_type_builder(&elements[index].name)
+            let mut builder = SchemaType::group_type_builder(&elements[index].name)
                 .with_converted_type(converted_type)
                 .with_logical_type(logical_type)
                 .with_fields(fields)
@@ -1066,34 +1062,34 @@ fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> Result<(usize
             }
             Ok((
                 next_index,
-                Type::GroupType(Arc::new(builder.build().unwrap())),
+                SchemaType::GroupType(Arc::new(builder.build().unwrap())),
             ))
         }
     }
 }
 
 /// Method to convert to Thrift.
-pub fn schema_to_thrift(schema: &GroupType) -> Result<Vec<SchemaElement>> {
-    let mut elements: Vec<SchemaElement> = Vec::new();
+pub fn schema_to_thrift(schema: &GroupType) -> Result<Vec<format::SchemaElement>> {
+    let mut elements: Vec<format::SchemaElement> = Vec::new();
     group_to_thrift(schema, &mut elements);
     Ok(elements)
 }
 
-fn type_to_thrift(typ: &Type, elements: &mut Vec<SchemaElement>) {
+fn type_to_thrift(typ: &SchemaType, elements: &mut Vec<format::SchemaElement>) {
     match typ {
-        Type::GroupType(group) => group_to_thrift(group, elements),
-        Type::PrimitiveType(prim) => primitive_to_thrift(prim, elements),
+        SchemaType::GroupType(group) => group_to_thrift(group, elements),
+        SchemaType::PrimitiveType(prim) => primitive_to_thrift(prim, elements),
     }
 }
 
-fn group_to_thrift(group: &GroupType, elements: &mut Vec<SchemaElement>) {
+fn group_to_thrift(group: &GroupType, elements: &mut Vec<format::SchemaElement>) {
     let repetition = if group.basic_info.has_repetition() {
         Some(group.basic_info.repetition().into())
     } else {
         None
     };
 
-    let element = SchemaElement {
+    let element = format::SchemaElement {
         type_: None,
         type_length: None,
         repetition_type: repetition,
@@ -1118,8 +1114,8 @@ fn group_to_thrift(group: &GroupType, elements: &mut Vec<SchemaElement>) {
     }
 }
 
-fn primitive_to_thrift(prim: &PrimitiveType, elements: &mut Vec<SchemaElement>) {
-    let element = SchemaElement {
+fn primitive_to_thrift(prim: &PrimitiveType, elements: &mut Vec<format::SchemaElement>) {
+    let element = format::SchemaElement {
         type_: Some(prim.physical_type.into()),
         type_length: if prim.type_length >= 0 {
             Some(prim.type_length)
@@ -1160,7 +1156,7 @@ mod tests {
 
     #[test]
     fn test_primitive_type() {
-        let prim = Type::primitive_type_builder("foo", PhysicalType::INT32)
+        let prim = SchemaType::primitive_type_builder("foo", PhysicalType::INT32)
             .with_logical_type(Some(LogicalType::Integer {
                 bit_width: 32,
                 is_signed: true,
@@ -1182,7 +1178,7 @@ mod tests {
         assert_eq!(prim.physical_type, PhysicalType::INT32);
 
         // Test illegal inputs with logical type
-        let err = Type::primitive_type_builder("foo", PhysicalType::INT64)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::INT64)
             .with_repetition(Repetition::REPEATED)
             .with_logical_type(Some(LogicalType::Integer {
                 is_signed: true,
@@ -1195,7 +1191,7 @@ mod tests {
         ));
 
         // Test illegal inputs with converted type
-        let err = Type::primitive_type_builder("foo", PhysicalType::INT64)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::INT64)
             .with_repetition(Repetition::REPEATED)
             .with_converted_type(ConvertedType::BSON)
             .build()
@@ -1205,7 +1201,7 @@ mod tests {
                 .contains("BSON cannot annotate field 'foo' because it is not a BYTE_ARRAY field")
         );
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::INT96)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::INT96)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::DECIMAL)
             .with_precision(-1)
@@ -1216,7 +1212,7 @@ mod tests {
             "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED_LEN_BYTE_ARRAY"
         ));
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_logical_type(Some(LogicalType::Decimal {
                 scale: 32,
@@ -1231,7 +1227,7 @@ mod tests {
                 .contains("DECIMAL logical type scale 32 must match self.scale -1 for field 'foo'")
         );
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::DECIMAL)
             .with_precision(-1)
@@ -1240,7 +1236,7 @@ mod tests {
             .unwrap_err();
         assert!(err.to_string().contains("Invalid DECIMAL precision: -1"));
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::DECIMAL)
             .with_precision(0)
@@ -1249,7 +1245,7 @@ mod tests {
             .unwrap_err();
         assert!(err.to_string().contains("Invalid DECIMAL precision: 0"));
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::DECIMAL)
             .with_precision(1)
@@ -1258,7 +1254,7 @@ mod tests {
             .unwrap_err();
         assert!(err.to_string().contains("Invalid DECIMAL scale: -1"));
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::DECIMAL)
             .with_precision(1)
@@ -1271,7 +1267,7 @@ mod tests {
         );
 
         // It is OK if precision == scale
-        let _prim = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
+        let _prim = SchemaType::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::DECIMAL)
             .with_precision(1)
@@ -1279,7 +1275,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::INT32)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::INT32)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::DECIMAL)
             .with_precision(18)
@@ -1291,7 +1287,7 @@ mod tests {
                 .contains("Cannot represent INT32 as DECIMAL with precision 18")
         );
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::INT64)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::INT64)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::DECIMAL)
             .with_precision(32)
@@ -1303,7 +1299,7 @@ mod tests {
                 .contains("Cannot represent INT64 as DECIMAL with precision 32")
         );
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::DECIMAL)
             .with_length(5)
@@ -1316,7 +1312,7 @@ mod tests {
                     "Cannot represent FIXED_LEN_BYTE_ARRAY as DECIMAL with length 5 and precision 12. The max precision can only be 11")
             );
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::INT64)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::INT64)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::UINT_8)
             .build()
@@ -1326,7 +1322,7 @@ mod tests {
                 .contains("UINT_8 cannot annotate field 'foo' because it is not a INT32 field")
         );
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::INT32)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::INT32)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::TIME_MICROS)
             .build()
@@ -1337,7 +1333,7 @@ mod tests {
             )
         );
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::INTERVAL)
             .build()
@@ -1347,7 +1343,7 @@ mod tests {
                     "INTERVAL cannot annotate field 'foo' because it is not a FIXED_LEN_BYTE_ARRAY(12) field")
             );
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::INTERVAL)
             .with_length(1)
@@ -1358,7 +1354,7 @@ mod tests {
                     "INTERVAL cannot annotate field 'foo' because it is not a FIXED_LEN_BYTE_ARRAY(12) field")
             );
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::INT32)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::INT32)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::ENUM)
             .build()
@@ -1368,7 +1364,7 @@ mod tests {
                 .contains("ENUM cannot annotate field 'foo' because it is not a BYTE_ARRAY field")
         );
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::INT32)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::INT32)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::MAP)
             .build()
@@ -1378,7 +1374,7 @@ mod tests {
                 .contains("MAP cannot be applied to primitive field 'foo'")
         );
 
-        let err = Type::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::DECIMAL)
             .with_length(-1)
@@ -1389,7 +1385,7 @@ mod tests {
                 .contains("Invalid FIXED_LEN_BYTE_ARRAY length: -1 for field 'foo'")
         );
 
-        let _prim = Type::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+        let _prim = SchemaType::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_logical_type(Some(LogicalType::Float16))
             .with_length(2)
@@ -1397,7 +1393,7 @@ mod tests {
             .unwrap();
 
         // Can't be other than FIXED_LEN_BYTE_ARRAY for physical type
-        let err = Type::primitive_type_builder("foo", PhysicalType::FLOAT)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::FLOAT)
             .with_repetition(Repetition::REQUIRED)
             .with_logical_type(Some(LogicalType::Float16))
             .with_length(2)
@@ -1409,7 +1405,7 @@ mod tests {
         );
 
         // Must have length 2
-        let err = Type::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_logical_type(Some(LogicalType::Float16))
             .with_length(4)
@@ -1420,7 +1416,7 @@ mod tests {
         ));
 
         // Must have length 16
-        let err = Type::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+        let err = SchemaType::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
             .with_repetition(Repetition::REQUIRED)
             .with_logical_type(Some(LogicalType::Uuid))
             .with_length(15)
@@ -1433,12 +1429,12 @@ mod tests {
 
     #[test]
     fn test_group_type() {
-        let f1 = Type::primitive_type_builder("f1", PhysicalType::INT32)
+        let f1 = SchemaType::primitive_type_builder("f1", PhysicalType::INT32)
             .with_converted_type(ConvertedType::INT_32)
             .with_id(Some(0))
             .build();
         assert!(f1.is_ok());
-        let f2 = Type::primitive_type_builder("f2", PhysicalType::BYTE_ARRAY)
+        let f2 = SchemaType::primitive_type_builder("f2", PhysicalType::BYTE_ARRAY)
             .with_converted_type(ConvertedType::UTF8)
             .with_id(Some(1))
             .build();
@@ -1446,7 +1442,7 @@ mod tests {
 
         let fields = vec![Arc::new(f1.unwrap()).into(), Arc::new(f2.unwrap()).into()];
 
-        let group = Type::group_type_builder("foo")
+        let group = SchemaType::group_type_builder("foo")
             .with_repetition(Repetition::REPEATED)
             .with_logical_type(Some(LogicalType::List))
             .with_fields(fields)
@@ -1474,7 +1470,7 @@ mod tests {
     }
 
     fn test_column_descriptor_helper() -> Result<()> {
-        let tp = Type::primitive_type_builder("name", PhysicalType::BYTE_ARRAY)
+        let tp = SchemaType::primitive_type_builder("name", PhysicalType::BYTE_ARRAY)
             .with_converted_type(ConvertedType::UTF8)
             .build()?;
 
@@ -1507,32 +1503,32 @@ mod tests {
     fn test_schema_descriptor_helper() -> Result<()> {
         let mut fields = vec![];
 
-        let inta = Type::primitive_type_builder("a", PhysicalType::INT32)
+        let inta = SchemaType::primitive_type_builder("a", PhysicalType::INT32)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::INT_32)
             .build()?;
         fields.push(Arc::new(inta).into());
-        let intb = Type::primitive_type_builder("b", PhysicalType::INT64)
+        let intb = SchemaType::primitive_type_builder("b", PhysicalType::INT64)
             .with_converted_type(ConvertedType::INT_64)
             .build()?;
         fields.push(Arc::new(intb).into());
-        let intc = Type::primitive_type_builder("c", PhysicalType::BYTE_ARRAY)
+        let intc = SchemaType::primitive_type_builder("c", PhysicalType::BYTE_ARRAY)
             .with_repetition(Repetition::REPEATED)
             .with_converted_type(ConvertedType::UTF8)
             .build()?;
         fields.push(Arc::new(intc).into());
 
         // 3-level list encoding
-        let item1 = Type::primitive_type_builder("item1", PhysicalType::INT64)
+        let item1 = SchemaType::primitive_type_builder("item1", PhysicalType::INT64)
             .with_repetition(Repetition::REQUIRED)
             .with_converted_type(ConvertedType::INT_64)
             .build()?;
-        let item2 = Type::primitive_type_builder("item2", PhysicalType::BOOLEAN).build()?;
-        let item3 = Type::primitive_type_builder("item3", PhysicalType::INT32)
+        let item2 = SchemaType::primitive_type_builder("item2", PhysicalType::BOOLEAN).build()?;
+        let item3 = SchemaType::primitive_type_builder("item3", PhysicalType::INT32)
             .with_repetition(Repetition::REPEATED)
             .with_converted_type(ConvertedType::INT_32)
             .build()?;
-        let list = Type::group_type_builder("records")
+        let list = SchemaType::group_type_builder("records")
             .with_repetition(Repetition::REPEATED)
             .with_converted_type(ConvertedType::LIST)
             .with_fields(vec![
@@ -1541,13 +1537,13 @@ mod tests {
                 Arc::new(item3).into(),
             ])
             .build()?;
-        let bag = Type::group_type_builder("bag")
+        let bag = SchemaType::group_type_builder("bag")
             .with_repetition(Repetition::OPTIONAL)
             .with_fields(vec![Arc::new(list).into()])
             .build()?;
         fields.push(Arc::new(bag).into());
 
-        let schema = Type::group_type_builder("schema")
+        let schema = SchemaType::group_type_builder("schema")
             .with_repetition(Repetition::REPEATED)
             .with_fields(fields)
             .build()?;
@@ -1623,12 +1619,12 @@ mod tests {
 
     #[test]
     fn test_get_physical_type_primitive() {
-        let f = Type::primitive_type_builder("f", PhysicalType::INT64)
+        let f = SchemaType::primitive_type_builder("f", PhysicalType::INT64)
             .build()
             .unwrap();
         assert_eq!(f.physical_type, PhysicalType::INT64);
 
-        let f = Type::primitive_type_builder("f", PhysicalType::BYTE_ARRAY)
+        let f = SchemaType::primitive_type_builder("f", PhysicalType::BYTE_ARRAY)
             .build()
             .unwrap();
         assert_eq!(f.physical_type, PhysicalType::BYTE_ARRAY);

@@ -724,7 +724,7 @@ mod tests {
 
     use super::*;
     use crate::encodings::decoding::{Decoder, DictDecoder, PlainDecoder, get_decoder};
-    use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
+    use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, SchemaType};
     use crate::testutil::rand_gen::{RandGen, random_bytes};
     use crate::util::bit_util;
 

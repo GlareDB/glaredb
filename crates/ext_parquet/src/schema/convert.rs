@@ -1,9 +1,9 @@
 use glaredb_core::arrays::datatype::DataType;
 use glaredb_error::Result;
 
-use super::types::Type;
+use super::types::SchemaType;
 
-fn convert_primitive(parquet_type: &Type) -> Result<DataType> {
+fn convert_primitive(parquet_type: &SchemaType) -> Result<DataType> {
     unimplemented!()
     // match parquet_type {
     //     Type::PrimitiveType {
