@@ -26,7 +26,13 @@ use glaredb_core::functions::table::{
 use glaredb_core::logical::statistics::StatisticsValue;
 use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
 use glaredb_core::optimizer::expr_rewrite::const_fold::ConstFold;
-use glaredb_core::runtime::filesystem::{AnyFile, AnyFileSystem, FileSystemFuture, OpenFlags};
+use glaredb_core::runtime::filesystem::{
+    AnyFile,
+    FileOpenContext,
+    FileSystemFuture,
+    FileSystemWithState,
+    OpenFlags,
+};
 use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_error::{DbError, Result};
 
@@ -265,12 +271,12 @@ where
 }
 
 pub struct ParquetMetadataBindState {
-    fs: AnyFileSystem,
+    fs: FileSystemWithState,
     path: String,
 }
 
 pub struct ParquetMetadataOperatorState {
-    fs: AnyFileSystem,
+    fs: FileSystemWithState,
     path: String,
     projections: Projections,
 }
@@ -315,7 +321,9 @@ where
 
         // TODO: GLOBBING!
         let fs = scan_context.dispatch.filesystem_for_path(&path)?;
-        match fs.call_stat(&path).await? {
+        let context = FileOpenContext::new(scan_context.database_context, &input.named);
+        let fs = fs.try_with_context(context)?;
+        match fs.stat(&path).await? {
             Some(stat) if stat.file_type.is_file() => (), // We have a file.
             Some(_) => return Err(DbError::new("Cannot read parquet from a directory")),
             None => return Err(DbError::new(format!("Missing file for path '{path}'"))),
@@ -352,7 +360,7 @@ where
         // One partition scans for now...
         let open_fut = op_state
             .fs
-            .call_open_static(OpenFlags::READ, op_state.path.clone());
+            .open_static(OpenFlags::READ, op_state.path.clone());
         let mut states = vec![ParquetMetadataPartitionState {
             table_state: Default::default(),
             scan_state: PartitionScanState::Opening {

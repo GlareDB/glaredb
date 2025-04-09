@@ -2,7 +2,14 @@ use std::io::SeekFrom;
 use std::task::{Context, Poll};
 
 use chrono::Utc;
-use glaredb_core::runtime::filesystem::{File, FileStat, FileSystem, FileType, OpenFlags};
+use glaredb_core::runtime::filesystem::{
+    File,
+    FileOpenContext,
+    FileStat,
+    FileSystem,
+    FileType,
+    OpenFlags,
+};
 use glaredb_error::{DbError, OptionExt, Result, ResultExt, not_implemented};
 use reqwest::header::CONTENT_LENGTH;
 use reqwest::{Method, Request, StatusCode};
@@ -10,7 +17,7 @@ use url::Url;
 
 use super::credentials::{AwsCredentials, AwsRequestAuthorizer};
 use crate::client::{HttpClient, HttpResponse};
-use crate::filesystem::{ChunkReadState, HttpFileHandle};
+use crate::handle::{ChunkReadState, HttpFileHandle, RequestSigner};
 
 pub const AWS_ENDPOINT: &str = "amazonaws.com";
 
@@ -53,14 +60,43 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct S3FileSystemState {
+    region: String,
+    creds: Option<AwsCredentials>,
+}
+
 impl<C> FileSystem for S3FileSystem<C>
 where
     C: HttpClient,
 {
     type File = S3FileHandle<C>;
+    type State = S3FileSystemState;
+
+    fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
+        let key_id = context.get_value("access_key_id")?;
+        let secret = context.get_value("secret_access_key")?;
+
+        let creds = match (key_id, secret) {
+            (Some(key_id), Some(secret)) => Some(AwsCredentials {
+                key_id: key_id.try_into_string()?,
+                secret: secret.try_into_string()?,
+            }),
+            (None, None) => None,
+            (Some(_), None) => return Err(DbError::new("Missing 'secret_access_key' argument")),
+            (None, Some(_)) => return Err(DbError::new("Missing 'access_key_id' argument")),
+        };
+
+        // TODO: Get region from context.
+
+        Ok(S3FileSystemState {
+            creds,
+            region: self.default_region.to_string(),
+        })
+    }
 
     // TODO: Need a way to pass in region.
-    async fn open(&self, flags: OpenFlags, path: &str) -> Result<Self::File> {
+    async fn open(&self, flags: OpenFlags, path: &str, state: &Self::State) -> Result<Self::File> {
         if flags.is_write() {
             not_implemented!("write support for s3 filesystem")
         }
@@ -69,9 +105,11 @@ where
         }
         let location = self.s3_location_from_path(path)?;
 
-        let request = Request::new(Method::HEAD, location.clone());
-        // TODO: Sign if have creds, also need a way to pass them in...
-        // let request = authorize_request(creds, region, request)
+        let mut request = Request::new(Method::HEAD, location.clone());
+        // If we don't have creds, we can skip signing.
+        if let Some(creds) = &state.creds {
+            request = authorize_request(creds, &state.region, request)?;
+        }
         let resp = self.client.do_request(request).await?;
         let len = match resp.headers().get(CONTENT_LENGTH) {
             Some(v) => v
@@ -83,23 +121,27 @@ where
         };
 
         Ok(S3FileHandle {
-            creds: None, // TODO
-            region: self.default_region.to_string(),
             handle: HttpFileHandle {
                 url: location,
                 pos: 0,
                 chunk: ChunkReadState::None,
                 len,
                 client: self.client.clone(),
+                signer: S3RequestSigner {
+                    region: state.region.clone(),
+                    creds: state.creds.clone(),
+                },
             },
         })
     }
 
-    async fn stat(&self, path: &str) -> Result<Option<FileStat>> {
+    async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
         let location = self.s3_location_from_path(path)?;
 
-        let request = Request::new(Method::HEAD, location.clone());
-        // TODO: Authorize
+        let mut request = Request::new(Method::HEAD, location.clone());
+        if let Some(creds) = &state.creds {
+            request = authorize_request(creds, &state.region, request)?;
+        }
         let resp = self.client.do_request(request).await?;
 
         let status = resp.status();
@@ -128,18 +170,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct S3FileHandle<C: HttpClient> {
-    creds: Option<AwsCredentials>,
+pub struct S3RequestSigner {
     region: String,
-    handle: HttpFileHandle<C>,
+    creds: Option<AwsCredentials>,
 }
 
-impl<C> S3FileHandle<C>
-where
-    C: HttpClient,
-{
-    #[allow(unused)]
-    fn authorize_request(&self, request: Request) -> Result<Request> {
+impl RequestSigner for S3RequestSigner {
+    fn sign(&self, request: Request) -> Result<Request> {
         match &self.creds {
             Some(creds) => authorize_request(creds, &self.region, request),
             None => {
@@ -148,6 +185,11 @@ where
             }
         }
     }
+}
+
+#[derive(Debug)]
+pub struct S3FileHandle<C: HttpClient> {
+    handle: HttpFileHandle<C, S3RequestSigner>,
 }
 
 impl<C> File for S3FileHandle<C>

@@ -3,6 +3,7 @@ pub mod file_ext;
 pub mod memory;
 
 use std::any::Any;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io;
 use std::pin::Pin;
@@ -10,7 +11,13 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use file_ext::FileExt;
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
+
+use crate::arrays::scalar::ScalarValue;
+use crate::catalog::context::DatabaseContext;
+use crate::expr::Expression;
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 pub trait File: Debug + Sync + Send + 'static {
     /// Get the path of this file.
@@ -200,6 +207,58 @@ impl OpenFlags {
     }
 }
 
+/// Context used for creating state needed by the file system to open files.
+#[derive(Debug)]
+pub struct FileOpenContext<'a> {
+    #[allow(unused)] // TODO: db context will be used to lookup up stored config values
+    db_context: &'a DatabaseContext,
+    /// Named arguments provided to the scan function.
+    named_arguments: &'a HashMap<String, Expression>,
+}
+
+impl<'a> FileOpenContext<'a> {
+    pub fn new(
+        db_context: &'a DatabaseContext,
+        named_arguments: &'a HashMap<String, Expression>,
+    ) -> Self {
+        FileOpenContext {
+            db_context,
+            named_arguments,
+        }
+    }
+
+    /// Get a value, returning Ok(None) if it doesn't exist.
+    ///
+    /// May return an error if the value exists, but the expression representing
+    /// the value isn't a constant.
+    // TODO: There's going to need to be a way to namespace keys here, since we
+    // wouldn't want to just look up "key_id" in the catalog since that could
+    // apply to many things.
+    pub fn get_value(&self, key: &str) -> Result<Option<ScalarValue>> {
+        self.named_arguments
+            .get(key)
+            .map(|expr| ConstFold::rewrite(expr.clone())?.try_into_scalar())
+            .transpose()
+    }
+
+    /// Get a value, erroring if either the value doesn't exist, or it's not a
+    /// constant scalar value.
+    pub fn require_value(&self, key: &str) -> Result<ScalarValue> {
+        self.get_value(key)?
+            .ok_or_else(|| DbError::new(format!("Missing named argument '{key}'")))
+    }
+
+    /// Get a value, or use a default value.
+    pub fn get_value_or_default(
+        &self,
+        key: &str,
+        default: impl FnOnce() -> ScalarValue,
+    ) -> Result<ScalarValue> {
+        let value = self.get_value(key)?.unwrap_or_else(default);
+        Ok(value)
+    }
+}
+
 pub trait FileSystem: Debug + Sync + Send + 'static {
     // TODO: Probably remove this and just return `AnyFile` from open.
     //
@@ -207,18 +266,28 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     // on the open flags used.
     type File: File;
 
+    /// Extra state used when opening or statting a single file.
+    type State: Sync + Send;
+
+    fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State>;
+
     /// Open a file at a given path.
     fn open(
         &self,
         flags: OpenFlags,
         path: &str,
+        state: &Self::State,
     ) -> impl Future<Output = Result<Self::File>> + Sync + Send;
 
     /// Stat the file.
     ///
     /// This should return Ok(None) if the request was successful, but the file
     /// doesn't exist.
-    fn stat(&self, path: &str) -> impl Future<Output = Result<Option<FileStat>>> + Sync + Send;
+    fn stat(
+        &self,
+        path: &str,
+        state: &Self::State,
+    ) -> impl Future<Output = Result<Option<FileStat>>> + Sync + Send;
 
     /// Returns if this filesystem is able to handle the provided path.
     fn can_handle_path(&self, path: &str) -> bool;
@@ -226,6 +295,46 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
 
 /// A boxed future.
 pub type FileSystemFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Sync + Send + 'a>>;
+
+#[derive(Debug, Clone)]
+pub(crate) struct AnyState(pub Arc<dyn Any + Sync + Send>);
+
+#[derive(Debug, Clone)]
+pub struct FileSystemWithState {
+    pub(crate) fs: AnyFileSystem,
+    pub(crate) state: AnyState,
+}
+
+impl FileSystemWithState {
+    /// Opens a files at the given path.
+    pub fn open<'a>(
+        &'a self,
+        flags: OpenFlags,
+        path: &'a str,
+    ) -> FileSystemFuture<'a, Result<AnyFile>> {
+        (self.fs.vtable.open_fn)(
+            self.fs.filesystem.as_ref(),
+            flags,
+            path,
+            self.state.0.as_ref(),
+        )
+    }
+
+    /// Like `call_open`, but returns a static boxed future.
+    // TODO: I don't really want to do this, but I also don't care enough to
+    // whip out unsafe since it's just for opening a file.
+    pub fn open_static(
+        &self,
+        flags: OpenFlags,
+        path: impl Into<String>,
+    ) -> FileSystemFuture<'static, Result<AnyFile>> {
+        (self.fs.vtable.open_static_fn)(self.fs.clone(), flags, path.into(), self.state.clone())
+    }
+
+    pub fn stat<'a>(&'a self, path: &'a str) -> FileSystemFuture<'a, Result<Option<FileStat>>> {
+        (self.fs.vtable.stat_fn)(self.fs.filesystem.as_ref(), path, self.state.0.as_ref())
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct AnyFileSystem {
@@ -244,55 +353,47 @@ impl AnyFileSystem {
         }
     }
 
-    pub fn call_open<'a>(
-        &'a self,
-        flags: OpenFlags,
-        path: &'a str,
-    ) -> FileSystemFuture<'a, Result<AnyFile>> {
-        (self.vtable.open_fn)(self.filesystem.as_ref(), flags, path)
-    }
-
-    /// Like `call_open`, but returns a static boxed future.
-    // TODO: I don't really want to do this, but I also don't care enough to
-    // whip out unsafe since it's just for opening a file.
-    pub fn call_open_static(
-        &self,
-        flags: OpenFlags,
-        path: impl Into<String>,
-    ) -> FileSystemFuture<'static, Result<AnyFile>> {
-        (self.vtable.open_static_fn)(self.clone(), flags, path.into())
-    }
-
-    pub fn call_stat<'a>(
-        &'a self,
-        path: &'a str,
-    ) -> FileSystemFuture<'a, Result<Option<FileStat>>> {
-        (self.vtable.stat_fn)(self.filesystem.as_ref(), path)
+    pub fn try_with_context(&self, context: FileOpenContext) -> Result<FileSystemWithState> {
+        let state = self.call_state_from_context(context)?;
+        Ok(FileSystemWithState {
+            fs: self.clone(),
+            state,
+        })
     }
 
     pub fn call_can_handle_path(&self, path: &str) -> bool {
         (self.vtable.can_handle_path_fn)(self.filesystem.as_ref(), path)
+    }
+
+    fn call_state_from_context(&self, context: FileOpenContext) -> Result<AnyState> {
+        (self.vtable.state_from_context_fn)(self.filesystem.as_ref(), context)
     }
 }
 
 #[allow(clippy::type_complexity)] // I do know how this is a complex type, but but that's kinda the point.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileSystemVTable {
+    state_from_context_fn:
+        for<'a> fn(fs: &dyn Any, context: FileOpenContext<'a>) -> Result<AnyState>,
+
     open_fn: for<'a> fn(
         fs: &'a dyn Any,
         flags: OpenFlags,
         path: &'a str,
+        state: &'a dyn Any,
     ) -> FileSystemFuture<'a, Result<AnyFile>>,
 
     open_static_fn: fn(
         fs: AnyFileSystem,
         flags: OpenFlags,
         path: String,
+        state: AnyState,
     ) -> FileSystemFuture<'static, Result<AnyFile>>,
 
     stat_fn: for<'a> fn(
         fs: &'a dyn Any,
         path: &'a str,
+        state: &'a dyn Any,
     ) -> FileSystemFuture<'a, Result<Option<FileStat>>>,
 
     can_handle_path_fn: fn(fs: &dyn Any, path: &str) -> bool,
@@ -307,25 +408,34 @@ where
     S: FileSystem,
 {
     const VTABLE: &'static RawFileSystemVTable = &RawFileSystemVTable {
-        open_fn: |fs, flags, path| {
+        state_from_context_fn: |fs, context| {
             let fs = fs.downcast_ref::<Self>().unwrap();
+            let state = fs.state_from_context(context)?;
+            Ok(AnyState(Arc::new(state)))
+        },
+
+        open_fn: |fs, flags, path, state| {
+            let fs = fs.downcast_ref::<Self>().unwrap();
+            let state = state.downcast_ref::<S::State>().unwrap();
             Box::pin(async move {
-                let file = fs.open(flags, path).await?;
+                let file = fs.open(flags, path, state).await?;
                 Ok(AnyFile::from_file(file))
             })
         },
 
-        open_static_fn: |any_fs, flags, path| {
+        open_static_fn: |any_fs, flags, path, state| {
             Box::pin(async move {
                 let fs = any_fs.filesystem.downcast_ref::<Self>().unwrap();
-                let file = fs.open(flags, &path).await?;
+                let state = state.0.downcast_ref::<S::State>().unwrap();
+                let file = fs.open(flags, &path, state).await?;
                 Ok(AnyFile::from_file(file))
             })
         },
 
-        stat_fn: |fs, path| {
+        stat_fn: |fs, path, state| {
             let fs = fs.downcast_ref::<Self>().unwrap();
-            Box::pin(async { fs.stat(path).await })
+            let state = state.downcast_ref::<S::State>().unwrap();
+            Box::pin(async { fs.stat(path, state).await })
         },
 
         can_handle_path_fn: |fs, path| {
