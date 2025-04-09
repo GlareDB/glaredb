@@ -17,13 +17,14 @@
 
 use glaredb_error::{DbError, Result};
 
+use super::types::{GroupType, PrimitiveType};
 use crate::basic::{ConvertedType, Repetition};
-use crate::schema::types::{Type, TypePtr};
+use crate::schema::types::Type;
 
 /// A utility trait to help user to traverse against parquet type.
 pub trait TypeVisitor<R, C> {
     /// Called when a primitive type hit.
-    fn visit_primitive(&mut self, primitive_type: TypePtr, context: C) -> Result<R>;
+    fn visit_primitive(&mut self, primitive_type: &PrimitiveType, context: C) -> Result<R>;
 
     /// Default implementation when visiting a list.
     ///
@@ -45,78 +46,61 @@ pub trait TypeVisitor<R, C> {
     ///
     /// In such a case, [`Self::visit_list_with_item`] will be called with `my_list` as the list
     /// type, and `element` as the `item_type`
-    fn visit_list(&mut self, list_type: TypePtr, context: C) -> Result<R> {
-        match list_type.as_ref() {
-            Type::PrimitiveType { .. } => {
-                panic!("{list_type:?} is a list type and must be a group type")
-            }
-            Type::GroupType {
-                basic_info: _,
-                fields,
-            } if fields.len() == 1 => {
-                let list_item = fields.first().unwrap();
+    fn visit_list(&mut self, list_type: &GroupType, context: C) -> Result<R> {
+        if list_type.fields.len() != 1 {
+            return Err(DbError::new(
+                "Group element type of list can only contain one field.",
+            ));
+        }
 
-                match list_item.as_ref() {
-                    Type::PrimitiveType { .. } => {
-                        if list_item.get_basic_info().repetition() == Repetition::REPEATED {
-                            self.visit_list_with_item(list_type.clone(), list_item.clone(), context)
-                        } else {
-                            Err(DbError::new(
-                                "Primitive element type of list must be repeated.",
-                            ))
-                        }
-                    }
-                    Type::GroupType {
-                        basic_info: _,
-                        fields,
-                    } => {
-                        if fields.len() == 1
-                            && list_item.name() != "array"
-                            && list_item.name() != format!("{}_tuple", list_type.name())
-                        {
-                            self.visit_list_with_item(
-                                list_type.clone(),
-                                fields.first().unwrap().clone(),
-                                context,
-                            )
-                        } else {
-                            self.visit_list_with_item(list_type.clone(), list_item.clone(), context)
-                        }
-                    }
+        let list_item = list_type.fields.first().unwrap();
+        match list_item {
+            Type::PrimitiveType(_) => {
+                if list_item.get_basic_info().repetition() == Repetition::REPEATED {
+                    self.visit_list_with_item(list_type, list_item, context)
+                } else {
+                    Err(DbError::new(
+                        "Primitive element type of list must be repeated.",
+                    ))
                 }
             }
-            _ => Err(DbError::new(
-                "Group element type of list can only contain one field.",
-            )),
+            Type::GroupType(group) => {
+                if group.fields.len() == 1
+                    && list_item.name() != "array"
+                    && list_item.name() != format!("{}_tuple", list_type.basic_info.name())
+                {
+                    self.visit_list_with_item(list_type, group.fields.first().unwrap(), context)
+                } else {
+                    self.visit_list_with_item(list_type, list_item, context)
+                }
+            }
         }
     }
 
     /// Called when a struct type hit.
-    fn visit_struct(&mut self, struct_type: TypePtr, context: C) -> Result<R>;
+    fn visit_struct(&mut self, struct_type: &GroupType, context: C) -> Result<R>;
 
     /// Called when a map type hit.
-    fn visit_map(&mut self, map_type: TypePtr, context: C) -> Result<R>;
+    fn visit_map(&mut self, map_type: &GroupType, context: C) -> Result<R>;
 
     /// A utility method which detects input type and calls corresponding method.
-    fn dispatch(&mut self, cur_type: TypePtr, context: C) -> Result<R> {
-        if cur_type.is_primitive() {
-            self.visit_primitive(cur_type, context)
-        } else {
-            match cur_type.get_basic_info().converted_type() {
-                ConvertedType::LIST => self.visit_list(cur_type, context),
-                ConvertedType::MAP | ConvertedType::MAP_KEY_VALUE => {
-                    self.visit_map(cur_type, context)
-                }
-                _ => self.visit_struct(cur_type, context),
-            }
+    fn dispatch(&mut self, cur_type: &Type, context: C) -> Result<R> {
+        match cur_type {
+            Type::PrimitiveType(prim) => self.visit_primitive(prim, context),
+            Type::GroupType(group) => match group.basic_info.converted_type() {
+                ConvertedType::LIST => self.visit_list(group, context),
+                ConvertedType::MAP | ConvertedType::MAP_KEY_VALUE => self.visit_map(group, context),
+                _ => self.visit_struct(group, context),
+            },
         }
     }
 
     /// Called by `visit_list`.
+    // TODO: Change `item_type` to `PrimitiveType`?
     fn visit_list_with_item(
         &mut self,
-        list_type: TypePtr,
-        item_type: TypePtr,
+        list_type: &GroupType,
+        item_type: &Type,
         context: C,
     ) -> Result<R>;
 }
@@ -128,57 +112,61 @@ mod tests {
     use super::*;
     use crate::basic::Type as PhysicalType;
     use crate::schema::parser::parse_message_type;
-    use crate::schema::types::TypePtr;
 
     struct TestVisitorContext {}
-    struct TestVisitor {
+    struct TestVisitor<'a> {
         primitive_visited: bool,
         struct_visited: bool,
         list_visited: bool,
-        root_type: TypePtr,
+        root_type: &'a GroupType,
     }
 
-    impl TypeVisitor<bool, TestVisitorContext> for TestVisitor {
+    impl TypeVisitor<bool, TestVisitorContext> for TestVisitor<'_> {
         fn visit_primitive(
             &mut self,
-            primitive_type: TypePtr,
+            primitive_type: &PrimitiveType,
             _context: TestVisitorContext,
         ) -> Result<bool> {
-            assert_eq!(
-                self.get_field_by_name(primitive_type.name()).as_ref(),
-                primitive_type.as_ref()
-            );
+            match self.get_field_by_name(primitive_type.basic_info.name()) {
+                Type::PrimitiveType(field) => assert_eq!(field.as_ref(), primitive_type),
+                other => panic!("other: {other:?}"),
+            };
             self.primitive_visited = true;
             Ok(true)
         }
 
         fn visit_struct(
             &mut self,
-            struct_type: TypePtr,
+            struct_type: &GroupType,
             _context: TestVisitorContext,
         ) -> Result<bool> {
-            assert_eq!(
-                self.get_field_by_name(struct_type.name()).as_ref(),
-                struct_type.as_ref()
-            );
+            match self.get_field_by_name(struct_type.basic_info.name()) {
+                Type::GroupType(group) => assert_eq!(group.as_ref(), struct_type),
+                other => panic!("other: {other:?}"),
+            };
             self.struct_visited = true;
             Ok(true)
         }
 
-        fn visit_map(&mut self, _map_type: TypePtr, _context: TestVisitorContext) -> Result<bool> {
+        fn visit_map(
+            &mut self,
+            _map_type: &GroupType,
+            _context: TestVisitorContext,
+        ) -> Result<bool> {
             unimplemented!()
         }
 
         fn visit_list_with_item(
             &mut self,
-            list_type: TypePtr,
-            item_type: TypePtr,
+            list_type: &GroupType,
+            item_type: &Type,
             _context: TestVisitorContext,
         ) -> Result<bool> {
-            assert_eq!(
-                self.get_field_by_name(list_type.name()).as_ref(),
-                list_type.as_ref()
-            );
+            match self.get_field_by_name(list_type.basic_info.name()) {
+                Type::GroupType(group) => assert_eq!(group.as_ref(), list_type),
+                other => panic!("other: {other:?}"),
+            };
+
             assert_eq!("element", item_type.name());
             assert_eq!(PhysicalType::INT32, item_type.get_physical_type());
             self.list_visited = true;
@@ -186,8 +174,8 @@ mod tests {
         }
     }
 
-    impl TestVisitor {
-        fn new(root: TypePtr) -> Self {
+    impl<'a> TestVisitor<'a> {
+        fn new(root: &'a GroupType) -> Self {
             Self {
                 primitive_visited: false,
                 struct_visited: false,
@@ -196,12 +184,11 @@ mod tests {
             }
         }
 
-        fn get_field_by_name(&self, name: &str) -> TypePtr {
+        fn get_field_by_name(&self, name: &str) -> &Type {
             self.root_type
-                .get_fields()
+                .fields
                 .iter()
                 .find(|t| t.name() == name)
-                .cloned()
                 .unwrap()
         }
     }
@@ -225,10 +212,10 @@ mod tests {
 
         let parquet_type = Arc::new(parse_message_type(message_type).unwrap());
 
-        let mut visitor = TestVisitor::new(parquet_type.clone());
-        for f in parquet_type.get_fields() {
+        let mut visitor = TestVisitor::new(&parquet_type);
+        for f in &parquet_type.fields {
             let c = TestVisitorContext {};
-            assert!(visitor.dispatch(f.clone(), c).unwrap());
+            assert!(visitor.dispatch(f, c).unwrap());
         }
 
         assert!(visitor.struct_visited);

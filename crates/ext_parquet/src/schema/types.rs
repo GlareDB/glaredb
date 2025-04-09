@@ -17,7 +17,6 @@
 
 //! Contains structs and methods to build Parquet schema and schema descriptors.
 
-use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
@@ -52,6 +51,7 @@ pub type ColumnDescPtr = Arc<ColumnDescriptor>;
 ///
 /// Note that the top-level schema is represented using [`Type::GroupType`] whose
 /// repetition is `None`.
+// TODO: Are these arcs actually required?
 #[derive(Clone, Debug, PartialEq)]
 pub enum Type {
     PrimitiveType(Arc<PrimitiveType>),
@@ -132,44 +132,6 @@ impl Type {
         match self {
             Type::PrimitiveType(prim) => prim.physical_type,
             _ => panic!("Cannot call get_physical_type() on a non-primitive type"),
-        }
-    }
-
-    /// Checks if `sub_type` schema is part of current schema.
-    /// This method can be used to check if projected columns are part of the root schema.
-    // wtf?
-    pub fn check_contains(&self, sub_type: &Type) -> bool {
-        // Names match, and repetitions match or not set for both
-        let basic_match = self.get_basic_info().name() == sub_type.get_basic_info().name()
-            && (self.is_schema() && sub_type.is_schema()
-                || !self.is_schema()
-                    && !sub_type.is_schema()
-                    && self.get_basic_info().repetition()
-                        == sub_type.get_basic_info().repetition());
-
-        match *self {
-            Type::PrimitiveType { .. } if basic_match && sub_type.is_primitive() => {
-                self.get_physical_type() == sub_type.get_physical_type()
-            }
-            Type::GroupType { .. } if basic_match && sub_type.is_group() => {
-                // build hashmap of name -> TypePtr
-                let mut field_map = HashMap::new();
-                for field in self.get_fields() {
-                    field_map.insert(field.name(), field);
-                }
-
-                for field in sub_type.get_fields() {
-                    if !field_map
-                        .get(field.name())
-                        .map(|tpe| tpe.check_contains(field))
-                        .unwrap_or(false)
-                    {
-                        return false;
-                    }
-                }
-                true
-            }
-            _ => false,
         }
     }
 
@@ -865,6 +827,10 @@ impl SchemaDescriptor {
         }
     }
 
+    pub fn schema_type(&self) -> &GroupType {
+        &self.schema
+    }
+
     /// Returns [`ColumnDescriptor`] for a field position.
     pub fn column(&self, i: usize) -> ColumnDescPtr {
         assert!(
@@ -968,8 +934,8 @@ fn build_tree<'a>(
     }
 }
 
-/// Method to convert from Thrift.
-pub fn from_thrift(elements: &[SchemaElement]) -> Result<Type> {
+/// Get the root schema type from the given elements.
+pub fn schema_from_thrift(elements: &[SchemaElement]) -> Result<Arc<GroupType>> {
     let mut index = 0;
     let mut schema_nodes = Vec::new();
     while index < elements.len() {
@@ -984,7 +950,12 @@ pub fn from_thrift(elements: &[SchemaElement]) -> Result<Type> {
         )));
     }
 
-    Ok(schema_nodes.remove(0))
+    match schema_nodes.remove(0) {
+        Type::GroupType(group) => Ok(group),
+        Type::PrimitiveType(_) => Err(DbError::new(
+            "Expected a group type for the root schema type",
+        )),
+    }
 }
 
 /// Constructs a new Type from the `elements`, starting at index `index`. The
@@ -1102,83 +1073,82 @@ fn from_thrift_helper(elements: &[SchemaElement], index: usize) -> Result<(usize
 }
 
 /// Method to convert to Thrift.
-pub fn to_thrift(schema: &Type) -> Result<Vec<SchemaElement>> {
-    if !schema.is_group() {
-        return Err(DbError::new("Root schema must be Group type"));
-    }
+pub fn schema_to_thrift(schema: &GroupType) -> Result<Vec<SchemaElement>> {
     let mut elements: Vec<SchemaElement> = Vec::new();
-    to_thrift_helper(schema, &mut elements);
+    group_to_thrift(schema, &mut elements);
     Ok(elements)
 }
 
-/// Constructs list of `SchemaElement` from the schema using depth-first traversal.
-/// Here we assume that schema is always valid and starts with group type.
-fn to_thrift_helper(schema: &Type, elements: &mut Vec<SchemaElement>) {
-    match schema {
-        Type::PrimitiveType(prim) => {
-            let element = SchemaElement {
-                type_: Some(prim.physical_type.into()),
-                type_length: if prim.type_length >= 0 {
-                    Some(prim.type_length)
-                } else {
-                    None
-                },
-                repetition_type: Some(prim.basic_info.repetition().into()),
-                name: prim.basic_info.name().to_owned(),
-                num_children: None,
-                converted_type: prim.basic_info.converted_type().into(),
-                scale: if prim.scale >= 0 {
-                    Some(prim.scale)
-                } else {
-                    None
-                },
-                precision: if prim.precision >= 0 {
-                    Some(prim.precision)
-                } else {
-                    None
-                },
-                field_id: if prim.basic_info.has_id() {
-                    Some(prim.basic_info.id())
-                } else {
-                    None
-                },
-                logical_type: prim.basic_info.logical_type().map(|value| value.into()),
-            };
-
-            elements.push(element);
-        }
-        Type::GroupType(group) => {
-            let repetition = if group.basic_info.has_repetition() {
-                Some(group.basic_info.repetition().into())
-            } else {
-                None
-            };
-
-            let element = SchemaElement {
-                type_: None,
-                type_length: None,
-                repetition_type: repetition,
-                name: group.basic_info.name().to_owned(),
-                num_children: Some(group.fields.len() as i32),
-                converted_type: group.basic_info.converted_type().into(),
-                scale: None,
-                precision: None,
-                field_id: if group.basic_info.has_id() {
-                    Some(group.basic_info.id())
-                } else {
-                    None
-                },
-                logical_type: group.basic_info.logical_type().map(|value| value.into()),
-            };
-
-            elements.push(element);
-
-            // Add child elements for a group
-            for field in &group.fields {
-                to_thrift_helper(field, elements);
-            }
-        }
+fn type_to_thrift(typ: &Type, elements: &mut Vec<SchemaElement>) {
+    match typ {
+        Type::GroupType(group) => group_to_thrift(group, elements),
+        Type::PrimitiveType(prim) => primitive_to_thrift(prim, elements),
     }
+}
+
+fn group_to_thrift(group: &GroupType, elements: &mut Vec<SchemaElement>) {
+    let repetition = if group.basic_info.has_repetition() {
+        Some(group.basic_info.repetition().into())
+    } else {
+        None
+    };
+
+    let element = SchemaElement {
+        type_: None,
+        type_length: None,
+        repetition_type: repetition,
+        name: group.basic_info.name().to_owned(),
+        num_children: Some(group.fields.len() as i32),
+        converted_type: group.basic_info.converted_type().into(),
+        scale: None,
+        precision: None,
+        field_id: if group.basic_info.has_id() {
+            Some(group.basic_info.id())
+        } else {
+            None
+        },
+        logical_type: group.basic_info.logical_type().map(|value| value.into()),
+    };
+
+    elements.push(element);
+
+    // Add child elements for a group
+    for field in &group.fields {
+        type_to_thrift(field, elements);
+    }
+}
+
+fn primitive_to_thrift(prim: &PrimitiveType, elements: &mut Vec<SchemaElement>) {
+    let element = SchemaElement {
+        type_: Some(prim.physical_type.into()),
+        type_length: if prim.type_length >= 0 {
+            Some(prim.type_length)
+        } else {
+            None
+        },
+        repetition_type: Some(prim.basic_info.repetition().into()),
+        name: prim.basic_info.name().to_owned(),
+        num_children: None,
+        converted_type: prim.basic_info.converted_type().into(),
+        scale: if prim.scale >= 0 {
+            Some(prim.scale)
+        } else {
+            None
+        },
+        precision: if prim.precision >= 0 {
+            Some(prim.precision)
+        } else {
+            None
+        },
+        field_id: if prim.basic_info.has_id() {
+            Some(prim.basic_info.id())
+        } else {
+            None
+        },
+        logical_type: prim.basic_info.logical_type().map(|value| value.into()),
+    };
+
+    elements.push(element);
 }
 
 #[cfg(test)]
@@ -1635,10 +1605,8 @@ mod tests {
       }
     }
     ";
-        let schema = parse_message_type(message_type)
-            .expect("should parse schema")
-            .unwrap_group_type();
-        let descr = SchemaDescriptor::new(schema);
+        let schema = parse_message_type(message_type).expect("should parse schema");
+        let descr = SchemaDescriptor::new(Arc::new(schema));
         // required int32 a
         assert_eq!(descr.column(0).max_def_level(), 0);
         assert_eq!(descr.column(0).max_rep_level(), 0);
@@ -1664,270 +1632,6 @@ mod tests {
             .build()
             .unwrap();
         assert_eq!(f.physical_type, PhysicalType::BYTE_ARRAY);
-    }
-
-    #[test]
-    fn test_check_contains_primitive_primitive() {
-        // OK
-        let f1 = Type::primitive_type_builder("f", PhysicalType::INT32)
-            .build()
-            .unwrap();
-        let f2 = Type::primitive_type_builder("f", PhysicalType::INT32)
-            .build()
-            .unwrap();
-        assert!(f1.check_contains(&f2));
-
-        // OK: different logical type does not affect check_contains
-        let f1 = Type::primitive_type_builder("f", PhysicalType::INT32)
-            .with_converted_type(ConvertedType::UINT_8)
-            .build()
-            .unwrap();
-        let f2 = Type::primitive_type_builder("f", PhysicalType::INT32)
-            .with_converted_type(ConvertedType::UINT_16)
-            .build()
-            .unwrap();
-        assert!(f1.check_contains(&f2));
-
-        // KO: different name
-        let f1 = Type::primitive_type_builder("f1", PhysicalType::INT32)
-            .build()
-            .unwrap();
-        let f2 = Type::primitive_type_builder("f2", PhysicalType::INT32)
-            .build()
-            .unwrap();
-        assert!(!f1.check_contains(&f2));
-
-        // KO: different type
-        let f1 = Type::primitive_type_builder("f", PhysicalType::INT32)
-            .build()
-            .unwrap();
-        let f2 = Type::primitive_type_builder("f", PhysicalType::INT64)
-            .build()
-            .unwrap();
-        assert!(!f1.check_contains(&f2));
-
-        // KO: different repetition
-        let f1 = Type::primitive_type_builder("f", PhysicalType::INT32)
-            .with_repetition(Repetition::REQUIRED)
-            .build()
-            .unwrap();
-        let f2 = Type::primitive_type_builder("f", PhysicalType::INT32)
-            .with_repetition(Repetition::OPTIONAL)
-            .build()
-            .unwrap();
-        assert!(!f1.check_contains(&f2));
-    }
-
-    // function to create a new group type for testing
-    fn test_new_group_type(name: &str, repetition: Repetition, types: Vec<Type>) -> Type {
-        Type::group_type_builder(name)
-            .with_repetition(repetition)
-            .with_fields(types.into_iter().map(Arc::new).collect())
-            .build()
-            .unwrap()
-    }
-
-    #[test]
-    fn test_check_contains_group_group() {
-        // OK: should match okay with empty fields
-        let f1 = Type::group_type_builder("f").build().unwrap();
-        let f2 = Type::group_type_builder("f").build().unwrap();
-        assert!(f1.check_contains(&f2));
-
-        // OK: fields match
-        let f1 = test_new_group_type(
-            "f",
-            Repetition::REPEATED,
-            vec![
-                Type::primitive_type_builder("f1", PhysicalType::INT32)
-                    .build()
-                    .unwrap(),
-                Type::primitive_type_builder("f2", PhysicalType::INT64)
-                    .build()
-                    .unwrap(),
-            ],
-        );
-        let f2 = test_new_group_type(
-            "f",
-            Repetition::REPEATED,
-            vec![
-                Type::primitive_type_builder("f1", PhysicalType::INT32)
-                    .build()
-                    .unwrap(),
-                Type::primitive_type_builder("f2", PhysicalType::INT64)
-                    .build()
-                    .unwrap(),
-            ],
-        );
-        assert!(f1.check_contains(&f2));
-
-        // OK: subset of fields
-        let f1 = test_new_group_type(
-            "f",
-            Repetition::REPEATED,
-            vec![
-                Type::primitive_type_builder("f1", PhysicalType::INT32)
-                    .build()
-                    .unwrap(),
-                Type::primitive_type_builder("f2", PhysicalType::INT64)
-                    .build()
-                    .unwrap(),
-            ],
-        );
-        let f2 = test_new_group_type(
-            "f",
-            Repetition::REPEATED,
-            vec![
-                Type::primitive_type_builder("f2", PhysicalType::INT64)
-                    .build()
-                    .unwrap(),
-            ],
-        );
-        assert!(f1.check_contains(&f2));
-
-        // KO: different name
-        let f1 = Type::group_type_builder("f1").build().unwrap();
-        let f2 = Type::group_type_builder("f2").build().unwrap();
-        assert!(!f1.check_contains(&f2));
-
-        // KO: different repetition
-        let f1 = Type::group_type_builder("f")
-            .with_repetition(Repetition::OPTIONAL)
-            .build()
-            .unwrap();
-        let f2 = Type::group_type_builder("f")
-            .with_repetition(Repetition::REPEATED)
-            .build()
-            .unwrap();
-        assert!(!f1.check_contains(&f2));
-
-        // KO: different fields
-        let f1 = test_new_group_type(
-            "f",
-            Repetition::REPEATED,
-            vec![
-                Type::primitive_type_builder("f1", PhysicalType::INT32)
-                    .build()
-                    .unwrap(),
-                Type::primitive_type_builder("f2", PhysicalType::INT64)
-                    .build()
-                    .unwrap(),
-            ],
-        );
-        let f2 = test_new_group_type(
-            "f",
-            Repetition::REPEATED,
-            vec![
-                Type::primitive_type_builder("f1", PhysicalType::INT32)
-                    .build()
-                    .unwrap(),
-                Type::primitive_type_builder("f2", PhysicalType::BOOLEAN)
-                    .build()
-                    .unwrap(),
-            ],
-        );
-        assert!(!f1.check_contains(&f2));
-
-        // KO: different fields
-        let f1 = test_new_group_type(
-            "f",
-            Repetition::REPEATED,
-            vec![
-                Type::primitive_type_builder("f1", PhysicalType::INT32)
-                    .build()
-                    .unwrap(),
-                Type::primitive_type_builder("f2", PhysicalType::INT64)
-                    .build()
-                    .unwrap(),
-            ],
-        );
-        let f2 = test_new_group_type(
-            "f",
-            Repetition::REPEATED,
-            vec![
-                Type::primitive_type_builder("f3", PhysicalType::INT32)
-                    .build()
-                    .unwrap(),
-            ],
-        );
-        assert!(!f1.check_contains(&f2));
-    }
-
-    #[test]
-    fn test_check_contains_group_primitive() {
-        // KO: should not match
-        let f1 = Type::group_type_builder("f").build().unwrap();
-        let f2 = Type::primitive_type_builder("f", PhysicalType::INT64)
-            .build()
-            .unwrap();
-        assert!(!f1.check_contains(&f2));
-        assert!(!f2.check_contains(&f1));
-
-        // KO: should not match when primitive field is part of group type
-        let f1 = test_new_group_type(
-            "f",
-            Repetition::REPEATED,
-            vec![
-                Type::primitive_type_builder("f1", PhysicalType::INT32)
-                    .build()
-                    .unwrap(),
-            ],
-        );
-        let f2 = Type::primitive_type_builder("f1", PhysicalType::INT32)
-            .build()
-            .unwrap();
-        assert!(!f1.check_contains(&f2));
-        assert!(!f2.check_contains(&f1));
-
-        // OK: match nested types
-        let f1 = test_new_group_type(
-            "a",
-            Repetition::REPEATED,
-            vec![
-                test_new_group_type(
-                    "b",
-                    Repetition::REPEATED,
-                    vec![
-                        Type::primitive_type_builder("c", PhysicalType::INT32)
-                            .build()
-                            .unwrap(),
-                    ],
-                ),
-                Type::primitive_type_builder("d", PhysicalType::INT64)
-                    .build()
-                    .unwrap(),
-                Type::primitive_type_builder("e", PhysicalType::BOOLEAN)
-                    .build()
-                    .unwrap(),
-            ],
-        );
-        let f2 = test_new_group_type(
-            "a",
-            Repetition::REPEATED,
-            vec![test_new_group_type(
-                "b",
-                Repetition::REPEATED,
-                vec![
-                    Type::primitive_type_builder("c", PhysicalType::INT32)
-                        .build()
-                        .unwrap(),
-                ],
-            )],
-        );
-        assert!(f1.check_contains(&f2)); // should match
-        assert!(!f2.check_contains(&f1)); // should fail
-    }
-
-    #[test]
-    fn test_schema_type_thrift_conversion_err() {
-        let schema = Type::primitive_type_builder("col", PhysicalType::INT32)
-            .build()
-            .unwrap();
-        let thrift_schema = to_thrift(&schema);
-        assert!(thrift_schema.is_err());
-        if let Err(e) = thrift_schema {
-            assert_eq!(format!("{e}"), "Root schema must be Group type");
-        }
     }
 
     #[test]
@@ -1980,9 +1684,9 @@ mod tests {
     }
     ";
         let expected_schema = parse_message_type(message_type).unwrap();
-        let thrift_schema = to_thrift(&expected_schema).unwrap();
-        let result_schema = from_thrift(&thrift_schema).unwrap();
-        assert_eq!(result_schema, Arc::new(expected_schema));
+        let thrift_schema = schema_to_thrift(&expected_schema).unwrap();
+        let result_schema = schema_from_thrift(&thrift_schema).unwrap();
+        assert_eq!(result_schema.as_ref(), &expected_schema);
     }
 
     #[test]
@@ -1996,9 +1700,9 @@ mod tests {
     }
     ";
         let expected_schema = parse_message_type(message_type).unwrap();
-        let thrift_schema = to_thrift(&expected_schema).unwrap();
-        let result_schema = from_thrift(&thrift_schema).unwrap();
-        assert_eq!(result_schema, Arc::new(expected_schema));
+        let thrift_schema = schema_to_thrift(&expected_schema).unwrap();
+        let result_schema = schema_from_thrift(&thrift_schema).unwrap();
+        assert_eq!(result_schema.as_ref(), &expected_schema);
     }
 
     // Tests schema conversion from thrift, when num_children is set to Some(0) for a
@@ -2018,7 +1722,7 @@ mod tests {
     ";
 
         let expected_schema = parse_message_type(message_type).unwrap();
-        let mut thrift_schema = to_thrift(&expected_schema).unwrap();
+        let mut thrift_schema = schema_to_thrift(&expected_schema).unwrap();
         // Change all of None to Some(0)
         for elem in &mut thrift_schema[..] {
             if elem.num_children.is_none() {
@@ -2026,8 +1730,8 @@ mod tests {
             }
         }
 
-        let result_schema = from_thrift(&thrift_schema).unwrap();
-        assert_eq!(result_schema, Arc::new(expected_schema));
+        let result_schema = schema_from_thrift(&thrift_schema).unwrap();
+        assert_eq!(result_schema.as_ref(), &expected_schema);
     }
 
     // Sometimes parquet-cpp sets repetition level for the root node, which is against
@@ -2043,11 +1747,11 @@ mod tests {
     ";
 
         let expected_schema = parse_message_type(message_type).unwrap();
-        let mut thrift_schema = to_thrift(&expected_schema).unwrap();
+        let mut thrift_schema = schema_to_thrift(&expected_schema).unwrap();
         thrift_schema[0].repetition_type = Some(Repetition::REQUIRED.into());
 
-        let result_schema = from_thrift(&thrift_schema).unwrap();
-        assert_eq!(result_schema, Arc::new(expected_schema));
+        let result_schema = schema_from_thrift(&thrift_schema).unwrap();
+        assert_eq!(result_schema.as_ref(), &expected_schema);
     }
 
     #[test]
@@ -2055,10 +1759,10 @@ mod tests {
         let message_type = "message schema {}";
 
         let expected_schema = parse_message_type(message_type).unwrap();
-        let mut thrift_schema = to_thrift(&expected_schema).unwrap();
+        let mut thrift_schema = schema_to_thrift(&expected_schema).unwrap();
         thrift_schema[0].repetition_type = Some(Repetition::REQUIRED.into());
 
-        let result_schema = from_thrift(&thrift_schema).unwrap();
-        assert_eq!(result_schema, Arc::new(expected_schema));
+        let result_schema = schema_from_thrift(&thrift_schema).unwrap();
+        assert_eq!(result_schema.as_ref(), &expected_schema);
     }
 }

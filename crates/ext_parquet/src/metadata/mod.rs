@@ -38,7 +38,7 @@ use crate::format::{
     SortingColumn,
 };
 use crate::metadata::page_index::index::Index;
-use crate::schema::types::{ColumnDescPtr, ColumnPath, SchemaDescPtr, Type as SchemaType};
+use crate::schema::types::{ColumnDescPtr, ColumnPath, GroupType, SchemaDescPtr};
 
 /// The length of the parquet footer in bytes
 pub const FOOTER_SIZE: usize = 8;
@@ -182,11 +182,11 @@ impl FileMetaData {
         }
     }
 
-    /// Returns Parquet [`Type`] that describes schema in this file.
+    /// Returns Parquet [`GroupType`] that describes schema in this file.
     ///
     /// [`Type`]: crate::schema::types::Type
-    pub fn schema(&self) -> &SchemaType {
-        self.schema_descr.root_schema()
+    pub fn schema(&self) -> &GroupType {
+        self.schema_descr.schema_type()
     }
 
     /// Returns column order for `i`th column in this file.
@@ -824,7 +824,7 @@ mod tests {
 
     use super::*;
     use crate::basic::PageType;
-    use crate::schema::types::SchemaDescriptor;
+    use crate::schema::types::{SchemaDescriptor, Type as SchemaType};
 
     #[test]
     fn test_row_group_metadata_thrift_conversion() {
@@ -867,12 +867,14 @@ mod tests {
                         SchemaType::primitive_type_builder("a", Type::INT32)
                             .build()
                             .unwrap(),
-                    ),
+                    )
+                    .into(),
                     Arc::new(
                         SchemaType::primitive_type_builder("b", Type::INT32)
                             .build()
                             .unwrap(),
-                    ),
+                    )
+                    .into(),
                 ])
                 .build()
                 .unwrap(),
@@ -885,17 +887,20 @@ mod tests {
                         SchemaType::primitive_type_builder("a", Type::INT32)
                             .build()
                             .unwrap(),
-                    ),
+                    )
+                    .into(),
                     Arc::new(
                         SchemaType::primitive_type_builder("b", Type::INT32)
                             .build()
                             .unwrap(),
-                    ),
+                    )
+                    .into(),
                     Arc::new(
                         SchemaType::primitive_type_builder("c", Type::INT32)
                             .build()
                             .unwrap(),
-                    ),
+                    )
+                    .into(),
                 ])
                 .build()
                 .unwrap(),
@@ -1010,12 +1015,14 @@ mod tests {
                     SchemaType::primitive_type_builder("a", Type::INT32)
                         .build()
                         .unwrap(),
-                ),
+                )
+                .into(),
                 Arc::new(
                     SchemaType::primitive_type_builder("b", Type::INT32)
                         .build()
                         .unwrap(),
-                ),
+                )
+                .into(),
             ])
             .build()
             .unwrap();

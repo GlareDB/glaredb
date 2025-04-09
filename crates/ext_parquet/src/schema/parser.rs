@@ -23,14 +23,15 @@ use std::sync::Arc;
 
 use glaredb_error::{DbError, Result};
 
+use super::types::{GroupType, PrimitiveType};
 use crate::basic::{ConvertedType, LogicalType, Repetition, Type as PhysicalType};
 use crate::format::TimeUnit;
-use crate::schema::types::{Type, TypePtr};
+use crate::schema::types::Type;
 
-/// Parses message type as string into a Parquet [`Type`]
+/// Parses message type as string into a Parquet [`GroupType`]
 /// which, for example, could be used to extract individual columns. Returns Parquet
 /// general error when parsing or validation fails.
-pub fn parse_message_type(message_type: &str) -> Result<Type> {
+pub fn parse_message_type(message_type: &str) -> Result<GroupType> {
     let mut parser = Parser {
         tokenizer: &mut Tokenizer::from_str(message_type),
     };
@@ -165,7 +166,7 @@ fn parse_timeunit(
 
 impl Parser<'_> {
     // Entry function to parse message type, uses internal tokenizer.
-    fn parse_message_type(&mut self) -> Result<Type> {
+    fn parse_message_type(&mut self) -> Result<GroupType> {
         // Check that message type starts with "message".
         match self.tokenizer.next() {
             Some("message") => {
@@ -183,7 +184,7 @@ impl Parser<'_> {
 
     // Parses child types for a current group type.
     // This is only invoked on root and group types.
-    fn parse_child_types(&mut self) -> Result<Vec<TypePtr>> {
+    fn parse_child_types(&mut self) -> Result<Vec<Type>> {
         assert_token(self.tokenizer.next(), "{")?;
         let mut vec = Vec::new();
         while let Some(value) = self.tokenizer.next() {
@@ -191,7 +192,7 @@ impl Parser<'_> {
                 break;
             } else {
                 self.tokenizer.backtrack();
-                vec.push(Arc::new(self.add_type()?));
+                vec.push(self.add_type()?);
             }
         }
         Ok(vec)
@@ -206,16 +207,20 @@ impl Parser<'_> {
             .and_then(|v| v.to_uppercase().parse::<Repetition>())?;
 
         match self.tokenizer.next() {
-            Some(group) if group.to_uppercase() == "GROUP" => self.add_group_type(Some(repetition)),
+            Some(group) if group.to_uppercase() == "GROUP" => {
+                let group = self.add_group_type(Some(repetition))?;
+                Ok(Type::GroupType(Arc::new(group)))
+            }
             Some(type_string) => {
                 let physical_type = type_string.to_uppercase().parse::<PhysicalType>()?;
-                self.add_primitive_type(repetition, physical_type)
+                let prim = self.add_primitive_type(repetition, physical_type)?;
+                Ok(Type::PrimitiveType(Arc::new(prim)))
             }
             None => Err(DbError::new("Invalid type, could not extract next token")),
         }
     }
 
-    fn add_group_type(&mut self, repetition: Option<Repetition>) -> Result<Type> {
+    fn add_group_type(&mut self, repetition: Option<Repetition>) -> Result<GroupType> {
         // Parse name of the group type
         let name = self
             .tokenizer
@@ -269,7 +274,7 @@ impl Parser<'_> {
         &mut self,
         repetition: Repetition,
         physical_type: PhysicalType,
-    ) -> Result<Type> {
+    ) -> Result<PrimitiveType> {
         // Read type length if the type is FIXED_LEN_BYTE_ARRAY.
         let mut length: i32 = -1;
         if physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY {
@@ -590,7 +595,7 @@ mod tests {
         assert!(assert_token(None, "b").is_err());
     }
 
-    fn parse(schema: &str) -> Result<Type> {
+    fn parse(schema: &str) -> Result<GroupType> {
         let mut iter = Tokenizer::from_str(schema);
         Parser {
             tokenizer: &mut iter,
@@ -847,7 +852,8 @@ mod tests {
                         .with_scale(3)
                         .build()
                         .unwrap(),
-                ),
+                )
+                .into(),
                 Arc::new(
                     Type::primitive_type_builder("f2", PhysicalType::FIXED_LEN_BYTE_ARRAY)
                         .with_logical_type(Some(LogicalType::Decimal {
@@ -860,14 +866,16 @@ mod tests {
                         .with_scale(18)
                         .build()
                         .unwrap(),
-                ),
+                )
+                .into(),
                 Arc::new(
                     Type::primitive_type_builder("f3", PhysicalType::FIXED_LEN_BYTE_ARRAY)
                         .with_logical_type(Some(LogicalType::Float16))
                         .with_length(2)
                         .build()
                         .unwrap(),
-                ),
+                )
+                .into(),
             ])
             .build()
             .unwrap();
@@ -896,61 +904,77 @@ mod tests {
         let message = parse(schema).unwrap();
 
         let expected = Type::group_type_builder("root")
-            .with_fields(vec![Arc::new(
-                Type::group_type_builder("a0")
-                    .with_repetition(Repetition::REQUIRED)
-                    .with_fields(vec![
-                        Arc::new(
-                            Type::group_type_builder("a1")
-                                .with_repetition(Repetition::OPTIONAL)
-                                .with_logical_type(Some(LogicalType::List))
-                                .with_converted_type(ConvertedType::LIST)
-                                .with_fields(vec![Arc::new(
-                                    Type::primitive_type_builder("a2", PhysicalType::BYTE_ARRAY)
-                                        .with_repetition(Repetition::REPEATED)
-                                        .with_converted_type(ConvertedType::UTF8)
-                                        .build()
-                                        .unwrap(),
-                                )])
-                                .build()
-                                .unwrap(),
-                        ),
-                        Arc::new(
-                            Type::group_type_builder("b1")
-                                .with_repetition(Repetition::OPTIONAL)
-                                .with_logical_type(Some(LogicalType::List))
-                                .with_converted_type(ConvertedType::LIST)
-                                .with_fields(vec![Arc::new(
-                                    Type::group_type_builder("b2")
-                                        .with_repetition(Repetition::REPEATED)
-                                        .with_fields(vec![
-                                            Arc::new(
-                                                Type::primitive_type_builder(
-                                                    "b3",
-                                                    PhysicalType::INT32,
-                                                )
+            .with_fields(vec![
+                Arc::new(
+                    Type::group_type_builder("a0")
+                        .with_repetition(Repetition::REQUIRED)
+                        .with_fields(vec![
+                            Arc::new(
+                                Type::group_type_builder("a1")
+                                    .with_repetition(Repetition::OPTIONAL)
+                                    .with_logical_type(Some(LogicalType::List))
+                                    .with_converted_type(ConvertedType::LIST)
+                                    .with_fields(vec![
+                                        Arc::new(
+                                            Type::primitive_type_builder(
+                                                "a2",
+                                                PhysicalType::BYTE_ARRAY,
+                                            )
+                                            .with_repetition(Repetition::REPEATED)
+                                            .with_converted_type(ConvertedType::UTF8)
+                                            .build()
+                                            .unwrap(),
+                                        )
+                                        .into(),
+                                    ])
+                                    .build()
+                                    .unwrap(),
+                            )
+                            .into(),
+                            Arc::new(
+                                Type::group_type_builder("b1")
+                                    .with_repetition(Repetition::OPTIONAL)
+                                    .with_logical_type(Some(LogicalType::List))
+                                    .with_converted_type(ConvertedType::LIST)
+                                    .with_fields(vec![
+                                        Arc::new(
+                                            Type::group_type_builder("b2")
+                                                .with_repetition(Repetition::REPEATED)
+                                                .with_fields(vec![
+                                                    Arc::new(
+                                                        Type::primitive_type_builder(
+                                                            "b3",
+                                                            PhysicalType::INT32,
+                                                        )
+                                                        .build()
+                                                        .unwrap(),
+                                                    )
+                                                    .into(),
+                                                    Arc::new(
+                                                        Type::primitive_type_builder(
+                                                            "b4",
+                                                            PhysicalType::DOUBLE,
+                                                        )
+                                                        .build()
+                                                        .unwrap(),
+                                                    )
+                                                    .into(),
+                                                ])
                                                 .build()
                                                 .unwrap(),
-                                            ),
-                                            Arc::new(
-                                                Type::primitive_type_builder(
-                                                    "b4",
-                                                    PhysicalType::DOUBLE,
-                                                )
-                                                .build()
-                                                .unwrap(),
-                                            ),
-                                        ])
-                                        .build()
-                                        .unwrap(),
-                                )])
-                                .build()
-                                .unwrap(),
-                        ),
-                    ])
-                    .build()
-                    .unwrap(),
-            )])
+                                        )
+                                        .into(),
+                                    ])
+                                    .build()
+                                    .unwrap(),
+                            )
+                            .into(),
+                        ])
+                        .build()
+                        .unwrap(),
+                )
+                .into(),
+            ])
             .build()
             .unwrap();
 
@@ -978,39 +1002,45 @@ mod tests {
                     .with_converted_type(ConvertedType::INT_8)
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_2", PhysicalType::INT32)
                     .with_repetition(Repetition::REQUIRED)
                     .with_converted_type(ConvertedType::INT_16)
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_3", PhysicalType::FLOAT)
                     .with_repetition(Repetition::REQUIRED)
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_4", PhysicalType::DOUBLE)
                     .with_repetition(Repetition::REQUIRED)
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_5", PhysicalType::INT32)
                     .with_logical_type(Some(LogicalType::Date))
                     .with_converted_type(ConvertedType::DATE)
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_6", PhysicalType::BYTE_ARRAY)
                     .with_converted_type(ConvertedType::UTF8)
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
         ];
 
         let expected = Type::group_type_builder("root")
@@ -1048,7 +1078,8 @@ mod tests {
                     }))
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_2", PhysicalType::INT32)
                     .with_repetition(Repetition::REQUIRED)
@@ -1058,25 +1089,29 @@ mod tests {
                     }))
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_3", PhysicalType::FLOAT)
                     .with_repetition(Repetition::REQUIRED)
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_4", PhysicalType::DOUBLE)
                     .with_repetition(Repetition::REQUIRED)
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_5", PhysicalType::INT32)
                     .with_logical_type(Some(LogicalType::Date))
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_6", PhysicalType::INT32)
                     .with_logical_type(Some(LogicalType::Time {
@@ -1085,7 +1120,8 @@ mod tests {
                     }))
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_7", PhysicalType::INT64)
                     .with_logical_type(Some(LogicalType::Time {
@@ -1094,7 +1130,8 @@ mod tests {
                     }))
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_8", PhysicalType::INT64)
                     .with_logical_type(Some(LogicalType::Timestamp {
@@ -1103,7 +1140,8 @@ mod tests {
                     }))
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_9", PhysicalType::INT64)
                     .with_logical_type(Some(LogicalType::Timestamp {
@@ -1112,13 +1150,15 @@ mod tests {
                     }))
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 Type::primitive_type_builder("_10", PhysicalType::BYTE_ARRAY)
                     .with_logical_type(Some(LogicalType::String))
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
         ];
 
         let expected = Type::group_type_builder("root")

@@ -21,6 +21,7 @@
 
 use std::{fmt, io};
 
+use super::types::{GroupType, PrimitiveType};
 use crate::basic::{ConvertedType, LogicalType, Type as PhysicalType};
 use crate::format::TimeUnit;
 use crate::metadata::{ColumnChunkMetaData, FileMetaData, ParquetMetaData, RowGroupMetaData};
@@ -65,15 +66,15 @@ pub fn print_file_metadata(out: &mut dyn io::Write, file_metadata: &FileMetaData
     print_schema(out, schema);
 }
 
-/// Prints Parquet [`Type`] information.
+/// Prints Parquet [`GroupType`] information.
 #[allow(unused_must_use)]
-pub fn print_schema(out: &mut dyn io::Write, tp: &Type) {
+pub fn print_schema(out: &mut dyn io::Write, tp: &GroupType) {
     // TODO: better if we can pass fmt::Write to Printer.
     // But how can we make it to accept both io::Write & fmt::Write?
     let mut s = String::new();
     {
         let mut printer = Printer::new(&mut s);
-        printer.print(tp);
+        printer.print_group(tp);
     }
     writeln!(out, "{s}");
 }
@@ -279,78 +280,77 @@ fn print_logical_and_converted(
 impl Printer<'_> {
     pub fn print(&mut self, tp: &Type) {
         self.print_indent();
-        match *tp {
-            Type::PrimitiveType {
-                ref basic_info,
-                physical_type,
-                type_length,
-                scale,
-                precision,
-            } => {
-                let phys_type_str = match physical_type {
-                    PhysicalType::FIXED_LEN_BYTE_ARRAY => {
-                        // We need to include length for fixed byte array
-                        format!("{physical_type} ({type_length})")
-                    }
-                    _ => format!("{physical_type}"),
-                };
-                // Also print logical type if it is available
-                // If there is a logical type, do not print converted type
-                let logical_type_str = print_logical_and_converted(
-                    basic_info.logical_type().as_ref(),
-                    basic_info.converted_type(),
-                    precision,
-                    scale,
-                );
-                if logical_type_str.is_empty() {
-                    write!(
-                        self.output,
-                        "{} {} {};",
-                        basic_info.repetition(),
-                        phys_type_str,
-                        basic_info.name()
-                    );
-                } else {
-                    write!(
-                        self.output,
-                        "{} {} {} ({});",
-                        basic_info.repetition(),
-                        phys_type_str,
-                        basic_info.name(),
-                        logical_type_str
-                    );
-                }
+        match tp {
+            Type::PrimitiveType(prim) => {
+                self.print_primitive(prim);
             }
-            Type::GroupType {
-                ref basic_info,
-                ref fields,
-            } => {
-                if basic_info.has_repetition() {
-                    let r = basic_info.repetition();
-                    write!(self.output, "{} group {} ", r, basic_info.name());
-                    let logical_str = print_logical_and_converted(
-                        basic_info.logical_type().as_ref(),
-                        basic_info.converted_type(),
-                        0,
-                        0,
-                    );
-                    if !logical_str.is_empty() {
-                        write!(self.output, "({logical_str}) ");
-                    }
-                    writeln!(self.output, "{{");
-                } else {
-                    writeln!(self.output, "message {} {{", basic_info.name());
-                }
+            Type::GroupType(group) => {
+                self.print_group(group);
+            }
+        }
+    }
 
-                self.indent += INDENT_WIDTH;
-                for c in fields {
-                    self.print(c);
-                    writeln!(self.output);
-                }
-                self.indent -= INDENT_WIDTH;
-                self.print_indent();
-                write!(self.output, "}}");
+    pub fn print_group(&mut self, group: &GroupType) {
+        if group.basic_info.has_repetition() {
+            let r = group.basic_info.repetition();
+            write!(self.output, "{} group {} ", r, group.basic_info.name());
+            let logical_str = print_logical_and_converted(
+                group.basic_info.logical_type().as_ref(),
+                group.basic_info.converted_type(),
+                0,
+                0,
+            );
+            if !logical_str.is_empty() {
+                write!(self.output, "({logical_str}) ");
             }
+            writeln!(self.output, "{{");
+        } else {
+            writeln!(self.output, "message {} {{", group.basic_info.name());
+        }
+
+        self.indent += INDENT_WIDTH;
+        for c in &group.fields {
+            self.print(c);
+            writeln!(self.output);
+        }
+        self.indent -= INDENT_WIDTH;
+        self.print_indent();
+        write!(self.output, "}}");
+    }
+
+    pub fn print_primitive(&mut self, prim: &PrimitiveType) {
+        let phys_type_str = match prim.physical_type {
+            PhysicalType::FIXED_LEN_BYTE_ARRAY => {
+                // We need to include length for fixed byte array
+                format!("{} ({})", prim.physical_type, prim.type_length)
+            }
+            typ => format!("{typ}"),
+        };
+        // Also print logical type if it is available
+        // If there is a logical type, do not print converted type
+        let logical_type_str = print_logical_and_converted(
+            prim.basic_info.logical_type().as_ref(),
+            prim.basic_info.converted_type(),
+            prim.precision,
+            prim.scale,
+        );
+        if logical_type_str.is_empty() {
+            write!(
+                self.output,
+                "{} {} {};",
+                prim.basic_info.repetition(),
+                phys_type_str,
+                prim.basic_info.name()
+            );
+        } else {
+            write!(
+                self.output,
+                "{} {} {} ({});",
+                prim.basic_info.repetition(),
+                phys_type_str,
+                prim.basic_info.name(),
+                logical_type_str
+            );
         }
     }
 }
@@ -365,11 +365,11 @@ mod tests {
     use crate::basic::{Repetition, Type as PhysicalType};
     use crate::schema::parser::parse_message_type;
 
-    fn assert_print_parse_message(message: Type) {
+    fn assert_print_parse_message(message: GroupType) {
         let mut s = String::new();
         {
             let mut p = Printer::new(&mut s);
-            p.print(&message);
+            p.print_group(&message);
         }
         println!("{}", &s);
         let parsed = parse_message_type(&s).unwrap();
@@ -386,19 +386,18 @@ mod tests {
                 .with_converted_type(ConvertedType::INT_32)
                 .build()
                 .unwrap();
-            p.print(&field);
+            p.print_primitive(&field);
         }
         assert_eq!(&mut s, "REQUIRED INT32 field (INT_32);");
     }
 
-    #[inline]
     fn build_primitive_type(
         name: &str,
         physical_type: PhysicalType,
         logical_type: Option<LogicalType>,
         converted_type: ConvertedType,
         repetition: Repetition,
-    ) -> Result<Type> {
+    ) -> Result<PrimitiveType> {
         Type::primitive_type_builder(name, physical_type)
             .with_repetition(repetition)
             .with_logical_type(logical_type)
@@ -584,13 +583,12 @@ mod tests {
             let mut s = String::new();
             {
                 let mut p = Printer::new(&mut s);
-                p.print(&field);
+                p.print_primitive(&field);
             }
             assert_eq!(&s, expected)
         });
     }
 
-    #[inline]
     fn decimal_length_from_precision(precision: usize) -> i32 {
         let max_val = 10.0_f64.powi(precision as i32) - 1.0;
         let bits_unsigned = max_val.log2().ceil();
@@ -660,7 +658,7 @@ mod tests {
             let mut s = String::new();
             {
                 let mut p = Printer::new(&mut s);
-                p.print(&field);
+                p.print_primitive(&field);
             }
             assert_eq!(&s, expected)
         });
@@ -692,9 +690,9 @@ mod tests {
                 .build();
 
             let struct_fields = vec![
-                Arc::new(f1.unwrap()),
-                Arc::new(f2.unwrap()),
-                Arc::new(f3.unwrap()),
+                Arc::new(f1.unwrap()).into(),
+                Arc::new(f2.unwrap()).into(),
+                Arc::new(f3.unwrap()).into(),
             ];
             let field = Type::group_type_builder("field")
                 .with_repetition(Repetition::OPTIONAL)
@@ -703,13 +701,13 @@ mod tests {
                 .build()
                 .unwrap();
 
-            let fields = vec![Arc::new(field), Arc::new(f4.unwrap())];
+            let fields = vec![Arc::new(field).into(), Arc::new(f4.unwrap()).into()];
             let message = Type::group_type_builder("schema")
                 .with_fields(fields)
                 .with_id(Some(2))
                 .build()
                 .unwrap();
-            p.print(&message);
+            p.print_group(&message);
         }
         let expected = "message schema {
   OPTIONAL group field {
@@ -734,7 +732,7 @@ mod tests {
             .with_repetition(Repetition::OPTIONAL)
             .with_logical_type(Some(LogicalType::List))
             .with_converted_type(ConvertedType::LIST)
-            .with_fields(vec![Arc::new(a2)])
+            .with_fields(vec![Arc::new(a2).into()])
             .build()
             .unwrap();
 
@@ -751,7 +749,7 @@ mod tests {
         let b2 = Type::group_type_builder("b2")
             .with_repetition(Repetition::REPEATED)
             .with_converted_type(ConvertedType::NONE)
-            .with_fields(vec![Arc::new(b3), Arc::new(b4)])
+            .with_fields(vec![Arc::new(b3).into(), Arc::new(b4).into()])
             .build()
             .unwrap();
 
@@ -759,18 +757,18 @@ mod tests {
             .with_repetition(Repetition::OPTIONAL)
             .with_logical_type(Some(LogicalType::List))
             .with_converted_type(ConvertedType::LIST)
-            .with_fields(vec![Arc::new(b2)])
+            .with_fields(vec![Arc::new(b2).into()])
             .build()
             .unwrap();
 
         let a0 = Type::group_type_builder("a0")
             .with_repetition(Repetition::REQUIRED)
-            .with_fields(vec![Arc::new(a1), Arc::new(b1)])
+            .with_fields(vec![Arc::new(a1).into(), Arc::new(b1).into()])
             .build()
             .unwrap();
 
         let message = Type::group_type_builder("root")
-            .with_fields(vec![Arc::new(a0)])
+            .with_fields(vec![Arc::new(a0).into()])
             .build()
             .unwrap();
 
@@ -793,7 +791,7 @@ mod tests {
 
         let field = Type::group_type_builder("field")
             .with_repetition(Repetition::OPTIONAL)
-            .with_fields(vec![Arc::new(f1), Arc::new(f2)])
+            .with_fields(vec![Arc::new(f1).into(), Arc::new(f2).into()])
             .build()
             .unwrap();
 
@@ -805,7 +803,7 @@ mod tests {
             .unwrap();
 
         let message = Type::group_type_builder("schema")
-            .with_fields(vec![Arc::new(field), Arc::new(f3)])
+            .with_fields(vec![Arc::new(field).into(), Arc::new(f3).into()])
             .build()
             .unwrap();
 
@@ -839,7 +837,7 @@ mod tests {
             .unwrap();
 
         let message = Type::group_type_builder("schema")
-            .with_fields(vec![Arc::new(f1), Arc::new(f2)])
+            .with_fields(vec![Arc::new(f1).into(), Arc::new(f2).into()])
             .build()
             .unwrap();
 

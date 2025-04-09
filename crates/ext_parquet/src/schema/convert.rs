@@ -4,16 +4,17 @@ use glaredb_error::Result;
 use super::types::Type;
 
 fn convert_primitive(parquet_type: &Type) -> Result<DataType> {
-    match parquet_type {
-        Type::PrimitiveType {
-            basic_info,
-            physical_type,
-            type_length,
-            scale,
-            precision,
-        } => {
-            unimplemented!()
-        }
-        Type::GroupType { basic_info, fields } => unimplemented!(),
-    }
+    unimplemented!()
+    // match parquet_type {
+    //     Type::PrimitiveType {
+    //         basic_info,
+    //         physical_type,
+    //         type_length,
+    //         scale,
+    //         precision,
+    //     } => {
+    //         unimplemented!()
+    //     }
+    //     Type::GroupType { basic_info, fields } => unimplemented!(),
+    // }
 }
