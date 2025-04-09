@@ -150,6 +150,8 @@ impl PageReader {
                     .context("failed to decompress page")?;
             }
             None => {
+                // TODO: Check slice len
+
                 // Page not compressed, just copy the data directly.
                 let dest = unsafe { self.decompressed_page.remaining_as_slice_mut() };
                 dest.copy_from_slice(src);

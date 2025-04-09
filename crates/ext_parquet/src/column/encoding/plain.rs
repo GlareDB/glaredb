@@ -30,11 +30,10 @@ pub trait PlainDecoder: Debug + Sync + Send {
 
 /// Reads a basic (primitive, mostly) column.
 #[derive(Debug)]
-pub struct BasicPlainDecoder<S, V, C>
+pub struct BasicPlainDecoder<S, V>
 where
     S: MutableScalarStorage,
     V: ValueReader,
-    C: ValueConverter<Input = V::T, Output = S::StorageType>,
 {
     /// Optional dictionary buffer to read from.
     dictionary: Option<OwnedReadBuffer>,
@@ -46,16 +45,13 @@ where
     value_reader: V,
     /// Logic for describing how to convert a value read from the buffer to a
     /// value that should be written to the array.
-    _converter: PhantomCovariant<C>,
     _storage: PhantomCovariant<S>,
 }
 
-impl<S, V, C> PlainDecoder for BasicPlainDecoder<S, V, C>
+impl<S, V> PlainDecoder for BasicPlainDecoder<S, V>
 where
     S: MutableScalarStorage,
-    V: ValueReader,
-    C: ValueConverter<Input = V::T, Output = S::StorageType>,
-    S::StorageType: Sized,
+    V: ValueReader<Storage = S>,
 {
     fn read_plain(
         &mut self,
@@ -78,9 +74,10 @@ where
                     }
 
                     // Value is valid, read it and put into output.
-                    let v = unsafe { self.value_reader.read_unchecked(buffer) };
-                    let converted = C::convert(v);
-                    data.put(idx, &converted);
+                    unsafe {
+                        self.value_reader
+                            .read_next_unchecked(buffer, idx, &mut data)
+                    };
                 }
 
                 Ok(())
@@ -90,9 +87,10 @@ where
                     // TODO: Just copy bytes directly if we can.
 
                     // Value is valid, read it and put into output.
-                    let v = unsafe { self.value_reader.read_unchecked(buffer) };
-                    let converted = C::convert(v);
-                    data.put(idx, &converted);
+                    unsafe {
+                        self.value_reader
+                            .read_next_unchecked(buffer, idx, &mut data)
+                    };
                 }
 
                 Ok(())
