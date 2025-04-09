@@ -86,7 +86,7 @@ pub trait TypeVisitor<R, C> {
                 }
             }
             _ => Err(DbError::new(
-                "Group element type of list can only contain one field.".to_string(),
+                "Group element type of list can only contain one field.",
             )),
         }
     }

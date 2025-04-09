@@ -13,15 +13,18 @@ use glaredb_core::functions::table::{
     TableFunctionBindState,
     TableFunctionInput,
 };
+use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
+use glaredb_core::optimizer::expr_rewrite::const_fold::ConstFold;
+use glaredb_core::runtime::filesystem::{FileOpenContext, FileSystemWithState};
 use glaredb_core::storage::projections::Projections;
-use glaredb_error::{Result, not_implemented};
+use glaredb_error::{DbError, Result, not_implemented};
 
 pub const FUNCTION_SET_READ_PARQUET: TableFunctionSet = TableFunctionSet {
     name: "read_parquet",
     aliases: &["parquet_scan"],
     doc: &[&Documentation {
         category: Category::Table,
-        description: "Read a parquet file",
+        description: "Read a parquet file.",
         arguments: &["path"],
         example: None,
     }],
@@ -34,7 +37,10 @@ pub const FUNCTION_SET_READ_PARQUET: TableFunctionSet = TableFunctionSet {
 #[derive(Debug, Clone, Copy)]
 pub struct ReadParquet;
 
-pub struct ReadParquetBindState {}
+pub struct ReadParquetBindState {
+    fs: FileSystemWithState,
+    path: String,
+}
 
 pub struct ReadParquetOperatorState {}
 
@@ -50,7 +56,21 @@ impl TableScanFunction for ReadParquet {
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        not_implemented!("bind")
+        let path = ConstFold::rewrite(input.positional[0].clone())?
+            .try_into_scalar()?
+            .try_into_string()?;
+
+        // TODO: You guessed it, globs
+        let fs = scan_context.dispatch.filesystem_for_path(&path)?;
+        let context = FileOpenContext::new(scan_context.database_context, &input.named);
+        let fs = fs.try_with_context(context)?;
+        match fs.stat(&path).await? {
+            Some(stat) if stat.file_type.is_file() => (), // We have a file.
+            Some(_) => return Err(DbError::new("Cannot read parquet from a directory")),
+            None => return Err(DbError::new(format!("Missing file for path '{path}'"))),
+        }
+
+        unimplemented!()
     }
 
     fn create_pull_operator_state(
