@@ -4,11 +4,13 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use glaredb_core::arrays::batch::Batch;
+use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::execution::operators::PollPull;
 use glaredb_core::runtime::filesystem::AnyFile;
 use glaredb_core::storage::projections::Projections;
 use glaredb_error::Result;
 
+use crate::column::column_reader::ColumnReader;
 use crate::column::struct_reader::StructReader;
 use crate::metadata::ParquetMetaData;
 
@@ -78,6 +80,45 @@ struct RowGroupState {
 }
 
 impl Reader {
+    /// Create a new reader that reads from the given file.
+    ///
+    /// `groups` indicates which row groups this reader will read. Groups are
+    /// read in the order provided by the iterator.
+    pub fn try_new(
+        manager: &impl AsRawBufferManager,
+        metadata: Arc<ParquetMetaData>,
+        file: AnyFile,
+        groups: impl IntoIterator<Item = usize>,
+        projections: Projections,
+    ) -> Result<Self> {
+        let readers = projections
+            .data_indices()
+            .iter()
+            .map(|&col_idx| {
+                // TODO: I'll fix this later, we're just assuming a flat schema
+                // right now.
+                let col_descr = metadata.file_metadata.schema_descr.leaves[col_idx].clone();
+                ColumnReader::try_new(manager, col_descr)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Reader {
+            metadata,
+            file,
+            row_groups: groups.into_iter().collect(),
+            state: RowGroupState {
+                current_group: 0,
+                remaining_group_rows: 0, // Will trigger getting the real first row group.
+            },
+            fetch_state: FetchState::NeedsFetch { column_idx: 0 }, // This doesn't matter here.
+            projections,
+            root: StructReader { readers },
+        })
+    }
+
+    /// Scan rows into the output batch.
+    ///
+    /// This will fetch column chunks as needed.
     pub fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
         if self.state.remaining_group_rows == 0 {
             // No more rows, get the next row group.

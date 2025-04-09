@@ -1,5 +1,4 @@
-use std::sync::Arc;
-
+use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::buffer::typed::ByteBuffer;
 use glaredb_error::{DbError, Result, ResultExt, not_implemented};
 
@@ -14,10 +13,11 @@ use crate::schema::types::ColumnDescriptor;
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 use crate::util::bit_util::num_required_bits;
 
+// I don't remember writing this. I'm curious if it works.
 #[derive(Debug)]
 pub struct PageReader {
     /// Column description.
-    pub(crate) descr: Arc<ColumnDescriptor>,
+    pub(crate) descr: ColumnDescriptor,
     /// Current offset into the chunk buffer.
     pub(crate) chunk_offset: usize,
     /// Column chunk buffer.
@@ -50,6 +50,29 @@ pub struct ScanState {
 }
 
 impl PageReader {
+    pub fn try_new(manager: &impl AsRawBufferManager, descr: ColumnDescriptor) -> Result<Self> {
+        let chunk = ByteBuffer::empty(manager);
+        let mut decompressed_page = OwnedReadBuffer::new(ByteBuffer::empty(manager));
+
+        // TODO: What?
+        let page_buffer = decompressed_page.take_remaining();
+
+        Ok(PageReader {
+            descr,
+            chunk_offset: 0,
+            chunk,
+            decompressed_page,
+            codec: None, // TODO: ?
+            state: ScanState {
+                remaining_page_values: 0,
+                definitions: None,
+                repetitions: None,
+                page_decoder: None,
+                page_buffer,
+            },
+        })
+    }
+
     /// Prepares the next page by reading the next page from the chunk into this
     /// reader's decompressed page buffer.
     ///

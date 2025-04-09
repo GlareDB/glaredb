@@ -1,8 +1,12 @@
+use std::sync::Arc;
+
 use glaredb_core::arrays::array::Array;
+use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_error::{DbError, Result};
 
 use super::page_reader::PageReader;
 use crate::column::encoding::{Definitions, PageDecoder};
+use crate::schema::types::ColumnDescriptor;
 
 #[derive(Debug)]
 pub struct ColumnReader {
@@ -15,6 +19,16 @@ pub struct ColumnReader {
 }
 
 impl ColumnReader {
+    pub fn try_new(manager: &impl AsRawBufferManager, descr: ColumnDescriptor) -> Result<Self> {
+        let page_reader = PageReader::try_new(manager, descr)?;
+
+        Ok(ColumnReader {
+            page_reader,
+            definitions: Vec::new(),
+            repetitions: Vec::new(),
+        })
+    }
+
     /// Reads `count` values into the output array.
     pub fn read(&mut self, output: &mut Array, count: usize) -> Result<()> {
         let mut offset = 0;
