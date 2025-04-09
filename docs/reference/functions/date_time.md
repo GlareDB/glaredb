@@ -1,5 +1,5 @@
 ---
-title: Date/time functions
+title: Date/Time Functions
 ---
 
 # Date and Time Function References

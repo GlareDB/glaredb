@@ -1,5 +1,5 @@
 ---
-title: Aggregate functions
+title: Aggregate Functions
 ---
 
 # Aggregate Function Reference

@@ -1,4 +1,4 @@
 ---
-title: SQL functions
+title: SQL Functions
 order: 3
 ---

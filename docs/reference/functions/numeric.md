@@ -1,5 +1,5 @@
 ---
-title: Numeric functions
+title: Numeric Functions
 ---
 
 # Numeric Function Reference
