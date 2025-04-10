@@ -154,7 +154,7 @@ FROM generate_series(1, 3) g(a), LATERAL (SELECT (a + 2)) s(b);
 | 2 | 4 |
 | 3 | 5 |
 
-The `LATERAL` keyword keyword may be omitted:
+The `LATERAL` keyword may be omitted:
 
 ```sql
 SELECT *
