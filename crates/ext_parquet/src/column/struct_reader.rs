@@ -37,7 +37,7 @@ impl StructReader {
                 // TODO: I'll fix this later, we're just assuming a flat schema
                 // right now.
                 let col_descr = parquet_schema.leaves[col_idx].clone();
-                let datatype = &column_schema.fields[col_idx].datatype;
+                let datatype = column_schema.fields[col_idx].datatype.clone();
                 new_column_reader(manager, datatype, col_descr)
             })
             .collect::<Result<Vec<_>>>()?;
@@ -49,35 +49,37 @@ impl StructReader {
 /// Create a new boxed column reader.
 pub(crate) fn new_column_reader(
     manager: &impl AsRawBufferManager,
-    datatype: &DataType,
+    datatype: DataType,
     descr: ColumnDescriptor,
 ) -> Result<Box<dyn ColumnReader>> {
-    Ok(match datatype {
+    Ok(match &datatype {
         DataType::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader>::try_new(
-            manager, descr,
+            manager, datatype, descr,
         )?),
         DataType::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader>::try_new(
-            manager, descr,
+            manager, datatype, descr,
         )?),
         DataType::Float32 => Box::new(ValueColumnReader::<PlainFloat32ValueReader>::try_new(
-            manager, descr,
+            manager, datatype, descr,
         )?),
         DataType::Float64 => Box::new(ValueColumnReader::<PlainFloat64ValueReader>::try_new(
-            manager, descr,
+            manager, datatype, descr,
         )?),
         DataType::Timestamp(m) => match (m.unit, descr.physical_type()) {
             (TimeUnit::Nanosecond, basic::Type::INT64) => {
                 Box::new(ValueColumnReader::<PlainTsNsValueReader>::try_new(
-                    manager, descr,
+                    manager, datatype, descr,
                 )?)
             }
             (TimeUnit::Nanosecond, basic::Type::INT96) => {
-                Box::new(ValueColumnReader::<Int96TsReader>::try_new(manager, descr)?)
+                Box::new(ValueColumnReader::<Int96TsReader>::try_new(
+                    manager, datatype, descr,
+                )?)
             }
             other => not_implemented!("timestamp reader for data type: {other:?}"),
         },
         DataType::Utf8 => Box::new(ValueColumnReader::<VarlenByteValueReader>::try_new(
-            manager, descr,
+            manager, datatype, descr,
         )?),
         other => not_implemented!("reader for data type: {other}"),
     })

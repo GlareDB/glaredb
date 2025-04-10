@@ -1,7 +1,9 @@
+use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::buffer::typed::ByteBuffer;
-use glaredb_error::{DbError, Result, ResultExt, not_implemented};
+use glaredb_error::{DbError, Result, ResultExt};
 
+use super::dictionary::Dictionary;
 use super::encoding::PageDecoder;
 use super::encoding::rle_bp::RleBpDecoder;
 use super::read_buffer::{OwnedReadBuffer, ReadBuffer};
@@ -56,15 +58,25 @@ pub struct ScanState<V: ValueReader> {
     pub page_decoder: Option<PageDecoder<V>>,
     /// Buffer for the page. Should be passed to the decoder.
     pub page_buffer: ReadBuffer,
+    /// Dictionary for this column.
+    ///
+    /// Initially contains an empty array. Updated as we decode dictionary
+    /// pages.
+    pub dictionary: Dictionary<V>,
 }
 
 impl<V> PageReader<V>
 where
     V: ValueReader,
 {
-    pub fn try_new(manager: &impl AsRawBufferManager, descr: ColumnDescriptor) -> Result<Self> {
+    pub fn try_new(
+        manager: &impl AsRawBufferManager,
+        datatype: DataType,
+        descr: ColumnDescriptor,
+    ) -> Result<Self> {
         let chunk = ByteBuffer::empty(manager);
         let mut decompressed_page = OwnedReadBuffer::new(ByteBuffer::empty(manager));
+        let dictionary = Dictionary::try_empty(manager, datatype)?;
 
         // TODO: What?
         let page_buffer = decompressed_page.take_remaining();
@@ -81,6 +93,7 @@ where
                 repetitions: None,
                 page_decoder: None,
                 page_buffer,
+                dictionary,
             },
         })
     }
@@ -168,8 +181,13 @@ where
         }
 
         // Dictionary specific stuff...
+        let dict_size = header.num_values;
+        let mut buffer = self.decompressed_page.take_remaining();
+        self.state
+            .dictionary
+            .prepare_with_values(dict_size as usize, &mut buffer)?;
 
-        unimplemented!()
+        Ok(())
     }
 
     fn prepare_data_page(&mut self, metadata: PageMetadata, header: DataPageHeader) -> Result<()> {

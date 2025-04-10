@@ -47,8 +47,12 @@ impl<V> ValueColumnReader<V>
 where
     V: ValueReader,
 {
-    pub fn try_new(manager: &impl AsRawBufferManager, descr: ColumnDescriptor) -> Result<Self> {
-        let page_reader = PageReader::try_new(manager, descr)?;
+    pub fn try_new(
+        manager: &impl AsRawBufferManager,
+        datatype: DataType,
+        descr: ColumnDescriptor,
+    ) -> Result<Self> {
+        let page_reader = PageReader::try_new(manager, datatype, descr)?;
 
         Ok(ValueColumnReader {
             page_reader,
