@@ -9,9 +9,9 @@ use crate::column::read_buffer::ReadBuffer;
 
 /// Value reader for reading variable length strings and byte arrays.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct PlainByteArrayValueReader;
+pub struct VarlenByteValueReader;
 
-impl ValueReader for PlainByteArrayValueReader {
+impl ValueReader for VarlenByteValueReader {
     type Storage = PhysicalBinary;
 
     unsafe fn read_next_unchecked(

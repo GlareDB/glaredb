@@ -10,7 +10,14 @@ use crate::basic::Encoding;
 use crate::column::encoding::plain::PlainDecoder;
 use crate::compression::Codec;
 use crate::format;
-use crate::page::{DataPageHeader, DataPageHeaderV2, PageHeader, PageMetadata, PageType};
+use crate::page::{
+    DataPageHeader,
+    DataPageHeaderV2,
+    DictionaryPageHeader,
+    PageHeader,
+    PageMetadata,
+    PageType,
+};
 use crate::schema::types::ColumnDescriptor;
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 use crate::util::bit_util::num_required_bits;
@@ -95,7 +102,7 @@ where
         match header.page_type {
             PageType::DataPage(page) => self.prepare_data_page(header.metadata, page)?,
             PageType::DataPageV2(page) => self.prepare_data_page_v2(header.metadata, page)?,
-            PageType::Dictionary(_) => not_implemented!("read dictionary page"),
+            PageType::Dictionary(page) => self.prepare_dictionary(header.metadata, page)?,
         }
 
         Ok(())
@@ -123,6 +130,46 @@ where
         }
 
         Ok(())
+    }
+
+    fn prepare_dictionary(
+        &mut self,
+        metadata: PageMetadata,
+        header: DictionaryPageHeader,
+    ) -> Result<()> {
+        // TODO: Duplicated with prepare v1.
+        unsafe {
+            self.decompressed_page
+                .reset_and_resize(metadata.uncompressed_page_size as usize)?
+        };
+        let src = &self
+            .chunk
+            .as_slice()
+            .get(self.chunk_offset..(self.chunk_offset + metadata.compressed_page_size as usize))
+            .ok_or_else(|| DbError::new("chunk buffer not large enough to read from"))?;
+        self.chunk_offset += metadata.compressed_page_size as usize;
+        match self.codec.as_ref() {
+            Some(codec) => {
+                // Page is compressed, decompress into our read buffer.
+                //
+                // SAFETY: No concurrent reads.
+                let dest = unsafe { self.decompressed_page.remaining_as_slice_mut() };
+                codec
+                    .decompress(src, dest)
+                    .context("failed to decompress page")?;
+            }
+            None => {
+                // TODO: Check slice len
+
+                // Page not compressed, just copy the data directly.
+                let dest = unsafe { self.decompressed_page.remaining_as_slice_mut() };
+                dest.copy_from_slice(src);
+            }
+        }
+
+        // Dictionary specific stuff...
+
+        unimplemented!()
     }
 
     fn prepare_data_page(&mut self, metadata: PageMetadata, header: DataPageHeader) -> Result<()> {
@@ -306,7 +353,6 @@ where
         match encoding {
             Encoding::PLAIN => {
                 let dec = PlainDecoder {
-                    dictionary: None,
                     value_reader: V::default(),
                 };
                 self.state.page_decoder = Some(PageDecoder::Plain(dec));

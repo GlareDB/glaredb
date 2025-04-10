@@ -33,23 +33,6 @@ pub trait ColumnReader: Debug + Sync + Send {
     fn chunk_buf_mut(&mut self) -> &mut [u8];
 }
 
-/// Create a new boxed column reader.
-pub fn new_column_reader(
-    manager: &impl AsRawBufferManager,
-    datatype: &DataType,
-    descr: ColumnDescriptor,
-) -> Result<Box<dyn ColumnReader>> {
-    Ok(match datatype {
-        DataType::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader>::try_new(
-            manager, descr,
-        )?),
-        DataType::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader>::try_new(
-            manager, descr,
-        )?),
-        other => not_implemented!("data type: {other}"),
-    })
-}
-
 #[derive(Debug)]
 pub struct ValueColumnReader<V: ValueReader> {
     /// Page reader for this column.

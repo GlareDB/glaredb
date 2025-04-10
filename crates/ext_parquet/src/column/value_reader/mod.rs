@@ -1,4 +1,5 @@
 pub mod primitive;
+pub mod int96;
 pub mod varlen;
 
 use std::fmt::Debug;

@@ -5,7 +5,7 @@ use glaredb_core::arrays::array::physical_type::MutableScalarStorage;
 use glaredb_error::Result;
 
 use super::Definitions;
-use crate::column::read_buffer::{OwnedReadBuffer, ReadBuffer};
+use crate::column::read_buffer::ReadBuffer;
 use crate::column::value_reader::ValueReader;
 
 /// Decodes plain-encoded values into an output array.
@@ -14,9 +14,6 @@ pub struct PlainDecoder<V>
 where
     V: ValueReader,
 {
-    /// Optional dictionary buffer to read from.
-    #[allow(unused)]
-    pub dictionary: Option<OwnedReadBuffer>,
     /// Determines how we read values from the read buffer.
     ///
     /// This may keep state (e.g. bit position when reading booleans). Read

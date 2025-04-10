@@ -1,6 +1,8 @@
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
+    PhysicalF32,
+    PhysicalF64,
     PhysicalI32,
     PhysicalI64,
 };
@@ -9,17 +11,22 @@ use glaredb_core::util::marker::PhantomCovariant;
 use super::ValueReader;
 use crate::column::read_buffer::ReadBuffer;
 
-pub type PlainInt32ValueReader = PlainPrimitiveValueReader<PhysicalI32>;
-pub type PlainInt64ValueReader = PlainPrimitiveValueReader<PhysicalI64>;
+pub type PlainInt32ValueReader = PrimitiveValueReader<PhysicalI32>;
+pub type PlainInt64ValueReader = PrimitiveValueReader<PhysicalI64>;
+pub type PlainFloat32ValueReader = PrimitiveValueReader<PhysicalF32>;
+pub type PlainFloat64ValueReader = PrimitiveValueReader<PhysicalF64>;
+
+// No conversion needed to read INT64 as ns.
+pub type PlainTsNsValueReader = PrimitiveValueReader<PhysicalI64>;
 
 /// Value reader that can read primitive values and place them into the output
 /// array with no conversion.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct PlainPrimitiveValueReader<S: MutableScalarStorage> {
+pub struct PrimitiveValueReader<S: MutableScalarStorage> {
     _s: PhantomCovariant<S>,
 }
 
-impl<S> ValueReader for PlainPrimitiveValueReader<S>
+impl<S> ValueReader for PrimitiveValueReader<S>
 where
     S: MutableScalarStorage,
     S::StorageType: Copy + Sized,
