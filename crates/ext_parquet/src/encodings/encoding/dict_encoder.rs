@@ -26,7 +26,7 @@ use crate::data_type::DataType;
 use crate::data_type::private::ParquetValueType;
 use crate::encodings::encoding::{Encoder, PlainEncoder};
 use crate::encodings::rle::RleEncoder;
-use crate::schema::types::ColumnDescPtr;
+use crate::schema::types::ColumnDescriptor;
 use crate::util::bit_util::num_required_bits;
 use crate::util::interner::{Interner, Storage};
 
@@ -82,7 +82,7 @@ pub struct DictEncoder<T: DataType> {
 
 impl<T: DataType> DictEncoder<T> {
     /// Creates new dictionary encoder.
-    pub fn new(desc: ColumnDescPtr) -> Self {
+    pub fn new(desc: &ColumnDescriptor) -> Self {
         let storage = KeyStorage {
             uniques: vec![],
             size_in_bytes: 0,

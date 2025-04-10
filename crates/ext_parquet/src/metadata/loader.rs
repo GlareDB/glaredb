@@ -71,7 +71,7 @@ pub fn decode_metadata(buf: &[u8]) -> Result<ParquetMetaData> {
     let t_file_metadata: format::FileMetaData =
         format::FileMetaData::read_from_in_protocol(&mut prot)
             .context("Could not parse metadata")?;
-    let schema = types::from_thrift(&t_file_metadata.schema)?;
+    let schema = types::schema_from_thrift(&t_file_metadata.schema)?;
     let schema_descr = Arc::new(SchemaDescriptor::new(schema));
     let mut row_groups = Vec::new();
     for rg in t_file_metadata.row_groups {
@@ -129,7 +129,7 @@ mod tests {
     use super::*;
     use crate::basic::{SortOrder, Type};
     use crate::format::TypeDefinedOrder;
-    use crate::schema::types::Type as SchemaType;
+    use crate::schema::types::SchemaType;
 
     #[test]
     fn test_metadata_column_orders_parse() {
@@ -139,12 +139,14 @@ mod tests {
                 SchemaType::primitive_type_builder("col1", Type::INT32)
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
             Arc::new(
                 SchemaType::primitive_type_builder("col2", Type::FLOAT)
                     .build()
                     .unwrap(),
-            ),
+            )
+            .into(),
         ];
         let schema = SchemaType::group_type_builder("schema")
             .with_fields(fields)

@@ -724,7 +724,7 @@ mod tests {
 
     use super::*;
     use crate::encodings::decoding::{Decoder, DictDecoder, PlainDecoder, get_decoder};
-    use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
+    use crate::schema::types::{ColumnDescriptor, ColumnPath, SchemaType};
     use crate::testutil::rand_gen::{RandGen, random_bytes};
     use crate::util::bit_util;
 
@@ -1065,17 +1065,12 @@ mod tests {
     }
 
     // Creates test column descriptor.
-    fn create_test_col_desc_ptr(type_len: i32, t: Type) -> ColumnDescPtr {
+    fn create_test_col_desc_ptr(type_len: i32, t: Type) -> ColumnDescriptor {
         let ty = SchemaType::primitive_type_builder("t", t)
             .with_length(type_len)
             .build()
             .unwrap();
-        Arc::new(ColumnDescriptor::new(
-            Arc::new(ty),
-            0,
-            0,
-            ColumnPath::new(vec![]),
-        ))
+        ColumnDescriptor::new(Arc::new(ty), 0, 0, Arc::new(ColumnPath::new(vec![])))
     }
 
     fn create_test_encoder<T: DataType>(enc: Encoding) -> Box<dyn Encoder<T>> {
@@ -1084,12 +1079,12 @@ mod tests {
 
     fn create_test_decoder<T: DataType>(type_len: i32, enc: Encoding) -> Box<dyn Decoder<T>> {
         let desc = create_test_col_desc_ptr(type_len, T::get_physical_type());
-        get_decoder(desc, enc).unwrap()
+        get_decoder(&desc, enc).unwrap()
     }
 
     fn create_test_dict_encoder<T: DataType>(type_len: i32) -> DictEncoder<T> {
         let desc = create_test_col_desc_ptr(type_len, T::get_physical_type());
-        DictEncoder::<T>::new(desc)
+        DictEncoder::<T>::new(&desc)
     }
 
     fn create_test_dict_decoder<T: DataType>() -> DictDecoder<T> {

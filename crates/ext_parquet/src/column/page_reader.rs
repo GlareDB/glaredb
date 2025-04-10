@@ -1,12 +1,13 @@
-use std::sync::Arc;
-
+use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::buffer::typed::ByteBuffer;
-use glaredb_error::{DbError, Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt, not_implemented};
 
 use super::encoding::PageDecoder;
 use super::encoding::rle_bp::RleBpDecoder;
 use super::read_buffer::{OwnedReadBuffer, ReadBuffer};
+use super::value_reader::ValueReader;
 use crate::basic::Encoding;
+use crate::column::encoding::plain::PlainDecoder;
 use crate::compression::Codec;
 use crate::format;
 use crate::page::{DataPageHeader, DataPageHeaderV2, PageHeader, PageMetadata, PageType};
@@ -14,10 +15,11 @@ use crate::schema::types::ColumnDescriptor;
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 use crate::util::bit_util::num_required_bits;
 
+// I don't remember writing this. I'm curious if it works.
 #[derive(Debug)]
-pub struct PageReader {
+pub struct PageReader<V: ValueReader> {
     /// Column description.
-    pub(crate) descr: Arc<ColumnDescriptor>,
+    pub(crate) descr: ColumnDescriptor,
     /// Current offset into the chunk buffer.
     pub(crate) chunk_offset: usize,
     /// Column chunk buffer.
@@ -27,12 +29,12 @@ pub struct PageReader {
     /// Decompression codec to use for this column.
     pub(crate) codec: Option<Box<dyn Codec>>,
     /// Current scan state.
-    pub(crate) state: ScanState,
+    pub(crate) state: ScanState<V>,
 }
 
 /// State that gets updating during scanning.
 #[derive(Debug)]
-pub struct ScanState {
+pub struct ScanState<V: ValueReader> {
     /// Number of values remaining for this page.
     ///
     /// Updated as we scan values from the page.
@@ -44,12 +46,38 @@ pub struct ScanState {
     /// Decoder for this page.
     ///
     /// Should be Some after preparing a page.
-    pub page_decoder: Option<PageDecoder>,
+    pub page_decoder: Option<PageDecoder<V>>,
     /// Buffer for the page. Should be passed to the decoder.
     pub page_buffer: ReadBuffer,
 }
 
-impl PageReader {
+impl<V> PageReader<V>
+where
+    V: ValueReader,
+{
+    pub fn try_new(manager: &impl AsRawBufferManager, descr: ColumnDescriptor) -> Result<Self> {
+        let chunk = ByteBuffer::empty(manager);
+        let mut decompressed_page = OwnedReadBuffer::new(ByteBuffer::empty(manager));
+
+        // TODO: What?
+        let page_buffer = decompressed_page.take_remaining();
+
+        Ok(PageReader {
+            descr,
+            chunk_offset: 0,
+            chunk,
+            decompressed_page,
+            codec: None, // TODO: ?
+            state: ScanState {
+                remaining_page_values: 0,
+                definitions: None,
+                repetitions: None,
+                page_decoder: None,
+                page_buffer,
+            },
+        })
+    }
+
     /// Prepares the next page by reading the next page from the chunk into this
     /// reader's decompressed page buffer.
     ///
@@ -67,7 +95,7 @@ impl PageReader {
         match header.page_type {
             PageType::DataPage(page) => self.prepare_data_page(header.metadata, page)?,
             PageType::DataPageV2(page) => self.prepare_data_page_v2(header.metadata, page)?,
-            PageType::Dictionary(_) => unimplemented!(),
+            PageType::Dictionary(_) => not_implemented!("read dictionary page"),
         }
 
         Ok(())
@@ -127,6 +155,8 @@ impl PageReader {
                     .context("failed to decompress page")?;
             }
             None => {
+                // TODO: Check slice len
+
                 // Page not compressed, just copy the data directly.
                 let dest = unsafe { self.decompressed_page.remaining_as_slice_mut() };
                 dest.copy_from_slice(src);
@@ -172,6 +202,9 @@ impl PageReader {
 
             self.state.definitions = Some(get_level_decoder(self.descr.max_rep_level)?);
         }
+
+        // Prepare decoder.
+        self.init_page_decoder(header.encoding)?;
 
         Ok(())
     }
@@ -260,18 +293,26 @@ impl PageReader {
             )?);
         }
 
+        // Prepare decoder.
+        self.init_page_decoder(header.encoding)?;
+
         Ok(())
     }
 
     /// Initializes the page decoder.
     ///
     /// Should only be called after we've processed a page header.
-    #[allow(unused)]
     fn init_page_decoder(&mut self, encoding: Encoding) -> Result<()> {
         match encoding {
             Encoding::PLAIN => {
-                // Taking remaining...
-                unimplemented!()
+                let dec = PlainDecoder {
+                    dictionary: None,
+                    value_reader: V::default(),
+                };
+                self.state.page_decoder = Some(PageDecoder::Plain(dec));
+                // TODO: Bit spooky.
+                self.state.page_buffer = self.decompressed_page.take_remaining();
+                Ok(())
             }
             other => Err(DbError::new("Unsupported encoding").with_field("encoding", other)),
         }

@@ -1,9 +1,9 @@
-#![allow(unused)]
-
 pub mod plain;
 pub mod rle_bp;
 
 use plain::PlainDecoder;
+
+use super::value_reader::ValueReader;
 
 #[derive(Debug)]
 pub enum Definitions<'a> {
@@ -20,6 +20,6 @@ pub enum Definitions<'a> {
 }
 
 #[derive(Debug)]
-pub enum PageDecoder {
-    Plain(Box<dyn PlainDecoder>),
+pub enum PageDecoder<V: ValueReader> {
+    Plain(PlainDecoder<V>),
 }

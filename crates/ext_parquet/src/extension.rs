@@ -5,6 +5,7 @@ use crate::functions::metadata::{
     FUNCTION_SET_PARQUET_FILE_METADATA,
     FUNCTION_SET_PARQUET_ROWGROUP_METADATA,
 };
+use crate::functions::scan::FUNCTION_SET_READ_PARQUET;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ParquetExtension;
@@ -18,6 +19,8 @@ impl Extension for ParquetExtension {
             // Metadata functions
             FUNCTION_SET_PARQUET_FILE_METADATA,
             FUNCTION_SET_PARQUET_ROWGROUP_METADATA,
+            // Scan functions
+            FUNCTION_SET_READ_PARQUET,
         ]
     }
 }

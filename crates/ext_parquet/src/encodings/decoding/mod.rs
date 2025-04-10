@@ -33,13 +33,14 @@ use super::rle::RleDecoder;
 use crate::basic::*;
 use crate::data_type::private::ParquetValueType;
 use crate::data_type::*;
-use crate::schema::types::ColumnDescPtr;
+use crate::schema::types::ColumnDescriptor;
 use crate::util::bit_util::{self, BitReader};
 
 pub(crate) mod private {
     // TODO: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     use super::*;
+    use crate::schema::types::ColumnDescriptor;
 
     /// A trait that allows getting a [`Decoder`] implementation for a [`DataType`] with
     /// the corresponding [`ParquetValueType`]. This is necessary to support
@@ -47,7 +48,7 @@ pub(crate) mod private {
     /// and by extension all [`ParquetValueType`]
     pub trait GetDecoder {
         fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
+            descr: &ColumnDescriptor,
             encoding: Encoding,
         ) -> Result<Box<dyn Decoder<T>>> {
             get_decoder_default(descr, encoding)
@@ -55,7 +56,7 @@ pub(crate) mod private {
     }
 
     fn get_decoder_default<T: DataType>(
-        descr: ColumnDescPtr,
+        descr: &ColumnDescriptor,
         encoding: Encoding,
     ) -> Result<Box<dyn Decoder<T>>> {
         match encoding {
@@ -76,7 +77,7 @@ pub(crate) mod private {
 
     impl GetDecoder for bool {
         fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
+            descr: &ColumnDescriptor,
             encoding: Encoding,
         ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
@@ -88,7 +89,7 @@ pub(crate) mod private {
 
     impl GetDecoder for i32 {
         fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
+            descr: &ColumnDescriptor,
             encoding: Encoding,
         ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
@@ -100,7 +101,7 @@ pub(crate) mod private {
 
     impl GetDecoder for i64 {
         fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
+            descr: &ColumnDescriptor,
             encoding: Encoding,
         ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
@@ -112,7 +113,7 @@ pub(crate) mod private {
 
     impl GetDecoder for f32 {
         fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
+            descr: &ColumnDescriptor,
             encoding: Encoding,
         ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
@@ -125,7 +126,7 @@ pub(crate) mod private {
     }
     impl GetDecoder for f64 {
         fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
+            descr: &ColumnDescriptor,
             encoding: Encoding,
         ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
@@ -139,7 +140,7 @@ pub(crate) mod private {
 
     impl GetDecoder for ByteArray {
         fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
+            descr: &ColumnDescriptor,
             encoding: Encoding,
         ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
@@ -154,7 +155,7 @@ pub(crate) mod private {
 
     impl GetDecoder for FixedLenByteArray {
         fn get_decoder<T: DataType<T = Self>>(
-            descr: ColumnDescPtr,
+            descr: &ColumnDescriptor,
             encoding: Encoding,
         ) -> Result<Box<dyn Decoder<T>>> {
             match encoding {
@@ -245,7 +246,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
 /// disastrous consequence could occur.
 #[allow(unused)]
 pub fn get_decoder<T: DataType>(
-    descr: ColumnDescPtr,
+    descr: &ColumnDescriptor,
     encoding: Encoding,
 ) -> Result<Box<dyn Decoder<T>>> {
     use self::private::GetDecoder;
@@ -1106,7 +1107,7 @@ mod tests {
 
     use super::super::encoding::*;
     use super::*;
-    use crate::schema::types::{ColumnDescPtr, ColumnDescriptor, ColumnPath, Type as SchemaType};
+    use crate::schema::types::{ColumnDescriptor, ColumnPath, SchemaType};
     use crate::testutil::rand_gen::RandGen;
 
     #[test]
@@ -1801,7 +1802,7 @@ mod tests {
         let expected: Vec<T::T> = data.iter().flat_map(|s| s.clone()).collect();
 
         // Decode data and compare with original
-        let mut decoder = get_decoder::<T>(col_descr, encoding).expect("get decoder");
+        let mut decoder = get_decoder::<T>(&col_descr, encoding).expect("get decoder");
 
         let mut result = vec![T::T::default(); expected.len()];
         decoder
@@ -1829,7 +1830,7 @@ mod tests {
 
         let bytes = encoder.flush_buffer().expect("ok to flush buffer");
 
-        let mut decoder = get_decoder::<T>(col_descr, encoding).expect("get decoder");
+        let mut decoder = get_decoder::<T>(&col_descr, encoding).expect("get decoder");
         decoder.set_data(bytes, data.len()).expect("ok to set data");
 
         if skip >= data.len() {
@@ -1853,17 +1854,12 @@ mod tests {
     }
 
     // Creates test column descriptor.
-    fn create_test_col_desc_ptr(type_len: i32, t: Type) -> ColumnDescPtr {
+    fn create_test_col_desc_ptr(type_len: i32, t: Type) -> ColumnDescriptor {
         let ty = SchemaType::primitive_type_builder("t", t)
             .with_length(type_len)
             .build()
             .unwrap();
-        Arc::new(ColumnDescriptor::new(
-            Arc::new(ty),
-            0,
-            0,
-            ColumnPath::new(vec![]),
-        ))
+        ColumnDescriptor::new(Arc::new(ty), 0, 0, Arc::new(ColumnPath::new(vec![])))
     }
 
     fn usize_to_bytes(v: usize) -> [u8; 4] {

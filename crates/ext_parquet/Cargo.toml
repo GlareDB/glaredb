@@ -54,13 +54,5 @@ rand = { workspace = true, features = ["std", "std_rng"] }
 # Issues building for wasm on macos
 zstd = ["dep:zstd"]
 
-[[bench]]
-name = "compression"
-harness = false
-
-[[bench]]
-name = "encoding"
-harness = false
-
 [lib]
 bench = false

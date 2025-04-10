@@ -21,9 +21,8 @@
 //! * [`ColumnDescriptor`]: Describes the schema of a single (leaf) column.
 //! * [`ColumnPath`]: Represents the location of a column in the schema (e.g. a nested field)
 //!
-//! Parquet distinguishes
-//! between "logical" and "physical" data types.
-//! For instance, strings (logical type) are stored as byte arrays (physical type).
+//! Parquet distinguishes between "logical" and "physical" data types. For
+//! instance, strings (logical type) are stored as byte arrays (physical type).
 //! Likewise, temporal types like dates, times, timestamps, etc. (logical type)
 //! are stored as integers (physical type).
 //!
@@ -31,6 +30,7 @@
 //! [`ColumnDescriptor`]: types::ColumnDescriptor
 //! [`ColumnPath`]: types::ColumnPath
 
+pub mod convert;
 pub mod parser;
 pub mod printer;
 pub mod types;

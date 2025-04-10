@@ -20,6 +20,7 @@ pub mod properties;
 pub mod statistics;
 
 use std::ops::Range;
+use std::sync::Arc;
 
 use glaredb_error::{DbError, Result};
 use page_encoding_stats::PageEncodingStats;
@@ -38,7 +39,7 @@ use crate::format::{
     SortingColumn,
 };
 use crate::metadata::page_index::index::Index;
-use crate::schema::types::{ColumnDescPtr, ColumnPath, SchemaDescPtr, Type as SchemaType};
+use crate::schema::types::{ColumnDescriptor, ColumnPath, GroupType, SchemaDescriptor};
 
 /// The length of the parquet footer in bytes
 pub const FOOTER_SIZE: usize = 8;
@@ -151,11 +152,12 @@ pub struct FileMetaData {
     /// Returns key_value_metadata of this file.
     pub key_value_metadata: Option<Vec<format::KeyValue>>,
     /// A reference to schema descriptor.
-    pub schema_descr: SchemaDescPtr,
-    /// Column (sort) order used for `min` and `max` values of each column in this file.
+    pub schema_descr: Arc<SchemaDescriptor>,
+    /// Column (sort) order used for `min` and `max` values of each column in
+    /// this file.
     ///
-    /// Each column order corresponds to one column, determined by its position in the
-    /// list, matching the position of the column in the schema.
+    /// Each column order corresponds to one column, determined by its position
+    /// in the list, matching the position of the column in the schema.
     ///
     /// When `None`, there are no column orders available, and each column
     /// should be assumed to have undefined (legacy) column order.
@@ -169,7 +171,7 @@ impl FileMetaData {
         num_rows: i64,
         created_by: Option<String>,
         key_value_metadata: Option<Vec<format::KeyValue>>,
-        schema_descr: SchemaDescPtr,
+        schema_descr: Arc<SchemaDescriptor>,
         column_orders: Option<Vec<ColumnOrder>>,
     ) -> Self {
         FileMetaData {
@@ -182,11 +184,9 @@ impl FileMetaData {
         }
     }
 
-    /// Returns Parquet [`Type`] that describes schema in this file.
-    ///
-    /// [`Type`]: crate::schema::types::Type
-    pub fn schema(&self) -> &SchemaType {
-        self.schema_descr.root_schema()
+    /// Returns Parquet `GroupType` that describes schema in this file.
+    pub fn schema(&self) -> &GroupType {
+        &self.schema_descr.schema
     }
 
     /// Returns column order for `i`th column in this file.
@@ -214,7 +214,7 @@ pub struct RowGroupMetaData {
     pub sorting_columns: Option<Vec<SortingColumn>>,
     /// Total byte size of all uncompressed column data in this row group.
     pub total_byte_size: i64,
-    pub schema_descr: SchemaDescPtr,
+    pub schema_descr: Arc<SchemaDescriptor>,
     /// File offset of this row group in file.
     ///
     /// We can't infer from file offset of first column since there may empty
@@ -229,7 +229,7 @@ pub struct RowGroupMetaData {
 
 impl RowGroupMetaData {
     /// Returns builder for row group metadata.
-    pub fn builder(schema_descr: SchemaDescPtr) -> RowGroupMetaDataBuilder {
+    pub fn builder(schema_descr: Arc<SchemaDescriptor>) -> RowGroupMetaDataBuilder {
         RowGroupMetaDataBuilder::new(schema_descr)
     }
 
@@ -244,7 +244,10 @@ impl RowGroupMetaData {
     }
 
     /// Method to convert from Thrift.
-    pub fn from_thrift(schema_descr: SchemaDescPtr, mut rg: RowGroup) -> Result<RowGroupMetaData> {
+    pub fn from_thrift(
+        schema_descr: Arc<SchemaDescriptor>,
+        mut rg: RowGroup,
+    ) -> Result<RowGroupMetaData> {
         if schema_descr.num_columns() != rg.columns.len() {
             return Err(DbError::new(format!(
                 "Column count mismatch. Schema has {} columns while Row Group has {}",
@@ -296,7 +299,7 @@ pub struct RowGroupMetaDataBuilder(RowGroupMetaData);
 
 impl RowGroupMetaDataBuilder {
     /// Creates new builder from schema descriptor.
-    fn new(schema_descr: SchemaDescPtr) -> Self {
+    fn new(schema_descr: Arc<SchemaDescriptor>) -> Self {
         Self(RowGroupMetaData {
             columns: Vec::with_capacity(schema_descr.num_columns()),
             schema_descr,
@@ -360,7 +363,7 @@ impl RowGroupMetaDataBuilder {
 /// Metadata for a column chunk.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ColumnChunkMetaData {
-    pub column_descr: ColumnDescPtr,
+    pub column_descr: ColumnDescriptor,
     /// All encodings used for this column.
     pub encodings: Vec<Encoding>,
     /// File where the column chunk is stored.
@@ -408,7 +411,7 @@ pub struct ColumnChunkMetaData {
 /// Represents common operations for a column chunk.
 impl ColumnChunkMetaData {
     /// Returns builder for column chunk metadata.
-    pub fn builder(column_descr: ColumnDescPtr) -> ColumnChunkMetaDataBuilder {
+    pub fn builder(column_descr: ColumnDescriptor) -> ColumnChunkMetaDataBuilder {
         ColumnChunkMetaDataBuilder::new(column_descr)
     }
 
@@ -419,7 +422,7 @@ impl ColumnChunkMetaData {
 
     /// Path (or identifier) of this column.
     pub fn column_path(&self) -> &ColumnPath {
-        self.column_descr.path()
+        &self.column_descr.path
     }
 
     /// Returns the offset and length in bytes of the column chunk within the file
@@ -453,7 +456,7 @@ impl ColumnChunkMetaData {
     }
 
     /// Method to convert from Thrift.
-    pub fn from_thrift(column_descr: ColumnDescPtr, cc: ColumnChunk) -> Result<Self> {
+    pub fn from_thrift(column_descr: ColumnDescriptor, cc: ColumnChunk) -> Result<Self> {
         if cc.meta_data.is_none() {
             return Err(DbError::new("Expected to have column metadata"));
         }
@@ -566,7 +569,7 @@ pub struct ColumnChunkMetaDataBuilder(ColumnChunkMetaData);
 
 impl ColumnChunkMetaDataBuilder {
     /// Creates new column chunk metadata builder.
-    fn new(column_descr: ColumnDescPtr) -> Self {
+    fn new(column_descr: ColumnDescriptor) -> Self {
         Self(ColumnChunkMetaData {
             column_descr,
             encodings: Vec::new(),
@@ -824,7 +827,7 @@ mod tests {
 
     use super::*;
     use crate::basic::PageType;
-    use crate::schema::types::SchemaDescriptor;
+    use crate::schema::types::{SchemaDescriptor, SchemaType};
 
     #[test]
     fn test_row_group_metadata_thrift_conversion() {
@@ -867,12 +870,14 @@ mod tests {
                         SchemaType::primitive_type_builder("a", Type::INT32)
                             .build()
                             .unwrap(),
-                    ),
+                    )
+                    .into(),
                     Arc::new(
                         SchemaType::primitive_type_builder("b", Type::INT32)
                             .build()
                             .unwrap(),
-                    ),
+                    )
+                    .into(),
                 ])
                 .build()
                 .unwrap(),
@@ -885,17 +890,20 @@ mod tests {
                         SchemaType::primitive_type_builder("a", Type::INT32)
                             .build()
                             .unwrap(),
-                    ),
+                    )
+                    .into(),
                     Arc::new(
                         SchemaType::primitive_type_builder("b", Type::INT32)
                             .build()
                             .unwrap(),
-                    ),
+                    )
+                    .into(),
                     Arc::new(
                         SchemaType::primitive_type_builder("c", Type::INT32)
                             .build()
                             .unwrap(),
-                    ),
+                    )
+                    .into(),
                 ])
                 .build()
                 .unwrap(),
@@ -905,10 +913,10 @@ mod tests {
             .set_num_rows(1000)
             .set_total_byte_size(2000)
             .set_column_metadata(vec![
-                ColumnChunkMetaData::builder(schema_descr_2cols.column(0))
+                ColumnChunkMetaData::builder(schema_descr_2cols.column(0).clone())
                     .build()
                     .unwrap(),
-                ColumnChunkMetaData::builder(schema_descr_2cols.column(1))
+                ColumnChunkMetaData::builder(schema_descr_2cols.column(1).clone())
                     .build()
                     .unwrap(),
             ])
@@ -922,7 +930,7 @@ mod tests {
 
     #[test]
     fn test_column_chunk_metadata_thrift_conversion() {
-        let column_descr = get_test_schema_descr().column(0);
+        let column_descr = get_test_schema_descr().column(0).clone();
 
         let col_metadata = ColumnChunkMetaData::builder(column_descr.clone())
             .set_encodings(vec![Encoding::PLAIN, Encoding::RLE])
@@ -956,23 +964,25 @@ mod tests {
             .unwrap();
 
         let col_chunk_res =
-            ColumnChunkMetaData::from_thrift(column_descr, col_metadata.to_thrift()).unwrap();
+            ColumnChunkMetaData::from_thrift(column_descr.clone(), col_metadata.to_thrift())
+                .unwrap();
 
         assert_eq!(col_chunk_res, col_metadata);
     }
 
     #[test]
     fn test_column_chunk_metadata_thrift_conversion_empty() {
-        let column_descr = get_test_schema_descr().column(0);
+        let column_descr = get_test_schema_descr().column(0).clone();
 
         let col_metadata = ColumnChunkMetaData::builder(column_descr.clone())
             .build()
             .unwrap();
 
         let col_chunk_exp = col_metadata.to_thrift();
-        let col_chunk_res = ColumnChunkMetaData::from_thrift(column_descr, col_chunk_exp.clone())
-            .unwrap()
-            .to_thrift();
+        let col_chunk_res =
+            ColumnChunkMetaData::from_thrift(column_descr.clone(), col_chunk_exp.clone())
+                .unwrap()
+                .to_thrift();
 
         assert_eq!(col_chunk_res, col_chunk_exp);
     }
@@ -1003,19 +1013,21 @@ mod tests {
     }
 
     /// Returns sample schema descriptor so we can create column metadata.
-    fn get_test_schema_descr() -> SchemaDescPtr {
+    fn get_test_schema_descr() -> Arc<SchemaDescriptor> {
         let schema = SchemaType::group_type_builder("schema")
             .with_fields(vec![
                 Arc::new(
                     SchemaType::primitive_type_builder("a", Type::INT32)
                         .build()
                         .unwrap(),
-                ),
+                )
+                .into(),
                 Arc::new(
                     SchemaType::primitive_type_builder("b", Type::INT32)
                         .build()
                         .unwrap(),
-                ),
+                )
+                .into(),
             ])
             .build()
             .unwrap();

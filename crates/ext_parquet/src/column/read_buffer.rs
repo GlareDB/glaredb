@@ -141,6 +141,9 @@ pub struct ReadBuffer {
     remaining: usize,
 }
 
+unsafe impl Sync for ReadBuffer {}
+unsafe impl Send for ReadBuffer {}
+
 impl ReadBuffer {
     /// Skips the pointer forward some number of bytes.
     pub unsafe fn skip_bytes_unchecked(&mut self, num_bytes: usize) {
@@ -164,6 +167,23 @@ impl ReadBuffer {
             self.skip_bytes_unchecked(std::mem::size_of::<T>());
 
             v
+        }
+    }
+
+    /// Reads the next `len` number of bytes, returning the byte slice.
+    ///
+    /// # Safety
+    ///
+    /// `len` must not go beyond the end of the remaining number of bytes in the
+    /// buffer.
+    pub unsafe fn read_bytes_unchecked(&mut self, len: usize) -> &[u8] {
+        unsafe {
+            debug_assert!(self.remaining >= len);
+
+            let bs = std::slice::from_raw_parts(self.curr, len);
+            self.skip_bytes_unchecked(len);
+
+            bs
         }
     }
 
