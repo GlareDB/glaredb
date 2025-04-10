@@ -71,34 +71,38 @@ GROUP BY ROLLUP (state_abbr);
 
 **Example:**
 
-Calculate the average population grouped by all combinations of `state_abbr` and `name`:
+Calculate the average population grouped by all combinations of `state_abbr` and `name`. We use `GROUPING(state_abbr, name)` to identify the subtotal and grand total rows. The `GROUPING` function returns a bitmask: 0 for base rows, 1 when `name` is aggregated (state subtotal), 2 when `state_abbr` is aggregated (city subtotal across states), and 3 when both are aggregated (grand total).
 
 ```sql
-SELECT state_abbr, name, avg(population)
+SELECT
+    state_abbr,
+    name,
+    avg(population),
+    GROUPING(state_abbr, name) AS grp_level
 FROM cities
 GROUP BY CUBE (state_abbr, name)
 ORDER BY state_abbr NULLS LAST, name NULLS LAST;
 ```
 
-| state_abbr | name        | avg       |
-|------------|-------------|-----------|
-| OH         | Cincinnati  | 311097    |
-| OH         | Cleveland   | 362656    |
-| OH         | Columbus    | 913175    |
-| OH         | NULL        | 528976    | <-- OH subtotal
-| TX         | Austin      | 979882    |
-| TX         | Dallas      | 1302868   |
-| TX         | Houston     | 2314157   |
-| TX         | San Antonio | 1495295   |
-| TX         | NULL        | 1523050.5 | <-- TX subtotal
-| NULL       | Austin      | 979882    | <-- Austin subtotal (across states)
-| NULL       | Cincinnati  | 311097    | <-- Cincinnati subtotal
-| NULL       | Cleveland   | 362656    | <-- Cleveland subtotal
-| NULL       | Columbus    | 913175    | <-- Columbus subtotal
-| NULL       | Dallas      | 1302868   | <-- Dallas subtotal
-| NULL       | Houston     | 2314157   | <-- Houston subtotal
-| NULL       | San Antonio | 1495295   | <-- San Antonio subtotal
-| NULL       | NULL        | 1097018.5714285714 | <-- Grand total
+| state_abbr | name        | avg                | grp_level | Description        |
+|------------|-------------|--------------------|-----------|--------------------|
+| OH         | Cincinnati  | 311097             | 0         | Base row           |
+| OH         | Cleveland   | 362656             | 0         | Base row           |
+| OH         | Columbus    | 913175             | 0         | Base row           |
+| OH         | NULL        | 528976             | 1         | OH subtotal        |
+| TX         | Austin      | 979882             | 0         | Base row           |
+| TX         | Dallas      | 1302868            | 0         | Base row           |
+| TX         | Houston     | 2314157            | 0         | Base row           |
+| TX         | San Antonio | 1495295            | 0         | Base row           |
+| TX         | NULL        | 1523050.5          | 1         | TX subtotal        |
+| NULL       | Austin      | 979882             | 2         | Austin subtotal    |
+| NULL       | Cincinnati  | 311097             | 2         | Cincinnati subtotal|
+| NULL       | Cleveland   | 362656             | 2         | Cleveland subtotal |
+| NULL       | Columbus    | 913175             | 2         | Columbus subtotal  |
+| NULL       | Dallas      | 1302868            | 2         | Dallas subtotal    |
+| NULL       | Houston     | 2314157            | 2         | Houston subtotal   |
+| NULL       | San Antonio | 1495295            | 2         | San Antonio subtotal|
+| NULL       | NULL        | 1097018.5714285714 | 3         | Grand total        |
 
 ## GROUPING() Function
 
@@ -132,7 +136,7 @@ Result:
 
 | state_abbr | avg                | grp_state |
 |------------|--------------------|-----------|
-| NULL       | 1097018.5714285714 | 1         | <-- Grand total (GROUPING=1)
+| NULL       | 1097018.5714285714 | 1         | Grand total (state_abbr aggregated)
 | TX         | 1523050.5          | 0         |
 | OH         | 528976             | 0         |
 
