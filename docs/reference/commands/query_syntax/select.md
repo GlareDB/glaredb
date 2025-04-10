@@ -28,7 +28,7 @@ Select all columns from `cities` and no columns from `counties`:
 ```sql
 SELECT cities.*
 FROM cities, states
-WHERE cities.state_code = state.code;
+WHERE cities.state_code = states.code;
 ```
 
 ### Excluding Columns
