@@ -293,4 +293,19 @@ mod tests {
         assert_eq!(770, unsafe { s.peek_next_unchecked::<u16>() });
         assert_eq!(770, unsafe { s.read_next_unchecked::<u16>() });
     }
+
+    #[test]
+    fn take_all_read_bytes() {
+        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut s = buf.take_remaining();
+
+        let out = unsafe { s.read_bytes_unchecked(1) };
+        assert_eq!(b"h", out);
+
+        let out = unsafe { s.read_bytes_unchecked(3) };
+        assert_eq!(b"ell", out);
+
+        let out = unsafe { s.read_bytes_unchecked(1) };
+        assert_eq!(b"o", out);
+    }
 }

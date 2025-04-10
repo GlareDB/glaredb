@@ -6,7 +6,8 @@ use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_error::{DbError, Result, not_implemented};
 
 use super::page_reader::PageReader;
-use super::value_reader::{PlainInt32ValueReader, PlainInt64ValueReader, ValueReader};
+use super::value_reader::ValueReader;
+use super::value_reader::primitive::{PlainInt32ValueReader, PlainInt64ValueReader};
 use crate::basic::Compression;
 use crate::column::encoding::{Definitions, PageDecoder};
 use crate::compression::{CodecOptions, create_codec};
