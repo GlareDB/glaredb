@@ -84,7 +84,7 @@ GROUP BY CUBE (state_abbr, name)
 ORDER BY state_abbr NULLS LAST, name NULLS LAST;
 ```
 
-| state_abbr | name        | avg                | grp_level | Description        |
+| state_abbr | name        | avg                | grp_level | Description (not in output) |
 |------------|-------------|--------------------|-----------|--------------------|
 | OH         | Cincinnati  | 311097             | 0         | Base row           |
 | OH         | Cleveland   | 362656             | 0         | Base row           |
@@ -136,7 +136,7 @@ Result:
 
 | state_abbr | avg                | grp_state |
 |------------|--------------------|-----------|
-| NULL       | 1097018.5714285714 | 1         | Grand total (state_abbr aggregated)
+| NULL       | 1097018.5714285714 | 1         |
 | TX         | 1523050.5          | 0         |
 | OH         | 528976             | 0         |
 
