@@ -140,29 +140,6 @@ Result:
 | TX         | 1523050.5          | 0         |
 | OH         | 528976             | 0         |
 
-## HAVING Clause
-
-The `HAVING` clause filters the results of a `GROUP BY` query based on the aggregated values. While the `WHERE` clause filters individual rows *before* they are grouped, the `HAVING` clause filters the group rows *after* aggregation.
-
-Conditions in the `HAVING` clause usually involve aggregate functions applied to the groups.
-
-**Example:**
-
-Find states with more than 2 cities listed in the table:
-
-```sql
-SELECT state_abbr, count(*)
-FROM cities
-GROUP BY state_abbr
-HAVING count(*) > 2;
-```
-
-Result:
-
-| state_abbr | count |
-|------------|-------|
-| TX         | 4     |
-
 ## Column References
 
 When using `GROUP BY`, any non-aggregated column present in the `SELECT` list must also be included in the `GROUP BY` clause. GlareDB enforces this standard SQL rule.
