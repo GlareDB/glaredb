@@ -210,10 +210,22 @@ impl DotCommand for DotCommandHelp {
 
         let mut writer = RawTerminalWriter::new(shell.editor.writer_mut());
 
+        writeln!(
+            writer,
+            "{}Dot commands:{}",
+            vt100::MODE_BOLD,
+            vt100::MODES_OFF
+        )?;
         for (name, args, help) in DOT_COMMAND_LINES {
             let name_and_args = format!(".{name} {args}");
             writeln!(writer, "{:<20} {}", name_and_args, help)?
         }
+        writeln!(
+            writer,
+            "{}Online docs:{} <https://glaredb.com/docs>",
+            vt100::MODE_BOLD,
+            vt100::MODES_OFF
+        )?;
 
         Ok(DotSignal::EditStart)
     }
