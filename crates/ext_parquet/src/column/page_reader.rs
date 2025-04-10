@@ -310,6 +310,8 @@ where
                     value_reader: V::default(),
                 };
                 self.state.page_decoder = Some(PageDecoder::Plain(dec));
+                // TODO: Bit spooky.
+                self.state.page_buffer = self.decompressed_page.take_remaining();
                 Ok(())
             }
             other => Err(DbError::new("Unsupported encoding").with_field("encoding", other)),

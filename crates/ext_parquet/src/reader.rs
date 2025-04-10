@@ -165,8 +165,8 @@ impl Reader {
 
         for (output, col_reader) in output.arrays_mut().iter_mut().zip(&mut self.root.readers) {
             col_reader.read(output, count)?;
-            self.state.remaining_group_rows -= count;
         }
+        self.state.remaining_group_rows -= count;
 
         output.set_num_rows(count)?;
 

@@ -6,7 +6,7 @@ use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_error::{DbError, Result, not_implemented};
 
 use super::page_reader::PageReader;
-use super::value_reader::ValueReader;
+use super::value_reader::{PlainInt32ValueReader, PlainInt64ValueReader, ValueReader};
 use crate::basic::Compression;
 use crate::column::encoding::{Definitions, PageDecoder};
 use crate::compression::{CodecOptions, create_codec};
@@ -39,6 +39,12 @@ pub fn new_column_reader(
     descr: ColumnDescriptor,
 ) -> Result<Box<dyn ColumnReader>> {
     Ok(match datatype {
+        DataType::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader>::try_new(
+            manager, descr,
+        )?),
+        DataType::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader>::try_new(
+            manager, descr,
+        )?),
         other => not_implemented!("data type: {other}"),
     })
 }
