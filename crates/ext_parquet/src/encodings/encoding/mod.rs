@@ -725,6 +725,7 @@ mod tests {
     use super::*;
     use crate::encodings::decoding::{Decoder, DictDecoder, PlainDecoder, get_decoder};
     use crate::schema::types::{ColumnDescriptor, ColumnPath, SchemaType};
+    use crate::testutil::miri::return_if_miri;
     use crate::testutil::rand_gen::{RandGen, random_bytes};
     use crate::util::bit_util;
 
@@ -732,6 +733,7 @@ mod tests {
 
     #[test]
     fn test_bool() {
+        return_if_miri!("slow");
         bool::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
         bool::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
         bool::test(Encoding::RLE, TEST_SET_SIZE, -1);
@@ -739,6 +741,7 @@ mod tests {
 
     #[test]
     fn test_i32() {
+        return_if_miri!("slow");
         i32::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
         i32::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
         i32::test(Encoding::DELTA_BINARY_PACKED, TEST_SET_SIZE, -1);
@@ -746,6 +749,7 @@ mod tests {
 
     #[test]
     fn test_i64() {
+        return_if_miri!("slow");
         i64::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
         i64::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
         i64::test(Encoding::DELTA_BINARY_PACKED, TEST_SET_SIZE, -1);
@@ -753,12 +757,14 @@ mod tests {
 
     #[test]
     fn test_i96() {
+        return_if_miri!("slow");
         Int96::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
         Int96::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
     }
 
     #[test]
     fn test_float() {
+        return_if_miri!("slow");
         f32::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
         f32::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
         f32::test(Encoding::BYTE_STREAM_SPLIT, TEST_SET_SIZE, -1);
@@ -766,6 +772,7 @@ mod tests {
 
     #[test]
     fn test_double() {
+        return_if_miri!("slow");
         f64::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
         f64::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
         f64::test(Encoding::BYTE_STREAM_SPLIT, TEST_SET_SIZE, -1);
@@ -773,6 +780,7 @@ mod tests {
 
     #[test]
     fn test_byte_array() {
+        return_if_miri!("slow");
         ByteArray::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
         ByteArray::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
         ByteArray::test(Encoding::DELTA_LENGTH_BYTE_ARRAY, TEST_SET_SIZE, -1);
@@ -781,6 +789,7 @@ mod tests {
 
     #[test]
     fn test_fixed_lenbyte_array() {
+        return_if_miri!("slow");
         FixedLenByteArray::test(Encoding::PLAIN, TEST_SET_SIZE, 100);
         FixedLenByteArray::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, 100);
         FixedLenByteArray::test(Encoding::DELTA_BYTE_ARRAY, TEST_SET_SIZE, 100);

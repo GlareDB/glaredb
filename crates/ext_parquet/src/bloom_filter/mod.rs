@@ -403,6 +403,7 @@ fn hash_as_bytes<A: AsBytes + ?Sized>(value: &A) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testutil::miri::return_if_miri;
 
     #[test]
     fn test_hash_bytes() {
@@ -411,6 +412,7 @@ mod tests {
 
     #[test]
     fn test_mask_set_quick_check() {
+        return_if_miri!();
         for i in 0..1_000_000 {
             let result = Block::mask(i);
             assert!(result.0.iter().all(|&x| x.count_ones() == 1));
@@ -419,6 +421,7 @@ mod tests {
 
     #[test]
     fn test_block_insert_and_check() {
+        return_if_miri!();
         for i in 0..1_000_000 {
             let mut block = Block::ZERO;
             block.insert(i);
@@ -428,6 +431,7 @@ mod tests {
 
     #[test]
     fn test_sbbf_insert_and_check() {
+        return_if_miri!();
         let mut sbbf = Sbbf(vec![Block::ZERO; 1_000]);
         for i in 0..1_000_000 {
             sbbf.insert(&i);
@@ -437,6 +441,7 @@ mod tests {
 
     #[test]
     fn test_with_fixture() {
+        return_if_miri!();
         // bloom filter produced by parquet-mr/spark for a column of i64 f"a{i}" for i in 0..10
         let bitset: &[u8] = &[
             200, 1, 80, 20, 64, 68, 8, 109, 6, 37, 4, 67, 144, 80, 96, 32, 8, 132, 43, 33, 0, 5,
@@ -454,6 +459,7 @@ mod tests {
     /// so altogether it'll be 20 bytes at most.
     #[test]
     fn test_bloom_filter_header_size_assumption() {
+        return_if_miri!();
         let buffer: &[u8; 16] = &[21, 64, 28, 28, 0, 0, 28, 28, 0, 0, 28, 28, 0, 0, 0, 99];
         let (
             BloomFilterHeader {
@@ -480,6 +486,7 @@ mod tests {
 
     #[test]
     fn test_optimal_num_of_bytes() {
+        return_if_miri!();
         for (input, expected) in &[
             (0, 32),
             (9, 32),
@@ -496,6 +503,7 @@ mod tests {
 
     #[test]
     fn test_num_of_bits_from_ndv_fpp() {
+        return_if_miri!();
         for (fpp, ndv, num_bits) in &[
             (0.1, 10, 57),
             (0.01, 10, 96),

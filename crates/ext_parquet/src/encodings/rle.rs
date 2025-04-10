@@ -529,6 +529,7 @@ mod tests {
     use rand::{self, Rng, SeedableRng, rng};
 
     use super::*;
+    use crate::testutil::miri::return_if_miri;
     use crate::util::bit_util::ceil;
 
     const MAX_WIDTH: usize = 32;
@@ -776,6 +777,7 @@ mod tests {
 
     #[test]
     fn test_rle_specific_sequences() {
+        return_if_miri!("slow");
         let mut expected_buffer = Vec::new();
         let mut values = vec![0; 50];
         values.resize(100, 1);
@@ -848,6 +850,7 @@ mod tests {
 
     #[test]
     fn test_values() {
+        return_if_miri!("slow");
         for width in 1..MAX_WIDTH + 1 {
             test_rle_values(width, 1, -1);
             test_rle_values(width, 1024, -1);
@@ -1012,6 +1015,7 @@ mod tests {
 
     #[test]
     fn test_random() {
+        return_if_miri!("slow");
         let seed_len = 32;
         let niters = 50;
         let ngroups = 1000;
