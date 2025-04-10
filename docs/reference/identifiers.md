@@ -30,7 +30,7 @@ SELECT * FROM "Cities";
 SELECT * FROM cities;
 ```
 
-Case-insitivity applies to all database objects, including function.
+Case-insensitivity applies to all database objects, including functions.
 
 Both queries are equivalent:
 

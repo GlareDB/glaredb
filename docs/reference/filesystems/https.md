@@ -17,7 +17,7 @@ You can use any supported file-reading function with a fully qualified HTTP or
 HTTPS URL.
 
 ```sql
-SELECT * FROM read_csv('https://example.com/cities.csv);
+SELECT * FROM read_csv('https://example.com/cities.csv');
 ```
 
 This reads a remote CSV file over HTTPS and returns the parsed table.

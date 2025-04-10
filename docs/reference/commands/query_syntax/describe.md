@@ -10,7 +10,7 @@ table functions, or files.
 ## Describing a Query
 
 `DESCRIBE` followed by a query can be used to show the names and data types that
-would be return by that query:
+would be returned by that query:
 
 ```sql
 DESCRIBE SELECT 1 as a, 'hello' as b;
