@@ -15,6 +15,7 @@ where
     V: ValueReader,
 {
     /// Optional dictionary buffer to read from.
+    #[allow(unused)]
     pub dictionary: Option<OwnedReadBuffer>,
     /// Determines how we read values from the read buffer.
     ///

@@ -11,17 +11,14 @@ use glaredb_core::runtime::filesystem::AnyFile;
 use glaredb_core::storage::projections::Projections;
 use glaredb_error::Result;
 
-use crate::column::column_reader::{ValueColumnReader, new_column_reader};
+use crate::column::column_reader::new_column_reader;
 use crate::column::struct_reader::StructReader;
-use crate::compression::{CodecOptions, create_codec};
 use crate::metadata::ParquetMetaData;
 
 #[derive(Debug)]
 pub struct Reader {
     /// Metadata for the file we're currently reading.
     metadata: Arc<ParquetMetaData>,
-    // TODO: Need parquet specific schema.
-    schema: ColumnSchema,
     /// File we're reading from.
     file: AnyFile,
     /// Queue of row groups to read from.
@@ -88,6 +85,7 @@ impl Reader {
     ///
     /// `groups` indicates which row groups this reader will read. Groups are
     /// read in the order provided by the iterator.
+    // TODO: Need parquet specific schema
     pub fn try_new(
         manager: &impl AsRawBufferManager,
         metadata: Arc<ParquetMetaData>,
@@ -110,7 +108,6 @@ impl Reader {
 
         Ok(Reader {
             metadata,
-            schema,
             file,
             row_groups: groups.into_iter().collect(),
             state: RowGroupState {
