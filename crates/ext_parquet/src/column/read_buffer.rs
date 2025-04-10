@@ -170,6 +170,23 @@ impl ReadBuffer {
         }
     }
 
+    /// Reads the next `len` number of bytes, returning the byte slice.
+    ///
+    /// # Safety
+    ///
+    /// `len` must not go beyond the end of the remaining number of bytes in the
+    /// buffer.
+    pub unsafe fn read_bytes_unchecked(&mut self, len: usize) -> &[u8] {
+        unsafe {
+            debug_assert!(self.remaining >= len);
+
+            let bs = std::slice::from_raw_parts(self.curr, len);
+            self.skip_bytes_unchecked(len);
+
+            bs
+        }
+    }
+
     /// Copies bytes from this buffer into the output slice. The output slice
     /// must be less than or equal to the current remaining capacity of this
     /// buffer.

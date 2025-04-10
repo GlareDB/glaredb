@@ -5,6 +5,7 @@ use std::task::{Context, Poll};
 use futures::FutureExt;
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::datatype::DataTypeId;
+use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::buffer::buffer_manager::NopBufferManager;
 use glaredb_core::execution::operators::{ExecutionProperties, PollPull};
 use glaredb_core::functions::Signature;
@@ -55,6 +56,7 @@ pub struct ReadParquetBindState {
     fs: FileSystemWithState,
     path: String,
     metadata: Arc<ParquetMetaData>,
+    schema: ColumnSchema, // TODO
 }
 
 pub struct ReadParquetOperatorState {
@@ -62,6 +64,7 @@ pub struct ReadParquetOperatorState {
     path: String,
     metadata: Arc<ParquetMetaData>,
     projections: Projections,
+    schema: ColumnSchema, // TODO
 }
 
 pub struct ReadParquetPartitionState {
@@ -116,6 +119,7 @@ impl TableScanFunction for ReadParquet {
                 fs,
                 path,
                 metadata: Arc::new(metadata),
+                schema: schema.clone(),
             },
             input,
             schema,
@@ -133,6 +137,7 @@ impl TableScanFunction for ReadParquet {
             path: bind_state.path.clone(),
             metadata: bind_state.metadata.clone(),
             projections,
+            schema: bind_state.schema.clone(),
         })
     }
 
@@ -153,6 +158,7 @@ impl TableScanFunction for ReadParquet {
             .map(|groups| {
                 let projections = op_state.projections.clone();
                 let metadata = op_state.metadata.clone();
+                let schema = op_state.schema.clone();
                 let open_fut = op_state
                     .fs
                     .open_static(OpenFlags::READ, op_state.path.clone());
@@ -161,7 +167,14 @@ impl TableScanFunction for ReadParquet {
                     let file = open_fut.await?;
                     // TODO: How do we want to thread down the manager? Put on
                     // props? Request that it goes on op_state?
-                    Reader::try_new(&NopBufferManager, metadata, file, groups, projections)
+                    Reader::try_new(
+                        &NopBufferManager,
+                        metadata,
+                        schema,
+                        file,
+                        groups,
+                        projections,
+                    )
                 });
 
                 ReadParquetPartitionState {

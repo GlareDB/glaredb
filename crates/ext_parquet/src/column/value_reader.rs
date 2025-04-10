@@ -1,6 +1,12 @@
 use std::fmt::Debug;
 
-use glaredb_core::arrays::array::physical_type::{AddressableMut, MutableScalarStorage};
+use glaredb_core::arrays::array::physical_type::{
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalBinary,
+    PhysicalI32,
+    PhysicalI64,
+};
 use glaredb_core::util::marker::PhantomCovariant;
 
 use crate::column::read_buffer::ReadBuffer;
@@ -11,11 +17,14 @@ use crate::column::read_buffer::ReadBuffer;
 /// values to should always be in bounds relative to the provided storage. This
 /// should never error.
 ///
+/// A new value reader is created every time a new page is loaded (via
+/// `Default`).
+///
 /// # Safety
 ///
 /// The caller must guarantee that we have sufficient data in the buffer to read
 /// a complete value.
-pub trait ValueReader: Debug + Sync + Send {
+pub trait ValueReader: Default + Debug + Sync + Send {
     type Storage: MutableScalarStorage;
 
     /// Read the next value in the buffer, writing it the mutable storage at the
@@ -31,23 +40,15 @@ pub trait ValueReader: Debug + Sync + Send {
     unsafe fn skip_unchecked(&mut self, data: &mut ReadBuffer);
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct PrimitiveValueReader<S: MutableScalarStorage> {
+pub type PlainInt32ValueReader = PlainPrimitiveValueReader<PhysicalI32>;
+pub type PlainInt64ValueReader = PlainPrimitiveValueReader<PhysicalI64>;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PlainPrimitiveValueReader<S: MutableScalarStorage> {
     _s: PhantomCovariant<S>,
 }
 
-impl<S> PrimitiveValueReader<S>
-where
-    S: MutableScalarStorage,
-{
-    pub const fn new() -> Self {
-        PrimitiveValueReader {
-            _s: PhantomCovariant::new(),
-        }
-    }
-}
-
-impl<S> ValueReader for PrimitiveValueReader<S>
+impl<S> ValueReader for PlainPrimitiveValueReader<S>
 where
     S: MutableScalarStorage,
     S::StorageType: Copy + Sized,
@@ -65,8 +66,29 @@ where
     }
 
     unsafe fn skip_unchecked(&mut self, data: &mut ReadBuffer) {
-        unsafe {
-            data.skip_bytes_unchecked(std::mem::size_of::<S::StorageType>());
-        }
+        unsafe { data.skip_bytes_unchecked(std::mem::size_of::<S::StorageType>()) };
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PlainByteArrayValueReader;
+
+impl ValueReader for PlainByteArrayValueReader {
+    type Storage = PhysicalBinary;
+
+    unsafe fn read_next_unchecked(
+        &mut self,
+        data: &mut ReadBuffer,
+        out_idx: usize,
+        out: &mut <Self::Storage as MutableScalarStorage>::AddressableMut<'_>,
+    ) {
+        let len = unsafe { data.read_next_unchecked::<u32>() } as usize;
+        let bs = unsafe { data.read_bytes_unchecked(len) };
+        out.put(out_idx, bs);
+    }
+
+    unsafe fn skip_unchecked(&mut self, data: &mut ReadBuffer) {
+        let len = unsafe { data.read_next_unchecked::<u32>() } as usize;
+        unsafe { data.skip_bytes_unchecked(len) };
     }
 }

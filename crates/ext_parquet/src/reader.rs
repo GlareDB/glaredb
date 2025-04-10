@@ -4,13 +4,14 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use glaredb_core::arrays::batch::Batch;
+use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::execution::operators::PollPull;
 use glaredb_core::runtime::filesystem::AnyFile;
 use glaredb_core::storage::projections::Projections;
 use glaredb_error::Result;
 
-use crate::column::column_reader::ColumnReader;
+use crate::column::column_reader::{ValueColumnReader, new_column_reader};
 use crate::column::struct_reader::StructReader;
 use crate::compression::{CodecOptions, create_codec};
 use crate::metadata::ParquetMetaData;
@@ -19,6 +20,8 @@ use crate::metadata::ParquetMetaData;
 pub struct Reader {
     /// Metadata for the file we're currently reading.
     metadata: Arc<ParquetMetaData>,
+    // TODO: Need parquet specific schema.
+    schema: ColumnSchema,
     /// File we're reading from.
     file: AnyFile,
     /// Queue of row groups to read from.
@@ -88,6 +91,7 @@ impl Reader {
     pub fn try_new(
         manager: &impl AsRawBufferManager,
         metadata: Arc<ParquetMetaData>,
+        schema: ColumnSchema,
         file: AnyFile,
         groups: impl IntoIterator<Item = usize>,
         projections: Projections,
@@ -99,12 +103,14 @@ impl Reader {
                 // TODO: I'll fix this later, we're just assuming a flat schema
                 // right now.
                 let col_descr = metadata.file_metadata.schema_descr.leaves[col_idx].clone();
-                ColumnReader::try_new(manager, col_descr)
+                let datatype = &schema.fields[col_idx].datatype;
+                new_column_reader(manager, datatype, col_descr)
             })
             .collect::<Result<Vec<_>>>()?;
 
         Ok(Reader {
             metadata,
+            schema,
             file,
             row_groups: groups.into_iter().collect(),
             state: RowGroupState {
@@ -190,12 +196,7 @@ impl Reader {
 
                     // Reset and resize this column's buffer.
                     let reader = &mut self.root.readers[*column_idx];
-                    reader.page_reader.chunk_offset = 0;
-                    reader.page_reader.chunk.reserve_for_size(len as usize)?;
-
-                    // Also set decompression codec...
-                    reader.page_reader.codec =
-                        create_codec(col.compression, &CodecOptions::default())?;
+                    reader.prepare_for_chunk(len as usize, col.compression)?;
 
                     // Begin seeking to the start of this column chunk.
                     self.fetch_state = FetchState::Seeking {
@@ -225,10 +226,7 @@ impl Reader {
                 } => {
                     // Read into this column's buffer. Buffer should be the
                     // exact size.
-                    let buf = self.root.readers[*column_idx]
-                        .page_reader
-                        .chunk
-                        .as_slice_mut();
+                    let buf = self.root.readers[*column_idx].chunk_buf_mut();
 
                     let read_buf = &mut buf[*amount_written..];
                     match self.file.call_poll_read(cx, read_buf) {
