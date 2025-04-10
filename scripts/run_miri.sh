@@ -15,3 +15,4 @@ cargo +nightly miri test -p glaredb_core
 
 # Data source crates.
 cargo +nightly miri test -p ext_csv
+cargo +nightly miri test -p ext_parquet
