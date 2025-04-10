@@ -680,6 +680,7 @@ mod tests {
     use rand::distr::{Distribution, StandardUniform};
 
     use super::*;
+    use crate::testutil::miri::return_if_miri;
     use crate::testutil::rand_gen::random_numbers;
 
     #[test]
@@ -958,6 +959,7 @@ mod tests {
 
     #[test]
     fn test_get_batch() {
+        return_if_miri!("slow");
         const SIZE: &[usize] = &[1, 31, 32, 33, 128, 129];
         for s in SIZE {
             for i in 0..=64 {

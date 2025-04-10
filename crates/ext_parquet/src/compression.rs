@@ -598,6 +598,7 @@ pub use lz4_hadoop_codec::*;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testutil::miri::return_if_miri;
     use crate::testutil::rand_gen::random_bytes;
 
     fn test_roundtrip(c: CodecType, data: &[u8], uncompress_size: usize) {
@@ -647,11 +648,13 @@ mod tests {
 
     #[test]
     fn test_codec_snappy() {
+        return_if_miri!("slow");
         test_codec_with_size(CodecType::SNAPPY);
     }
 
     #[test]
     fn test_codec_gzip() {
+        return_if_miri!("slow");
         for level in GzipLevel::MINIMUM_LEVEL..=GzipLevel::MAXIMUM_LEVEL {
             let level = GzipLevel::try_new(level).unwrap();
             test_codec_with_size(CodecType::GZIP(level));
@@ -660,6 +663,7 @@ mod tests {
 
     #[test]
     fn test_codec_brotli() {
+        return_if_miri!("slow");
         for level in BrotliLevel::MINIMUM_LEVEL..=BrotliLevel::MAXIMUM_LEVEL {
             let level = BrotliLevel::try_new(level).unwrap();
             test_codec_with_size(CodecType::BROTLI(level));
@@ -668,11 +672,13 @@ mod tests {
 
     #[test]
     fn test_codec_lz4() {
+        return_if_miri!("slow");
         test_codec_with_size(CodecType::LZ4);
     }
 
     #[test]
     fn test_codec_zstd() {
+        return_if_miri!("foreign function");
         for level in ZstdLevel::MINIMUM_LEVEL..=ZstdLevel::MAXIMUM_LEVEL {
             let level = ZstdLevel::try_new(level).unwrap();
             test_codec_with_size(CodecType::ZSTD(level));
@@ -681,6 +687,7 @@ mod tests {
 
     #[test]
     fn test_codec_lz4_raw() {
+        return_if_miri!("slow");
         test_codec_with_size(CodecType::LZ4_RAW);
     }
 }
