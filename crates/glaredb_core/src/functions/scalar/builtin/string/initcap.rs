@@ -57,31 +57,33 @@ fn initcap_execute(
     sel: impl IntoExactSizeIterator<Item = usize>,
     output: &mut Array,
 ) -> Result<()> {
+    let mut string_buf = String::new();
     UnaryExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(
         input,
         sel,
         OutBuffer::from_array(output)?,
-        |v, buf| buf.put(&initcap_string(v)),
-    )
-}
+        |s, buf| {
+            string_buf.clear();
+            string_buf.reserve(s.len());
 
-fn initcap_string(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    let mut capitalize_next = true;
+            let mut capitalize_next = true;
 
-    for c in s.chars() {
-        if c.is_alphabetic() {
-            if capitalize_next {
-                result.extend(c.to_uppercase());
-                capitalize_next = false;
-            } else {
-                result.extend(c.to_lowercase());
+            for c in s.chars() {
+                if c.is_alphabetic() {
+                    if capitalize_next {
+                        string_buf.extend(c.to_uppercase());
+                        capitalize_next = false;
+                    } else {
+                        string_buf.extend(c.to_lowercase());
+                    }
+                } else {
+                    string_buf.push(c);
+                    capitalize_next =
+                        c.is_whitespace() || c == '-' || c == '_' || c == '.' || c == ',';
+                }
             }
-        } else {
-            result.push(c);
-            capitalize_next = c.is_whitespace() || c == '-' || c == '_' || c == '.' || c == ',';
-        }
-    }
 
-    result
+            buf.put(&string_buf);
+        },
+    )
 }
