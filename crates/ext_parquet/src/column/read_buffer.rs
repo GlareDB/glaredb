@@ -20,6 +20,10 @@ unsafe impl Sync for OwnedReadBuffer {}
 unsafe impl Send for OwnedReadBuffer {}
 
 impl OwnedReadBuffer {
+    /// Create a new read buffer from the given byte buffer.
+    ///
+    /// This buffer's `remaining` count will be initialized to the capacity of
+    /// the byte buffer.
     pub fn new(buffer: ByteBuffer) -> Self {
         let curr = buffer.as_ptr();
         let remaining = buffer.capacity();
@@ -108,13 +112,17 @@ impl OwnedReadBuffer {
     /// This may allocate a new buffer if the current buffer is not sufficient
     /// to hold the new size.
     ///
+    /// This buffer's `remaining` count will be set to `size`. This may be less
+    /// than the true capacity of the buffer as we may overallocate.
+    ///
     /// # Safety
     ///
     /// All shared buffers created from this buffer are no longer valid to use.
     pub unsafe fn reset_and_resize(&mut self, size: usize) -> Result<()> {
         self.buffer.reserve_for_size(size)?;
         self.curr = self.buffer.as_ptr();
-        self.remaining = self.buffer.capacity();
+        debug_assert!(self.buffer.capacity() >= size);
+        self.remaining = size;
         Ok(())
     }
 }
