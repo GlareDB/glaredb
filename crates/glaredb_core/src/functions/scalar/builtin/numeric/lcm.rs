@@ -12,11 +12,6 @@ use crate::arrays::array::physical_type::{
     PhysicalI32,
     PhysicalI64,
     PhysicalI128,
-    PhysicalU8,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU128,
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
