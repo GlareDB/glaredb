@@ -4,7 +4,8 @@ title: Comparison
 
 # Comparison Operators
 
-Comparison operators compare two values and return a boolean result (true or false). They are commonly used in WHERE clauses and join conditions.
+Comparison operators compare two values and return a boolean result (true or
+false). They are commonly used in WHERE clauses and join conditions.
 
 ## Syntax
 
@@ -14,16 +15,16 @@ value_expression operator value_expression
 
 ## Operators
 
-| Operator | Description |
-|----------|-------------|
-| `=` | Equal to |
-| `<>`, `!=` | Not equal to |
-| `<` | Less than |
-| `<=` | Less than or equal to |
-| `>` | Greater than |
-| `>=` | Greater than or equal to |
-| `IS DISTINCT FROM` | Not equal, treating NULL values as comparable values |
-| `IS NOT DISTINCT FROM` | Equal, treating NULL values as comparable values |
+| Operator               | Description                                          |
+|------------------------|------------------------------------------------------|
+| `=`                    | Equal to                                             |
+| `<>`, `!=`             | Not equal to                                         |
+| `<`                    | Less than                                            |
+| `<=`                   | Less than or equal to                                |
+| `>`                    | Greater than                                         |
+| `>=`                   | Greater than or equal to                             |
+| `IS DISTINCT FROM`     | Not equal, treating NULL values as comparable values |
+| `IS NOT DISTINCT FROM` | Equal, treating NULL values as comparable values     |
 
 ## Examples
 
@@ -53,7 +54,8 @@ SELECT * FROM students WHERE score >= 90;
 
 ### IS DISTINCT FROM and IS NOT DISTINCT FROM
 
-These operators are similar to the `=` and `<>` operators, but they treat NULL values as comparable values:
+These operators are similar to the `=` and `<>` operators, but they treat NULL
+values as comparable values:
 
 ```sql
 -- Regular comparison with NULL returns NULL (unknown)
@@ -72,8 +74,8 @@ SELECT NULL IS NOT DISTINCT FROM NULL;   -- Result: true
 Example with tables:
 
 ```sql
--- Find rows where city_name is different from stored_city, 
+-- Find rows where city_name is different from stored_city,
 -- even if either value is NULL
-SELECT * FROM addresses 
+SELECT * FROM addresses
 WHERE city_name IS DISTINCT FROM stored_city;
 ```

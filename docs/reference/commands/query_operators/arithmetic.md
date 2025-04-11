@@ -4,7 +4,8 @@ title: Arithmetic
 
 # Arithmetic Operators
 
-Arithmetic operators perform mathematical operations on numeric values in SQL expressions.
+Arithmetic operators perform mathematical operations on numeric values in SQL
+expressions.
 
 ## Syntax
 
@@ -14,13 +15,13 @@ value_expression operator value_expression
 
 ## Operators
 
-| Operator | Description |
-|----------|-------------|
-| `+` | Addition |
-| `-` | Subtraction |
-| `*` | Multiplication |
-| `/` | Division |
-| `%` | Modulo (remainder) |
+| Operator | Description        |
+|----------|--------------------|
+| `+`      | Addition           |
+| `-`      | Subtraction        |
+| `*`      | Multiplication     |
+| `/`      | Division           |
+| `%`      | Modulo (remainder) |
 
 ## Examples
 
