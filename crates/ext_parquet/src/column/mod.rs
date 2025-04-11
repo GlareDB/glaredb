@@ -24,6 +24,7 @@ pub mod column_reader;
 pub mod struct_reader;
 
 mod bitutil;
+mod dictionary;
 mod encoding;
 mod page_reader;
 mod read_buffer;

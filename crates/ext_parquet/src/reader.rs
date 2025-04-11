@@ -11,7 +11,6 @@ use glaredb_core::runtime::filesystem::AnyFile;
 use glaredb_core::storage::projections::Projections;
 use glaredb_error::Result;
 
-use crate::column::column_reader::new_column_reader;
 use crate::column::struct_reader::StructReader;
 use crate::metadata::ParquetMetaData;
 
@@ -94,17 +93,12 @@ impl Reader {
         groups: impl IntoIterator<Item = usize>,
         projections: Projections,
     ) -> Result<Self> {
-        let readers = projections
-            .data_indices()
-            .iter()
-            .map(|&col_idx| {
-                // TODO: I'll fix this later, we're just assuming a flat schema
-                // right now.
-                let col_descr = metadata.file_metadata.schema_descr.leaves[col_idx].clone();
-                let datatype = &schema.fields[col_idx].datatype;
-                new_column_reader(manager, datatype, col_descr)
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let root = StructReader::try_new_root(
+            manager,
+            &projections,
+            &schema,
+            &metadata.file_metadata.schema_descr,
+        )?;
 
         Ok(Reader {
             metadata,
@@ -116,7 +110,7 @@ impl Reader {
             },
             fetch_state: FetchState::NeedsFetch { column_idx: 0 }, // This doesn't matter here.
             projections,
-            root: StructReader { readers },
+            root,
         })
     }
 

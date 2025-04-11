@@ -108,14 +108,14 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 (Some(basic::LogicalType::Decimal { scale, precision }), _) => {
                     decimal128_with_prec_scale(precision, scale)
                 }
-                (Some(basic::LogicalType::Timestamp { unit, .. }), _) => match unit {
-                    format::TimeUnit::MILLIS(_) => Ok(DataType::Timestamp(TimestampTypeMeta::new(
-                        TimeUnit::Millisecond,
-                    ))),
-                    other => Err(DbError::new(format!(
-                        "Unhandled time unit for INT32: {other:?}"
-                    ))),
-                },
+                // (Some(basic::LogicalType::Timestamp { unit, .. }), _) => match unit {
+                //     format::TimeUnit::MILLIS(_) => Ok(DataType::Timestamp(TimestampTypeMeta::new(
+                //         TimeUnit::Millisecond,
+                //     ))),
+                //     other => Err(DbError::new(format!(
+                //         "Unhandled time unit for INT32: {other:?}"
+                //     ))),
+                // },
                 (Some(basic::LogicalType::Date), _) => Ok(DataType::Date32),
                 (logical, converted) => Err(DbError::new(format!(
                     "Cannot handle INT32 with logical type {logical:?} or converted type {converted:?}",

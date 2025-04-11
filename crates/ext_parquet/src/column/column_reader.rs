@@ -3,10 +3,10 @@ use std::fmt::Debug;
 use glaredb_core::arrays::array::Array;
 use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
-use glaredb_error::{DbError, Result, not_implemented};
+use glaredb_error::{DbError, Result};
 
 use super::page_reader::PageReader;
-use super::value_reader::{PlainInt32ValueReader, PlainInt64ValueReader, ValueReader};
+use super::value_reader::ValueReader;
 use crate::basic::Compression;
 use crate::column::encoding::{Definitions, PageDecoder};
 use crate::compression::{CodecOptions, create_codec};
@@ -32,23 +32,6 @@ pub trait ColumnReader: Debug + Sync + Send {
     fn chunk_buf_mut(&mut self) -> &mut [u8];
 }
 
-/// Create a new boxed column reader.
-pub fn new_column_reader(
-    manager: &impl AsRawBufferManager,
-    datatype: &DataType,
-    descr: ColumnDescriptor,
-) -> Result<Box<dyn ColumnReader>> {
-    Ok(match datatype {
-        DataType::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader>::try_new(
-            manager, descr,
-        )?),
-        DataType::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader>::try_new(
-            manager, descr,
-        )?),
-        other => not_implemented!("data type: {other}"),
-    })
-}
-
 #[derive(Debug)]
 pub struct ValueColumnReader<V: ValueReader> {
     /// Page reader for this column.
@@ -63,8 +46,12 @@ impl<V> ValueColumnReader<V>
 where
     V: ValueReader,
 {
-    pub fn try_new(manager: &impl AsRawBufferManager, descr: ColumnDescriptor) -> Result<Self> {
-        let page_reader = PageReader::try_new(manager, descr)?;
+    pub fn try_new(
+        manager: &impl AsRawBufferManager,
+        datatype: DataType,
+        descr: ColumnDescriptor,
+    ) -> Result<Self> {
+        let page_reader = PageReader::try_new(manager, datatype, descr)?;
 
         Ok(ValueColumnReader {
             page_reader,

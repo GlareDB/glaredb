@@ -298,6 +298,10 @@ impl Array {
         &mut self.data
     }
 
+    pub fn validity_mut(&mut self) -> &mut Validity {
+        &mut self.validity
+    }
+
     /// Gets a mutable reference to bothe the array buffer, and the validity.
     pub fn data_and_validity_mut(&mut self) -> (&mut ArrayBuffer, &mut Validity) {
         (&mut self.data, &mut self.validity)
