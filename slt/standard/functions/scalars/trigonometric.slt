@@ -7,7 +7,7 @@ SET verify_optimized_plan TO true;
 query R
 SELECT atan2(1.0, 1.0);
 ----
-0.7853982
+0.7853981633974483
 
 query R
 SELECT atan2(0.0, 1.0);
@@ -17,12 +17,12 @@ SELECT atan2(0.0, 1.0);
 query R
 SELECT atan2(1.0, 0.0);
 ----
-1.5707964
+1.5707963267948966
 
 query R
 SELECT atan2(-1.0, -1.0);
 ----
--2.3561945
+-2.356194490192345
 
 query R
 SELECT atan2(NULL, 1.0);
@@ -38,7 +38,7 @@ NULL
 query R
 SELECT cot(1.0);
 ----
-0.6420926
+0.6420926159343306
 
 query R
 SELECT cot(0.0);
@@ -54,7 +54,7 @@ NULL
 query R
 SELECT sinh(1.0);
 ----
-1.1752012
+1.1752011936438014
 
 query R
 SELECT sinh(0.0);
@@ -64,7 +64,7 @@ SELECT sinh(0.0);
 query R
 SELECT sinh(-1.0);
 ----
--1.1752012
+-1.1752011936438014
 
 query R
 SELECT sinh(NULL);
@@ -75,7 +75,7 @@ NULL
 query R
 SELECT cosh(1.0);
 ----
-1.5430806
+1.5430806348152437
 
 query R
 SELECT cosh(0.0);
@@ -85,7 +85,7 @@ SELECT cosh(0.0);
 query R
 SELECT cosh(-1.0);
 ----
-1.5430806
+1.5430806348152437
 
 query R
 SELECT cosh(NULL);
@@ -96,7 +96,7 @@ NULL
 query R
 SELECT tanh(1.0);
 ----
-0.7615942
+0.7615941559557649
 
 query R
 SELECT tanh(0.0);
@@ -106,7 +106,7 @@ SELECT tanh(0.0);
 query R
 SELECT tanh(-1.0);
 ----
--0.7615942
+-0.7615941559557649
 
 query R
 SELECT tanh(NULL);
@@ -117,7 +117,7 @@ NULL
 query R
 SELECT asinh(1.0);
 ----
-0.8813736
+0.881373587019543
 
 query R
 SELECT asinh(0.0);
@@ -127,7 +127,7 @@ SELECT asinh(0.0);
 query R
 SELECT asinh(-1.0);
 ----
--0.8813736
+-0.881373587019543
 
 query R
 SELECT asinh(NULL);
@@ -143,7 +143,7 @@ SELECT acosh(1.0);
 query R
 SELECT acosh(2.0);
 ----
-1.316958
+1.3169578969248166
 
 query R
 SELECT acosh(NULL);
@@ -159,12 +159,12 @@ SELECT atanh(0.0);
 query R
 SELECT atanh(0.5);
 ----
-0.54930615
+0.5493061443340548
 
 query R
 SELECT atanh(-0.5);
 ----
--0.54930615
+-0.5493061443340548
 
 query R
 SELECT atanh(NULL);
