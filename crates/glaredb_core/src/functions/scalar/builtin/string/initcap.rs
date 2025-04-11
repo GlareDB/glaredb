@@ -68,7 +68,7 @@ fn initcap_execute(
 fn initcap_string(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut capitalize_next = true;
-    
+
     for c in s.chars() {
         if c.is_alphabetic() {
             if capitalize_next {
@@ -82,6 +82,6 @@ fn initcap_string(s: &str) -> String {
             capitalize_next = c.is_whitespace() || c == '-' || c == '_' || c == '.' || c == ',';
         }
     }
-    
+
     result
 }
