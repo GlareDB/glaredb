@@ -73,8 +73,8 @@ SELECT gcd(24, 2 * 6);
 12
 
 # Test with a table
-query II rowsort
-SELECT column1, gcd(column1, column2) FROM (VALUES (12, 8), (48, 18));
+query II
+SELECT column1, gcd(column1, column2) FROM (VALUES (12, 8), (48, 18)) ORDER BY 1;
 ----
 12  4
 48  6
