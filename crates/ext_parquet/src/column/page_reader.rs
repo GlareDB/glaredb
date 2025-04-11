@@ -1,7 +1,9 @@
+use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::buffer::typed::ByteBuffer;
-use glaredb_error::{DbError, Result, ResultExt, not_implemented};
+use glaredb_error::{DbError, Result, ResultExt};
 
+use super::dictionary::Dictionary;
 use super::encoding::PageDecoder;
 use super::encoding::rle_bp::RleBpDecoder;
 use super::read_buffer::{OwnedReadBuffer, ReadBuffer};
@@ -10,7 +12,14 @@ use crate::basic::Encoding;
 use crate::column::encoding::plain::PlainDecoder;
 use crate::compression::Codec;
 use crate::format;
-use crate::page::{DataPageHeader, DataPageHeaderV2, PageHeader, PageMetadata, PageType};
+use crate::page::{
+    DataPageHeader,
+    DataPageHeaderV2,
+    DictionaryPageHeader,
+    PageHeader,
+    PageMetadata,
+    PageType,
+};
 use crate::schema::types::ColumnDescriptor;
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 use crate::util::bit_util::num_required_bits;
@@ -49,15 +58,25 @@ pub struct ScanState<V: ValueReader> {
     pub page_decoder: Option<PageDecoder<V>>,
     /// Buffer for the page. Should be passed to the decoder.
     pub page_buffer: ReadBuffer,
+    /// Dictionary for this column.
+    ///
+    /// Initially contains an empty array. Updated as we decode dictionary
+    /// pages.
+    pub dictionary: Dictionary<V>,
 }
 
 impl<V> PageReader<V>
 where
     V: ValueReader,
 {
-    pub fn try_new(manager: &impl AsRawBufferManager, descr: ColumnDescriptor) -> Result<Self> {
+    pub fn try_new(
+        manager: &impl AsRawBufferManager,
+        datatype: DataType,
+        descr: ColumnDescriptor,
+    ) -> Result<Self> {
         let chunk = ByteBuffer::empty(manager);
         let mut decompressed_page = OwnedReadBuffer::new(ByteBuffer::empty(manager));
+        let dictionary = Dictionary::try_empty(manager, datatype)?;
 
         // TODO: What?
         let page_buffer = decompressed_page.take_remaining();
@@ -74,6 +93,7 @@ where
                 repetitions: None,
                 page_decoder: None,
                 page_buffer,
+                dictionary,
             },
         })
     }
@@ -95,7 +115,7 @@ where
         match header.page_type {
             PageType::DataPage(page) => self.prepare_data_page(header.metadata, page)?,
             PageType::DataPageV2(page) => self.prepare_data_page_v2(header.metadata, page)?,
-            PageType::Dictionary(_) => not_implemented!("read dictionary page"),
+            PageType::Dictionary(page) => self.prepare_dictionary(header.metadata, page)?,
         }
 
         Ok(())
@@ -121,6 +141,51 @@ where
             let out = &mut repetitions[offset..(offset + count)];
             rep_dec.get_batch(out)?;
         }
+
+        Ok(())
+    }
+
+    fn prepare_dictionary(
+        &mut self,
+        metadata: PageMetadata,
+        header: DictionaryPageHeader,
+    ) -> Result<()> {
+        // TODO: Duplicated with prepare v1.
+        unsafe {
+            self.decompressed_page
+                .reset_and_resize(metadata.uncompressed_page_size as usize)?
+        };
+        let src = &self
+            .chunk
+            .as_slice()
+            .get(self.chunk_offset..(self.chunk_offset + metadata.compressed_page_size as usize))
+            .ok_or_else(|| DbError::new("chunk buffer not large enough to read from"))?;
+        self.chunk_offset += metadata.compressed_page_size as usize;
+        match self.codec.as_ref() {
+            Some(codec) => {
+                // Page is compressed, decompress into our read buffer.
+                //
+                // SAFETY: No concurrent reads.
+                let dest = unsafe { self.decompressed_page.remaining_as_slice_mut() };
+                codec
+                    .decompress(src, dest)
+                    .context("failed to decompress page")?;
+            }
+            None => {
+                // TODO: Check slice len
+
+                // Page not compressed, just copy the data directly.
+                let dest = unsafe { self.decompressed_page.remaining_as_slice_mut() };
+                dest.copy_from_slice(src);
+            }
+        }
+
+        // Dictionary specific stuff...
+        let dict_size = header.num_values;
+        let mut buffer = self.decompressed_page.take_remaining();
+        self.state
+            .dictionary
+            .prepare_with_values(dict_size as usize, &mut buffer)?;
 
         Ok(())
     }
@@ -306,7 +371,6 @@ where
         match encoding {
             Encoding::PLAIN => {
                 let dec = PlainDecoder {
-                    dictionary: None,
                     value_reader: V::default(),
                 };
                 self.state.page_decoder = Some(PageDecoder::Plain(dec));

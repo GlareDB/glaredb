@@ -1,8 +1,10 @@
-#![allow(unused)]
-
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::buffer::typed::ByteBuffer;
 use glaredb_error::{DbError, Result};
+
+// TODO: Probably rename. The current names really only mean something if you
+// look at this code. Specifically `ReadBuffer` should indicate that it's tied
+// to `OwnedReadBuffer` somehow.
 
 /// Read buffer that owns the underlying buffer.
 #[derive(Debug)]
@@ -20,6 +22,10 @@ unsafe impl Sync for OwnedReadBuffer {}
 unsafe impl Send for OwnedReadBuffer {}
 
 impl OwnedReadBuffer {
+    /// Create a new read buffer from the given byte buffer.
+    ///
+    /// This buffer's `remaining` count will be initialized to the capacity of
+    /// the byte buffer.
     pub fn new(buffer: ByteBuffer) -> Self {
         let curr = buffer.as_ptr();
         let remaining = buffer.capacity();
@@ -34,6 +40,7 @@ impl OwnedReadBuffer {
     /// Try to create a new read buffer from the given bytes.
     ///
     /// Useful mostly for tests.
+    #[allow(unused)]
     pub fn from_bytes(manager: &impl AsRawBufferManager, bs: impl AsRef<[u8]>) -> Result<Self> {
         let bs = bs.as_ref();
         let mut buffer = ByteBuffer::try_with_capacity(manager, bs.len())?;
@@ -108,13 +115,17 @@ impl OwnedReadBuffer {
     /// This may allocate a new buffer if the current buffer is not sufficient
     /// to hold the new size.
     ///
+    /// This buffer's `remaining` count will be set to `size`. This may be less
+    /// than the true capacity of the buffer as we may overallocate.
+    ///
     /// # Safety
     ///
     /// All shared buffers created from this buffer are no longer valid to use.
     pub unsafe fn reset_and_resize(&mut self, size: usize) -> Result<()> {
         self.buffer.reserve_for_size(size)?;
         self.curr = self.buffer.as_ptr();
-        self.remaining = self.buffer.capacity();
+        debug_assert!(self.buffer.capacity() >= size);
+        self.remaining = size;
         Ok(())
     }
 }
@@ -292,5 +303,20 @@ mod tests {
 
         assert_eq!(770, unsafe { s.peek_next_unchecked::<u16>() });
         assert_eq!(770, unsafe { s.read_next_unchecked::<u16>() });
+    }
+
+    #[test]
+    fn take_all_read_bytes() {
+        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut s = buf.take_remaining();
+
+        let out = unsafe { s.read_bytes_unchecked(1) };
+        assert_eq!(b"h", out);
+
+        let out = unsafe { s.read_bytes_unchecked(3) };
+        assert_eq!(b"ell", out);
+
+        let out = unsafe { s.read_bytes_unchecked(1) };
+        assert_eq!(b"o", out);
     }
 }
