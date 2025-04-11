@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::ops::Div;
 
 use glaredb_error::Result;
-use num_traits::{PrimInt, Zero};
+use num_traits::{PrimInt, Signed, Zero};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
@@ -117,7 +117,7 @@ impl<S> Lcm<S> {
 impl<S> ScalarFunction for Lcm<S>
 where
     S: MutableScalarStorage,
-    S::StorageType: PrimInt + Div<Output = S::StorageType>,
+    S::StorageType: PrimInt + Signed + Div<Output = S::StorageType>,
 {
     type State = ();
 
@@ -146,8 +146,8 @@ where
                     return;
                 }
 
-                let abs_a = if a < S::StorageType::zero() { S::StorageType::zero() - a } else { a };
-                let abs_b = if b < S::StorageType::zero() { S::StorageType::zero() - b } else { b };
+                let abs_a = a.abs();
+                let abs_b = b.abs();
 
                 let mut x = abs_a;
                 let mut y = abs_b;
