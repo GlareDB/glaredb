@@ -13,8 +13,5 @@ pub use mul::*;
 mod rem;
 pub use rem::*;
 
-mod lcm;
-pub use lcm::*;
-
 mod decimal_arith;
 mod decimal_sigs;
