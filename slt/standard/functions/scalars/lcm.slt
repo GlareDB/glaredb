@@ -1,0 +1,89 @@
+# LCM function tests
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# Basic LCM tests
+query I
+select lcm(12, 18);
+----
+36
+
+query I
+select lcm(4, 6);
+----
+12
+
+# LCM of numbers with common factors
+query I
+select lcm(15, 25);
+----
+75
+
+# LCM of same number
+query I
+select lcm(7, 7);
+----
+7
+
+# LCM with 1
+query I
+select lcm(1, 5);
+----
+5
+
+query I
+select lcm(10, 1);
+----
+10
+
+# LCM with 0
+query I
+select lcm(0, 7);
+----
+0
+
+query I
+select lcm(14, 0);
+----
+0
+
+# LCM with negative numbers
+query I
+select lcm(-6, 8);
+----
+24
+
+query I
+select lcm(9, -15);
+----
+45
+
+query I
+select lcm(-20, -30);
+----
+60
+
+# LCM with larger numbers
+query I
+select lcm(36, 48);
+----
+144
+
+query I
+select lcm(123, 456);
+----
+18696
+
+# LCM in expressions
+query I
+select lcm(4+2, 3*2);
+----
+6
+
+# LCM with columnar data
+query II
+select column1, lcm(column1, column2) from (values (4, 6), (12, 18)) ORDER BY column1;
+----
+4 12
+12 36
