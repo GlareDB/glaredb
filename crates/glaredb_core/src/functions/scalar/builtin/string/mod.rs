@@ -56,3 +56,6 @@ pub use reverse::*;
 
 mod regexp_count;
 pub use regexp_count::*;
+
+mod initcap;
+pub use initcap::*;
