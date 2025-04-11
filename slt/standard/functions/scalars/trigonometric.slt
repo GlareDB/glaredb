@@ -1,8 +1,6 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-# TODO: Round outputs to fixed precision for better reproducibility.
-
 # Test atan2 function
 query R
 SELECT atan2(1.0, 1.0)::DECIMAL(18, 5);
