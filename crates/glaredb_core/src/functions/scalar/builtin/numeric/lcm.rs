@@ -6,8 +6,17 @@ use num_traits::{PrimInt, Zero};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    MutableScalarStorage, PhysicalI8, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI128, PhysicalU8,
-    PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU128,
+    MutableScalarStorage,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI128,
+    PhysicalU8,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU128,
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -18,7 +27,6 @@ use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::scalar::builtin::numeric::FUNCTION_SET_GCD;
 
 pub const FUNCTION_SET_LCM: ScalarFunctionSet = ScalarFunctionSet {
     name: "lcm",
@@ -140,20 +148,20 @@ where
 
                 let abs_a = a.abs();
                 let abs_b = b.abs();
-                
+
                 let mut x = abs_a;
                 let mut y = abs_b;
-                
+
                 while !y.is_zero() {
                     let temp = y;
                     y = x % y;
                     x = temp;
                 }
-                
+
                 let gcd = x;
-                
+
                 let lcm = (abs_a / gcd) * abs_b;
-                
+
                 buf.put(&lcm);
             },
         )
