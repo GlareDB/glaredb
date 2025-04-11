@@ -1,16 +1,8 @@
-use std::fmt::Debug;
-use std::marker::PhantomData;
-
 use glaredb_error::Result;
 use num_traits::Float;
 
 use crate::arrays::array::Array;
-use crate::arrays::array::physical_type::{
-    MutableScalarStorage,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-};
+use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalF64};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::OutBuffer;
@@ -30,29 +22,13 @@ pub const FUNCTION_SET_ATAN2: ScalarFunctionSet = ScalarFunctionSet {
         arguments: &["y", "x"],
         example: None,
     }],
-    functions: &[
-        RawScalarFunction::new(
-            &Signature::new(
-                &[DataTypeId::Float16, DataTypeId::Float16],
-                DataTypeId::Float16,
-            ),
-            &Atan2::<PhysicalF16>::new(&DataType::Float16),
+    functions: &[RawScalarFunction::new(
+        &Signature::new(
+            &[DataTypeId::Float64, DataTypeId::Float64],
+            DataTypeId::Float64,
         ),
-        RawScalarFunction::new(
-            &Signature::new(
-                &[DataTypeId::Float32, DataTypeId::Float32],
-                DataTypeId::Float32,
-            ),
-            &Atan2::<PhysicalF32>::new(&DataType::Float32),
-        ),
-        RawScalarFunction::new(
-            &Signature::new(
-                &[DataTypeId::Float64, DataTypeId::Float64],
-                DataTypeId::Float64,
-            ),
-            &Atan2::<PhysicalF64>::new(&DataType::Float64),
-        ),
-    ],
+        &Atan2::<PhysicalF64>::new(&DataType::Float64),
+    )],
 };
 
 #[derive(Debug, Clone, Copy)]
