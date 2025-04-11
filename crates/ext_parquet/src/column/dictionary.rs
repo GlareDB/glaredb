@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use glaredb_core::arrays::array::Array;
 use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
-use glaredb_error::{DbError, Result};
+use glaredb_error::Result;
 
 use super::read_buffer::ReadBuffer;
 use super::value_reader::ValueReader;

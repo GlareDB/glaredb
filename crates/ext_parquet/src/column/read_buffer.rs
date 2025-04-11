@@ -1,8 +1,10 @@
-#![allow(unused)]
-
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::buffer::typed::ByteBuffer;
 use glaredb_error::{DbError, Result};
+
+// TODO: Probably rename. The current names really only mean something if you
+// look at this code. Specifically `ReadBuffer` should indicate that it's tied
+// to `OwnedReadBuffer` somehow.
 
 /// Read buffer that owns the underlying buffer.
 #[derive(Debug)]
@@ -38,6 +40,7 @@ impl OwnedReadBuffer {
     /// Try to create a new read buffer from the given bytes.
     ///
     /// Useful mostly for tests.
+    #[allow(unused)]
     pub fn from_bytes(manager: &impl AsRawBufferManager, bs: impl AsRef<[u8]>) -> Result<Self> {
         let bs = bs.as_ref();
         let mut buffer = ByteBuffer::try_with_capacity(manager, bs.len())?;
