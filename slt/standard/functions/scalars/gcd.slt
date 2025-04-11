@@ -1,0 +1,80 @@
+# GCD function tests
+statement ok
+SET verify_optimized_plan TO true;
+
+# Basic tests
+query I
+SELECT gcd(12, 8);
+----
+4
+
+query I
+SELECT gcd(8, 12);
+----
+4
+
+query I
+SELECT gcd(48, 18);
+----
+6
+
+# Test with zero
+query I
+SELECT gcd(0, 5);
+----
+5
+
+query I
+SELECT gcd(5, 0);
+----
+5
+
+query I
+SELECT gcd(0, 0);
+----
+0
+
+# Test with negative numbers
+query I
+SELECT gcd(-12, 8);
+----
+4
+
+query I
+SELECT gcd(12, -8);
+----
+4
+
+query I
+SELECT gcd(-12, -8);
+----
+4
+
+# Test with NULL values
+query T
+SELECT gcd(NULL, 8);
+----
+NULL
+
+query T
+SELECT gcd(12, NULL);
+----
+NULL
+
+query T
+SELECT gcd(NULL, NULL);
+----
+NULL
+
+# Test with expressions
+query I
+SELECT gcd(24, 2 * 6);
+----
+12
+
+# Test with a table
+query II rowsort
+SELECT column1, gcd(column1, column2) FROM (VALUES (12, 8), (48, 18));
+----
+12  4
+48  6
