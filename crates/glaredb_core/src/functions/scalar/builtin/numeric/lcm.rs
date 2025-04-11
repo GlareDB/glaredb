@@ -146,8 +146,8 @@ where
                     return;
                 }
 
-                let abs_a = a.abs();
-                let abs_b = b.abs();
+                let abs_a = if a < S::StorageType::zero() { S::StorageType::zero() - a } else { a };
+                let abs_b = if b < S::StorageType::zero() { S::StorageType::zero() - b } else { b };
 
                 let mut x = abs_a;
                 let mut y = abs_b;
