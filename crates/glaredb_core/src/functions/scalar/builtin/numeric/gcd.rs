@@ -5,7 +5,12 @@ use num_traits::{Signed, Zero};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    MutableScalarStorage, PhysicalI8, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI128,
+    MutableScalarStorage,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI128,
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -47,7 +52,10 @@ pub const FUNCTION_SET_GCD: ScalarFunctionSet = ScalarFunctionSet {
             &Gcd::<PhysicalI64>::new(&DataType::Int64),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Int128, DataTypeId::Int128], DataTypeId::Int128),
+            &Signature::new(
+                &[DataTypeId::Int128, DataTypeId::Int128],
+                DataTypeId::Int128,
+            ),
             &Gcd::<PhysicalI128>::new(&DataType::Int128),
         ),
     ],
@@ -97,20 +105,20 @@ where
             |&a, &b, buf| {
                 let mut a = a.abs();
                 let mut b = b.abs();
-                
+
                 if a == S::StorageType::zero() {
                     return buf.put(&b);
                 }
                 if b == S::StorageType::zero() {
                     return buf.put(&a);
                 }
-                
+
                 while b != S::StorageType::zero() {
                     let temp = b;
                     b = a % b;
                     a = temp;
                 }
-                
+
                 buf.put(&a)
             },
         )
