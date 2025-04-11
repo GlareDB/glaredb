@@ -22,12 +22,10 @@ pub const FUNCTION_SET_SINH: ScalarFunctionSet = ScalarFunctionSet {
         arguments: &["float"],
         example: None,
     }],
-    functions: &[
-        RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
-            &UnaryInputNumericScalar::<PhysicalF64, SinhOp>::new(&DataType::Float64),
-        ),
-    ],
+    functions: &[RawScalarFunction::new(
+        &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
+        &UnaryInputNumericScalar::<PhysicalF64, SinhOp>::new(&DataType::Float64),
+    )],
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
