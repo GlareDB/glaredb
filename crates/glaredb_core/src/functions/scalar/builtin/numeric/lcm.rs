@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::ops::Div;
 
 use glaredb_error::Result;
-use num_traits::{Signed, Zero};
+use num_traits::{PrimInt, Signed, Zero};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
@@ -22,7 +22,6 @@ use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
-use crate::functions::scalar::builtin::numeric::gcd::Gcd;
 
 pub const FUNCTION_SET_LCM: ScalarFunctionSet = ScalarFunctionSet {
     name: "lcm",
@@ -112,18 +111,18 @@ where
 
                 let abs_a = a.abs();
                 let abs_b = b.abs();
-                
+
                 let mut x = abs_a;
                 let mut y = abs_b;
-                
+
                 while !y.is_zero() {
                     let temp = y;
                     y = x % y;
                     x = temp;
                 }
-                
+
                 let gcd = x;
-                
+
                 let lcm = (abs_a / gcd) * abs_b;
 
                 buf.put(&lcm);
