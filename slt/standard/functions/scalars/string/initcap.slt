@@ -38,8 +38,8 @@ SELECT initcap('');
 ----
 (empty)
 
-query T rowsort
-SELECT initcap(input_str) FROM (VALUES ('hello world'), (NULL), ('MIXED cAsE'), ('')) v(input_str);
+query T
+SELECT initcap(input_str) FROM (VALUES ('hello world'), (NULL), ('MIXED cAsE'), ('')) v(input_str) ORDER BY 1;
 ----
 (empty)
 Hello World
