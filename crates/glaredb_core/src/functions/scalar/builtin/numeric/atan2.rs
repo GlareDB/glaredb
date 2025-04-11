@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use glaredb_error::Result;
 use num_traits::Float;
 
