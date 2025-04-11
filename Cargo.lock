@@ -1164,6 +1164,7 @@ dependencies = [
  "ext_iceberg",
  "ext_parquet",
  "ext_spark",
+ "ext_tpch_gen",
  "futures",
  "getrandom 0.3.2",
  "glaredb_core",

@@ -7,8 +7,14 @@ title: TPC-H
 The `tpch_gen` extension allows for generating TPC-H data directly in GlareDB.
 This extension is built using [tpchgen-rs](https://github.com/clflushopt/tpchgen-rs).
 
-Both the CLI and Python bindings are compiled with this extension by default.
-The WASM bindings do not ship with this extension.
+The CLI, Python bindings, and WebAssembly bindings are compiled with this
+extension by default.
+
+> This extension will lazily allocate a 300MB text pool on the first call to any
+> of the table functions. This text pool is never reclaimed, and is used for all
+> subsequent function calls for this extension.
+>
+> This resource usage may be prohibitively high for some environments.
 
 ## Usage
 
@@ -35,10 +41,6 @@ To generate "lineitem" data using a scale factor of 1:
 ```sql
 SELECT * FROM tpch_gen.lineitem(1);
 ```
-
-> Note: A global text pool is generated lazily on the first call to any of the
-> table functions. Additional calls will reuse this text pool leading to
-> slightly faster execution.
 
 ### Creating TPC-H Tables
 
