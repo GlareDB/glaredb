@@ -4,7 +4,7 @@ default-members = ["crates/*", "test_bin", "bench_bin"]
 resolver = "2"
 
 [workspace.package]
-version = "0.0.108"
+version = "0.0.109"
 edition = "2024"
 
 [profile.release]
@@ -30,5 +30,5 @@ serde_json = { version = "1.0", features = ["std"] }
 bytes = "1.10.0"
 uuid = { version = "1.16.0", features = ["v4"] }
 scc = "2.3.3"
-half = { version = "2.5.0", features = ["num-traits", "serde"] }
+half = { version = "2.6.0", features = ["num-traits", "serde"] }
 getrandom = { version = "0.3" }
