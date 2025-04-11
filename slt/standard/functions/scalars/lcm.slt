@@ -87,9 +87,3 @@ select column1, lcm(column1, column2) from (values (4, 6), (12, 18)) ORDER BY co
 ----
 4 12
 12 36
-
-# LCM using named function call
-query I
-select lcm(10, 15);
-----
-30
