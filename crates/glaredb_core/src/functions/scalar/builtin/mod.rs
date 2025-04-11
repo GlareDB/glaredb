@@ -15,6 +15,7 @@ pub mod struct_funcs;
 use arith::{
     FUNCTION_SET_ADD,
     FUNCTION_SET_DIV,
+    FUNCTION_SET_LCM,
     FUNCTION_SET_MUL,
     FUNCTION_SET_REM,
     FUNCTION_SET_SUB,
@@ -122,6 +123,7 @@ pub const BUILTIN_SCALAR_FUNCTION_SETS: &[ScalarFunctionSet] = &[
     FUNCTION_SET_DIV,
     FUNCTION_SET_MUL,
     FUNCTION_SET_REM,
+    FUNCTION_SET_LCM,
     // Boolean
     FUNCTION_SET_AND,
     FUNCTION_SET_OR,
