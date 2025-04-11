@@ -1,0 +1,57 @@
+# initcap function
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query T
+SELECT initcap('hello world');
+----
+Hello World
+
+query T
+SELECT initcap('HELLO WORLD');
+----
+Hello World
+
+query T
+SELECT initcap('hello');
+----
+Hello
+
+query T
+SELECT initcap('hello   world');
+----
+Hello   World
+
+query T
+SELECT initcap('hello-world');
+----
+Hello-World
+
+query T
+SELECT initcap('hello, world!');
+----
+Hello, World!
+
+query T
+SELECT initcap('');
+----
+(empty)
+
+query T rowsort
+SELECT initcap(input_str) FROM (VALUES ('hello world'), (NULL), ('MIXED cAsE'), ('')) v(input_str);
+----
+(empty)
+Hello World
+Mixed Case
+NULL
+
+query T
+SELECT initcap('123 abc');
+----
+123 Abc
+
+query T
+SELECT initcap('hello123world');
+----
+Hello123world
