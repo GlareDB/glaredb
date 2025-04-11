@@ -17,7 +17,7 @@ value_expression operator value_expression
 | Operator | Description |
 |----------|-------------|
 | `=` | Equal to |
-| `<>` | Not equal to |
+| `<>`, `!=` | Not equal to |
 | `<` | Less than |
 | `<=` | Less than or equal to |
 | `>` | Greater than |
