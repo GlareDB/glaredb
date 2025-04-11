@@ -34,6 +34,10 @@ Compute the absolute value of a number.
 
 Compute the arccosine of value.
 
+## `acosh`
+
+Compute the inverse hyperbolic cosine of value.
+
 ## `add`
 
 Adds two numeric values together.
@@ -42,9 +46,21 @@ Adds two numeric values together.
 
 Compute the arcsine of value.
 
+## `asinh`
+
+Compute the inverse hyperbolic sine of value.
+
 ## `atan`
 
 Compute the arctangent of value.
+
+## `atan2`
+
+Compute the arctangent of y/x.
+
+## `atanh`
+
+Compute the inverse hyperbolic tangent of value.
 
 ## `cbrt`
 
@@ -57,6 +73,14 @@ Round number up.
 ## `cos`
 
 Compute the cosine of a value.
+
+## `cosh`
+
+Compute the hyperbolic cosine of value.
+
+## `cot`
+
+Compute the cotangent of value.
 
 ## `degrees`
 
@@ -138,6 +162,10 @@ Round number to the nearest whole value.
 
 Compute the sin of value.
 
+## `sinh`
+
+Compute the hyperbolic sine of value.
+
 ## `sqrt`
 
 Compute the square root of value.
@@ -149,6 +177,10 @@ Subtracts the right value from the left value.
 ## `tan`
 
 Compute the tangent of value.
+
+## `tanh`
+
+Compute the hyperbolic tangent of value.
 
 ## `trunc`
 
