@@ -1,0 +1,170 @@
+statement ok
+SET verify_optimized_plan TO true;
+
+# Test atan2 function
+query R
+SELECT atan2(1.0, 1.0)::DECIMAL(18, 5);
+----
+0.78540
+
+query R
+SELECT atan2(0.0, 1.0)::DECIMAL(18, 5);
+----
+0.00000
+
+query R
+SELECT atan2(1.0, 0.0)::DECIMAL(18, 5);
+----
+1.57080
+
+query R
+SELECT atan2(-1.0, -1.0)::DECIMAL(18, 5);
+----
+-2.35619
+
+query R
+SELECT atan2(NULL, 1.0)::DECIMAL(18, 5);
+----
+NULL
+
+query R
+SELECT atan2(1.0, NULL)::DECIMAL(18, 5);
+----
+NULL
+
+# Test cot function
+query R
+SELECT cot(1.0)::DECIMAL(18, 5);
+----
+0.64209
+
+query R
+SELECT cot(0.0);
+----
+inf
+
+query R
+SELECT cot(NULL)::DECIMAL(18, 5);
+----
+NULL
+
+# Test sinh function
+query R
+SELECT sinh(1.0)::DECIMAL(18, 5);
+----
+1.17520
+
+query R
+SELECT sinh(0.0)::DECIMAL(18, 5);
+----
+0.00000
+
+query R
+SELECT sinh(-1.0)::DECIMAL(18, 5);
+----
+-1.17520
+
+query R
+SELECT sinh(NULL)::DECIMAL(18, 5);
+----
+NULL
+
+# Test cosh function
+query R
+SELECT cosh(1.0)::DECIMAL(18, 5);
+----
+1.54308
+
+query R
+SELECT cosh(0.0)::DECIMAL(18, 5);
+----
+1.00000
+
+query R
+SELECT cosh(-1.0)::DECIMAL(18, 5);
+----
+1.54308
+
+query R
+SELECT cosh(NULL)::DECIMAL(18, 5);
+----
+NULL
+
+# Test tanh function
+query R
+SELECT tanh(1.0)::DECIMAL(18, 5);
+----
+0.76159
+
+query R
+SELECT tanh(0.0)::DECIMAL(18, 5);
+----
+0.00000
+
+query R
+SELECT tanh(-1.0)::DECIMAL(18, 5);
+----
+-0.76159
+
+query R
+SELECT tanh(NULL)::DECIMAL(18, 5);
+----
+NULL
+
+# Test asinh function
+query R
+SELECT asinh(1.0)::DECIMAL(18, 5);
+----
+0.88137
+
+query R
+SELECT asinh(0.0)::DECIMAL(18, 5);
+----
+0.00000
+
+query R
+SELECT asinh(-1.0)::DECIMAL(18, 5);
+----
+-0.88137
+
+query R
+SELECT asinh(NULL)::DECIMAL(18, 5);
+----
+NULL
+
+# Test acosh function
+query R
+SELECT acosh(1.0)::DECIMAL(18, 5);
+----
+0.00000
+
+query R
+SELECT acosh(2.0)::DECIMAL(18, 5);
+----
+1.31696
+
+query R
+SELECT acosh(NULL)::DECIMAL(18, 5);
+----
+NULL
+
+# Test atanh function
+query R
+SELECT atanh(0.0)::DECIMAL(18, 5);
+----
+0.00000
+
+query R
+SELECT atanh(0.5)::DECIMAL(18, 5);
+----
+0.54931
+
+query R
+SELECT atanh(-0.5)::DECIMAL(18, 5);
+----
+-0.54931
+
+query R
+SELECT atanh(NULL)::DECIMAL(18, 5);
+----
+NULL
