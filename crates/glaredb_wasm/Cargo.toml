@@ -24,6 +24,7 @@ ext_parquet = { path = '../ext_parquet' }
 ext_delta = { path = '../ext_delta' }
 ext_iceberg = { path = '../ext_iceberg' }
 ext_spark = { path = '../ext_spark' }
+ext_tpch_gen = { path = '../ext_tpch_gen' }
 
 rayexec_io = { path = '../rayexec_io' }
 futures = { workspace = true }
