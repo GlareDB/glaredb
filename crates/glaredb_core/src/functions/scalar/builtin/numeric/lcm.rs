@@ -64,38 +64,6 @@ pub const FUNCTION_SET_LCM: ScalarFunctionSet = ScalarFunctionSet {
             ),
             &Lcm::<PhysicalI128>::new(&DataType::Int128),
         ),
-        RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
-            &Lcm::<PhysicalU8>::new(&DataType::UInt8),
-        ),
-        RawScalarFunction::new(
-            &Signature::new(
-                &[DataTypeId::UInt16, DataTypeId::UInt16],
-                DataTypeId::UInt16,
-            ),
-            &Lcm::<PhysicalU16>::new(&DataType::UInt16),
-        ),
-        RawScalarFunction::new(
-            &Signature::new(
-                &[DataTypeId::UInt32, DataTypeId::UInt32],
-                DataTypeId::UInt32,
-            ),
-            &Lcm::<PhysicalU32>::new(&DataType::UInt32),
-        ),
-        RawScalarFunction::new(
-            &Signature::new(
-                &[DataTypeId::UInt64, DataTypeId::UInt64],
-                DataTypeId::UInt64,
-            ),
-            &Lcm::<PhysicalU64>::new(&DataType::UInt64),
-        ),
-        RawScalarFunction::new(
-            &Signature::new(
-                &[DataTypeId::UInt128, DataTypeId::UInt128],
-                DataTypeId::UInt128,
-            ),
-            &Lcm::<PhysicalU128>::new(&DataType::UInt128),
-        ),
     ],
 };
 
