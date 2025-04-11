@@ -1,6 +1,6 @@
 mod abs;
-mod acosh;
 mod acos;
+mod acosh;
 mod asin;
 mod asinh;
 mod atan;
@@ -33,8 +33,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 pub use abs::*;
-pub use acosh::*;
 pub use acos::*;
+pub use acosh::*;
 pub use asin::*;
 pub use asinh::*;
 pub use atan::*;

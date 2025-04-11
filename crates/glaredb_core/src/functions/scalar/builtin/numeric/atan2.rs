@@ -1,3 +1,6 @@
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
 use glaredb_error::Result;
 use num_traits::Float;
 
@@ -8,15 +11,15 @@ use crate::arrays::array::physical_type::{
     PhysicalF32,
     PhysicalF64,
 };
+use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::BinaryExecutor;
+use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::ScalarFunctionSet;
-use crate::functions::scalar::RawScalarFunction;
-use crate::functions::scalar::binary::{BinaryInputNumericOperation, BinaryInputNumericScalar};
-use crate::util::iter::IntoExactSizeIterator;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_ATAN2: ScalarFunctionSet = ScalarFunctionSet {
     name: "atan2",
@@ -29,38 +32,69 @@ pub const FUNCTION_SET_ATAN2: ScalarFunctionSet = ScalarFunctionSet {
     }],
     functions: &[
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Float16, DataTypeId::Float16], DataTypeId::Float16),
-            &BinaryInputNumericScalar::<PhysicalF16, Atan2Op>::new(&DataType::Float16),
+            &Signature::new(
+                &[DataTypeId::Float16, DataTypeId::Float16],
+                DataTypeId::Float16,
+            ),
+            &Atan2::<PhysicalF16>::new(&DataType::Float16),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Float32, DataTypeId::Float32], DataTypeId::Float32),
-            &BinaryInputNumericScalar::<PhysicalF32, Atan2Op>::new(&DataType::Float32),
+            &Signature::new(
+                &[DataTypeId::Float32, DataTypeId::Float32],
+                DataTypeId::Float32,
+            ),
+            &Atan2::<PhysicalF32>::new(&DataType::Float32),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Float64, DataTypeId::Float64], DataTypeId::Float64),
-            &BinaryInputNumericScalar::<PhysicalF64, Atan2Op>::new(&DataType::Float64),
+            &Signature::new(
+                &[DataTypeId::Float64, DataTypeId::Float64],
+                DataTypeId::Float64,
+            ),
+            &Atan2::<PhysicalF64>::new(&DataType::Float64),
         ),
     ],
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Atan2Op;
+#[derive(Debug, Clone, Copy)]
+pub struct Atan2<S> {
+    return_type: &'static DataType,
+    _s: PhantomData<S>,
+}
 
-impl BinaryInputNumericOperation for Atan2Op {
-    fn execute_float<S>(
-        left: &Array,
-        right: &Array,
-        selection: impl IntoExactSizeIterator<Item = usize>,
-        output: &mut Array,
-    ) -> Result<()>
-    where
-        S: MutableScalarStorage,
-        S::StorageType: Float,
-    {
+impl<S> Atan2<S> {
+    pub const fn new(return_type: &'static DataType) -> Self {
+        Atan2 {
+            return_type,
+            _s: PhantomData,
+        }
+    }
+}
+
+impl<S> ScalarFunction for Atan2<S>
+where
+    S: MutableScalarStorage,
+    S::StorageType: Float,
+{
+    type State = ();
+
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: self.return_type.clone(),
+            inputs,
+        })
+    }
+
+    fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
+        let sel = input.selection();
+        let y = &input.arrays()[0];
+        let x = &input.arrays()[1];
+
         BinaryExecutor::execute::<S, S, S, _>(
-            left,
-            right,
-            selection,
+            y,
+            sel,
+            x,
+            sel,
             OutBuffer::from_array(output)?,
             |&y, &x, buf| buf.put(&y.atan2(x)),
         )
