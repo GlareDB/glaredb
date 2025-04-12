@@ -105,10 +105,12 @@ where
                 let null_idx = dict.dictionary.logical_len() - 1;
 
                 // TODO: Slow?
+                let mut not_null_idx = 0;
                 let mapping = (0..count).map(|idx| {
                     if levels[idx] == max {
                         // Not null
-                        let src = self.sel_buf[idx] as usize;
+                        let src = self.sel_buf[not_null_idx] as usize;
+                        not_null_idx += 1;
                         (src, idx + offset)
                     } else {
                         // Is null

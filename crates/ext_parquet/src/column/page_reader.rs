@@ -259,7 +259,7 @@ where
                 return Err(DbError::new("RLE encoding required for definition levels"));
             }
 
-            self.state.definitions = Some(get_level_decoder(self.descr.max_rep_level)?);
+            self.state.definitions = Some(get_level_decoder(self.descr.max_def_level)?);
         }
 
         // Prepare decoder.
