@@ -91,7 +91,7 @@ where
             if self.page_reader.state.remaining_page_values == 0 {
                 // Read next page.
                 self.page_reader.prepare_next()?;
-                // Continue, incase this page contains no values.
+                // Continue, in case this page contains no values.
                 continue;
             }
 

@@ -98,9 +98,8 @@ where
     /// This will update the state with the new decoders, and the number of
     /// values available to read.
     pub fn prepare_next(&mut self) -> Result<()> {
-        // TODO: Hitting this error...
         if self.chunk_offset >= self.chunk.capacity() {
-            return Err(DbError::new("Reach end of chunk")
+            return Err(DbError::new("Reached end of page chunk, expected more")
                 .with_field("chunk_offset", self.chunk_offset)
                 .with_field("chunk_capacity", self.chunk.capacity()));
         }
