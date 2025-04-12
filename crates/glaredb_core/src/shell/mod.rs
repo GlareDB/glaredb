@@ -19,6 +19,7 @@ use crate::arrays::format::pretty::table::PrettyTable;
 use crate::engine::single_user::SingleUserEngine;
 use crate::runtime::pipeline::PipelineRuntime;
 use crate::runtime::system::SystemRuntime;
+use crate::runtime::time::RuntimeInstant;
 
 /// Trait for enabling/disabling raw mode in a terminal.
 pub trait RawModeTerm: Copy {
@@ -53,11 +54,15 @@ where
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShellConfig {
     pub maxrows: usize,
+    pub timer: bool,
 }
 
 impl Default for ShellConfig {
     fn default() -> Self {
-        ShellConfig { maxrows: 50 }
+        ShellConfig {
+            maxrows: 50,
+            timer: false,
+        }
     }
 }
 
@@ -103,6 +108,31 @@ trait DotCommand: Debug + Clone + Copy + Sized {
     {
         let mut writer = RawTerminalWriter::new(shell.editor.writer_mut());
         writeln!(writer, "Usage: .{} {}", Self::NAME, Self::ARGS)?;
+        Ok(DotSignal::EditStart)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DotCommandTimer;
+
+impl DotCommand for DotCommandTimer {
+    const NAME: &str = "timer";
+    const ARGS: &str = "on|off";
+    const HELP: &str = "Display time taken to execute a query";
+
+    fn handle<W, P, R, T>(shell: &mut Shell<W, P, R, T>, args: &str) -> Result<DotSignal>
+    where
+        W: io::Write,
+        P: PipelineRuntime,
+        R: SystemRuntime,
+        T: RawModeTerm,
+    {
+        match args {
+            "on" => shell.engine.config.timer = true,
+            "off" => shell.engine.config.timer = false,
+            _ => return Err(DbError::new("Expected 'on' or 'off' as arguments")),
+        }
+
         Ok(DotSignal::EditStart)
     }
 }
@@ -206,6 +236,7 @@ impl DotCommand for DotCommandHelp {
             name_args_help::<DotCommandHelp>(),
             name_args_help::<DotCommandMaxRows>(),
             name_args_help::<DotCommandTables>(),
+            name_args_help::<DotCommandTimer>(),
         ];
 
         let mut writer = RawTerminalWriter::new(shell.editor.writer_mut());
@@ -341,6 +372,7 @@ where
         let width = self.editor.get_size().cols;
         trace!(%width, "using editor reported width");
 
+        let timer = self.engine.config.timer;
         let engine = &mut self.engine;
         let query = match engine.pending.take() {
             Some(query) => query,
@@ -355,6 +387,8 @@ where
             Ok(pending_queries) => {
                 trace!("writing results");
                 for pending in pending_queries {
+                    let start = if timer { Some(Self::now()) } else { None };
+
                     let mut query_res = match pending.execute().await {
                         Ok(table) => table,
                         Err(e) => {
@@ -379,6 +413,10 @@ where
                     ) {
                         Ok(table) => {
                             writeln!(writer, "{table}")?;
+                            if let Some(start) = start {
+                                let exec_dur = Self::now().duration_since(start).as_secs_f64();
+                                writeln!(writer, "Execution duration(s): {exec_dur:.5}")?;
+                            }
                         }
                         Err(e) => {
                             writeln!(writer, "{e}")?;
@@ -445,7 +483,12 @@ where
             DotCommandTables::NAME => DotCommandTables::handle(self, rest),
             DotCommandHelp::NAME => DotCommandHelp::handle(self, rest),
             DotCommandMaxRows::NAME => DotCommandMaxRows::handle(self, rest),
+            DotCommandTimer::NAME => DotCommandTimer::handle(self, rest),
             other => Err(DbError::new(format!("Unknown dot command: '{other}'"))),
         }
+    }
+
+    fn now() -> R::Instant {
+        <R::Instant as RuntimeInstant>::now()
     }
 }
