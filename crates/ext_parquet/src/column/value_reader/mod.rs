@@ -6,7 +6,7 @@ use std::fmt::Debug;
 
 use glaredb_core::arrays::array::physical_type::MutableScalarStorage;
 
-use crate::column::read_buffer::ReadBuffer;
+use crate::column::read_buffer::ReadCursor;
 
 /// Reads values from the read buffer, and writes them to addressable storage.
 ///
@@ -28,11 +28,11 @@ pub trait ValueReader: Default + Debug + Sync + Send {
     /// given index.
     unsafe fn read_next_unchecked(
         &mut self,
-        data: &mut ReadBuffer,
+        data: &mut ReadCursor,
         out_idx: usize,
         out: &mut <Self::Storage as MutableScalarStorage>::AddressableMut<'_>,
     );
 
     /// Skip the next value in the buffer.
-    unsafe fn skip_unchecked(&mut self, data: &mut ReadBuffer);
+    unsafe fn skip_unchecked(&mut self, data: &mut ReadCursor);
 }

@@ -2,10 +2,6 @@ use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::buffer::typed::ByteBuffer;
 use glaredb_error::{DbError, Result};
 
-// TODO: Probably rename. The current names really only mean something if you
-// look at this code. Specifically `ReadBuffer` should indicate that it's tied
-// to `OwnedReadBuffer` somehow.
-
 /// Read buffer that owns the underlying buffer.
 #[derive(Debug)]
 pub struct OwnedReadBuffer {
@@ -39,15 +35,21 @@ impl OwnedReadBuffer {
 
     /// Try to create a new read buffer from the given bytes.
     ///
+    /// This will allocated a byte buffer using the manager, which may have a
+    /// capacity larger than what's required to fit `bs`. However the resulting
+    /// buffer will have its `remaining` count set to the length of `bs`.
+    ///
     /// Useful mostly for tests.
     #[allow(unused)]
     pub fn from_bytes(manager: &impl AsRawBufferManager, bs: impl AsRef<[u8]>) -> Result<Self> {
         let bs = bs.as_ref();
         let mut buffer = ByteBuffer::try_with_capacity(manager, bs.len())?;
 
-        buffer.as_slice_mut().copy_from_slice(bs);
+        let dest = &mut buffer.as_slice_mut()[..bs.len()];
+        dest.copy_from_slice(bs);
+
         let curr = buffer.as_ptr();
-        let remaining = buffer.capacity();
+        let remaining = bs.len();
 
         Ok(OwnedReadBuffer {
             buffer,
@@ -74,8 +76,8 @@ impl OwnedReadBuffer {
     /// Gets a shared buffer for the next number of bytes.
     ///
     /// This will move the internal pointer forward in the buffer.
-    pub fn take_next(&mut self, num_bytes: usize) -> Result<ReadBuffer> {
-        let shared = ReadBuffer {
+    pub fn take_next(&mut self, num_bytes: usize) -> Result<ReadCursor> {
+        let shared = ReadCursor {
             curr: self.curr,
             remaining: num_bytes,
         };
@@ -86,8 +88,8 @@ impl OwnedReadBuffer {
     }
 
     /// Takes the remaining number of bytes.
-    pub fn take_remaining(&mut self) -> ReadBuffer {
-        let shared = ReadBuffer {
+    pub fn take_remaining(&mut self) -> ReadCursor {
+        let shared = ReadCursor {
             curr: self.curr,
             remaining: self.remaining,
         };
@@ -144,7 +146,7 @@ impl OwnedReadBuffer {
 /// All methods working with the pointer are marked as unsafe since we cannot
 /// guarantee that the pointer is still valid.
 #[derive(Debug)]
-pub struct ReadBuffer {
+pub struct ReadCursor {
     /// Pointer to the current position in the buffer.
     curr: *const u8,
     /// Remaining number of bytes until the end of the buffer relative to the
@@ -152,10 +154,10 @@ pub struct ReadBuffer {
     remaining: usize,
 }
 
-unsafe impl Sync for ReadBuffer {}
-unsafe impl Send for ReadBuffer {}
+unsafe impl Sync for ReadCursor {}
+unsafe impl Send for ReadCursor {}
 
-impl ReadBuffer {
+impl ReadCursor {
     /// Skips the pointer forward some number of bytes.
     pub unsafe fn skip_bytes_unchecked(&mut self, num_bytes: usize) {
         unsafe {
@@ -207,7 +209,7 @@ impl ReadBuffer {
     /// # Panics
     ///
     /// Panics if the output slice is larger than the remaining buffer.
-    pub unsafe fn read_copy<T>(&mut self, out: &mut [T]) {
+    pub unsafe fn read_into_unchecked<T>(&mut self, out: &mut [T]) {
         unsafe {
             let byte_count = std::mem::size_of_val(out);
             assert!(byte_count <= self.remaining);
@@ -222,7 +224,12 @@ impl ReadBuffer {
     /// Peeks the next value without incrementing the internal pointer.
     pub unsafe fn peek_next_unchecked<T>(&self) -> T {
         unsafe {
-            debug_assert!(self.remaining >= std::mem::size_of::<T>());
+            debug_assert!(
+                self.remaining >= std::mem::size_of::<T>(),
+                "remaining: {}, need: {}",
+                self.remaining,
+                std::mem::size_of::<T>()
+            );
             self.curr.cast::<T>().read_unaligned()
         }
     }
@@ -279,13 +286,13 @@ mod tests {
     }
 
     #[test]
-    fn take_all_read_copy_u8() {
+    fn take_all_read_into_u8() {
         let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
         let mut s = buf.take_remaining();
 
         let mut out = [0; 3];
         unsafe {
-            s.read_copy::<u8>(&mut out);
+            s.read_into_unchecked::<u8>(&mut out);
         }
 
         assert_eq!([0, 1, 2], out);

@@ -4,13 +4,14 @@
 
 use glaredb_error::Result;
 
-use crate::column::bitutil::{BitPackEncodeable, BitUnpacker};
-use crate::column::read_buffer::ReadBuffer;
+use crate::column::bitutil::BitPackEncodeable;
+use crate::column::read_buffer::ReadCursor;
 
 /// An RLE/bit packing hybrid decoder.
 #[derive(Debug)]
 pub struct RleBpDecoder {
-    buffer: ReadBuffer,
+    /// Buffer we're reading from.
+    buffer: ReadCursor,
     /// Bits needed to encode the value.
     bit_width: u8,
     /// Current value.
@@ -26,7 +27,7 @@ pub struct RleBpDecoder {
 }
 
 impl RleBpDecoder {
-    pub fn new(buffer: ReadBuffer, bit_width: u8) -> Self {
+    pub fn new(buffer: ReadCursor, bit_width: u8) -> Self {
         assert!(bit_width <= 64);
 
         let byte_enc_len = bit_width.div_ceil(8) as usize;
@@ -42,7 +43,7 @@ impl RleBpDecoder {
         }
     }
 
-    pub fn get_batch<T>(&mut self, values: &mut [T]) -> Result<()>
+    pub fn read<T>(&mut self, values: &mut [T]) -> Result<()>
     where
         T: BitPackEncodeable,
     {
@@ -60,16 +61,17 @@ impl RleBpDecoder {
             } else if self.bit_packed_left > 0 {
                 let num_vals = usize::min(values.len() - num_read, self.bit_packed_left);
 
-                let mut unpacker = BitUnpacker {
-                    buf: &mut self.buffer,
-                    bit_pos: self.bit_pos,
-                    bit_width: self.bit_width,
-                };
-                unpacker.unpack(&mut values[num_read..(num_read + num_vals)]);
+                unimplemented!()
+                // let mut unpacker = BitUnpacker {
+                //     cursor: SafeReadCursor::new(&mut self.buffer),
+                //     bit_pos: self.bit_pos,
+                //     bit_width: self.bit_width,
+                // };
+                // unpacker.unpack(&mut values[num_read..(num_read + num_vals)]);
 
-                self.bit_pos = unpacker.bit_pos;
-                self.bit_packed_left -= num_vals;
-                num_read += num_vals;
+                // self.bit_pos = unpacker.bit_pos;
+                // self.bit_packed_left -= num_vals;
+                // num_read += num_vals;
             } else {
                 self.read_next()?;
             }
@@ -82,29 +84,31 @@ impl RleBpDecoder {
     }
 
     fn read_next(&mut self) -> Result<()> {
-        let mut unpacker = BitUnpacker {
-            buf: &mut self.buffer,
-            bit_pos: self.bit_pos,
-            bit_width: self.bit_width,
-        };
+        unimplemented!()
+        // let mut unpacker = BitUnpacker {
+        //     cursor: SafeReadCursor::new(&mut self.buffer),
+        //     bit_pos: self.bit_pos,
+        //     bit_width: self.bit_width,
+        // };
 
-        // lsb indicates if it is a literal run or repeated run.
-        let indicator_val = unpacker.read_vlq_i64()?;
-        self.bit_pos = unpacker.bit_pos;
+        // // lsb indicates if it is a literal run or repeated run.
+        // let indicator_val = unpacker.read_unsigned_vlq()?;
+        // self.bit_pos = unpacker.bit_pos;
 
-        if indicator_val & 1 == 1 {
-            self.bit_packed_left = ((indicator_val >> 1) * 8) as usize;
-        } else {
-            self.rle_left = (indicator_val >> 1) as usize;
+        // if indicator_val & 1 == 1 {
+        //     let num_groups = (indicator_val >> 1) as usize;
+        //     self.bit_packed_left = num_groups * 8;
+        // } else {
+        //     self.rle_left = (indicator_val >> 1) as usize;
 
-            // Read the next set of bytes to get the new current value.
-            self.curr_val = 0;
-            for idx in 0..self.byte_enc_len {
-                let b = unsafe { self.buffer.read_next_unchecked::<u8>() } as u64;
-                self.curr_val |= b << (idx * 8);
-            }
-        }
+        //     // Read the next set of bytes to get the new current value.
+        //     self.curr_val = 0;
+        //     for idx in 0..self.byte_enc_len {
+        //         let b = unsafe { self.buffer.read_next_unchecked::<u8>() } as u64;
+        //         self.curr_val |= b << (idx * 8);
+        //     }
+        // }
 
-        Ok(())
+        // Ok(())
     }
 }

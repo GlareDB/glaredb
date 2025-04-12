@@ -9,7 +9,7 @@ use glaredb_core::arrays::array::physical_type::{
 use glaredb_core::util::marker::PhantomCovariant;
 
 use super::ValueReader;
-use crate::column::read_buffer::ReadBuffer;
+use crate::column::read_buffer::ReadCursor;
 
 pub type PlainInt32ValueReader = PrimitiveValueReader<PhysicalI32>;
 pub type PlainInt64ValueReader = PrimitiveValueReader<PhysicalI64>;
@@ -35,7 +35,7 @@ where
 
     unsafe fn read_next_unchecked(
         &mut self,
-        data: &mut ReadBuffer,
+        data: &mut ReadCursor,
         out_idx: usize,
         out: &mut S::AddressableMut<'_>,
     ) {
@@ -43,7 +43,7 @@ where
         out.put(out_idx, &v);
     }
 
-    unsafe fn skip_unchecked(&mut self, data: &mut ReadBuffer) {
+    unsafe fn skip_unchecked(&mut self, data: &mut ReadCursor) {
         unsafe { data.skip_bytes_unchecked(std::mem::size_of::<S::StorageType>()) };
     }
 }

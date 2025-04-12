@@ -119,11 +119,15 @@ where
                 Some(decoder) => decoder,
                 None => return Err(DbError::new("Missing page decoder")),
             };
-            let page_buf = &mut self.page_reader.state.page_buffer;
             match decoder {
-                PageDecoder::Plain(dec) => {
-                    dec.read_plain(page_buf, definitions, output, offset, count)?
-                }
+                PageDecoder::Plain(dec) => dec.read_plain(definitions, output, offset, count)?,
+                PageDecoder::Dictionary(dec) => dec.read(
+                    &self.page_reader.state.dictionary,
+                    definitions,
+                    output,
+                    offset,
+                    count,
+                )?,
             }
 
             // Update page reader state.

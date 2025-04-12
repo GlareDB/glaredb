@@ -5,7 +5,7 @@ use glaredb_core::arrays::array::physical_type::{
 };
 
 use super::ValueReader;
-use crate::column::read_buffer::ReadBuffer;
+use crate::column::read_buffer::ReadCursor;
 
 /// Value reader for reading variable length strings and byte arrays.
 #[derive(Debug, Clone, Copy, Default)]
@@ -16,7 +16,7 @@ impl ValueReader for VarlenByteValueReader {
 
     unsafe fn read_next_unchecked(
         &mut self,
-        data: &mut ReadBuffer,
+        data: &mut ReadCursor,
         out_idx: usize,
         out: &mut <Self::Storage as MutableScalarStorage>::AddressableMut<'_>,
     ) {
@@ -25,7 +25,7 @@ impl ValueReader for VarlenByteValueReader {
         out.put(out_idx, bs);
     }
 
-    unsafe fn skip_unchecked(&mut self, data: &mut ReadBuffer) {
+    unsafe fn skip_unchecked(&mut self, data: &mut ReadCursor) {
         let len = unsafe { data.read_next_unchecked::<u32>() } as usize;
         unsafe { data.skip_bytes_unchecked(len) };
     }
