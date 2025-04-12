@@ -5,7 +5,7 @@ use glaredb_core::arrays::array::physical_type::MutableScalarStorage;
 use glaredb_error::Result;
 
 use super::Definitions;
-use crate::column::read_buffer::ReadBuffer;
+use crate::column::read_buffer::ReadCursor;
 use crate::column::value_reader::ValueReader;
 
 /// Decodes plain-encoded values into an output array.
@@ -14,6 +14,8 @@ pub struct PlainDecoder<V>
 where
     V: ValueReader,
 {
+    /// Buffer we're reading from.
+    pub buffer: ReadCursor,
     /// Determines how we read values from the read buffer.
     ///
     /// This may keep state (e.g. bit position when reading booleans). Read
@@ -34,7 +36,6 @@ where
     /// into the definition matches the offset into the array.
     pub fn read_plain(
         &mut self,
-        buffer: &mut ReadBuffer,
         definitions: Definitions,
         output: &mut Array,
         offset: usize,
@@ -46,7 +47,7 @@ where
         match definitions {
             Definitions::HasDefinitions { levels, max } => {
                 for (idx, &level) in levels.iter().enumerate().skip(offset).take(count) {
-                    if level == max {
+                    if level < max {
                         // Value is null.
                         validity.set_invalid(idx);
                         continue;
@@ -55,7 +56,7 @@ where
                     // Value is valid, read it and put into output.
                     unsafe {
                         self.value_reader
-                            .read_next_unchecked(buffer, idx, &mut data)
+                            .read_next_unchecked(&mut self.buffer, idx, &mut data)
                     };
                 }
 
@@ -63,12 +64,10 @@ where
             }
             Definitions::NoDefinitions => {
                 for idx in offset..(offset + count) {
-                    // TODO: Just copy bytes directly if we can.
-
                     // Value is valid, read it and put into output.
                     unsafe {
                         self.value_reader
-                            .read_next_unchecked(buffer, idx, &mut data)
+                            .read_next_unchecked(&mut self.buffer, idx, &mut data)
                     };
                 }
 

@@ -1,0 +1,40 @@
+# Also copied...
+#
+# TODO: ...
+#
+# Definitely not going to keep copying for this one, but excercising the
+# auth/signing stuff is good.
+
+query TT
+DESCRIBE read_parquet('s3://glaredb-private/userdata0.parquet', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__');
+----
+registration_dttm  Timestamp(ns)
+id                 Int32
+first_name         Utf8
+last_name          Utf8
+email              Utf8
+gender             Utf8
+ip_address         Utf8
+cc                 Utf8
+country            Utf8
+birthdate          Utf8
+salary             Float64
+title              Utf8
+comments           Utf8
+
+query I
+SELECT count(*) FROM read_parquet('s3://glaredb-private/userdata0.parquet', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__');
+----
+1000
+
+# Min/max on timestamp
+query ??
+SELECT min(registration_dttm), max(registration_dttm) FROM read_parquet('s3://glaredb-private/userdata0.parquet', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__');
+----
+2016-02-03 00:01:00 UTC    2016-02-03 23:59:55 UTC
+
+# Make sure we're properly reading null values
+query I
+SELECT count(*) FROM read_parquet('s3://glaredb-private/userdata0.parquet', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__') WHERE salary IS NULL;
+----
+68

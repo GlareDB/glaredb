@@ -5,7 +5,7 @@ use glaredb_core::arrays::array::physical_type::{
 };
 
 use super::ValueReader;
-use crate::column::read_buffer::ReadBuffer;
+use crate::column::read_buffer::ReadCursor;
 
 /// Julian day 2440588 corresponds to Unix epoch (1970-01-01)
 const UNIX_EPOCH_JULIAN: u32 = 2_440_588;
@@ -26,7 +26,7 @@ impl ValueReader for Int96TsReader {
 
     unsafe fn read_next_unchecked(
         &mut self,
-        data: &mut ReadBuffer,
+        data: &mut ReadCursor,
         out_idx: usize,
         out: &mut <Self::Storage as MutableScalarStorage>::AddressableMut<'_>,
     ) {
@@ -38,7 +38,7 @@ impl ValueReader for Int96TsReader {
         out.put(out_idx, &full_nanos);
     }
 
-    unsafe fn skip_unchecked(&mut self, data: &mut ReadBuffer) {
+    unsafe fn skip_unchecked(&mut self, data: &mut ReadCursor) {
         unsafe {
             data.skip_bytes_unchecked(12);
         }

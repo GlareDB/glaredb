@@ -3,10 +3,10 @@ use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::buffer::typed::ByteBuffer;
 use glaredb_error::{DbError, Result, ResultExt};
 
-use super::dictionary::Dictionary;
 use super::encoding::PageDecoder;
+use super::encoding::dictionary::{Dictionary, DictionaryDecoder};
 use super::encoding::rle_bp::RleBpDecoder;
-use super::read_buffer::{OwnedReadBuffer, ReadBuffer};
+use super::read_buffer::OwnedReadBuffer;
 use super::value_reader::ValueReader;
 use crate::basic::Encoding;
 use crate::column::encoding::plain::PlainDecoder;
@@ -56,8 +56,6 @@ pub struct ScanState<V: ValueReader> {
     ///
     /// Should be Some after preparing a page.
     pub page_decoder: Option<PageDecoder<V>>,
-    /// Buffer for the page. Should be passed to the decoder.
-    pub page_buffer: ReadBuffer,
     /// Dictionary for this column.
     ///
     /// Initially contains an empty array. Updated as we decode dictionary
@@ -75,11 +73,8 @@ where
         descr: ColumnDescriptor,
     ) -> Result<Self> {
         let chunk = ByteBuffer::empty(manager);
-        let mut decompressed_page = OwnedReadBuffer::new(ByteBuffer::empty(manager));
+        let decompressed_page = OwnedReadBuffer::new(ByteBuffer::empty(manager));
         let dictionary = Dictionary::try_empty(manager, datatype)?;
-
-        // TODO: What?
-        let page_buffer = decompressed_page.take_remaining();
 
         Ok(PageReader {
             descr,
@@ -92,7 +87,6 @@ where
                 definitions: None,
                 repetitions: None,
                 page_decoder: None,
-                page_buffer,
                 dictionary,
             },
         })
@@ -104,6 +98,7 @@ where
     /// This will update the state with the new decoders, and the number of
     /// values available to read.
     pub fn prepare_next(&mut self) -> Result<()> {
+        // TODO: Hitting this error...
         if self.chunk_offset >= self.chunk.capacity() {
             return Err(DbError::new("reached end of chunk"));
         }
@@ -134,12 +129,12 @@ where
     ) -> Result<()> {
         if let Some(def_dec) = &mut self.state.definitions {
             let out = &mut definitions[offset..(offset + count)];
-            def_dec.get_batch(out)?;
+            def_dec.read(out)?;
         }
 
         if let Some(rep_dec) = &mut self.state.repetitions {
             let out = &mut repetitions[offset..(offset + count)];
-            rep_dec.get_batch(out)?;
+            rep_dec.read(out)?;
         }
 
         Ok(())
@@ -182,10 +177,10 @@ where
 
         // Dictionary specific stuff...
         let dict_size = header.num_values;
-        let mut buffer = self.decompressed_page.take_remaining();
+        let buffer = self.decompressed_page.take_remaining();
         self.state
             .dictionary
-            .prepare_with_values(dict_size as usize, &mut buffer)?;
+            .prepare_with_values(dict_size as usize, buffer)?;
 
         Ok(())
     }
@@ -261,11 +256,11 @@ where
         }
 
         if self.descr.max_def_level > 0 {
-            if header.rep_level_encoding != Encoding::RLE {
+            if header.def_level_encoding != Encoding::RLE {
                 return Err(DbError::new("RLE encoding required for definition levels"));
             }
 
-            self.state.definitions = Some(get_level_decoder(self.descr.max_rep_level)?);
+            self.state.definitions = Some(get_level_decoder(self.descr.max_def_level)?);
         }
 
         // Prepare decoder.
@@ -368,14 +363,28 @@ where
     ///
     /// Should only be called after we've processed a page header.
     fn init_page_decoder(&mut self, encoding: Encoding) -> Result<()> {
+        // TODO: Document the `take_remaining` stuff a bit better.
+
         match encoding {
             Encoding::PLAIN => {
                 let dec = PlainDecoder {
+                    buffer: self.decompressed_page.take_remaining(),
                     value_reader: V::default(),
                 };
                 self.state.page_decoder = Some(PageDecoder::Plain(dec));
-                // TODO: Bit spooky.
-                self.state.page_buffer = self.decompressed_page.take_remaining();
+
+                Ok(())
+            }
+            Encoding::PLAIN_DICTIONARY | Encoding::RLE_DICTIONARY => {
+                // Format: bit width is stored as one bytes, followed by RLE/BP
+                // encoded values.
+                let mut read_buffer = self.decompressed_page.take_remaining();
+                let bit_width = unsafe { read_buffer.read_next_unchecked::<u8>() };
+
+                let rle = RleBpDecoder::new(read_buffer, bit_width);
+                let dec = DictionaryDecoder::new(rle);
+                self.state.page_decoder = Some(PageDecoder::Dictionary(dec));
+
                 Ok(())
             }
             other => Err(DbError::new("Unsupported encoding").with_field("encoding", other)),

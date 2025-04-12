@@ -1,6 +1,8 @@
+pub mod dictionary;
 pub mod plain;
 pub mod rle_bp;
 
+use dictionary::DictionaryDecoder;
 use plain::PlainDecoder;
 
 use super::value_reader::ValueReader;
@@ -22,4 +24,5 @@ pub enum Definitions<'a> {
 #[derive(Debug)]
 pub enum PageDecoder<V: ValueReader> {
     Plain(PlainDecoder<V>),
+    Dictionary(DictionaryDecoder<V>),
 }
