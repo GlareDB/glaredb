@@ -261,7 +261,7 @@ where
         }
 
         if self.descr.max_def_level > 0 {
-            if header.rep_level_encoding != Encoding::RLE {
+            if header.def_level_encoding != Encoding::RLE {
                 return Err(DbError::new("RLE encoding required for definition levels"));
             }
 
