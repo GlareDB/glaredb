@@ -100,7 +100,9 @@ where
     pub fn prepare_next(&mut self) -> Result<()> {
         // TODO: Hitting this error...
         if self.chunk_offset >= self.chunk.capacity() {
-            return Err(DbError::new("reached end of chunk"));
+            return Err(DbError::new("Reach end of chunk")
+                .with_field("chunk_offset", self.chunk_offset)
+                .with_field("chunk_capacity", self.chunk.capacity()));
         }
 
         let header = self.read_header()?;

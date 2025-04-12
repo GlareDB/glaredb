@@ -1,0 +1,28 @@
+# Ensure we're able to read a full parquet file when batch size is less than
+# total number of rows in the file.
+#
+# Using userdata0.parquet (1000 rows).
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+SET batch_size = 128;
+
+query ??
+SELECT min(registration_dttm), max(registration_dttm) FROM read_parquet('../testdata/parquet/userdata0.parquet');
+----
+2016-02-03 00:01:00 UTC    2016-02-03 23:59:55 UTC
+
+query I
+SELECT count(*) FROM read_parquet('../testdata/parquet/userdata0.parquet') WHERE salary IS NULL;
+----
+68
+
+query ???
+SELECT first_name, last_name, salary::decimal(10, 2)
+  FROM read_parquet('../testdata/parquet/userdata0.parquet') ORDER BY salary LIMIT 2;
+----
+Cheryl Evans    12380.49
+Ashley Moreno   12834.80
+

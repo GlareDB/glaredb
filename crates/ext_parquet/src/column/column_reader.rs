@@ -88,10 +88,10 @@ where
         self.repetitions.resize(count, 0);
 
         while remaining > 0 {
-            // Read next page.
-            self.page_reader.prepare_next()?;
             if self.page_reader.state.remaining_page_values == 0 {
-                // Page contains no values, continue to next one.
+                // Read next page.
+                self.page_reader.prepare_next()?;
+                // Continue, incase this page contains no values.
                 continue;
             }
 
