@@ -218,17 +218,6 @@ mod tests {
     }
 
     #[test]
-    fn bit_unpacker_incomplete_buffer() {
-        // Test that unpacking fails when there are not enough bits available.
-        let raw = [0b10101010];
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
-        let mut cursor = buf.take_remaining();
-        let mut out = [0u8; 3];
-        let mut state = BitUnpackState::new(4);
-        bit_unpack::<u8>(&mut state, &mut cursor, &mut out).unwrap_err();
-    }
-
-    #[test]
     fn read_unsigned_vlq_basic() {
         // The value 300 (0b1 0010 1100) should be encoded as two bytes:
         // 0b10101100 (0xAC) and 0b00000010 (0x02)

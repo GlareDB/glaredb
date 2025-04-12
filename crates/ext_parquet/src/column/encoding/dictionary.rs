@@ -1,12 +1,10 @@
 use std::marker::PhantomData;
 
 use glaredb_core::arrays::array::Array;
-use glaredb_core::arrays::batch::Batch;
-use glaredb_core::arrays::compute;
 use glaredb_core::arrays::compute::copy::copy_rows_array;
 use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
-use glaredb_error::{Result, not_implemented};
+use glaredb_error::Result;
 
 use super::rle_bp::RleBpDecoder;
 use crate::column::encoding::Definitions;
