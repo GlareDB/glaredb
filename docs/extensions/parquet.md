@@ -31,3 +31,35 @@ Returns metadata for each row group within a Parquet file.
 | num_rows           | Number of rows in the row group.             |
 | num_columns        | Number of columns in the row group.          |
 | uncompressed_size  | Uncompressed size of the row group in bytes. |
+
+### `read_parquet`
+
+**Alias**: `parquet_scan`
+
+The `read_parquet` function takes a path to a Parquet file and returns a table
+containing the data.
+
+```sql
+SELECT * FROM read_parquet('../testdata/parquet/userdata0.parquet');
+```
+
+By default, `read_parquet` will automatically infer column data types from the
+Parquet file schema.
+
+You can inspect the inferred column names and types using the DESCRIBE
+statement:
+
+```sql
+DESCRIBE read_parquet('../testdata/parquet/userdata0.parquet');
+```
+
+This returns a table with the name and data type of each column.
+
+For S3 sources, additional parameters can be provided:
+
+```sql
+SELECT * FROM read_parquet('s3://bucket-name/path/to/file.parquet', 
+                          region='us-east-1', 
+                          key_id='YOUR_ACCESS_KEY', 
+                          secret='YOUR_SECRET_KEY');
+```
