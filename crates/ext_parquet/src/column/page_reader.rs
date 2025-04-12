@@ -6,7 +6,7 @@ use glaredb_error::{DbError, Result, ResultExt};
 use super::encoding::PageDecoder;
 use super::encoding::dictionary::{Dictionary, DictionaryDecoder};
 use super::encoding::rle_bp::RleBpDecoder;
-use super::read_buffer::{OwnedReadBuffer, ReadCursor};
+use super::read_buffer::OwnedReadBuffer;
 use super::value_reader::ValueReader;
 use crate::basic::Encoding;
 use crate::column::encoding::plain::PlainDecoder;
@@ -98,6 +98,7 @@ where
     /// This will update the state with the new decoders, and the number of
     /// values available to read.
     pub fn prepare_next(&mut self) -> Result<()> {
+        // TODO: Hitting this error...
         if self.chunk_offset >= self.chunk.capacity() {
             return Err(DbError::new("reached end of chunk"));
         }

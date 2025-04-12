@@ -154,7 +154,6 @@ impl_rle_encodeable!(i64);
 
 #[cfg(test)]
 mod tests {
-    use std::marker::PhantomData;
 
     use glaredb_core::buffer::buffer_manager::NopBufferManager;
 
