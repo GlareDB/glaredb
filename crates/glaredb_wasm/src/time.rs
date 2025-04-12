@@ -3,8 +3,6 @@ use std::time::Duration;
 use glaredb_core::runtime::time::RuntimeInstant;
 use tracing::warn;
 
-// TODO: This is messed up, only reports zeros.
-
 thread_local! {
     /// The global performance object.
     ///
@@ -25,8 +23,9 @@ impl RuntimeInstant for PerformanceInstant {
                 //
                 // Go ahead and convert to equivalent duration.
                 let millis = perf.now();
-                let secs = (millis as u64) / 1_000;
-                let nanos = (((millis as u64) % 1_000) as u32) * 1_000_000;
+                let total_nanos = (millis * 1_000_000.0).round() as u128;
+                let secs = (total_nanos / 1_000_000_000) as u64;
+                let nanos = (total_nanos % 1_000_000_000) as u32;
                 PerformanceInstant(Duration::new(secs, nanos))
             }
             None => {
