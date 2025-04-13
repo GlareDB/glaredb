@@ -36,6 +36,7 @@ use crate::catalog::system::{
     SHOW_TABLES_VIEW,
 };
 use crate::expr;
+use crate::functions::table::TableFunctionInput;
 use crate::functions::table::scan::ScanContext;
 use crate::logical::operator::LocationRequirement;
 use crate::runtime::system::SystemRuntime;
@@ -928,8 +929,58 @@ where
                 options: ResolvedSubqueryOptions::Normal,
                 query: Box::pin(self.resolve_query(query, resolve_context)).await?,
             }),
-            ast::FromNodeBody::File(ast::FromFilePath { .. }) => {
-                not_implemented!("infer from file path")
+            ast::FromNodeBody::File(ast::FromFilePath { path }) => {
+                let function = match self.resolve_mode {
+                    ResolveMode::Normal => {
+                        let function = NormalResolver::new(self.context, self.runtime)
+                            .require_resolve_function_for_path(&path)?;
+                        if !function.is_scan_function() {
+                            return Err(DbError::new(
+                                "Expected scan function when inferring from path",
+                            )
+                            .with_field("name", function.name.to_string()));
+                        }
+
+                        let scan_context = ScanContext {
+                            dispatch: self.runtime.filesystem_dispatch(),
+                            database_context: self.context,
+                        };
+                        let planned = expr::bind_table_scan_function(
+                            &function,
+                            scan_context,
+                            TableFunctionInput {
+                                positional: vec![expr::lit(path.clone()).into()],
+                                named: HashMap::new(),
+                            },
+                        )
+                        .await?;
+
+                        MaybeResolved::Resolved(
+                            ResolvedTableFunctionReference::Planned(planned),
+                            LocationRequirement::ClientLocal,
+                        )
+                    }
+                    ResolveMode::Hybrid => {
+                        not_implemented!("infer from path using hybrid resolve")
+                    }
+                };
+
+                // TODO: Kinda disgusting. Hopefully I can refactor this all
+                // soon... I don't even remember if args is required here. _But_
+                // it's what the below table function resolve does, so keeping
+                // it for consistency.
+                let resolve_idx = resolve_context
+                    .table_functions
+                    .push_maybe_resolved(function);
+                ast::FromNodeBody::TableFunction(ast::FromTableFunction {
+                    lateral: false,
+                    reference: resolve_idx,
+                    args: vec![ast::FunctionArg::Unnamed {
+                        arg: ast::FunctionArgExpr::Expr(ast::Expr::Literal(
+                            ast::Literal::SingleQuotedString(path),
+                        )),
+                    }],
+                })
             }
             ast::FromNodeBody::TableFunction(ast::FromTableFunction {
                 lateral,

@@ -1,0 +1,41 @@
+# Infer tests with s3.
+#
+# Note that we can't have the same tests for buckets that require auth as we
+# don't yet have a way to store auth info at the session level.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE 's3://glaredb-public/userdata0.parquet';
+----
+registration_dttm  Timestamp(ns)
+id                 Int32
+first_name         Utf8
+last_name          Utf8
+email              Utf8
+gender             Utf8
+ip_address         Utf8
+cc                 Utf8
+country            Utf8
+birthdate          Utf8
+salary             Float64
+title              Utf8
+comments           Utf8
+
+query I
+SELECT count(*) FROM 's3://glaredb-public/userdata0.parquet';
+----
+1000
+
+# Min/max on timestamp
+query ??
+SELECT min(registration_dttm), max(registration_dttm) FROM 's3://glaredb-public/userdata0.parquet';
+----
+2016-02-03 00:01:00 UTC    2016-02-03 23:59:55 UTC
+
+# Make sure we're properly reading null values
+query I
+SELECT count(*) FROM 's3://glaredb-public/userdata0.parquet' WHERE salary IS NULL;
+----
+68

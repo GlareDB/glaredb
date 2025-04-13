@@ -27,6 +27,12 @@ use crate::execution::operators::PlannedOperator;
 use crate::execution::planner::OperatorIdGen;
 use crate::storage::storage_manager::{StorageManager, StorageTableId};
 
+// TODO: This will probably undergo the same "manual dynamic dispatch" as many
+// of the other things in this code base.
+//
+// We'll need to make a distinction between what can actually be implemented by
+// external catalogs (e.g. fetching tables) vs what can't and require
+// "in-memory" implementations (e.g. storing functions).
 pub trait Catalog: Debug + Sync + Send {
     type Schema: Schema;
 
@@ -141,6 +147,10 @@ pub trait Schema: Debug + Sync + Send {
 
     /// Get a table function in the schema.
     fn get_table_function(&self, name: &str) -> Result<Option<Arc<CatalogEntry>>>;
+
+    /// Get a table function by trying to infer which one to use from the
+    /// provided path.
+    fn get_inferred_table_function(&self, path: &str) -> Result<Option<Arc<CatalogEntry>>>;
 
     /// Get a scalar or aggregate function from the schema.
     fn get_function(&self, name: &str) -> Result<Option<Arc<CatalogEntry>>>;
