@@ -1,5 +1,8 @@
 # Tests using the 'userdata0.parquet', a well-known parquet file.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE read_parquet('../testdata/parquet/userdata0.parquet');
 ----
