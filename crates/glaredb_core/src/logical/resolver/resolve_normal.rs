@@ -250,6 +250,30 @@ where
         ))
     }
 
+    /// Try to find a table function that can handle `path`.
+    ///
+    /// This will look at all table functions in the system database to
+    /// determine if there's a function that can handle path.
+    pub fn require_resolve_function_for_path(&self, path: &str) -> Result<TableFunctionSet> {
+        let schema_ent = self
+            .context
+            .require_get_database(SYSTEM_CATALOG)?
+            .catalog
+            .require_get_schema(DEFAULT_SCHEMA)?;
+
+        let ent = schema_ent
+            .get_inferred_table_function(path)?
+            .ok_or_else(|| {
+                DbError::new(format!(
+                    "Could not find a suitable table function to use for path '{path}'"
+                ))
+            })?;
+
+        let func = ent.try_as_table_function_entry()?.function;
+
+        Ok(func)
+    }
+
     fn resolve_from_memory_catalog(
         &self,
         database: &Database,

@@ -312,6 +312,7 @@ impl Schema for MemorySchema {
             name: create.name.clone(),
             entry: CatalogEntryInner::TableFunction(TableFunctionEntry {
                 function: create.implementation,
+                infer_scan: create.infer_scan,
             }),
             child: None,
         };
@@ -325,6 +326,19 @@ impl Schema for MemorySchema {
 
     fn get_table_function(&self, name: &str) -> Result<Option<Arc<CatalogEntry>>> {
         self.table_functions.get_entry(name)
+    }
+
+    fn get_inferred_table_function(&self, path: &str) -> Result<Option<Arc<CatalogEntry>>> {
+        let guard = Guard::new();
+        for (_, ent) in self.table_functions.entries.iter(&guard) {
+            let fn_ent = ent.try_as_table_function_entry()?;
+            if let Some(infer) = fn_ent.infer_scan {
+                if (infer.can_handle)(path) {
+                    return Ok(Some(ent.clone()));
+                }
+            }
+        }
+        Ok(None)
     }
 
     fn get_function(&self, name: &str) -> Result<Option<Arc<CatalogEntry>>> {

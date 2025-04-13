@@ -1,7 +1,4 @@
-pub mod file_reference_handler;
-
-use file_reference_handler::FileReferenceHandler;
-
+use crate::catalog::create::FileInferScan;
 use crate::functions::function_set::{AggregateFunctionSet, ScalarFunctionSet, TableFunctionSet};
 
 pub trait Extension {
@@ -24,11 +21,24 @@ pub trait Extension {
         &[]
     }
 
-    fn table_functions(&self) -> &[TableFunctionSet] {
+    fn table_functions(&self) -> &[ExtensionTableFunction] {
         &[]
     }
+}
 
-    fn file_reference_handlers(&self) -> &[FileReferenceHandler] {
-        &[]
+// TODO: Should this just hold static references instead? That'd mean we'd be
+// able to just hold static references in the catalog.
+#[derive(Debug, Clone, Copy)]
+pub struct ExtensionTableFunction {
+    pub infer_scan: Option<FileInferScan>,
+    pub function: TableFunctionSet,
+}
+
+impl ExtensionTableFunction {
+    pub const fn new(function: TableFunctionSet) -> Self {
+        ExtensionTableFunction {
+            infer_scan: None,
+            function,
+        }
     }
 }

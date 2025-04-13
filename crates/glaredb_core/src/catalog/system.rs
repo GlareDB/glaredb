@@ -77,6 +77,7 @@ pub fn new_system_catalog() -> Result<MemoryCatalog> {
         builtin.create_table_function(&CreateTableFunctionInfo {
             name: func.name.to_string(),
             implementation: *func,
+            infer_scan: None,
             on_conflict: OnConflict::Error,
         })?;
 
@@ -84,6 +85,7 @@ pub fn new_system_catalog() -> Result<MemoryCatalog> {
             builtin.create_table_function(&CreateTableFunctionInfo {
                 name: alias.to_string(),
                 implementation: *func,
+                infer_scan: None,
                 on_conflict: OnConflict::Error,
             })?;
         }

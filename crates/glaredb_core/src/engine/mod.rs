@@ -130,15 +130,20 @@ where
         // Register table functions.
         for table_func in ext.table_functions() {
             schema.create_table_function(&CreateTableFunctionInfo {
-                name: table_func.name.to_string(),
-                implementation: *table_func,
+                name: table_func.function.name.to_string(),
+                implementation: table_func.function,
+                infer_scan: table_func.infer_scan,
                 on_conflict: OnConflict::Error,
             })?;
 
-            for alias in table_func.aliases {
+            for alias in table_func.function.aliases {
+                // Infer scan is always set to None for aliases, since it'd
+                // point to the same function implementation anyways as the
+                // unaliased version.
                 schema.create_table_function(&CreateTableFunctionInfo {
                     name: alias.to_string(),
-                    implementation: *table_func,
+                    implementation: table_func.function,
+                    infer_scan: None,
                     on_conflict: OnConflict::Error,
                 })?;
             }

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use glaredb_error::{DbError, Result};
 
+use super::create::FileInferScan;
 use crate::arrays::field::Field;
 use crate::functions::function_set::{AggregateFunctionSet, ScalarFunctionSet, TableFunctionSet};
 use crate::storage::storage_manager::StorageTableId;
@@ -66,6 +67,7 @@ pub struct AggregateFunctionEntry {
 pub struct TableFunctionEntry {
     /// The table function.
     pub function: TableFunctionSet,
+    pub infer_scan: Option<FileInferScan>,
 }
 
 #[derive(Debug, Clone)]
