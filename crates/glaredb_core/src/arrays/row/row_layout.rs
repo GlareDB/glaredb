@@ -379,7 +379,7 @@ unsafe fn write_binary(
                     ptr.cast::<StringPtr>().write_unaligned(string_ptr);
 
                     // Update heap offset for next column.
-                    heap_ptr.byte_add(value.len());
+                    *heap_ptr = heap_ptr.byte_add(value.len());
                 } else {
                     // Otherwise we can just write the inline string directly.
                     let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
@@ -407,7 +407,7 @@ unsafe fn write_binary(
                         ptr.cast::<StringPtr>().write_unaligned(string_ptr);
 
                         // Update heap offset for next column.
-                        heap_ptr.byte_add(value.len());
+                        *heap_ptr = heap_ptr.byte_add(value.len());
                     } else {
                         // Otherwise we can just write the inline string directly.
                         let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
