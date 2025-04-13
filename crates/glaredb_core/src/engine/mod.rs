@@ -5,6 +5,7 @@ pub mod single_user;
 use std::sync::Arc;
 
 use glaredb_error::{OptionExt, Result};
+use parking_lot::Mutex;
 use session::Session;
 
 use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
@@ -132,6 +133,7 @@ where
             schema.create_table_function(&CreateTableFunctionInfo {
                 name: table_func.name.to_string(),
                 implementation: *table_func,
+                infer_scan: None,
                 on_conflict: OnConflict::Error,
             })?;
 
@@ -139,6 +141,7 @@ where
                 schema.create_table_function(&CreateTableFunctionInfo {
                     name: alias.to_string(),
                     implementation: *table_func,
+                    infer_scan: None,
                     on_conflict: OnConflict::Error,
                 })?;
             }

@@ -58,9 +58,21 @@ pub struct CreateAggregateFunctionInfo {
     pub on_conflict: OnConflict,
 }
 
+/// Information needed for adding a table function to the catalog.
 #[derive(Debug)]
 pub struct CreateTableFunctionInfo {
     pub name: String,
     pub implementation: TableFunctionSet,
+    pub infer_scan: Option<FileInferScan>,
     pub on_conflict: OnConflict,
+}
+
+/// Allow inferring the table function to use for a file path.
+///
+/// If `can_handle` returns true, then the table function will be used in the
+/// query. The table function should accept a single argument -- the path to the
+/// file.
+#[derive(Debug, Clone, Copy)]
+pub struct FileInferScan {
+    pub can_handle: fn(path: &str) -> bool,
 }
