@@ -21,6 +21,7 @@ pub struct ScanOperatorState {
 #[derive(Debug)]
 pub struct ScanPartitionState {
     state: AnyTablePartitionState,
+    reset_batch: bool,
 }
 
 #[derive(Debug)]
@@ -82,7 +83,10 @@ impl PullOperator for PhysicalScan {
         )?;
         let states = states
             .into_iter()
-            .map(|state| ScanPartitionState { state })
+            .map(|state| ScanPartitionState {
+                state,
+                reset_batch: true,
+            })
             .collect();
 
         Ok(states)
@@ -95,10 +99,26 @@ impl PullOperator for PhysicalScan {
         state: &mut Self::PartitionPullState,
         output: &mut Batch,
     ) -> Result<PollPull> {
-        output.reset_for_write()?;
-        self.function
-            .raw
-            .call_poll_pull(cx, &operator_state.state, &mut state.state, output)
+        if state.reset_batch {
+            output.reset_for_write()?;
+            state.reset_batch = false;
+        }
+
+        let poll = self.function.raw.call_poll_pull(
+            cx,
+            &operator_state.state,
+            &mut state.state,
+            output,
+        )?;
+
+        // We want to keep the batch state the same for Pending since that's
+        // logically re-executing on the same state. Only trigger a reset for
+        // HasMore.
+        if poll == PollPull::HasMore {
+            state.reset_batch = true;
+        }
+
+        Ok(poll)
     }
 }
 
