@@ -1,7 +1,5 @@
 # read_parquet from local file source
 
-halt
-
 query I
 select * from read_parquet('../testdata/parquet/small.parquet')
 ----
