@@ -41,6 +41,23 @@ SELECT * FROM read_parquet('s3://bucket-name/path/to/file.parquet',
                           secret_access_key='YOUR_SECRET_KEY');
 ```
 
+### Direct URI Querying
+
+Parquet files can also be queried directly by using the file path or URI in the FROM clause:
+
+```sql
+SELECT * FROM 'cities.parquet';
+```
+
+For S3 sources, additional parameters can be provided:
+
+```sql
+SELECT * FROM 's3://bucket-name/path/to/file.parquet'
+         (region='us-east-1', 
+          access_key_id=:access_key_id, 
+          secret_access_key=:secret_access_key);
+```
+
 ### `parquet_file_metadata`
 
 Returns high-level metadata about a Parquet file.
