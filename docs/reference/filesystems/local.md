@@ -32,6 +32,13 @@ SELECT * FROM read_csv('/home/user/data/cities.csv');
 
 This reads the file directly from the specified location in the file system.
 
+You can also query files directly by specifying the file path in the FROM clause:
+
+```sql
+SELECT * FROM './cities.csv';
+SELECT * FROM '/home/user/data/cities.parquet';
+```
+
 ## Supported Formats
 
 All supported file formats, such as CSV and Parquet, can be read from the local

@@ -22,6 +22,12 @@ SELECT * FROM read_csv('https://example.com/cities.csv');
 
 This reads a remote CSV file over HTTPS and returns the parsed table.
 
+You can also query HTTP(S) files directly by specifying the URL in the FROM clause:
+
+```sql
+SELECT * FROM 'https://example.com/cities.csv';
+```
+
 ## Supported Formats
 
 All supported file formats, such as CSV and Parquet, can be read using the

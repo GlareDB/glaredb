@@ -50,5 +50,13 @@ This returns a table with the name and data type of each column:
 | title             | Utf8     |
 | comments          | Utf8     |
 
+### Direct URI Querying
+
+CSV files can also be queried directly by using the file path or URI in the FROM clause:
+
+```sql
+SELECT * FROM '../testdata/csv/userdata1.csv';
+```
+
 > Note: Support for custom parsing options, including explicit type definitions
 > and header row overrides, will be available soon.
