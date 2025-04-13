@@ -35,7 +35,7 @@ impl Scheduler for ThreadedScheduler {
 
     fn try_new(num_threads: usize) -> Result<Self> {
         let thread_pool = ThreadPoolBuilder::new()
-            .thread_name(|idx| format!("rayexec_compute_{idx}"))
+            .thread_name(|idx| format!("glaredb_compute_{idx}"))
             .num_threads(num_threads)
             .build()
             .map_err(|e| DbError::with_source("Failed to build thread pool", Box::new(e)))?;

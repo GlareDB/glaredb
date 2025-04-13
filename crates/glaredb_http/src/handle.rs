@@ -73,7 +73,10 @@ where
                         Poll::Ready(Some(chunk)) => chunk,
                         Poll::Ready(None) => {
                             // Stream finished.
-                            self.chunk = ChunkReadState::None; // TODO: Do we need to do this?
+                            //
+                            // Set chunk state to None to trigger new request on
+                            // the next poll.
+                            self.chunk = ChunkReadState::None;
                             return Poll::Ready(Ok(count));
                         }
                         Poll::Pending => {
@@ -81,7 +84,9 @@ where
                                 // If we have a non-zero count, it means we
                                 // looped here, and did actually write stuff to
                                 // the buffer.
-                                self.chunk = ChunkReadState::None; // TODO: Do we need to do this?
+                                //
+                                // Keep the chunk state so we can resume reading
+                                // from the stream on the next poll.
                                 return Poll::Ready(Ok(count));
                             } else {
                                 return Poll::Pending;
@@ -132,7 +137,9 @@ where
                         continue;
                     } else {
                         // Otherwise return what we have.
-                        self.chunk = ChunkReadState::None; // TODO: Do we need to do this?
+                        //
+                        // Keep the chunk stream state, we'll continue reading
+                        // from what we have buffered.
                         return Poll::Ready(Ok(count));
                     }
                 }
