@@ -49,14 +49,7 @@ Parquet files can also be queried directly by using the file path or URI in the 
 SELECT * FROM 'cities.parquet';
 ```
 
-For S3 sources, additional parameters can be provided:
 
-```sql
-SELECT * FROM 's3://bucket-name/path/to/file.parquet'
-         (region='us-east-1', 
-          access_key_id=:access_key_id, 
-          secret_access_key=:secret_access_key);
-```
 
 ### `parquet_file_metadata`
 
