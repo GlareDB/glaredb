@@ -9,6 +9,8 @@ use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 /// about which heap block we're writing to.
 ///
 /// This is used when constructing the string view that gets written to the row.
+// TODO: Not sure how useful this is right now. It might become actually useful
+// when we start spilling heap blocks.
 #[derive(Debug, Copy, Clone)]
 pub struct HeapMutPtr {
     /// The pointer to the where to write in the heap.
@@ -20,6 +22,7 @@ pub struct HeapMutPtr {
 }
 
 impl HeapMutPtr {
+    #[must_use]
     pub unsafe fn byte_add(self, count: usize) -> Self {
         unsafe {
             HeapMutPtr {

@@ -1,0 +1,42 @@
+# Ensure we're properly reordering data heap blocks, e.g. for non-inlined
+# strings.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE test (a INT, b TEXT, c TEXT);
+
+statement ok
+INSERT INTO test VALUES
+  (1, 'dogdogdogdogdogdog123456789', 'dddddddddddddddddddd123456'),
+  (2, 'catcatcatcatcatcat123456',    'cccccccccccccccccccc123456789'),
+  (3, 'horsehorsehorsehorsehorse',   'hhhhhhhhhhhhhhhhhhhhhhhhhhhh123');
+
+query ITT
+SELECT * FROM test ORDER BY 1 DESC;
+----
+3  horsehorsehorsehorsehorse    hhhhhhhhhhhhhhhhhhhhhhhhhhhh123
+2  catcatcatcatcatcat123456     cccccccccccccccccccc123456789
+1  dogdogdogdogdogdog123456789  dddddddddddddddddddd123456
+
+statement ok
+CREATE TEMP TABLE test_with_null (a INT, b TEXT, c TEXT);
+
+statement ok
+INSERT INTO test_with_null VALUES
+  (1, 'dogdogdogdogdogdog123456789',      'dddddddddddddddddddd123456'),
+  (2, 'catcatcatcatcatcat123456',         'cccccccccccccccccccc123456789'),
+  (3, 'goosegoosegoosegoosegoose123456',  NULL),
+  (4, NULL,                               'hhhhhhhhhhhhhhhhhhhhhhhhhhhh123'),
+  (5, 'horsehorsehorsehorsehorse',        'iiiiiiiiiiiiiiiiiiiiiiiiii123');
+
+query ITT
+SELECT * FROM test_with_null ORDER BY 1 DESC;
+----
+5  horsehorsehorsehorsehorse        iiiiiiiiiiiiiiiiiiiiiiiiii123
+4  NULL                             hhhhhhhhhhhhhhhhhhhhhhhhhhhh123
+3  goosegoosegoosegoosegoose123456  NULL
+2  catcatcatcatcatcat123456         cccccccccccccccccccc123456789
+1  dogdogdogdogdogdog123456789      dddddddddddddddddddd123456
+
