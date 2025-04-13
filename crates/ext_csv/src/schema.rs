@@ -136,6 +136,11 @@ impl CandidateType {
 
     /// Update this candidate type based on some string input.
     fn update_from_input(&mut self, input: &str) {
+        if input.is_empty() {
+            // Nothing to glean from this string.
+            return;
+        }
+
         match self {
             Self::Boolean => {
                 if BoolParser.parse(input).is_none() {

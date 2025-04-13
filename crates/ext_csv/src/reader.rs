@@ -87,6 +87,20 @@ impl CsvReader {
     pub fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
         let out_cap = output.write_capacity()?;
 
+        // TODO: Bit slow over http since we're only reading a few values at a
+        // time, and writing them direclty to the batch.
+        //
+        // We should speed this this up by just continually writing to the
+        // decoder until we reach a threshold (similar to how the parquet stuff
+        // writes to a chunk buffer before put it in the batch).
+        //
+        // However, the current implementation did catch a bug with how we
+        // treater Pending. We were always resetting the batch, even though we
+        // were using it to store values. This resulted in garbage data when the
+        // "file" was actually async (http).
+        //
+        // The fix was in the Scan operator to avoid resetting state on Pending.
+        // I want to add a test for that before making this faster.
         loop {
             // Try to write before polling again.
             if self.output.num_records() >= self.write_state.read_record_offset {
@@ -122,6 +136,7 @@ impl CsvReader {
                 if count == rem_cap {
                     // We filled up the batch. Signal we need a new one.
                     self.write_state.batch_write_offset = 0;
+
                     return Ok(PollPull::HasMore);
                 }
             }
@@ -139,7 +154,9 @@ impl CsvReader {
 
                     // And continue...
                 }
-                Poll::Pending => return Ok(PollPull::Pending),
+                Poll::Pending => {
+                    return Ok(PollPull::Pending);
+                }
             }
         }
     }
@@ -209,7 +226,8 @@ impl CsvReader {
         S::StorageType: Sized,
         P: Parser<Type = S::StorageType>,
     {
-        let mut output = S::get_addressable_mut(array.data_mut())?;
+        let (data, validity) = array.data_and_validity_mut();
+        let mut output = S::get_addressable_mut(data)?;
 
         for idx in 0..count {
             let record_idx = idx + records_offset;
@@ -222,11 +240,15 @@ impl CsvReader {
             let field = record.field(field_idx);
             let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
 
-            let v = parser
-                .parse(field)
-                .ok_or_else(|| DbError::new("Failed to parse '{field}'"))?;
-
-            output.put(write_idx, &v);
+            if field.is_empty() {
+                // Empty fields are NULL
+                validity.set_invalid(write_idx);
+            } else {
+                let v = parser
+                    .parse(field)
+                    .ok_or_else(|| DbError::new("Failed to parse '{field}'"))?;
+                output.put(write_idx, &v);
+            }
         }
 
         Ok(())
@@ -240,7 +262,8 @@ impl CsvReader {
         write_offset: usize,
         count: usize,
     ) -> Result<()> {
-        let mut output = PhysicalUtf8::get_addressable_mut(array.data_mut())?;
+        let (data, validity) = array.data_and_validity_mut();
+        let mut output = PhysicalUtf8::get_addressable_mut(data)?;
 
         for idx in 0..count {
             let record_idx = idx + records_offset;
@@ -253,7 +276,12 @@ impl CsvReader {
             let field = record.field(field_idx);
             let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
 
-            output.put(write_idx, field);
+            if field.is_empty() {
+                // Empty fields are NULL
+                validity.set_invalid(write_idx);
+            } else {
+                output.put(write_idx, field);
+            }
         }
 
         Ok(())
