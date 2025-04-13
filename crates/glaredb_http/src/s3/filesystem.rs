@@ -17,7 +17,7 @@ use url::Url;
 
 use super::credentials::{AwsCredentials, AwsRequestAuthorizer};
 use crate::client::{HttpClient, HttpResponse};
-use crate::handle::{ChunkReadState, HttpFileHandle, RequestSigner};
+use crate::handle::{HttpFileHandle, RequestSigner};
 
 pub const AWS_ENDPOINT: &str = "amazonaws.com";
 
@@ -119,19 +119,13 @@ where
             None => return Err(DbError::new("Missing Content-Length header for file")),
         };
 
-        Ok(S3FileHandle {
-            handle: HttpFileHandle {
-                url: location,
-                pos: 0,
-                chunk: ChunkReadState::None,
-                len,
-                client: self.client.clone(),
-                signer: S3RequestSigner {
-                    region: state.region.clone(),
-                    creds: state.creds.clone(),
-                },
-            },
-        })
+        let signer = S3RequestSigner {
+            region: state.region.clone(),
+            creds: state.creds.clone(),
+        };
+        let handle = HttpFileHandle::new(location, len, self.client.clone(), signer);
+
+        Ok(S3FileHandle { handle })
     }
 
     async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
