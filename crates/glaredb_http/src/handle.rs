@@ -439,4 +439,33 @@ mod tests {
         assert_eq!(Poll::Ready(5), poll);
         assert_eq!(b"hello", &buf[0..5]);
     }
+
+    #[test]
+    fn read_seek_read() {
+        // Ensure we reset chunk read state when seeking.
+
+        let streamer = FixedSizedStreamer::new(b"hello", 10);
+        let mut handle = streamer.handle();
+
+        let mut buf = vec![0; 10];
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut buf)
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(5), poll);
+        assert_eq!(b"hello", &buf[0..5]);
+
+        let poll = handle
+            .poll_seek(&mut noop_context(), io::SeekFrom::Start(1))
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(()), poll);
+
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut buf)
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(4), poll);
+        assert_eq!(b"ello", &buf[0..4]);
+    }
 }

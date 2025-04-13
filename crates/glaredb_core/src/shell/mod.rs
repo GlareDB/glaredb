@@ -415,7 +415,7 @@ where
                             writeln!(writer, "{table}")?;
                             if let Some(start) = start {
                                 let exec_dur = Self::now().duration_since(start).as_secs_f64();
-                                writeln!(writer, "Execution duration(s): {exec_dur:.5}")?;
+                                writeln!(writer, "Execution duration (s): {exec_dur:.5}")?;
                             }
                         }
                         Err(e) => {
