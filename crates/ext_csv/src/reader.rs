@@ -209,7 +209,8 @@ impl CsvReader {
         S::StorageType: Sized,
         P: Parser<Type = S::StorageType>,
     {
-        let mut output = S::get_addressable_mut(array.data_mut())?;
+        let (data, validity) = array.data_and_validity_mut();
+        let mut output = S::get_addressable_mut(data)?;
 
         for idx in 0..count {
             let record_idx = idx + records_offset;
@@ -222,11 +223,15 @@ impl CsvReader {
             let field = record.field(field_idx);
             let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
 
-            let v = parser
-                .parse(field)
-                .ok_or_else(|| DbError::new("Failed to parse '{field}'"))?;
-
-            output.put(write_idx, &v);
+            if field.is_empty() {
+                // Empty strings are NULL
+                validity.set_invalid(write_idx);
+            } else {
+                let v = parser
+                    .parse(field)
+                    .ok_or_else(|| DbError::new("Failed to parse '{field}'"))?;
+                output.put(write_idx, &v);
+            }
         }
 
         Ok(())

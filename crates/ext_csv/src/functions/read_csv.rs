@@ -99,7 +99,7 @@ impl TableScanFunction for ReadCsv {
         }
 
         // Infer.
-        const INFER_BUF_SIZE: usize = 1024;
+        const INFER_BUF_SIZE: usize = 4096; // TODO: Have a reason for this size. Currently just "gut feeling".
         let mut infer_buf = vec![0; INFER_BUF_SIZE];
         let mut records = ByteRecords::with_buffer_capacity(INFER_BUF_SIZE);
 

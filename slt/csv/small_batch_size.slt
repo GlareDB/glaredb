@@ -1,0 +1,26 @@
+# Ensure we read the complete file with batch sizes smaller than the total
+# number of rows.
+#
+# userdata1.csv - 1000 rows
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+SET batch_size = 128;
+
+query ?????????????
+SELECT * FROM '../testdata/csv/userdata1.csv' WHERE id = 1 OR id = 1000 ORDER BY id;
+----
+2016-02-03T07:55:29.000000000  1     Amanda  Jordan  ajordan0@com.com     Female 1.197.201.2    6759521864920116  Indonesia  3/8/1971  49756.53   Internal Auditor  1E+02
+2016-02-03T09:52:18.000000000  1000  Julie   Meyer   jmeyerrr@flavors.me  Female 217.1.147.132  374288099198540   China      (empty)   222561.13  (empty)           (empty)
+
+query ?
+SELECT avg(salary)::decimal(15, 2) FROM '../testdata/csv/userdata1.csv';
+----
+149005.36
+
+query I
+SELECT count(*) FROM '../testdata/csv/userdata1.csv' WHERE salary IS NULL;
+----
+68
