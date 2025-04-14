@@ -36,6 +36,15 @@ pub fn main() -> Result<()> {
     // Private S3 with CSV, parquet
     run_with_all_thread_configurations::<S3PrivateSetup>("../slt/s3/private", "slt_s3_private")?;
 
+    // TODO: Benchmarks should probably just create a view on the parquet files
+    // instead of referencing them directly in the query.
+
+    // Clickbench queries on a truncated dataset
+    run_with_all_thread_configurations::<ClickBenchSetup>("../slt/clickbench", "slt_clickbench")?;
+
+    // TPC-H queries on a SF=0.1 dataset
+    run_with_all_thread_configurations::<TpchBenchSetup>("../slt/tpchbench", "slt_tpchbench")?;
+
     Ok(())
 }
 
@@ -138,6 +147,34 @@ where
         vars.add_var("AWS_SECRET", VarValue::sensitive_from_env("AWS_SECRET"));
 
         Ok((engine, vars))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ClickBenchSetup;
+
+impl<E, R> EngineSetup<E, R> for ClickBenchSetup
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
+        engine.register_extension(ParquetExtension)?;
+        Ok((engine, ReplacementVars::default()))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TpchBenchSetup;
+
+impl<E, R> EngineSetup<E, R> for TpchBenchSetup
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
+        engine.register_extension(ParquetExtension)?;
+        Ok((engine, ReplacementVars::default()))
     }
 }
 
