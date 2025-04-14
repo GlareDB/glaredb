@@ -1,9 +1,9 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - sean/binaries
+  # push:
+  #   branches:
+  #     - sean/binaries
   workflow_dispatch:
 
 concurrency:
@@ -164,7 +164,7 @@ jobs:
           path: crates/rayexec_python/dist
 
   python-manylinux-arm64:
-    name: Build python (Linux Arm64)
+    name: Build python (Linux arm64)
     runs-on: ubuntu-2404-arm-4-core
     steps:
       - name: Checkout
