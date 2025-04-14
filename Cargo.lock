@@ -756,7 +756,6 @@ dependencies = [
  "glaredb_core",
  "glaredb_error",
  "glaredb_proto",
- "rayexec_io",
  "regex",
  "serde",
  "serde_json",
@@ -775,7 +774,6 @@ dependencies = [
  "glaredb_core",
  "glaredb_error",
  "glaredb_proto",
- "rayexec_io",
  "regex",
  "serde",
  "serde_bytes",
@@ -1055,7 +1053,6 @@ dependencies = [
  "num_cpus",
  "parking_lot",
  "rand 0.9.0",
- "rayexec_io",
  "rayon",
  "regex",
  "scc",
@@ -1126,7 +1123,6 @@ dependencies = [
  "glaredb_http",
  "num_cpus",
  "parking_lot",
- "rayexec_io",
  "rayon",
  "reqwest",
  "tokio",
@@ -1172,7 +1168,6 @@ dependencies = [
  "glaredb_http",
  "js-sys",
  "parking_lot",
- "rayexec_io",
  "reqwest",
  "tracing",
  "tracing-subscriber",
@@ -2259,27 +2254,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rayexec_io"
-version = "0.0.116"
-dependencies = [
- "bytes",
- "chrono",
- "futures",
- "glaredb_error",
- "glaredb_proto",
- "hmac",
- "parking_lot",
- "percent-encoding",
- "quick-xml",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "tracing",
- "url",
-]
-
-[[package]]
 name = "rayexec_python"
 version = "0.0.116"
 dependencies = [
@@ -2291,7 +2265,6 @@ dependencies = [
  "glaredb_rt_native",
  "parking_lot",
  "pyo3",
- "rayexec_io",
  "tokio",
  "tracing",
 ]

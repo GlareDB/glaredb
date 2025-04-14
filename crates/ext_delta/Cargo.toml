@@ -7,8 +7,9 @@ edition.workspace = true
 glaredb_proto = { path = '../glaredb_proto' }
 glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
-rayexec_io = { path = '../rayexec_io' }
+
 ext_parquet = { path = '../ext_parquet' }
+
 futures = { workspace = true }
 tracing = { workspace = true }
 regex = { workspace = true }
