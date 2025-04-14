@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  cli-manylinux-x86:
+  cli-manylinux-x86_64:
     name: Build CLI (Linux x86-64)
     runs-on: ubuntu-latest
     container:
@@ -43,7 +43,42 @@ jobs:
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: glaredb-linux-x86
+          name: glaredb-linux-x86_64
+          path: target/release/glaredb
+
+  cli-manylinux-arm64:
+    name: Build CLI (Linux arm64)
+    runs-on: ubuntu-latest
+    container:
+      # TODO: See linux-x8_64
+      image: ghcr.io/rust-cross/manylinux_2_28-cross:aarch64
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install protoc
+        run: ./scripts/install_protoc_linux.sh
+
+      - name: Install Rust toolchain
+        run: |
+          # Install rustup
+          curl https://sh.rustup.rs -sSf | sh -s -- -y
+          source $HOME/.cargo/env
+          # Confirm
+          rustc --version
+
+      - name: Build CLI
+        run: |
+          source $HOME/.cargo/env
+          cargo build --bin glaredb --release
+          ls -l target/release
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: glaredb-linux-arm64
           path: target/release/glaredb
 
   # wasm:
@@ -105,7 +140,7 @@ jobs:
   #         name: wheels-macos-arm
   #         path: crates/rayexec_python/dist
 
-  # python-manylinux-x86:
+  # python-manylinux-x86_64:
   #   name: Build python (Linux x86-64)
   #   runs-on: ubuntu-latest
   #   steps:
@@ -123,10 +158,10 @@ jobs:
   #     - name: Upload python wheels
   #       uses: actions/upload-artifact@v4
   #       with:
-  #         name: wheels-linux-x86
+  #         name: wheels-linux-x86_64
   #         path: crates/rayexec_python/dist
 
-  # python-manylinux-arm:
+  # python-manylinux-arm64:
   #   name: Build python (Linux Arm64)
   #   runs-on: ubuntu-2404-arm-4-core
   #   steps:
@@ -148,12 +183,12 @@ jobs:
   #     - name: Upload python wheels
   #       uses: actions/upload-artifact@v4
   #       with:
-  #         name: wheels-linux-arm
+  #         name: wheels-linux-arm64
   #         path: crates/rayexec_python/dist
 
   # python-pypi-upload:
   #   name: Upload to pypi
-  #   needs: [python-macos-arm, python-manylinux-x86, python-manylinux-arm]
+  #   needs: [python-macos-arm, python-manylinux-x86_64, python-manylinux-arm64]
   #   runs-on: ubuntu-latest
   #   steps:
   #     - name: Download wheels
