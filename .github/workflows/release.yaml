@@ -48,7 +48,7 @@ jobs:
 
   cli-manylinux-arm64:
     name: Build CLI (Linux arm64)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-2404-arm-4-core
     container:
       # TODO: See linux-x8_64
       image: ghcr.io/rust-cross/manylinux_2_28-cross:aarch64
