@@ -71,7 +71,7 @@ jobs:
 
       - name: Build CLI
         run: |
-          source $HOME/.cargo/env
+          . $HOME/.cargo/env
           cargo build --bin glaredb --release
           ls -l target/release
 
