@@ -74,14 +74,14 @@ jobs:
         run: |
           . $HOME/.cargo/env
           cargo build --bin glaredb --release
-          ls -l target/aarch64-unknown-linux-gnu
+          ls -l target/aarch64-unknown-linux-gnu/release
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
           name: glaredb-linux-arm64
-          path: target/aarch64-unknown-linux-gnu/glaredb
+          path: target/aarch64-unknown-linux-gnu/release/glaredb
 
   # wasm:
   #   name: Build and Publish WASM
