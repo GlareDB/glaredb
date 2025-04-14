@@ -83,6 +83,32 @@ jobs:
           name: glaredb-linux-arm64
           path: target/aarch64-unknown-linux-gnu/release/glaredb
 
+  cli-macos-arm:
+    name: Build CLI (macOS ARM)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # TODO: Also build version for x86_64, then use `lipo -create -output glaredb-macos-universal glaredb-macos-arm6 glaredb macos-x86_64`
+      # We'd to upload all three versions of the binary.
+      - name: Build CLI
+        run: |
+          cargo build --bin glaredb --release
+          ls -l target/release
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: glaredb-macos-arm64
+          path: target/release/glaredb
+
   # wasm:
   #   name: Build and Publish WASM
   #   runs-on: ubuntu-latest
