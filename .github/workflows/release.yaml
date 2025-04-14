@@ -23,6 +23,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install protoc
+        run: ./scripts/install_protoc_linux.sh
+
       - name: Install Rust toolchain
         run: |
           # Install rustup
