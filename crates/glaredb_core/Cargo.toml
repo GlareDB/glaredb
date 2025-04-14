@@ -7,7 +7,6 @@ edition = { workspace = true }
 glaredb_error = { path = "../glaredb_error" }
 glaredb_proto = { path = "../glaredb_proto" }
 glaredb_parser = { path = "../glaredb_parser" }
-rayexec_io = { path = "../rayexec_io" }
 
 ahash = { workspace = true }
 chrono = { workspace = true }

@@ -1,6 +1,5 @@
 use glaredb_error::{Result, not_implemented};
 use glaredb_parser::ast;
-use rayexec_io::location::FileLocation;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::BoundQuery;
@@ -22,7 +21,7 @@ pub enum BoundCopyToSource {
 pub struct BoundCopyTo {
     pub source: BoundCopyToSource,
     pub source_schema: ColumnSchema,
-    pub location: FileLocation,
+    // pub location: FileLocation,
     // pub copy_to: Box<dyn CopyToFunction>,
 }
 

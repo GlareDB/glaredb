@@ -10,10 +10,11 @@ crate-type = ["cdylib"]
 [dependencies]
 glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
+glaredb_rt_native = { path = '../glaredb_rt_native' }
+
 ext_csv = { path = '../ext_csv' }
 ext_delta = { path = '../ext_delta' }
-rayexec_io = { path = '../rayexec_io' }
-glaredb_rt_native = { path = '../glaredb_rt_native' }
+
 futures = { workspace = true }
 parking_lot = { workspace = true }
 tracing = { workspace = true }

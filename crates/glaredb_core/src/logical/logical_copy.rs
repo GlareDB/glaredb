@@ -1,5 +1,4 @@
 use glaredb_error::Result;
-use rayexec_io::location::FileLocation;
 
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
@@ -15,7 +14,7 @@ pub struct LogicalCopyTo {
     /// Stored on this operator since the copy to sinks may need field names
     /// (e.g. writing out a header in csv).
     pub source_schema: ColumnSchema,
-    pub location: FileLocation,
+    // pub location: FileLocation,
     // pub copy_to: Box<dyn CopyToFunction>,
 }
 

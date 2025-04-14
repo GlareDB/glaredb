@@ -14,7 +14,6 @@ use glaredb_parser::ast::{self, ColumnDef, ObjectReference};
 use glaredb_parser::meta::{AstMeta, Raw};
 use glaredb_parser::parser;
 use glaredb_parser::statement::{RawStatement, Statement};
-use rayexec_io::location::FileLocation;
 use resolve_context::{ItemReference, MaybeResolved, ResolveContext, ResolveListIdx};
 use resolve_normal::{MaybeResolvedTable, NormalResolver};
 use resolved_cte::ResolvedCte;
@@ -59,7 +58,7 @@ impl AstMeta for ResolvedMeta {
     type FunctionReference = ResolveListIdx;
     type SubqueryOptions = ResolvedSubqueryOptions;
     type DataType = DataType;
-    type CopyToDestination = FileLocation;
+    type CopyToDestination = (); // TODO
     type CopyToOptions = ();
     /// SHOW statements will be converted to views if need during the resolve
     /// step (e.g. for SHOW DATABASES). If we produce a resolved SHOW, it will
