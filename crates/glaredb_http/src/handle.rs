@@ -60,24 +60,24 @@ where
     }
 
     fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
-        if self.chunk.is_none() {
-            // Make the initial request.
-            let mut request = Request::new(Method::GET, self.url.clone());
-            let range = format!("bytes={}-{}", self.pos, self.pos + buf.len() - 1);
-            request
-                .headers_mut()
-                .insert(RANGE, range.try_into().unwrap());
-
-            let request = self.signer.sign(request)?;
-
-            let req_fut = self.client.do_request(request);
-            self.chunk = ChunkReadState::Requesting { req_fut }
-        }
-
         let mut count = 0;
 
         loop {
             match &mut self.chunk {
+                ChunkReadState::None => {
+                    // Make the initial request.
+                    let mut request = Request::new(Method::GET, self.url.clone());
+                    let range = format!("bytes={}-{}", self.pos, self.pos + buf.len() - 1);
+                    request
+                        .headers_mut()
+                        .insert(RANGE, range.try_into().unwrap());
+
+                    let request = self.signer.sign(request)?;
+
+                    let req_fut = self.client.do_request(request);
+                    self.chunk = ChunkReadState::Requesting { req_fut }
+                }
+
                 ChunkReadState::Requesting { req_fut } => {
                     let resp = match req_fut.poll_unpin(cx)? {
                         Poll::Ready(resp) => resp,
@@ -88,6 +88,7 @@ where
                     self.chunk = ChunkReadState::Streaming { stream };
                     // Continue...
                 }
+
                 ChunkReadState::Streaming { stream, .. } => {
                     let chunk = match stream.poll_next_unpin(cx)? {
                         Poll::Ready(Some(chunk)) => chunk,
@@ -97,24 +98,20 @@ where
                             // Set chunk state to None to trigger new request on
                             // the next poll.
                             self.chunk = ChunkReadState::None;
+                            if count == 0 {
+                                // If we didn't actually read anything, go ahead
+                                // an make the next requests.
+                                continue;
+                            }
+
+                            // Otherwise return what we have.
                             return Poll::Ready(Ok(count));
                         }
                         Poll::Pending => {
-                            // TODO: This is likely the cause of <https://github.com/GlareDB/glaredb/issues/3617>
-                            //
-                            // This will register a waker even though we're
-                            // returning data.
-                            if count > 0 {
-                                // If we have a non-zero count, it means we
-                                // looped here, and did actually write stuff to
-                                // the buffer.
-                                //
-                                // Keep the chunk state so we can resume reading
-                                // from the stream on the next poll.
-                                return Poll::Ready(Ok(count));
-                            } else {
-                                return Poll::Pending;
-                            }
+                            // Note this requires that we don't loop on getting
+                            // a read. Otherwise we'd end up losing parts of the
+                            // chunk.
+                            return Poll::Pending;
                         }
                     };
 
@@ -130,6 +127,7 @@ where
                     }
                     // Continue...
                 }
+
                 ChunkReadState::Reading { pos, chunk, .. } => {
                     let out = &mut buf[count..];
                     let rem = &chunk[*pos..];
@@ -157,8 +155,9 @@ where
 
                         self.chunk = ChunkReadState::Streaming { stream };
 
-                        // Go back to requesting the next chunk.
-                        continue;
+                        // Return here with what we have, we'll stream the next
+                        // chunk on the next poll.
+                        return Poll::Ready(Ok(count));
                     } else {
                         // Otherwise return what we have.
                         //
@@ -166,11 +165,6 @@ where
                         // from what we have buffered.
                         return Poll::Ready(Ok(count));
                     }
-                }
-                ChunkReadState::None => {
-                    // Nothing more to read, just return whatever we have.
-                    // TODO: Shouldn't be possible to reach this in the loop.
-                    return Poll::Ready(Ok(count));
                 }
             }
         }
@@ -425,8 +419,8 @@ mod tests {
     fn large_read_buffer_small_chunk_size() {
         // Read from of a stream of many small chunks into a large buffer.
         //
-        // Note that we'll get the full output in a single poll since the stream
-        // immediately produces new chunks without pending.
+        // Requires multiple polls to read the entire thing, even though we have
+        // enough space in our buffer.
 
         let streamer = FixedSizedStreamer::new(b"hello", 2);
         let mut handle = streamer.handle();
@@ -436,8 +430,22 @@ mod tests {
             .poll_read(&mut noop_context(), &mut buf)
             .map(|r| r.unwrap());
 
-        assert_eq!(Poll::Ready(5), poll);
-        assert_eq!(b"hello", &buf[0..5]);
+        assert_eq!(Poll::Ready(2), poll);
+        assert_eq!(b"he", &buf[0..2]);
+
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut buf)
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(2), poll);
+        assert_eq!(b"ll", &buf[0..2]);
+
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut buf)
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(1), poll);
+        assert_eq!(b"o", &buf[0..1]);
     }
 
     #[test]
