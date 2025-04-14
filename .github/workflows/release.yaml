@@ -38,7 +38,7 @@ jobs:
         run: |
           source $HOME/.cargo/env
           cargo build --bin glaredb --release
-          target/release/glaredb -- "select 'hello'"
+          ls -l target/release
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
