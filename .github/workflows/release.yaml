@@ -43,6 +43,7 @@ jobs:
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
+          if-no-files-found: error
           name: glaredb-linux-x86_64
           path: target/release/glaredb
 
@@ -73,11 +74,13 @@ jobs:
         run: |
           . $HOME/.cargo/env
           cargo build --bin glaredb --release
+          ls -l target
           ls -l target/release
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
+          if-no-files-found: error
           name: glaredb-linux-arm64
           path: target/release/glaredb
 
@@ -137,6 +140,7 @@ jobs:
   #     - name: Upload python wheels
   #       uses: actions/upload-artifact@v4
   #       with:
+  #         if-no-files-found: error
   #         name: wheels-macos-arm
   #         path: crates/rayexec_python/dist
 
@@ -158,6 +162,7 @@ jobs:
   #     - name: Upload python wheels
   #       uses: actions/upload-artifact@v4
   #       with:
+  #         if-no-files-found: error
   #         name: wheels-linux-x86_64
   #         path: crates/rayexec_python/dist
 
@@ -183,6 +188,7 @@ jobs:
   #     - name: Upload python wheels
   #       uses: actions/upload-artifact@v4
   #       with:
+  #         if-no-files-found: error
   #         name: wheels-linux-arm64
   #         path: crates/rayexec_python/dist
 
