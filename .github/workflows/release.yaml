@@ -83,8 +83,8 @@ jobs:
           name: glaredb-linux-arm64
           path: target/aarch64-unknown-linux-gnu/release/glaredb
 
-  cli-macos-arm:
-    name: Build CLI (macOS ARM)
+  cli-macos-arm64:
+    name: Build CLI (macOS arm64)
     runs-on: macos-14
     steps:
       - name: Checkout
@@ -110,8 +110,8 @@ jobs:
           path: target/release/glaredb
 
     
-  python-macos-arm:
-    name: Build Python (macOS ARM)
+  python-macos-arm64:
+    name: Build Python (macOS arm64)
     runs-on: macos-14
     steps:
       - name: Checkout
@@ -138,7 +138,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
-          name: wheels-macos-arm
+          name: wheels-macos-arm64
           path: crates/rayexec_python/dist
 
   python-manylinux-x86_64:
@@ -190,9 +190,22 @@ jobs:
           path: crates/rayexec_python/dist
 
   # ONLY RUNS ON 'main'
+  create-github-release:
+    name: Create github release
+    needs: [cli-macos-arm64, cli-manylinux-x86_64, cli-manylinux-arm64]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Stub step
+        run: echo "release step goes here"
+
+  # ONLY RUNS ON 'main'
   python-pypi-upload:
     name: Upload to pypi
-    needs: [python-macos-arm, python-manylinux-x86_64, python-manylinux-arm64]
+    needs: [python-macos-arm64, python-manylinux-x86_64, python-manylinux-arm64]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
