@@ -1,138 +1,167 @@
 name: Release
 
-on: workflow_dispatch
+on:
+  push:
+    branches:
+      - sean/binaries
+  workflow_dispatch:
 
 concurrency:
   group: release-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  wasm:
-    name: Build and Publish WASM
-    runs-on: ubuntu-latest
+  cli-manylinux-x86:
+    name: Build CLI (Linux x86-64)
+    container:
+      # Image TBD, gives us glibc 2.28. Not sure if that's common enough.
+      image: quay.io/pypa/manylinux_2_28_x86_64
+      options: --user root
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust toolchain
+        run: |
+          # Install rustup
+          curl https://sh.rustup.rs -sSf | sh -s -- -y
+          echo 'source $HOME/.cargo/env' >> $HOME/.bashrc
+          source $HOME/.cargo/env
+          # Confirm
+          rustc --version
 
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Build CLI
+        run: |
+          cargo build --bin glaredb --release
+          ls -l target/release/
 
-      - name: Build wasm
-        run: wasm-pack build crates/glaredb_wasm/ --scope glaredb
+  # wasm:
+  #   name: Build and Publish WASM
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          registry-url: 'https://registry.npmjs.org'
+  #     - name: Install protoc
+  #       uses: arduino/setup-protoc@v3
+  #       with:
+  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: wasm-pack publish crates/glaredb_wasm/
+  #     - name: Install wasm-pack
+  #       run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+  #     - name: Build wasm
+  #       run: wasm-pack build crates/glaredb_wasm/ --scope glaredb
+
+  #     - name: Setup node
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '20.x'
+  #         registry-url: 'https://registry.npmjs.org'
+
+  #     - name: Publish
+  #       env:
+  #         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  #       run: wasm-pack publish crates/glaredb_wasm/
     
-  python-macos-arm:
-    name: Build Python (macOS ARM)
-    runs-on: macos-14
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  # python-macos-arm:
+  #   name: Build Python (macOS ARM)
+  #   runs-on: macos-14
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Install protoc
+  #       uses: arduino/setup-protoc@v3
+  #       with:
+  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+  #     - name: Setup python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.11'
 
-      - name: Maturin build
-        uses: PyO3/maturin-action@v1
-        with:
-          args: --release --out dist
-          working-directory: crates/rayexec_python
-          container: 'off'
+  #     - name: Maturin build
+  #       uses: PyO3/maturin-action@v1
+  #       with:
+  #         args: --release --out dist
+  #         working-directory: crates/rayexec_python
+  #         container: 'off'
 
-      - name: Upload python wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-macos-arm
-          path: crates/rayexec_python/dist
+  #     - name: Upload python wheels
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: wheels-macos-arm
+  #         path: crates/rayexec_python/dist
 
-  python-manylinux-x86:
-    name: Build python (Linux x86-64)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  # python-manylinux-x86:
+  #   name: Build python (Linux x86-64)
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Maturin build
-        uses: PyO3/maturin-action@v1
-        with:
-          before-script-linux: "../../scripts/install_protoc_linux.sh" # Relative to working dir
-          args: --release --out dist
-          working-directory: crates/rayexec_python
-          manylinux: 'auto'
+  #     - name: Maturin build
+  #       uses: PyO3/maturin-action@v1
+  #       with:
+  #         before-script-linux: "../../scripts/install_protoc_linux.sh" # Relative to working dir
+  #         args: --release --out dist
+  #         working-directory: crates/rayexec_python
+  #         manylinux: 'auto'
 
-      - name: Upload python wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-linux-x86
-          path: crates/rayexec_python/dist
+  #     - name: Upload python wheels
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: wheels-linux-x86
+  #         path: crates/rayexec_python/dist
 
-  python-manylinux-arm:
-    name: Build python (Linux Arm64)
-    runs-on: ubuntu-2404-arm-4-core
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  # python-manylinux-arm:
+  #   name: Build python (Linux Arm64)
+  #   runs-on: ubuntu-2404-arm-4-core
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Maturin build
-        uses: PyO3/maturin-action@v1
-        with:
-          before-script-linux: "../../scripts/install_protoc_linux_arm.sh" # Relative to working dir
-          args: --release --out dist
-          working-directory: crates/rayexec_python
-          # Typically we'd want to use 2.17, but the combination of 2.17 with
-          # ARM seems to cause compilation failures with ring.
-          #
-          # See: <https://github.com/briansmith/ring/issues/1728>
-          manylinux: 2_28
+  #     - name: Maturin build
+  #       uses: PyO3/maturin-action@v1
+  #       with:
+  #         before-script-linux: "../../scripts/install_protoc_linux_arm.sh" # Relative to working dir
+  #         args: --release --out dist
+  #         working-directory: crates/rayexec_python
+  #         # Typically we'd want to use 2.17, but the combination of 2.17 with
+  #         # ARM seems to cause compilation failures with ring.
+  #         #
+  #         # See: <https://github.com/briansmith/ring/issues/1728>
+  #         manylinux: 2_28
 
-      - name: Upload python wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-linux-arm
-          path: crates/rayexec_python/dist
+  #     - name: Upload python wheels
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: wheels-linux-arm
+  #         path: crates/rayexec_python/dist
 
-  python-pypi-upload:
-    name: Upload to pypi
-    needs: [python-macos-arm, python-manylinux-x86, python-manylinux-arm]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download wheels
-        uses: actions/download-artifact@v4
-        with:
-          path: wheels
-          pattern: wheels-*
-          merge-multiple: true
+  # python-pypi-upload:
+  #   name: Upload to pypi
+  #   needs: [python-macos-arm, python-manylinux-x86, python-manylinux-arm]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Download wheels
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: wheels
+  #         pattern: wheels-*
+  #         merge-multiple: true
 
-      - name: List wheels
-        run: ls -R wheels
+  #     - name: List wheels
+  #       run: ls -R wheels
 
-      - name: Upload to pypi
-        uses: PyO3/maturin-action@v1
-        env:
-          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-        with:
-          working-directory: wheels
-          command: upload
-          args: ./*.whl
+  #     - name: Upload to pypi
+  #       uses: PyO3/maturin-action@v1
+  #       env:
+  #         MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+  #       with:
+  #         working-directory: wheels
+  #         command: upload
+  #         args: ./*.whl
 
