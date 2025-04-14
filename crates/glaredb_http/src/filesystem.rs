@@ -11,7 +11,7 @@ use reqwest::{Method, Request, StatusCode};
 use url::Url;
 
 use crate::client::{HttpClient, HttpResponse};
-use crate::handle::{ChunkReadState, HttpFileHandle, RequestSigner};
+use crate::handle::{HttpFileHandle, RequestSigner};
 
 #[derive(Debug)]
 pub struct HttpFileSystem<C: HttpClient> {
@@ -70,14 +70,9 @@ where
             None => return Err(DbError::new("Missing Content-Length header for file")),
         };
 
-        Ok(HttpFileHandle {
-            url,
-            pos: 0,
-            chunk: ChunkReadState::None,
-            len,
-            client: self.client.clone(),
-            signer: NopRequestSigner,
-        })
+        let handle = HttpFileHandle::new(url, len, self.client.clone(), NopRequestSigner);
+
+        Ok(handle)
     }
 
     async fn stat(&self, path: &str, _state: &()) -> Result<Option<FileStat>> {

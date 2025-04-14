@@ -26,6 +26,26 @@ pub struct HttpFileHandle<C: HttpClient, S: RequestSigner> {
     pub(crate) signer: S,
 }
 
+impl<C, S> HttpFileHandle<C, S>
+where
+    C: HttpClient,
+    S: RequestSigner,
+{
+    /// Create a new handle represting a file at the given location.
+    ///
+    /// The initial position will be at the start.
+    pub(crate) fn new(url: Url, len: usize, client: C, signer: S) -> Self {
+        HttpFileHandle {
+            url,
+            pos: 0,
+            chunk: ChunkReadState::None,
+            len,
+            client,
+            signer,
+        }
+    }
+}
+
 impl<C, S> File for HttpFileHandle<C, S>
 where
     C: HttpClient,
@@ -73,15 +93,24 @@ where
                         Poll::Ready(Some(chunk)) => chunk,
                         Poll::Ready(None) => {
                             // Stream finished.
-                            self.chunk = ChunkReadState::None; // TODO: Do we need to do this?
+                            //
+                            // Set chunk state to None to trigger new request on
+                            // the next poll.
+                            self.chunk = ChunkReadState::None;
                             return Poll::Ready(Ok(count));
                         }
                         Poll::Pending => {
+                            // TODO: This is likely the cause of <https://github.com/GlareDB/glaredb/issues/3617>
+                            //
+                            // This will register a waker even though we're
+                            // returning data.
                             if count > 0 {
                                 // If we have a non-zero count, it means we
                                 // looped here, and did actually write stuff to
                                 // the buffer.
-                                self.chunk = ChunkReadState::None; // TODO: Do we need to do this?
+                                //
+                                // Keep the chunk state so we can resume reading
+                                // from the stream on the next poll.
                                 return Poll::Ready(Ok(count));
                             } else {
                                 return Poll::Pending;
@@ -132,7 +161,9 @@ where
                         continue;
                     } else {
                         // Otherwise return what we have.
-                        self.chunk = ChunkReadState::None; // TODO: Do we need to do this?
+                        //
+                        // Keep the chunk stream state, we'll continue reading
+                        // from what we have buffered.
                         return Poll::Ready(Ok(count));
                     }
                 }
@@ -232,5 +263,209 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ChunkReadState").finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::pin::Pin;
+
+    use futures::{Stream, stream};
+    use glaredb_core::util::task::noop_context;
+    use reqwest::StatusCode;
+    use reqwest::header::HeaderMap;
+
+    use super::*;
+    use crate::filesystem::NopRequestSigner;
+
+    /// Server mock implementing `HttpClient` that streams back fixed-sized
+    /// chunks.
+    #[derive(Debug, Clone)]
+    struct FixedSizedStreamer {
+        content: Bytes,
+        chunk_size: usize,
+    }
+
+    impl FixedSizedStreamer {
+        fn new(content: impl AsRef<[u8]>, chunk_size: usize) -> Self {
+            FixedSizedStreamer {
+                content: Bytes::from(content.as_ref().to_vec()),
+                chunk_size,
+            }
+        }
+
+        fn handle(&self) -> HttpFileHandle<Self, NopRequestSigner> {
+            let loc = Url::parse("https://bigdatacompany.com/file").unwrap();
+            HttpFileHandle::new(loc, self.content.len(), self.clone(), NopRequestSigner)
+        }
+
+        fn generate_chunks_from_request(&self, req: &Request) -> Vec<Bytes> {
+            let range = req.headers().get(RANGE).expect("RANGE header to exist");
+            let range = range.to_str().unwrap();
+
+            let range = range.trim_start_matches("bytes=");
+            let (start, end) = range.split_once("-").expect("format: start-end");
+            let start = start.parse::<usize>().unwrap();
+            let end = end.parse::<usize>().unwrap();
+
+            // 'end' in the range header is inclusive.
+            let end = end + 1;
+
+            self.generate_chunks(start, end)
+        }
+
+        fn generate_chunks(&self, start: usize, end: usize) -> Vec<Bytes> {
+            // Range requests can go beyond the end of the content. Standards
+            // conforming servers should return the part that overlaps with the
+            // range.
+            let end = usize::min(end, self.content.len());
+
+            let mut chunks = Vec::new();
+            let mut curr_start = start;
+
+            while curr_start < end {
+                let curr_end = (curr_start + self.chunk_size).min(end);
+                let chunk = self.content.slice(curr_start..curr_end);
+                chunks.push(chunk);
+                curr_start = curr_end;
+            }
+            chunks
+        }
+    }
+
+    impl HttpClient for FixedSizedStreamer {
+        type Response = FixedSizedResponse;
+        type RequestFuture = Pin<Box<dyn Future<Output = Result<Self::Response>> + Sync + Send>>;
+
+        fn do_request(&self, request: Request) -> Self::RequestFuture {
+            let chunks = self.generate_chunks_from_request(&request);
+            Box::pin(async move {
+                Ok(FixedSizedResponse {
+                    chunks,
+                    headers: HeaderMap::new(),
+                })
+            })
+        }
+    }
+
+    #[derive(Debug)]
+    struct FixedSizedResponse {
+        chunks: Vec<Bytes>,
+        headers: HeaderMap,
+    }
+
+    impl HttpResponse for FixedSizedResponse {
+        type BytesStream = Pin<Box<dyn Stream<Item = Result<Bytes>> + Sync + Send + Unpin>>;
+
+        fn status(&self) -> StatusCode {
+            // TODO: Could mock this out in case a server doesn't support range
+            // requests.
+            StatusCode::PARTIAL_CONTENT
+        }
+
+        fn headers(&self) -> &HeaderMap {
+            &self.headers
+        }
+
+        fn into_bytes_stream(self) -> Self::BytesStream {
+            let chunks = self.chunks.clone();
+            Box::pin(stream::iter(chunks.into_iter().map(Ok)))
+        }
+    }
+
+    #[test]
+    fn large_read_buffer_large_chunk_size() {
+        // Read from a stream of one chunk.
+
+        let streamer = FixedSizedStreamer::new(b"hello", 10);
+        let mut handle = streamer.handle();
+
+        let mut buf = vec![0; 8];
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut buf)
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(5), poll);
+        assert_eq!(b"hello", &buf[0..5]);
+    }
+
+    #[test]
+    fn small_read_buffer_large_chunk_size() {
+        // Read from a stream of one chunk into a small buffer.
+        //
+        // We should continue to be able to poll to get the rest of the chunk.
+
+        let streamer = FixedSizedStreamer::new(b"hello", 10);
+        let mut handle = streamer.handle();
+
+        let mut buf = vec![0; 2];
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut buf)
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(2), poll);
+        assert_eq!(b"he", &buf[0..2]);
+
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut buf)
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(2), poll);
+        assert_eq!(b"ll", &buf[0..2]);
+
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut buf)
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(1), poll);
+        assert_eq!(b"o", &buf[0..1]);
+    }
+
+    #[test]
+    fn large_read_buffer_small_chunk_size() {
+        // Read from of a stream of many small chunks into a large buffer.
+        //
+        // Note that we'll get the full output in a single poll since the stream
+        // immediately produces new chunks without pending.
+
+        let streamer = FixedSizedStreamer::new(b"hello", 2);
+        let mut handle = streamer.handle();
+
+        let mut buf = vec![0; 10];
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut buf)
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(5), poll);
+        assert_eq!(b"hello", &buf[0..5]);
+    }
+
+    #[test]
+    fn read_seek_read() {
+        // Ensure we reset chunk read state when seeking.
+
+        let streamer = FixedSizedStreamer::new(b"hello", 10);
+        let mut handle = streamer.handle();
+
+        let mut buf = vec![0; 10];
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut buf)
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(5), poll);
+        assert_eq!(b"hello", &buf[0..5]);
+
+        let poll = handle
+            .poll_seek(&mut noop_context(), io::SeekFrom::Start(1))
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(()), poll);
+
+        let poll = handle
+            .poll_read(&mut noop_context(), &mut buf)
+            .map(|r| r.unwrap());
+
+        assert_eq!(Poll::Ready(4), poll);
+        assert_eq!(b"ello", &buf[0..4]);
     }
 }
