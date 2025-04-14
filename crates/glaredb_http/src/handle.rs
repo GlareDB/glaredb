@@ -67,6 +67,8 @@ where
                 ChunkReadState::None => {
                     // Make the initial request.
                     let mut request = Request::new(Method::GET, self.url.clone());
+                    // Range always uses the entire buf. We should never be
+                    // making the request if count > 0.
                     let range = format!("bytes={}-{}", self.pos, self.pos + buf.len() - 1);
                     request
                         .headers_mut()
@@ -100,7 +102,11 @@ where
                             self.chunk = ChunkReadState::None;
                             if count == 0 {
                                 // If we didn't actually read anything, go ahead
-                                // an make the next requests.
+                                // an make the next request.
+                                //
+                                // This may happen if we already have a chunk,
+                                // but we're at the end, and attempt to pull
+                                // more from the stream.
                                 continue;
                             }
 
@@ -240,15 +246,6 @@ pub(crate) enum ChunkReadState<C: HttpClient> {
     },
     /// No active request happening.
     None,
-}
-
-impl<C> ChunkReadState<C>
-where
-    C: HttpClient,
-{
-    const fn is_none(&self) -> bool {
-        matches!(self, Self::None)
-    }
 }
 
 impl<C> fmt::Debug for ChunkReadState<C>
