@@ -38,7 +38,13 @@ jobs:
         run: |
           source $HOME/.cargo/env
           cargo build --bin glaredb --release
-          ls -l target/release/
+          target/release/glaredb -- "select 'hello'"
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: glaredb-linux-x86
+          path: target/release/glaredb
 
   # wasm:
   #   name: Build and Publish WASM
