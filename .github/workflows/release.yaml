@@ -13,6 +13,7 @@ concurrency:
 jobs:
   cli-manylinux-x86:
     name: Build CLI (Linux x86-64)
+    runs-on: ubuntu-latest
     container:
       # Image TBD, gives us glibc 2.28. Not sure if that's common enough.
       image: quay.io/pypa/manylinux_2_28_x86_64
