@@ -1,5 +1,5 @@
-name,value
-normal,123.456
-inf,Inf
-minus_inf,-Inf
-nan,NaN
+row,name,value
+1,normal,123.456
+2,inf,Inf
+3,minus_inf,-Inf
+4,nan,NaN

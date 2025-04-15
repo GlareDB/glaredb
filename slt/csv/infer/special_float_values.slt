@@ -1,18 +1,22 @@
-statement ok
-SET verify_optimized_plan TO true;
-
 # Testing special float values inference
+#
+# No verify optimized plan currently:
+# Error source: query failed: Query verification failed
+# Error source: Row 2 for column 1 is not equal
+# left: NaN
+# right: NaN
 
 query TT
 DESCRIBE '../testdata/csv/special_float_values.csv';
 ----
-name     Utf8
-value    Float64
+row    Int64
+name   Utf8
+value  Float64
 
 query TR
-SELECT name, value FROM '../testdata/csv/special_float_values.csv' ORDER BY name;
+SELECT * FROM '../testdata/csv/special_float_values.csv' ORDER BY 1;
 ----
-inf       Infinity
-minus_inf -Infinity
-nan       NULL
-normal    123.456
+1  normal     123.456
+2  inf        inf
+3  minus_inf  -inf
+4  nan        NaN
