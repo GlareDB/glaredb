@@ -226,12 +226,14 @@ where
                 let row_diff = scan_sides.len() - curr_count;
                 if left_exhausted {
                     // Left exhausted, we're scanning `row_diff` additional
-                    // rows from right.
-                    right_scan.remaining -= row_diff;
+                    // rows from right, but we can't take more than what's remaining.
+                    let actual_diff = usize::min(row_diff, right_scan.remaining);
+                    right_scan.remaining -= actual_diff;
                 }
                 if right_exhausted {
                     // Same but sides flipped.
-                    left_scan.remaining -= row_diff;
+                    let actual_diff = usize::min(row_diff, left_scan.remaining);
+                    left_scan.remaining -= actual_diff;
                 }
 
                 break;
@@ -593,6 +595,18 @@ mod tests {
         let out = binary_merge_left_right(&left, [0], &right, [0]);
 
         let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_uneven_sides() {
+        
+        let left = generate_batch!([1, 2, 3, 4, 5], ["a", "b", "c", "d", "e"]);
+        let right = generate_batch!([6, 7], ["f", "g"]);
+        
+        let out = binary_merge_left_right(&left, [0], &right, [0]);
+        
+        let expected = generate_batch!([1, 2, 3, 4, 5, 6, 7], ["a", "b", "c", "d", "e", "f", "g"]);
         assert_batches_eq(&expected, &out);
     }
 }
