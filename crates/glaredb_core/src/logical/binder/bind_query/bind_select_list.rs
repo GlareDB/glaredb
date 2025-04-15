@@ -366,10 +366,7 @@ fn generate_column_name(bind_context: &BindContext, bound_expr: &Expression) -> 
         }
         Expression::Aggregate(agg) => agg.agg.name.to_string(),
         Expression::ScalarFunction(func) => func.function.name.to_string(),
-        // Expression::Cast(cast) => {
-        //     // &cast.expr.get_table_references()
-        //     unimplemented!()
-        // }
+        Expression::Cast(cast) => generate_column_name(bind_context, &cast.expr)?,
         Expression::Subquery(subquery) if subquery.subquery_type == SubqueryType::Scalar => {
             // Use the output column names for scalar subqueries.
             let table_ref = subquery.subquery.output_table_ref();
