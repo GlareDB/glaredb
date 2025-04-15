@@ -87,8 +87,8 @@ query TT
 DESCRIBE SELECT a, a::DECIMAL(8,2)
            FROM VALUES (10.308), (10.301), (-10.308), (-10.301) v(a) ORDER BY 1;
 ----
-a         Decimal64(5,3)
-?column?  Decimal64(8,2)
+a  Decimal64(5,3)
+a  Decimal64(8,2)
 
 query R
 SELECT a, a::DECIMAL(8,2)

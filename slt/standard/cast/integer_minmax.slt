@@ -364,24 +364,24 @@ select 100::UBIGINT::BIGINT;
 
 # Test describe for all integer types
 query TT
-DESCRIBE SELECT 
+DESCRIBE SELECT
     a,
-    a::TINYINT, 
-    a::SMALLINT, 
-    a::INT, 
+    a::TINYINT,
+    a::SMALLINT,
+    a::INT,
     a::BIGINT,
-    a::UTINYINT, 
-    a::USMALLINT, 
-    a::UINT, 
+    a::UTINYINT,
+    a::USMALLINT,
+    a::UINT,
     a::UBIGINT
 FROM VALUES (10), (20), (30) v(a) ORDER BY 1;
 ----
-a         Int32
-?column?  Int8
-?column?  Int16
-?column?  Int32
-?column?  Int64
-?column?  UInt8
-?column?  UInt16
-?column?  UInt32
-?column?  UInt64
+a  Int32
+a  Int8
+a  Int16
+a  Int32
+a  Int64
+a  UInt8
+a  UInt16
+a  UInt32
+a  UInt64
