@@ -1,0 +1,18 @@
+statement ok
+SET verify_optimized_plan TO true;
+
+# Documenting suboptimal, but still expected behavior
+
+query TT
+DESCRIBE '../testdata/csv/mixed_type_pipe_delim.csv';
+----
+cat    Utf8
+goose  Int64
+4      Utf8
+
+query TIT
+SELECT * FROM '../testdata/csv/mixed_type_pipe_delim.csv' ORDER BY 1;
+----
+dog    5     cow
+horse  NULL  rooster
+

@@ -1,0 +1,19 @@
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE '../testdata/csv/dup_header_name.csv';
+----
+a  Int64
+b  Utf8
+a  Utf8
+c  Int64
+c  Int64
+
+query ITTII
+SELECT * FROM '../testdata/csv/dup_header_name.csv' ORDER BY 1;
+----
+123  mario  NULL   4     8
+456  luigi  cat    5     NULL
+678  peach  goose  NULL  9
+

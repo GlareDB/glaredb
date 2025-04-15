@@ -1,0 +1,17 @@
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE '../testdata/csv/string_lit_int.csv';
+----
+column0  Int64
+column1  Utf8
+column2  Utf8
+
+query ITT
+SELECT * FROM '../testdata/csv/string_lit_int.csv' ORDER BY 1;
+----
+123  cat      dog
+456  goose    moose
+789  rooster  gooster
+

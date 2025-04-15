@@ -1,0 +1,18 @@
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE '../testdata/csv/empty_middle_line.csv';
+----
+column0  Utf8
+column1  Utf8
+column2  Utf8
+column3  Int64
+
+query TTTI
+SELECT * FROM '../testdata/csv/empty_middle_line.csv' ORDER BY 4;
+----
+dog    cat      goose   4
+mario  wario    peach   5
+ohio   texas    alaska  8
+maine  montana  alaska  12

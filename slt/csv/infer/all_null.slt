@@ -1,0 +1,29 @@
+statement ok
+SET verify_optimized_plan TO true;
+
+# TODO: Add test with all null without header. Currently just infers all bool
+# with empty column names which isn't great.
+
+# All bools for this is also kinda weird.
+
+query TT
+DESCRIBE '../testdata/csv/all_null_with_header.csv';
+----
+a  Boolean
+b  Boolean
+c  Boolean
+d  Boolean
+e  Boolean
+f  Boolean
+g  Boolean
+h  Boolean
+
+
+query BBBBBBBB
+SELECT * FROM '../testdata/csv/all_null_with_header.csv';
+----
+NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL
+NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL
+NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL
+NULL  NULL  NULL  NULL  NULL  NULL  NULL  NULL
+

@@ -1,0 +1,19 @@
+statement ok
+SET verify_optimized_plan TO true;
+
+# TODO: If header name is empty, assign generated name.
+
+query TT
+DESCRIBE '../testdata/csv/empty_header_names.csv';
+----
+(empty)  Int64
+(empty)  Utf8
+(empty)  Int64
+
+query ITI
+SELECT * FROM '../testdata/csv/empty_header_names.csv' ORDER BY 1;
+----
+1  mario  4
+2  peach  8
+3  luigi  12
+
