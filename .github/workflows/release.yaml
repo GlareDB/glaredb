@@ -237,6 +237,15 @@ jobs:
           pattern: glaredb-*
           merge-multiple: false
 
+      - name: Flatten
+        run:
+         for dir in cli/*/; do
+           if [[ -f "${dir}glaredb" ]]; then
+             mv "${dir}glaredb" "${dir%/}"
+             rm -r "$dir"
+           fi
+         done
+
       - name: List binaries
         run: ls -R cli
 
