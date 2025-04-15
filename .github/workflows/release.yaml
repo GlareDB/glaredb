@@ -240,8 +240,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Stub step
-        run: echo "release step goes here"
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: cli
+          pattern: glaredb-*
+          merge-multiple: true
+
+      - name: Create release
+        run: |
+          gh release create ${{ github.event.inputs.tag }} \
+              cli/* \
+              --draft \
+              --generate-notes
 
   # ONLY RUNS ON 'main'
   python-pypi-upload:
