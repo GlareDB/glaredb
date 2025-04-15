@@ -20,7 +20,7 @@ popd
 xcrun notarytool submit ./target/release/glaredb.zip \
   --apple-id "$APPLE_ID" \
   --team-id "$APPLE_TEAM_ID" \
-  --password "APPLE_APP_PASSWORD" \
+  --password "$APPLE_APP_PASSWORD" \
   --wait
 
 # Staple the notarization ticket.
