@@ -225,7 +225,7 @@ jobs:
   release-gate:
     name: Release gate
     needs:
-      - cli-macos-arm64,
+      - cli-macos-arm64
       - cli-manylinux-x86_64
       - cli-manylinux-arm64
       - python-macos-arm64
