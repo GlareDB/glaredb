@@ -36,3 +36,9 @@ codesign --verbose \
          --options runtime \
          --timestamp \
          ./target/release/glaredb
+
+# Do some sanity checks
+codesign --verify --verbose=2 ./target/release/glaredb
+
+xattr -c ./target/release/glaredb
+spctl --assess --verbose ./target/release/glaredb
