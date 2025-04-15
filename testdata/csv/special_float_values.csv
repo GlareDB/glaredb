@@ -1,0 +1,5 @@
+name,value
+normal,123.456
+inf,Inf
+minus_inf,-Inf
+nan,NaN

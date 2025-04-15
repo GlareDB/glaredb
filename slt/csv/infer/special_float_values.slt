@@ -1,0 +1,18 @@
+statement ok
+SET verify_optimized_plan TO true;
+
+# Testing special float values inference
+
+query TT
+DESCRIBE '../testdata/csv/special_float_values.csv';
+----
+name     Utf8
+value    Float64
+
+query T rowsort
+SELECT name FROM '../testdata/csv/special_float_values.csv';
+----
+inf
+minus_inf
+nan
+normal

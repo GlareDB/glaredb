@@ -1,0 +1,5 @@
+name,val1,val2,val3,val4
+row1,true,false,true,false
+row2,TRUE,FALSE,True,False
+row3,t,f,T,F
+row4,1,0,yes,no

@@ -1,0 +1,17 @@
+statement ok
+SET verify_optimized_plan TO true;
+
+# Testing CSV with single quotes
+
+query TT
+DESCRIBE '../testdata/csv/single_quotes.csv';
+----
+column0  Utf8
+column1  Utf8
+column2  Utf8
+
+query TTT
+SELECT * FROM '../testdata/csv/single_quotes.csv' ORDER BY 1;
+----
+text with, comma  some text  more text
+text1             text2      text3
