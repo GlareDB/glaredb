@@ -1,9 +1,3 @@
-# GlareDB Wasm bindings
+# GlareDB WebAssembly bindings
 
-## Development
-
-Create package.
-
-```sh
-$ wasm-pack build crates/glaredb_wasm/ --scope glaredb
-```
+Documentation: <https://glaredb.com/docs>
