@@ -95,12 +95,7 @@ impl<'a> SelectListBinder<'a> {
                         },
                     )?;
 
-                    let name = generate_column_name(
-                        bind_context,
-                        self.resolve_context,
-                        &expr,
-                        &bound_expr,
-                    )?;
+                    let name = generate_column_name(bind_context, &bound_expr)?;
 
                     names.push(name);
                     exprs.push(bound_expr);
@@ -360,37 +355,27 @@ impl ExpressionColumnBinder for SelectAliasColumnBinder<'_> {
 ///
 /// Expressions that we cannot (or don't want to) generate a column name for
 /// will get the postgres-inspired name of "?column?".
-fn generate_column_name(
-    bind_context: &BindContext,
-    resolve_context: &ResolveContext,
-    ast_expr: &ast::Expr<ResolvedMeta>,
-    bound_expr: &Expression,
-) -> Result<String> {
+fn generate_column_name(bind_context: &BindContext, bound_expr: &Expression) -> Result<String> {
     /// Column name to use if we can't generate one.
     const UNKNOWN_COLUMN: &str = "?column?";
 
-    Ok(match ast_expr {
-        ast::Expr::Ident(ident) => ident.as_normalized_string(),
-        ast::Expr::CompoundIdent(idents) => idents
-            .last()
-            .map(|i| i.as_normalized_string())
-            .unwrap_or_else(|| UNKNOWN_COLUMN.to_string()),
-        ast::Expr::Function(func) => {
-            // Using the resolve context lets us keep the names for the
-            // "special" functions like GROUPING, COALESCE.
-            //
-            // TBD on how I want to change that with rewrite rules.
-            let (func, _) = resolve_context.functions.try_get_bound(func.reference)?;
-            func.name().to_string()
+    Ok(match bound_expr {
+        Expression::Column(col) => {
+            let (name, _) = bind_context.get_column(col.reference)?;
+            name.to_string()
         }
-        _ => match bound_expr {
-            Expression::Subquery(subquery) if subquery.subquery_type == SubqueryType::Scalar => {
-                // Use the output column names for scalar subqueries.
-                let table_ref = subquery.subquery.output_table_ref();
-                let (col_name, _) = bind_context.get_column((table_ref, 0))?;
-                col_name.to_string()
-            }
-            _ => UNKNOWN_COLUMN.to_string(),
-        },
+        Expression::Aggregate(agg) => agg.agg.name.to_string(),
+        Expression::ScalarFunction(func) => func.function.name.to_string(),
+        // Expression::Cast(cast) => {
+        //     // &cast.expr.get_table_references()
+        //     unimplemented!()
+        // }
+        Expression::Subquery(subquery) if subquery.subquery_type == SubqueryType::Scalar => {
+            // Use the output column names for scalar subqueries.
+            let table_ref = subquery.subquery.output_table_ref();
+            let (col_name, _) = bind_context.get_column((table_ref, 0))?;
+            col_name.to_string()
+        }
+        _ => UNKNOWN_COLUMN.to_string(),
     })
 }
