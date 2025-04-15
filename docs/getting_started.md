@@ -7,14 +7,14 @@ order: 1
 
 The next iteration of GlareDB is under heavy development, and while we've
 started shipping pre-built binaries and Python bindings, expect things to evolve
-quickly. Read more about [what's to come]
+quickly. Read more about [what's to come].
 
 You can now get started with GlareDB by installing either the Python package or
 the standalone CLI:
 
 ## CLI
 
-To use the GlareDB CLI, download the latest release from the [Releases page].
+To use the GlareDB CLI, download the latest release from the [Releases Page].
 
 Choose the appropriate binary for your platform, make it executable, and run it
 from your terminal.
