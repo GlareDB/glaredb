@@ -10,7 +10,7 @@ column0  Utf8
 column1  Int64
 column2  Float64
 
-query TIF
+query TIR
 SELECT * FROM '../testdata/csv/semicolon_delim.csv' ORDER BY 2;
 ----
 apple    1    3.14

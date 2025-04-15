@@ -12,7 +12,7 @@ val2 Int64
 val3 Utf8
 val4 Utf8
 
-query TTIII
+query TIITT
 SELECT * FROM '../testdata/csv/boolean_values.csv' ORDER BY 1;
 ----
 row1  true   0  true   false
