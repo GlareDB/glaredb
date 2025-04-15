@@ -31,9 +31,8 @@ security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KE
 security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 security list-keychain -d user -s $KEYCHAIN_PATH
 
-# TODO:
-# --options runtime: For notarization
-# --timestamp: Attach trusted timestamp
 codesign --verbose \
          --sign "${CERT_NAME}" \
+         --options runtime \
+         --timestamp \
          ./target/release/glaredb
