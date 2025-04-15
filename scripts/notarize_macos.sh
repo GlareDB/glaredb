@@ -22,8 +22,3 @@ xcrun notarytool submit ./target/release/glaredb.zip \
   --team-id "$APPLE_TEAM_ID" \
   --password "$APPLE_APP_PASSWORD" \
   --wait
-
-# Staple the notarization ticket.
-#
-# Note this staples to the original binary, not the zip.
-xcrun stapler staple -v ./target/release/glaredb
