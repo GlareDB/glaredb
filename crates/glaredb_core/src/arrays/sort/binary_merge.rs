@@ -600,11 +600,49 @@ mod tests {
 
     #[test]
     fn binary_merge_uneven_sides() {
+        // BinaryMergeState where right_scan.remaining is less than row_diff.
+
         let left = generate_batch!([1, 2, 3, 4, 5], ["a", "b", "c", "d", "e"]);
         let right = generate_batch!([6, 7], ["f", "g"]);
 
-        let out = binary_merge_left_right(&left, [0], &right, [0]);
+        let left_block = TestSortedRowBlock::from_batch(&left, [0]);
+        let right_block = TestSortedRowBlock::from_batch(&right, [0]);
+        let left_run = SortedSegment::from_sorted_block(left_block.sorted_block);
+        let right_run = SortedSegment::from_sorted_block(right_block.sorted_block);
 
+        let merger = BinaryMerger::new(
+            &NopBufferManager,
+            &left_block.key_layout,
+            &left_block.data_layout,
+            100, // Large capacity to ensure scan_sides is large
+        );
+
+        let mut state = merger.init_merge_state();
+
+        state
+            .left_scan
+            .reset_for_run(&left_block.key_layout, &left_run);
+        state
+            .right_scan
+            .reset_for_run(&left_block.key_layout, &right_run);
+
+        state.right_scan.remaining = 2;
+
+        state.scan_sides.clear();
+        state.scan_sides.resize(10, ScanSide::Left);
+
+        // This would panic without the fix when left side is exhausted
+        let (_, _, _) = merger
+            .find_merge_side(
+                &left_run,
+                &right_run,
+                state.left_scan.clone(),
+                state.right_scan.clone(),
+                &mut state.scan_sides,
+            )
+            .unwrap();
+
+        let out = binary_merge_left_right(&left, [0], &right, [0]);
         let expected = generate_batch!([1, 2, 3, 4, 5, 6, 7], ["a", "b", "c", "d", "e", "f", "g"]);
         assert_batches_eq(&expected, &out);
     }
