@@ -26,4 +26,4 @@ xcrun notarytool submit ./target/release/glaredb.zip \
 # Staple the notarization ticket.
 #
 # Note this staples to the original binary, not the zip.
-xcrun stapler staple ./target/release/glaredb
+xcrun stapler staple -v ./target/release/glaredb
