@@ -217,10 +217,20 @@ jobs:
 
   # ONLY RUNS ON 'main'
   #
-  # This job will assert the input tag matches cargo version field. All 'upload'
-  # jobs below require this.
-  assert_version:
-    name: Assert version
+  # This job will only run when all cli/python builds have completed. This will
+  # will also check that the version tag we're using matches the version found
+  # in Cargo.toml
+  #
+  # All below 'publish' steps require this to pass.
+  release-gate:
+    name: Release gate
+    needs:
+      - cli-macos-arm64,
+      - cli-manylinux-x86_64
+      - cli-manylinux-arm64
+      - python-macos-arm64
+      - python-manylinux-x86_64
+      - python-manylinux-arm64
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
@@ -233,7 +243,7 @@ jobs:
   # ONLY RUNS ON 'main'
   create-github-release:
     name: Create github release
-    needs: [assert_version, cli-macos-arm64, cli-manylinux-x86_64, cli-manylinux-arm64]
+    needs: [release-gate]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
@@ -257,7 +267,7 @@ jobs:
   # ONLY RUNS ON 'main'
   python-pypi-upload:
     name: Upload to pypi
-    needs: [assert_version, python-macos-arm64, python-manylinux-x86_64, python-manylinux-arm64]
+    needs: [release-gate]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -283,7 +293,7 @@ jobs:
   # ONLY RUNS ON 'main'
   wasm:
     name: Build and Publish WASM
-    needs: [assert_version]
+    needs: [release-gate]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
