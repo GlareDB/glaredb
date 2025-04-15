@@ -1113,6 +1113,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "glaredb_python"
+version = "0.0.122"
+dependencies = [
+ "ext_csv",
+ "ext_delta",
+ "futures",
+ "glaredb_core",
+ "glaredb_error",
+ "glaredb_rt_native",
+ "parking_lot",
+ "pyo3",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "glaredb_rt_native"
 version = "0.0.122"
 dependencies = [
@@ -2251,22 +2267,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
 dependencies = [
  "getrandom 0.3.2",
-]
-
-[[package]]
-name = "rayexec_python"
-version = "0.0.122"
-dependencies = [
- "ext_csv",
- "ext_delta",
- "futures",
- "glaredb_core",
- "glaredb_error",
- "glaredb_rt_native",
- "parking_lot",
- "pyo3",
- "tokio",
- "tracing",
 ]
 
 [[package]]

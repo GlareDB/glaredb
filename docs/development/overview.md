@@ -18,9 +18,6 @@ The binary will be located at `./target/release/glaredb`
 
 ### Python
 
-> `rayexec` is an old name for the core engine. References will be replaced with
-> `glaredb` soon.
-
 Building the python bindings from source requires [protoc] and [maturin] to be
 in your path, as well as a [venv] set up.
 
@@ -33,7 +30,7 @@ $ python -m venv crates/rayexec_python/venv
 Activate the virtual env:
 
 ```sh
-$ cd crates/rayexec_python
+$ cd crates/glaredb_python
 $ source ./venv/bin/activate
 # OR
 $ export VIRTUAL_ENV="<path-to-venv-dir>"
@@ -41,13 +38,13 @@ $ export PATH="$VIRTUAL_ENV/bin:$PATH"
 ```
 
 Build the release bindings (assuming current directory is
-`./crates/rayexec_python`):
+`./crates/glaredb_python`):
 
 ```sh
 maturin build --release --out dist
 ```
 
-The wheel will be located at `./dist/rayexec-...`.
+The wheel will be located at `./dist/glaredb-...`.
 
 ### Wasm
 
