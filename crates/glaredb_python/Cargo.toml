@@ -12,8 +12,10 @@ glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
 glaredb_rt_native = { path = '../glaredb_rt_native' }
 
+ext_spark = { path = '../ext_spark' }
 ext_csv = { path = '../ext_csv' }
-ext_delta = { path = '../ext_delta' }
+ext_parquet = { path = '../ext_parquet' }
+ext_tpch_gen = { path = '../ext_tpch_gen' }
 
 futures = { workspace = true }
 parking_lot = { workspace = true }
