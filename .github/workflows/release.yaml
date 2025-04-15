@@ -49,13 +49,14 @@ jobs:
           source $HOME/.cargo/env
           cargo build --bin glaredb --release
           ls -l target/release
+          mv target/release/glaredb glaredb-linux-x86_64
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
           name: glaredb-linux-x86_64
-          path: target/release/glaredb
+          path: glaredb-linux-x86_64
 
   cli-manylinux-arm64:
     name: Build CLI (Linux arm64)
@@ -85,13 +86,14 @@ jobs:
           . $HOME/.cargo/env
           cargo build --bin glaredb --release
           ls -l target/aarch64-unknown-linux-gnu/release
+          mv target/aarch64-unknown-linux-gnu/release/glaredb glaredb-linux-arm64
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
           name: glaredb-linux-arm64
-          path: target/aarch64-unknown-linux-gnu/release/glaredb
+          path: glaredb-linux-arm64
 
   cli-macos-arm64:
     name: Build CLI (macOS arm64)
@@ -128,12 +130,17 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.MACOS_NOTARIZE_APPLE_APP_PASSWORD }}
         run: ./scripts/notarize_macos.sh
 
+      # Done after the above code signing, notarizing since those assume the
+      # binary is in the default location.
+      - name: Move binary
+        run: mv target/release/glaredb glaredb-macos-arm64
+
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
           name: glaredb-macos-arm64
-          path: target/release/glaredb
+          path: glaredb-macos-arm64
 
     
   python-macos-arm64:
@@ -235,16 +242,7 @@ jobs:
         with:
           path: cli
           pattern: glaredb-*
-          merge-multiple: false
-
-      - name: Flatten
-        run: |
-         for dir in cli/*/; do
-           if [[ -f "${dir}glaredb" ]]; then
-             mv "${dir}glaredb" "${dir%/}"
-             rm -r "$dir"
-           fi
-         done
+          merge-multiple: true
 
       - name: List binaries
         run: ls -R cli
