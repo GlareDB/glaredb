@@ -2,6 +2,8 @@
 
 # Sign macos binaries.
 #
+# Does not notarize the binaries.
+#
 # Assumes the binary has already been built, and is located at
 # 'target/release/glaredb'.
 #
@@ -37,8 +39,3 @@ codesign --verbose \
          --timestamp \
          ./target/release/glaredb
 
-# Do some sanity checks
-codesign --verify --verbose=2 ./target/release/glaredb
-
-xattr -c ./target/release/glaredb
-spctl --assess --verbose ./target/release/glaredb
