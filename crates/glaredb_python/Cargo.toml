@@ -1,10 +1,10 @@
 [package]
-name = "rayexec_python"
+name = "glaredb_python"
 version.workspace = true
 edition.workspace = true
 
 [lib]
-name = "rayexec"
+name = "glaredb"
 crate-type = ["cdylib"]
 
 [dependencies]
