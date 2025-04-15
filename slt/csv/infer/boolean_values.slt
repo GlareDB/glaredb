@@ -1,7 +1,7 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-# Testing boolean value inference
+# Testing boolean value inference. Currently not amazing
 
 query TT
 DESCRIBE '../testdata/csv/boolean_values.csv';
@@ -11,3 +11,11 @@ val1 Int64
 val2 Int64
 val3 Utf8
 val4 Utf8
+
+query TTIII
+SELECT * FROM '../testdata/csv/boolean_values.csv' ORDER BY 1;
+----
+row1  true   0  true   false
+row2  TRUE   0  True   False
+row3  t      0  T      F
+row4  1      0  yes    no
