@@ -1117,7 +1117,9 @@ name = "glaredb_python"
 version = "0.10.1"
 dependencies = [
  "ext_csv",
- "ext_delta",
+ "ext_parquet",
+ "ext_spark",
+ "ext_tpch_gen",
  "futures",
  "glaredb_core",
  "glaredb_error",
