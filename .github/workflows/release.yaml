@@ -255,14 +255,16 @@ jobs:
         with:
           path: cli
           pattern: glaredb-*
-          merge-multiple: true
+          merge-multiple: false
 
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create ${{ github.event.inputs.tag }} \
-              cli/* \
+              'cli/glaredb-linux-arm64/glaredb#GlareDB CLI (Linux arm64)' \
+              'cli/glaredb-linux-x86_64/glaredb#GlareDB CLI (Linux x86_64)' \
+              'cli/glaredb-macos-arm64/glaredb#GlareDB CLI (macOS arm64)' \
               --draft \
               --generate-notes
 
