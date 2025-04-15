@@ -111,6 +111,13 @@ jobs:
           CERT_NAME: ${{ secrets.MACOS_CERT_NAME }}
         run: ./scripts/codesign_macos.sh
 
+      - name: Notarize
+        env:
+          APPLE_ID: ${{ secrets.MACOS_NOTARIZE_APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.MACOS_NOTARIZE_APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.MACOS_NOTARIZE_APPLE_APP_PASSWORD }}
+        run: ./scrips/notarize_macos.sh
+
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
