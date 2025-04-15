@@ -237,6 +237,9 @@ jobs:
           pattern: glaredb-*
           merge-multiple: false
 
+      - name: List binaries
+        run: ls -R cli
+
   # ONLY RUNS ON 'main'
   #
   # This job will only run when all cli/python builds have completed. This will
