@@ -1,0 +1,18 @@
+statement ok
+SET verify_optimized_plan TO true;
+
+# Testing CSV with tab delimiter
+
+query TT
+DESCRIBE '../testdata/csv/tab_delim.csv';
+----
+column0  Utf8
+column1  Int64
+column2  Float64
+
+query TIR
+SELECT * FROM '../testdata/csv/tab_delim.csv' ORDER BY 2;
+----
+grape    10    2.5
+orange   20    3.5
+pear     30    4.5
