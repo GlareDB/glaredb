@@ -238,7 +238,7 @@ jobs:
           merge-multiple: false
 
       - name: Flatten
-        run:
+        run: |
          for dir in cli/*/; do
            if [[ -f "${dir}glaredb" ]]; then
              mv "${dir}glaredb" "${dir%/}"
