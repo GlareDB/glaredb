@@ -215,6 +215,28 @@ jobs:
           name: wheels-linux-arm64
           path: crates/rayexec_python/dist
 
+  # Debug job that lists the binaries using the same path that's used in the gh
+  # release job.
+  #
+  # Always runs, good for sanity checking.
+  list-cli-binaries:
+    name: List CLI binaries
+    needs:
+      - cli-macos-arm64
+      - cli-manylinux-x86_64
+      - cli-manylinux-arm64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: cli
+          pattern: glaredb-*
+          merge-multiple: false
+
   # ONLY RUNS ON 'main'
   #
   # This job will only run when all cli/python builds have completed. This will
