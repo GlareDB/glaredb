@@ -102,6 +102,15 @@ jobs:
           cargo build --bin glaredb --release
           ls -l target/release
 
+      # TODO: Update to use business cert when have that.
+      - name: Codesign
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.MACOS_BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.MACOS_P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+          CERT_NAME: ${{ secrets.MACOS_CERT_NAME }}
+        run: ./scripts/codesign_macos.sh
+
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
