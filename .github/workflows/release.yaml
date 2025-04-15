@@ -295,6 +295,7 @@ jobs:
         run: |
           gh release create ${{ github.event.inputs.tag }} \
               cli/* \
+              --draft \
               --generate-notes
 
   # ONLY RUNS ON 'main'
