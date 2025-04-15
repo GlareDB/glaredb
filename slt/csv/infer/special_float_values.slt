@@ -9,10 +9,10 @@ DESCRIBE '../testdata/csv/special_float_values.csv';
 name     Utf8
 value    Float64
 
-query T rowsort
-SELECT name FROM '../testdata/csv/special_float_values.csv';
+query TF rowsort
+SELECT name, value FROM '../testdata/csv/special_float_values.csv';
 ----
-inf
-minus_inf
-nan
-normal
+inf       Infinity
+minus_inf -Infinity
+nan       NULL
+normal    123.456
