@@ -600,12 +600,11 @@ mod tests {
 
     #[test]
     fn binary_merge_uneven_sides() {
-        
         let left = generate_batch!([1, 2, 3, 4, 5], ["a", "b", "c", "d", "e"]);
         let right = generate_batch!([6, 7], ["f", "g"]);
-        
+
         let out = binary_merge_left_right(&left, [0], &right, [0]);
-        
+
         let expected = generate_batch!([1, 2, 3, 4, 5, 6, 7], ["a", "b", "c", "d", "e", "f", "g"]);
         assert_batches_eq(&expected, &out);
     }
