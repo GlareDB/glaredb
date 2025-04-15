@@ -11,12 +11,19 @@ set -e
 : ${APPLE_TEAM_ID?"Need to set APPLE_TEAM_ID"}
 : ${APPLE_APP_PASSWORD?"Need to set APPLE_APP_PASSWORD"}
 
+# Zip the signed binary.
+pushd ./target/release
+zip glaredb.zip glaredb
+popd
+
 # Notarize the binary.
-xcrun notarytool submit ./target/release/glaredb \
+xcrun notarytool submit ./target/release/glaredb.zip \
   --apple-id "$APPLE_ID" \
   --team-id "$APPLE_TEAM_ID" \
   --password "APPLE_APP_PASSWORD" \
   --wait
 
 # Staple the notarization ticket.
+#
+# Note this staples to the original binary, not the zip.
 xcrun stapler staple ./target/release/glaredb
