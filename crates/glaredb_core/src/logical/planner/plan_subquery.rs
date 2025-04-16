@@ -1078,7 +1078,7 @@ impl DependentJoinPushdown {
             LogicalOperator::Scan(_) => Err(DbError::new(
                 "Unexpectedly reached scan node when pushing down dependent join",
             )),
-            other => not_implemented!("dependent join pushdown for node: {other:?}"),
+            other => not_implemented!("dependent join pushdown for node: {}", other.name()),
         }
     }
 
