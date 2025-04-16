@@ -3,6 +3,12 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/binary.parquet'
+query TT
+DESCRIBE '../submodules/parquet-testing/data/binary.parquet'
+----
+foo  Binary
+
+# TODO: Do something with a binary column, probably hex string it or something.
+# query ?
+# SELECT * FROM '../submodules/parquet-testing/data/binary.parquet';
 # ----
