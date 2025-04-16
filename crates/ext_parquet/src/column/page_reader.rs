@@ -351,7 +351,7 @@ where
         if self.descr.max_def_level > 0 {
             // V2 only supports RLE for def levels.
             self.state.definitions = Some(get_level_decoder(
-                self.descr.max_rep_level,
+                self.descr.max_def_level,
                 header.def_levels_byte_len as usize,
             )?);
         }
@@ -367,7 +367,6 @@ where
     /// Should only be called after we've processed a page header.
     fn init_page_decoder(&mut self, encoding: Encoding) -> Result<()> {
         // TODO: Document the `take_remaining` stuff a bit better.
-
         match encoding {
             Encoding::PLAIN => {
                 let dec = PlainDecoder {

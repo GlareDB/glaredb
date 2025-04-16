@@ -179,7 +179,7 @@ where
                 out.len() - out_idx,
                 self.values_per_mini_block - self.mini_block_value_idx,
             );
-            let unpack_buf = &mut out[out_idx..count];
+            let unpack_buf = &mut out[out_idx..(out_idx + count)];
 
             bit_unpack(&mut self.bit_unpack_state, &mut self.cursor, unpack_buf)?;
 
