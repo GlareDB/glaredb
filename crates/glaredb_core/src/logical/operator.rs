@@ -95,8 +95,7 @@ impl fmt::Display for LocationRequirement {
 ///
 /// This is implemented on `LogicalOperator` for convenience.
 pub trait LogicalNode {
-    /// Returns the name of the operator as a static string.
-    ///
+    /// Name of the operator.
     fn name(&self) -> &'static str;
 
     /// Returns a list of table refs represent the output of this operator.
@@ -489,7 +488,42 @@ impl LogicalOperator {
 
 impl LogicalNode for LogicalOperator {
     fn name(&self) -> &'static str {
-        "LogicalOperator"
+        match self {
+            Self::Invalid => "Invalid",
+            LogicalOperator::Project(n) => n.name(),
+            LogicalOperator::Filter(n) => n.name(),
+            LogicalOperator::Distinct(n) => n.name(),
+            LogicalOperator::Scan(n) => n.name(),
+            LogicalOperator::ExpressionList(n) => n.name(),
+            LogicalOperator::MaterializationScan(n) => n.name(),
+            LogicalOperator::MagicMaterializationScan(n) => n.name(),
+            LogicalOperator::Aggregate(n) => n.name(),
+            LogicalOperator::SetOp(n) => n.name(),
+            LogicalOperator::SingleRow(n) => n.name(),
+            LogicalOperator::NoRows(n) => n.name(),
+            LogicalOperator::Limit(n) => n.name(),
+            LogicalOperator::Order(n) => n.name(),
+            LogicalOperator::SetVar(n) => n.name(),
+            LogicalOperator::ResetVar(n) => n.name(),
+            LogicalOperator::ShowVar(n) => n.name(),
+            LogicalOperator::AttachDatabase(n) => n.name(),
+            LogicalOperator::DetachDatabase(n) => n.name(),
+            LogicalOperator::Drop(n) => n.name(),
+            LogicalOperator::Insert(n) => n.name(),
+            LogicalOperator::CreateSchema(n) => n.name(),
+            LogicalOperator::CreateTable(n) => n.name(),
+            LogicalOperator::CreateView(n) => n.name(),
+            LogicalOperator::Describe(n) => n.name(),
+            LogicalOperator::Explain(n) => n.name(),
+            LogicalOperator::CopyTo(n) => n.name(),
+            LogicalOperator::CrossJoin(n) => n.name(),
+            LogicalOperator::ArbitraryJoin(n) => n.name(),
+            LogicalOperator::ComparisonJoin(n) => n.name(),
+            LogicalOperator::MagicJoin(n) => n.name(),
+            LogicalOperator::Unnest(n) => n.name(),
+            LogicalOperator::Window(n) => n.name(),
+            LogicalOperator::TableExecute(n) => n.name(),
+        }
     }
 
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
