@@ -5,6 +5,7 @@ use glaredb_core::storage::projections::Projections;
 use glaredb_error::{Result, not_implemented};
 
 use super::column_reader::{ColumnReader, ValueColumnReader};
+use super::value_reader::bool::BoolValueReader;
 use super::value_reader::int96::Int96TsReader;
 use super::value_reader::primitive::{
     PlainFloat32ValueReader,
@@ -53,6 +54,9 @@ pub(crate) fn new_column_reader(
     descr: ColumnDescriptor,
 ) -> Result<Box<dyn ColumnReader>> {
     Ok(match &datatype {
+        DataType::Boolean => Box::new(ValueColumnReader::<BoolValueReader>::try_new(
+            manager, datatype, descr,
+        )?),
         DataType::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader>::try_new(
             manager, datatype, descr,
         )?),
