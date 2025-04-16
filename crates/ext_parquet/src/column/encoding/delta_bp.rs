@@ -93,8 +93,6 @@ where
 struct DeltaBpDecoderInner<T> {
     /// Cursor we're reading from.
     cursor: ReadCursor,
-    /// Block size.
-    block_size: usize,
     /// Number of miniblocks.
     mini_block_count: usize,
     /// Number of values remaining overall.
@@ -105,8 +103,6 @@ struct DeltaBpDecoderInner<T> {
     mini_block_idx: usize,
     /// Current value within the miniblock we're on.
     mini_block_value_idx: usize,
-    /// Idk, I put this here just in case.
-    values_in_current_block: usize,
     /// Number of values per miniblock.
     values_per_mini_block: usize,
     /// Minimum delta for the current miniblock we're on.
@@ -144,13 +140,11 @@ where
 
         let mut inner = Self {
             cursor,
-            block_size,
             mini_block_count,
             values_remaining: total_values - 1, // We've already "decoded" the first value
             mini_block_bit_widths: vec![0; mini_block_count],
             mini_block_idx: 0,
             mini_block_value_idx: 0,
-            values_in_current_block: 0,
             values_per_mini_block,
             min_delta: T::zero(),
             prev_value: first_val,
