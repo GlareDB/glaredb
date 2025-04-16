@@ -1,4 +1,11 @@
 
+# Test for 'ARROW-GH-41321.parquet'
+# This file is from the bad_data directory which contains intentionally malformed parquet files
+
 statement ok
 SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/bad_data/ARROW-GH-41321.parquet'
+# ----
 

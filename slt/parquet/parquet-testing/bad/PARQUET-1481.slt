@@ -1,4 +1,11 @@
 
+# Test for 'PARQUET-1481.parquet'
+# This file is from the bad_data directory which contains intentionally malformed parquet files
+
 statement ok
 SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/bad_data/PARQUET-1481.parquet'
+# ----
 
