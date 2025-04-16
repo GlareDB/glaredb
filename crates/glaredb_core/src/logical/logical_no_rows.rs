@@ -16,6 +16,10 @@ pub struct LogicalNoRows {
 }
 
 impl LogicalNode for Node<LogicalNoRows> {
+    fn name(&self) -> &'static str {
+        "NoRows"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         self.node.table_refs.clone()
     }

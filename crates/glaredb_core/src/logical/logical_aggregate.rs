@@ -81,6 +81,10 @@ impl Explainable for LogicalAggregate {
 }
 
 impl LogicalNode for Node<LogicalAggregate> {
+    fn name(&self) -> &'static str {
+        "Aggregate"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         // Order of refs here need to match physical output ordering of the
         // aggregate operators.

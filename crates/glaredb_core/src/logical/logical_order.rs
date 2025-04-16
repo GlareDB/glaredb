@@ -19,6 +19,10 @@ impl Explainable for LogicalOrder {
 }
 
 impl LogicalNode for Node<LogicalOrder> {
+    fn name(&self) -> &'static str {
+        "Order"
+    }
+
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.get_children_table_refs(bind_context)
     }

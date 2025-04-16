@@ -95,6 +95,10 @@ impl fmt::Display for LocationRequirement {
 ///
 /// This is implemented on `LogicalOperator` for convenience.
 pub trait LogicalNode {
+    /// Returns the name of the operator as a static string.
+    ///
+    fn name(&self) -> &'static str;
+
     /// Returns a list of table refs represent the output of this operator.
     ///
     /// After all planning and optimization, a logical operator should only be
@@ -484,6 +488,10 @@ impl LogicalOperator {
 }
 
 impl LogicalNode for LogicalOperator {
+    fn name(&self) -> &'static str {
+        "LogicalOperator"
+    }
+
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         match self {
             Self::Invalid => Vec::new(), // Programmer error. Maybe panic?

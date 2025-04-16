@@ -30,6 +30,10 @@ impl Explainable for LogicalProject {
 }
 
 impl LogicalNode for Node<LogicalProject> {
+    fn name(&self) -> &'static str {
+        "Project"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         vec![self.node.projection_table]
     }

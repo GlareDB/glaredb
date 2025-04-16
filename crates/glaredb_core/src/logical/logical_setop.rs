@@ -46,6 +46,10 @@ impl Explainable for LogicalSetop {
 }
 
 impl LogicalNode for Node<LogicalSetop> {
+    fn name(&self) -> &'static str {
+        "Setop"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         vec![self.node.table_ref]
     }

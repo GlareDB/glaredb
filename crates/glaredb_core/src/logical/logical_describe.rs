@@ -20,6 +20,10 @@ impl Explainable for LogicalDescribe {
 }
 
 impl LogicalNode for Node<LogicalDescribe> {
+    fn name(&self) -> &'static str {
+        "Describe"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         vec![self.node.table_ref]
     }
