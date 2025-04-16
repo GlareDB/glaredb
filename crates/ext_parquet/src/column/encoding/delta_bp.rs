@@ -39,6 +39,16 @@ where
     T: FromPrimitive + Zero + std::ops::Add + Copy + BitPackEncodeable + Debug,
     V: ValueReader,
 {
+    pub fn try_new(cursor: ReadCursor) -> Result<Self> {
+        let inner = DeltaBpDecoderInner::try_new(cursor)?;
+
+        Ok(DeltaBpDecoder {
+            delta_buffer: Vec::new(),
+            inner,
+            _v: PhantomData,
+        })
+    }
+
     pub fn read(
         &mut self,
         definitions: Definitions,
@@ -110,7 +120,7 @@ impl<T> DeltaBpDecoderInner<T>
 where
     T: FromPrimitive + Zero + std::ops::Add + Copy + BitPackEncodeable + Debug,
 {
-    fn new(mut cursor: ReadCursor) -> Result<Self> {
+    fn try_new(mut cursor: ReadCursor) -> Result<Self> {
         // Header
         // <block size in values>
         // <number of miniblocks in a block>

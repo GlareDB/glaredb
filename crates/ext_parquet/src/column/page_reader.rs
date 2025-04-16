@@ -8,7 +8,8 @@ use super::encoding::dictionary::{Dictionary, DictionaryDecoder};
 use super::encoding::rle_bp::RleBpDecoder;
 use super::read_buffer::OwnedReadBuffer;
 use super::value_reader::ValueReader;
-use crate::basic::Encoding;
+use crate::basic::{self, Encoding};
+use crate::column::encoding::delta_bp::DeltaBpDecoder;
 use crate::column::encoding::plain::PlainDecoder;
 use crate::compression::Codec;
 use crate::format;
@@ -388,6 +389,27 @@ where
 
                 Ok(())
             }
+            Encoding::DELTA_BINARY_PACKED => match self.descr.physical_type() {
+                basic::Type::INT32 => {
+                    // Creating the deocder will reader the header.
+                    let read_buffer = self.decompressed_page.take_remaining();
+                    let dec = DeltaBpDecoder::<i32, V>::try_new(read_buffer)?;
+                    self.state.page_decoder = Some(PageDecoder::DeltaBinaryPackedI32(dec));
+
+                    Ok(())
+                }
+                basic::Type::INT64 => {
+                    // See above
+                    let read_buffer = self.decompressed_page.take_remaining();
+                    let dec = DeltaBpDecoder::<i64, V>::try_new(read_buffer)?;
+                    self.state.page_decoder = Some(PageDecoder::DeltaBinaryPackedI64(dec));
+
+                    Ok(())
+                }
+                other => Err(DbError::new(format!(
+                    "Unsupported physical type for delta binary packed encoding: {other:?}"
+                ))),
+            },
             other => Err(DbError::new("Unsupported encoding").with_field("encoding", other)),
         }
     }
