@@ -4,8 +4,8 @@
 
 # Note that with this set to true, we don't push down projections to the parquet
 # scan.
-# statement ok
-# SET verify_optimized_plan TO true;
+statement ok
+SET verify_optimized_plan TO true;
 
 query TT
 DESCRIBE '../submodules/parquet-testing/data/alltypes_plain.parquet'
@@ -118,4 +118,28 @@ SELECT id, date_string_col::TEXT FROM '../submodules/parquet-testing/data/alltyp
 5  03/01/09
 6  04/01/09
 7  04/01/09
+
+query IT
+SELECT id, string_col::TEXT FROM '../submodules/parquet-testing/data/alltypes_plain.parquet' ORDER BY 1;
+----
+0  0
+1  1
+2  0
+3  1
+4  0
+5  1
+6  0
+7  1
+
+query I?
+SELECT id, timestamp_col FROM '../submodules/parquet-testing/data/alltypes_plain.parquet' ORDER BY 1;
+----
+0  2009-01-01 00:00:00 UTC
+1  2009-01-01 00:01:00 UTC
+2  2009-02-01 00:00:00 UTC
+3  2009-02-01 00:01:00 UTC
+4  2009-03-01 00:00:00 UTC
+5  2009-03-01 00:01:00 UTC
+6  2009-04-01 00:00:00 UTC
+7  2009-04-01 00:01:00 UTC
 
