@@ -1,0 +1,66 @@
+# Allow referencing columns through a CAST expression.
+#
+# Matches postgres behavior.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE test (a TEXT, b TEXT);
+
+statement ok
+INSERT INTO test VALUES
+  ('1', '44'),
+  ('2', '45'),
+  ('3', '46'),
+  ('4', NULL);
+
+query TT
+DESCRIBE SELECT a::INT FROM test;
+----
+a  Int32
+
+query TT
+DESCRIBE SELECT CAST(a AS INT) FROM test;
+----
+a  Int32
+
+query I
+SELECT a + 2 FROM (SELECT a::INT FROM test) ORDER BY 1;
+----
+3
+4
+5
+6
+
+# Shouldn't allow qualified references, since the table name isn't brought into
+# scope.
+statement error Missing column for reference: test.a
+SELECT test.a + 2 FROM (SELECT a::INT FROM test) ORDER BY 1;
+
+# Allow referencing through multiple casts.
+
+query TT
+DESCRIBE SELECT CAST(a::INT AS TEXT) FROM test;
+----
+a  Utf8
+
+query T
+SELECT a || 'goose' FROM (SELECT CAST(a::INT AS TEXT) FROM test) ORDER BY 1;
+----
+1goose
+2goose
+3goose
+4goose
+
+query TT
+DESCRIBE SELECT CAST(a::INT AS DECIMAL(14,2)) FROM test;
+----
+a  Decimal64(14,2)
+
+# TODO: Error source: query failed: Cannot clone arrays with different data types
+# self: Decimal64(15,2)
+# other: Decimal64(16,2)
+# query R
+# SELECT a + 2 FROM (SELECT CAST(a::INT AS DECIMAL(14,2)) FROM test) ORDER BY 1;
+# ----

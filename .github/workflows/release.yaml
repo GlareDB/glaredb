@@ -1,10 +1,20 @@
 name: Release
 
 on:
-  # push:
-  #   branches:
-  #     - sean/binaries
   workflow_dispatch:
+    inputs:
+      # This tag will be used to to create the github release.
+      #
+      # A script is used to check that the tag provided matches the version
+      # found in Cargo.toml. If the tag/version doesn't match, the script
+      # errors, and we don't upload anything.
+      #
+      # This is optional since we should be able to run the release step on
+      # non-main branches to build the artifiacts. This input is required when
+      # running on main.
+      tag:
+        description: 'Tag to create for the release (format: v0.0.0), skip if not main'
+        required: false
 
 concurrency:
   group: release-ci-${{ github.ref }}
@@ -39,13 +49,14 @@ jobs:
           source $HOME/.cargo/env
           cargo build --bin glaredb --release
           ls -l target/release
+          mv target/release/glaredb glaredb-linux-x86_64
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
           name: glaredb-linux-x86_64
-          path: target/release/glaredb
+          path: glaredb-linux-x86_64
 
   cli-manylinux-arm64:
     name: Build CLI (Linux arm64)
@@ -75,13 +86,14 @@ jobs:
           . $HOME/.cargo/env
           cargo build --bin glaredb --release
           ls -l target/aarch64-unknown-linux-gnu/release
+          mv target/aarch64-unknown-linux-gnu/release/glaredb glaredb-linux-arm64
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
           name: glaredb-linux-arm64
-          path: target/aarch64-unknown-linux-gnu/release/glaredb
+          path: glaredb-linux-arm64
 
   cli-macos-arm64:
     name: Build CLI (macOS arm64)
@@ -102,12 +114,33 @@ jobs:
           cargo build --bin glaredb --release
           ls -l target/release
 
+      # TODO: Update to use business cert when have that.
+      - name: Codesign
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.MACOS_BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.MACOS_P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+          CERT_NAME: ${{ secrets.MACOS_CERT_NAME }}
+        run: ./scripts/codesign_macos.sh
+
+      - name: Notarize
+        env:
+          APPLE_ID: ${{ secrets.MACOS_NOTARIZE_APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.MACOS_NOTARIZE_APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.MACOS_NOTARIZE_APPLE_APP_PASSWORD }}
+        run: ./scripts/notarize_macos.sh
+
+      # Done after the above code signing, notarizing since those assume the
+      # binary is in the default location.
+      - name: Move binary
+        run: mv target/release/glaredb glaredb-macos-arm64
+
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           if-no-files-found: error
           name: glaredb-macos-arm64
-          path: target/release/glaredb
+          path: glaredb-macos-arm64
 
     
   python-macos-arm64:
@@ -131,7 +164,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           args: --release --out dist
-          working-directory: crates/rayexec_python
+          working-directory: crates/glaredb_python
           container: 'off'
 
       - name: Upload python wheels
@@ -139,7 +172,7 @@ jobs:
         with:
           if-no-files-found: error
           name: wheels-macos-arm64
-          path: crates/rayexec_python/dist
+          path: crates/glaredb_python/dist
 
   python-manylinux-x86_64:
     name: Build python (Linux x86-64)
@@ -153,7 +186,7 @@ jobs:
         with:
           before-script-linux: "../../scripts/install_protoc_linux.sh" # Relative to working dir
           args: --release --out dist
-          working-directory: crates/rayexec_python
+          working-directory: crates/glaredb_python
           manylinux: 'auto'
 
       - name: Upload python wheels
@@ -161,7 +194,7 @@ jobs:
         with:
           if-no-files-found: error
           name: wheels-linux-x86_64
-          path: crates/rayexec_python/dist
+          path: crates/glaredb_python/dist
 
   python-manylinux-arm64:
     name: Build python (Linux arm64)
@@ -175,7 +208,7 @@ jobs:
         with:
           before-script-linux: "../../scripts/install_protoc_linux_arm.sh" # Relative to working dir
           args: --release --out dist
-          working-directory: crates/rayexec_python
+          working-directory: crates/glaredb_python
           # Typically we'd want to use 2.17, but the combination of 2.17 with
           # ARM seems to cause compilation failures with ring.
           #
@@ -187,25 +220,88 @@ jobs:
         with:
           if-no-files-found: error
           name: wheels-linux-arm64
-          path: crates/rayexec_python/dist
+          path: crates/glaredb_python/dist
+
+  # Debug job that lists the binaries using the same path that's used in the gh
+  # release job.
+  #
+  # Always runs, good for sanity checking.
+  list-cli-binaries:
+    name: List CLI binaries
+    needs:
+      - cli-macos-arm64
+      - cli-manylinux-x86_64
+      - cli-manylinux-arm64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: cli
+          pattern: glaredb-*
+          merge-multiple: true
+
+      - name: List binaries
+        run: ls -R cli
 
   # ONLY RUNS ON 'main'
-  create-github-release:
-    name: Create github release
-    needs: [cli-macos-arm64, cli-manylinux-x86_64, cli-manylinux-arm64]
+  #
+  # This job will only run when all cli/python builds have completed. This will
+  # will also check that the version tag we're using matches the version found
+  # in Cargo.toml
+  #
+  # All below 'publish' steps require this to pass.
+  release-gate:
+    name: Release gate
+    needs:
+      - cli-macos-arm64
+      - cli-manylinux-x86_64
+      - cli-manylinux-arm64
+      - python-macos-arm64
+      - python-manylinux-x86_64
+      - python-manylinux-arm64
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Stub step
-        run: echo "release step goes here"
+      - name: Check tag with Cargo.toml
+        run: ./scripts/assert_cargo_version.sh ${{ github.event.inputs.tag }}
+
+  # ONLY RUNS ON 'main'
+  create-github-release:
+    name: Create github release
+    needs: [release-gate]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: cli
+          pattern: glaredb-*
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.event.inputs.tag }} \
+              cli/* \
+              --draft \
+              --generate-notes
 
   # ONLY RUNS ON 'main'
   python-pypi-upload:
     name: Upload to pypi
-    needs: [python-macos-arm64, python-manylinux-x86_64, python-manylinux-arm64]
+    needs: [release-gate]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -231,6 +327,7 @@ jobs:
   # ONLY RUNS ON 'main'
   wasm:
     name: Build and Publish WASM
+    needs: [release-gate]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:

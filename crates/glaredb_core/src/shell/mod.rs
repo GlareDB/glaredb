@@ -314,7 +314,7 @@ where
             vt100::MODES_OFF
         )?;
         let version = env!("CARGO_PKG_VERSION");
-        writeln!(writer, "Preview ({version})")?;
+        writeln!(writer, "v{version}")?;
         writeln!(
             writer,
             "Enter {}.help{} for usage hints.",

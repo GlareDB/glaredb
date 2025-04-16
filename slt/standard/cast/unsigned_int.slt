@@ -173,8 +173,8 @@ query TT
 DESCRIBE SELECT a, a::UTINYINT, a::USMALLINT, a::UINT, a::UBIGINT
            FROM VALUES (10), (20), (30) v(a) ORDER BY 1;
 ----
-a         Int32
-?column?  UInt8
-?column?  UInt16
-?column?  UInt32
-?column?  UInt64
+a  Int32
+a  UInt8
+a  UInt16
+a  UInt32
+a  UInt64

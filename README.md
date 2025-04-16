@@ -1,13 +1,19 @@
-# GlareDB (Next)
+# GlareDB
 
-The next iteration of GlareDB.
+GlareDB is a fast, lightweight SQL database for running analytics across diverse
+data sources.
 
-The `main` branch contains all work in progress code for the next iteration. The
-DataFusion based GlareDB code is in the `legacy` branch.
+Whether you're querying local files or cloud data, GlareDB makes it easy to
+analyze everything using familiar SQL.
 
-# Developing
+## Getting Started
 
-See [Development Overview]
+Refer to our [Docs] to learn how to get started with GlareDB.
 
+## Development
+
+See [Development Overview].
+
+[Docs]: https://glaredb.com/docs
 [Development Overview]: https://glaredb.com/docs/development/overview
 

@@ -1,3 +1,7 @@
+use ext_csv::extension::CsvExtension;
+use ext_parquet::extension::ParquetExtension;
+use ext_spark::SparkExtension;
+use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
@@ -9,7 +13,6 @@ use glaredb_rt_native::runtime::{
     new_tokio_runtime_for_io,
 };
 use pyo3::{Python, pyclass, pyfunction, pymethods};
-use tokio::runtime::Runtime as TokioRuntime;
 
 use crate::errors::Result;
 use crate::event_loop::run_until_complete;
@@ -22,10 +25,16 @@ pub fn connect() -> Result<PythonSession> {
     let tokio_rt = new_tokio_runtime_for_io()?;
     let runtime = NativeSystemRuntime::new(tokio_rt.handle().clone());
     let executor = ThreadedNativeExecutor::try_new()?;
+
     let engine = SingleUserEngine::try_new(executor, runtime.clone())?;
+    // TODO: We should ensure that the extensions we're registering are
+    // consistent across the CLI, wasm, and here.
+    engine.register_extension(SparkExtension)?;
+    engine.register_extension(TpchGenExtension)?;
+    engine.register_extension(CsvExtension)?;
+    engine.register_extension(ParquetExtension)?;
 
     Ok(PythonSession {
-        _tokio_rt: tokio_rt,
         engine: Some(engine),
     })
 }
@@ -33,7 +42,6 @@ pub fn connect() -> Result<PythonSession> {
 #[pyclass]
 #[derive(Debug)]
 pub struct PythonSession {
-    pub(crate) _tokio_rt: TokioRuntime,
     /// Single user engine backing this session.
     ///
     /// Wrapped in an option so that we can properly drop it on close and error
@@ -44,16 +52,11 @@ pub struct PythonSession {
 #[pymethods]
 impl PythonSession {
     /// Runs a single query, returning the results.
-    // TODO: Make the profile thing a kw.
-    #[pyo3(signature = (sql, collect_profile_data=false, /))]
-    fn query(
-        &mut self,
-        py: Python,
-        sql: String,
-        collect_profile_data: bool,
-    ) -> Result<PythonQueryResult> {
-        let _ = collect_profile_data; // TODO
+    fn sql(&mut self, py: Python, sql: String) -> Result<PythonQueryResult> {
+        self.query(py, sql)
+    }
 
+    fn query(&mut self, py: Python, sql: String) -> Result<PythonQueryResult> {
         let session = self.try_get_engine()?.session().clone();
         let table = run_until_complete(py, async move {
             let mut q_res = session.query(&sql).await?;

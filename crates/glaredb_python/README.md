@@ -1,3 +1,3 @@
-# GlareDB WebAssembly bindings
+# GlareDB Python bindings
 
 Documentation: <https://glaredb.com/docs>

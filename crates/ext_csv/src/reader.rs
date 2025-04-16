@@ -244,9 +244,9 @@ impl CsvReader {
                 // Empty fields are NULL
                 validity.set_invalid(write_idx);
             } else {
-                let v = parser
-                    .parse(field)
-                    .ok_or_else(|| DbError::new("Failed to parse '{field}'"))?;
+                let v = parser.parse(field).ok_or_else(|| {
+                    DbError::new(format!("Failed to parse '{field}' as {}", S::PHYSICAL_TYPE)) // TODO: Type id
+                })?;
                 output.put(write_idx, &v);
             }
         }
