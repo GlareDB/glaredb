@@ -1,12 +1,17 @@
+use std::fmt::Debug;
+
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
     PhysicalF32,
     PhysicalF64,
+    PhysicalI8,
+    PhysicalI16,
     PhysicalI32,
     PhysicalI64,
 };
 use glaredb_core::util::marker::PhantomCovariant;
+use num::cast::AsPrimitive;
 
 use super::ValueReader;
 use crate::column::read_buffer::ReadCursor;
@@ -45,5 +50,52 @@ where
 
     unsafe fn skip_unchecked(&mut self, data: &mut ReadCursor) {
         unsafe { data.skip_bytes_unchecked(std::mem::size_of::<S::StorageType>()) };
+    }
+}
+
+// INT32 => LogicalType::Int8
+pub type CastingInt32ToInt8Reader = CastingValueReader<i32, PhysicalI8>;
+// INT32 => LogicalType::Int16
+pub type CastingInt32ToInt16Reader = CastingValueReader<i32, PhysicalI16>;
+
+/// Value reader for reading primitive values, then casting them to the proper
+/// storage type.
+///
+/// This is used when the parquet logical type indicates a type that's
+/// physically different than the actual parquet storage type. E.g. INT32 =>
+/// LogicalType::Int8.
+///
+/// Casting must be lossless.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CastingValueReader<T, S: MutableScalarStorage>
+where
+    T: AsPrimitive<S::StorageType>,
+    S::StorageType: Copy,
+{
+    _t: PhantomCovariant<T>,
+    _s: PhantomCovariant<S>,
+}
+
+impl<T, S> ValueReader for CastingValueReader<T, S>
+where
+    T: AsPrimitive<S::StorageType> + Default + Debug,
+    S: MutableScalarStorage,
+    S::StorageType: Copy,
+{
+    type Storage = S;
+
+    unsafe fn read_next_unchecked(
+        &mut self,
+        data: &mut ReadCursor,
+        out_idx: usize,
+        out: &mut <Self::Storage as MutableScalarStorage>::AddressableMut<'_>,
+    ) {
+        let v = unsafe { data.read_next_unchecked::<T>() };
+        let v: S::StorageType = v.as_();
+        out.put(out_idx, &v);
+    }
+
+    unsafe fn skip_unchecked(&mut self, data: &mut ReadCursor) {
+        unsafe { data.skip_bytes_unchecked(std::mem::size_of::<T>()) };
     }
 }
