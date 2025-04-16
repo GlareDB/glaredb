@@ -31,7 +31,7 @@ pub fn main() -> Result<()> {
     run_with_all_thread_configurations::<ParquetSetup>("../slt/parquet", "slt_parquet")?;
 
     // Read files over http
-    run_with_all_thread_configurations::<S3PublicSetup>("../slt/http", "slt_http")?;
+    run_with_all_thread_configurations::<HttpSetup>("../slt/http", "slt_http")?;
 
     // Public S3 with CSV, parquet
     run_with_all_thread_configurations::<S3PublicSetup>("../slt/s3/public", "slt_s3_public")?;
@@ -117,9 +117,9 @@ where
 }
 
 #[derive(Debug, Clone, Copy)]
-struct HttpPublicSetup;
+struct HttpSetup;
 
-impl<E, R> EngineSetup<E, R> for HttpPublicSetup
+impl<E, R> EngineSetup<E, R> for HttpSetup
 where
     E: PipelineRuntime,
     R: SystemRuntime,
