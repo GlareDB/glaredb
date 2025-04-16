@@ -1,4 +1,4 @@
-#
+# Test for 'delta_encoding_optional_column.parquet'
 
 statement ok
 SET verify_optimized_plan TO true;

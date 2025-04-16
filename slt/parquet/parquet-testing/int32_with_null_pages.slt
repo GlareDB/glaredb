@@ -1,4 +1,4 @@
-#
+# Test for 'int32_with_null_pages.parquet'
 
 statement ok
 SET verify_optimized_plan TO true;

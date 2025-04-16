@@ -1,4 +1,4 @@
-#
+# Test for 'byte_array_decimal.parquet'
 
 statement ok
 SET verify_optimized_plan TO true;

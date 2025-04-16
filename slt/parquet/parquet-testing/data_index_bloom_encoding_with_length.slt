@@ -1,4 +1,4 @@
-#
+# Test for 'data_index_bloom_encoding_with_length.parquet'
 
 statement ok
 SET verify_optimized_plan TO true;

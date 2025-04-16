@@ -1,4 +1,4 @@
-#
+# Test for 'repeated_primitive_no_list.parquet'
 
 statement ok
 SET verify_optimized_plan TO true;

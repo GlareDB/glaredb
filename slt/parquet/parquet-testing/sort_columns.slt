@@ -1,4 +1,4 @@
-#
+# Test for 'sort_columns.parquet'
 
 statement ok
 SET verify_optimized_plan TO true;

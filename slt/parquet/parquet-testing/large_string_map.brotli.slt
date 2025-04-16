@@ -1,4 +1,4 @@
-#
+# Test for 'large_string_map.brotli.parquet'
 
 statement ok
 SET verify_optimized_plan TO true;

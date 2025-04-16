@@ -1,4 +1,4 @@
-#
+# Test for 'lz4_raw_compressed_larger.parquet'
 
 statement ok
 SET verify_optimized_plan TO true;

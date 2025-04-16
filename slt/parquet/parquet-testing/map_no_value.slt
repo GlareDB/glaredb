@@ -1,4 +1,4 @@
-#
+# Test for 'map_no_value.parquet'
 
 statement ok
 SET verify_optimized_plan TO true;

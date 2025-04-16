@@ -1,4 +1,4 @@
-#
+# Test for 'datapage_v1-corrupt-checksum.parquet'
 
 statement ok
 SET verify_optimized_plan TO true;
