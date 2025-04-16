@@ -1,0 +1,8 @@
+# Test for 'rle-dict-uncompressed-corrupt-checksum.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/rle-dict-uncompressed-corrupt-checksum.parquet'
+# ----

@@ -1,0 +1,8 @@
+# Test for 'unknown-logical-type.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/unknown-logical-type.parquet'
+# ----

@@ -1,0 +1,8 @@
+# Test for 'map_no_value.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/map_no_value.parquet'
+# ----

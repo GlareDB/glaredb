@@ -1,0 +1,8 @@
+# Test for 'single_nan.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/single_nan.parquet'
+# ----

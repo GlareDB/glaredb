@@ -1,0 +1,8 @@
+# Test for 'incorrect_map_schema.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/incorrect_map_schema.parquet'
+# ----

@@ -1,0 +1,8 @@
+# Test for 'nonnullable.impala.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/nonnullable.impala.parquet'
+# ----

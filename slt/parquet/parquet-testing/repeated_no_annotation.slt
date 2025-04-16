@@ -1,0 +1,8 @@
+# Test for 'repeated_no_annotation.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/repeated_no_annotation.parquet'
+# ----

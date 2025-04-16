@@ -1,0 +1,8 @@
+# Test for 'nation.dict-malformed.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/nation.dict-malformed.parquet'
+# ----

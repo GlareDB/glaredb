@@ -1,0 +1,8 @@
+# Test for 'float16_zeros_and_nans.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/float16_zeros_and_nans.parquet'
+# ----

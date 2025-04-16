@@ -1,0 +1,8 @@
+# Test for 'rle_boolean_encoding.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/rle_boolean_encoding.parquet'
+# ----

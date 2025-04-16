@@ -1,0 +1,8 @@
+# Test for 'byte_stream_split.zstd.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/byte_stream_split.zstd.parquet'
+# ----

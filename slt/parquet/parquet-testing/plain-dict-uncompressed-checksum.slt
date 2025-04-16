@@ -1,0 +1,8 @@
+# Test for 'plain-dict-uncompressed-checksum.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/plain-dict-uncompressed-checksum.parquet'
+# ----

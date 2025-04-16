@@ -1,0 +1,8 @@
+# Test for 'page_v2_empty_compressed.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/page_v2_empty_compressed.parquet'
+# ----

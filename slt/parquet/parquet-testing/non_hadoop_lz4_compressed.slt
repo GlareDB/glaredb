@@ -1,0 +1,8 @@
+# Test for 'non_hadoop_lz4_compressed.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/non_hadoop_lz4_compressed.parquet'
+# ----

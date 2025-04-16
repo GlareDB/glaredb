@@ -1,0 +1,8 @@
+# Test for 'nested_lists.snappy.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/nested_lists.snappy.parquet'
+# ----

@@ -1,0 +1,8 @@
+# Test for 'column_chunk_key_value_metadata.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/column_chunk_key_value_metadata.parquet'
+# ----

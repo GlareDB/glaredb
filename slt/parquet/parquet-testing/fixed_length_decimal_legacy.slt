@@ -1,0 +1,8 @@
+# Test for 'fixed_length_decimal_legacy.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/fixed_length_decimal_legacy.parquet'
+# ----

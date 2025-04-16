@@ -1,0 +1,8 @@
+# Test for 'delta_byte_array.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/delta_byte_array.parquet'
+# ----

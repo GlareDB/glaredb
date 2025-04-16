@@ -1,0 +1,8 @@
+# Test for 'int64_decimal.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/int64_decimal.parquet'
+# ----
