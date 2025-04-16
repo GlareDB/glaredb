@@ -6,6 +6,7 @@ use glaredb_error::{DbError, Result};
 use super::null::NullToAnything;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
+    PhysicalBinary,
     PhysicalF16,
     PhysicalF32,
     PhysicalF64,
@@ -47,97 +48,32 @@ use crate::util::iter::IntoExactSizeIterator;
 pub const FUNCTION_SET_TO_STRING: CastFunctionSet = CastFunctionSet {
     name: "to_string",
     target: DataTypeId::Utf8,
+    #[rustfmt::skip]
     functions: &[
         // Null
         RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_STRING_CAST_RULE),
         // Primitives
-        RawCastFunction::new(
-            DataTypeId::Int8,
-            &PrimToString::<PhysicalI8>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::Int16,
-            &PrimToString::<PhysicalI16>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::Int32,
-            &PrimToString::<PhysicalI32>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::Int64,
-            &PrimToString::<PhysicalI64>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::Int128,
-            &PrimToString::<PhysicalI128>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::UInt8,
-            &PrimToString::<PhysicalU8>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::UInt16,
-            &PrimToString::<PhysicalU16>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::UInt32,
-            &PrimToString::<PhysicalU32>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::UInt64,
-            &PrimToString::<PhysicalU64>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::UInt128,
-            &PrimToString::<PhysicalU128>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::Float16,
-            &PrimToString::<PhysicalF16>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::Float32,
-            &PrimToString::<PhysicalF32>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::Float64,
-            &PrimToString::<PhysicalF64>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::Interval,
-            &PrimToString::<PhysicalInterval>::new(),
-            TO_STRING_CAST_RULE,
-        ),
+        RawCastFunction::new(DataTypeId::Int8, &PrimToString::<PhysicalI8>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Int16, &PrimToString::<PhysicalI16>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Int32, &PrimToString::<PhysicalI32>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Int64, &PrimToString::<PhysicalI64>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Int128, &PrimToString::<PhysicalI128>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::UInt8, &PrimToString::<PhysicalU8>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::UInt16, &PrimToString::<PhysicalU16>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::UInt32, &PrimToString::<PhysicalU32>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::UInt64, &PrimToString::<PhysicalU64>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::UInt128, &PrimToString::<PhysicalU128>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Float16, &PrimToString::<PhysicalF16>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Float32, &PrimToString::<PhysicalF32>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Float64, &PrimToString::<PhysicalF64>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Interval, &PrimToString::<PhysicalInterval>::new(), TO_STRING_CAST_RULE),
         // Decimals
-        RawCastFunction::new(
-            DataTypeId::Decimal64,
-            &DecimalToString::<Decimal64Type>::new(),
-            TO_STRING_CAST_RULE,
-        ),
-        RawCastFunction::new(
-            DataTypeId::Decimal128,
-            &DecimalToString::<Decimal128Type>::new(),
-            TO_STRING_CAST_RULE,
-        ),
+        RawCastFunction::new(DataTypeId::Decimal64, &DecimalToString::<Decimal64Type>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Decimal128, &DecimalToString::<Decimal128Type>::new(), TO_STRING_CAST_RULE),
         // Timestamp
-        RawCastFunction::new(
-            DataTypeId::Timestamp,
-            &TimestampToString,
-            TO_STRING_CAST_RULE,
-        ),
+        RawCastFunction::new(DataTypeId::Timestamp, &TimestampToString, TO_STRING_CAST_RULE),
+        // Binary
+        RawCastFunction::new(DataTypeId::Binary, &BinaryToString, TO_STRING_CAST_RULE),
     ],
 };
 
@@ -288,6 +224,39 @@ impl CastFunction for TimestampToString {
                 out,
             ),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BinaryToString;
+
+impl CastFunction for BinaryToString {
+    type State = ();
+
+    fn bind(&self, _src: &DataType, _target: &DataType) -> Result<Self::State> {
+        Ok(())
+    }
+
+    fn cast(
+        _state: &Self::State,
+        mut error_state: CastErrorState,
+        src: &Array,
+        sel: impl IntoExactSizeIterator<Item = usize>,
+        out: &mut Array,
+    ) -> Result<()> {
+        UnaryExecutor::execute::<PhysicalBinary, PhysicalUtf8, _>(
+            src,
+            sel,
+            OutBuffer::from_array(out)?,
+            |v, buf| match std::str::from_utf8(v) {
+                Ok(s) => buf.put(s),
+                Err(e) => {
+                    error_state.set_error(move || {
+                        DbError::with_source("Failed to cast binary to utf8", Box::new(e))
+                    });
+                }
+            },
+        )
     }
 }
 

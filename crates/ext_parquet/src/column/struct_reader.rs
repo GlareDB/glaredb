@@ -85,6 +85,9 @@ pub(crate) fn new_column_reader(
         DataType::Utf8 => Box::new(ValueColumnReader::<VarlenByteValueReader>::try_new(
             manager, datatype, descr,
         )?),
-        other => not_implemented!("reader for data type: {other}"),
+        DataType::Binary => Box::new(ValueColumnReader::<VarlenByteValueReader>::try_new(
+            manager, datatype, descr,
+        )?),
+        other => not_implemented!("create parquet column reader for data type: {other}"),
     })
 }
