@@ -1,0 +1,85 @@
+# Test 'alltypes_plain.snappy.parquet'
+#
+# Good data
+#
+# You would think this has the same data as 'alltypes_plain', but it doesn't.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet'
+----
+id               Int32
+bool_col         Boolean
+tinyint_col      Int32
+smallint_col     Int32
+int_col          Int32
+bigint_col       Int64
+float_col        Float32
+double_col       Float64
+date_string_col  Binary
+string_col       Binary
+timestamp_col    Timestamp(ns)
+
+query IB
+SELECT id, bool_col FROM '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet' ORDER BY 1;
+----
+6  true
+7  false
+
+query II
+SELECT id, tinyint_col FROM '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet' ORDER BY 1;
+----
+6  0
+7  1
+
+query II
+SELECT id, smallint_col FROM '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet' ORDER BY 1;
+----
+6  0
+7  1
+
+query II
+SELECT id, int_col FROM '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet' ORDER BY 1;
+----
+6  0
+7  1
+
+query II
+SELECT id, bigint_col FROM '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet' ORDER BY 1;
+----
+6  0
+7  10
+
+query IR
+SELECT id, float_col FROM '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet' ORDER BY 1;
+----
+6  0
+7  1.1
+
+query IR
+SELECT id, double_col FROM '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet' ORDER BY 1;
+----
+6  0
+7  10.1
+
+# TODO: Why are these columns binary?
+query IT
+SELECT id, date_string_col::TEXT FROM '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet' ORDER BY 1;
+----
+6  04/01/09
+7  04/01/09
+
+query IT
+SELECT id, string_col::TEXT FROM '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet' ORDER BY 1;
+----
+6  0
+7  1
+
+query I?
+SELECT id, timestamp_col FROM '../submodules/parquet-testing/data/alltypes_plain.snappy.parquet' ORDER BY 1;
+----
+6  2009-04-01 00:00:00 UTC
+7  2009-04-01 00:01:00 UTC
+
