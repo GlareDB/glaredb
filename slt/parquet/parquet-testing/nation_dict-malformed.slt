@@ -1,8 +1,14 @@
 # Test for 'nation.dict-malformed.parquet'
 
+# TODO: Error source: query failed: chunk buffer not large enough to read from
+
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/nation.dict-malformed.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/data/nation.dict-malformed.parquet'
+----
+nation_key   Int32
+name         Binary
+region_key   Int32
+comment_col  Binary

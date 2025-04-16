@@ -1,5 +1,9 @@
 # Test for 'dict-page-offset-zero.parquet'
 
+# TODO
+# Error source: query failed: Could not parse metadata
+# Error source: protocol error
+
 statement ok
 SET verify_optimized_plan TO true;
 

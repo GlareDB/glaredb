@@ -1,8 +1,17 @@
 # Test for 'nan_in_stats.parquet'
 
-statement ok
-SET verify_optimized_plan TO true;
+# Has NaNs
+# statement ok
+# SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/nan_in_stats.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/data/nan_in_stats.parquet'
+----
+x  Float64
+
+query R
+SELECT * FROM '../submodules/parquet-testing/data/nan_in_stats.parquet' ORDER BY 1;
+----
+1
+NaN
+

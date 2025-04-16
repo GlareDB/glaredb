@@ -1,8 +1,21 @@
 # Test for 'int32_decimal.parquet'
 
+# TODO:
+# Error source: query failed: Not yet implemented: create parquet column reader for data type: Decimal128(4,2)
+
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/int32_decimal.parquet'
+query TT
+DESCRIBE '../submodules/parquet-testing/data/int32_decimal.parquet'
+----
+value  Decimal128(4,2)
+
+# query I
+# SELECT count(*) FROM '../submodules/parquet-testing/data/int32_decimal.parquet';
+# ----
+# 24
+
+# query R
+# SELECT * FROM '../submodules/parquet-testing/data/int32_decimal.parquet' ORDER BY 1;
 # ----

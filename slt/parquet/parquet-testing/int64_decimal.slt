@@ -1,8 +1,16 @@
 # Test for 'int64_decimal.parquet'
 
+# TODO
+# Error source: query failed: Not yet implemented: create parquet column reader for data type: Decimal128(10,2)
+
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/int64_decimal.parquet'
+query TT
+DESCRIBE '../submodules/parquet-testing/data/int64_decimal.parquet'
+----
+value  Decimal128(10,2)
+
+# query R
+# SELECT * FROM '../submodules/parquet-testing/data/int64_decimal.parquet' ORDER BY 1;
 # ----

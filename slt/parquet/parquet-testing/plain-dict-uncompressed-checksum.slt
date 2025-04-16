@@ -3,6 +3,14 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/plain-dict-uncompressed-checksum.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/data/plain-dict-uncompressed-checksum.parquet'
+----
+long_field    Int64
+binary_field  Binary
+
+query IT
+SELECT DISTINCT long_field, binary_field::TEXT
+  FROM '../submodules/parquet-testing/data/plain-dict-uncompressed-checksum.parquet';
+----
+0  a655fd0e-9949-4059-bcae-fd6a002a4652

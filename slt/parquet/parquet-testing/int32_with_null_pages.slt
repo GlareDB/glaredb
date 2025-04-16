@@ -3,6 +3,17 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/int32_with_null_pages.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/data/int32_with_null_pages.parquet'
+----
+int32_field  Int32
+
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/int32_with_null_pages.parquet';
+----
+1000
+
+query II
+SELECT min(int32_field), max(int32_field) FROM '../submodules/parquet-testing/data/int32_with_null_pages.parquet';
+----
+-2136906554  2145722375
