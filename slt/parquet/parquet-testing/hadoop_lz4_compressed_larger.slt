@@ -3,6 +3,17 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/hadoop_lz4_compressed_larger.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/data/hadoop_lz4_compressed_larger.parquet'
+----
+a  Utf8
+
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/hadoop_lz4_compressed_larger.parquet';
+----
+10000
+
+query TT
+SELECT min(a), max(a) FROM '../submodules/parquet-testing/data/hadoop_lz4_compressed_larger.parquet'
+----
+00087de7-10df-4979-94cf-79279f9745ce  ffffe6a0-e0c0-4e65-a9d4-f7f4c176aea2

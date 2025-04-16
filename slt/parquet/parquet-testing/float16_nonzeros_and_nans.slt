@@ -1,5 +1,7 @@
 # Test for 'float16_nonzeros_and_nans.parquet'
 
+# TODO: Error source: query failed: Not yet implemented: FIXED_LEN_BYTE_ARRAY
+
 statement ok
 SET verify_optimized_plan TO true;
 

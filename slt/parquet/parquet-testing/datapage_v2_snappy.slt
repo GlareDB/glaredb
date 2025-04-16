@@ -1,5 +1,7 @@
 # Test for 'datapage_v2.snappy.parquet'
 
+# TODO: Error source: query failed: Not yet implemented: Visit LIST with item
+
 statement ok
 SET verify_optimized_plan TO true;
 

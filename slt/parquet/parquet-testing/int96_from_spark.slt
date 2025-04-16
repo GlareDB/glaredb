@@ -1,8 +1,18 @@
 # Test for 'int96_from_spark.parquet'
 
+# TODO: Panic
+# Info: panicked at crates/ext_parquet/src/column/value_reader/int96.rs:36:26:
+# attempt to multiply with overflow
+
+
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/int96_from_spark.parquet'
+query TT
+DESCRIBE '../submodules/parquet-testing/data/int96_from_spark.parquet'
+----
+a  Timestamp(ns)
+
+# query I
+# SELECT count(*) FROM '../submodules/parquet-testing/data/int96_from_spark.parquet';
 # ----

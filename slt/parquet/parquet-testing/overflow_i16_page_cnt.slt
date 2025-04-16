@@ -3,6 +3,28 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/overflow_i16_page_cnt.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/data/overflow_i16_page_cnt.parquet'
+----
+inc Boolean
+
+query I
+SELECT count(*)
+  FROM '../submodules/parquet-testing/data/overflow_i16_page_cnt.parquet';
+----
+40000
+
+# ok
+query I
+SELECT count(*)
+  FROM '../submodules/parquet-testing/data/overflow_i16_page_cnt.parquet'
+  WHERE inc IS TRUE;
+----
+0
+
+query I
+SELECT count(*)
+  FROM '../submodules/parquet-testing/data/overflow_i16_page_cnt.parquet'
+  WHERE inc IS FALSE;
+----
+40000

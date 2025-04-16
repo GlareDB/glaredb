@@ -1,8 +1,11 @@
 # Test for 'nulls.snappy.parquet'
 
+# TODO: Struct reader
+
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/nulls.snappy.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/data/nulls.snappy.parquet'
+----
+b_struct Struct {b_c_int: Int32}
