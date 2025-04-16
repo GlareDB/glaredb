@@ -23,6 +23,10 @@ impl Explainable for LogicalAttachDatabase {
 }
 
 impl LogicalNode for Node<LogicalAttachDatabase> {
+    fn name(&self) -> &'static str {
+        "AttachDatabase"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
@@ -54,6 +58,10 @@ impl Explainable for LogicalDetachDatabase {
 }
 
 impl LogicalNode for Node<LogicalDetachDatabase> {
+    fn name(&self) -> &'static str {
+        "DetachDatabase"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }

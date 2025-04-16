@@ -36,7 +36,7 @@ use crate::config::execution::OperatorPlanConfig;
 use crate::execution::operators::PlannedOperator;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
 use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
-use crate::logical::operator::{self, LogicalOperator};
+use crate::logical::operator::{self, LogicalNode, LogicalOperator};
 
 /// Output of physical planning.
 #[derive(Debug)]
@@ -246,7 +246,7 @@ impl<'a> OperatorPlanState<'a> {
             LogicalOperator::CreateTable(node) => self.plan_create_table(node),
             LogicalOperator::Drop(node) => self.plan_drop(node),
             LogicalOperator::Insert(node) => self.plan_insert(node),
-            other => not_implemented!("logical plan to physical plan: {other:?}"),
+            other => not_implemented!("logical plan to physical plan: {}", other.name()),
         }
     }
 }

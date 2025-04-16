@@ -21,6 +21,10 @@ impl Explainable for LogicalDistinct {
 }
 
 impl LogicalNode for Node<LogicalDistinct> {
+    fn name(&self) -> &'static str {
+        "Distinct"
+    }
+
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.get_children_table_refs(bind_context)
     }

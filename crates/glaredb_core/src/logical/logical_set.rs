@@ -20,6 +20,10 @@ impl Explainable for LogicalSetVar {
 }
 
 impl LogicalNode for Node<LogicalSetVar> {
+    fn name(&self) -> &'static str {
+        "SetVar"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
@@ -57,6 +61,10 @@ impl Explainable for Node<LogicalResetVar> {
 }
 
 impl LogicalNode for Node<LogicalResetVar> {
+    fn name(&self) -> &'static str {
+        "ResetVar"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
@@ -89,6 +97,10 @@ impl Explainable for LogicalShowVar {
 }
 
 impl LogicalNode for Node<LogicalShowVar> {
+    fn name(&self) -> &'static str {
+        "ShowVar"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }

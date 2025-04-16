@@ -25,6 +25,10 @@ impl Explainable for LogicalCopyTo {
 }
 
 impl LogicalNode for Node<LogicalCopyTo> {
+    fn name(&self) -> &'static str {
+        "CopyTo"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }

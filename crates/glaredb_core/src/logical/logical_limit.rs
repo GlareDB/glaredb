@@ -23,6 +23,10 @@ impl Explainable for LogicalLimit {
 }
 
 impl LogicalNode for Node<LogicalLimit> {
+    fn name(&self) -> &'static str {
+        "Limit"
+    }
+
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.get_children_table_refs(bind_context)
     }

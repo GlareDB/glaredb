@@ -29,6 +29,10 @@ impl Explainable for LogicalExplain {
 }
 
 impl LogicalNode for Node<LogicalExplain> {
+    fn name(&self) -> &'static str {
+        "Explain"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }

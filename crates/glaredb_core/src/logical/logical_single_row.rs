@@ -17,6 +17,10 @@ impl Explainable for LogicalSingleRow {
 }
 
 impl LogicalNode for Node<LogicalSingleRow> {
+    fn name(&self) -> &'static str {
+        "SingleRow"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }

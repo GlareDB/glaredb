@@ -23,6 +23,10 @@ impl Explainable for LogicalInsert {
 }
 
 impl LogicalNode for Node<LogicalInsert> {
+    fn name(&self) -> &'static str {
+        "Insert"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
