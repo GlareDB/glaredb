@@ -285,7 +285,8 @@ where
         // SAFETY: No concurrent reads.
         let dest = unsafe { self.decompressed_page.remaining_as_slice_mut() };
 
-        if !header.is_compressed {
+        let is_compressed = self.codec.is_some();
+        if !is_compressed {
             // Can just read as-is.
             let src = Self::chunk_slice(
                 &self.chunk,
@@ -315,8 +316,8 @@ where
 
             let codec = self.codec.as_ref().ok_or_else(|| {
                 DbError::new(
-                "Page header indicates page is compressed, but we don't have a codec configured",
-            )
+                    "Page header indicates page is compressed, but we don't have a codec configured",
+                )
             })?;
 
             codec

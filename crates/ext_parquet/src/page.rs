@@ -86,6 +86,9 @@ impl PageHeader {
                     .ok_or_else(|| DbError::new("Missing V2 data page header"))?;
                 // Missing 'is_compressed' should be interpreted as true
                 // according to spec when using v2 pages.
+                //
+                // _However_, the compression codec may be UNCOMPRESSED, so it's
+                // not really compressed.
                 let is_compressed = header.is_compressed.unwrap_or(true);
                 PageType::DataPageV2(DataPageHeaderV2 {
                     num_values: header.num_values.try_into()?,
