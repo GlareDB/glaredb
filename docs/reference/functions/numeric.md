@@ -98,6 +98,10 @@ Compute `e ^ val`.
 
 Round number down.
 
+## `gcd`
+
+Compute the greatest common divisor of two integers.
+
 ## `is_nan`
 
 Return if the given float is a NaN.
@@ -109,6 +113,10 @@ Return if the given float is finite.
 ## `isinf`
 
 Return if the given float is infinite (positive or negative infinity).
+
+## `lcm`
+
+Calculates the least common multiple of two integers.
 
 ## `ln`
 

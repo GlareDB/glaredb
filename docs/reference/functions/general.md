@@ -38,9 +38,17 @@ Check if the left value is greater than or equal to the right. Returns NULL if e
 
 Boolean and all inputs.
 
+## `is_distinct_from`
+
+Check if two values are not equal, treating NULLs as normal data values.
+
 ## `is_false`
 
 Check if a value is false.
+
+## `is_not_distinct_from`
+
+Check if two values are equal, treating NULLs as normal data values.
 
 ## `is_not_false`
 
@@ -72,7 +80,7 @@ Boolean or all inputs.
 
 ## `struct_extract`
 
-struct_extractue from a struct.
+Extracts a value from a struct.
 
 
 <!-- DOCSGEN_END -->

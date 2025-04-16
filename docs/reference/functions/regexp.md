@@ -16,7 +16,7 @@ Returns true if the string matches the regular expression pattern.
 
 ## `regexp_replace`
 
-regexp_replacerst regular expression match in a string.
+Replace the first regular expression match in a string.
 
 
 <!-- DOCSGEN_END -->

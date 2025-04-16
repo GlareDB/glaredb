@@ -28,7 +28,7 @@ Get the number of characters in a string.
 
 ## `character_length`
 
-character_lengthf characters in a string.
+Get the number of characters in a string.
 
 ## `concat`
 
@@ -41,6 +41,10 @@ Check if string contains a search string.
 ## `ends_with`
 
 Check if a string ends with a suffix.
+
+## `initcap`
+
+Convert first letter of each word to uppercase.
 
 ## `left`
 
