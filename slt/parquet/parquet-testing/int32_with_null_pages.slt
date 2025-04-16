@@ -1,0 +1,8 @@
+#
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/int32_with_null_pages.parquet'
+# ----

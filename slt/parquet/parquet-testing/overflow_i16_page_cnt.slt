@@ -1,0 +1,8 @@
+#
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE '../submodules/parquet-testing/data/overflow_i16_page_cnt.parquet'
+# ----
