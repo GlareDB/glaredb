@@ -5,8 +5,8 @@
 # This file seems to report accurate integer sizes according to the column name
 # (unlike 'alltypes_plain').
 
-# statement ok
-# SET verify_optimized_plan TO true;
+statement ok
+SET verify_optimized_plan TO true;
 
 query TT
 DESCRIBE '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet';
