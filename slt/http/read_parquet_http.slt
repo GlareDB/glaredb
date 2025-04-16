@@ -1,4 +1,7 @@
-# read_parquet with http source
+# Read parquet file over http.
+
+statement ok
+SET verify_optimized_plan TO true;
 
 query I
 select last_name
