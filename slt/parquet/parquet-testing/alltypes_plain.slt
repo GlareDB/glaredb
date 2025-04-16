@@ -3,7 +3,7 @@
 # Good data
 
 # Note that with this set to true, we don't push down projections to the parquet
-# scan.
+# scan during the unoptimized pass.
 statement ok
 SET verify_optimized_plan TO true;
 
