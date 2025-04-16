@@ -2,13 +2,20 @@
 //!
 //! See <https://github.com/apache/parquet-format/blob/master/Encodings.md#delta-encoding-delta_binary_packed--5>
 
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
+use num::{FromPrimitive, Zero};
 
-use crate::column::bitutil::{BitUnpackState, bit_unpack, read_unsigned_vlq, zigzag_decode};
+use crate::column::bitutil::{
+    BitPackEncodeable,
+    BitUnpackState,
+    bit_unpack,
+    read_unsigned_vlq,
+    zigzag_decode,
+};
 use crate::column::read_buffer::ReadCursor;
 
 #[derive(Debug)]
-struct DeltaBpDecoder {
+struct DeltaBpDecoderInner<T> {
     /// Cursor we're reading from.
     cursor: ReadCursor,
     /// Block size.
@@ -27,12 +34,15 @@ struct DeltaBpDecoder {
     values_in_current_block: usize,
     /// Number of values per miniblock.
     values_per_mini_block: usize,
-    min_delta: i64,
-    prev_value: i64,
+    min_delta: T,
+    prev_value: T,
     bit_unpack_state: BitUnpackState,
 }
 
-impl DeltaBpDecoder {
+impl<T> DeltaBpDecoderInner<T>
+where
+    T: FromPrimitive + Zero + std::ops::Add + Copy + BitPackEncodeable,
+{
     fn new(mut cursor: ReadCursor) -> Result<Self> {
         // Header
         // <block size in values>
@@ -50,7 +60,8 @@ impl DeltaBpDecoder {
         let block_size = read_unsigned_vlq(&mut cursor)? as usize; // uleb128
         let mini_block_count = read_unsigned_vlq(&mut cursor)? as usize;
         let total_values = read_unsigned_vlq(&mut cursor)? as usize;
-        let first_val = zigzag_decode(read_unsigned_vlq(&mut cursor)?);
+        let first_val = T::from_i64(zigzag_decode(read_unsigned_vlq(&mut cursor)?))
+            .ok_or_else(|| DbError::new("first value too large"))?;
 
         let values_per_mini_block = block_size / mini_block_count;
 
@@ -64,13 +75,13 @@ impl DeltaBpDecoder {
             mini_block_value_idx: 0,
             values_in_current_block: 0,
             values_per_mini_block,
-            min_delta: 0,
+            min_delta: T::zero(),
             prev_value: first_val,
             bit_unpack_state: BitUnpackState::new(0),
         })
     }
 
-    fn read(&mut self, out: &mut [i64]) -> Result<()> {
+    fn read(&mut self, out: &mut [T]) -> Result<()> {
         if out.is_empty() {
             return Ok(());
         }
@@ -91,17 +102,14 @@ impl DeltaBpDecoder {
                 out.len() - out_idx,
                 self.values_per_mini_block - self.mini_block_value_idx,
             );
-            let mut delta_buf = vec![0u64; count];
-            bit_unpack(
-                &mut self.bit_unpack_state,
-                &mut self.cursor,
-                &mut delta_buf[..],
-            )?;
+            let unpack_buf = &mut out[out_idx..count];
 
-            for delta in delta_buf {
-                let full_delta = self.min_delta + delta as i64;
-                self.prev_value += full_delta;
-                out[out_idx] = self.prev_value;
+            bit_unpack(&mut self.bit_unpack_state, &mut self.cursor, unpack_buf)?;
+
+            for delta in unpack_buf {
+                // Final value is unpacked delta + min delta + prev value.
+                *delta = *delta + self.min_delta + self.prev_value;
+                self.prev_value = *delta;
                 out_idx += 1;
                 self.values_remaining -= 1;
                 self.mini_block_value_idx += 1;
@@ -128,9 +136,10 @@ impl DeltaBpDecoder {
         // - each miniblock is a list of bit packed ints according to the bit
         //   width stored at the begining of the block
 
-        self.min_delta = zigzag_decode(read_unsigned_vlq(&mut self.cursor)?);
+        self.min_delta = T::from_i64(zigzag_decode(read_unsigned_vlq(&mut self.cursor)?))
+            .ok_or_else(|| DbError::new("Min delta too large"))?;
 
-        // Read mini-block bit widths
+        // read mini-block bit widths
         for i in 0..self.mini_block_count {
             self.mini_block_bit_widths[i] = unsafe { self.cursor.read_next_unchecked::<u8>() };
         }
