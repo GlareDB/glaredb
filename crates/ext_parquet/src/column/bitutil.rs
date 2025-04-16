@@ -124,6 +124,16 @@ pub fn read_unsigned_vlq(cursor: &mut ReadCursor) -> Result<u64> {
     Ok(result)
 }
 
+/// Decodes a ZigZag-encoded unsigned integer into a signed value.
+pub fn zigzag_decode(n: u64) -> i64 {
+    ((n >> 1) as i64) ^ (-((n & 1) as i64))
+}
+
+/// Encodes a signed integer into a ZigZag-encoded unsigned integer.
+pub fn zigzag_encode(n: i64) -> u64 {
+    ((n << 1) ^ (n >> 63)) as u64
+}
+
 /// BitPackEncodeable trait allows converting from a u64 to the target type.
 /// Only the least-significant bytes that fit in the type will be used.
 pub trait BitPackEncodeable: Copy {
@@ -159,6 +169,26 @@ mod tests {
 
     use super::*;
     use crate::column::read_buffer::OwnedReadBuffer;
+
+    #[test]
+    fn zigzag_decode_tests() {
+        // (zigzag encoded, decoded signed integer)
+        let cases: &[(u64, i64)] = &[
+            (0, 0),
+            (1, -1),
+            (2, 1),
+            (3, -2),
+            (4, 2),
+            (5, -3),
+            (6, 3),
+            (7, -4),
+        ];
+
+        for &(encoded, expected) in cases {
+            let got = zigzag_decode(encoded);
+            assert_eq!(expected, got, "zigzag encoded: {encoded}")
+        }
+    }
 
     #[test]
     fn bit_unpacker_u8_bit_width_1() {
