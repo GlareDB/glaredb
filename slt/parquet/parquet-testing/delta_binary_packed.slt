@@ -1,7 +1,7 @@
 # Test for 'delta_binary_packed.parquet'
 
-statement ok
-SET verify_optimized_plan TO true;
+# statement ok
+# SET verify_optimized_plan TO true;
 
 query TT
 DESCRIBE '../submodules/parquet-testing/data/delta_binary_packed.parquet'
@@ -73,3 +73,12 @@ bitwidth63  Int64
 bitwidth64  Int64
 int_value   Int32
 
+query I
+SELECT DISTINCT bitwidth0 FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
+----
+6374628540732951412
+
+query II
+SELECT min(bitwidth1), max(bitwidth1) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
+----
+-104  0

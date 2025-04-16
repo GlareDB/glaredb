@@ -142,11 +142,11 @@ where
 
         let values_per_mini_block = block_size / mini_block_count;
 
-        Ok(Self {
+        let mut inner = Self {
             cursor,
             block_size,
             mini_block_count,
-            values_remaining: total_values,
+            values_remaining: total_values - 1, // We've already "decoded" the first value
             mini_block_bit_widths: vec![0; mini_block_count],
             mini_block_idx: 0,
             mini_block_value_idx: 0,
@@ -155,7 +155,12 @@ where
             min_delta: T::zero(),
             prev_value: first_val,
             bit_unpack_state: BitUnpackState::new(0),
-        })
+        };
+
+        // Load the first block.
+        inner.load_next_block()?;
+
+        Ok(inner)
     }
 
     fn read(&mut self, out: &mut [T]) -> Result<()> {
@@ -164,6 +169,9 @@ where
         }
 
         let mut out_idx = 0;
+        // Set the "first" value for this output.
+        out[0] = self.prev_value;
+        out_idx += 1;
 
         while out_idx < out.len() && self.values_remaining > 0 {
             if self.mini_block_value_idx >= self.values_per_mini_block
@@ -172,21 +180,24 @@ where
                 self.load_next_block()?;
             }
 
-            let bit_width = self.mini_block_bit_widths[self.mini_block_idx];
-            self.bit_unpack_state.bit_width = bit_width;
+            // Start of a new mini‑block?
+            if self.mini_block_value_idx == 0 {
+                let bit_width = self.mini_block_bit_widths[self.mini_block_idx];
+                self.bit_unpack_state = BitUnpackState::new(bit_width);
+            }
 
-            let count = usize::min(
-                out.len() - out_idx,
-                self.values_per_mini_block - self.mini_block_value_idx,
-            );
+            let rem_cap = out.len() - out_idx;
+            let rem_in_mini_block = self.values_per_mini_block - self.mini_block_value_idx;
+            let count = usize::min(rem_cap, rem_in_mini_block);
             let unpack_buf = &mut out[out_idx..(out_idx + count)];
 
             bit_unpack(&mut self.bit_unpack_state, &mut self.cursor, unpack_buf)?;
 
-            for delta in unpack_buf {
+            for output in unpack_buf {
                 // Final value is unpacked delta + min delta + prev value.
-                *delta = *delta + self.min_delta + self.prev_value;
-                self.prev_value = *delta;
+                let final_v = *output + self.min_delta + self.prev_value;
+                *output = final_v;
+                self.prev_value = final_v;
                 out_idx += 1;
                 self.values_remaining -= 1;
                 self.mini_block_value_idx += 1;
