@@ -1,4 +1,5 @@
 pub mod dictionary;
+pub mod delta_bp;
 pub mod plain;
 pub mod rle_bp;
 

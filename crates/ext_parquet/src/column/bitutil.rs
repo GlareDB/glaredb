@@ -130,6 +130,7 @@ pub fn zigzag_decode(n: u64) -> i64 {
 }
 
 /// Encodes a signed integer into a ZigZag-encoded unsigned integer.
+#[allow(unused)]
 pub fn zigzag_encode(n: i64) -> u64 {
     ((n << 1) ^ (n >> 63)) as u64
 }
