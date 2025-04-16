@@ -1,0 +1,12 @@
+# Read parquet row group metadata over http.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query ????
+SELECT * FROM parquet_rowgroup_metadata('https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata0.parquet');
+----
+https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata0.parquet  1000  13  112492
