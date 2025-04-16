@@ -18,6 +18,10 @@ impl Explainable for LogicalFilter {
 }
 
 impl LogicalNode for Node<LogicalFilter> {
+    fn name(&self) -> &'static str {
+        "Filter"
+    }
+
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.get_children_table_refs(bind_context)
     }

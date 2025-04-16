@@ -19,6 +19,10 @@ impl Explainable for LogicalMaterializationScan {
 }
 
 impl LogicalNode for Node<LogicalMaterializationScan> {
+    fn name(&self) -> &'static str {
+        "MaterializationScan"
+    }
+
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         bind_context
             .get_materialization(self.node.mat)
@@ -84,6 +88,10 @@ impl Explainable for LogicalMagicMaterializationScan {
 }
 
 impl LogicalNode for Node<LogicalMagicMaterializationScan> {
+    fn name(&self) -> &'static str {
+        "MagicMaterializationScan"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         vec![self.node.table_ref]
     }

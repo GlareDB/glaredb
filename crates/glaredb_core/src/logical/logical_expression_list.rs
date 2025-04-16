@@ -20,6 +20,10 @@ pub struct LogicalExpressionList {
 }
 
 impl LogicalNode for Node<LogicalExpressionList> {
+    fn name(&self) -> &'static str {
+        "ExpressionList"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         vec![self.node.table_ref]
     }

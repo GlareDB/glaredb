@@ -28,6 +28,10 @@ impl Explainable for LogicalWindow {
 }
 
 impl LogicalNode for Node<LogicalWindow> {
+    fn name(&self) -> &'static str {
+        "Window"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         vec![self.node.windows_table]
     }

@@ -114,6 +114,10 @@ impl Explainable for LogicalScan {
 }
 
 impl LogicalNode for Node<LogicalScan> {
+    fn name(&self) -> &'static str {
+        "Scan"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         vec![self.node.table_ref]
     }

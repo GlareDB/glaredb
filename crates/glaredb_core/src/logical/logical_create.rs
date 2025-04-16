@@ -22,6 +22,10 @@ impl Explainable for LogicalCreateSchema {
 }
 
 impl LogicalNode for Node<LogicalCreateSchema> {
+    fn name(&self) -> &'static str {
+        "CreateSchema"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
@@ -57,6 +61,10 @@ impl Explainable for LogicalCreateTable {
 }
 
 impl LogicalNode for Node<LogicalCreateTable> {
+    fn name(&self) -> &'static str {
+        "CreateTable"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
@@ -93,6 +101,10 @@ impl Explainable for LogicalCreateView {
 }
 
 impl LogicalNode for Node<LogicalCreateView> {
+    fn name(&self) -> &'static str {
+        "CreateView"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }

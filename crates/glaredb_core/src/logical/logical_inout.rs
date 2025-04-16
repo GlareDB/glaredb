@@ -45,6 +45,10 @@ impl Explainable for LogicalTableExecute {
 }
 
 impl LogicalNode for Node<LogicalTableExecute> {
+    fn name(&self) -> &'static str {
+        "TableExecute"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         match self.node.projected_table_ref {
             Some(projected_table_ref) => {

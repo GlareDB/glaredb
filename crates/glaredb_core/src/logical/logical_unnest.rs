@@ -36,6 +36,10 @@ impl Explainable for LogicalUnnest {
 }
 
 impl LogicalNode for Node<LogicalUnnest> {
+    fn name(&self) -> &'static str {
+        "Unnest"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         vec![self.node.projection_ref, self.node.unnest_ref]
     }

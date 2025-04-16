@@ -104,6 +104,10 @@ impl Explainable for LogicalComparisonJoin {
 }
 
 impl LogicalNode for Node<LogicalComparisonJoin> {
+    fn name(&self) -> &'static str {
+        "ComparisonJoin"
+    }
+
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.node.join_type.output_refs(self, bind_context)
     }
@@ -166,6 +170,10 @@ impl Explainable for LogicalMagicJoin {
 }
 
 impl LogicalNode for Node<LogicalMagicJoin> {
+    fn name(&self) -> &'static str {
+        "MagicJoin"
+    }
+
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.node.join_type.output_refs(self, bind_context)
     }
@@ -208,6 +216,10 @@ impl Explainable for LogicalArbitraryJoin {
 }
 
 impl LogicalNode for Node<LogicalArbitraryJoin> {
+    fn name(&self) -> &'static str {
+        "ArbitraryJoin"
+    }
+
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.node.join_type.output_refs(self, bind_context)
     }
@@ -237,6 +249,10 @@ impl Explainable for LogicalCrossJoin {
 }
 
 impl LogicalNode for Node<LogicalCrossJoin> {
+    fn name(&self) -> &'static str {
+        "CrossJoin"
+    }
+
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef> {
         self.get_children_table_refs(bind_context)
     }

@@ -20,6 +20,10 @@ impl Explainable for LogicalDrop {
 }
 
 impl LogicalNode for Node<LogicalDrop> {
+    fn name(&self) -> &'static str {
+        "Drop"
+    }
+
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
         Vec::new()
     }
