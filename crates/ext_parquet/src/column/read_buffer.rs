@@ -173,9 +173,14 @@ impl ReadCursor {
     ///
     /// This buffer must have enough bytes to read the next value fully.
     pub unsafe fn read_next_unchecked<T>(&mut self) -> T {
-        unsafe {
-            debug_assert!(self.remaining >= std::mem::size_of::<T>());
+        debug_assert!(
+            self.remaining >= std::mem::size_of::<T>(),
+            "remaining: {}, need: {}",
+            self.remaining,
+            std::mem::size_of::<T>()
+        );
 
+        unsafe {
             let v = self.curr.cast::<T>().read_unaligned();
             self.skip_bytes_unchecked(std::mem::size_of::<T>());
 
@@ -190,9 +195,9 @@ impl ReadCursor {
     /// `len` must not go beyond the end of the remaining number of bytes in the
     /// buffer.
     pub unsafe fn read_bytes_unchecked(&mut self, len: usize) -> &[u8] {
-        unsafe {
-            debug_assert!(self.remaining >= len);
+        debug_assert!(self.remaining >= len);
 
+        unsafe {
             let bs = std::slice::from_raw_parts(self.curr, len);
             self.skip_bytes_unchecked(len);
 

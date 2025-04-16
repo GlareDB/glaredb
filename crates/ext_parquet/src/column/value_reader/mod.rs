@@ -1,3 +1,4 @@
+pub mod bool;
 pub mod int96;
 pub mod primitive;
 pub mod varlen;

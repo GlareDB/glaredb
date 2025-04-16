@@ -18,6 +18,11 @@ use crate::util::iter::IntoExactSizeIterator;
 
 // TODO: Need to update the implicit "from utf8" casts to be "from utf8
 // literals".
+//
+// Need to update "to utf8" casts to be more restrictive. Currently it applies
+// to all functions, so things like `select 'hello' || 1` work, but incidentally
+// the implicit cast also allows `select repeat(2, 4)` to also work, which may
+// be unexpected.
 
 // Implicit rule constants.
 //

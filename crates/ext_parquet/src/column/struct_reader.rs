@@ -5,8 +5,11 @@ use glaredb_core::storage::projections::Projections;
 use glaredb_error::{Result, not_implemented};
 
 use super::column_reader::{ColumnReader, ValueColumnReader};
+use super::value_reader::bool::BoolValueReader;
 use super::value_reader::int96::Int96TsReader;
 use super::value_reader::primitive::{
+    CastingInt32ToInt8Reader,
+    CastingInt32ToInt16Reader,
     PlainFloat32ValueReader,
     PlainFloat64ValueReader,
     PlainInt32ValueReader,
@@ -53,6 +56,15 @@ pub(crate) fn new_column_reader(
     descr: ColumnDescriptor,
 ) -> Result<Box<dyn ColumnReader>> {
     Ok(match &datatype {
+        DataType::Boolean => Box::new(ValueColumnReader::<BoolValueReader>::try_new(
+            manager, datatype, descr,
+        )?),
+        DataType::Int8 => Box::new(ValueColumnReader::<CastingInt32ToInt8Reader>::try_new(
+            manager, datatype, descr,
+        )?),
+        DataType::Int16 => Box::new(ValueColumnReader::<CastingInt32ToInt16Reader>::try_new(
+            manager, datatype, descr,
+        )?),
         DataType::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader>::try_new(
             manager, datatype, descr,
         )?),
@@ -81,6 +93,9 @@ pub(crate) fn new_column_reader(
         DataType::Utf8 => Box::new(ValueColumnReader::<VarlenByteValueReader>::try_new(
             manager, datatype, descr,
         )?),
-        other => not_implemented!("reader for data type: {other}"),
+        DataType::Binary => Box::new(ValueColumnReader::<VarlenByteValueReader>::try_new(
+            manager, datatype, descr,
+        )?),
+        other => not_implemented!("create parquet column reader for data type: {other}"),
     })
 }

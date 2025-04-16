@@ -1,0 +1,177 @@
+# Test 'alltypes_tiny_pages_plain.parquet'
+#
+# Good data
+#
+# This file seems to report accurate integer sizes according to the column name
+# (unlike 'alltypes_plain').
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet';
+----
+id               Int32
+bool_col         Boolean
+tinyint_col      Int8
+smallint_col     Int16
+int_col          Int32
+bigint_col       Int64
+float_col        Float32
+double_col       Float64
+date_string_col  Utf8
+string_col       Utf8
+timestamp_col    Timestamp(ns)
+year             Int32
+month            Int32
+
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet';
+----
+7300
+
+query IB
+SELECT id, bool_col
+  FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet'
+  WHERE id IN (0, 1, 6785, 7298, 7299)
+  ORDER BY 1;
+----
+0     true
+1     false
+6785  false
+7298  true
+7299  false
+
+query II
+SELECT id, tinyint_col
+  FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet'
+  WHERE id IN (0, 1, 6785, 7298, 7299)
+  ORDER BY 1;
+----
+0     0
+1     1
+6785  5
+7298  8
+7299  9
+
+query II
+SELECT id, smallint_col
+  FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet'
+  WHERE id IN (0, 1, 6785, 7298, 7299)
+  ORDER BY 1;
+----
+0     0
+1     1
+6785  5
+7298  8
+7299  9
+
+query II
+SELECT id, int_col
+  FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet'
+  WHERE id IN (0, 1, 6785, 7298, 7299)
+  ORDER BY 1;
+----
+0     0
+1     1
+6785  5
+7298  8
+7299  9
+
+query II
+SELECT id, bigint_col
+  FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet'
+  WHERE id IN (0, 1, 6785, 7298, 7299)
+  ORDER BY 1;
+----
+0     0
+1     10
+6785  50
+7298  80
+7299  90
+
+query IR
+SELECT id, float_col
+  FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet'
+  WHERE id IN (0, 1, 6785, 7298, 7299)
+  ORDER BY 1;
+----
+0     0
+1     1.1
+6785  5.5
+7298  8.8
+7299  9.9
+
+# Decimal cast for rounding, 90.9 not exact
+query IR
+SELECT id, double_col::DECIMAL(10, 1)
+  FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet'
+  WHERE id IN (0, 1, 6785, 7298, 7299)
+  ORDER BY 1;
+----
+0     0.0
+1     10.1
+6785  50.5
+7298  80.8
+7299  90.9
+
+query IT
+SELECT id, date_string_col
+  FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet'
+  WHERE id IN (0, 1, 6785, 7298, 7299)
+  ORDER BY 1;
+----
+0     01/01/09
+1     01/01/09
+6785  11/10/10
+7298  12/31/10
+7299  12/31/10
+
+query IT
+SELECT id, string_col
+  FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet'
+  WHERE id IN (0, 1, 6785, 7298, 7299)
+  ORDER BY 1;
+----
+0     0
+1     1
+6785  5
+7298  8
+7299  9
+
+query I?
+SELECT id, timestamp_col
+  FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet'
+  WHERE id IN (0, 1, 6785, 7298, 7299)
+  ORDER BY 1;
+----
+0     2008-12-31 23:00:00 UTC
+1     2008-12-31 23:01:00 UTC
+6785  2010-11-10 00:35:04.150 UTC
+7298  2010-12-31 04:08:13.780 UTC
+7299  2010-12-31 04:09:13.860 UTC
+
+query II
+SELECT id, year
+  FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet'
+  WHERE id IN (0, 1, 6785, 7298, 7299)
+  ORDER BY 1;
+----
+0     2009
+1     2009
+6785  2010
+7298  2010
+7299  2010
+
+query II
+SELECT id, month
+  FROM '../submodules/parquet-testing/data/alltypes_tiny_pages_plain.parquet'
+  WHERE id IN (0, 1, 6785, 7298, 7299)
+  ORDER BY 1;
+----
+0     1
+1     1
+6785  11
+7298  12
+7299  12
+
