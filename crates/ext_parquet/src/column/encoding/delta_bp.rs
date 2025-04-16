@@ -2,9 +2,14 @@
 //!
 //! See <https://github.com/apache/parquet-format/blob/master/Encodings.md#delta-encoding-delta_binary_packed--5>
 
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
+use glaredb_core::arrays::array::Array;
 use glaredb_error::{DbError, Result};
 use num::{FromPrimitive, Zero};
 
+use super::Definitions;
 use crate::column::bitutil::{
     BitPackEncodeable,
     BitUnpackState,
@@ -12,7 +17,67 @@ use crate::column::bitutil::{
     read_unsigned_vlq,
     zigzag_decode,
 };
+use crate::column::encoding::plain::PlainDecoder;
 use crate::column::read_buffer::ReadCursor;
+use crate::column::value_reader::ValueReader;
+
+// TODO: We can probably attach the physical type to the value reader instead of
+// need to have it as separate generic.
+#[derive(Debug)]
+pub struct DeltaBpDecoder<T, V>
+where
+    V: ValueReader,
+{
+    // TODO: Make this buffer managed, probably with a typed buffer.
+    delta_buffer: Vec<T>,
+    inner: DeltaBpDecoderInner<T>,
+    _v: PhantomData<V>,
+}
+
+impl<T, V> DeltaBpDecoder<T, V>
+where
+    T: FromPrimitive + Zero + std::ops::Add + Copy + BitPackEncodeable + Debug,
+    V: ValueReader,
+{
+    pub fn read(
+        &mut self,
+        definitions: Definitions,
+        output: &mut Array,
+        offset: usize,
+        count: usize,
+    ) -> Result<()> {
+        let read_count = match definitions {
+            Definitions::HasDefinitions { levels, max } => {
+                let valid_count = levels.iter().filter(|&&def| def == max).count();
+                valid_count
+            }
+            Definitions::NoDefinitions => count,
+        };
+
+        self.delta_buffer.clear();
+        self.delta_buffer.resize(read_count, T::zero());
+
+        self.inner.read(&mut self.delta_buffer)?;
+
+        // We've read into our local buffer, use a plain decoder to read it into
+        // the output array.
+        //
+        // This handles nulls for us, as well as any casting that needs to
+        // happen, as the delta encoder should only be called i32 or i64, but
+        // the logical type might be a different width.
+        //
+        // Nor do we need to worry about value reader state (since reading
+        // i32/i64 doesn't require anything).
+        let read_cursor = ReadCursor::from_slice(&self.delta_buffer);
+        let mut plain = PlainDecoder {
+            buffer: read_cursor,
+            value_reader: V::default(),
+        };
+
+        // Use original offset and count.
+        plain.read_plain(definitions, output, offset, count)
+    }
+}
 
 #[derive(Debug)]
 struct DeltaBpDecoderInner<T> {
@@ -34,14 +99,16 @@ struct DeltaBpDecoderInner<T> {
     values_in_current_block: usize,
     /// Number of values per miniblock.
     values_per_mini_block: usize,
+    /// Minimum delta for the current miniblock we're on.
     min_delta: T,
+    /// Previous value we computed.
     prev_value: T,
     bit_unpack_state: BitUnpackState,
 }
 
 impl<T> DeltaBpDecoderInner<T>
 where
-    T: FromPrimitive + Zero + std::ops::Add + Copy + BitPackEncodeable,
+    T: FromPrimitive + Zero + std::ops::Add + Copy + BitPackEncodeable + Debug,
 {
     fn new(mut cursor: ReadCursor) -> Result<Self> {
         // Header
@@ -139,7 +206,7 @@ where
         self.min_delta = T::from_i64(zigzag_decode(read_unsigned_vlq(&mut self.cursor)?))
             .ok_or_else(|| DbError::new("Min delta too large"))?;
 
-        // read mini-block bit widths
+        // Read mini-block bit widths
         for i in 0..self.mini_block_count {
             self.mini_block_bit_widths[i] = unsafe { self.cursor.read_next_unchecked::<u8>() };
         }
