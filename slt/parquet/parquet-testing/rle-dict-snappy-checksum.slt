@@ -3,6 +3,18 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/rle-dict-snappy-checksum.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/data/rle-dict-snappy-checksum.parquet'
+----
+long_field    Int64
+binary_field  Binary
+
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/rle-dict-snappy-checksum.parquet';
+----
+1000
+
+query IT
+SELECT DISTINCT long_field, binary_field::TEXT FROM '../submodules/parquet-testing/data/rle-dict-snappy-checksum.parquet';
+----
+0  c95e263a-f5d4-401f-8107-5ca7146a1f98

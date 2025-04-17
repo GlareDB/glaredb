@@ -10,6 +10,10 @@ use super::value_reader::int96::Int96TsReader;
 use super::value_reader::primitive::{
     CastingInt32ToInt8Reader,
     CastingInt32ToInt16Reader,
+    CastingInt32ToUInt8Reader,
+    CastingInt32ToUInt16Reader,
+    CastingInt32ToUInt32Reader,
+    CastingInt64ToUInt64Reader,
     PlainFloat32ValueReader,
     PlainFloat64ValueReader,
     PlainInt32ValueReader,
@@ -69,6 +73,18 @@ pub(crate) fn new_column_reader(
             manager, datatype, descr,
         )?),
         DataType::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader>::try_new(
+            manager, datatype, descr,
+        )?),
+        DataType::UInt8 => Box::new(ValueColumnReader::<CastingInt32ToUInt8Reader>::try_new(
+            manager, datatype, descr,
+        )?),
+        DataType::UInt16 => Box::new(ValueColumnReader::<CastingInt32ToUInt16Reader>::try_new(
+            manager, datatype, descr,
+        )?),
+        DataType::UInt32 => Box::new(ValueColumnReader::<CastingInt32ToUInt32Reader>::try_new(
+            manager, datatype, descr,
+        )?),
+        DataType::UInt64 => Box::new(ValueColumnReader::<CastingInt64ToUInt64Reader>::try_new(
             manager, datatype, descr,
         )?),
         DataType::Float32 => Box::new(ValueColumnReader::<PlainFloat32ValueReader>::try_new(

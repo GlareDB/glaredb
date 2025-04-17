@@ -1,5 +1,9 @@
 # Test for 'unknown-logical-type.parquet'
 
+# TODO
+# Error source: query failed: Could not parse metadata
+# Error source: bad data
+
 statement ok
 SET verify_optimized_plan TO true;
 

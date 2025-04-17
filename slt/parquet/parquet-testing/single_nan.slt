@@ -3,6 +3,13 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/single_nan.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/data/single_nan.parquet'
+----
+mycol  Float64
+
+# A single _null_ NaN.
+query R
+SELECT * FROM '../submodules/parquet-testing/data/single_nan.parquet';
+----
+NULL

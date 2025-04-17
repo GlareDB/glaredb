@@ -3,6 +3,18 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/rle-dict-uncompressed-corrupt-checksum.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/data/rle-dict-uncompressed-corrupt-checksum.parquet'
+----
+long_field    Int64
+binary_field  Binary
+
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/rle-dict-uncompressed-corrupt-checksum.parquet';
+----
+1000
+
+query IT
+SELECT DISTINCT long_field, binary_field::TEXT FROM '../submodules/parquet-testing/data/rle-dict-uncompressed-corrupt-checksum.parquet';
+----
+0  6325c32b-f417-41aa-9e02-9b8601542aff

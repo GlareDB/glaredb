@@ -1,8 +1,22 @@
 # Test for 'lz4_raw_compressed_larger.parquet'
 
+# TODO:
+# Info: panicked at crates/glaredb_core/src/arrays/sort/binary_merge.rs:275:17:
+# not implemented
+
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/lz4_raw_compressed_larger.parquet'
+query TT
+DESCRIBE '../submodules/parquet-testing/data/lz4_raw_compressed_larger.parquet'
+----
+a  Utf8
+
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/lz4_raw_compressed_larger.parquet';
+----
+10000
+
+# query T
+# SELECT DISTINCT * FROM '../submodules/parquet-testing/data/lz4_raw_compressed_larger.parquet' ORDER BY 1;
 # ----

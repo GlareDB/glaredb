@@ -9,6 +9,10 @@ use glaredb_core::arrays::array::physical_type::{
     PhysicalI16,
     PhysicalI32,
     PhysicalI64,
+    PhysicalU8,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
 };
 use glaredb_core::util::marker::PhantomCovariant;
 use num::cast::AsPrimitive;
@@ -57,6 +61,15 @@ where
 pub type CastingInt32ToInt8Reader = CastingValueReader<i32, PhysicalI8>;
 // INT32 => LogicalType::Int16
 pub type CastingInt32ToInt16Reader = CastingValueReader<i32, PhysicalI16>;
+// INT32 => LogicalType::UInt8
+pub type CastingInt32ToUInt8Reader = CastingValueReader<i32, PhysicalU8>;
+// INT32 => LogicalType::UInt16
+pub type CastingInt32ToUInt16Reader = CastingValueReader<i32, PhysicalU16>;
+// INT32 => LogicalType::UInt32
+pub type CastingInt32ToUInt32Reader = CastingValueReader<i32, PhysicalU32>;
+
+// INT64 => LogicalType::UInt64
+pub type CastingInt64ToUInt64Reader = CastingValueReader<i64, PhysicalU64>;
 
 /// Value reader for reading primitive values, then casting them to the proper
 /// storage type.

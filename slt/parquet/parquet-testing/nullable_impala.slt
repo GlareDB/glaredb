@@ -1,5 +1,7 @@
 # Test for 'nullable.impala.parquet'
 
+# TODO: Error source: query failed: Not yet implemented: Visit LIST with item
+
 statement ok
 SET verify_optimized_plan TO true;
 
