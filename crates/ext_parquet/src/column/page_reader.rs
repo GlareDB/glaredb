@@ -9,7 +9,7 @@ use super::encoding::rle_bp::RleBpDecoder;
 use super::read_buffer::OwnedReadBuffer;
 use super::value_reader::ValueReader;
 use crate::basic::{self, Encoding};
-use crate::column::encoding::delta_bp::DeltaBpDecoder;
+use crate::column::encoding::delta_binary_packed::DeltaBinaryPackedDecoder;
 use crate::column::encoding::plain::PlainDecoder;
 use crate::compression::Codec;
 use crate::format;
@@ -400,7 +400,7 @@ where
                 basic::Type::INT32 => {
                     // Creating the deocder will reader the header.
                     let read_buffer = self.decompressed_page.take_remaining();
-                    let dec = DeltaBpDecoder::<i32, V>::try_new(read_buffer)?;
+                    let dec = DeltaBinaryPackedDecoder::<i32, V>::try_new(read_buffer)?;
                     self.state.page_decoder = Some(PageDecoder::DeltaBinaryPackedI32(dec));
 
                     Ok(())
@@ -408,7 +408,7 @@ where
                 basic::Type::INT64 => {
                     // See above
                     let read_buffer = self.decompressed_page.take_remaining();
-                    let dec = DeltaBpDecoder::<i64, V>::try_new(read_buffer)?;
+                    let dec = DeltaBinaryPackedDecoder::<i64, V>::try_new(read_buffer)?;
                     self.state.page_decoder = Some(PageDecoder::DeltaBinaryPackedI64(dec));
 
                     Ok(())

@@ -1,9 +1,9 @@
-pub mod delta_bp;
+pub mod delta_binary_packed;
 pub mod dictionary;
 pub mod plain;
 pub mod rle_bp;
 
-use delta_bp::DeltaBpDecoder;
+use delta_binary_packed::DeltaBinaryPackedDecoder;
 use dictionary::DictionaryDecoder;
 use plain::PlainDecoder;
 
@@ -27,6 +27,6 @@ pub enum Definitions<'a> {
 pub enum PageDecoder<V: ValueReader> {
     Plain(PlainDecoder<V>),
     Dictionary(DictionaryDecoder<V>),
-    DeltaBinaryPackedI32(DeltaBpDecoder<i32, V>),
-    DeltaBinaryPackedI64(DeltaBpDecoder<i64, V>),
+    DeltaBinaryPackedI32(DeltaBinaryPackedDecoder<i32, V>),
+    DeltaBinaryPackedI64(DeltaBinaryPackedDecoder<i64, V>),
 }

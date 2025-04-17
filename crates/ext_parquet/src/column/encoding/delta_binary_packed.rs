@@ -25,7 +25,7 @@ use crate::column::value_reader::ValueReader;
 // TODO: We can probably attach the physical type to the value reader instead of
 // need to have it as separate generic.
 #[derive(Debug)]
-pub struct DeltaBpDecoder<T, V>
+pub struct DeltaBinaryPackedDecoder<T, V>
 where
     V: ValueReader,
 {
@@ -35,7 +35,7 @@ where
     _v: PhantomData<V>,
 }
 
-impl<T, V> DeltaBpDecoder<T, V>
+impl<T, V> DeltaBinaryPackedDecoder<T, V>
 where
     T: FromPrimitive + Zero + WrappingAdd + Copy + BitPackEncodeable + Debug,
     V: ValueReader,
@@ -43,7 +43,7 @@ where
     pub fn try_new(cursor: ReadCursor) -> Result<Self> {
         let inner = DeltaBpDecoderInner::try_new(cursor)?;
 
-        Ok(DeltaBpDecoder {
+        Ok(DeltaBinaryPackedDecoder {
             delta_buffer: Vec::new(),
             inner,
             _v: PhantomData,
