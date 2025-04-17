@@ -393,12 +393,12 @@ SELECT min(bitwidth63), max(bitwidth63) FROM '../submodules/parquet-testing/data
 ----
 -9220123451143279334 9150047972721273816
 
+# This one will trigger a wrapping add in the decoder.
 query II
 SELECT min(bitwidth64), max(bitwidth64) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
 -9223372036854775808 8846115173408951296
 
-# This one will trigger a wrapping add in the decoder.
 query II
 SELECT min(int_value), max(int_value) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
