@@ -1,4 +1,5 @@
 pub mod delta_binary_packed;
+pub mod delta_length_byte_array;
 pub mod dictionary;
 pub mod plain;
 pub mod rle_bp;
