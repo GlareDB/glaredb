@@ -36,11 +36,16 @@ impl DeltaLengthByteArrayDecoder {
         let mut dec = DeltaBinaryPackedValueDecoder::<i32>::try_new(cursor)?;
         dec.read(len_slice)?;
 
-        let cursor = dec.try_into_cursor()?;
+        println!("LEN: {}", len_slice[0]);
+
+        let mut cursor = dec.try_into_cursor()?;
+
+        // WHAT IS THIS????
+        unsafe { cursor.skip_bytes_unchecked(4) };
 
         // Verify that the total length equal the number of bytes in the cursor.
         let total = len_slice.iter().fold(0, |acc, &v| acc + v);
-        if total as usize != cursor.remaining() {
+        if total as usize == cursor.remaining() {
             return Err(DbError::new("DELTA_LENGTH_BYTE_ARRAY: Total length does not equal remaining length in byte cursor")
                 .with_field("total", total)
                 .with_field("remaining", cursor.remaining()));
@@ -77,11 +82,15 @@ impl DeltaLengthByteArrayDecoder {
                     }
 
                     let len = lens[self.curr_len_idx];
+                    println!("LEN: {len}");
                     self.curr_len_idx += 1;
 
                     let bs = unsafe { self.cursor.read_bytes_unchecked(len as usize) };
+                    println!("BSLEN: {}", bs.len());
                     if self.verify_utf8 {
-                        let _ = std::str::from_utf8(bs).context("Did not read valid utf8")?;
+                        let s = std::str::from_utf8(bs).context("Did not read valid utf8")?;
+                        println!("SLEN: {}", s.len());
+                        println!("S[def]: {s}");
                     }
 
                     data.put(output_idx, bs);
@@ -96,7 +105,8 @@ impl DeltaLengthByteArrayDecoder {
 
                     let bs = unsafe { self.cursor.read_bytes_unchecked(len as usize) };
                     if self.verify_utf8 {
-                        let _ = std::str::from_utf8(bs).context("Did not read valid utf8")?;
+                        let s = std::str::from_utf8(bs).context("Did not read valid utf8")?;
+                        println!("S: {s}");
                     }
 
                     data.put(output_idx, bs);

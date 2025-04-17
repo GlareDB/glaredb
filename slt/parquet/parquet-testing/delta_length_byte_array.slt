@@ -8,6 +8,6 @@ DESCRIBE '../submodules/parquet-testing/data/delta_length_byte_array.parquet'
 ----
 FRUIT  Utf8
 
-# query T
-# SELECT * FROM '../submodules/parquet-testing/data/delta_length_byte_array.parquet';
-# ----
+query T
+SELECT * FROM '../submodules/parquet-testing/data/delta_length_byte_array.parquet' LIMIT 1;
+----

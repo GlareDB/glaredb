@@ -181,8 +181,9 @@ impl ReadCursor {
 
     /// Skips the pointer forward some number of bytes.
     pub unsafe fn skip_bytes_unchecked(&mut self, num_bytes: usize) {
+        debug_assert!(self.remaining >= num_bytes);
+
         unsafe {
-            debug_assert!(self.remaining >= num_bytes);
             self.curr = self.curr.byte_add(num_bytes);
             self.remaining -= num_bytes;
         }
