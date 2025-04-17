@@ -8,6 +8,12 @@ DESCRIBE '../submodules/parquet-testing/data/concatenated_gzip_members.parquet'
 ----
 long_col UInt64
 
-# query I
-# SELECT * FROM '../submodules/parquet-testing/data/concatenated_gzip_members.parquet';
-# ----
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/concatenated_gzip_members.parquet';
+----
+513
+
+query II
+SELECT min(long_col), max(long_col) FROM '../submodules/parquet-testing/data/concatenated_gzip_members.parquet';
+----
+1  513
