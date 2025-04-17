@@ -1,5 +1,7 @@
 # Test for 'repeated_no_annotation.parquet'
 
+# TODO: Struct
+
 statement ok
 SET verify_optimized_plan TO true;
 

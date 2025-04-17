@@ -9,7 +9,7 @@ DESCRIBE '../submodules/parquet-testing/data/concatenated_gzip_members.parquet'
 long_col UInt64
 
 query I
-SELECT count(*) FROM '../submodules/parquet-testing/data/concatenated_gzip_members.parquet';
+SELECT * FROM '../submodules/parquet-testing/data/concatenated_gzip_members.parquet';
 ----
 513
 
