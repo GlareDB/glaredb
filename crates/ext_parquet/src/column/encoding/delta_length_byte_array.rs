@@ -45,7 +45,7 @@ impl DeltaLengthByteArrayDecoder {
 
         // Verify that the total length equal the number of bytes in the cursor.
         let total = len_slice.iter().fold(0, |acc, &v| acc + v);
-        if total as usize == cursor.remaining() {
+        if total as usize != cursor.remaining() {
             return Err(DbError::new("DELTA_LENGTH_BYTE_ARRAY: Total length does not equal remaining length in byte cursor")
                 .with_field("total", total)
                 .with_field("remaining", cursor.remaining()));
