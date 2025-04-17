@@ -62,7 +62,7 @@ where
     }
 
     for dst in out {
-        let mut bits_needed = w as u8;
+        let mut bits_needed = w;
         let mut value: u64 = 0;
         // We'll assemble the w bits into `value` from LSB->MSB.
         let mut bit_offset_in_value = 0;

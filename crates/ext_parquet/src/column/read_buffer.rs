@@ -166,7 +166,7 @@ impl ReadCursor {
     /// values from it requires that the slice outlives this cursor.
     pub fn from_slice<T>(slice: &[T]) -> Self {
         let ptr = slice.as_ptr().cast();
-        let remaining = slice.len() * std::mem::size_of::<T>();
+        let remaining = std::mem::size_of_val(slice);
 
         ReadCursor {
             curr: ptr,
