@@ -174,6 +174,11 @@ impl ReadCursor {
         }
     }
 
+    /// Returns the remaining number of bytes in this cursor.
+    pub const fn remaining(&self) -> usize {
+        self.remaining
+    }
+
     /// Skips the pointer forward some number of bytes.
     pub unsafe fn skip_bytes_unchecked(&mut self, num_bytes: usize) {
         unsafe {

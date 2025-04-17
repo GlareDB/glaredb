@@ -1,7 +1,13 @@
 use glaredb_core::arrays::array::Array;
+use glaredb_core::arrays::array::physical_type::{
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalBinary,
+    ScalarStorage,
+};
 use glaredb_core::buffer::buffer_manager::NopBufferManager;
 use glaredb_core::buffer::typed::TypedBuffer;
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result, ResultExt};
 
 use super::Definitions;
 use crate::column::encoding::delta_binary_packed::DeltaBinaryPackedValueDecoder;
@@ -13,6 +19,8 @@ pub struct DeltaLengthByteArrayDecoder {
     verify_utf8: bool,
     /// Number of values we're decoding.
     num_values: usize,
+    /// Index of the current value we're on.
+    curr_len_idx: usize,
     /// Decoded lengths from the beginning of the buffer.
     lengths: TypedBuffer<i32>,
     /// Cursor pointing to some byte offset.
@@ -30,9 +38,18 @@ impl DeltaLengthByteArrayDecoder {
 
         let cursor = dec.try_into_cursor()?;
 
+        // Verify that the total length equal the number of bytes in the cursor.
+        let total = len_slice.iter().fold(0, |acc, &v| acc + v);
+        if total as usize != cursor.remaining() {
+            return Err(DbError::new("DELTA_LENGTH_BYTE_ARRAY: Total length does not equal remaining length in byte cursor")
+                .with_field("total", total)
+                .with_field("remaining", cursor.remaining()));
+        }
+
         Ok(DeltaLengthByteArrayDecoder {
             verify_utf8,
             num_values,
+            curr_len_idx: 0,
             lengths,
             cursor,
         })
@@ -45,6 +62,48 @@ impl DeltaLengthByteArrayDecoder {
         offset: usize,
         count: usize,
     ) -> Result<()> {
-        unimplemented!()
+        let (data, validity) = output.data_and_validity_mut();
+        let mut data = PhysicalBinary::get_addressable_mut(data)?;
+
+        let lens = self.lengths.as_slice();
+
+        match definitions {
+            Definitions::HasDefinitions { levels, max } => {
+                for (output_idx, &level) in levels.iter().enumerate().skip(offset).take(count) {
+                    if level < max {
+                        // Value is null.
+                        validity.set_invalid(output_idx);
+                        continue;
+                    }
+
+                    let len = lens[self.curr_len_idx];
+                    self.curr_len_idx += 1;
+
+                    let bs = unsafe { self.cursor.read_bytes_unchecked(len as usize) };
+                    if self.verify_utf8 {
+                        let _ = std::str::from_utf8(bs).context("Did not read valid utf8")?;
+                    }
+
+                    data.put(output_idx, bs);
+                }
+
+                Ok(())
+            }
+            Definitions::NoDefinitions => {
+                for output_idx in offset..(offset + count) {
+                    let len = lens[self.curr_len_idx];
+                    self.curr_len_idx += 1;
+
+                    let bs = unsafe { self.cursor.read_bytes_unchecked(len as usize) };
+                    if self.verify_utf8 {
+                        let _ = std::str::from_utf8(bs).context("Did not read valid utf8")?;
+                    }
+
+                    data.put(output_idx, bs);
+                }
+
+                Ok(())
+            }
+        }
     }
 }
