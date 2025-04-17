@@ -4,6 +4,7 @@ use glaredb_core::buffer::typed::ByteBuffer;
 use glaredb_error::{DbError, Result, ResultExt};
 
 use super::encoding::PageDecoder;
+use super::encoding::delta_length_byte_array::DeltaLengthByteArrayDecoder;
 use super::encoding::dictionary::{Dictionary, DictionaryDecoder};
 use super::encoding::rle_bp::RleBpDecoder;
 use super::read_buffer::OwnedReadBuffer;
@@ -417,6 +418,23 @@ where
                     "Unsupported physical type for delta binary packed encoding: {other:?}"
                 ))),
             },
+            Encoding::DELTA_LENGTH_BYTE_ARRAY => {
+                if self.descr.physical_type() != basic::Type::BYTE_ARRAY {
+                    return Err(DbError::new(
+                        "DELTA_LENGTH_BYTE_ARRAY only valid for BYTE_ARRAY",
+                    ));
+                }
+                let cursor = self.decompressed_page.take_remaining();
+                let verify_utf8 = true; // TODO
+                let dec = DeltaLengthByteArrayDecoder::try_new(
+                    cursor,
+                    self.state.remaining_page_values,
+                    verify_utf8,
+                )?;
+                self.state.page_decoder = Some(PageDecoder::DeltaLengthByteArray(dec));
+
+                Ok(())
+            }
             other => Err(DbError::new("Unsupported encoding").with_field("encoding", other)),
         }
     }

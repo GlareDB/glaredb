@@ -51,6 +51,7 @@ tokio = { workspace = true, default-features = false, features = ["macros", "rt"
 rand = { workspace = true, features = ["std", "std_rng"] }
 
 [features]
+default = ["zstd"]
 # Issues building for wasm on macos
 zstd = ["dep:zstd"]
 
