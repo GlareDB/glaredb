@@ -299,20 +299,20 @@ where
             // Otherwise need to compute the proper compressed size since data page
             // v2 leaves rep and def levels uncompressed.
 
-            let uncompressed_count =
+            let uncompressed_len =
                 (header.rep_levels_byte_len + header.def_levels_byte_len) as usize;
 
             // Copy in the uncompressed levels.
-            let levels_dest = &mut dest[..uncompressed_count];
-            let levels_src = Self::chunk_slice(&self.chunk, self.chunk_offset, uncompressed_count)?;
+            let levels_dest = &mut dest[..uncompressed_len];
+            let levels_src = Self::chunk_slice(&self.chunk, self.chunk_offset, uncompressed_len)?;
             levels_dest.copy_from_slice(levels_src);
-            self.chunk_offset += uncompressed_count;
+            self.chunk_offset += uncompressed_len;
 
             // Now copy in the compressed page.
-            let compressed_count = metadata.compressed_page_size as usize - uncompressed_count;
-            let page_dest = &mut dest[uncompressed_count..];
-            let page_src = Self::chunk_slice(&self.chunk, self.chunk_offset, compressed_count)?;
-            self.chunk_offset += compressed_count;
+            let compressed_len = metadata.compressed_page_size as usize - uncompressed_len;
+            let page_dest = &mut dest[uncompressed_len..];
+            let page_src = Self::chunk_slice(&self.chunk, self.chunk_offset, compressed_len)?;
+            self.chunk_offset += compressed_len;
 
             let codec = self.codec.as_ref().ok_or_else(|| {
                 DbError::new(
@@ -320,9 +320,16 @@ where
                 )
             })?;
 
-            codec
-                .decompress(page_src, page_dest)
-                .context("failed to decompress page")?;
+            if compressed_len > 0 {
+                // Only try to decompress if there's something to decompress.
+                //
+                // It's valid for a page to have zero bytes in the page in the
+                // case of all NULLs. Some codecs (snappy) don't like being
+                // handled zero bytes as input.
+                codec
+                    .decompress(page_src, page_dest)
+                    .context("failed to decompress page")?;
+            }
         }
 
         // Init scan state for v2 data pages. We should only be reading from the
