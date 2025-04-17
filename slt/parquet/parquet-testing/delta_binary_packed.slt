@@ -1,7 +1,7 @@
 # Test for 'delta_binary_packed.parquet'
 
-# statement ok
-# SET verify_optimized_plan TO true;
+statement ok
+SET verify_optimized_plan TO true;
 
 query TT
 DESCRIBE '../submodules/parquet-testing/data/delta_binary_packed.parquet'
@@ -136,211 +136,270 @@ SELECT min(bitwidth11), max(bitwidth11) FROM '../submodules/parquet-testing/data
 query II
 SELECT min(bitwidth12), max(bitwidth12) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-35523 2017
 
 query II
 SELECT min(bitwidth13), max(bitwidth13) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-4096 48649
 
 query II
 SELECT min(bitwidth14), max(bitwidth14) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-8244 65709
 
 query II
 SELECT min(bitwidth15), max(bitwidth15) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-106702 69786
 
 query II
 SELECT min(bitwidth16), max(bitwidth16) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-347012 162951
 
 query II
 SELECT min(bitwidth17), max(bitwidth17) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-1054098 0
 
 query II
 SELECT min(bitwidth18), max(bitwidth18) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-372793 664380
 
 query II
 SELECT min(bitwidth19), max(bitwidth19) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-402775 4001179
 
 query II
 SELECT min(bitwidth20), max(bitwidth20) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-4434785 788039
 
 query II
 SELECT min(bitwidth21), max(bitwidth21) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-1070042 12455554
 
 query II
 SELECT min(bitwidth22), max(bitwidth22) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-17987827 2189135
 
 query II
 SELECT min(bitwidth23), max(bitwidth23) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-19361900 25967351
 
 query II
 SELECT min(bitwidth24), max(bitwidth24) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-17271207 95688064
 
 query II
 SELECT min(bitwidth25), max(bitwidth25) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-18759951 169215083
 
 query II
 SELECT min(bitwidth26), max(bitwidth26) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-168761837 163626565
 
 query II
 SELECT min(bitwidth27), max(bitwidth27) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-736933601 131734874
 
 query II
 SELECT min(bitwidth28), max(bitwidth28) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-490714808 913547745
 
 query II
 SELECT min(bitwidth29), max(bitwidth29) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-5834684238 500305035
 
 query II
 SELECT min(bitwidth30), max(bitwidth30) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-7728643109 566280334
 
 query II
 SELECT min(bitwidth31), max(bitwidth31) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-2498101101 18831788461
 
 query II
 SELECT min(bitwidth32), max(bitwidth32) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-2147483648 23720914586
 
 query II
 SELECT min(bitwidth33), max(bitwidth33) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-4817999329 24075494509
 
 query II
 SELECT min(bitwidth34), max(bitwidth34) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-156025641218 12118456329
 
 query II
 SELECT min(bitwidth35), max(bitwidth35) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-114682966820 41614351758
 
 query II
 SELECT min(bitwidth36), max(bitwidth36) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-244178626927 82484946621
 
 query II
 SELECT min(bitwidth37), max(bitwidth37) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-275190620271 361459323159
 
 query II
 SELECT min(bitwidth38), max(bitwidth38) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-420452598502 1665294434042
 
 query II
 SELECT min(bitwidth39), max(bitwidth39) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-2926211785103 110454290134
 
 query II
 SELECT min(bitwidth40), max(bitwidth40) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-4988823342986 3215717068302
 
 query II
 SELECT min(bitwidth41), max(bitwidth41) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-6488418568768 2166086616318
 
 query II
 SELECT min(bitwidth42), max(bitwidth42) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-8738522616121 10182365256028
 
 query II
 SELECT min(bitwidth43), max(bitwidth43) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-21214625470327 22909885827147
 
 query II
 SELECT min(bitwidth44), max(bitwidth44) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-9796939892175 67902133645749
 
 query II
 SELECT min(bitwidth45), max(bitwidth45) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-102473613757961 199494208930939
 
 query II
 SELECT min(bitwidth46), max(bitwidth46) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-359696498357610 18564971260296
 
 query II
 SELECT min(bitwidth47), max(bitwidth47) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-933995610201533 65624006999260
 
 query II
 SELECT min(bitwidth48), max(bitwidth48) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-878019827431629 983500521840940
 
 query II
 SELECT min(bitwidth49), max(bitwidth49) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-2091164446177739 975533803684560
 
 query II
 SELECT min(bitwidth50), max(bitwidth50) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-5741928190724373 1276327559487856
 
 query II
 SELECT min(bitwidth51), max(bitwidth51) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-15996275819941210 0
 
 query II
 SELECT min(bitwidth52), max(bitwidth52) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-8823113595895130 12697545666077932
 
 query II
 SELECT min(bitwidth53), max(bitwidth53) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-24800000653307089 4785870085681342
 
 query II
 SELECT min(bitwidth54), max(bitwidth54) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-94647392931900711 26202576654140994
 
 query II
 SELECT min(bitwidth55), max(bitwidth55) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-32197353745654772 358302517069012889
 
 query II
 SELECT min(bitwidth56), max(bitwidth56) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-36028797018963968 678791154000627912
 
 query II
 SELECT min(bitwidth57), max(bitwidth57) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-79246600304853010 1444945950888122232
 
 query II
 SELECT min(bitwidth58), max(bitwidth58) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-1492687553985044679 140747723990970254
 
 query II
 SELECT min(bitwidth59), max(bitwidth59) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-3778424577629102559 6318360990909070
 
 query II
 SELECT min(bitwidth60), max(bitwidth60) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-576460752303423488 4574162334421819801
 
 query II
 SELECT min(bitwidth61), max(bitwidth61) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-1155450847100943978 8803535686130338880
 
 query II
 SELECT min(bitwidth62), max(bitwidth62) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-4454039315625288390 9026687750017193101
 
 query II
 SELECT min(bitwidth63), max(bitwidth63) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-9220123451143279334 9150047972721273816
 
 query II
 SELECT min(bitwidth64), max(bitwidth64) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
 ----
+-9223372036854775808 8846115173408951296
+
+# This one will trigger a wrapping add in the decoder.
+query II
+SELECT min(int_value), max(int_value) FROM '../submodules/parquet-testing/data/delta_binary_packed.parquet';
+----
+-2078683524 2142811258

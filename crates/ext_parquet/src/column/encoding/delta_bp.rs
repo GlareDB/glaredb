@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 
 use glaredb_core::arrays::array::Array;
 use glaredb_error::{DbError, Result};
+use num::traits::WrappingAdd;
 use num::{FromPrimitive, Zero};
 
 use super::Definitions;
@@ -36,7 +37,7 @@ where
 
 impl<T, V> DeltaBpDecoder<T, V>
 where
-    T: FromPrimitive + Zero + std::ops::Add + Copy + BitPackEncodeable + Debug,
+    T: FromPrimitive + Zero + WrappingAdd + Copy + BitPackEncodeable + Debug,
     V: ValueReader,
 {
     pub fn try_new(cursor: ReadCursor) -> Result<Self> {
@@ -114,7 +115,7 @@ struct DeltaBpDecoderInner<T> {
 
 impl<T> DeltaBpDecoderInner<T>
 where
-    T: FromPrimitive + Zero + std::ops::Add + Copy + BitPackEncodeable + Debug,
+    T: FromPrimitive + Zero + WrappingAdd + Copy + BitPackEncodeable + Debug,
 {
     fn try_new(mut cursor: ReadCursor) -> Result<Self> {
         // Header
@@ -189,7 +190,19 @@ where
 
             for output in unpack_buf {
                 // Final value is unpacked delta + min delta + prev value.
-                let final_v = *output + self.min_delta + self.prev_value;
+                //
+                // We want to allow overflow. From the spec:
+                //
+                // > Subtractions in steps 1) and 2) may incur signed arithmetic
+                // > overflow, and so will the corresponding additions when
+                // > decoding. Overflow should be allowed and handled as wrapping
+                // > around in 2's complement notation so that the original values
+                // > are correctly restituted. This may require explicit care in
+                // > some programming languages (for example by doing all
+                // > arithmetic in the unsigned domain).
+                let final_v = output
+                    .wrapping_add(&self.min_delta)
+                    .wrapping_add(&self.prev_value);
                 *output = final_v;
                 self.prev_value = final_v;
                 out_idx += 1;
