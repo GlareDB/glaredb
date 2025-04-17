@@ -1,6 +1,10 @@
-
 # Test for 'ARROW-GH-41321.parquet'
-# This file is from the bad_data directory which contains intentionally malformed parquet files
+#
+# ARROW-GH-41321.parquet: test case of apache/arrow#41321 where decoded rep /
+# def levels is less than num_values in page_header.
+
+# TODO
+# Error source: query failed: Cannot handle INT32 with logical type Some(Unknown) or converted type NONE
 
 statement ok
 SET verify_optimized_plan TO true;

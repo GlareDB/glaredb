@@ -1,11 +1,22 @@
-
 # Test for 'ARROW-RS-GH-6229-DICTHEADER.parquet'
-# This file is from the bad_data directory which contains intentionally malformed parquet files
+#
+# ARROW-RS-GH-6229-DICTHEADER.parquet: tests a case where the number of values
+# stored in dictionary page header is negative.
+
+# TODO: Gets stuck
 
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/bad_data/ARROW-RS-GH-6229-DICTHEADER.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/bad_data/ARROW-RS-GH-6229-DICTHEADER.parquet'
+----
+nation_key   Int32
+name         Binary
+region_key   Int32
+comment_col  Binary
 
+# query ITIT
+# SELECT nation_key, name::TEXT, region_key, comment_col::TEXT
+#   FROM '../submodules/parquet-testing/bad_data/ARROW-RS-GH-6229-DICTHEADER.parquet';
+# ----

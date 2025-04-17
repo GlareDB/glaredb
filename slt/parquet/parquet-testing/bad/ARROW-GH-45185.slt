@@ -1,6 +1,10 @@
-
 # Test for 'ARROW-GH-45185.parquet'
-# This file is from the bad_data directory which contains intentionally malformed parquet files
+#
+# ARROW-GH-45185.parquet: test case of apache/arrow#45185 where repetition
+# levels start with a 1 instead of 0.
+
+# TODO
+# Error source: query failed: Not yet implemented: Visit LIST with item
 
 statement ok
 SET verify_optimized_plan TO true;

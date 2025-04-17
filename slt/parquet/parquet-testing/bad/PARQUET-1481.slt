@@ -1,11 +1,11 @@
-
 # Test for 'PARQUET-1481.parquet'
-# This file is from the bad_data directory which contains intentionally malformed parquet files
+#
+# PARQUET-1481.parquet: tests a case where a schema Thrift value has been
+# corrupted.
 
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/bad_data/PARQUET-1481.parquet'
-# ----
+statement error unexpected parquet type: -7
+DESCRIBE '../submodules/parquet-testing/bad_data/PARQUET-1481.parquet'
 

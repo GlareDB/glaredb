@@ -1,6 +1,10 @@
-
 # Test for 'ARROW-GH-41317.parquet'
-# This file is from the bad_data directory which contains intentionally malformed parquet files
+#
+# ARROW-GH-41317.parquet: test case of apache/arrow#41317 where all columns have
+# not the same size.
+
+# TODO
+# Error source: query failed: Cannot handle INT32 with logical type Some(Unknown) or converted type NONE
 
 statement ok
 SET verify_optimized_plan TO true;

@@ -1,6 +1,10 @@
-
 # Test for 'ARROW-RS-GH-6229-LEVELS.parquet'
-# This file is from the bad_data directory which contains intentionally malformed parquet files
+#
+# ARROW-RS-GH-6229-LEVELS.parquet: tests a case where a page has insufficient
+# repetition levels.
+
+# TODO
+# Error source: query failed: Not yet implemented: Visit LIST with item
 
 statement ok
 SET verify_optimized_plan TO true;
