@@ -128,6 +128,12 @@ where
                     offset,
                     count,
                 )?,
+                PageDecoder::DeltaBinaryPackedI32(dec) => {
+                    dec.read(definitions, output, offset, count)?
+                }
+                PageDecoder::DeltaBinaryPackedI64(dec) => {
+                    dec.read(definitions, output, offset, count)?
+                }
             }
 
             // Update page reader state.

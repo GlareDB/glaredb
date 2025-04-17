@@ -158,6 +158,22 @@ unsafe impl Sync for ReadCursor {}
 unsafe impl Send for ReadCursor {}
 
 impl ReadCursor {
+    /// Create a read cursor from a slice.
+    ///
+    /// # Safety
+    ///
+    /// The _creation_ of this read buffer is always safe, however to read
+    /// values from it requires that the slice outlives this cursor.
+    pub fn from_slice<T>(slice: &[T]) -> Self {
+        let ptr = slice.as_ptr().cast();
+        let remaining = std::mem::size_of_val(slice);
+
+        ReadCursor {
+            curr: ptr,
+            remaining,
+        }
+    }
+
     /// Skips the pointer forward some number of bytes.
     pub unsafe fn skip_bytes_unchecked(&mut self, num_bytes: usize) {
         unsafe {

@@ -8,7 +8,8 @@ use super::encoding::dictionary::{Dictionary, DictionaryDecoder};
 use super::encoding::rle_bp::RleBpDecoder;
 use super::read_buffer::OwnedReadBuffer;
 use super::value_reader::ValueReader;
-use crate::basic::Encoding;
+use crate::basic::{self, Encoding};
+use crate::column::encoding::delta_bp::DeltaBpDecoder;
 use crate::column::encoding::plain::PlainDecoder;
 use crate::compression::Codec;
 use crate::format;
@@ -284,7 +285,8 @@ where
         // SAFETY: No concurrent reads.
         let dest = unsafe { self.decompressed_page.remaining_as_slice_mut() };
 
-        if !header.is_compressed {
+        let is_compressed = self.codec.is_some();
+        if !is_compressed {
             // Can just read as-is.
             let src = Self::chunk_slice(
                 &self.chunk,
@@ -314,8 +316,8 @@ where
 
             let codec = self.codec.as_ref().ok_or_else(|| {
                 DbError::new(
-                "Page header indicates page is compressed, but we don't have a codec configured",
-            )
+                    "Page header indicates page is compressed, but we don't have a codec configured",
+                )
             })?;
 
             codec
@@ -349,7 +351,7 @@ where
         if self.descr.max_def_level > 0 {
             // V2 only supports RLE for def levels.
             self.state.definitions = Some(get_level_decoder(
-                self.descr.max_rep_level,
+                self.descr.max_def_level,
                 header.def_levels_byte_len as usize,
             )?);
         }
@@ -365,7 +367,6 @@ where
     /// Should only be called after we've processed a page header.
     fn init_page_decoder(&mut self, encoding: Encoding) -> Result<()> {
         // TODO: Document the `take_remaining` stuff a bit better.
-
         match encoding {
             Encoding::PLAIN => {
                 let dec = PlainDecoder {
@@ -388,6 +389,27 @@ where
 
                 Ok(())
             }
+            Encoding::DELTA_BINARY_PACKED => match self.descr.physical_type() {
+                basic::Type::INT32 => {
+                    // Creating the deocder will reader the header.
+                    let read_buffer = self.decompressed_page.take_remaining();
+                    let dec = DeltaBpDecoder::<i32, V>::try_new(read_buffer)?;
+                    self.state.page_decoder = Some(PageDecoder::DeltaBinaryPackedI32(dec));
+
+                    Ok(())
+                }
+                basic::Type::INT64 => {
+                    // See above
+                    let read_buffer = self.decompressed_page.take_remaining();
+                    let dec = DeltaBpDecoder::<i64, V>::try_new(read_buffer)?;
+                    self.state.page_decoder = Some(PageDecoder::DeltaBinaryPackedI64(dec));
+
+                    Ok(())
+                }
+                other => Err(DbError::new(format!(
+                    "Unsupported physical type for delta binary packed encoding: {other:?}"
+                ))),
+            },
             other => Err(DbError::new("Unsupported encoding").with_field("encoding", other)),
         }
     }

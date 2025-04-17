@@ -1,4 +1,5 @@
 use glaredb_error::{DbError, Result};
+use num::Zero;
 
 use super::read_buffer::ReadCursor;
 
@@ -46,27 +47,56 @@ where
     T: BitPackEncodeable,
 {
     let mask = BITPACK_MASKS[state.bit_width as usize];
+    let w = state.bit_width;
+
+    // TODO: Put in aligned unpacking.
+
+    if mask == 0 {
+        // Special case on bitwidth == 0.
+        out.fill(T::zero());
+        return Ok(());
+    }
+
+    if w > 64 {
+        return Err(DbError::new("bit width greater than 64 not supported"));
+    }
 
     for dst in out {
-        // Read the current byte without advancing.
-        let current = unsafe { cursor.peek_next_unchecked::<u8>() };
-        let mut v = ((current >> state.bit_pos) as u64) & mask;
-        state.bit_pos += state.bit_width;
-        // If the new bit position goes past the end of the byte, read subsequent bytes.
-        while state.bit_pos > BYTE_WIDTH {
-            // Advance one byte.
-            let _ = unsafe { cursor.read_next_unchecked::<u8>() };
-            let next = unsafe { cursor.peek_next_unchecked::<u8>() };
-            let shift_amount = BYTE_WIDTH - (state.bit_pos - state.bit_width);
-            v |= ((next as u64) << shift_amount) & mask;
-            state.bit_pos -= BYTE_WIDTH;
+        let mut bits_needed = w;
+        let mut value: u64 = 0;
+        // We'll assemble the w bits into `value` from LSB->MSB.
+        let mut bit_offset_in_value = 0;
+
+        let mut cur_bit_pos = state.bit_pos;
+
+        while bits_needed > 0 {
+            // Peek the current byte
+            let byte = unsafe { cursor.peek_next_unchecked::<u8>() } as u64;
+            let bits_available = BYTE_WIDTH - cur_bit_pos; // How many bits left in this byte
+            let take = bits_needed.min(bits_available);
+
+            // Mask out exactly `take` bits startg at cur_bit_pos.
+            let mask = ((1u64 << take) - 1) << cur_bit_pos;
+            let chunk = (byte & mask) >> cur_bit_pos;
+
+            // Place in value.
+            value |= chunk << bit_offset_in_value;
+
+            // Advance...
+            bits_needed -= take;
+            bit_offset_in_value += take;
+            cur_bit_pos += take;
+
+            // If we’ve consumed the whole byte, advance the cursor
+            if cur_bit_pos == BYTE_WIDTH {
+                let _ = unsafe { cursor.read_next_unchecked::<u8>() };
+                cur_bit_pos = 0;
+            }
         }
-        // If we've exactly consumed a byte, advance the cursor.
-        if state.bit_pos == BYTE_WIDTH {
-            let _ = unsafe { cursor.read_next_unchecked::<u8>() };
-            state.bit_pos = 0;
-        }
-        *dst = T::from_u64(v);
+
+        // Update state with current position.
+        state.bit_pos = cur_bit_pos;
+        *dst = T::from_u64(value);
     }
 
     Ok(())
@@ -124,9 +154,20 @@ pub fn read_unsigned_vlq(cursor: &mut ReadCursor) -> Result<u64> {
     Ok(result)
 }
 
+/// Decodes a ZigZag-encoded unsigned integer into a signed value.
+pub fn zigzag_decode(n: u64) -> i64 {
+    ((n >> 1) as i64) ^ (-((n & 1) as i64))
+}
+
+/// Encodes a signed integer into a ZigZag-encoded unsigned integer.
+#[allow(unused)]
+pub fn zigzag_encode(n: i64) -> u64 {
+    ((n << 1) ^ (n >> 63)) as u64
+}
+
 /// BitPackEncodeable trait allows converting from a u64 to the target type.
 /// Only the least-significant bytes that fit in the type will be used.
-pub trait BitPackEncodeable: Copy {
+pub trait BitPackEncodeable: Zero + Copy {
     /// Convert a u64 to Self.
     fn from_u64(v: u64) -> Self;
 }
@@ -159,6 +200,36 @@ mod tests {
 
     use super::*;
     use crate::column::read_buffer::OwnedReadBuffer;
+
+    #[test]
+    fn zigzag_decode_tests() {
+        // (zigzag encoded, decoded signed integer)
+        let cases: &[(u64, i64)] = &[
+            (0, 0),
+            (1, -1),
+            (2, 1),
+            (3, -2),
+            (4, 2),
+            (5, -3),
+            (6, 3),
+            (7, -4),
+        ];
+
+        for &(encoded, expected) in cases {
+            let got = zigzag_decode(encoded);
+            assert_eq!(expected, got, "zigzag encoded: {encoded}")
+        }
+    }
+
+    #[test]
+    fn bit_unpacker_u8_bit_width_0() {
+        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, []).unwrap();
+        let mut cursor = buf.take_remaining();
+        let mut out = [4u8; 8]; // Just to make sure we zero everything out.
+        let mut state = BitUnpackState::new(0);
+        bit_unpack::<u8>(&mut state, &mut cursor, &mut out).unwrap();
+        assert_eq!(out, [0, 0, 0, 0, 0, 0, 0, 0]);
+    }
 
     #[test]
     fn bit_unpacker_u8_bit_width_1() {
