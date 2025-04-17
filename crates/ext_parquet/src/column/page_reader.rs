@@ -323,9 +323,9 @@ where
             if compressed_len > 0 {
                 // Only try to decompress if there's something to decompress.
                 //
-                // It's valid for a page to have zero bytes in the page in the
-                // case of all NULLs. Some codecs (snappy) don't like being
-                // handled zero bytes as input.
+                // It's valid for a page to contain zero bytes in the case of
+                // all NULLs. Some codecs (snappy) don't like being handed zero
+                // bytes as input.
                 codec
                     .decompress(page_src, page_dest)
                     .context("failed to decompress page")?;
