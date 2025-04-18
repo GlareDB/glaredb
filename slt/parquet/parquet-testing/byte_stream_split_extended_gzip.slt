@@ -1,5 +1,7 @@
 # Test for 'byte_stream_split_extended.gzip.parquet'
 
+# TODO: Byte stream split on fixed len byte array
+
 statement ok
 SET verify_optimized_plan TO true;
 

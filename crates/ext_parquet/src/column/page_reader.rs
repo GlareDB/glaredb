@@ -503,9 +503,9 @@ where
                     _ =>
                     // TODO: Fixed len byte array
                     {
-                        Err(DbError::new(format!(
-                            "BYTE_STREAM_SPLIT only valid for INT32, INT64, FLOAT, DOUBLE"
-                        )))
+                        Err(DbError::new(
+                            "BYTE_STREAM_SPLIT only valid for INT32, INT64, FLOAT, DOUBLE",
+                        ))
                     }
                 }
             }
