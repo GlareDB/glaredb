@@ -189,6 +189,23 @@ impl ReadCursor {
         }
     }
 
+    /// Takes `num_bytes` from this cursor, returning a new cursor contain those
+    /// bytes.
+    ///
+    /// Advances this cursor by `num_bytes` bytes.
+    pub unsafe fn take(&mut self, num_bytes: usize) -> Self {
+        debug_assert!(self.remaining >= num_bytes);
+
+        let sliced = ReadCursor {
+            curr: self.curr,
+            remaining: num_bytes,
+        };
+
+        unsafe { self.skip_bytes_unchecked(num_bytes) };
+
+        sliced
+    }
+
     /// Reads the next value from the buffer, incrementing the internal pointer.
     ///
     /// # Safety

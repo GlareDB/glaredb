@@ -22,6 +22,7 @@ use crate::column::read_buffer::ReadCursor;
 ///
 /// The caller must guarantee that we have sufficient data in the buffer to read
 /// a complete value.
+// TODO: Add Fixed/Variable associated constant.
 pub trait ValueReader: Default + Debug + Sync + Send {
     type Storage: MutableScalarStorage;
 

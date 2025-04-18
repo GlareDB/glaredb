@@ -3,6 +3,23 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/byte_stream_split.zstd.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/data/byte_stream_split.zstd.parquet'
+----
+f32  Float32
+f64  Float64
+
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/byte_stream_split.zstd.parquet';
+----
+300
+
+query RR
+SELECT min(f32), max(f32) FROM '../submodules/parquet-testing/data/byte_stream_split.zstd.parquet';
+----
+-2.7725928  2.3831449
+
+query RR
+SELECT min(f64), max(f64) FROM '../submodules/parquet-testing/data/byte_stream_split.zstd.parquet';
+----
+-3.0461430547999266 2.6962240525635797
