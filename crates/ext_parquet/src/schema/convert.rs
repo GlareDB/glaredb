@@ -83,7 +83,7 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 (None, basic::ConvertedType::INT_32) => Ok(DataType::Int32),
                 (None, basic::ConvertedType::DATE) => Ok(DataType::Date32),
                 (None, basic::ConvertedType::DECIMAL) => {
-                    decimal128_with_prec_scale(prim.precision, prim.scale)
+                    decimal64_with_prec_scale(prim.precision, prim.scale)
                 }
                 (None, basic::ConvertedType::TIME_MILLIS) => Ok(DataType::Timestamp(
                     TimestampTypeMeta::new(TimeUnit::Millisecond),
@@ -131,7 +131,7 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 (None, basic::ConvertedType::INT_64) => Ok(DataType::Int64),
                 (None, basic::ConvertedType::UINT_64) => Ok(DataType::UInt64),
                 (None, basic::ConvertedType::DECIMAL) => {
-                    decimal128_with_prec_scale(prim.precision, prim.scale)
+                    decimal64_with_prec_scale(prim.precision, prim.scale)
                 }
                 (
                     Some(basic::LogicalType::Integer {
@@ -192,6 +192,17 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
         }
         other => not_implemented!("{other:?}"),
     }
+}
+
+fn decimal64_with_prec_scale(prec: i32, scale: i32) -> Result<DataType> {
+    let prec: u8 = prec.try_into()?;
+    let scale: i8 = scale.try_into()?;
+
+    let meta = DecimalTypeMeta::new(prec, scale);
+
+    // TODO: Validate prec/scale.
+
+    Ok(DataType::Decimal64(meta))
 }
 
 fn decimal128_with_prec_scale(prec: i32, scale: i32) -> Result<DataType> {

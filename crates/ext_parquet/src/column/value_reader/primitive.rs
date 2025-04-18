@@ -68,6 +68,9 @@ pub type CastingInt32ToUInt16Reader = CastingValueReader<i32, PhysicalU16>;
 // INT32 => LogicalType::UInt32
 pub type CastingInt32ToUInt32Reader = CastingValueReader<i32, PhysicalU32>;
 
+// INT32 => LogicalType::Int64 (for Decimal64)
+pub type CastingInt32ToInt64Reader = CastingValueReader<i32, PhysicalI64>;
+
 // INT64 => LogicalType::UInt64
 pub type CastingInt64ToUInt64Reader = CastingValueReader<i64, PhysicalU64>;
 

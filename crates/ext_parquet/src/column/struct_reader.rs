@@ -10,6 +10,7 @@ use super::value_reader::int96::Int96TsReader;
 use super::value_reader::primitive::{
     CastingInt32ToInt8Reader,
     CastingInt32ToInt16Reader,
+    CastingInt32ToInt64Reader,
     CastingInt32ToUInt8Reader,
     CastingInt32ToUInt16Reader,
     CastingInt32ToUInt32Reader,
@@ -93,6 +94,15 @@ pub(crate) fn new_column_reader(
         DataType::Float64 => Box::new(ValueColumnReader::<PlainFloat64ValueReader>::try_new(
             manager, datatype, descr,
         )?),
+        DataType::Decimal64(_) => match descr.physical_type() {
+            basic::Type::INT32 => Box::new(
+                ValueColumnReader::<CastingInt32ToInt64Reader>::try_new(manager, datatype, descr)?,
+            ),
+            basic::Type::INT64 => Box::new(ValueColumnReader::<PlainInt64ValueReader>::try_new(
+                manager, datatype, descr,
+            )?),
+            other => not_implemented!("decimal64 reader for physical type: {other:?}"),
+        },
         DataType::Timestamp(m) => match (m.unit, descr.physical_type()) {
             (TimeUnit::Nanosecond, basic::Type::INT64) => {
                 Box::new(ValueColumnReader::<PlainTsNsValueReader>::try_new(
@@ -104,7 +114,7 @@ pub(crate) fn new_column_reader(
                     manager, datatype, descr,
                 )?)
             }
-            other => not_implemented!("timestamp reader for data type: {other:?}"),
+            other => not_implemented!("timestamp reader for physical type: {other:?}"),
         },
         DataType::Utf8 => Box::new(ValueColumnReader::<VarlenByteValueReader>::try_new(
             manager, datatype, descr,
