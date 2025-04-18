@@ -13,6 +13,7 @@ use crate::basic::{self, Encoding};
 use crate::column::encoding::delta_binary_packed::DeltaBinaryPackedDecoder;
 use crate::column::encoding::delta_byte_array::DeltaByteArrayDecoder;
 use crate::column::encoding::plain::PlainDecoder;
+use crate::column::encoding::rle_bit_packed::RleBoolDecoder;
 use crate::compression::Codec;
 use crate::format;
 use crate::page::{
@@ -255,16 +256,18 @@ where
             if header.rep_level_encoding != Encoding::RLE {
                 return Err(DbError::new("RLE encoding required for repetition levels"));
             }
-
             self.state.repetitions = Some(get_level_decoder(self.descr.max_rep_level)?);
+        } else {
+            self.state.repetitions = None;
         }
 
         if self.descr.max_def_level > 0 {
             if header.def_level_encoding != Encoding::RLE {
                 return Err(DbError::new("RLE encoding required for definition levels"));
             }
-
             self.state.definitions = Some(get_level_decoder(self.descr.max_def_level)?);
+        } else {
+            self.state.definitions = None;
         }
 
         // Prepare decoder.
@@ -343,26 +346,44 @@ where
 
         self.state.remaining_page_values = header.num_values as usize;
 
-        let mut get_level_decoder = |max: i16, len: usize| -> Result<RleBitPackedDecoder> {
-            let read_buffer = self.decompressed_page.take_next(len)?;
-            let bit_width = num_required_bits(max as u64);
-            Ok(RleBitPackedDecoder::new(read_buffer, bit_width))
-        };
+        let get_level_decoder =
+            |page: &mut OwnedReadBuffer, max: i16, len: usize| -> Result<RleBitPackedDecoder> {
+                let read_buffer = page.take_next(len)?;
+                let bit_width = num_required_bits(max as u64);
+                Ok(RleBitPackedDecoder::new(read_buffer, bit_width))
+            };
 
         if self.descr.max_rep_level > 0 {
             // V2 only supports RLE for rep levels.
             self.state.repetitions = Some(get_level_decoder(
+                &mut self.decompressed_page,
                 self.descr.max_rep_level,
                 header.rep_levels_byte_len as usize,
             )?);
+        } else {
+            // Turns out, you can have junk bytes in the repetition levels even
+            // when the max level is zero.
+            if header.rep_levels_byte_len > 0 {
+                self.decompressed_page
+                    .skip(header.rep_levels_byte_len as usize)?
+            }
+            self.state.repetitions = None;
         }
 
         if self.descr.max_def_level > 0 {
             // V2 only supports RLE for def levels.
             self.state.definitions = Some(get_level_decoder(
+                &mut self.decompressed_page,
                 self.descr.max_def_level,
                 header.def_levels_byte_len as usize,
             )?);
+        } else {
+            // See repetitions...
+            if header.def_levels_byte_len > 0 {
+                self.decompressed_page
+                    .skip(header.def_levels_byte_len as usize)?
+            }
+            self.state.definitions = None;
         }
 
         // Prepare decoder.
@@ -395,6 +416,23 @@ where
                 let rle = RleBitPackedDecoder::new(read_buffer, bit_width);
                 let dec = DictionaryDecoder::new(rle);
                 self.state.page_decoder = Some(PageDecoder::Dictionary(dec));
+
+                Ok(())
+            }
+            Encoding::RLE => {
+                if self.descr.physical_type() != basic::Type::BOOLEAN {
+                    return Err(DbError::new("RLE only valid for BOOL"));
+                }
+
+                let mut cursor = self.decompressed_page.take_remaining();
+
+                // Format: rle-bit-packed-hybrid: <length> <encoded-data>
+                //
+                // Remove the length from the cursor, we don't need it. Cursor
+                // is already the exact size.
+                let _ = unsafe { cursor.read_next_unchecked::<u32>() };
+                let dec = RleBoolDecoder::new(cursor);
+                self.state.page_decoder = Some(PageDecoder::RleBool(dec));
 
                 Ok(())
             }

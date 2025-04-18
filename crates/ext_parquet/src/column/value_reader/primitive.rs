@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
+    PhysicalBool,
     PhysicalF32,
     PhysicalF64,
     PhysicalI8,

@@ -8,6 +8,28 @@ DESCRIBE '../submodules/parquet-testing/data/rle_boolean_encoding.parquet'
 ----
 datatype_boolean  Boolean
 
-# query I
-# SELECT count(*) FROM '../submodules/parquet-testing/data/rle_boolean_encoding.parquet';
-# ----
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/rle_boolean_encoding.parquet';
+----
+68
+
+query I
+SELECT count(*)
+  FROM '../submodules/parquet-testing/data/rle_boolean_encoding.parquet'
+  WHERE datatype_boolean IS TRUE;
+----
+36
+
+query I
+SELECT count(*)
+  FROM '../submodules/parquet-testing/data/rle_boolean_encoding.parquet'
+  WHERE datatype_boolean IS FALSE;
+----
+26
+
+query I
+SELECT count(*)
+  FROM '../submodules/parquet-testing/data/rle_boolean_encoding.parquet'
+  WHERE datatype_boolean IS NULL;
+----
+6
