@@ -3,6 +3,71 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/delta_encoding_required_column.parquet'
-# ----
+# wtf?
+query TT
+DESCRIBE '../submodules/parquet-testing/data/delta_encoding_required_column.parquet'
+----
+c_customer_sk:           Int32
+c_current_cdemo_sk:      Int32
+c_current_hdemo_sk:      Int32
+c_current_addr_sk:       Int32
+c_first_shipto_date_sk:  Int32
+c_first_sales_date_sk:   Int32
+c_birth_day:             Int32
+c_birth_month:           Int32
+c_birth_year:            Int32
+c_customer_id:           Utf8
+c_salutation:            Utf8
+c_first_name:            Utf8
+c_last_name:             Utf8
+c_preferred_cust_flag:   Utf8
+c_birth_country:         Utf8
+c_email_address:         Utf8
+c_last_review_date:      Utf8
+
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/delta_encoding_required_column.parquet';
+----
+100
+
+query ???????????????
+SELECT *
+  FROM '../submodules/parquet-testing/data/delta_encoding_required_column.parquet'
+  WHERE "c_customer_sk:" = 1
+----
+1 980124 7135 32946 2452238 2452208 9 12 1936 AAAAAAAABAAAAAAA Mr. Javier Lewis Y CHILE Javier.Lewis@VFAxlnZEvOx.org 2452508
+
+query ???????????????
+SELECT *
+  FROM '../submodules/parquet-testing/data/delta_encoding_required_column.parquet'
+  WHERE "c_customer_sk:" = 2
+----
+2 819667 1461 31655 2452318 2452288 9 4 1966 AAAAAAAACAAAAAAA Dr. Amy Moses Y TOGO Amy.Moses@Ovk9KjHH.com 2452318
+
+query ???????????????
+SELECT *
+  FROM '../submodules/parquet-testing/data/delta_encoding_required_column.parquet'
+  WHERE "c_customer_sk:" = 55
+----
+55 783093 1151 23256 2451539 2451509 12 8 1933 AAAAAAAAHDAAAAAA Dr. Beryl Thomason N UNITED KINGDOM Beryl.Thomason@OeqefhtCmZTAj.com 2452380
+
+query ???????????????
+SELECT *
+  FROM '../submodules/parquet-testing/data/delta_encoding_required_column.parquet'
+  WHERE "c_customer_sk:" = 99
+----
+99 622676 2152 17228 2451687 2451657 9 12 1961 AAAAAAAADGAAAAAA Sir Austin Tran Y NAMIBIA Austin.Tran@ect7cnjLsucbd.edu 2452437
+
+query ???????????????
+SELECT *
+  FROM '../submodules/parquet-testing/data/delta_encoding_required_column.parquet'
+  WHERE "c_customer_sk:" = 100
+----
+100 1254468 6370 6672 2449148 2449118 13 7 1958 AAAAAAAAEGAAAAAA Ms. Jeannette Johnson Y BANGLADESH Jeannette.Johnson@8BvSqgp.com 2452635
+
+query ???????????????
+SELECT *
+  FROM '../submodules/parquet-testing/data/delta_encoding_required_column.parquet'
+  WHERE "c_customer_sk:" = 105
+----
+105 949850 383 46916 2452463 2452433 14 1 1945 AAAAAAAAJGAAAAAA Dr. Frank Strain Y VIRGIN ISLANDS, U.S. Frank.Strain@MbOHByB.edu 2452378
