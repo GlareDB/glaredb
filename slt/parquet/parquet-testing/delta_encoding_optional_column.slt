@@ -25,6 +25,6 @@ c_email_address         Utf8
 c_last_review_date      Utf8
 
 
-# query ??
-# SELECT * FROM '../submodules/parquet-testing/data/delta_encoding_optional_column.parquet';
-# ----
+query ??
+SELECT * FROM '../submodules/parquet-testing/data/delta_encoding_optional_column.parquet';
+----

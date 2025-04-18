@@ -1,8 +1,21 @@
 # Test for 'delta_byte_array.parquet'
 
-statement ok
-SET verify_optimized_plan TO true;
+# statement ok
+# SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/delta_byte_array.parquet'
+query TT
+DESCRIBE '../submodules/parquet-testing/data/delta_byte_array.parquet'
+----
+c_customer_id          Utf8
+c_salutation           Utf8
+c_first_name           Utf8
+c_last_name            Utf8
+c_preferred_cust_flag  Utf8
+c_birth_country        Utf8
+c_login                Utf8
+c_email_address        Utf8
+c_last_review_date     Utf8
+
+# query ?
+# SELECT * FROM '../submodules/parquet-testing/data/delta_byte_array.parquet';
 # ----

@@ -34,22 +34,32 @@ pub struct DeltaByteArrayDecoder {
 }
 
 impl DeltaByteArrayDecoder {
-    pub fn try_new(cursor: ReadCursor, num_values: usize, verify_utf8: bool) -> Result<Self> {
+    pub fn try_new(cursor: ReadCursor, verify_utf8: bool) -> Result<Self> {
         // Read delta binary packed lengths.
-        let read_lengths = |cursor| -> Result<(_, _)> {
+        let read_lengths = |cursor| -> Result<(_, _, _)> {
             // TODO: Not Nop
+            let mut dec = DeltaBinaryPackedValueDecoder::<i32>::try_new(cursor)?;
+            let num_values = dec.total_values();
+
             let mut lengths = TypedBuffer::<i32>::try_with_capacity(&NopBufferManager, num_values)?;
             let len_slice = &mut lengths.as_slice_mut()[..num_values]; // May overallocate
-            let mut dec = DeltaBinaryPackedValueDecoder::<i32>::try_new(cursor)?;
             dec.read(len_slice)?;
 
             let cursor = dec.try_into_cursor()?;
 
-            Ok((lengths, cursor))
+            Ok((lengths, cursor, num_values))
         };
 
-        let (prefix_lengths, cursor) = read_lengths(cursor)?;
-        let (suffix_lengths, cursor) = read_lengths(cursor)?;
+        let (prefix_lengths, cursor, prefix_count) = read_lengths(cursor)?;
+        let (suffix_lengths, cursor, suffix_count) = read_lengths(cursor)?;
+
+        if prefix_count != suffix_count {
+            return Err(
+                DbError::new("Decoded different number of prefix and suffix lengths")
+                    .with_field("prefix", prefix_count)
+                    .with_field("suffix", suffix_count),
+            );
+        }
 
         Ok(DeltaByteArrayDecoder {
             verify_utf8,
