@@ -38,7 +38,7 @@ dependencies = [
  "cfg-if",
  "once_cell",
  "version_check",
- "zerocopy 0.7.32",
+ "zerocopy",
 ]
 
 [[package]]
@@ -798,7 +798,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "lz4_flex",
  "num",
- "rand 0.9.0",
+ "rand 0.9.1",
  "seq-macro",
  "snap",
  "tempfile",
@@ -1052,7 +1052,7 @@ dependencies = [
  "num-traits",
  "num_cpus",
  "parking_lot",
- "rand 0.9.0",
+ "rand 0.9.1",
  "rayon",
  "regex",
  "scc",
@@ -1159,7 +1159,7 @@ dependencies = [
  "glaredb_error",
  "glaredb_rt_native",
  "libtest-mimic",
- "rand 0.9.0",
+ "rand 0.9.1",
  "sqllogictest",
  "tokio",
  "tracing",
@@ -2170,7 +2170,7 @@ checksum = "b820744eb4dc9b57a3398183639c511b5a26d2ed702cedd3febaa1393caa22cc"
 dependencies = [
  "bytes",
  "getrandom 0.3.2",
- "rand 0.9.0",
+ "rand 0.9.1",
  "ring",
  "rustc-hash",
  "rustls",
@@ -2224,13 +2224,12 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3779b94aeb87e8bd4e834cee3650289ee9e0d5677f976ecdb6d219e5f4f6cd94"
+checksum = "9fbfd9d094a40bf3ae768db9361049ace4c0e04a4fd6b359518bd7b73a73dd97"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
- "zerocopy 0.8.23",
 ]
 
 [[package]]
@@ -3706,16 +3705,7 @@ version = "0.7.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74d4d3961e53fa4c9a25a8637fc2bfaf2595b3d3ae34875568a5cf64787716be"
 dependencies = [
- "zerocopy-derive 0.7.32",
-]
-
-[[package]]
-name = "zerocopy"
-version = "0.8.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd97444d05a4328b90e75e503a34bad781f14e28a823ad3557f0750df1ebcbc6"
-dependencies = [
- "zerocopy-derive 0.8.23",
+ "zerocopy-derive",
 ]
 
 [[package]]
@@ -3723,17 +3713,6 @@ name = "zerocopy-derive"
 version = "0.7.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ce1b18ccd8e73a9321186f97e46f9f04b778851177567b1975109d26a08d2a6"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "zerocopy-derive"
-version = "0.8.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6352c01d0edd5db859a63e2605f4ea3183ddbd15e2c4a9e7d32184df75e4f154"
 dependencies = [
  "proc-macro2",
  "quote",
