@@ -14,7 +14,13 @@ DESCRIBE '../submodules/parquet-testing/bad_data/ARROW-GH-43605.parquet'
 ----
 min_fl  UInt16
 
-# query I
-# SELECT * FROM '../submodules/parquet-testing/bad_data/ARROW-GH-43605.parquet'
-# ----
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/bad_data/ARROW-GH-43605.parquet'
+----
+21186
 
+# All zero
+query I
+SELECT sum(min_fl) FROM '../submodules/parquet-testing/bad_data/ARROW-GH-43605.parquet'
+----
+0

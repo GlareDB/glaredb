@@ -1,7 +1,5 @@
 # Test for 'page_v2_empty_compressed.parquet'
 
-# TODO: Error source: query failed: Disabled feature at compile time: zstd
-
 statement ok
 SET verify_optimized_plan TO true;
 
@@ -10,6 +8,16 @@ DESCRIBE '../submodules/parquet-testing/data/page_v2_empty_compressed.parquet'
 ----
 integer_column Int32
 
-# query I
-# SELECT count(*) FROM '../submodules/parquet-testing/data/page_v2_empty_compressed.parquet';
-# ----
+query I
+SELECT * FROM '../submodules/parquet-testing/data/page_v2_empty_compressed.parquet';
+----
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
