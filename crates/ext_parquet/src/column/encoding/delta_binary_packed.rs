@@ -25,25 +25,25 @@ use crate::column::value_reader::ValueReader;
 // TODO: We can probably attach the physical type to the value reader instead of
 // need to have it as separate generic.
 #[derive(Debug)]
-pub struct DeltaBpDecoder<T, V>
+pub struct DeltaBinaryPackedDecoder<T, V>
 where
     V: ValueReader,
 {
     // TODO: Make this buffer managed, probably with a typed buffer.
     delta_buffer: Vec<T>,
-    inner: DeltaBpDecoderInner<T>,
+    inner: DeltaBinaryPackedValueDecoder<T>,
     _v: PhantomData<V>,
 }
 
-impl<T, V> DeltaBpDecoder<T, V>
+impl<T, V> DeltaBinaryPackedDecoder<T, V>
 where
     T: FromPrimitive + Zero + WrappingAdd + Copy + BitPackEncodeable + Debug,
     V: ValueReader,
 {
     pub fn try_new(cursor: ReadCursor) -> Result<Self> {
-        let inner = DeltaBpDecoderInner::try_new(cursor)?;
+        let inner = DeltaBinaryPackedValueDecoder::try_new(cursor)?;
 
-        Ok(DeltaBpDecoder {
+        Ok(DeltaBinaryPackedDecoder {
             delta_buffer: Vec::new(),
             inner,
             _v: PhantomData,
@@ -91,7 +91,7 @@ where
 }
 
 #[derive(Debug)]
-struct DeltaBpDecoderInner<T> {
+pub(crate) struct DeltaBinaryPackedValueDecoder<T> {
     /// Cursor we're reading from.
     cursor: ReadCursor,
     /// Number of miniblocks.
@@ -113,11 +113,14 @@ struct DeltaBpDecoderInner<T> {
     bit_unpack_state: BitUnpackState,
 }
 
-impl<T> DeltaBpDecoderInner<T>
+impl<T> DeltaBinaryPackedValueDecoder<T>
 where
     T: FromPrimitive + Zero + WrappingAdd + Copy + BitPackEncodeable + Debug,
 {
-    fn try_new(mut cursor: ReadCursor) -> Result<Self> {
+    /// Try to create a new decoder using the provide cursor.
+    ///
+    /// This will attempt to read the header values and the first miniblock.
+    pub fn try_new(mut cursor: ReadCursor) -> Result<Self> {
         // Header
         // <block size in values>
         // <number of miniblocks in a block>
@@ -158,7 +161,12 @@ where
         Ok(inner)
     }
 
-    fn read(&mut self, out: &mut [T]) -> Result<()> {
+    /// Read `out` values.
+    ///
+    /// `out` should be a known length.
+    // TODO: What happens if `out` isn't a known length? What if it's larger
+    // than the actual number of values?
+    pub fn read(&mut self, out: &mut [T]) -> Result<()> {
         if out.is_empty() {
             return Ok(());
         }
@@ -219,6 +227,37 @@ where
         Ok(())
     }
 
+    /// Try to get the underlying cursor from this decoder, advancing the cursor
+    /// past the end of the last miniblock.
+    pub fn try_into_cursor(mut self) -> Result<ReadCursor> {
+        // TODO: Error if we're not actually in the last miniblock. This method
+        // should only be called when reading the lengths for the other delta...
+        // encodings which should always read the full set of value.
+
+        // > If there are not enough values to fill the last miniblock, we pad
+        // > the miniblock so that its length is always the number of values in
+        // > a full miniblock multiplied by the bit width. The values of the
+        // > padding bits should be zero, but readers must accept paddings
+        // > consisting of arbitrary bits as well.
+
+        let idx = self.mini_block_idx;
+        let pos_in_mb = self.mini_block_value_idx;
+        let per_mb = self.values_per_mini_block;
+        let width = self.mini_block_bit_widths[idx] as usize;
+
+        let rem_vals = per_mb - pos_in_mb;
+        if width > 0 && rem_vals > 0 {
+            let bits_to_skip = width * rem_vals;
+            let bytes_to_skip = bits_to_skip.div_ceil(8);
+            unsafe {
+                self.cursor.skip_bytes_unchecked(bytes_to_skip);
+            }
+        }
+
+        Ok(self.cursor)
+    }
+
+    /// Load the next block.
     fn load_next_block(&mut self) -> Result<()> {
         // Block header
         // <min delta>

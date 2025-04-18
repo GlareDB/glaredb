@@ -4,12 +4,13 @@ use glaredb_core::buffer::typed::ByteBuffer;
 use glaredb_error::{DbError, Result, ResultExt};
 
 use super::encoding::PageDecoder;
+use super::encoding::delta_length_byte_array::DeltaLengthByteArrayDecoder;
 use super::encoding::dictionary::{Dictionary, DictionaryDecoder};
 use super::encoding::rle_bp::RleBpDecoder;
 use super::read_buffer::OwnedReadBuffer;
 use super::value_reader::ValueReader;
 use crate::basic::{self, Encoding};
-use crate::column::encoding::delta_bp::DeltaBpDecoder;
+use crate::column::encoding::delta_binary_packed::DeltaBinaryPackedDecoder;
 use crate::column::encoding::plain::PlainDecoder;
 use crate::compression::Codec;
 use crate::format;
@@ -400,7 +401,7 @@ where
                 basic::Type::INT32 => {
                     // Creating the deocder will reader the header.
                     let read_buffer = self.decompressed_page.take_remaining();
-                    let dec = DeltaBpDecoder::<i32, V>::try_new(read_buffer)?;
+                    let dec = DeltaBinaryPackedDecoder::<i32, V>::try_new(read_buffer)?;
                     self.state.page_decoder = Some(PageDecoder::DeltaBinaryPackedI32(dec));
 
                     Ok(())
@@ -408,7 +409,7 @@ where
                 basic::Type::INT64 => {
                     // See above
                     let read_buffer = self.decompressed_page.take_remaining();
-                    let dec = DeltaBpDecoder::<i64, V>::try_new(read_buffer)?;
+                    let dec = DeltaBinaryPackedDecoder::<i64, V>::try_new(read_buffer)?;
                     self.state.page_decoder = Some(PageDecoder::DeltaBinaryPackedI64(dec));
 
                     Ok(())
@@ -417,6 +418,23 @@ where
                     "Unsupported physical type for delta binary packed encoding: {other:?}"
                 ))),
             },
+            Encoding::DELTA_LENGTH_BYTE_ARRAY => {
+                if self.descr.physical_type() != basic::Type::BYTE_ARRAY {
+                    return Err(DbError::new(
+                        "DELTA_LENGTH_BYTE_ARRAY only valid for BYTE_ARRAY",
+                    ));
+                }
+                let cursor = self.decompressed_page.take_remaining();
+                let verify_utf8 = true; // TODO
+                let dec = DeltaLengthByteArrayDecoder::try_new(
+                    cursor,
+                    self.state.remaining_page_values,
+                    verify_utf8,
+                )?;
+                self.state.page_decoder = Some(PageDecoder::DeltaLengthByteArray(dec));
+
+                Ok(())
+            }
             other => Err(DbError::new("Unsupported encoding").with_field("encoding", other)),
         }
     }
