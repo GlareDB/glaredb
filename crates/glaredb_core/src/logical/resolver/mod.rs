@@ -1085,6 +1085,7 @@ where
 pub fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> Result<DataType> {
     Ok(match datatype {
         ast::DataType::Varchar(_) => DataType::Utf8,
+        ast::DataType::Binary(_) => DataType::Binary,
         ast::DataType::TinyInt => DataType::Int8,
         ast::DataType::SmallInt => DataType::Int16,
         ast::DataType::Integer => DataType::Int32,

@@ -1,0 +1,16 @@
+# Casts to binary
+
+query TT
+DESCRIBE SELECT 'foobar'::BINARY;
+----
+?column?  Binary
+
+query T
+SELECT 'foobar'::BINARY;
+----
+\x666f6f626172
+
+query T
+SELECT NULL::BINARY;
+----
+NULL
