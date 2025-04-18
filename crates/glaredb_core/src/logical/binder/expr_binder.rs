@@ -26,6 +26,7 @@ use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::unnest_expr::UnnestExpr;
 use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusion};
 use crate::expr::{self, Expression, bind_aggregate_function};
+use crate::functions::aggregate::builtin::count::FUNCTION_SET_COUNT;
 use crate::functions::cast::parse::{Decimal64Parser, Decimal128Parser, Parser};
 use crate::functions::scalar::builtin::datetime::FUNCTION_SET_DATE_PART;
 use crate::functions::scalar::builtin::is::{
@@ -949,24 +950,15 @@ impl<'a> BaseExpressionBinder<'a> {
             .args
             .iter()
             .map(|arg| match arg {
-                ast::FunctionArg::Unnamed { arg } => match arg {
-                    ast::FunctionArgExpr::Expr(expr) => Ok(self.bind_expression(
-                        bind_context,
-                        expr,
-                        column_binder,
-                        RecursionContext {
-                            is_root: false,
-                            ..recur
-                        },
-                    )?),
-                    ast::FunctionArgExpr::Wildcard => {
-                        // Resolver should have handled removing '*'
-                        // from function calls.
-                        Err(DbError::new(
-                            "Cannot plan a function with '*' as an argument",
-                        ))
-                    }
-                },
+                ast::FunctionArg::Unnamed { arg } => self.bind_expression(
+                    bind_context,
+                    arg,
+                    column_binder,
+                    RecursionContext {
+                        is_root: false,
+                        ..recur
+                    },
+                ),
                 ast::FunctionArg::Named { .. } => Err(DbError::new(
                     "Named arguments to scalar functions not supported",
                 )),
@@ -998,20 +990,15 @@ impl<'a> BaseExpressionBinder<'a> {
                                     "named arguments to UNNEST not yet supported",
                                 ));
                             }
-                            ast::FunctionArg::Unnamed { arg } => match arg {
-                                ast::FunctionArgExpr::Wildcard => {
-                                    return Err(DbError::new("wildcard to UNNEST not supported"));
-                                }
-                                ast::FunctionArgExpr::Expr(expr) => self.bind_expression(
-                                    bind_context,
-                                    expr,
-                                    column_binder,
-                                    RecursionContext {
-                                        is_root: false,
-                                        ..recur
-                                    },
-                                )?,
-                            },
+                            ast::FunctionArg::Unnamed { arg } => self.bind_expression(
+                                bind_context,
+                                arg,
+                                column_binder,
+                                RecursionContext {
+                                    is_root: false,
+                                    ..recur
+                                },
+                            )?,
                         };
 
                         let unnest_expr = Expression::Unnest(UnnestExpr {
@@ -1041,20 +1028,15 @@ impl<'a> BaseExpressionBinder<'a> {
                                 ast::FunctionArg::Named { .. } => {
                                     Err(DbError::new("GROUPING does not accept named arguments"))
                                 }
-                                ast::FunctionArg::Unnamed { arg } => match arg {
-                                    ast::FunctionArgExpr::Wildcard => Err(DbError::new(
-                                        "GROUPING does not support wildcard arguments",
-                                    )),
-                                    ast::FunctionArgExpr::Expr(expr) => self.bind_expression(
-                                        bind_context,
-                                        expr,
-                                        column_binder,
-                                        RecursionContext {
-                                            is_root: false,
-                                            ..recur
-                                        },
-                                    ),
-                                },
+                                ast::FunctionArg::Unnamed { arg } => self.bind_expression(
+                                    bind_context,
+                                    arg,
+                                    column_binder,
+                                    RecursionContext {
+                                        is_root: false,
+                                        ..recur
+                                    },
+                                ),
                             })
                             .collect::<Result<Vec<_>>>()?;
 
@@ -1079,20 +1061,15 @@ impl<'a> BaseExpressionBinder<'a> {
                                 ast::FunctionArg::Named { .. } => {
                                     Err(DbError::new("GROUPING does not accept named arguments"))
                                 }
-                                ast::FunctionArg::Unnamed { arg } => match arg {
-                                    ast::FunctionArgExpr::Wildcard => Err(DbError::new(
-                                        "GROUPING does not support wildcard arguments",
-                                    )),
-                                    ast::FunctionArgExpr::Expr(expr) => self.bind_expression(
-                                        bind_context,
-                                        expr,
-                                        column_binder,
-                                        RecursionContext {
-                                            is_root: false,
-                                            ..recur
-                                        },
-                                    ),
-                                },
+                                ast::FunctionArg::Unnamed { arg } => self.bind_expression(
+                                    bind_context,
+                                    arg,
+                                    column_binder,
+                                    RecursionContext {
+                                        is_root: false,
+                                        ..recur
+                                    },
+                                ),
                             })
                             .collect::<Result<Vec<_>>>()?;
 
@@ -1139,7 +1116,24 @@ impl<'a> BaseExpressionBinder<'a> {
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
             (ResolvedFunction::Aggregate(agg), _) => {
-                let agg = bind_aggregate_function(agg, inputs)?;
+                let agg = if func.star && inputs.is_empty() {
+                    if agg.name == FUNCTION_SET_COUNT.name {
+                        // Special case `count(*)` here by replacing it with
+                        // `count(true)`.
+                        let inputs: Vec<Expression> = vec![expr::lit(true).into()];
+                        bind_aggregate_function(agg, inputs)?
+                    } else {
+                        // TODO: Probably add error for scalar functions.
+                        return Err(DbError::new(format!(
+                            "Cannot use '*' as an argument to '{}'",
+                            agg.name
+                        )));
+                    }
+                } else {
+                    // Otherwise just use the inputs provided.
+                    bind_aggregate_function(agg, inputs)?
+                };
+
                 match &func.over {
                     Some(over) => {
                         // Window

@@ -975,9 +975,7 @@ where
                     lateral: false,
                     reference: resolve_idx,
                     args: vec![ast::FunctionArg::Unnamed {
-                        arg: ast::FunctionArgExpr::Expr(ast::Expr::Literal(
-                            ast::Literal::SingleQuotedString(path),
-                        )),
+                        arg: ast::Expr::Literal(ast::Literal::SingleQuotedString(path)),
                     }],
                 })
             }

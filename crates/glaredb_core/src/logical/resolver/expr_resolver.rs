@@ -114,23 +114,14 @@ where
             match func_arg {
                 ast::FunctionArg::Named { name, arg } => {
                     let name = name.into_normalized_string();
-                    let arg = match arg {
-                        ast::FunctionArgExpr::Wildcard => {
-                            return Err(DbError::new(
-                                "Cannot use '*' as an argument to a table function",
-                            ));
+                    let arg = match Box::pin(self.resolve_expression(arg, resolve_context)).await? {
+                        ast::Expr::Literal(lit) => {
+                            BaseExpressionBinder::bind_literal(&lit)?.try_into_scalar()?
                         }
-                        ast::FunctionArgExpr::Expr(expr) => {
-                            match Box::pin(self.resolve_expression(expr, resolve_context)).await? {
-                                ast::Expr::Literal(lit) => {
-                                    BaseExpressionBinder::bind_literal(&lit)?.try_into_scalar()?
-                                }
-                                other => {
-                                    return Err(DbError::new(format!(
-                                        "Table function arguments must be constant, got {other:?}"
-                                    )));
-                                }
-                            }
+                        other => {
+                            return Err(DbError::new(format!(
+                                "Table function arguments must be constant, got {other:?}"
+                            )));
                         }
                     };
 
@@ -140,23 +131,14 @@ where
                     named.insert(name, arg);
                 }
                 FunctionArg::Unnamed { arg } => {
-                    let arg = match arg {
-                        ast::FunctionArgExpr::Wildcard => {
-                            return Err(DbError::new(
-                                "Cannot use '*' as an argument to a table function",
-                            ));
+                    let arg = match Box::pin(self.resolve_expression(arg, resolve_context)).await? {
+                        ast::Expr::Literal(lit) => {
+                            BaseExpressionBinder::bind_literal(&lit)?.try_into_scalar()?
                         }
-                        ast::FunctionArgExpr::Expr(expr) => {
-                            match Box::pin(self.resolve_expression(expr, resolve_context)).await? {
-                                ast::Expr::Literal(lit) => {
-                                    BaseExpressionBinder::bind_literal(&lit)?.try_into_scalar()?
-                                }
-                                other => {
-                                    return Err(DbError::new(format!(
-                                        "Table function arguments must be constant, got {other:?}"
-                                    )));
-                                }
-                            }
+                        other => {
+                            return Err(DbError::new(format!(
+                                "Table function arguments must be constant, got {other:?}"
+                            )));
                         }
                     };
                     positional.push(arg);
@@ -630,12 +612,8 @@ where
                 _ => ast::Expr::CompoundIdent(prefix_ref.0),
             };
 
-            func.args.insert(
-                0,
-                ast::FunctionArg::Unnamed {
-                    arg: ast::FunctionArgExpr::Expr(arg_expr),
-                },
-            );
+            func.args
+                .insert(0, ast::FunctionArg::Unnamed { arg: arg_expr });
 
             // Now try to resolve with just the unqualified reference.
             let resolved =
@@ -670,6 +648,7 @@ where
             return Ok(ast::Expr::Function(Box::new(ast::Function {
                 reference: resolve_idx,
                 distinct: func.distinct,
+                star: func.star,
                 args,
                 filter,
                 over,
@@ -688,6 +667,7 @@ where
             return Ok(ast::Expr::Function(Box::new(ast::Function {
                 reference: resolve_idx,
                 distinct: func.distinct,
+                star: func.star,
                 args,
                 filter,
                 over,
@@ -704,6 +684,7 @@ where
             return Ok(ast::Expr::Function(Box::new(ast::Function {
                 reference: resolve_idx,
                 distinct: func.distinct,
+                star: func.star,
                 args,
                 filter,
                 over,
@@ -726,34 +707,14 @@ where
         resolve_context: &mut ResolveContext,
     ) -> Result<Vec<ast::FunctionArg<ResolvedMeta>>> {
         let mut resolved_args = Vec::with_capacity(args.len());
-        // TODO: This current rewrites '*' function arguments to 'true'.
-        // This is for 'count(*)'. What we should be doing is rewriting
-        // 'count(*)' to 'count_star()' and have a function
-        // implementation for 'count_star'.
-        //
-        // No other function accepts a '*' (I think).
         for func_arg in args {
             let func_arg = match func_arg {
                 ast::FunctionArg::Named { name, arg } => ast::FunctionArg::Named {
                     name,
-                    arg: match arg {
-                        ast::FunctionArgExpr::Wildcard => ast::FunctionArgExpr::Expr(
-                            ast::Expr::Literal(ast::Literal::Boolean(true)),
-                        ),
-                        ast::FunctionArgExpr::Expr(expr) => ast::FunctionArgExpr::Expr(
-                            Box::pin(self.resolve_expression(expr, resolve_context)).await?,
-                        ),
-                    },
+                    arg: Box::pin(self.resolve_expression(arg, resolve_context)).await?,
                 },
                 ast::FunctionArg::Unnamed { arg } => ast::FunctionArg::Unnamed {
-                    arg: match arg {
-                        ast::FunctionArgExpr::Wildcard => ast::FunctionArgExpr::Expr(
-                            ast::Expr::Literal(ast::Literal::Boolean(true)),
-                        ),
-                        ast::FunctionArgExpr::Expr(expr) => ast::FunctionArgExpr::Expr(
-                            Box::pin(self.resolve_expression(expr, resolve_context)).await?,
-                        ),
-                    },
+                    arg: Box::pin(self.resolve_expression(arg, resolve_context)).await?,
                 },
             };
             resolved_args.push(func_arg);

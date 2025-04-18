@@ -365,7 +365,7 @@ mod tests {
 
     use super::*;
     use crate::ast::testutil::parse_ast;
-    use crate::ast::{BinaryOperator, FunctionArgExpr, Literal};
+    use crate::ast::{BinaryOperator, Literal};
 
     #[test]
     fn base_table() {
@@ -520,18 +520,14 @@ mod tests {
                 }]),
                 args: vec![
                     FunctionArg::Unnamed {
-                        arg: FunctionArgExpr::Expr(Expr::Literal(Literal::SingleQuotedString(
-                            "arg1".to_string(),
-                        ))),
+                        arg: Expr::Literal(Literal::SingleQuotedString("arg1".to_string())),
                     },
                     FunctionArg::Named {
                         name: Ident {
                             value: "kw".into(),
                             quoted: false,
                         },
-                        arg: FunctionArgExpr::Expr(Expr::Literal(Literal::SingleQuotedString(
-                            "arg2".to_string(),
-                        ))),
+                        arg: Expr::Literal(Literal::SingleQuotedString("arg2".to_string())),
                     },
                 ],
             }),
@@ -682,10 +678,10 @@ mod tests {
                         lateral: true,
                         reference: ObjectReference::from_strings(["unnest"]),
                         args: vec![FunctionArg::Unnamed {
-                            arg: FunctionArgExpr::Expr(Expr::CompoundIdent(vec![
+                            arg: Expr::CompoundIdent(vec![
                                 Ident::new_unquoted("t1"),
                                 Ident::new_unquoted("a"),
-                            ])),
+                            ]),
                         }],
                     }),
                 }),
