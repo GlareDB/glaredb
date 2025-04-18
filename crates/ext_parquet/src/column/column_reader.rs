@@ -139,6 +139,12 @@ where
                 }
                 PageDecoder::DeltaByteArray(dec) => dec.read(definitions, output, offset, count)?,
                 PageDecoder::RleBool(dec) => dec.read(definitions, output, offset, count)?,
+                PageDecoder::ByteStreamSplit4(dec) => {
+                    dec.read(definitions, output, offset, count)?
+                }
+                PageDecoder::ByteStreamSplit8(dec) => {
+                    dec.read(definitions, output, offset, count)?
+                }
             }
 
             // Update page reader state.

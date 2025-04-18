@@ -4,6 +4,7 @@ use glaredb_core::buffer::typed::ByteBuffer;
 use glaredb_error::{DbError, Result, ResultExt};
 
 use super::encoding::PageDecoder;
+use super::encoding::byte_stream_split::ByteStreamSplitDecoder;
 use super::encoding::delta_length_byte_array::DeltaLengthByteArrayDecoder;
 use super::encoding::dictionary::{Dictionary, DictionaryDecoder};
 use super::encoding::rle_bit_packed::RleBitPackedDecoder;
@@ -485,6 +486,28 @@ where
                 self.state.page_decoder = Some(PageDecoder::DeltaByteArray(dec));
 
                 Ok(())
+            }
+            Encoding::BYTE_STREAM_SPLIT => {
+                let cursor = self.decompressed_page.take_remaining();
+                match self.descr.physical_type() {
+                    basic::Type::INT32 | basic::Type::FLOAT => {
+                        let dec = ByteStreamSplitDecoder::<4, _>::try_new(cursor)?;
+                        self.state.page_decoder = Some(PageDecoder::ByteStreamSplit4(dec));
+                        Ok(())
+                    }
+                    basic::Type::INT64 | basic::Type::DOUBLE => {
+                        let dec = ByteStreamSplitDecoder::<8, _>::try_new(cursor)?;
+                        self.state.page_decoder = Some(PageDecoder::ByteStreamSplit8(dec));
+                        Ok(())
+                    }
+                    _ =>
+                    // TODO: Fixed len byte array
+                    {
+                        Err(DbError::new(format!(
+                            "BYTE_STREAM_SPLIT only valid for INT32, INT64, FLOAT, DOUBLE"
+                        )))
+                    }
+                }
             }
             other => Err(DbError::new("Unsupported encoding").with_field("encoding", other)),
         }
