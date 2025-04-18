@@ -116,7 +116,7 @@ mod tests {
             (BorrowedScalarValue::Utf8("hello".into()), "hello"),
             (
                 BorrowedScalarValue::Binary([245, 255, 18].as_slice().into()),
-                "[F5, FF, 12]",
+                "\\xf5ff12",
             ),
         ];
 
