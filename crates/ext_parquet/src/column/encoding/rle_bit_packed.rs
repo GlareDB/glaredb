@@ -9,7 +9,7 @@ use crate::column::read_buffer::ReadCursor;
 
 /// An RLE/bit packing hybrid decoder.
 #[derive(Debug)]
-pub struct RleBpDecoder {
+pub struct RleBitPackedDecoder {
     /// The underlying buffer for reading.
     buffer: ReadCursor,
     /// Number of bits needed per encoded value.
@@ -26,11 +26,11 @@ pub struct RleBpDecoder {
     byte_enc_len: usize,
 }
 
-impl RleBpDecoder {
+impl RleBitPackedDecoder {
     pub fn new(buffer: ReadCursor, bit_width: u8) -> Self {
         assert!(bit_width <= 64);
         let byte_enc_len = bit_width.div_ceil(8) as usize;
-        RleBpDecoder {
+        RleBitPackedDecoder {
             buffer,
             bit_width,
             curr_val: 0,
@@ -135,7 +135,7 @@ mod tests {
         let raw = [0x10, 0x04];
         let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
         let cursor = buf.take_remaining();
-        let mut decoder = RleBpDecoder::new(cursor, 1);
+        let mut decoder = RleBitPackedDecoder::new(cursor, 1);
         let mut output = [0u8; 8];
         decoder.read(&mut output).unwrap();
         assert_eq!(output, [4, 4, 4, 4, 4, 4, 4, 4]);
@@ -155,7 +155,7 @@ mod tests {
         let raw = [0x03, 0xD1, 0x58, 0x1F];
         let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
         let cursor = buf.take_remaining();
-        let mut decoder = RleBpDecoder::new(cursor, 3);
+        let mut decoder = RleBitPackedDecoder::new(cursor, 3);
         let mut output = [0u8; 8];
         decoder.read(&mut output).expect("read failed");
         assert_eq!(output, [1, 2, 3, 4, 5, 6, 7, 0]);
@@ -184,7 +184,7 @@ mod tests {
         let raw = [0x0A, 0x02, 0x03, 0xE4, 0xE4];
         let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
         let cursor = buf.take_remaining();
-        let mut decoder = RleBpDecoder::new(cursor, 2);
+        let mut decoder = RleBitPackedDecoder::new(cursor, 2);
         // Expect 5 RLE values of 2 followed by 8 literal values.
         let mut output = [0u8; 13];
         decoder.read(&mut output).unwrap();

@@ -3,7 +3,7 @@ pub mod delta_byte_array;
 pub mod delta_length_byte_array;
 pub mod dictionary;
 pub mod plain;
-pub mod rle_bp;
+pub mod rle_bit_packed;
 
 use delta_binary_packed::DeltaBinaryPackedDecoder;
 use delta_byte_array::DeltaByteArrayDecoder;

@@ -6,7 +6,7 @@ use glaredb_error::{DbError, Result, ResultExt};
 use super::encoding::PageDecoder;
 use super::encoding::delta_length_byte_array::DeltaLengthByteArrayDecoder;
 use super::encoding::dictionary::{Dictionary, DictionaryDecoder};
-use super::encoding::rle_bp::RleBpDecoder;
+use super::encoding::rle_bit_packed::RleBitPackedDecoder;
 use super::read_buffer::OwnedReadBuffer;
 use super::value_reader::ValueReader;
 use crate::basic::{self, Encoding};
@@ -52,9 +52,9 @@ pub struct ScanState<V: ValueReader> {
     /// Updated as we scan values from the page.
     pub remaining_page_values: usize,
     /// Definition levels decoder.
-    pub definitions: Option<RleBpDecoder>,
+    pub definitions: Option<RleBitPackedDecoder>,
     /// Repetitions level decoder.
-    pub repetitions: Option<RleBpDecoder>,
+    pub repetitions: Option<RleBitPackedDecoder>,
     /// Decoder for this page.
     ///
     /// Should be Some after preparing a page.
@@ -236,7 +236,7 @@ where
 
         self.state.remaining_page_values = header.num_values as usize;
 
-        let mut get_level_decoder = |max: i16| -> Result<RleBpDecoder> {
+        let mut get_level_decoder = |max: i16| -> Result<RleBitPackedDecoder> {
             // SAFETY: The `take_next` will error if we don't have at least 4
             // bytes in the buffer.
             let len = unsafe {
@@ -248,7 +248,7 @@ where
             let read_buffer = self.decompressed_page.take_next(len)?;
             let bit_width = num_required_bits(max as u64);
 
-            Ok(RleBpDecoder::new(read_buffer, bit_width))
+            Ok(RleBitPackedDecoder::new(read_buffer, bit_width))
         };
 
         if self.descr.max_rep_level > 0 {
@@ -343,10 +343,10 @@ where
 
         self.state.remaining_page_values = header.num_values as usize;
 
-        let mut get_level_decoder = |max: i16, len: usize| -> Result<RleBpDecoder> {
+        let mut get_level_decoder = |max: i16, len: usize| -> Result<RleBitPackedDecoder> {
             let read_buffer = self.decompressed_page.take_next(len)?;
             let bit_width = num_required_bits(max as u64);
-            Ok(RleBpDecoder::new(read_buffer, bit_width))
+            Ok(RleBitPackedDecoder::new(read_buffer, bit_width))
         };
 
         if self.descr.max_rep_level > 0 {
@@ -392,7 +392,7 @@ where
                 let mut read_buffer = self.decompressed_page.take_remaining();
                 let bit_width = unsafe { read_buffer.read_next_unchecked::<u8>() };
 
-                let rle = RleBpDecoder::new(read_buffer, bit_width);
+                let rle = RleBitPackedDecoder::new(read_buffer, bit_width);
                 let dec = DictionaryDecoder::new(rle);
                 self.state.page_decoder = Some(PageDecoder::Dictionary(dec));
 
