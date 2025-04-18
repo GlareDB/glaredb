@@ -1,7 +1,7 @@
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::arrays::field::ColumnSchema;
-use glaredb_core::arrays::format::{FormatOptions, Formatter};
+use glaredb_core::arrays::format::{BinaryFormat, FormatOptions, Formatter};
 use glaredb_error::Result;
 use sqllogictest::DefaultColumnType;
 
@@ -10,6 +10,7 @@ pub fn batches_to_rows(batches: Vec<Batch>) -> Result<Vec<Vec<String>>> {
     const OPTS: FormatOptions = FormatOptions {
         null: "NULL",
         empty_string: "(empty)",
+        binary_format: BinaryFormat::Hex,
     };
     let formatter = Formatter::new(OPTS);
 

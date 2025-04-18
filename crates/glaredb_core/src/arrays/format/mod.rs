@@ -7,15 +7,22 @@ use glaredb_error::Result;
 
 use crate::arrays::array::Array;
 use crate::arrays::scalar::BorrowedScalarValue;
+use crate::functions::scalar::builtin::binary::WriteHex;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinaryFormat {
+    Hex,
+}
 
 /// Formatting options for arrays and scalars.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatOptions<'a> {
     /// String to use for printing null values.
     pub null: &'a str,
-
     /// String to use when a string value is empty.
     pub empty_string: &'a str,
+    /// Format to use when printing out binary data.
+    pub binary_format: BinaryFormat,
 }
 
 impl FormatOptions<'_> {
@@ -23,6 +30,7 @@ impl FormatOptions<'_> {
         FormatOptions {
             null: "NULL",
             empty_string: "",
+            binary_format: BinaryFormat::Hex,
         }
     }
 }
@@ -85,6 +93,9 @@ impl fmt::Display for FormattedScalarValue<'_, '_> {
                     write!(f, "{v}")
                 }
             }
+            BorrowedScalarValue::Binary(v) => match self.options.binary_format {
+                BinaryFormat::Hex => WriteHex::write_hex_with_escape(v, f),
+            },
             other => write!(f, "{other}"), // Use the scalar value's default display impl.
         }
     }

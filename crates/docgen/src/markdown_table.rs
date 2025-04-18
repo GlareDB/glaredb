@@ -2,12 +2,13 @@ use std::fmt;
 
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::field::ColumnSchema;
-use glaredb_core::arrays::format::{FormatOptions, Formatter};
+use glaredb_core::arrays::format::{BinaryFormat, FormatOptions, Formatter};
 use glaredb_error::Result;
 
 const FORMATTER: Formatter = Formatter::new(FormatOptions {
     null: "",
     empty_string: "",
+    binary_format: BinaryFormat::Hex,
 });
 
 #[allow(unused)]

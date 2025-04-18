@@ -1,4 +1,5 @@
 pub mod arith;
+pub mod binary;
 pub mod boolean;
 pub mod comparison;
 pub mod datetime;

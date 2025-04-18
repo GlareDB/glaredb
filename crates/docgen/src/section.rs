@@ -1,6 +1,6 @@
 use std::fmt::{self, Debug};
 
-use glaredb_core::arrays::format::{FormatOptions, Formatter};
+use glaredb_core::arrays::format::{BinaryFormat, FormatOptions, Formatter};
 use glaredb_core::functions::documentation::Category;
 use glaredb_error::Result;
 
@@ -20,6 +20,7 @@ impl SectionWriter for FunctionSectionWriter {
         const FORMATTER: Formatter = Formatter::new(FormatOptions {
             null: "",
             empty_string: "",
+            binary_format: BinaryFormat::Hex,
         });
 
         let query = format!(

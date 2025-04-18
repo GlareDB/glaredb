@@ -8,7 +8,18 @@ DESCRIBE '../submodules/parquet-testing/data/binary.parquet'
 ----
 foo  Binary
 
-# TODO: Do something with a binary column, probably hex string it or something.
-# query ?
-# SELECT * FROM '../submodules/parquet-testing/data/binary.parquet';
-# ----
+query ?
+SELECT * FROM '../submodules/parquet-testing/data/binary.parquet';
+----
+\x00
+\x01
+\x02
+\x03
+\x04
+\x05
+\x06
+\x07
+\x08
+\x09
+\x0a
+\x0b
