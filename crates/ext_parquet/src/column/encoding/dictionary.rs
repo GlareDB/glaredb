@@ -6,7 +6,7 @@ use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 use glaredb_error::Result;
 
-use super::rle_bp::RleBpDecoder;
+use super::rle_bit_packed::RleBitPackedDecoder;
 use crate::column::encoding::Definitions;
 use crate::column::encoding::plain::PlainDecoder;
 use crate::column::read_buffer::ReadCursor;
@@ -65,7 +65,7 @@ where
 #[derive(Debug)]
 pub struct DictionaryDecoder<V: ValueReader> {
     /// Decoder for dictionary indices.
-    rle_decoder: RleBpDecoder,
+    rle_decoder: RleBitPackedDecoder,
     /// Reusable buffer to read indice into, used to 'select' the dictionary
     /// array.
     sel_buf: Vec<u32>,
@@ -76,7 +76,7 @@ impl<V> DictionaryDecoder<V>
 where
     V: ValueReader,
 {
-    pub fn new(rle_decoder: RleBpDecoder) -> Self {
+    pub fn new(rle_decoder: RleBitPackedDecoder) -> Self {
         DictionaryDecoder {
             rle_decoder,
             sel_buf: Vec::new(),

@@ -3,13 +3,14 @@ pub mod delta_byte_array;
 pub mod delta_length_byte_array;
 pub mod dictionary;
 pub mod plain;
-pub mod rle_bp;
+pub mod rle_bit_packed;
 
 use delta_binary_packed::DeltaBinaryPackedDecoder;
 use delta_byte_array::DeltaByteArrayDecoder;
 use delta_length_byte_array::DeltaLengthByteArrayDecoder;
 use dictionary::DictionaryDecoder;
 use plain::PlainDecoder;
+use rle_bit_packed::RleBoolDecoder;
 
 use super::value_reader::ValueReader;
 
@@ -35,4 +36,5 @@ pub enum PageDecoder<V: ValueReader> {
     DeltaBinaryPackedI64(DeltaBinaryPackedDecoder<i64, V>),
     DeltaLengthByteArray(DeltaLengthByteArrayDecoder),
     DeltaByteArray(DeltaByteArrayDecoder),
+    RleBool(RleBoolDecoder),
 }

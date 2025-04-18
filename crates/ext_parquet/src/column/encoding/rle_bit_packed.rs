@@ -2,14 +2,102 @@
 //!
 //! See <https://parquet.apache.org/docs/file-format/data-pages/encodings/#run-length-encoding--bit-packing-hybrid-rle--3>
 
+use glaredb_core::arrays::array::Array;
+use glaredb_core::arrays::array::physical_type::{
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalBool,
+};
 use glaredb_error::{DbError, Result};
 
+use super::Definitions;
 use crate::column::bitutil::{BitPackEncodeable, BitUnpackState, bit_unpack, read_unsigned_vlq};
+use crate::column::encoding::plain::PlainDecoder;
 use crate::column::read_buffer::ReadCursor;
+use crate::column::value_reader::ValueReader;
+
+/// Decoder for reading bool values using RLE.
+#[derive(Debug)]
+pub struct RleBoolDecoder {
+    /// Reusable read buffer.
+    // TODO: Buffer manager
+    buf: Vec<u8>,
+    /// Underlying decoder.
+    decoder: RleBitPackedDecoder,
+}
+
+impl RleBoolDecoder {
+    pub fn new(buffer: ReadCursor) -> Self {
+        RleBoolDecoder {
+            buf: Vec::new(),
+            decoder: RleBitPackedDecoder::new(buffer, 1),
+        }
+    }
+
+    pub fn read(
+        &mut self,
+        definitions: Definitions,
+        output: &mut Array,
+        offset: usize,
+        count: usize,
+    ) -> Result<()> {
+        // Only read valid values.
+        let read_count = match definitions {
+            Definitions::HasDefinitions { levels, max } => {
+                let valid_count = levels.iter().filter(|&&def| def == max).count();
+                valid_count
+            }
+            Definitions::NoDefinitions => count,
+        };
+
+        self.buf.clear();
+        self.buf.resize(read_count, 0);
+
+        self.decoder.read(&mut self.buf)?;
+
+        // Use plain decoder to convert from u8 to bool. Handles
+        // definitions/nulls for us.
+        //
+        // No state is tracked in the casting reader.
+        let plain_cursor = ReadCursor::from_slice(&self.buf);
+        let mut plain = PlainDecoder {
+            buffer: plain_cursor,
+            value_reader: RealSizedBoolReader,
+        };
+
+        plain.read_plain(definitions, output, offset, count)
+    }
+}
+
+/// Value reader that reads bools from the cursor.
+///
+/// This is used since we're unpacking bools into [u8].
+#[derive(Debug, Clone, Copy, Default)]
+struct RealSizedBoolReader;
+
+const _BOOL_SIZE_ASSERTION: () = assert!(std::mem::size_of::<bool>() == std::mem::size_of::<u8>());
+
+impl ValueReader for RealSizedBoolReader {
+    type Storage = PhysicalBool;
+
+    unsafe fn read_next_unchecked(
+        &mut self,
+        data: &mut ReadCursor,
+        out_idx: usize,
+        out: &mut <Self::Storage as MutableScalarStorage>::AddressableMut<'_>,
+    ) {
+        let v = unsafe { data.read_next_unchecked::<bool>() };
+        out.put(out_idx, &v);
+    }
+
+    unsafe fn skip_unchecked(&mut self, data: &mut ReadCursor) {
+        unsafe { data.skip_bytes_unchecked(std::mem::size_of::<bool>()) };
+    }
+}
 
 /// An RLE/bit packing hybrid decoder.
 #[derive(Debug)]
-pub struct RleBpDecoder {
+pub struct RleBitPackedDecoder {
     /// The underlying buffer for reading.
     buffer: ReadCursor,
     /// Number of bits needed per encoded value.
@@ -26,11 +114,11 @@ pub struct RleBpDecoder {
     byte_enc_len: usize,
 }
 
-impl RleBpDecoder {
+impl RleBitPackedDecoder {
     pub fn new(buffer: ReadCursor, bit_width: u8) -> Self {
         assert!(bit_width <= 64);
         let byte_enc_len = bit_width.div_ceil(8) as usize;
-        RleBpDecoder {
+        RleBitPackedDecoder {
             buffer,
             bit_width,
             curr_val: 0,
@@ -123,6 +211,19 @@ mod tests {
     use crate::column::read_buffer::OwnedReadBuffer;
 
     #[test]
+    fn rlebp_literal() {
+        // bit_width = 1, one literal group of 8 sawtooth bits:
+        // VLQ=0x03
+        let raw = [(1 << 1) | 1, 0b10101010];
+        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
+        let cursor = buf.take_remaining();
+        let mut decoder = RleBitPackedDecoder::new(cursor, 1);
+        let mut out = [0u8; 8];
+        decoder.read(&mut out).unwrap();
+        assert_eq!(out, [0, 1, 0, 1, 0, 1, 0, 1]);
+    }
+
+    #[test]
     fn rlebp_decoder_rle() {
         // Test RLE-only run.
 
@@ -135,7 +236,7 @@ mod tests {
         let raw = [0x10, 0x04];
         let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
         let cursor = buf.take_remaining();
-        let mut decoder = RleBpDecoder::new(cursor, 1);
+        let mut decoder = RleBitPackedDecoder::new(cursor, 1);
         let mut output = [0u8; 8];
         decoder.read(&mut output).unwrap();
         assert_eq!(output, [4, 4, 4, 4, 4, 4, 4, 4]);
@@ -155,7 +256,7 @@ mod tests {
         let raw = [0x03, 0xD1, 0x58, 0x1F];
         let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
         let cursor = buf.take_remaining();
-        let mut decoder = RleBpDecoder::new(cursor, 3);
+        let mut decoder = RleBitPackedDecoder::new(cursor, 3);
         let mut output = [0u8; 8];
         decoder.read(&mut output).expect("read failed");
         assert_eq!(output, [1, 2, 3, 4, 5, 6, 7, 0]);
@@ -184,7 +285,7 @@ mod tests {
         let raw = [0x0A, 0x02, 0x03, 0xE4, 0xE4];
         let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
         let cursor = buf.take_remaining();
-        let mut decoder = RleBpDecoder::new(cursor, 2);
+        let mut decoder = RleBitPackedDecoder::new(cursor, 2);
         // Expect 5 RLE values of 2 followed by 8 literal values.
         let mut output = [0u8; 13];
         decoder.read(&mut output).unwrap();

@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use glaredb_error::{DbError, Result};
 use num::Zero;
 
@@ -167,7 +169,7 @@ pub fn zigzag_encode(n: i64) -> u64 {
 
 /// BitPackEncodeable trait allows converting from a u64 to the target type.
 /// Only the least-significant bytes that fit in the type will be used.
-pub trait BitPackEncodeable: Zero + Copy {
+pub trait BitPackEncodeable: Zero + Copy + Debug {
     /// Convert a u64 to Self.
     fn from_u64(v: u64) -> Self;
 }
