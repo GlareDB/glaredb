@@ -59,6 +59,7 @@ define_keywords!(
     BIGINT,
     BIGNUMERIC,
     BINARY,
+    BLOB,
     BOOL,
     BOOLEAN,
     BY,

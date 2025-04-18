@@ -10,6 +10,8 @@ use crate::tokens::Token;
 pub enum DataType {
     /// VARCHAR, VARCHAR(10), TEXT, STRING
     Varchar(Option<u64>),
+    /// BINARY, BINARY(10), BLOB
+    Binary(Option<u64>),
     /// TINYINT, INT1
     TinyInt,
     /// SMALLINT, INT2
@@ -57,6 +59,7 @@ impl AstParseable for DataType {
         Ok(match kw {
             Keyword::VARCHAR => DataType::Varchar(None), // TODO: With length.
             Keyword::TEXT | Keyword::STRING => DataType::Varchar(None),
+            Keyword::BINARY | Keyword::BLOB => DataType::Binary(None), // TODO: With length.
             Keyword::TINYINT | Keyword::INT1 => DataType::TinyInt,
             Keyword::SMALLINT | Keyword::INT2 => DataType::SmallInt,
             Keyword::INT | Keyword::INTEGER | Keyword::INT4 => DataType::Integer,
@@ -113,6 +116,11 @@ mod tests {
         assert_ast_eq(DataType::Varchar(None), "varchar");
         assert_ast_eq(DataType::Varchar(None), "VARCHAR");
         assert_ast_eq(DataType::Varchar(None), "Varchar");
+        assert_ast_eq(DataType::Varchar(None), "text");
+
+        assert_ast_eq(DataType::Binary(None), "BINARY");
+        assert_ast_eq(DataType::Binary(None), "binary");
+        assert_ast_eq(DataType::Binary(None), "blob");
 
         assert_ast_eq(DataType::TinyInt, "tinyint");
         assert_ast_eq(DataType::TinyInt, "int1");
