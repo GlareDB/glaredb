@@ -1,0 +1,13 @@
+# Ensure we're only replacing '*' for count.
+
+statement error Cannot use '\*' as an argument to 'sum'
+SELECT sum(*) FROM (VALUES (4), (5), (NULL)) v(a);
+
+# TODO: Assert parser error, also make parser error nice.
+statement error
+SELECT sum(*, a) FROM (VALUES (4), (5), NULL) v(a);
+
+query I
+SELECT count(*) FROM (VALUES (4), (5), (NULL)) v(a);
+----
+3

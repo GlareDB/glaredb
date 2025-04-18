@@ -104,6 +104,8 @@ pub struct Function<T: AstMeta> {
     ///
     /// E.g. `SELECT count(DISTINCT col) FROM ...`
     pub distinct: bool,
+    /// If the only argument to this function was a '*'.
+    pub star: bool,
     /// Arguments to the function.
     pub args: Vec<FunctionArg<T>>,
     /// Filter part of `COUNT(col) FILTER (WHERE col > 5)`
@@ -117,12 +119,9 @@ pub enum FunctionArg<T: AstMeta> {
     /// A named argument. Allows use of either `=>` or `=` for assignment.
     ///
     /// `ident => <expr>` or `ident = <expr>`
-    Named {
-        name: Ident,
-        arg: FunctionArgExpr<T>,
-    },
+    Named { name: Ident, arg: Expr<T> },
     /// `<expr>`
-    Unnamed { arg: FunctionArgExpr<T> },
+    Unnamed { arg: Expr<T> },
 }
 
 impl AstParseable for FunctionArg<Raw> {
@@ -135,33 +134,15 @@ impl AstParseable for FunctionArg<Raw> {
         if is_named {
             let ident = Ident::parse(parser)?;
             parser.expect_one_of_tokens(&[&Token::RightArrow, &Token::Eq])?;
-            let expr = FunctionArgExpr::parse(parser)?;
+            let expr = Expr::parse(parser)?;
 
             Ok(FunctionArg::Named {
                 name: ident,
                 arg: expr,
             })
         } else {
-            let expr = FunctionArgExpr::parse(parser)?;
+            let expr = Expr::parse(parser)?;
             Ok(FunctionArg::Unnamed { arg: expr })
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum FunctionArgExpr<T: AstMeta> {
-    Wildcard,
-    Expr(Expr<T>),
-}
-
-impl AstParseable for FunctionArgExpr<Raw> {
-    fn parse(parser: &mut Parser) -> Result<Self> {
-        match parser.peek() {
-            Some(tok) if tok.token == Token::Mul => {
-                let _ = parser.next(); // Consume.
-                Ok(Self::Wildcard)
-            }
-            _ => Ok(Self::Expr(Expr::parse(parser)?)),
         }
     }
 }
@@ -926,12 +907,24 @@ impl Expr<Raw> {
                 return Err(DbError::new("Cannot have wildcard function call"));
             }
 
-            let args = if parser.consume_token(&Token::RightParen) {
-                Vec::new()
+            // Parse function arguments.
+            let (args, star) = if parser.consume_token(&Token::RightParen) {
+                (Vec::new(), false)
             } else {
-                let args = parser.parse_comma_separated(FunctionArg::parse)?;
-                parser.expect_token(&Token::RightParen)?;
-                args
+                match parser.peek() {
+                    Some(tok) if tok.token == Token::Mul => {
+                        // We're parsing something like `count(*)`.
+                        let _ = parser.next(); // Consume '*'
+                        parser.expect_token(&Token::RightParen)?;
+                        (Vec::new(), true)
+                    }
+                    _ => {
+                        // Normal argument parsing.
+                        let args = parser.parse_comma_separated(FunctionArg::parse)?;
+                        parser.expect_token(&Token::RightParen)?;
+                        (args, false)
+                    }
+                }
             };
 
             // FILTER (WHERE <expr>)
@@ -966,6 +959,7 @@ impl Expr<Raw> {
             Ok(Expr::Function(Box::new(Function {
                 reference: ObjectReference(idents),
                 distinct,
+                star,
                 args,
                 filter,
                 over,
@@ -1354,8 +1348,9 @@ mod tests {
         let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference(vec![Ident::new_unquoted("sum")]),
             distinct: false,
+            star: false,
             args: vec![FunctionArg::Unnamed {
-                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::new_unquoted("my_col"))),
+                arg: Expr::Ident(Ident::new_unquoted("my_col")),
             }],
             filter: None,
             over: None,
@@ -1369,6 +1364,7 @@ mod tests {
         let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference(vec![Ident::new_unquoted("random")]),
             distinct: false,
+            star: false,
             args: Vec::new(),
             filter: None,
             over: None,
@@ -1382,8 +1378,9 @@ mod tests {
         let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference(vec![Ident::new_unquoted("count")]),
             distinct: false,
+            star: false,
             args: vec![FunctionArg::Unnamed {
-                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::new_unquoted("x"))),
+                arg: Expr::Ident(Ident::new_unquoted("x")),
             }],
             filter: Some(Box::new(Expr::BinaryExpr {
                 left: Box::new(Expr::Ident(Ident::new_unquoted("x"))),
@@ -1401,8 +1398,9 @@ mod tests {
         let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference(vec![Ident::new_unquoted("count")]),
             distinct: true,
+            star: false,
             args: vec![FunctionArg::Unnamed {
-                arg: FunctionArgExpr::Expr(Expr::Ident(Ident::new_unquoted("x"))),
+                arg: Expr::Ident(Ident::new_unquoted("x")),
             }],
             filter: None,
             over: None,
@@ -1417,6 +1415,7 @@ mod tests {
         let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference(vec![Ident::new_unquoted("rank")]),
             distinct: false,
+            star: false,
             args: Vec::new(),
             filter: None,
             over: Some(WindowSpec::Definition(WindowDefinition {
@@ -1446,6 +1445,7 @@ mod tests {
         let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference(vec![Ident::new_unquoted("rank")]),
             distinct: false,
+            star: false,
             args: Vec::new(),
             filter: None,
             // Note that this should be Some but everything empty. We need to
@@ -1477,9 +1477,8 @@ mod tests {
         let expected = Expr::Function(Box::new(Function {
             reference: ObjectReference::from_strings(["count"]),
             distinct: false,
-            args: vec![FunctionArg::Unnamed {
-                arg: FunctionArgExpr::Wildcard,
-            }],
+            star: true,
+            args: Vec::new(),
             filter: None,
             over: None,
         }));
@@ -1495,9 +1494,8 @@ mod tests {
             right: Box::new(Expr::Function(Box::new(Function {
                 reference: ObjectReference::from_strings(["count"]),
                 distinct: false,
-                args: vec![FunctionArg::Unnamed {
-                    arg: FunctionArgExpr::Wildcard,
-                }],
+                star: true,
+                args: Vec::new(),
                 filter: None,
                 over: None,
             }))),
@@ -1512,9 +1510,8 @@ mod tests {
             left: Box::new(Expr::Function(Box::new(Function {
                 reference: ObjectReference::from_strings(["count"]),
                 distinct: false,
-                args: vec![FunctionArg::Unnamed {
-                    arg: FunctionArgExpr::Wildcard,
-                }],
+                star: true,
+                args: Vec::new(),
                 filter: None,
                 over: None,
             }))),

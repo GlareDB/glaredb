@@ -427,40 +427,26 @@ impl<'a> FromBinder<'a> {
                     };
 
                     match arg {
-                        ast::FunctionArg::Unnamed { arg } => match arg {
-                            ast::FunctionArgExpr::Expr(expr) => {
-                                let expr = expr_binder.bind_expression(
-                                    bind_context,
-                                    expr,
-                                    &mut DefaultColumnBinder,
-                                    recur,
-                                )?;
+                        ast::FunctionArg::Unnamed { arg } => {
+                            let expr = expr_binder.bind_expression(
+                                bind_context,
+                                arg,
+                                &mut DefaultColumnBinder,
+                                recur,
+                            )?;
 
-                                positional.push(expr);
-                            }
-                            ast::FunctionArgExpr::Wildcard => {
-                                return Err(DbError::new(
-                                    "Cannot plan a function with '*' as an argument",
-                                ));
-                            }
-                        },
-                        ast::FunctionArg::Named { name, arg } => match arg {
-                            ast::FunctionArgExpr::Expr(expr) => {
-                                let expr = expr_binder.bind_expression(
-                                    bind_context,
-                                    expr,
-                                    &mut DefaultColumnBinder,
-                                    recur,
-                                )?;
+                            positional.push(expr);
+                        }
+                        ast::FunctionArg::Named { name, arg } => {
+                            let expr = expr_binder.bind_expression(
+                                bind_context,
+                                arg,
+                                &mut DefaultColumnBinder,
+                                recur,
+                            )?;
 
-                                named.insert(name.as_normalized_string(), expr);
-                            }
-                            ast::FunctionArgExpr::Wildcard => {
-                                return Err(DbError::new(
-                                    "Cannot plan a function with '*' as an argument",
-                                ));
-                            }
-                        },
+                            named.insert(name.as_normalized_string(), expr);
+                        }
                     }
                 }
 

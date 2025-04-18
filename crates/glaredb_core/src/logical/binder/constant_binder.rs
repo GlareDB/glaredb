@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glaredb_error::{DbError, Result};
+use glaredb_error::Result;
 use glaredb_parser::ast;
 
 use super::expr_binder::RecursionContext;
@@ -53,28 +53,16 @@ impl<'a> ConstantBinder<'a> {
         for arg in args {
             match arg {
                 ast::FunctionArg::Named { name, arg } => {
-                    let expr = self.bind_constant_function_arg_expr(arg)?;
+                    let expr = self.bind_constant_expression(arg)?;
                     named.insert(name.as_normalized_string(), expr);
                 }
                 ast::FunctionArg::Unnamed { arg } => {
-                    let expr = self.bind_constant_function_arg_expr(arg)?;
+                    let expr = self.bind_constant_expression(arg)?;
                     positional.push(expr);
                 }
             }
         }
 
         Ok(TableFunctionInput { positional, named })
-    }
-
-    fn bind_constant_function_arg_expr(
-        &self,
-        arg: &ast::FunctionArgExpr<ResolvedMeta>,
-    ) -> Result<Expression> {
-        match arg {
-            ast::FunctionArgExpr::Expr(expr) => self.bind_constant_expression(expr),
-            ast::FunctionArgExpr::Wildcard => Err(DbError::new(
-                "'*' cannot be used as a constant function argument",
-            )),
-        }
     }
 }
