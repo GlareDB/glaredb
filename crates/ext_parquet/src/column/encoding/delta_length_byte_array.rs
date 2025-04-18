@@ -3,7 +3,6 @@ use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
     PhysicalBinary,
-    ScalarStorage,
 };
 use glaredb_core::buffer::buffer_manager::NopBufferManager;
 use glaredb_core::buffer::typed::TypedBuffer;
@@ -17,8 +16,6 @@ use crate::column::read_buffer::ReadCursor;
 pub struct DeltaLengthByteArrayDecoder {
     /// If we should verify that the bytes we read is valid utf8.
     verify_utf8: bool,
-    /// Number of values we're decoding.
-    num_values: usize,
     /// Index of the current value we're on.
     curr_len_idx: usize,
     /// Decoded lengths from the beginning of the buffer.
@@ -36,15 +33,10 @@ impl DeltaLengthByteArrayDecoder {
         let mut dec = DeltaBinaryPackedValueDecoder::<i32>::try_new(cursor)?;
         dec.read(len_slice)?;
 
-        println!("LEN: {}", len_slice[0]);
-
-        let mut cursor = dec.try_into_cursor()?;
-
-        // WHAT IS THIS????
-        unsafe { cursor.skip_bytes_unchecked(4) };
+        let cursor = dec.try_into_cursor()?;
 
         // Verify that the total length equal the number of bytes in the cursor.
-        let total = len_slice.iter().fold(0, |acc, &v| acc + v);
+        let total: i32 = len_slice.iter().sum();
         if total as usize != cursor.remaining() {
             return Err(DbError::new("DELTA_LENGTH_BYTE_ARRAY: Total length does not equal remaining length in byte cursor")
                 .with_field("total", total)
@@ -53,7 +45,6 @@ impl DeltaLengthByteArrayDecoder {
 
         Ok(DeltaLengthByteArrayDecoder {
             verify_utf8,
-            num_values,
             curr_len_idx: 0,
             lengths,
             cursor,
@@ -82,15 +73,11 @@ impl DeltaLengthByteArrayDecoder {
                     }
 
                     let len = lens[self.curr_len_idx];
-                    println!("LEN: {len}");
                     self.curr_len_idx += 1;
 
                     let bs = unsafe { self.cursor.read_bytes_unchecked(len as usize) };
-                    println!("BSLEN: {}", bs.len());
                     if self.verify_utf8 {
-                        let s = std::str::from_utf8(bs).context("Did not read valid utf8")?;
-                        println!("SLEN: {}", s.len());
-                        println!("S[def]: {s}");
+                        let _ = std::str::from_utf8(bs).context("Did not read valid utf8")?;
                     }
 
                     data.put(output_idx, bs);
@@ -105,8 +92,7 @@ impl DeltaLengthByteArrayDecoder {
 
                     let bs = unsafe { self.cursor.read_bytes_unchecked(len as usize) };
                     if self.verify_utf8 {
-                        let s = std::str::from_utf8(bs).context("Did not read valid utf8")?;
-                        println!("S: {s}");
+                        let _ = std::str::from_utf8(bs).context("Did not read valid utf8")?;
                     }
 
                     data.put(output_idx, bs);

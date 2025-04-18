@@ -239,14 +239,20 @@ where
         // > a full miniblock multiplied by the bit width. The values of the
         // > padding bits should be zero, but readers must accept paddings
         // > consisting of arbitrary bits as well.
-        if self.mini_block_value_idx == self.values_per_mini_block {
-            return Ok(self.cursor);
-        }
 
-        let rem = self.values_per_mini_block - self.mini_block_value_idx;
-        // ok
-        let mut drain = vec![T::zero(); rem];
-        self.read(&mut drain)?;
+        let idx = self.mini_block_idx;
+        let pos_in_mb = self.mini_block_value_idx;
+        let per_mb = self.values_per_mini_block;
+        let width = self.mini_block_bit_widths[idx] as usize;
+
+        let rem_vals = per_mb - pos_in_mb;
+        if width > 0 && rem_vals > 0 {
+            let bits_to_skip = width * rem_vals;
+            let bytes_to_skip = bits_to_skip.div_ceil(8);
+            unsafe {
+                self.cursor.skip_bytes_unchecked(bytes_to_skip);
+            }
+        }
 
         Ok(self.cursor)
     }

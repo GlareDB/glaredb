@@ -8,6 +8,12 @@ DESCRIBE '../submodules/parquet-testing/data/delta_length_byte_array.parquet'
 ----
 FRUIT  Utf8
 
-query T
-SELECT * FROM '../submodules/parquet-testing/data/delta_length_byte_array.parquet' LIMIT 1;
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/delta_length_byte_array.parquet';
 ----
+1000
+
+query TT
+SELECT min("FRUIT"), max("FRUIT") FROM '../submodules/parquet-testing/data/delta_length_byte_array.parquet';
+----
+apple_banana_mango0  apple_banana_mango99856
