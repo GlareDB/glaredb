@@ -11,6 +11,7 @@ use super::read_buffer::OwnedReadBuffer;
 use super::value_reader::ValueReader;
 use crate::basic::{self, Encoding};
 use crate::column::encoding::delta_binary_packed::DeltaBinaryPackedDecoder;
+use crate::column::encoding::delta_byte_array::DeltaByteArrayDecoder;
 use crate::column::encoding::plain::PlainDecoder;
 use crate::compression::Codec;
 use crate::format;
@@ -426,12 +427,24 @@ where
                 }
                 let cursor = self.decompressed_page.take_remaining();
                 let verify_utf8 = true; // TODO
-                let dec = DeltaLengthByteArrayDecoder::try_new(
-                    cursor,
-                    self.state.remaining_page_values,
-                    verify_utf8,
-                )?;
+                let dec = DeltaLengthByteArrayDecoder::try_new(cursor, verify_utf8)?;
                 self.state.page_decoder = Some(PageDecoder::DeltaLengthByteArray(dec));
+
+                Ok(())
+            }
+            Encoding::DELTA_BYTE_ARRAY => {
+                if !matches!(
+                    self.descr.physical_type(),
+                    basic::Type::BYTE_ARRAY | basic::Type::FIXED_LEN_BYTE_ARRAY,
+                ) {
+                    return Err(DbError::new(
+                        "DELTA_BYTE_ARRAY only valid for BYTE_ARRAY or FIXED_LEN_BYTE_ARRAY",
+                    ));
+                }
+                let cursor = self.decompressed_page.take_remaining();
+                let verify_utf8 = true; // TODO
+                let dec = DeltaByteArrayDecoder::try_new(cursor, verify_utf8)?;
+                self.state.page_decoder = Some(PageDecoder::DeltaByteArray(dec));
 
                 Ok(())
             }

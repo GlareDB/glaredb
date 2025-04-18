@@ -25,12 +25,13 @@ pub struct DeltaLengthByteArrayDecoder {
 }
 
 impl DeltaLengthByteArrayDecoder {
-    pub fn try_new(cursor: ReadCursor, num_values: usize, verify_utf8: bool) -> Result<Self> {
+    pub fn try_new(cursor: ReadCursor, verify_utf8: bool) -> Result<Self> {
+        let mut dec = DeltaBinaryPackedValueDecoder::<i32>::try_new(cursor)?;
+        let num_values = dec.total_values();
+
         // TODO: Not Nop
         let mut lengths = TypedBuffer::<i32>::try_with_capacity(&NopBufferManager, num_values)?;
-
         let len_slice = &mut lengths.as_slice_mut()[..num_values]; // May overallocate
-        let mut dec = DeltaBinaryPackedValueDecoder::<i32>::try_new(cursor)?;
         dec.read(len_slice)?;
 
         let cursor = dec.try_into_cursor()?;

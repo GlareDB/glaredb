@@ -96,6 +96,8 @@ pub(crate) struct DeltaBinaryPackedValueDecoder<T> {
     cursor: ReadCursor,
     /// Number of miniblocks.
     mini_block_count: usize,
+    /// Total number of values in the buffer.
+    total_values: usize,
     /// Number of values remaining overall.
     values_remaining: usize,
     /// Bit widths per miniblock.
@@ -142,10 +144,17 @@ where
 
         let values_per_mini_block = block_size / mini_block_count;
 
+        // We've already "decoded" the first value.
+        //
+        // Note that we use saturating sub since it's valid to have no values in
+        // this buffer.
+        let values_remaining = total_values.saturating_sub(1);
+
         let mut inner = Self {
             cursor,
             mini_block_count,
-            values_remaining: total_values - 1, // We've already "decoded" the first value
+            total_values,
+            values_remaining,
             mini_block_bit_widths: vec![0; mini_block_count],
             mini_block_idx: 0,
             mini_block_value_idx: 0,
@@ -155,10 +164,16 @@ where
             bit_unpack_state: BitUnpackState::new(0),
         };
 
-        // Load the first block.
-        inner.load_next_block()?;
+        // Load the first block only if we have values to load.
+        if total_values > 0 {
+            inner.load_next_block()?;
+        }
 
         Ok(inner)
+    }
+
+    pub fn total_values(&self) -> usize {
+        self.total_values
     }
 
     /// Read `out` values.
