@@ -21,15 +21,52 @@ pub struct DbVec<T> {
 }
 
 impl<T> DbVec<T> {
-    /// Create a new vec backed by the given manager with an initial of _at
-    /// least_ `len`.
+    /// Create a new vec backed by the given manager with an initial capacity of
+    /// _at least_ `len`.
     ///
     /// This will allocate memory needed, however that memory will remain
     /// unitilialized. It's important that a value is written to a given index
     /// before it's read.
-    pub fn new_uninit(manager: &impl AsRawBufferManager, len: usize) -> Result<Self> {
+    ///
+    /// This should only be used for types with trivial Drop implementations
+    /// (primitive ints, floats).
+    pub fn new_uninit(manager: &impl AsRawBufferManager, len: usize) -> Result<Self>
+    where
+        T: Copy,
+    {
         let raw = RawDbVec::new_uninit(manager, len)?;
         Ok(DbVec { raw, len })
+    }
+
+    /// Create a new vec, initializing all values to `val`.
+    pub fn with_value(manager: &impl AsRawBufferManager, len: usize, val: T) -> Result<Self>
+    where
+        T: Copy,
+    {
+        let mut vec = Self::new_uninit(manager, len)?;
+        let s = unsafe { vec.as_slice_mut() };
+        s.fill(val);
+
+        Ok(vec)
+    }
+
+    pub fn with_value_init_fn<F>(
+        manager: &impl AsRawBufferManager,
+        len: usize,
+        mut init_fn: F,
+    ) -> Result<Self>
+    where
+        F: FnMut() -> T,
+    {
+        let raw = RawDbVec::new_uninit(manager, len)?;
+        let mut vec = DbVec { raw, len };
+
+        let s = unsafe { vec.as_uninit_slice_mut() };
+        for uninit in s {
+            uninit.write(init_fn());
+        }
+
+        Ok(vec)
     }
 
     pub const fn len(&self) -> usize {
@@ -38,6 +75,46 @@ impl<T> DbVec<T> {
 
     pub const fn capacity(&self) -> usize {
         self.raw.capacity()
+    }
+
+    pub fn resize(&mut self, new_len: usize) -> Result<()> {
+        if new_len == self.len {
+            return Ok(());
+        }
+
+        if new_len < self.len() {
+            // Drop elements that are being removed.
+            unsafe {
+                // How many elements we're shaving off the end.
+                let drop_count = new_len - self.len();
+                // Point to first element being shaved off.
+                let ptr_start = self.raw.ptr().add(new_len).as_ptr();
+                // Slice of all shaved off elements.
+                let drop_slice = std::slice::from_raw_parts_mut(ptr_start, drop_count);
+                std::ptr::drop_in_place(drop_slice);
+            }
+
+            // Just update length, we don't need to try to shrink the
+            // allocation.
+            self.len = new_len;
+            return Ok(());
+        }
+
+        // Otherwise we do need to reallocate.
+        self.raw.resize(new_len)?;
+        self.len = new_len;
+
+        Ok(())
+    }
+
+    /// Returns a const pointer to the start of this buffer.
+    pub fn as_ptr(&self) -> *const T {
+        self.raw.ptr().cast().as_ptr()
+    }
+
+    /// Returns a mut pointer to the start of this buffer.
+    pub fn as_mut_ptr(&mut self) -> *mut T {
+        self.raw.ptr().cast().as_ptr()
     }
 
     /// Get a slice reference for the elements in this vec.
@@ -67,6 +144,12 @@ impl<T> DbVec<T> {
     pub unsafe fn as_slice_mut(&mut self) -> &mut [T] {
         debug_assert!(self.len() <= self.capacity());
         let ptr = self.raw.ptr().cast().as_ptr();
+        unsafe { std::slice::from_raw_parts_mut(ptr, self.len) }
+    }
+
+    pub unsafe fn as_uninit_slice_mut(&mut self) -> &mut [MaybeUninit<T>] {
+        debug_assert!(self.len() <= self.capacity());
+        let ptr = self.raw.ptr().as_ptr();
         unsafe { std::slice::from_raw_parts_mut(ptr, self.len) }
     }
 }
@@ -144,5 +227,70 @@ impl<T> RawDbVec<T> {
 impl<T> Drop for RawDbVec<T> {
     fn drop(&mut self) {
         unsafe { self.manager.call_free_reservation(&mut self.reservation) };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{self, AtomicUsize};
+
+    use super::*;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
+
+    #[test]
+    fn vec_basic() {
+        let mut val = 0;
+        let vec = DbVec::<i32>::with_value_init_fn(&DefaultBufferManager, 4, || {
+            val += 1;
+            val
+        })
+        .unwrap();
+
+        let s = unsafe { vec.as_slice() };
+
+        assert_eq!(&[1, 2, 3, 4], s);
+    }
+
+    #[test]
+    fn vec_zero_len() {
+        let vec = DbVec::<i32>::new_uninit(&DefaultBufferManager, 0).unwrap();
+        let s = unsafe { vec.as_slice() };
+        assert!(s.is_empty());
+    }
+
+    #[test]
+    fn vec_zst() {
+        #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+        struct Zst;
+
+        let vec = DbVec::with_value(&DefaultBufferManager, 4, Zst).unwrap();
+        let s = unsafe { vec.as_slice() };
+
+        assert_eq!(&[Zst, Zst, Zst, Zst], s);
+    }
+
+    #[test]
+    fn vec_drop_elements() {
+        struct Droppable {
+            count: Arc<AtomicUsize>,
+        }
+
+        impl Drop for Droppable {
+            fn drop(&mut self) {
+                self.count.fetch_add(1, atomic::Ordering::Relaxed);
+            }
+        }
+
+        let drop_count = Arc::new(AtomicUsize::new(0));
+
+        let vec = DbVec::with_value_init_fn(&DefaultBufferManager, 4, || Droppable {
+            count: drop_count.clone(),
+        })
+        .unwrap();
+
+        std::mem::drop(vec);
+
+        assert_eq!(4, drop_count.load(atomic::Ordering::Relaxed));
     }
 }

@@ -234,11 +234,11 @@ impl<T> Deref for OwnedOrShared<T> {
 }
 
 #[derive(Debug)]
-pub struct ScalarBuffer<T: 'static> {
+pub struct ScalarBuffer<T: Default + Copy + 'static> {
     buffer: DbVec<T>,
 }
 
-impl<T: 'static> ScalarBuffer<T> {
+impl<T: Default + Copy + 'static> ScalarBuffer<T> {
     pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
         Ok(ScalarBuffer {
             buffer: DbVec::new_uninit(manager, capacity)?,
@@ -246,7 +246,7 @@ impl<T: 'static> ScalarBuffer<T> {
     }
 }
 
-impl<T> ArrayBuffer for ScalarBuffer<T> where T: Sync + Send + 'static {}
+impl<T> ArrayBuffer for ScalarBuffer<T> where T: Default + Copy + Sync + Send + 'static {}
 
 #[derive(Debug)]
 pub struct StringBuffer {}
