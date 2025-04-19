@@ -6,12 +6,14 @@ use std::sync::Arc;
 use glaredb_error::{DbError, Result, not_implemented};
 use half::f16;
 
+use super::execution_format::{ExecutionFormat, SelectionFormat};
 use super::physical_type::{
     BinaryViewAddressable,
     BinaryViewAddressableMut,
     StringViewAddressable,
     StringViewAddressableMut,
 };
+use super::selection::Selection;
 use super::validity::Validity;
 use crate::arrays::array::physical_type::{
     PhysicalBinary,
@@ -45,11 +47,35 @@ use crate::buffer::raw::RawBuffer;
 use crate::buffer::typed::TypedBuffer;
 use crate::util::convert::TryAsMut;
 
-pub trait ArrayBuffer: Sync + Send + 'static {}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArrayBufferType {
+    Scalar,
+    String,
+    Constant,
+    Dictionary,
+    List,
+    Struct,
+}
+
+pub trait ArrayBuffer: Sized + Sync + Send + 'static {
+    const BUFFER_TYPE: ArrayBufferType;
+
+    /// Return the logical length of the buffer.
+    fn logical_len(&self) -> usize;
+}
 
 pub trait ArrayBufferDowncast: ArrayBuffer {
+    /// Try to downcast this buffer into a concrete type reference.
     fn downcast_ref(buffer: &(dyn Any + Sync + Send)) -> Result<&Self>;
+
+    /// Try to downcast this buffer into a concrete type mutable reference.
     fn downcast_mut(buffer: &mut (dyn Any + Sync + Send)) -> Result<&mut Self>;
+
+    /// Try to downcast this buffer into a mutable reference. If the buffer is
+    /// shared, this will error.
+    fn owned_or_shared_downcast_mut(buffer: &mut AnyArrayBuffer) -> Result<&mut Self>;
+
+    fn downcast_execution_format(buffer: &AnyArrayBuffer) -> Result<ExecutionFormat<'_, Self>>;
 }
 
 impl<A> ArrayBufferDowncast for A
@@ -67,10 +93,51 @@ where
             .downcast_mut::<Self>()
             .ok_or_else(|| DbError::new("failed to downcast array buffer (mut)"))
     }
+
+    fn owned_or_shared_downcast_mut(buffer: &mut AnyArrayBuffer) -> Result<&mut Self> {
+        let buffer = buffer
+            .buffer
+            .as_mut()
+            .ok_or_else(|| DbError::new("Buffer is shared, cannot get mutable reference"))?;
+        Self::downcast_mut(buffer)
+    }
+
+    fn downcast_execution_format(buffer: &AnyArrayBuffer) -> Result<ExecutionFormat<'_, Self>> {
+        match buffer.buffer_type {
+            ArrayBufferType::Constant => {
+                let constant = ConstantBuffer::downcast_ref(&buffer.buffer)?;
+                let selection = Selection::constant(constant.len, constant.row_idx);
+                let child_buffer = Self::downcast_ref(&constant.buffer.buffer)?;
+
+                Ok(ExecutionFormat::Selection(SelectionFormat {
+                    selection,
+                    buffer: child_buffer,
+                }))
+            }
+            ArrayBufferType::Dictionary => {
+                let dictionary = DictionaryBuffer::downcast_ref(&buffer.buffer)?;
+                let selection = Selection::slice(unsafe { dictionary.selection.as_slice() });
+                let child_buffer = Self::downcast_ref(&dictionary.buffer.buffer)?;
+
+                Ok(ExecutionFormat::Selection(SelectionFormat {
+                    selection,
+                    buffer: child_buffer,
+                }))
+            }
+            _ => {
+                // No transformation needed for execution. Use this buffer as-is.
+                // TODO: Could be cool if we could do something for lists.
+                let buffer = Self::downcast_ref(&buffer.buffer)?;
+                Ok(ExecutionFormat::NoTransformation(buffer))
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct AnyArrayBufferVTable {}
+pub struct AnyArrayBufferVTable {
+    logical_len_fn: fn(&(dyn Any + Sync + Send)) -> usize,
+}
 
 trait ArrayBufferVTable: ArrayBuffer {
     const VTABLE: &'static AnyArrayBufferVTable;
@@ -80,13 +147,19 @@ impl<A> ArrayBufferVTable for A
 where
     A: ArrayBuffer,
 {
-    const VTABLE: &'static AnyArrayBufferVTable = &AnyArrayBufferVTable {};
+    const VTABLE: &'static AnyArrayBufferVTable = &AnyArrayBufferVTable {
+        logical_len_fn: |buffer| {
+            let buffer = Self::downcast_ref(buffer).unwrap();
+            buffer.logical_len()
+        },
+    };
 }
 
 #[derive(Debug)]
 pub struct AnyArrayBuffer {
     pub(crate) buffer: OwnedOrShared<dyn Any + Sync + Send>,
     pub(crate) vtable: &'static AnyArrayBufferVTable,
+    pub(crate) buffer_type: ArrayBufferType,
 }
 
 impl AnyArrayBuffer {
@@ -161,13 +234,42 @@ impl AnyArrayBuffer {
         AnyArrayBuffer {
             buffer,
             vtable: A::VTABLE,
+            buffer_type: A::BUFFER_TYPE,
         }
+    }
+
+    /// Make the underlying buffer shared.
+    ///
+    /// Does nothing if the buffer is already shared.
+    pub fn make_shared(&mut self) {
+        self.buffer.make_shared()
+    }
+
+    /// Makes this buffer shared, and clones it.
+    pub fn make_shared_and_clone(&mut self) -> Self {
+        self.buffer.make_shared();
+        let shared = match &self.buffer.0 {
+            OwnedOrSharedPtr::Shared(shared) => {
+                OwnedOrShared(OwnedOrSharedPtr::Shared(shared.clone()))
+            }
+            _ => unreachable!(),
+        };
+
+        AnyArrayBuffer {
+            buffer: shared,
+            vtable: self.vtable,
+            buffer_type: self.buffer_type,
+        }
+    }
+
+    pub fn logical_len(&self) -> usize {
+        (self.vtable.logical_len_fn)(self.buffer.as_ref())
     }
 }
 
 /// A pointer to T that is either uniquely owned (Box) or shared (Arc).
 #[derive(Debug)]
-pub(crate) struct OwnedOrShared<T: ?Sized>(OwnedOrSharedPtr<T>);
+pub struct OwnedOrShared<T: ?Sized>(OwnedOrSharedPtr<T>);
 
 #[derive(Debug)]
 enum OwnedOrSharedPtr<T: ?Sized> {
@@ -235,10 +337,13 @@ impl<T> Deref for OwnedOrShared<T> {
 
 #[derive(Debug)]
 pub struct ScalarBuffer<T: Default + Copy + 'static> {
-    buffer: DbVec<T>,
+    pub(crate) buffer: DbVec<T>,
 }
 
-impl<T: Default + Copy + 'static> ScalarBuffer<T> {
+impl<T> ScalarBuffer<T>
+where
+    T: Default + Copy + 'static,
+{
     pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
         Ok(ScalarBuffer {
             buffer: DbVec::new_uninit(manager, capacity)?,
@@ -246,18 +351,39 @@ impl<T: Default + Copy + 'static> ScalarBuffer<T> {
     }
 }
 
-impl<T> ArrayBuffer for ScalarBuffer<T> where T: Default + Copy + Sync + Send + 'static {}
+impl<T> ArrayBuffer for ScalarBuffer<T>
+where
+    T: Default + Copy + Sync + Send + 'static,
+{
+    const BUFFER_TYPE: ArrayBufferType = ArrayBufferType::Scalar;
 
-#[derive(Debug)]
-pub struct StringBuffer {}
-
-impl StringBuffer {
-    pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
-        unimplemented!()
+    fn logical_len(&self) -> usize {
+        self.buffer.len()
     }
 }
 
-impl ArrayBuffer for StringBuffer {}
+#[derive(Debug)]
+pub struct StringBuffer {
+    pub(crate) metadata: DbVec<StringView>,
+    pub(crate) buffer: StringViewBuffer,
+}
+
+impl StringBuffer {
+    pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
+        let metadata = DbVec::new_uninit(manager, capacity)?;
+        let buffer = StringViewBuffer::with_capacity(manager, 0)?;
+
+        Ok(StringBuffer { metadata, buffer })
+    }
+}
+
+impl ArrayBuffer for StringBuffer {
+    const BUFFER_TYPE: ArrayBufferType = ArrayBufferType::String;
+
+    fn logical_len(&self) -> usize {
+        self.metadata.len()
+    }
+}
 
 #[derive(Debug)]
 pub struct ListBuffer {}
@@ -268,7 +394,13 @@ impl ListBuffer {
     }
 }
 
-impl ArrayBuffer for ListBuffer {}
+impl ArrayBuffer for ListBuffer {
+    const BUFFER_TYPE: ArrayBufferType = ArrayBufferType::List;
+
+    fn logical_len(&self) -> usize {
+        unimplemented!()
+    }
+}
 
 #[derive(Debug)]
 pub struct StructBuffer {}
@@ -279,18 +411,49 @@ impl StructBuffer {
     }
 }
 
-impl ArrayBuffer for StructBuffer {}
+impl ArrayBuffer for StructBuffer {
+    const BUFFER_TYPE: ArrayBufferType = ArrayBufferType::Struct;
 
-#[derive(Debug)]
-pub struct DictionaryBuffer {}
-
-impl DictionaryBuffer {
-    pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
+    fn logical_len(&self) -> usize {
         unimplemented!()
     }
 }
 
-impl ArrayBuffer for DictionaryBuffer {}
+#[derive(Debug)]
+pub struct DictionaryBuffer {
+    pub(crate) selection: DbVec<usize>,
+    pub(crate) buffer: AnyArrayBuffer,
+}
+
+impl DictionaryBuffer {}
+
+impl ArrayBuffer for DictionaryBuffer {
+    const BUFFER_TYPE: ArrayBufferType = ArrayBufferType::Dictionary;
+
+    fn logical_len(&self) -> usize {
+        self.selection.len()
+    }
+}
+
+#[derive(Debug)]
+pub struct ConstantBuffer {
+    /// Row index we're referencing in the array buffer.
+    pub(crate) row_idx: usize,
+    /// Logical length of the buffer.
+    pub(crate) len: usize,
+    /// The array buffer.
+    ///
+    /// May either be owned, or shared with another array.
+    pub(crate) buffer: AnyArrayBuffer,
+}
+
+impl ArrayBuffer for ConstantBuffer {
+    const BUFFER_TYPE: ArrayBufferType = ArrayBufferType::Constant;
+
+    fn logical_len(&self) -> usize {
+        self.len
+    }
+}
 
 /// Abstraction layer for holding shared or owned array data.
 ///
@@ -862,12 +1025,12 @@ impl StringBuffer2 {
 #[derive(Debug)]
 pub struct StringViewBuffer {
     bytes_filled: usize,
-    buffer: TypedBuffer<u8>,
+    buffer: DbVec<u8>,
 }
 
 impl StringViewBuffer {
     pub fn with_capacity(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
-        let buffer = TypedBuffer::try_with_capacity(manager, capacity)?;
+        let buffer = DbVec::new_uninit(manager, capacity)?;
         Ok(StringViewBuffer {
             bytes_filled: 0,
             buffer,
@@ -887,7 +1050,7 @@ impl StringViewBuffer {
             debug_assert_eq!(0, reference.buffer_idx);
             let offset = reference.offset as usize;
             let len = reference.len as usize;
-            &self.buffer.as_slice()[offset..(offset + len)]
+            unsafe { &self.buffer.as_slice()[offset..(offset + len)] }
         }
     }
 
@@ -900,7 +1063,7 @@ impl StringViewBuffer {
             debug_assert_eq!(0, reference.buffer_idx);
             let offset = reference.offset as usize;
             let len = reference.len as usize;
-            &mut self.buffer.as_slice_mut()[offset..(offset + len)]
+            unsafe { &mut self.buffer.as_slice_mut()[offset..(offset + len)] }
         }
     }
 
@@ -917,14 +1080,14 @@ impl StringViewBuffer {
                     self.bytes_filled,
                     additional,
                 );
-                self.buffer.reserve_additional(reserve_amount)?;
+                self.buffer.resize(self.buffer.len() + reserve_amount)?;
             }
 
             let offset = self.bytes_filled;
             self.bytes_filled += value.len();
 
             // Copy entire value to buffer.
-            let buf = &mut self.buffer.as_mut()[offset..(offset + value.len())];
+            let buf = unsafe { &mut self.buffer.as_slice_mut()[offset..(offset + value.len())] };
             buf.copy_from_slice(value);
 
             Ok(StringView::new_reference(value, 0, offset as i32))

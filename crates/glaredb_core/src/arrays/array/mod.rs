@@ -1,4 +1,5 @@
 pub mod array_buffer;
+pub mod execution_format;
 pub mod flat;
 pub mod physical_type;
 pub mod selection;
@@ -7,8 +8,10 @@ pub mod validity;
 use std::fmt::Debug;
 
 use array_buffer::{
+    AnyArrayBuffer,
     ArrayBuffer2,
     ArrayBufferType2,
+    ConstantBuffer,
     ConstantBuffer2,
     DictionayBuffer2,
     ListItemMetadata,
@@ -66,7 +69,7 @@ pub struct Array {
     /// This should match the logical length of the underlying data buffer.
     pub(crate) validity: Validity,
     /// Holds the underlying array data.
-    pub(crate) data: ArrayBuffer2,
+    pub(crate) data: AnyArrayBuffer,
 }
 
 impl Array {
@@ -79,7 +82,7 @@ impl Array {
         datatype: DataType,
         capacity: usize,
     ) -> Result<Self> {
-        let data = ArrayBuffer2::try_new_for_datatype(manager, &datatype, capacity)?;
+        let data = AnyArrayBuffer::new_for_datatype(manager, &datatype, capacity)?;
         let validity = Validity::new_all_valid(capacity);
 
         Ok(Array {
@@ -114,10 +117,10 @@ impl Array {
         let mut arr = Self::new(manager, value.datatype(), 1)?;
         arr.set_value(0, value)?;
 
-        let buffer = ConstantBuffer2 {
-            row_reference: 0,
+        let buffer = ConstantBuffer {
+            row_idx: 0,
             len,
-            child_buffer: Box::new(arr.data),
+            buffer: arr.data,
         };
 
         let validity = if arr.validity.is_valid(0) {
@@ -129,7 +132,7 @@ impl Array {
         Ok(Array {
             datatype: value.datatype(),
             validity,
-            data: ArrayBuffer2::new(buffer),
+            data: AnyArrayBuffer::new_unique(buffer),
         })
     }
 
@@ -144,32 +147,6 @@ impl Array {
         // buffer instead of getting the value.
         let value = other.get_value(row_reference)?;
         Self::new_constant(manager, &value, len)
-    }
-
-    /// Create a new typed null array.
-    ///
-    /// This will create an array that contains only nulls but retains the
-    /// requested datatype.
-    ///
-    /// A buffer of size 1 will be created with all values pointing to the same
-    /// element.
-    pub fn new_typed_null(
-        manager: &impl BufferManager,
-        datatype: DataType,
-        len: usize,
-    ) -> Result<Self> {
-        let data = ArrayBuffer2::try_new_for_datatype(manager, &datatype, 1)?;
-        let buffer = ConstantBuffer2 {
-            row_reference: 0,
-            len,
-            child_buffer: Box::new(data),
-        };
-
-        Ok(Array {
-            datatype,
-            validity: Validity::new_all_invalid(len),
-            data: ArrayBuffer2::new(buffer),
-        })
     }
 
     pub fn swap(&mut self, other: &mut Self) -> Result<()> {
@@ -211,8 +188,7 @@ impl Array {
         Ok(())
     }
 
-    /// Try to clone a constant from the other array, attempting to cache the
-    /// current buffer.
+    /// Try to clone a constant from the other array.
     ///
     /// Attempts to cache the existing the buffer.
     pub fn clone_constant_from(
@@ -290,11 +266,11 @@ impl Array {
         &self.datatype
     }
 
-    pub fn data(&self) -> &ArrayBuffer2 {
+    pub fn data(&self) -> &AnyArrayBuffer {
         &self.data
     }
 
-    pub fn data_mut(&mut self) -> &mut ArrayBuffer2 {
+    pub fn data_mut(&mut self) -> &mut AnyArrayBuffer {
         &mut self.data
     }
 
@@ -303,7 +279,7 @@ impl Array {
     }
 
     /// Gets a mutable reference to bothe the array buffer, and the validity.
-    pub fn data_and_validity_mut(&mut self) -> (&mut ArrayBuffer2, &mut Validity) {
+    pub fn data_and_validity_mut(&mut self) -> (&mut AnyArrayBuffer, &mut Validity) {
         (&mut self.data, &mut self.validity)
     }
 

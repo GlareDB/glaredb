@@ -90,69 +90,70 @@ fn make_list_from_values_inner<S: MutableScalarStorage>(
 ) -> Result<()> {
     // TODO: Dictionary
 
-    let sel = sel.into_exact_size_iter();
-    let num_rows = sel.len();
-    let total_capacity = sel.len() * inputs.len();
+    not_implemented!("make list from values")
+    // let sel = sel.into_exact_size_iter();
+    // let num_rows = sel.len();
+    // let total_capacity = sel.len() * inputs.len();
 
-    let list_buf = match output.data.as_mut() {
-        ArrayBufferType2::List(list_buf) => list_buf,
-        _ => return Err(DbError::new("Expected list buffer")),
-    };
+    // let list_buf = match output.data.as_mut() {
+    //     ArrayBufferType2::List(list_buf) => list_buf,
+    //     _ => return Err(DbError::new("Expected list buffer")),
+    // };
 
-    let metadata = list_buf.metadata.try_as_mut()?;
-    if metadata.capacity() < num_rows {
-        metadata.reserve_additional(num_rows - metadata.capacity())?;
-    }
+    // let metadata = list_buf.metadata.try_as_mut()?;
+    // if metadata.capacity() < num_rows {
+    //     metadata.reserve_additional(num_rows - metadata.capacity())?;
+    // }
 
-    // Overwrite validity with new capacity.
-    list_buf.child_validity = SharedOrOwned::owned(Validity::new_all_valid(total_capacity));
-    let child_validity = list_buf.child_validity.try_as_mut()?;
+    // // Overwrite validity with new capacity.
+    // list_buf.child_validity = SharedOrOwned::owned(Validity::new_all_valid(total_capacity));
+    // let child_validity = list_buf.child_validity.try_as_mut()?;
 
-    // Ensure we have appropriate capacity in the child buffer.
-    if list_buf.child_buffer.logical_len() < total_capacity {
-        let additional = total_capacity - list_buf.child_buffer.logical_len();
-        S::try_reserve(&mut list_buf.child_buffer, additional)?;
-    }
+    // // Ensure we have appropriate capacity in the child buffer.
+    // if list_buf.child_buffer.logical_len() < total_capacity {
+    //     let additional = total_capacity - list_buf.child_buffer.logical_len();
+    //     S::try_reserve(&mut list_buf.child_buffer, additional)?;
+    // }
 
-    // Update metadata on the list buffer itself. Note that this can be less
-    // than the buffer's actual capacity. This only matters during writes to
-    // know if we still have room to push to the child array.
-    list_buf.current_offset = total_capacity;
+    // // Update metadata on the list buffer itself. Note that this can be less
+    // // than the buffer's actual capacity. This only matters during writes to
+    // // know if we still have room to push to the child array.
+    // list_buf.current_offset = total_capacity;
 
-    // (flat, addressable) pairs.
-    let element_bufs = inputs
-        .iter()
-        .map(|arr| {
-            let flat = arr.flatten()?;
-            let addressable = S::get_addressable(flat.array_buffer)?;
-            Ok((flat, addressable))
-        })
-        .collect::<Result<Vec<_>>>()?;
+    // // (flat, addressable) pairs.
+    // let element_bufs = inputs
+    //     .iter()
+    //     .map(|arr| {
+    //         let flat = arr.flatten()?;
+    //         let addressable = S::get_addressable(flat.array_buffer)?;
+    //         Ok((flat, addressable))
+    //     })
+    //     .collect::<Result<Vec<_>>>()?;
 
-    let mut output_buf = S::get_addressable_mut(&mut list_buf.child_buffer)?;
+    // let mut output_buf = S::get_addressable_mut(&mut list_buf.child_buffer)?;
 
-    let mut output_idx = 0;
-    for row_idx in sel {
-        for (flat, buffer) in &element_bufs {
-            if flat.validity.is_valid(row_idx) {
-                output_buf.put(output_idx, buffer.get(row_idx).unwrap());
-            } else {
-                child_validity.set_invalid(output_idx);
-            }
-            output_idx += 1;
-        }
-    }
+    // let mut output_idx = 0;
+    // for row_idx in sel {
+    //     for (flat, buffer) in &element_bufs {
+    //         if flat.validity.is_valid(row_idx) {
+    //             output_buf.put(output_idx, buffer.get(row_idx).unwrap());
+    //         } else {
+    //             child_validity.set_invalid(output_idx);
+    //         }
+    //         output_idx += 1;
+    //     }
+    // }
 
-    // Now generate and set the metadatas.
-    let metadata = metadata.as_slice_mut();
-    let len = inputs.len() as i32;
+    // // Now generate and set the metadatas.
+    // let metadata = metadata.as_slice_mut();
+    // let len = inputs.len() as i32;
 
-    for (output_idx, metadata) in metadata.iter_mut().enumerate().take(num_rows) {
-        *metadata = ListItemMetadata {
-            offset: (output_idx as i32) * len,
-            len,
-        }
-    }
+    // for (output_idx, metadata) in metadata.iter_mut().enumerate().take(num_rows) {
+    //     *metadata = ListItemMetadata {
+    //         offset: (output_idx as i32) * len,
+    //         len,
+    //     }
+    // }
 
-    Ok(())
+    // Ok(())
 }
