@@ -1,18 +1,18 @@
 use glaredb_error::Result;
 
 use super::Array;
-use super::array_buffer::ArrayBuffer;
+use super::array_buffer::ArrayBuffer2;
 use super::physical_type::PhysicalType;
 use super::selection::Selection;
 use super::validity::Validity;
-use crate::arrays::array::array_buffer::ArrayBufferType;
+use crate::arrays::array::array_buffer::ArrayBufferType2;
 
 /// A view on top of normal arrays flattening some parts of the nested
 /// structure.
 #[derive(Debug)]
 pub struct FlattenedArray<'a> {
     pub(crate) validity: &'a Validity,
-    pub(crate) array_buffer: &'a ArrayBuffer,
+    pub(crate) array_buffer: &'a ArrayBuffer2,
     pub(crate) selection: Selection<'a>,
 }
 
@@ -24,17 +24,17 @@ impl<'a> FlattenedArray<'a> {
     /// The logical length of the buffer and the length of the validity must be
     /// the same.
     pub fn from_buffer_and_validity(
-        buffer: &'a ArrayBuffer,
+        buffer: &'a ArrayBuffer2,
         validity: &'a Validity,
     ) -> Result<Self> {
         debug_assert_eq!(buffer.logical_len(), validity.len());
         match buffer.as_ref() {
-            ArrayBufferType::Dictionary(dict) => Ok(FlattenedArray {
+            ArrayBufferType2::Dictionary(dict) => Ok(FlattenedArray {
                 validity,
                 array_buffer: &dict.child_buffer,
                 selection: Selection::slice(dict.selection.as_slice()),
             }),
-            ArrayBufferType::Constant(constant) => Ok(FlattenedArray {
+            ArrayBufferType2::Constant(constant) => Ok(FlattenedArray {
                 validity,
                 array_buffer: &constant.child_buffer,
                 selection: Selection::constant(constant.len, constant.row_reference),

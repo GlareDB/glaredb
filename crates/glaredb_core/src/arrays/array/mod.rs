@@ -7,8 +7,8 @@ pub mod validity;
 use std::fmt::Debug;
 
 use array_buffer::{
-    ArrayBuffer,
-    ArrayBufferType,
+    ArrayBuffer2,
+    ArrayBufferType2,
     ConstantBuffer,
     DictionaryBuffer,
     ListItemMetadata,
@@ -66,7 +66,7 @@ pub struct Array {
     /// This should match the logical length of the underlying data buffer.
     pub(crate) validity: Validity,
     /// Holds the underlying array data.
-    pub(crate) data: ArrayBuffer,
+    pub(crate) data: ArrayBuffer2,
 }
 
 impl Array {
@@ -79,7 +79,7 @@ impl Array {
         datatype: DataType,
         capacity: usize,
     ) -> Result<Self> {
-        let data = ArrayBuffer::try_new_for_datatype(manager, &datatype, capacity)?;
+        let data = ArrayBuffer2::try_new_for_datatype(manager, &datatype, capacity)?;
         let validity = Validity::new_all_valid(capacity);
 
         Ok(Array {
@@ -129,7 +129,7 @@ impl Array {
         Ok(Array {
             datatype: value.datatype(),
             validity,
-            data: ArrayBuffer::new(buffer),
+            data: ArrayBuffer2::new(buffer),
         })
     }
 
@@ -158,7 +158,7 @@ impl Array {
         datatype: DataType,
         len: usize,
     ) -> Result<Self> {
-        let data = ArrayBuffer::try_new_for_datatype(manager, &datatype, 1)?;
+        let data = ArrayBuffer2::try_new_for_datatype(manager, &datatype, 1)?;
         let buffer = ConstantBuffer {
             row_reference: 0,
             len,
@@ -168,7 +168,7 @@ impl Array {
         Ok(Array {
             datatype,
             validity: Validity::new_all_invalid(len),
-            data: ArrayBuffer::new(buffer),
+            data: ArrayBuffer2::new(buffer),
         })
     }
 
@@ -237,7 +237,7 @@ impl Array {
         };
 
         match other.data.as_mut() {
-            ArrayBufferType::Constant(constant) => {
+            ArrayBufferType2::Constant(constant) => {
                 let child_buffer = constant.child_buffer.make_shared_and_clone();
                 let buffer = ConstantBuffer {
                     row_reference: constant.row_reference, // Use existing row reference since it points to the right row already.
@@ -246,12 +246,12 @@ impl Array {
                 };
 
                 self.validity = new_validity;
-                let existing = std::mem::replace(&mut self.data, ArrayBuffer::new(buffer));
+                let existing = std::mem::replace(&mut self.data, ArrayBuffer2::new(buffer));
                 cache.maybe_cache(existing);
 
                 Ok(())
             }
-            ArrayBufferType::Dictionary(dict) => {
+            ArrayBufferType2::Dictionary(dict) => {
                 let child_buffer = dict.child_buffer.make_shared_and_clone();
                 let buffer = ConstantBuffer {
                     row_reference: dict.selection.as_slice()[row], // Ensure row reference relative to selection.
@@ -260,7 +260,7 @@ impl Array {
                 };
 
                 self.validity = new_validity;
-                let existing = std::mem::replace(&mut self.data, ArrayBuffer::new(buffer));
+                let existing = std::mem::replace(&mut self.data, ArrayBuffer2::new(buffer));
                 cache.maybe_cache(existing);
 
                 Ok(())
@@ -274,7 +274,7 @@ impl Array {
                 };
 
                 self.validity = new_validity;
-                let existing = std::mem::replace(&mut self.data, ArrayBuffer::new(buffer));
+                let existing = std::mem::replace(&mut self.data, ArrayBuffer2::new(buffer));
                 cache.maybe_cache(existing);
 
                 Ok(())
@@ -290,11 +290,11 @@ impl Array {
         &self.datatype
     }
 
-    pub fn data(&self) -> &ArrayBuffer {
+    pub fn data(&self) -> &ArrayBuffer2 {
         &self.data
     }
 
-    pub fn data_mut(&mut self) -> &mut ArrayBuffer {
+    pub fn data_mut(&mut self) -> &mut ArrayBuffer2 {
         &mut self.data
     }
 
@@ -303,7 +303,7 @@ impl Array {
     }
 
     /// Gets a mutable reference to bothe the array buffer, and the validity.
-    pub fn data_and_validity_mut(&mut self) -> (&mut ArrayBuffer, &mut Validity) {
+    pub fn data_and_validity_mut(&mut self) -> (&mut ArrayBuffer2, &mut Validity) {
         (&mut self.data, &mut self.validity)
     }
 
@@ -332,7 +332,7 @@ impl Array {
     pub fn should_flatten_for_execution(&self) -> bool {
         matches!(
             self.data.as_ref(),
-            ArrayBufferType::Constant(_) | ArrayBufferType::Dictionary(_)
+            ArrayBufferType2::Constant(_) | ArrayBufferType2::Dictionary(_)
         )
     }
 
@@ -349,7 +349,7 @@ impl Array {
         selection: impl IntoExactSizeIterator<Item = usize> + Clone,
     ) -> Result<()> {
         match self.data.as_mut() {
-            ArrayBufferType::Constant(constant) => {
+            ArrayBufferType2::Constant(constant) => {
                 // Selection on top of constant array produces an array of just
                 // the same constants. Just update the len to match the
                 // selection.
@@ -367,7 +367,7 @@ impl Array {
 
                 Ok(())
             }
-            ArrayBufferType::Dictionary(dict) => {
+            ArrayBufferType2::Dictionary(dict) => {
                 // Select the existing selection. We don't want to deal with
                 // nested dictionaries.
                 let sel_cloned = selection.clone().into_exact_size_iter();
@@ -402,7 +402,7 @@ impl Array {
                     .select(buf_selection.as_slice().iter().copied());
 
                 // Some hacks below, just swapping around the buffers.
-                let uninit = ArrayBuffer::new(ScalarBuffer {
+                let uninit = ArrayBuffer2::new(ScalarBuffer {
                     physical_type: PhysicalType::UntypedNull,
                     raw: SharedOrOwned::Uninit,
                 });
@@ -413,7 +413,7 @@ impl Array {
                     child_buffer: Box::new(buffer),
                 };
 
-                self.data = ArrayBuffer::new(dictionary);
+                self.data = ArrayBuffer2::new(dictionary);
 
                 Ok(())
             }
@@ -506,7 +506,7 @@ impl Array {
 /// want to deal with selections here.
 fn get_value_inner<'a>(
     datatype: &DataType,
-    buffer: &'a ArrayBuffer,
+    buffer: &'a ArrayBuffer2,
     validity: &Validity,
     logical_idx: usize,
     data_idx: usize,
@@ -629,7 +629,7 @@ fn get_value_inner<'a>(
         }
         DataType::List(m) => {
             let list_buf = match buffer.as_ref() {
-                ArrayBufferType::List(list_buf) => list_buf,
+                ArrayBufferType2::List(list_buf) => list_buf,
                 _ => return Err(DbError::new("Expected list buffer")),
             };
 
@@ -656,7 +656,7 @@ fn get_value_inner<'a>(
 
 fn set_value_inner(
     value: &BorrowedScalarValue,
-    buffer: &mut ArrayBuffer,
+    buffer: &mut ArrayBuffer2,
     validity: &mut Validity,
     logical_idx: usize,
     data_idx: usize,

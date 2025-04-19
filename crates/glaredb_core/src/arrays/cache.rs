@@ -1,7 +1,7 @@
 use glaredb_error::Result;
 
 use super::array::Array;
-use super::array::array_buffer::{ArrayBuffer, ArrayBufferType, ScalarBuffer, StringBuffer};
+use super::array::array_buffer::{ArrayBuffer2, ArrayBufferType2, ScalarBuffer, StringBuffer};
 use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::array::validity::Validity;
 use crate::buffer::buffer_manager::{BufferManager, RawBufferManager};
@@ -9,14 +9,14 @@ use crate::util::convert::TryAsMut;
 
 /// Maybe cache a buffer.
 pub trait MaybeCache {
-    fn maybe_cache(&mut self, buffer: ArrayBuffer);
+    fn maybe_cache(&mut self, buffer: ArrayBuffer2);
 }
 
 impl<M> MaybeCache for Option<M>
 where
     M: MaybeCache,
 {
-    fn maybe_cache(&mut self, buffer: ArrayBuffer) {
+    fn maybe_cache(&mut self, buffer: ArrayBuffer2) {
         match self {
             Some(cache) => cache.maybe_cache(buffer),
             None => NopCache.maybe_cache(buffer),
@@ -29,7 +29,7 @@ where
 pub struct NopCache;
 
 impl MaybeCache for NopCache {
-    fn maybe_cache(&mut self, _buffer: ArrayBuffer) {
+    fn maybe_cache(&mut self, _buffer: ArrayBuffer2) {
         // Just drop...
     }
 }
@@ -91,18 +91,18 @@ impl BufferCache {
         let buffer = match cached {
             Cached::Scalar(scalar) => {
                 debug_assert_eq!(scalar.physical_type, array.datatype.physical_type());
-                ArrayBuffer::new(scalar)
+                ArrayBuffer2::new(scalar)
             }
             Cached::String(string) => {
                 debug_assert!(
                     array.datatype.physical_type() == PhysicalType::Utf8
                         || array.datatype.physical_type() == PhysicalType::Binary
                 );
-                ArrayBuffer::new(string)
+                ArrayBuffer2::new(string)
             }
             Cached::None => {
                 // Need to allocate new buffer.
-                ArrayBuffer::try_new_for_datatype(manager, &array.datatype, cap)?
+                ArrayBuffer2::try_new_for_datatype(manager, &array.datatype, cap)?
             }
         };
 
@@ -137,7 +137,7 @@ impl MaybeCache for Cached {
     /// - we already have a buffer in the cache.
     /// - the buffer is not a type we can cache (yet).
     /// - the buffer contains a shared component.
-    fn maybe_cache(&mut self, buffer: ArrayBuffer) {
+    fn maybe_cache(&mut self, buffer: ArrayBuffer2) {
         if self.has_cached_buffer() {
             // Already have buffer cached.
             return;
@@ -146,12 +146,12 @@ impl MaybeCache for Cached {
         // TODO: Possibly check ref count.
 
         match buffer.into_inner() {
-            ArrayBufferType::Scalar(buf) => {
+            ArrayBufferType2::Scalar(buf) => {
                 if buf.raw.is_owned() {
                     *self = Cached::Scalar(buf)
                 }
             }
-            ArrayBufferType::String(mut buf) => {
+            ArrayBufferType2::String(mut buf) => {
                 if buf.metadata.is_owned() && buf.buffer.is_owned() {
                     let heap = buf.buffer.try_as_mut().expect("heap to be owned");
                     heap.clear();
@@ -161,11 +161,11 @@ impl MaybeCache for Cached {
                     *self = Cached::String(buf)
                 }
             }
-            ArrayBufferType::Constant(constant) => {
+            ArrayBufferType2::Constant(constant) => {
                 // Possibly peel off constant row selection.
                 self.maybe_cache(*constant.child_buffer);
             }
-            ArrayBufferType::Dictionary(dict) => {
+            ArrayBufferType2::Dictionary(dict) => {
                 // Possibly peel off selection.
                 self.maybe_cache(*dict.child_buffer);
             }
