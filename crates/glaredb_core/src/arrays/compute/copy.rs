@@ -1,7 +1,7 @@
 use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::arrays::array::Array;
-use crate::arrays::array::array_buffer::ArrayBuffer;
+use crate::arrays::array::array_buffer::ArrayBuffer2;
 use crate::arrays::array::physical_type::{
     Addressable,
     AddressableMut,
@@ -81,11 +81,11 @@ pub fn copy_rows_array(
 /// array-type collections like buffers in `ColumnarCollection`.
 pub(crate) fn copy_rows_raw(
     phys_type: PhysicalType,
-    src_buf: &ArrayBuffer,
+    src_buf: &ArrayBuffer2,
     src_validity: &Validity,
     src_sel: Option<Selection>,
     mapping: impl IntoIterator<Item = (usize, usize)>,
-    dest_buf: &mut ArrayBuffer,
+    dest_buf: &mut ArrayBuffer2,
     dest_validity: &mut Validity,
 ) -> Result<()> {
     match phys_type {
@@ -238,11 +238,11 @@ pub(crate) fn copy_rows_raw(
 }
 
 fn copy_rows_scalar<S>(
-    src_buf: &ArrayBuffer,
+    src_buf: &ArrayBuffer2,
     src_validity: &Validity,
     src_sel: Option<Selection>,
     mapping: impl IntoIterator<Item = (usize, usize)>,
-    dest_buf: &mut ArrayBuffer,
+    dest_buf: &mut ArrayBuffer2,
     dest_validity: &mut Validity,
 ) -> Result<()>
 where
@@ -296,7 +296,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::util::iter::TryFromExactSizeIterator;
 
@@ -315,7 +315,7 @@ mod tests {
     fn copy_rows_from_dict() {
         let mut from = Array::try_from_iter(["a", "b", "c"]).unwrap();
         // => '["b", "a", "c"]
-        from.select(&NopBufferManager, [1, 0, 2]).unwrap();
+        from.select(&DefaultBufferManager, [1, 0, 2]).unwrap();
 
         let mut to = Array::try_from_iter(["d", "d", "d"]).unwrap();
 
@@ -329,7 +329,7 @@ mod tests {
     fn copy_rows_from_dict_invalid() {
         let mut from = Array::try_from_iter([Some("a"), None, Some("c")]).unwrap();
         // => '[NULL, "a", "c"]
-        from.select(&NopBufferManager, [1, 0, 2]).unwrap();
+        from.select(&DefaultBufferManager, [1, 0, 2]).unwrap();
 
         let mut to = Array::try_from_iter(["d", "d", "d"]).unwrap();
 

@@ -9,7 +9,7 @@ use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::sort::partial_sort::PartialSortedRowCollection;
 use crate::arrays::sort::sort_layout::{SortColumn, SortLayout};
 use crate::arrays::sort::sorted_block::SortedBlock;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 
 /// Wrapper around arrays that have been encoded to a single row block and some
 /// number of heap blocks.

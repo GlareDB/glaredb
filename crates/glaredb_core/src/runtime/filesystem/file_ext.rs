@@ -158,13 +158,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::runtime::filesystem::memory::MemoryFileHandle;
     use crate::util::future::block_on;
 
     #[test]
     fn read_fill_small_buffer() {
-        let mut handle = MemoryFileHandle::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut handle = MemoryFileHandle::from_bytes(&DefaultBufferManager, b"hello").unwrap();
         let mut out = vec![0; 4];
 
         let count = block_on(handle.read_fill(&mut out)).unwrap();
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn read_fill_small_file() {
-        let mut handle = MemoryFileHandle::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut handle = MemoryFileHandle::from_bytes(&DefaultBufferManager, b"hello").unwrap();
         let mut out = vec![0; 10];
 
         let count = block_on(handle.read_fill(&mut out)).unwrap();

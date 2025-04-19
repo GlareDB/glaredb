@@ -11,7 +11,7 @@ use crate::arrays::row::aggregate_collection::{AggregateAppendState, AggregateCo
 use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::arrays::row::row_scan::RowScanState;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::buffer::typed::TypedBuffer;
 use crate::execution::operators::util::power_of_two::{
     compute_offset_from_hash,
@@ -116,7 +116,7 @@ impl AggregateHashTable {
     ) -> Result<()> {
         // Hash the groups.
         // TODO: Avoid allocating here.
-        let mut hashes_arr = Array::new(&NopBufferManager, DataType::UInt64, groups.num_rows)?;
+        let mut hashes_arr = Array::new(&DefaultBufferManager, DataType::UInt64, groups.num_rows)?;
         let hashes = PhysicalU64::get_addressable_mut(&mut hashes_arr.data)?.slice;
         hash_many_arrays(&groups.arrays, 0..groups.num_rows, hashes)?;
 
@@ -560,7 +560,7 @@ impl Directory {
     fn try_new(capacity: usize) -> Result<Self> {
         let capacity = capacity.next_power_of_two();
 
-        let mut entries = TypedBuffer::try_with_capacity(&NopBufferManager, capacity)?;
+        let mut entries = TypedBuffer::try_with_capacity(&DefaultBufferManager, capacity)?;
         // Initialize...
         entries.as_slice_mut().fill(Entry::EMPTY);
 
@@ -589,7 +589,7 @@ impl Directory {
 
         let old_entries = std::mem::replace(
             &mut self.entries,
-            TypedBuffer::try_with_capacity(&NopBufferManager, new_capacity)?,
+            TypedBuffer::try_with_capacity(&DefaultBufferManager, new_capacity)?,
         );
 
         let entries = self.entries.as_slice_mut();

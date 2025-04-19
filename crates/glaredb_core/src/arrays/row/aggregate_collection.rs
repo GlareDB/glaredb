@@ -7,7 +7,7 @@ use super::block::ValidityInitializer;
 use super::row_blocks::{BlockAppendState, RowBlocks};
 use super::row_scan::RowScanState;
 use crate::arrays::array::Array;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::util::iter::IntoExactSizeIterator;
 
 #[derive(Debug)]
@@ -37,7 +37,7 @@ pub struct AggregateCollection {
 impl AggregateCollection {
     pub fn new(layout: AggregateLayout, block_capacity: usize) -> Self {
         let blocks = RowBlocks::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             ValidityInitializer::from_aggregate_layout(&layout),
             layout.row_width,
             block_capacity,
@@ -241,8 +241,8 @@ mod tests {
         // produces a valid "empty" value.
         let mut ptrs = state.row_pointers().to_vec();
 
-        let mut groups = Array::new(&NopBufferManager, DataType::Utf8, 2).unwrap();
-        let mut results = Array::new(&NopBufferManager, DataType::Int64, 2).unwrap();
+        let mut groups = Array::new(&DefaultBufferManager, DataType::Utf8, 2).unwrap();
+        let mut results = Array::new(&DefaultBufferManager, DataType::Int64, 2).unwrap();
 
         unsafe {
             collection
@@ -299,8 +299,8 @@ mod tests {
 
         let mut ptrs = state.row_pointers().to_vec();
 
-        let mut groups = Array::new(&NopBufferManager, DataType::Utf8, 2).unwrap();
-        let mut results = Array::new(&NopBufferManager, DataType::Int64, 2).unwrap();
+        let mut groups = Array::new(&DefaultBufferManager, DataType::Utf8, 2).unwrap();
+        let mut results = Array::new(&DefaultBufferManager, DataType::Int64, 2).unwrap();
 
         unsafe {
             collection

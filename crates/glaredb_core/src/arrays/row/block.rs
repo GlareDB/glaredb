@@ -176,11 +176,11 @@ impl Block {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
 
     #[test]
     fn concat_empty() {
-        let block = Block::concat(&NopBufferManager, vec![]).unwrap();
+        let block = Block::concat(&DefaultBufferManager, vec![]).unwrap();
         assert_eq!(0, block.reserved_bytes);
         assert_eq!(0, block.data.capacity());
     }
@@ -189,7 +189,7 @@ mod tests {
     fn concat_many() {
         let mut blocks = Vec::new();
         for i in 0..4 {
-            let mut block = Block::try_new_reserve_none(&NopBufferManager, 128, None).unwrap();
+            let mut block = Block::try_new_reserve_none(&DefaultBufferManager, 128, None).unwrap();
             let s = &mut block.data.as_slice_mut()[0..i];
             for b in s {
                 *b = i as u8;
@@ -198,7 +198,7 @@ mod tests {
             blocks.push(block);
         }
 
-        let concat = Block::concat(&NopBufferManager, blocks).unwrap();
+        let concat = Block::concat(&DefaultBufferManager, blocks).unwrap();
         assert_eq!(6, concat.reserved_bytes);
 
         let s = concat.data.as_slice();

@@ -8,7 +8,7 @@ use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::ScalarValue;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PhysicalLiteralExpr {
@@ -40,7 +40,7 @@ impl PhysicalLiteralExpr {
         output.set_value(0, &self.literal)?;
 
         // TODO: Need to be able to provide "constant" selection here.
-        output.select(&NopBufferManager, std::iter::repeat_n(0, sel.len()))?;
+        output.select(&DefaultBufferManager, std::iter::repeat_n(0, sel.len()))?;
 
         Ok(())
     }
@@ -67,7 +67,7 @@ mod tests {
             literal: "catdog".into(),
         };
 
-        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 4).unwrap();
         expr.eval(
             &mut input,
             &mut ExpressionState::empty(),
@@ -88,7 +88,7 @@ mod tests {
             literal: "catdog".into(),
         };
 
-        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 4).unwrap();
         expr.eval(
             &mut input,
             &mut ExpressionState::empty(),

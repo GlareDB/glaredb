@@ -1,7 +1,7 @@
 use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::arrays::array::Array;
-use crate::arrays::array::array_buffer::{ArrayBufferType, ListItemMetadata, SharedOrOwned};
+use crate::arrays::array::array_buffer::{ArrayBufferType2, ListItemMetadata, SharedOrOwned};
 use crate::arrays::array::physical_type::{
     Addressable,
     AddressableMut,
@@ -95,7 +95,7 @@ fn make_list_from_values_inner<S: MutableScalarStorage>(
     let total_capacity = sel.len() * inputs.len();
 
     let list_buf = match output.data.as_mut() {
-        ArrayBufferType::List(list_buf) => list_buf,
+        ArrayBufferType2::List(list_buf) => list_buf,
         _ => return Err(DbError::new("Expected list buffer")),
     };
 

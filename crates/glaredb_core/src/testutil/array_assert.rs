@@ -202,7 +202,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
@@ -217,7 +217,7 @@ mod tests {
     fn assert_i32_arrays_eq_with_dictionary() {
         let array1 = Array::try_from_iter([5, 4, 4]).unwrap();
         let mut array2 = Array::try_from_iter([4, 5]).unwrap();
-        array2.select(&NopBufferManager, [1, 0, 0]).unwrap();
+        array2.select(&DefaultBufferManager, [1, 0, 0]).unwrap();
 
         assert_arrays_eq(&array1, &array2);
     }

@@ -1,7 +1,7 @@
 use glaredb_error::{Result, not_implemented};
 
 use crate::arrays::array::Array;
-use crate::arrays::array::array_buffer::ArrayBuffer;
+use crate::arrays::array::array_buffer::ArrayBuffer2;
 use crate::arrays::array::validity::Validity;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::copy::copy_rows_raw;
@@ -31,7 +31,7 @@ impl ColumnChunk {
     ) -> Result<Self> {
         let mut buffers = Vec::with_capacity(datatypes.len());
         for datatype in datatypes {
-            let buffer = ArrayBuffer::try_new_for_datatype(manager, datatype, capacity)?;
+            let buffer = ArrayBuffer2::try_new_for_datatype(manager, datatype, capacity)?;
             buffers.push(ColumnBuffer {
                 validity: Validity::new_all_valid(capacity),
                 buffer,
@@ -96,7 +96,7 @@ impl ColumnChunk {
 #[derive(Debug)]
 pub struct ColumnBuffer {
     pub validity: Validity,
-    pub buffer: ArrayBuffer,
+    pub buffer: ArrayBuffer2,
 }
 
 impl ColumnBuffer {

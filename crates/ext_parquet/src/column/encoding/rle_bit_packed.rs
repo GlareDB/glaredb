@@ -205,7 +205,7 @@ impl RleBitPackedDecoder {
 
 #[cfg(test)]
 mod tests {
-    use glaredb_core::buffer::buffer_manager::NopBufferManager;
+    use glaredb_core::buffer::buffer_manager::DefaultBufferManager;
 
     use super::*;
     use crate::column::read_buffer::OwnedReadBuffer;
@@ -215,7 +215,7 @@ mod tests {
         // bit_width = 1, one literal group of 8 sawtooth bits:
         // VLQ=0x03
         let raw = [(1 << 1) | 1, 0b10101010];
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, raw).unwrap();
         let cursor = buf.take_remaining();
         let mut decoder = RleBitPackedDecoder::new(cursor, 1);
         let mut out = [0u8; 8];
@@ -234,7 +234,7 @@ mod tests {
         // Repeated value in one byte, 4 (0x04).
         // Final stream: [0x10, 0x01]
         let raw = [0x10, 0x04];
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, raw).unwrap();
         let cursor = buf.take_remaining();
         let mut decoder = RleBitPackedDecoder::new(cursor, 1);
         let mut output = [0u8; 8];
@@ -254,7 +254,7 @@ mod tests {
         // => 0x1F58D1 => [0xD1, 0x58, 0x1F]
         // Final stream: [0x03, 0xD1, 0x58, 0x1F].
         let raw = [0x03, 0xD1, 0x58, 0x1F];
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, raw).unwrap();
         let cursor = buf.take_remaining();
         let mut decoder = RleBitPackedDecoder::new(cursor, 3);
         let mut output = [0u8; 8];
@@ -283,7 +283,7 @@ mod tests {
         //
         // Final stream: [0x0A, 0x02, 0x03, 0xE4, 0xE4].
         let raw = [0x0A, 0x02, 0x03, 0xE4, 0xE4];
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, raw).unwrap();
         let cursor = buf.take_remaining();
         let mut decoder = RleBitPackedDecoder::new(cursor, 2);
         // Expect 5 RLE values of 2 followed by 8 literal values.

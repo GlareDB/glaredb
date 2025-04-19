@@ -782,7 +782,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::generate_array;
     use crate::testutil::arrays::assert_arrays_eq;
 
@@ -806,7 +806,7 @@ mod tests {
         let arr1 = generate_array!([1, 2, 4]);
         let arr2 = generate_array!([4, 2, 1]);
 
-        let mut output = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
 
         binary_distinct_execute::<IsDistinctFromOperation, PhysicalI32>(
             &arr1,
@@ -825,7 +825,7 @@ mod tests {
         let arr1 = generate_array!([Some(1), Some(2), None, None]);
         let arr2 = generate_array!([Some(4), Some(2), None, Some(3)]);
 
-        let mut output = Array::new(&NopBufferManager, DataType::Boolean, 4).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, 4).unwrap();
 
         binary_distinct_execute::<IsDistinctFromOperation, PhysicalI32>(
             &arr1,
@@ -844,7 +844,7 @@ mod tests {
         let arr1 = generate_array!([1, 2, 4]);
         let arr2 = generate_array!([4, 2, 1]);
 
-        let mut output = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
 
         binary_distinct_execute::<IsNotDistinctFromOperation, PhysicalI32>(
             &arr1,
@@ -863,7 +863,7 @@ mod tests {
         let arr1 = generate_array!([Some(1), Some(2), None, None]);
         let arr2 = generate_array!([Some(4), Some(2), None, Some(3)]);
 
-        let mut output = Array::new(&NopBufferManager, DataType::Boolean, 4).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, 4).unwrap();
 
         binary_distinct_execute::<IsNotDistinctFromOperation, PhysicalI32>(
             &arr1,

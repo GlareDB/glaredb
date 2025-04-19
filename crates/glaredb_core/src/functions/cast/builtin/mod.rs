@@ -97,15 +97,15 @@ mod null {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::buffer::buffer_manager::NopBufferManager;
+        use crate::buffer::buffer_manager::DefaultBufferManager;
         use crate::functions::cast::behavior::CastFailBehavior;
         use crate::testutil::arrays::assert_arrays_eq;
         use crate::util::iter::TryFromExactSizeIterator;
 
         #[test]
         fn array_cast_null_to_f32() {
-            let arr = Array::new(&NopBufferManager, DataType::Null, 3).unwrap();
-            let mut out = Array::new(&NopBufferManager, DataType::Float32, 3).unwrap();
+            let arr = Array::new(&DefaultBufferManager, DataType::Null, 3).unwrap();
+            let mut out = Array::new(&DefaultBufferManager, DataType::Float32, 3).unwrap();
 
             let error_state = CastFailBehavior::Error.new_state();
             NullToAnything::cast(&(), error_state, &arr, 0..3, &mut out).unwrap();

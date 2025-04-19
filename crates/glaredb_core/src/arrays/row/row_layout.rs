@@ -628,7 +628,7 @@ mod tests {
     use super::*;
     use crate::arrays::row::block_scan::BlockScanState;
     use crate::arrays::row::row_blocks::RowBlocks;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::util::iter::TryFromExactSizeIterator;
 
@@ -746,7 +746,7 @@ mod tests {
             None
         };
 
-        let mut blocks = RowBlocks::new_using_row_layout(&NopBufferManager, &layout, 16);
+        let mut blocks = RowBlocks::new_using_row_layout(&DefaultBufferManager, &layout, 16);
         let mut state = BlockAppendState {
             row_pointers: Vec::new(),
             heap_pointers: Vec::new(),
@@ -760,7 +760,7 @@ mod tests {
             layout.write_arrays(&mut state, &[array], rows).unwrap();
         }
 
-        let mut out = Array::new(&NopBufferManager, array.datatype().clone(), sel_len).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, array.datatype().clone(), sel_len).unwrap();
 
         let state = BlockScanState {
             row_pointers: state

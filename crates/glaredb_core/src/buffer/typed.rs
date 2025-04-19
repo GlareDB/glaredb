@@ -149,18 +149,18 @@ impl<T> DerefMut for AlignedBuffer<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
 
     #[test]
     fn reserve_for_size_no_increase() {
-        let mut buf = ByteBuffer::try_with_capacity(&NopBufferManager, 14).unwrap();
+        let mut buf = ByteBuffer::try_with_capacity(&DefaultBufferManager, 14).unwrap();
         buf.reserve_for_size(12).unwrap();
         assert_eq!(14, buf.capacity());
     }
 
     #[test]
     fn reserve_for_size_with_increase() {
-        let mut buf = ByteBuffer::try_with_capacity(&NopBufferManager, 14).unwrap();
+        let mut buf = ByteBuffer::try_with_capacity(&DefaultBufferManager, 14).unwrap();
         buf.reserve_for_size(16).unwrap();
         assert!(buf.capacity() >= 16);
     }

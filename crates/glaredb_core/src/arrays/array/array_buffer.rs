@@ -1,8 +1,10 @@
+use std::any::Any;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use glaredb_error::{DbError, Result, not_implemented};
+use half::f16;
 
 use super::physical_type::{
     BinaryViewAddressable,
@@ -32,13 +34,263 @@ use crate::arrays::array::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
     ScalarStorage,
+    UntypedNull,
 };
 use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::interval::Interval;
 use crate::arrays::string::{MAX_INLINE_LEN, StringView};
 use crate::buffer::buffer_manager::AsRawBufferManager;
+use crate::buffer::db_vec::DbVec;
 use crate::buffer::raw::RawBuffer;
 use crate::buffer::typed::TypedBuffer;
 use crate::util::convert::TryAsMut;
+
+pub trait ArrayBuffer: Sync + Send + 'static {}
+
+pub trait ArrayBufferDowncast: ArrayBuffer {
+    fn downcast_ref(buffer: &(dyn Any + Sync + Send)) -> Result<&Self>;
+    fn downcast_mut(buffer: &mut (dyn Any + Sync + Send)) -> Result<&mut Self>;
+}
+
+impl<A> ArrayBufferDowncast for A
+where
+    A: ArrayBuffer,
+{
+    fn downcast_ref(buffer: &(dyn Any + Sync + Send)) -> Result<&Self> {
+        buffer
+            .downcast_ref::<Self>()
+            .ok_or_else(|| DbError::new("failed to downcast array buffer"))
+    }
+
+    fn downcast_mut(buffer: &mut (dyn Any + Sync + Send)) -> Result<&mut Self> {
+        buffer
+            .downcast_mut::<Self>()
+            .ok_or_else(|| DbError::new("failed to downcast array buffer (mut)"))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AnyArrayBufferVTable {}
+
+trait ArrayBufferVTable: ArrayBuffer {
+    const VTABLE: &'static AnyArrayBufferVTable;
+}
+
+impl<A> ArrayBufferVTable for A
+where
+    A: ArrayBuffer,
+{
+    const VTABLE: &'static AnyArrayBufferVTable = &AnyArrayBufferVTable {};
+}
+
+#[derive(Debug)]
+pub struct AnyArrayBuffer {
+    pub(crate) buffer: OwnedOrShared<dyn Any + Sync + Send>,
+    pub(crate) vtable: &'static AnyArrayBufferVTable,
+}
+
+impl AnyArrayBuffer {
+    pub fn new_for_datatype(
+        manager: &impl AsRawBufferManager,
+        datatype: &DataType,
+        capacity: usize,
+    ) -> Result<Self> {
+        match datatype.physical_type() {
+            PhysicalType::UntypedNull => Ok(Self::new_unique(
+                ScalarBuffer::<UntypedNull>::try_new(manager, capacity)?,
+            )),
+            PhysicalType::Boolean => Ok(Self::new_unique(ScalarBuffer::<bool>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Int8 => Ok(Self::new_unique(ScalarBuffer::<i8>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Int16 => Ok(Self::new_unique(ScalarBuffer::<i16>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Int32 => Ok(Self::new_unique(ScalarBuffer::<i32>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Int64 => Ok(Self::new_unique(ScalarBuffer::<i64>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Int128 => Ok(Self::new_unique(ScalarBuffer::<i128>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::UInt8 => Ok(Self::new_unique(ScalarBuffer::<u8>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::UInt16 => Ok(Self::new_unique(ScalarBuffer::<u16>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::UInt32 => Ok(Self::new_unique(ScalarBuffer::<u32>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::UInt64 => Ok(Self::new_unique(ScalarBuffer::<u64>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::UInt128 => Ok(Self::new_unique(ScalarBuffer::<u128>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Float16 => Ok(Self::new_unique(ScalarBuffer::<f16>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Float32 => Ok(Self::new_unique(ScalarBuffer::<f32>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Float64 => Ok(Self::new_unique(ScalarBuffer::<f64>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Interval => Ok(Self::new_unique(ScalarBuffer::<Interval>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Binary => Ok(Self::new_unique(StringBuffer::try_new(manager, capacity)?)),
+            PhysicalType::Utf8 => Ok(Self::new_unique(StringBuffer::try_new(manager, capacity)?)),
+            PhysicalType::List => Ok(Self::new_unique(ListBuffer::try_new(manager, capacity)?)),
+            PhysicalType::Struct => Ok(Self::new_unique(StructBuffer::try_new(manager, capacity)?)),
+        }
+    }
+
+    pub fn new_unique<A>(array: A) -> Self
+    where
+        A: ArrayBuffer,
+    {
+        let boxed: Box<dyn Any + Sync + Send> = Box::new(array);
+        let buffer = OwnedOrShared::new_unique(boxed);
+
+        AnyArrayBuffer {
+            buffer,
+            vtable: A::VTABLE,
+        }
+    }
+}
+
+/// A pointer to T that is either uniquely owned (Box) or shared (Arc).
+#[derive(Debug)]
+pub(crate) struct OwnedOrShared<T: ?Sized>(OwnedOrSharedPtr<T>);
+
+#[derive(Debug)]
+enum OwnedOrSharedPtr<T: ?Sized> {
+    /// Unique ownership, mutable access is possible.
+    Unique(Box<T>),
+    /// Shared ownership.
+    Shared(Arc<T>),
+    /// Unreachable intermediated state when switching from unique to shared.
+    Uninit,
+}
+
+impl<T> OwnedOrShared<T>
+where
+    T: ?Sized,
+{
+    /// Create a new uniquely‐owned value.
+    pub fn new_unique(value: impl Into<Box<T>>) -> Self {
+        OwnedOrShared(OwnedOrSharedPtr::Unique(value.into()))
+    }
+
+    /// Make this reference shared.
+    pub fn make_shared(&mut self) {
+        match self.0 {
+            OwnedOrSharedPtr::Shared(_) => (), // Nothing to do.
+            OwnedOrSharedPtr::Unique(_) => {
+                // Need to swap out and wrap in an arc.
+                let orig = std::mem::replace(&mut self.0, OwnedOrSharedPtr::Uninit);
+                let owned = match orig {
+                    OwnedOrSharedPtr::Unique(owned) => owned,
+                    _ => unreachable!(),
+                };
+
+                let shared = Arc::from(owned);
+                self.0 = OwnedOrSharedPtr::Shared(shared);
+            }
+            OwnedOrSharedPtr::Uninit => unreachable!(),
+        }
+    }
+
+    /// Get an reference to the inner T.
+    pub fn as_ref(&self) -> &T {
+        match &self.0 {
+            OwnedOrSharedPtr::Unique(v) => v.as_ref(),
+            OwnedOrSharedPtr::Shared(v) => v.as_ref(),
+            OwnedOrSharedPtr::Uninit => unreachable!(),
+        }
+    }
+
+    /// If this is still unique, get a mutable reference to it or return None.
+    pub fn as_mut(&mut self) -> Option<&mut T> {
+        match &mut self.0 {
+            OwnedOrSharedPtr::Unique(b) => Some(&mut *b),
+            OwnedOrSharedPtr::Shared(_) => None,
+            OwnedOrSharedPtr::Uninit => unreachable!(),
+        }
+    }
+}
+
+impl<T> Deref for OwnedOrShared<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.as_ref()
+    }
+}
+
+#[derive(Debug)]
+pub struct ScalarBuffer<T: 'static> {
+    buffer: DbVec<T>,
+}
+
+impl<T: 'static> ScalarBuffer<T> {
+    pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
+        Ok(ScalarBuffer {
+            buffer: DbVec::new_uninit(manager, capacity)?,
+        })
+    }
+}
+
+impl<T> ArrayBuffer for ScalarBuffer<T> where T: Sync + Send + 'static {}
+
+#[derive(Debug)]
+pub struct StringBuffer {}
+
+impl StringBuffer {
+    pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
+        unimplemented!()
+    }
+}
+
+impl ArrayBuffer for StringBuffer {}
+
+#[derive(Debug)]
+pub struct ListBuffer {}
+
+impl ListBuffer {
+    pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
+        unimplemented!()
+    }
+}
+
+impl ArrayBuffer for ListBuffer {}
+
+#[derive(Debug)]
+pub struct StructBuffer {}
+
+impl StructBuffer {
+    pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
+        unimplemented!()
+    }
+}
+
+impl ArrayBuffer for StructBuffer {}
+
+#[derive(Debug)]
+pub struct DictionaryBuffer {}
+
+impl DictionaryBuffer {
+    pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
+        unimplemented!()
+    }
+}
+
+impl ArrayBuffer for DictionaryBuffer {}
 
 /// Abstraction layer for holding shared or owned array data.
 ///
@@ -46,13 +298,13 @@ use crate::util::convert::TryAsMut;
 /// another array needs to reference it (e.g. for selection), then the
 /// underlying buffers will be transitioned to shared references.
 #[derive(Debug)]
-pub struct ArrayBuffer {
-    inner: ArrayBufferType,
+pub struct ArrayBuffer2 {
+    inner: ArrayBufferType2,
 }
 
-impl ArrayBuffer {
-    pub(crate) fn new(inner: impl Into<ArrayBufferType>) -> Self {
-        ArrayBuffer {
+impl ArrayBuffer2 {
+    pub(crate) fn new(inner: impl Into<ArrayBufferType2>) -> Self {
+        ArrayBuffer2 {
             inner: inner.into(),
         }
     }
@@ -67,40 +319,46 @@ impl ArrayBuffer {
     ) -> Result<Self> {
         let inner = match datatype.physical_type() {
             PhysicalType::UntypedNull => {
-                ScalarBuffer::try_new::<PhysicalUntypedNull>(manager, capacity)?.into()
+                ScalarBuffer2::try_new::<PhysicalUntypedNull>(manager, capacity)?.into()
             }
             PhysicalType::Boolean => {
-                ScalarBuffer::try_new::<PhysicalBool>(manager, capacity)?.into()
+                ScalarBuffer2::try_new::<PhysicalBool>(manager, capacity)?.into()
             }
-            PhysicalType::Int8 => ScalarBuffer::try_new::<PhysicalI8>(manager, capacity)?.into(),
-            PhysicalType::Int16 => ScalarBuffer::try_new::<PhysicalI16>(manager, capacity)?.into(),
-            PhysicalType::Int32 => ScalarBuffer::try_new::<PhysicalI32>(manager, capacity)?.into(),
-            PhysicalType::Int64 => ScalarBuffer::try_new::<PhysicalI64>(manager, capacity)?.into(),
+            PhysicalType::Int8 => ScalarBuffer2::try_new::<PhysicalI8>(manager, capacity)?.into(),
+            PhysicalType::Int16 => ScalarBuffer2::try_new::<PhysicalI16>(manager, capacity)?.into(),
+            PhysicalType::Int32 => ScalarBuffer2::try_new::<PhysicalI32>(manager, capacity)?.into(),
+            PhysicalType::Int64 => ScalarBuffer2::try_new::<PhysicalI64>(manager, capacity)?.into(),
             PhysicalType::Int128 => {
-                ScalarBuffer::try_new::<PhysicalI128>(manager, capacity)?.into()
+                ScalarBuffer2::try_new::<PhysicalI128>(manager, capacity)?.into()
             }
-            PhysicalType::UInt8 => ScalarBuffer::try_new::<PhysicalU8>(manager, capacity)?.into(),
-            PhysicalType::UInt16 => ScalarBuffer::try_new::<PhysicalU16>(manager, capacity)?.into(),
-            PhysicalType::UInt32 => ScalarBuffer::try_new::<PhysicalU32>(manager, capacity)?.into(),
-            PhysicalType::UInt64 => ScalarBuffer::try_new::<PhysicalU64>(manager, capacity)?.into(),
+            PhysicalType::UInt8 => ScalarBuffer2::try_new::<PhysicalU8>(manager, capacity)?.into(),
+            PhysicalType::UInt16 => {
+                ScalarBuffer2::try_new::<PhysicalU16>(manager, capacity)?.into()
+            }
+            PhysicalType::UInt32 => {
+                ScalarBuffer2::try_new::<PhysicalU32>(manager, capacity)?.into()
+            }
+            PhysicalType::UInt64 => {
+                ScalarBuffer2::try_new::<PhysicalU64>(manager, capacity)?.into()
+            }
             PhysicalType::UInt128 => {
-                ScalarBuffer::try_new::<PhysicalU128>(manager, capacity)?.into()
+                ScalarBuffer2::try_new::<PhysicalU128>(manager, capacity)?.into()
             }
             PhysicalType::Float16 => {
-                ScalarBuffer::try_new::<PhysicalF16>(manager, capacity)?.into()
+                ScalarBuffer2::try_new::<PhysicalF16>(manager, capacity)?.into()
             }
             PhysicalType::Float32 => {
-                ScalarBuffer::try_new::<PhysicalF32>(manager, capacity)?.into()
+                ScalarBuffer2::try_new::<PhysicalF32>(manager, capacity)?.into()
             }
             PhysicalType::Float64 => {
-                ScalarBuffer::try_new::<PhysicalF64>(manager, capacity)?.into()
+                ScalarBuffer2::try_new::<PhysicalF64>(manager, capacity)?.into()
             }
             PhysicalType::Interval => {
-                ScalarBuffer::try_new::<PhysicalInterval>(manager, capacity)?.into()
+                ScalarBuffer2::try_new::<PhysicalInterval>(manager, capacity)?.into()
             }
-            PhysicalType::Utf8 => StringBuffer::try_new::<PhysicalUtf8>(manager, capacity)?.into(),
+            PhysicalType::Utf8 => StringBuffer2::try_new::<PhysicalUtf8>(manager, capacity)?.into(),
             PhysicalType::Binary => {
-                StringBuffer::try_new::<PhysicalBinary>(manager, capacity)?.into()
+                StringBuffer2::try_new::<PhysicalBinary>(manager, capacity)?.into()
             }
             PhysicalType::List => {
                 let inner = match datatype {
@@ -109,18 +367,18 @@ impl ArrayBuffer {
                         return Err(DbError::new(format!("Expected list datatype, got {other}")));
                     }
                 };
-                ListBuffer::try_new(manager, inner, capacity)?.into()
+                ListBuffer2::try_new(manager, inner, capacity)?.into()
             }
             other => not_implemented!("new array buffer for physical type: {other}"),
         };
 
-        Ok(ArrayBuffer { inner })
+        Ok(ArrayBuffer2 { inner })
     }
 
     /// Make all underlying buffers shared and returns an array buffer
     /// containing only shared references.
     pub(crate) fn make_shared_and_clone(&mut self) -> Self {
-        ArrayBuffer {
+        ArrayBuffer2 {
             inner: self.inner.make_shared_and_clone(),
         }
     }
@@ -134,37 +392,37 @@ impl ArrayBuffer {
     ///
     /// This will error if any buffer is not already shared.
     pub(crate) fn try_clone_shared(&self) -> Result<Self> {
-        Ok(ArrayBuffer {
+        Ok(ArrayBuffer2 {
             inner: self.inner.try_clone_shared()?,
         })
     }
 
-    pub(crate) fn into_inner(self) -> ArrayBufferType {
+    pub(crate) fn into_inner(self) -> ArrayBufferType2 {
         self.inner
     }
 }
 
-impl AsRef<ArrayBufferType> for ArrayBuffer {
-    fn as_ref(&self) -> &ArrayBufferType {
+impl AsRef<ArrayBufferType2> for ArrayBuffer2 {
+    fn as_ref(&self) -> &ArrayBufferType2 {
         &self.inner
     }
 }
 
-impl AsMut<ArrayBufferType> for ArrayBuffer {
-    fn as_mut(&mut self) -> &mut ArrayBufferType {
+impl AsMut<ArrayBufferType2> for ArrayBuffer2 {
+    fn as_mut(&mut self) -> &mut ArrayBufferType2 {
         &mut self.inner
     }
 }
 
-impl Deref for ArrayBuffer {
-    type Target = ArrayBufferType;
+impl Deref for ArrayBuffer2 {
+    type Target = ArrayBufferType2;
 
     fn deref(&self) -> &Self::Target {
         self.as_ref()
     }
 }
 
-impl DerefMut for ArrayBuffer {
+impl DerefMut for ArrayBuffer2 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_mut()
     }
@@ -198,15 +456,15 @@ impl fmt::Display for ArrayBufferKind {
 }
 
 #[derive(Debug)]
-pub enum ArrayBufferType {
-    Scalar(ScalarBuffer),
-    Constant(ConstantBuffer),
-    String(StringBuffer),
-    Dictionary(DictionaryBuffer),
-    List(ListBuffer),
+pub enum ArrayBufferType2 {
+    Scalar(ScalarBuffer2),
+    Constant(ConstantBuffer2),
+    String(StringBuffer2),
+    Dictionary(DictionayBuffer2),
+    List(ListBuffer2),
 }
 
-impl ArrayBufferType {
+impl ArrayBufferType2 {
     pub const fn kind(&self) -> ArrayBufferKind {
         match self {
             Self::Scalar(_) => ArrayBufferKind::Scalar,
@@ -233,7 +491,7 @@ impl ArrayBufferType {
         }
     }
 
-    pub fn get_list_buffer(&self) -> Result<&ListBuffer> {
+    pub fn get_list_buffer(&self) -> Result<&ListBuffer2> {
         match self {
             Self::List(b) => Ok(b),
             other => Err(DbError::new(format!(
@@ -243,7 +501,7 @@ impl ArrayBufferType {
         }
     }
 
-    pub fn get_list_buffer_mut(&mut self) -> Result<&mut ListBuffer> {
+    pub fn get_list_buffer_mut(&mut self) -> Result<&mut ListBuffer2> {
         match self {
             Self::List(b) => Ok(b),
             other => Err(DbError::new(format!(
@@ -253,7 +511,7 @@ impl ArrayBufferType {
         }
     }
 
-    pub fn get_scalar_buffer(&self) -> Result<&ScalarBuffer> {
+    pub fn get_scalar_buffer(&self) -> Result<&ScalarBuffer2> {
         match self {
             Self::Scalar(b) => Ok(b),
             other => Err(DbError::new(format!(
@@ -263,7 +521,7 @@ impl ArrayBufferType {
         }
     }
 
-    pub fn get_scalar_buffer_mut(&mut self) -> Result<&mut ScalarBuffer> {
+    pub fn get_scalar_buffer_mut(&mut self) -> Result<&mut ScalarBuffer2> {
         match self {
             Self::Scalar(b) => Ok(b),
             other => Err(DbError::new(format!(
@@ -273,7 +531,7 @@ impl ArrayBufferType {
         }
     }
 
-    pub fn get_string_buffer(&self) -> Result<&StringBuffer> {
+    pub fn get_string_buffer(&self) -> Result<&StringBuffer2> {
         match self {
             Self::String(b) => Ok(b),
             other => Err(DbError::new(format!(
@@ -283,7 +541,7 @@ impl ArrayBufferType {
         }
     }
 
-    pub fn get_string_buffer_mut(&mut self) -> Result<&mut StringBuffer> {
+    pub fn get_string_buffer_mut(&mut self) -> Result<&mut StringBuffer2> {
         match self {
             Self::String(b) => Ok(b),
             other => Err(DbError::new(format!(
@@ -334,43 +592,43 @@ impl ArrayBufferType {
     }
 }
 
-impl From<ScalarBuffer> for ArrayBufferType {
-    fn from(value: ScalarBuffer) -> Self {
+impl From<ScalarBuffer2> for ArrayBufferType2 {
+    fn from(value: ScalarBuffer2) -> Self {
         Self::Scalar(value)
     }
 }
 
-impl From<ConstantBuffer> for ArrayBufferType {
-    fn from(value: ConstantBuffer) -> Self {
+impl From<ConstantBuffer2> for ArrayBufferType2 {
+    fn from(value: ConstantBuffer2) -> Self {
         Self::Constant(value)
     }
 }
 
-impl From<StringBuffer> for ArrayBufferType {
-    fn from(value: StringBuffer) -> Self {
+impl From<StringBuffer2> for ArrayBufferType2 {
+    fn from(value: StringBuffer2) -> Self {
         Self::String(value)
     }
 }
 
-impl From<DictionaryBuffer> for ArrayBufferType {
-    fn from(value: DictionaryBuffer) -> Self {
+impl From<DictionayBuffer2> for ArrayBufferType2 {
+    fn from(value: DictionayBuffer2) -> Self {
         Self::Dictionary(value)
     }
 }
 
-impl From<ListBuffer> for ArrayBufferType {
-    fn from(value: ListBuffer) -> Self {
+impl From<ListBuffer2> for ArrayBufferType2 {
+    fn from(value: ListBuffer2) -> Self {
         Self::List(value)
     }
 }
 
 #[derive(Debug)]
-pub struct ScalarBuffer {
+pub struct ScalarBuffer2 {
     pub(crate) physical_type: PhysicalType,
     pub(crate) raw: SharedOrOwned<RawBuffer>,
 }
 
-impl ScalarBuffer {
+impl ScalarBuffer2 {
     pub fn try_reserve<S>(&mut self, additional: usize) -> Result<()>
     where
         S: ScalarStorage,
@@ -419,7 +677,7 @@ impl ScalarBuffer {
         S::StorageType: Sized,
     {
         let raw = RawBuffer::try_with_capacity::<S::StorageType>(manager, capacity)?;
-        Ok(ScalarBuffer {
+        Ok(ScalarBuffer2 {
             physical_type: S::PHYSICAL_TYPE,
             raw: SharedOrOwned::owned(raw),
         })
@@ -436,14 +694,14 @@ impl ScalarBuffer {
     fn make_shared_and_clone(&mut self) -> Self {
         let raw = self.raw.make_shared_and_clone();
 
-        ScalarBuffer {
+        ScalarBuffer2 {
             physical_type: self.physical_type,
             raw,
         }
     }
 
     fn try_clone_shared(&self) -> Result<Self> {
-        Ok(ScalarBuffer {
+        Ok(ScalarBuffer2 {
             physical_type: self.physical_type,
             raw: self.raw.try_clone_shared()?,
         })
@@ -451,13 +709,13 @@ impl ScalarBuffer {
 }
 
 #[derive(Debug)]
-pub struct ConstantBuffer {
+pub struct ConstantBuffer2 {
     pub(crate) row_reference: usize,
     pub(crate) len: usize,
-    pub(crate) child_buffer: Box<ArrayBuffer>,
+    pub(crate) child_buffer: Box<ArrayBuffer2>,
 }
 
-impl ConstantBuffer {
+impl ConstantBuffer2 {
     fn logical_len(&self) -> usize {
         self.len
     }
@@ -467,7 +725,7 @@ impl ConstantBuffer {
     }
 
     fn make_shared_and_clone(&mut self) -> Self {
-        ConstantBuffer {
+        ConstantBuffer2 {
             row_reference: self.row_reference,
             len: self.len,
             child_buffer: Box::new(self.child_buffer.make_shared_and_clone()),
@@ -475,7 +733,7 @@ impl ConstantBuffer {
     }
 
     fn try_clone_shared(&self) -> Result<Self> {
-        Ok(ConstantBuffer {
+        Ok(ConstantBuffer2 {
             row_reference: self.row_reference,
             len: self.len,
             child_buffer: Box::new(self.child_buffer.try_clone_shared()?),
@@ -487,13 +745,13 @@ impl ConstantBuffer {
 ///
 /// The string view buffer index is always set to '0' within this buffer.
 #[derive(Debug)]
-pub struct StringBuffer {
+pub struct StringBuffer2 {
     pub(crate) is_utf8: bool,
     pub(crate) metadata: SharedOrOwned<TypedBuffer<StringView>>,
     pub(crate) buffer: SharedOrOwned<StringViewBuffer>,
 }
 
-impl StringBuffer {
+impl StringBuffer2 {
     pub fn try_reserve(&mut self, additional: usize) -> Result<()> {
         self.metadata.try_as_mut()?.reserve_additional(additional)
     }
@@ -565,7 +823,7 @@ impl StringBuffer {
         };
         let buffer = StringViewBuffer::with_capacity(manager, 0)?;
 
-        Ok(StringBuffer {
+        Ok(StringBuffer2 {
             is_utf8,
             metadata: SharedOrOwned::owned(metadata),
             buffer: SharedOrOwned::owned(buffer),
@@ -585,7 +843,7 @@ impl StringBuffer {
         let metadata = self.metadata.make_shared_and_clone();
         let buffer = self.buffer.make_shared_and_clone();
 
-        StringBuffer {
+        StringBuffer2 {
             is_utf8: self.is_utf8,
             metadata,
             buffer,
@@ -593,7 +851,7 @@ impl StringBuffer {
     }
 
     fn try_clone_shared(&self) -> Result<Self> {
-        Ok(StringBuffer {
+        Ok(StringBuffer2 {
             is_utf8: self.is_utf8,
             metadata: self.metadata.try_clone_shared()?,
             buffer: self.buffer.try_clone_shared()?,
@@ -694,26 +952,26 @@ impl StringViewBuffer {
 }
 
 #[derive(Debug)]
-pub struct DictionaryBuffer {
+pub struct DictionayBuffer2 {
     pub(crate) selection: SharedOrOwned<TypedBuffer<usize>>,
-    pub(crate) child_buffer: Box<ArrayBuffer>,
+    pub(crate) child_buffer: Box<ArrayBuffer2>,
 }
 
-impl DictionaryBuffer {
+impl DictionayBuffer2 {
     fn make_shared(&mut self) {
         self.selection.make_shared();
         self.child_buffer.make_shared();
     }
 
     fn make_shared_and_clone(&mut self) -> Self {
-        DictionaryBuffer {
+        DictionayBuffer2 {
             selection: self.selection.make_shared_and_clone(),
             child_buffer: Box::new(self.child_buffer.make_shared_and_clone()),
         }
     }
 
     fn try_clone_shared(&self) -> Result<Self> {
-        Ok(DictionaryBuffer {
+        Ok(DictionayBuffer2 {
             selection: self.selection.try_clone_shared()?,
             child_buffer: Box::new(self.child_buffer.try_clone_shared()?),
         })
@@ -731,27 +989,27 @@ pub struct ListItemMetadata {
 }
 
 #[derive(Debug)]
-pub struct ListBuffer {
+pub struct ListBuffer2 {
     pub(crate) metadata: SharedOrOwned<TypedBuffer<ListItemMetadata>>,
     /// Current offset when adding values to the list.
     #[allow(dead_code)]
     pub(crate) current_offset: usize,
     pub(crate) child_physical_type: PhysicalType,
     pub(crate) child_validity: SharedOrOwned<Validity>, // TODO: Does this need to be wrapped? // TODO: With what?
-    pub(crate) child_buffer: Box<ArrayBuffer>,
+    pub(crate) child_buffer: Box<ArrayBuffer2>,
 }
 
-impl ListBuffer {
+impl ListBuffer2 {
     pub fn try_new(
         manager: &impl AsRawBufferManager,
         inner_type: DataType,
         capacity: usize,
     ) -> Result<Self> {
         let metadata = TypedBuffer::try_with_capacity(manager, capacity)?;
-        let child_buffer = ArrayBuffer::try_new_for_datatype(manager, &inner_type, capacity)?;
+        let child_buffer = ArrayBuffer2::try_new_for_datatype(manager, &inner_type, capacity)?;
         let child_validity = Validity::new_all_valid(capacity);
 
-        Ok(ListBuffer {
+        Ok(ListBuffer2 {
             metadata: SharedOrOwned::owned(metadata),
             current_offset: 0,
             child_physical_type: inner_type.physical_type(),
@@ -764,7 +1022,7 @@ impl ListBuffer {
     pub fn try_reserve_child_buffers(&mut self, additional: usize) -> Result<()> {
         // Resize array buffer.
         match &mut self.child_buffer.inner {
-            ArrayBufferType::Scalar(scalar) => match self.child_physical_type {
+            ArrayBufferType2::Scalar(scalar) => match self.child_physical_type {
                 PhysicalType::UntypedNull => {
                     scalar.try_reserve::<PhysicalUntypedNull>(additional)?
                 }
@@ -789,16 +1047,16 @@ impl ListBuffer {
                     )));
                 }
             },
-            ArrayBufferType::String(string) => string.try_reserve(additional)?,
-            ArrayBufferType::List(_) => {
+            ArrayBufferType2::String(string) => string.try_reserve(additional)?,
+            ArrayBufferType2::List(_) => {
                 not_implemented!("Reserve additional capacity for nested arrays")
             }
-            ArrayBufferType::Constant(_) => {
+            ArrayBufferType2::Constant(_) => {
                 return Err(DbError::new(
                     "Unexpected constant array in list array buffer during resize",
                 ));
             }
-            ArrayBufferType::Dictionary(_) => {
+            ArrayBufferType2::Dictionary(_) => {
                 return Err(DbError::new(
                     "Unexpected dictionary array in list array buffer during resize",
                 ));
@@ -834,7 +1092,7 @@ impl ListBuffer {
         let child_buffer = self.child_buffer.make_shared_and_clone();
         let child_validity = self.child_validity.make_shared_and_clone();
 
-        ListBuffer {
+        ListBuffer2 {
             metadata,
             current_offset: self.current_offset,
             child_physical_type: self.child_physical_type,
@@ -844,7 +1102,7 @@ impl ListBuffer {
     }
 
     fn try_clone_shared(&self) -> Result<Self> {
-        Ok(ListBuffer {
+        Ok(ListBuffer2 {
             metadata: self.metadata.try_clone_shared()?,
             current_offset: self.current_offset,
             child_physical_type: self.child_physical_type,
@@ -935,11 +1193,11 @@ impl<T> TryAsMut<T> for SharedOrOwned<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
 
     #[test]
     fn string_view_buffer_push_inlined() {
-        let mut buffer = StringViewBuffer::with_capacity(&NopBufferManager, 0).unwrap();
+        let mut buffer = StringViewBuffer::with_capacity(&DefaultBufferManager, 0).unwrap();
         let m = buffer.push_bytes_as_row(&[0, 1, 2, 3]).unwrap();
         assert!(m.is_inline());
 
@@ -949,7 +1207,7 @@ mod tests {
 
     #[test]
     fn string_view_buffer_push_referenced() {
-        let mut buffer = StringViewBuffer::with_capacity(&NopBufferManager, 0).unwrap();
+        let mut buffer = StringViewBuffer::with_capacity(&DefaultBufferManager, 0).unwrap();
         let m1 = buffer.push_bytes_as_row(&vec![4; 32]).unwrap();
         assert!(!m1.is_inline());
 

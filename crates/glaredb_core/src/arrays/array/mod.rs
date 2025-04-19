@@ -7,12 +7,12 @@ pub mod validity;
 use std::fmt::Debug;
 
 use array_buffer::{
-    ArrayBuffer,
-    ArrayBufferType,
-    ConstantBuffer,
-    DictionaryBuffer,
+    ArrayBuffer2,
+    ArrayBufferType2,
+    ConstantBuffer2,
+    DictionayBuffer2,
     ListItemMetadata,
-    ScalarBuffer,
+    ScalarBuffer2,
     SharedOrOwned,
 };
 use flat::FlattenedArray;
@@ -52,7 +52,7 @@ use crate::arrays::scalar::BorrowedScalarValue;
 use crate::arrays::scalar::decimal::{Decimal64Scalar, Decimal128Scalar};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::timestamp::TimestampScalar;
-use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager, NopBufferManager};
+use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager, DefaultBufferManager};
 use crate::buffer::typed::TypedBuffer;
 use crate::util::convert::TryAsMut;
 use crate::util::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};
@@ -66,7 +66,7 @@ pub struct Array {
     /// This should match the logical length of the underlying data buffer.
     pub(crate) validity: Validity,
     /// Holds the underlying array data.
-    pub(crate) data: ArrayBuffer,
+    pub(crate) data: ArrayBuffer2,
 }
 
 impl Array {
@@ -79,7 +79,7 @@ impl Array {
         datatype: DataType,
         capacity: usize,
     ) -> Result<Self> {
-        let data = ArrayBuffer::try_new_for_datatype(manager, &datatype, capacity)?;
+        let data = ArrayBuffer2::try_new_for_datatype(manager, &datatype, capacity)?;
         let validity = Validity::new_all_valid(capacity);
 
         Ok(Array {
@@ -114,7 +114,7 @@ impl Array {
         let mut arr = Self::new(manager, value.datatype(), 1)?;
         arr.set_value(0, value)?;
 
-        let buffer = ConstantBuffer {
+        let buffer = ConstantBuffer2 {
             row_reference: 0,
             len,
             child_buffer: Box::new(arr.data),
@@ -129,7 +129,7 @@ impl Array {
         Ok(Array {
             datatype: value.datatype(),
             validity,
-            data: ArrayBuffer::new(buffer),
+            data: ArrayBuffer2::new(buffer),
         })
     }
 
@@ -158,8 +158,8 @@ impl Array {
         datatype: DataType,
         len: usize,
     ) -> Result<Self> {
-        let data = ArrayBuffer::try_new_for_datatype(manager, &datatype, 1)?;
-        let buffer = ConstantBuffer {
+        let data = ArrayBuffer2::try_new_for_datatype(manager, &datatype, 1)?;
+        let buffer = ConstantBuffer2 {
             row_reference: 0,
             len,
             child_buffer: Box::new(data),
@@ -168,7 +168,7 @@ impl Array {
         Ok(Array {
             datatype,
             validity: Validity::new_all_invalid(len),
-            data: ArrayBuffer::new(buffer),
+            data: ArrayBuffer2::new(buffer),
         })
     }
 
@@ -237,44 +237,44 @@ impl Array {
         };
 
         match other.data.as_mut() {
-            ArrayBufferType::Constant(constant) => {
+            ArrayBufferType2::Constant(constant) => {
                 let child_buffer = constant.child_buffer.make_shared_and_clone();
-                let buffer = ConstantBuffer {
+                let buffer = ConstantBuffer2 {
                     row_reference: constant.row_reference, // Use existing row reference since it points to the right row already.
                     len,
                     child_buffer: Box::new(child_buffer),
                 };
 
                 self.validity = new_validity;
-                let existing = std::mem::replace(&mut self.data, ArrayBuffer::new(buffer));
+                let existing = std::mem::replace(&mut self.data, ArrayBuffer2::new(buffer));
                 cache.maybe_cache(existing);
 
                 Ok(())
             }
-            ArrayBufferType::Dictionary(dict) => {
+            ArrayBufferType2::Dictionary(dict) => {
                 let child_buffer = dict.child_buffer.make_shared_and_clone();
-                let buffer = ConstantBuffer {
+                let buffer = ConstantBuffer2 {
                     row_reference: dict.selection.as_slice()[row], // Ensure row reference relative to selection.
                     len,
                     child_buffer: Box::new(child_buffer),
                 };
 
                 self.validity = new_validity;
-                let existing = std::mem::replace(&mut self.data, ArrayBuffer::new(buffer));
+                let existing = std::mem::replace(&mut self.data, ArrayBuffer2::new(buffer));
                 cache.maybe_cache(existing);
 
                 Ok(())
             }
             _ => {
                 let child_buffer = other.data.make_shared_and_clone();
-                let buffer = ConstantBuffer {
+                let buffer = ConstantBuffer2 {
                     row_reference: row,
                     len,
                     child_buffer: Box::new(child_buffer),
                 };
 
                 self.validity = new_validity;
-                let existing = std::mem::replace(&mut self.data, ArrayBuffer::new(buffer));
+                let existing = std::mem::replace(&mut self.data, ArrayBuffer2::new(buffer));
                 cache.maybe_cache(existing);
 
                 Ok(())
@@ -290,11 +290,11 @@ impl Array {
         &self.datatype
     }
 
-    pub fn data(&self) -> &ArrayBuffer {
+    pub fn data(&self) -> &ArrayBuffer2 {
         &self.data
     }
 
-    pub fn data_mut(&mut self) -> &mut ArrayBuffer {
+    pub fn data_mut(&mut self) -> &mut ArrayBuffer2 {
         &mut self.data
     }
 
@@ -303,7 +303,7 @@ impl Array {
     }
 
     /// Gets a mutable reference to bothe the array buffer, and the validity.
-    pub fn data_and_validity_mut(&mut self) -> (&mut ArrayBuffer, &mut Validity) {
+    pub fn data_and_validity_mut(&mut self) -> (&mut ArrayBuffer2, &mut Validity) {
         (&mut self.data, &mut self.validity)
     }
 
@@ -332,7 +332,7 @@ impl Array {
     pub fn should_flatten_for_execution(&self) -> bool {
         matches!(
             self.data.as_ref(),
-            ArrayBufferType::Constant(_) | ArrayBufferType::Dictionary(_)
+            ArrayBufferType2::Constant(_) | ArrayBufferType2::Dictionary(_)
         )
     }
 
@@ -349,7 +349,7 @@ impl Array {
         selection: impl IntoExactSizeIterator<Item = usize> + Clone,
     ) -> Result<()> {
         match self.data.as_mut() {
-            ArrayBufferType::Constant(constant) => {
+            ArrayBufferType2::Constant(constant) => {
                 // Selection on top of constant array produces an array of just
                 // the same constants. Just update the len to match the
                 // selection.
@@ -367,7 +367,7 @@ impl Array {
 
                 Ok(())
             }
-            ArrayBufferType::Dictionary(dict) => {
+            ArrayBufferType2::Dictionary(dict) => {
                 // Select the existing selection. We don't want to deal with
                 // nested dictionaries.
                 let sel_cloned = selection.clone().into_exact_size_iter();
@@ -402,18 +402,18 @@ impl Array {
                     .select(buf_selection.as_slice().iter().copied());
 
                 // Some hacks below, just swapping around the buffers.
-                let uninit = ArrayBuffer::new(ScalarBuffer {
+                let uninit = ArrayBuffer2::new(ScalarBuffer2 {
                     physical_type: PhysicalType::UntypedNull,
                     raw: SharedOrOwned::Uninit,
                 });
                 let buffer = std::mem::replace(&mut self.data, uninit);
 
-                let dictionary = DictionaryBuffer {
+                let dictionary = DictionayBuffer2 {
                     selection: SharedOrOwned::owned(buf_selection),
                     child_buffer: Box::new(buffer),
                 };
 
-                self.data = ArrayBuffer::new(dictionary);
+                self.data = ArrayBuffer2::new(dictionary);
 
                 Ok(())
             }
@@ -506,7 +506,7 @@ impl Array {
 /// want to deal with selections here.
 fn get_value_inner<'a>(
     datatype: &DataType,
-    buffer: &'a ArrayBuffer,
+    buffer: &'a ArrayBuffer2,
     validity: &Validity,
     logical_idx: usize,
     data_idx: usize,
@@ -629,7 +629,7 @@ fn get_value_inner<'a>(
         }
         DataType::List(m) => {
             let list_buf = match buffer.as_ref() {
-                ArrayBufferType::List(list_buf) => list_buf,
+                ArrayBufferType2::List(list_buf) => list_buf,
                 _ => return Err(DbError::new("Expected list buffer")),
             };
 
@@ -656,7 +656,7 @@ fn get_value_inner<'a>(
 
 fn set_value_inner(
     value: &BorrowedScalarValue,
-    buffer: &mut ArrayBuffer,
+    buffer: &mut ArrayBuffer2,
     validity: &mut Validity,
     logical_idx: usize,
     data_idx: usize,
@@ -852,7 +852,7 @@ where
         iter: T,
     ) -> Result<Self, Self::Error> {
         let iter = iter.into_exact_size_iter();
-        let manager = NopBufferManager;
+        let manager = DefaultBufferManager;
 
         let mut array = Array::new(&manager, DataType::Utf8, iter.len())?;
         let mut buf = PhysicalUtf8::get_addressable_mut(&mut array.data)?;
@@ -910,7 +910,7 @@ mod tests {
 
     #[test]
     fn try_new_constant_utf8() {
-        let arr = Array::new_constant(&NopBufferManager, &"a".into(), 4).unwrap();
+        let arr = Array::new_constant(&DefaultBufferManager, &"a".into(), 4).unwrap();
         let expected = Array::try_from_iter(["a", "a", "a", "a"]).unwrap();
         assert_arrays_eq(&expected, &arr);
     }
@@ -918,7 +918,7 @@ mod tests {
     #[test]
     fn try_new_from_other_simple() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
-        let new_arr = Array::new_from_other(&NopBufferManager, &mut arr).unwrap();
+        let new_arr = Array::new_from_other(&DefaultBufferManager, &mut arr).unwrap();
 
         let expected = Array::try_from_iter(["a", "b", "c"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -929,9 +929,9 @@ mod tests {
     fn try_new_from_other_dictionary() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         // => '["b", "a", "a", "b"]'
-        arr.select(&NopBufferManager, [1, 0, 0, 1]).unwrap();
+        arr.select(&DefaultBufferManager, [1, 0, 0, 1]).unwrap();
 
-        let new_arr = Array::new_from_other(&NopBufferManager, &mut arr).unwrap();
+        let new_arr = Array::new_from_other(&DefaultBufferManager, &mut arr).unwrap();
 
         let expected = Array::try_from_iter(["b", "a", "a", "b"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -940,8 +940,8 @@ mod tests {
 
     #[test]
     fn try_new_from_other_constant() {
-        let mut arr = Array::new_constant(&NopBufferManager, &"cat".into(), 4).unwrap();
-        let new_arr = Array::new_from_other(&NopBufferManager, &mut arr).unwrap();
+        let mut arr = Array::new_constant(&DefaultBufferManager, &"cat".into(), 4).unwrap();
+        let new_arr = Array::new_from_other(&DefaultBufferManager, &mut arr).unwrap();
 
         let expected = Array::try_from_iter(["cat", "cat", "cat", "cat"]).unwrap();
 
@@ -950,7 +950,7 @@ mod tests {
 
     #[test]
     fn try_new_typed_null_array() {
-        let arr = Array::new_typed_null(&NopBufferManager, DataType::Int32, 4).unwrap();
+        let arr = Array::new_typed_null(&DefaultBufferManager, DataType::Int32, 4).unwrap();
         let expected = Array::try_from_iter::<[Option<i32>; 4]>([None, None, None, None]).unwrap();
         assert_arrays_eq(&expected, &arr);
 
@@ -960,7 +960,7 @@ mod tests {
     #[test]
     fn select_no_change() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
-        arr.select(&NopBufferManager, [0, 1, 2]).unwrap();
+        arr.select(&DefaultBufferManager, [0, 1, 2]).unwrap();
 
         let expected = Array::try_from_iter(["a", "b", "c"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -969,7 +969,7 @@ mod tests {
     #[test]
     fn select_prune_rows() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
-        arr.select(&NopBufferManager, [0, 2]).unwrap();
+        arr.select(&DefaultBufferManager, [0, 2]).unwrap();
 
         let expected = Array::try_from_iter(["a", "c"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -978,7 +978,7 @@ mod tests {
     #[test]
     fn select_expand_rows() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
-        arr.select(&NopBufferManager, [0, 1, 1, 2]).unwrap();
+        arr.select(&DefaultBufferManager, [0, 1, 1, 2]).unwrap();
 
         let expected = Array::try_from_iter(["a", "b", "b", "c"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -988,10 +988,10 @@ mod tests {
     fn select_existing_selection() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         // => ["a", "c"]
-        arr.select(&NopBufferManager, [0, 2]).unwrap();
+        arr.select(&DefaultBufferManager, [0, 2]).unwrap();
 
         // => ["c", "c", "a"]
-        arr.select(&NopBufferManager, [1, 1, 0]).unwrap();
+        arr.select(&DefaultBufferManager, [1, 1, 0]).unwrap();
 
         let expected = Array::try_from_iter(["c", "c", "a"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -999,8 +999,9 @@ mod tests {
 
     #[test]
     fn select_constant() {
-        let mut arr = Array::new_constant(&NopBufferManager, &"dog".into(), 3).unwrap();
-        arr.select(&NopBufferManager, [0, 1, 2, 0, 1, 2]).unwrap();
+        let mut arr = Array::new_constant(&DefaultBufferManager, &"dog".into(), 3).unwrap();
+        arr.select(&DefaultBufferManager, [0, 1, 2, 0, 1, 2])
+            .unwrap();
 
         let expected = Array::try_from_iter(["dog", "dog", "dog", "dog", "dog", "dog"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -1012,9 +1013,9 @@ mod tests {
         // it be created from an existing array.
 
         let mut arr1 = Array::try_from_iter([1, 2, 3]).unwrap();
-        let mut arr2 = Array::new_from_other(&NopBufferManager, &mut arr1).unwrap();
+        let mut arr2 = Array::new_from_other(&DefaultBufferManager, &mut arr1).unwrap();
         // => [2, 1, 3]
-        arr2.select(&NopBufferManager, [1, 0, 2]).unwrap();
+        arr2.select(&DefaultBufferManager, [1, 0, 2]).unwrap();
 
         let expected = Array::try_from_iter([2, 1, 3]).unwrap();
         assert_arrays_eq(&expected, &arr2);
@@ -1024,10 +1025,10 @@ mod tests {
     fn select_after_making_constant_array_data_shared() {
         // Same as above, just with a constant array.
 
-        let mut arr1 = Array::new_constant(&NopBufferManager, &14.into(), 3).unwrap();
-        let mut arr2 = Array::new_from_other(&NopBufferManager, &mut arr1).unwrap();
+        let mut arr1 = Array::new_constant(&DefaultBufferManager, &14.into(), 3).unwrap();
+        let mut arr2 = Array::new_from_other(&DefaultBufferManager, &mut arr1).unwrap();
         // => [14, 14, 14]
-        arr2.select(&NopBufferManager, [1, 0, 2]).unwrap();
+        arr2.select(&DefaultBufferManager, [1, 0, 2]).unwrap();
 
         let expected = Array::try_from_iter([14, 14, 14]).unwrap();
         assert_arrays_eq(&expected, &arr2);
@@ -1055,7 +1056,7 @@ mod tests {
     fn get_value_with_selection() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         // => ["a", "c"]
-        arr.select(&NopBufferManager, [0, 2]).unwrap();
+        arr.select(&DefaultBufferManager, [0, 2]).unwrap();
         let val = arr.get_value(1).unwrap();
 
         assert_eq!(BorrowedScalarValue::Utf8("c".into()), val);
@@ -1065,7 +1066,7 @@ mod tests {
     fn get_value_with_selection_null() {
         let mut arr = Array::try_from_iter([Some("a"), Some("b"), None]).unwrap();
         // => [NULL, "a"]
-        arr.select(&NopBufferManager, [2, 0]).unwrap();
+        arr.select(&DefaultBufferManager, [2, 0]).unwrap();
 
         let val = arr.get_value(0).unwrap();
         assert_eq!(BorrowedScalarValue::Null, val);
@@ -1076,7 +1077,7 @@ mod tests {
 
     #[test]
     fn get_value_constant() {
-        let arr = Array::new_constant(&NopBufferManager, &"cat".into(), 4).unwrap();
+        let arr = Array::new_constant(&DefaultBufferManager, &"cat".into(), 4).unwrap();
         let val = arr.get_value(2).unwrap();
         assert_eq!(BorrowedScalarValue::Utf8("cat".into()), val);
     }
@@ -1103,7 +1104,7 @@ mod tests {
     #[test]
     fn get_value_list_i32() {
         let mut lists = Array::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             4,
         )
@@ -1131,7 +1132,7 @@ mod tests {
     #[test]
     fn clone_constant_from_other_i32_valid() {
         let mut arr = Array::try_from_iter([1, 2, 3]).unwrap();
-        let mut arr2 = Array::new(&NopBufferManager, DataType::Int32, 16).unwrap();
+        let mut arr2 = Array::new(&DefaultBufferManager, DataType::Int32, 16).unwrap();
 
         arr2.clone_constant_from(&mut arr, 1, 8, &mut NopCache)
             .unwrap();
@@ -1143,7 +1144,7 @@ mod tests {
     #[test]
     fn clone_constant_from_other_i32_null() {
         let mut arr = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
-        let mut arr2 = Array::new(&NopBufferManager, DataType::Int32, 16).unwrap();
+        let mut arr2 = Array::new(&DefaultBufferManager, DataType::Int32, 16).unwrap();
 
         arr2.clone_constant_from(&mut arr, 1, 8, &mut NopCache)
             .unwrap();
@@ -1156,8 +1157,8 @@ mod tests {
     fn clone_constant_from_other_i32_dictionary() {
         let mut arr = Array::try_from_iter([1, 2, 3]).unwrap();
         // => [2, 3, 1]
-        arr.select(&NopBufferManager, [1, 2, 0]).unwrap();
-        let mut arr2 = Array::new(&NopBufferManager, DataType::Int32, 16).unwrap();
+        arr.select(&DefaultBufferManager, [1, 2, 0]).unwrap();
+        let mut arr2 = Array::new(&DefaultBufferManager, DataType::Int32, 16).unwrap();
 
         arr2.clone_constant_from(&mut arr, 1, 8, &mut NopCache)
             .unwrap();

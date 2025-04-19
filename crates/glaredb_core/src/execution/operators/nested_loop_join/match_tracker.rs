@@ -4,7 +4,7 @@ use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalBool};
 use crate::arrays::array::validity::Validity;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 
 /// Tracks row matches.
 #[derive(Debug)]
@@ -69,7 +69,7 @@ impl MatchTracker {
             let right_out = &mut output.arrays[arr_idx + arr_offset];
 
             let selection = not_match_iter.clone();
-            right_out.select_from_other(&NopBufferManager, right, selection, &mut NopCache)?;
+            right_out.select_from_other(&DefaultBufferManager, right, selection, &mut NopCache)?;
         }
 
         // Set the validities for the left arrays to all null.
@@ -112,7 +112,7 @@ impl MatchTracker {
             let left_out = &mut output.arrays[arr_idx];
 
             let selection = not_match_iter.clone();
-            left_out.select_from_other(&NopBufferManager, left, selection, &mut NopCache)?;
+            left_out.select_from_other(&DefaultBufferManager, left, selection, &mut NopCache)?;
         }
 
         // Set the validities for the rights arrays to all null.

@@ -193,7 +193,7 @@ mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
     use crate::arrays::scalar::ScalarValue;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::expr::physical::column_expr::PhysicalColumnExpr;
     use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
     use crate::functions::scalar::builtin::is::FUNCTION_SET_IS_NULL;
@@ -227,7 +227,7 @@ mod tests {
 
         let mut state = expr.create_state(3).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 3), &mut out)
             .unwrap();
 
@@ -255,7 +255,7 @@ mod tests {
 
         let mut state = expr.create_state(3).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 3), &mut out)
             .unwrap();
 
@@ -310,7 +310,7 @@ mod tests {
 
         let mut state = expr.create_state(4).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 4).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 4), &mut out)
             .unwrap();
 
@@ -362,7 +362,7 @@ mod tests {
         let mut input = generate_batch!([Some(4), Some(5), Some(6), None]);
         let mut state = expr.create_state(4).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 4).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 4), &mut out)
             .unwrap();
 
@@ -394,7 +394,7 @@ mod tests {
         let mut input = generate_batch!([Some(4), Some(5), Some(6), None]);
         let mut state = expr.create_state(4).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 4).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 4), &mut out)
             .unwrap();
 
@@ -478,7 +478,7 @@ mod tests {
         let mut input = generate_batch!([Some(4), Some(5), Some(6), None]);
         let mut state = expr.create_state(4).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 4).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 4), &mut out)
             .unwrap();
 

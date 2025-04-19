@@ -90,20 +90,20 @@ impl AsyncReadStream for MemoryFileRead {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::io::futures::read_into::ReadInto;
     use crate::util::future::block_on;
 
     #[test]
     fn memory_size() {
-        let source = MemoryFileSource::new(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let source = MemoryFileSource::new(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         let size = block_on(source.size()).unwrap();
         assert_eq!(4, size);
     }
 
     #[test]
     fn memory_read_full() {
-        let mut source = MemoryFileSource::new(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut source = MemoryFileSource::new(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         let mut buf = [0; 4];
 
         let mut stream = source.read();
@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn memory_read_range() {
-        let mut source = MemoryFileSource::new(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut source = MemoryFileSource::new(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         let mut buf = [0; 4];
 
         let mut stream = source.read_range(1, 2);

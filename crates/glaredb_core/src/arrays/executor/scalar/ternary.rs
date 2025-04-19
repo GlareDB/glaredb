@@ -201,7 +201,7 @@ mod tests {
     use super::*;
     use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::datatype::DataType;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::util::iter::TryFromExactSizeIterator;
 
@@ -211,7 +211,7 @@ mod tests {
         let count = Array::try_from_iter([1, 2, 3]).unwrap();
         let pad = Array::try_from_iter(["<", ".", "!"]).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -246,7 +246,7 @@ mod tests {
         let count = Array::try_from_iter([None, Some(2), Some(3)]).unwrap();
         let pad = Array::try_from_iter(["<", ".", "!"]).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -281,9 +281,9 @@ mod tests {
         let count = Array::try_from_iter([1, 2, 3]).unwrap();
         let mut pad = Array::try_from_iter(["<", ".", "!"]).unwrap();
         // '[".", ".", "<"]'
-        pad.select(&NopBufferManager, [1, 1, 0]).unwrap();
+        pad.select(&DefaultBufferManager, [1, 1, 0]).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -318,9 +318,9 @@ mod tests {
         let count = Array::try_from_iter([1, 2, 3]).unwrap();
         let mut pad = Array::try_from_iter([Some("<"), None, Some("!")]).unwrap();
         // '[NULL, "!", "<"]'
-        pad.select(&NopBufferManager, [1, 2, 0]).unwrap();
+        pad.select(&DefaultBufferManager, [1, 2, 0]).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -352,9 +352,9 @@ mod tests {
     fn ternary_left_prepend_constant() {
         let strings = Array::try_from_iter(["a", "b", "c"]).unwrap();
         let count = Array::try_from_iter([1, 2, 3]).unwrap();
-        let pad = Array::new_constant(&NopBufferManager, &"<".into(), 3).unwrap();
+        let pad = Array::new_constant(&DefaultBufferManager, &"<".into(), 3).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut str_buf = String::new();
         TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(

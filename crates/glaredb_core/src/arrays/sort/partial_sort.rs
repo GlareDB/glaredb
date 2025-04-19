@@ -8,7 +8,7 @@ use crate::arrays::array::Array;
 use crate::arrays::row::block::{Block, NopInitializer, ValidityInitializer};
 use crate::arrays::row::row_blocks::{BlockAppendState, RowBlocks};
 use crate::arrays::row::row_layout::RowLayout;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 
 #[derive(Debug)]
 pub struct SortedRowAppendState {
@@ -60,7 +60,7 @@ pub struct PartialSortedRowCollection {
 impl PartialSortedRowCollection {
     pub fn new(key_layout: SortLayout, data_layout: RowLayout, block_capacity: usize) -> Self {
         let key_blocks = RowBlocks::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             NopInitializer,
             key_layout.row_width,
             block_capacity,
@@ -68,13 +68,13 @@ impl PartialSortedRowCollection {
         );
 
         let key_heap_blocks = RowBlocks::new_using_row_layout(
-            &NopBufferManager,
+            &DefaultBufferManager,
             &key_layout.heap_layout,
             block_capacity,
         );
 
         let data_blocks =
-            RowBlocks::new_using_row_layout(&NopBufferManager, &data_layout, block_capacity);
+            RowBlocks::new_using_row_layout(&DefaultBufferManager, &data_layout, block_capacity);
 
         PartialSortedRowCollection {
             key_layout,
@@ -204,12 +204,12 @@ impl PartialSortedRowCollection {
         //
         // Note we don't concat heap blocks as we have active pointers to them
         // in the fixed sized blocks.
-        let keys = Block::concat(&NopBufferManager, keys)?;
-        let heap_keys = Block::concat(&NopBufferManager, heap_keys)?;
-        let data = Block::concat(&NopBufferManager, data)?;
+        let keys = Block::concat(&DefaultBufferManager, keys)?;
+        let heap_keys = Block::concat(&DefaultBufferManager, heap_keys)?;
+        let data = Block::concat(&DefaultBufferManager, data)?;
 
         let sorted_block = SortedBlock::sort_from_blocks(
-            &NopBufferManager,
+            &DefaultBufferManager,
             &self.key_layout,
             &self.data_layout,
             keys,
@@ -291,7 +291,7 @@ mod tests {
             .data_layout
             .types
             .iter()
-            .map(|datatype| Array::new(&NopBufferManager, datatype.clone(), row_count))
+            .map(|datatype| Array::new(&DefaultBufferManager, datatype.clone(), row_count))
             .collect::<Result<Vec<_>>>()
             .unwrap();
 

@@ -194,7 +194,7 @@ mod tests {
     use super::*;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::ListTypeMeta;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::util::iter::TryFromExactSizeIterator;
 
@@ -204,7 +204,7 @@ mod tests {
         let b = Array::try_from_iter([4, 5, 6]).unwrap();
 
         let mut lists = Array::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             3,
         )
@@ -212,7 +212,7 @@ mod tests {
 
         make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
 
-        let mut second_elements = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut second_elements = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
         list_extract(&lists, 0..3, &mut second_elements, 1).unwrap();
 
         let expected = Array::try_from_iter([4, 5, 6]).unwrap();
@@ -225,7 +225,7 @@ mod tests {
         let b = Array::try_from_iter([4, 5, 6]).unwrap();
 
         let mut lists = Array::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             3,
         )
@@ -233,7 +233,7 @@ mod tests {
 
         make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
 
-        let mut extracted_elements = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut extracted_elements = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
         list_extract(&lists, 0..3, &mut extracted_elements, 2).unwrap();
 
         let expected = Array::try_from_iter([None as Option<i32>, None, None]).unwrap();
@@ -246,7 +246,7 @@ mod tests {
         let b = Array::try_from_iter([Some(4), None, Some(6)]).unwrap();
 
         let mut lists = Array::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             3,
         )
@@ -254,14 +254,14 @@ mod tests {
 
         make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
 
-        let mut second_elements = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut second_elements = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
         list_extract(&lists, 0..3, &mut second_elements, 1).unwrap();
 
         let expected = Array::try_from_iter([Some(4), None, Some(6)]).unwrap();
         assert_arrays_eq(&expected, &second_elements);
 
         // Elements as index 0 should still be all non-null.
-        let mut first_elements = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut first_elements = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
         list_extract(&lists, 0..3, &mut first_elements, 0).unwrap();
 
         let expected = Array::try_from_iter([1, 2, 3]).unwrap();
@@ -274,7 +274,7 @@ mod tests {
         let b = Array::try_from_iter([4, 5, 6]).unwrap();
 
         let mut lists = Array::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             3,
         )
@@ -283,7 +283,7 @@ mod tests {
         make_list_from_values(&[a, b], 0..3, &mut lists).unwrap();
         lists.validity.set_invalid(1); // [2, 5] => NULL
 
-        let mut second_elements = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut second_elements = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
         list_extract(&lists, 0..3, &mut second_elements, 1).unwrap();
 
         let expected = Array::try_from_iter([Some(4), None, Some(6)]).unwrap();

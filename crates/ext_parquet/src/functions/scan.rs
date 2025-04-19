@@ -6,7 +6,7 @@ use futures::FutureExt;
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::datatype::DataTypeId;
 use glaredb_core::arrays::field::ColumnSchema;
-use glaredb_core::buffer::buffer_manager::NopBufferManager;
+use glaredb_core::buffer::buffer_manager::DefaultBufferManager;
 use glaredb_core::execution::operators::{ExecutionProperties, PollPull};
 use glaredb_core::functions::Signature;
 use glaredb_core::functions::documentation::{Category, Documentation};
@@ -168,7 +168,7 @@ impl TableScanFunction for ReadParquet {
                     // TODO: How do we want to thread down the manager? Put on
                     // props? Request that it goes on op_state?
                     Reader::try_new(
-                        &NopBufferManager,
+                        &DefaultBufferManager,
                         metadata,
                         schema,
                         file,

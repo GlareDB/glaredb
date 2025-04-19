@@ -31,7 +31,7 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::bitmap::view::BitmapView;
 use crate::arrays::string::StringPtr;
-use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
+use crate::buffer::buffer_manager::{BufferManager, DefaultBufferManager};
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::functions::scalar::builtin::comparison::{
     DistinctComparisonOperation,
@@ -49,7 +49,7 @@ use crate::functions::scalar::builtin::comparison::{
 /// Matches rows by comparing encoded values with non-encoded values.
 #[derive(Debug)]
 pub struct PredicateRowMatcher {
-    matchers: Vec<Box<dyn Matcher<NopBufferManager>>>,
+    matchers: Vec<Box<dyn Matcher<DefaultBufferManager>>>,
 }
 
 impl PredicateRowMatcher {
@@ -116,7 +116,7 @@ impl PredicateRowMatcher {
 fn create_predicate_matcher_from_operator(
     op: ComparisonOperator,
     phys_type: PhysicalType,
-) -> Box<dyn Matcher<NopBufferManager>> {
+) -> Box<dyn Matcher<DefaultBufferManager>> {
     match op {
         ComparisonOperator::Eq => {
             create_predicate_matcher::<NullCoercedComparison<EqOperation>>(phys_type)
@@ -146,7 +146,7 @@ fn create_predicate_matcher_from_operator(
 }
 
 /// Creates a predicate match for a comparison operation.
-fn create_predicate_matcher<C>(phys_type: PhysicalType) -> Box<dyn Matcher<NopBufferManager>>
+fn create_predicate_matcher<C>(phys_type: PhysicalType) -> Box<dyn Matcher<DefaultBufferManager>>
 where
     C: DistinctComparisonOperation,
 {
@@ -204,7 +204,7 @@ where
     }
 }
 
-impl<C, S> Matcher<NopBufferManager> for ScalarMatcher<C, S>
+impl<C, S> Matcher<DefaultBufferManager> for ScalarMatcher<C, S>
 where
     C: DistinctComparisonOperation,
     S: ScalarStorage,
@@ -276,7 +276,7 @@ where
     }
 }
 
-impl<C> Matcher<NopBufferManager> for BinaryMatcher<C>
+impl<C> Matcher<DefaultBufferManager> for BinaryMatcher<C>
 where
     C: DistinctComparisonOperation,
 {
