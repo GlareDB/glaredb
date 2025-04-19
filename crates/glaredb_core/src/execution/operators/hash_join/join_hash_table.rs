@@ -14,7 +14,7 @@ use crate::arrays::row::row_collection::{RowAppendState, RowCollection};
 use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::buffer::buffer_manager::DefaultBufferManager;
-use crate::buffer::typed::TypedBuffer;
+use crate::buffer::db_vec::DbVec;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::logical_join::JoinType;
 
@@ -497,8 +497,12 @@ impl JoinHashTable {
 /// of a chain is denoted by a null pointer.
 #[derive(Debug)]
 pub struct Directory {
-    entries: TypedBuffer<*mut u8>,
+    entries: DbVec<*mut u8>,
 }
+
+// `*mut u8` pointing to heap blocks.
+unsafe impl Sync for Directory {}
+unsafe impl Send for Directory {}
 
 impl Directory {
     const MIN_SIZE: usize = 256;
@@ -518,8 +522,7 @@ impl Directory {
         let desired = (num_rows as f64 / Self::LOAD_FACTOR) as usize;
         let actual = usize::max(desired.next_power_of_two(), Self::MIN_SIZE);
 
-        let mut entries = TypedBuffer::try_with_capacity(&DefaultBufferManager, actual)?;
-        entries.as_slice_mut().fill(std::ptr::null_mut());
+        let entries = DbVec::with_value(&DefaultBufferManager, actual, std::ptr::null_mut())?;
 
         Ok(Directory { entries })
     }
@@ -532,7 +535,9 @@ impl Directory {
 
     fn get_entry_atomic(&self, idx: usize) -> &AtomicPtr<u8> {
         debug_assert!(idx < self.entries.capacity());
-        let ptr = unsafe { self.entries.as_mut_ptr().add(idx) };
+        // TODO: Need to figure out the mutability for the directory.
+        let ptr = self.entries.as_ptr().cast_mut();
+        let ptr = unsafe { ptr.add(idx) };
         unsafe { AtomicPtr::from_ptr(ptr) }
     }
 }

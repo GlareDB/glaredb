@@ -7,7 +7,7 @@ use glaredb_error::{DbError, Result, not_implemented};
 
 use super::{File, FileOpenContext, FileStat, FileSystem, FileType, OpenFlags};
 use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
-use crate::buffer::typed::ByteBuffer;
+use crate::buffer::db_vec::DbVec;
 
 #[derive(Debug)]
 pub struct MemoryFileSystem {
@@ -15,7 +15,7 @@ pub struct MemoryFileSystem {
     #[allow(unused)] // Will be used for creates
     buffer_manager: RawBufferManager,
     /// Simple mapping of a flat name to byte buffer.
-    files: scc::HashMap<String, Arc<ByteBuffer>>,
+    files: scc::HashMap<String, Arc<DbVec<u8>>>,
 }
 
 impl MemoryFileSystem {
@@ -79,7 +79,7 @@ impl FileSystem for MemoryFileSystem {
 pub struct MemoryFileHandle {
     path: String,
     pos: usize,
-    buffer: Arc<ByteBuffer>,
+    buffer: Arc<DbVec<u8>>,
 }
 
 impl MemoryFileHandle {
@@ -91,10 +91,7 @@ impl MemoryFileHandle {
     /// really only useful for tests).
     pub fn from_bytes(manager: &impl AsRawBufferManager, bytes: impl AsRef<[u8]>) -> Result<Self> {
         let bytes = bytes.as_ref();
-        let mut buffer = ByteBuffer::try_with_capacity(manager, bytes.len())?;
-
-        let slice = &mut buffer.as_slice_mut()[..bytes.len()]; // We may have allocated more than requested
-        slice.copy_from_slice(bytes);
+        let buffer = DbVec::new_from_slice(manager, bytes)?;
 
         Ok(MemoryFileHandle {
             path: String::new(),
@@ -117,7 +114,8 @@ impl File for MemoryFileHandle {
         let rem = self.buffer.capacity() - self.pos;
         let count = usize::min(buf.len(), rem);
 
-        let src = &self.buffer.as_slice()[self.pos..(self.pos + count)];
+        let slice = unsafe { self.buffer.as_slice() };
+        let src = &slice[self.pos..(self.pos + count)];
         let dest = &mut buf[..count];
         dest.copy_from_slice(src);
 

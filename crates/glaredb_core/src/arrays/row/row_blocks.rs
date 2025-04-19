@@ -229,7 +229,7 @@ where
                     //
                     // Assumes that we allocated the correct size for the buffer.
                     let ptr = unsafe { ptr.byte_add(self.row_width * offset) };
-                    debug_assert!(block.data.raw.contains_addr(ptr.addr()));
+                    debug_assert!(block.data.contains_addr(ptr.addr()));
 
                     ptr
                 }));
@@ -286,7 +286,7 @@ where
                 // is fine, we're not writing to it in that case). The 0 check
                 // just catches this.
                 debug_assert!(
-                    heap_size == 0 || block.data.raw.contains_addr(ptr.addr()),
+                    heap_size == 0 || block.data.contains_addr(ptr.addr()),
                     "ptr: {}, block: {}",
                     ptr.addr(),
                     block_ptr.addr(),

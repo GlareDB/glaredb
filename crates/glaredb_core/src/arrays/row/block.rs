@@ -5,7 +5,7 @@ use glaredb_error::Result;
 use super::aggregate_layout::AggregateLayout;
 use super::row_layout::RowLayout;
 use crate::buffer::buffer_manager::AsRawBufferManager;
-use crate::buffer::typed::{AlignedBuffer, TypedBuffer};
+use crate::buffer::db_vec::DbVec;
 
 /// Describes how we initialize fixed sized blocks.
 pub trait FixedSizedBlockInitializer: Debug {
@@ -53,7 +53,7 @@ impl ValidityInitializer {
 impl FixedSizedBlockInitializer for ValidityInitializer {
     fn initialize(&self, mut block: Block) -> Result<Block> {
         let row_capacity = block.remaing_row_capacity(self.row_width);
-        let buffer = block.data.as_slice_mut();
+        let buffer = unsafe { block.data.as_slice_mut() };
 
         for row in 0..row_capacity {
             let validity_offset = self.row_width * row;
@@ -78,7 +78,7 @@ impl FixedSizedBlockInitializer for NopInitializer {
 #[derive(Debug)]
 pub struct Block {
     /// Raw byte data.
-    pub data: TypedBuffer<u8>,
+    pub data: DbVec<u8>,
     /// Bytes that have been reserved for writes.
     pub reserved_bytes: usize,
 }
@@ -93,13 +93,14 @@ impl Block {
     // there is for now.
     pub fn concat(manager: &impl AsRawBufferManager, blocks: Vec<Self>) -> Result<Self> {
         let capacity: usize = blocks.iter().map(|block| block.reserved_bytes).sum();
-        let mut out_buf = TypedBuffer::try_with_capacity(manager, capacity)?;
+        let mut out_buf = DbVec::new_uninit(manager, capacity)?;
 
-        let out_slice = out_buf.as_slice_mut();
+        let out_slice = unsafe { out_buf.as_slice_mut() };
 
         let mut write_offset = 0;
         for block in blocks {
-            let src_slice = &block.data.as_slice()[0..block.reserved_bytes];
+            let src_slice = unsafe { block.data.as_slice() };
+            let src_slice = &src_slice[0..block.reserved_bytes];
             let dest_slice = &mut out_slice[write_offset..write_offset + block.reserved_bytes];
 
             dest_slice.copy_from_slice(src_slice);
@@ -126,11 +127,8 @@ impl Block {
         alignment: Option<usize>,
     ) -> Result<Self> {
         let data = match alignment {
-            Some(align) => {
-                AlignedBuffer::try_with_capacity_and_alignment(manager, byte_capacity, align)?
-                    .into_typed_raw_buffer()
-            }
-            None => TypedBuffer::try_with_capacity(manager, byte_capacity)?,
+            Some(align) => DbVec::new_uninit_with_align(manager, byte_capacity, align)?,
+            None => DbVec::new_uninit(manager, byte_capacity)?,
         };
 
         Ok(Block {
@@ -145,7 +143,7 @@ impl Block {
         manager: &impl AsRawBufferManager,
         byte_capacity: usize,
     ) -> Result<Self> {
-        let data = TypedBuffer::try_with_capacity(manager, byte_capacity)?;
+        let data = DbVec::new_uninit(manager, byte_capacity)?;
         Ok(Block {
             data,
             reserved_bytes: byte_capacity,
@@ -190,7 +188,7 @@ mod tests {
         let mut blocks = Vec::new();
         for i in 0..4 {
             let mut block = Block::try_new_reserve_none(&DefaultBufferManager, 128, None).unwrap();
-            let s = &mut block.data.as_slice_mut()[0..i];
+            let s = unsafe { &mut block.data.as_slice_mut()[0..i] };
             for b in s {
                 *b = i as u8;
             }
@@ -201,7 +199,7 @@ mod tests {
         let concat = Block::concat(&DefaultBufferManager, blocks).unwrap();
         assert_eq!(6, concat.reserved_bytes);
 
-        let s = concat.data.as_slice();
+        let s = unsafe { concat.data.as_slice() };
         assert_eq!(&[1, 2, 2, 3, 3, 3], s);
     }
 }

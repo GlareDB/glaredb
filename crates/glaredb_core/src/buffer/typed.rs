@@ -6,9 +6,6 @@ use super::buffer_manager::AsRawBufferManager;
 use super::raw::RawBuffer;
 use crate::util::marker::PhantomCovariant;
 
-/// Type alias to a raw buffer storing bytes.
-pub type ByteBuffer = TypedBuffer<u8>;
-
 /// Wrapper around a raw buffer that knows its type.
 #[derive(Debug)]
 pub struct TypedBuffer<T> {
@@ -143,25 +140,5 @@ impl<T> Deref for AlignedBuffer<T> {
 impl<T> DerefMut for AlignedBuffer<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::buffer::buffer_manager::DefaultBufferManager;
-
-    #[test]
-    fn reserve_for_size_no_increase() {
-        let mut buf = ByteBuffer::try_with_capacity(&DefaultBufferManager, 14).unwrap();
-        buf.reserve_for_size(12).unwrap();
-        assert_eq!(14, buf.capacity());
-    }
-
-    #[test]
-    fn reserve_for_size_with_increase() {
-        let mut buf = ByteBuffer::try_with_capacity(&DefaultBufferManager, 14).unwrap();
-        buf.reserve_for_size(16).unwrap();
-        assert!(buf.capacity() >= 16);
     }
 }

@@ -12,7 +12,7 @@ use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::arrays::row::row_scan::RowScanState;
 use crate::buffer::buffer_manager::DefaultBufferManager;
-use crate::buffer::typed::TypedBuffer;
+use crate::buffer::db_vec::DbVec;
 use crate::execution::operators::util::power_of_two::{
     compute_offset_from_hash,
     inc_and_wrap_offset,
@@ -230,7 +230,7 @@ impl AggregateHashTable {
         groups_and_hashes.push(hashes_arr);
 
         let cap = self.directory.capacity();
-        let entries = self.directory.entries.as_slice_mut();
+        let entries = unsafe { self.directory.entries.as_slice_mut() };
 
         while !needs_insert.is_empty() {
             new_groups.clear();
@@ -517,6 +517,10 @@ struct Entry {
     row_ptr: *mut u8,
 }
 
+// `*mut u8` is a pointer to a heap block.
+unsafe impl Send for Entry {}
+unsafe impl Sync for Entry {}
+
 impl Entry {
     const EMPTY: Entry = Entry {
         hash: 0,
@@ -550,7 +554,7 @@ pub(crate) struct Directory {
     /// Number of non-null pointers in entries.
     num_occupied: usize,
     /// Row pointers.
-    entries: TypedBuffer<Entry>,
+    entries: DbVec<Entry>,
 }
 
 impl Directory {
@@ -560,9 +564,7 @@ impl Directory {
     fn try_new(capacity: usize) -> Result<Self> {
         let capacity = capacity.next_power_of_two();
 
-        let mut entries = TypedBuffer::try_with_capacity(&DefaultBufferManager, capacity)?;
-        // Initialize...
-        entries.as_slice_mut().fill(Entry::EMPTY);
+        let entries = DbVec::with_value(&DefaultBufferManager, capacity, Entry::EMPTY)?;
 
         Ok(Directory {
             num_occupied: 0,
@@ -589,13 +591,12 @@ impl Directory {
 
         let old_entries = std::mem::replace(
             &mut self.entries,
-            TypedBuffer::try_with_capacity(&DefaultBufferManager, new_capacity)?,
+            DbVec::with_value(&DefaultBufferManager, new_capacity, Entry::EMPTY)?,
         );
 
-        let entries = self.entries.as_slice_mut();
-        entries.fill(Entry::EMPTY);
+        let entries = unsafe { self.entries.as_slice_mut() };
 
-        for old_ent in old_entries.as_slice() {
+        for old_ent in unsafe { old_entries.as_slice() } {
             if !old_ent.is_occupied() {
                 continue;
             }

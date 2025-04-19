@@ -1,7 +1,7 @@
 use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 
 use super::buffer_manager::{AsRawBufferManager, RawBufferManager, Reservation};
 use crate::util::marker::PhantomCovariant;
@@ -37,13 +37,25 @@ impl<T> DbVec<T> {
     ///
     /// This is only allowed for `Copy` types as they cannot implement `Drop`.
     /// This provides an important guarantee that dropping this vec with any
-    /// number of uninitialized elements avoid touching uninitialized memory
+    /// number of uninitialized elements avoids touching uninitialized memory
     /// during drop.
     pub fn new_uninit(manager: &impl AsRawBufferManager, len: usize) -> Result<Self>
     where
         T: Copy,
     {
         let raw = RawDbVec::new_uninit(manager, len)?;
+        Ok(DbVec { raw, len })
+    }
+
+    pub fn new_uninit_with_align(
+        manager: &impl AsRawBufferManager,
+        len: usize,
+        align: usize,
+    ) -> Result<Self>
+    where
+        T: Copy,
+    {
+        let raw = RawDbVec::new_uninit_with_align(manager, len, align)?;
         Ok(DbVec { raw, len })
     }
 
@@ -180,6 +192,19 @@ impl<T> DbVec<T> {
         let ptr = self.raw.ptr().as_ptr();
         unsafe { std::slice::from_raw_parts_mut(ptr, self.len) }
     }
+
+    /// Returns if this buffer contains the given address.
+    ///
+    /// This should only be used for verifying pointer arithmetic and not be
+    /// part of any core logic.
+    ///
+    /// Note this will fail for any address if this buffer is zero sized.
+    #[allow(unused)]
+    pub fn contains_addr(&self, addr: usize) -> bool {
+        let min = self.as_ptr().addr();
+        let max = min + self.raw.reservation.size();
+        addr >= min && addr < max
+    }
 }
 
 impl<T> Drop for DbVec<T> {
@@ -216,10 +241,27 @@ unsafe impl<T> Sync for RawDbVec<T> where T: Sync {}
 
 impl<T> RawDbVec<T> {
     pub fn new_uninit(manager: &impl AsRawBufferManager, cap: usize) -> Result<Self> {
+        let align = std::mem::align_of::<T>();
+        Self::new_uninit_with_align(manager, cap, align)
+    }
+
+    pub fn new_uninit_with_align(
+        manager: &impl AsRawBufferManager,
+        cap: usize,
+        align: usize,
+    ) -> Result<Self> {
+        let actual_align = std::mem::align_of::<T>();
+        if align % actual_align != 0 {
+            return Err(DbError::new(
+                "Custom alignment needs to be a multiple of actual alignment",
+            )
+            .with_field("custom", align)
+            .with_field("actual", actual_align));
+        }
+
         let manager = manager.as_raw_buffer_manager();
 
         let size = std::mem::size_of::<T>() * cap;
-        let align = std::mem::align_of::<T>();
         let reservation = unsafe { manager.call_reserve(size, align) }?;
 
         let capacity = if size == 0 {
@@ -417,5 +459,22 @@ mod tests {
 
         let s = unsafe { b.as_slice() };
         assert_eq!(&[18, 1024], s);
+    }
+
+    #[test]
+    fn vec_new_with_invalid_align() {
+        // Align needs to be multiple of 8
+        DbVec::<i64>::new_uninit_with_align(&DefaultBufferManager, 2, 12).unwrap_err();
+    }
+
+    #[test]
+    fn contains_addr() {
+        let b = DbVec::<i64>::new_uninit(&DefaultBufferManager, 2).unwrap();
+
+        let addr = b.as_ptr().addr();
+
+        assert!(b.contains_addr(addr));
+        assert!(b.contains_addr(addr + 8));
+        assert!(!b.contains_addr(addr + 16));
     }
 }
