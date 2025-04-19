@@ -1,12 +1,12 @@
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
-use glaredb_core::buffer::typed::ByteBuffer;
+use glaredb_core::buffer::db_vec::DbVec;
 use glaredb_error::{DbError, Result};
 
 /// Read buffer that owns the underlying buffer.
 #[derive(Debug)]
 pub struct OwnedReadBuffer {
     /// The underlying buffer.
-    buffer: ByteBuffer,
+    buffer: DbVec<u8>,
     /// Pointer to the current position in the buffer.
     curr: *const u8,
     /// Remaining number of bytes until the end of the buffer relative to the
@@ -22,7 +22,7 @@ impl OwnedReadBuffer {
     ///
     /// This buffer's `remaining` count will be initialized to the capacity of
     /// the byte buffer.
-    pub fn new(buffer: ByteBuffer) -> Self {
+    pub fn new(buffer: DbVec<u8>) -> Self {
         let curr = buffer.as_ptr();
         let remaining = buffer.capacity();
 
@@ -43,9 +43,9 @@ impl OwnedReadBuffer {
     #[allow(unused)]
     pub fn from_bytes(manager: &impl AsRawBufferManager, bs: impl AsRef<[u8]>) -> Result<Self> {
         let bs = bs.as_ref();
-        let mut buffer = ByteBuffer::try_with_capacity(manager, bs.len())?;
+        let mut buffer = DbVec::<u8>::new_uninit(manager, bs.len())?;
 
-        let dest = &mut buffer.as_slice_mut()[..bs.len()];
+        let dest = unsafe { buffer.as_slice_mut() };
         dest.copy_from_slice(bs);
 
         let curr = buffer.as_ptr();
@@ -124,7 +124,7 @@ impl OwnedReadBuffer {
     ///
     /// All shared buffers created from this buffer are no longer valid to use.
     pub unsafe fn reset_and_resize(&mut self, size: usize) -> Result<()> {
-        self.buffer.reserve_for_size(size)?;
+        self.buffer.resize(size)?;
         self.curr = self.buffer.as_ptr();
         debug_assert!(self.buffer.capacity() >= size);
         self.remaining = size;

@@ -21,6 +21,13 @@ pub struct DbVec<T> {
 }
 
 impl<T> DbVec<T> {
+    pub fn empty(manager: &impl AsRawBufferManager) -> Self {
+        let raw =
+            RawDbVec::new_uninit(manager, 0).expect("allocating zero sized buffer to not fail");
+
+        DbVec { raw, len: 0 }
+    }
+
     /// Create a new vec backed by the given manager with an initial capacity of
     /// _at least_ `len`.
     ///
@@ -38,6 +45,20 @@ impl<T> DbVec<T> {
     {
         let raw = RawDbVec::new_uninit(manager, len)?;
         Ok(DbVec { raw, len })
+    }
+
+    /// Create a new vec by copying from a source slice into a newly allocating
+    /// vec.
+    pub fn new_from_slice(manager: &impl AsRawBufferManager, slice: impl AsRef<[T]>) -> Result<Self>
+    where
+        T: Copy,
+    {
+        let src = slice.as_ref();
+        let mut vec = Self::new_uninit(manager, src.len())?;
+        let dest = unsafe { vec.as_slice_mut() };
+        dest.copy_from_slice(src);
+
+        Ok(vec)
     }
 
     /// Create a new vec, initializing all values to `val`.
@@ -86,11 +107,16 @@ impl<T> DbVec<T> {
 
         if new_len < self.len() {
             // Drop elements that are being removed.
+            //
+            // TODO: This is a bit sketch with non-trivial drops considering we
+            // can grow the vec, then shrink it, leading to touch unitialized
+            // memory. We might want to just make resize work with Copy to avoid
+            // the issue.
             unsafe {
                 // How many elements we're shaving off the end.
-                let drop_count = new_len - self.len();
+                let drop_count = self.len() - new_len;
                 // Point to first element being shaved off.
-                let ptr_start = self.raw.ptr().add(new_len).as_ptr();
+                let ptr_start: *mut T = self.raw.ptr().add(new_len).as_ptr().cast();
                 // Slice of all shaved off elements.
                 let drop_slice = std::slice::from_raw_parts_mut(ptr_start, drop_count);
                 std::ptr::drop_in_place(drop_slice);
@@ -220,7 +246,13 @@ impl<T> RawDbVec<T> {
     }
 
     pub fn resize(&mut self, new_size: usize) -> Result<()> {
-        unsafe { self.manager.call_resize(&mut self.reservation, new_size)? };
+        if new_size <= self.capacity {
+            // Don't need to do anything.
+            return Ok(());
+        }
+
+        let size = std::mem::size_of::<T>() * new_size;
+        unsafe { self.manager.call_resize(&mut self.reservation, size)? };
         self.capacity = self.reservation.size() / std::mem::size_of::<T>();
         Ok(())
     }
@@ -315,5 +347,75 @@ mod tests {
         std::mem::drop(v);
         let v = DbVec::<f64>::new_uninit(&DefaultBufferManager, 12).unwrap();
         std::mem::drop(v);
+    }
+
+    #[test]
+    fn vec_resize_grow() {
+        let mut vec = DbVec::with_value(&DefaultBufferManager, 4, 3).unwrap();
+        vec.resize(6).unwrap();
+
+        let s = unsafe { vec.as_slice_mut() };
+        s[4..].fill(55);
+
+        let s = unsafe { vec.as_slice() };
+        assert_eq!(&[3, 3, 3, 3, 55, 55], s);
+    }
+
+    #[test]
+    fn vec_resize_shrink() {
+        let mut vec = DbVec::with_value(&DefaultBufferManager, 4, 3).unwrap();
+        vec.resize(2).unwrap();
+
+        let s = unsafe { vec.as_slice() };
+        assert_eq!(&[3, 3], s);
+    }
+
+    #[test]
+    fn vec_resize_shrink_drop_elements() {
+        #[derive(Debug)]
+        struct Droppable {
+            count: Arc<AtomicUsize>,
+        }
+
+        impl Drop for Droppable {
+            fn drop(&mut self) {
+                self.count.fetch_add(1, atomic::Ordering::Relaxed);
+            }
+        }
+
+        let drop_count = Arc::new(AtomicUsize::new(0));
+
+        let mut vec = DbVec::with_value_init_fn(&DefaultBufferManager, 4, || Droppable {
+            count: drop_count.clone(),
+        })
+        .unwrap();
+        vec.resize(1).unwrap();
+
+        assert_eq!(3, drop_count.load(atomic::Ordering::Relaxed));
+    }
+
+    #[test]
+    fn vec_distinct_mut_pointers() {
+        // Test that we can have multiple pointers that can be written to to the
+        // same underlying buffer.
+        //
+        // This is the basis for how we build the hash join table where we write
+        // to multiple non-overlapping pointers as needed.
+        //
+        // This avoid undefined behavior by:
+        //
+        // - Ensuring there's no shared slice reference.
+        // - Ensuring the pointers don't overlap during writes.
+
+        let mut b = DbVec::<i64>::new_uninit(&DefaultBufferManager, 2).unwrap();
+
+        let p1 = b.as_mut_ptr();
+        let p2 = unsafe { b.as_mut_ptr().byte_add(8) };
+
+        unsafe { p1.cast::<i64>().write_unaligned(18) };
+        unsafe { p2.cast::<i64>().write_unaligned(1024) };
+
+        let s = unsafe { b.as_slice() };
+        assert_eq!(&[18, 1024], s);
     }
 }

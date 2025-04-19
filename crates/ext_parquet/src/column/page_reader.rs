@@ -1,6 +1,6 @@
 use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
-use glaredb_core::buffer::typed::ByteBuffer;
+use glaredb_core::buffer::db_vec::DbVec;
 use glaredb_error::{DbError, Result, ResultExt};
 
 use super::encoding::PageDecoder;
@@ -37,7 +37,7 @@ pub struct PageReader<V: ValueReader> {
     /// Current offset into the chunk buffer.
     pub(crate) chunk_offset: usize,
     /// Column chunk buffer.
-    pub(crate) chunk: ByteBuffer,
+    pub(crate) chunk: DbVec<u8>,
     /// Decompressed page data for the current page.
     pub(crate) decompressed_page: OwnedReadBuffer,
     /// Decompression codec to use for this column.
@@ -77,8 +77,8 @@ where
         datatype: DataType,
         descr: ColumnDescriptor,
     ) -> Result<Self> {
-        let chunk = ByteBuffer::empty(manager);
-        let decompressed_page = OwnedReadBuffer::new(ByteBuffer::empty(manager));
+        let chunk = DbVec::empty(manager);
+        let decompressed_page = OwnedReadBuffer::new(DbVec::empty(manager));
         let dictionary = Dictionary::try_empty(manager, datatype)?;
 
         Ok(PageReader {
@@ -156,9 +156,8 @@ where
             self.decompressed_page
                 .reset_and_resize(metadata.uncompressed_page_size as usize)?
         };
-        let src = &self
-            .chunk
-            .as_slice()
+        let slice = unsafe { self.chunk.as_slice() };
+        let src = slice
             .get(self.chunk_offset..(self.chunk_offset + metadata.compressed_page_size as usize))
             .ok_or_else(|| DbError::new("chunk buffer not large enough to read from"))?;
         self.chunk_offset += metadata.compressed_page_size as usize;
@@ -202,9 +201,8 @@ where
                 .reset_and_resize(metadata.uncompressed_page_size as usize)?
         };
 
-        let src = &self
-            .chunk
-            .as_slice()
+        let slice = unsafe { self.chunk.as_slice() };
+        let src = slice
             .get(self.chunk_offset..(self.chunk_offset + metadata.compressed_page_size as usize))
             .ok_or_else(|| DbError::new("chunk buffer not large enough to read from"))?;
 
@@ -514,9 +512,9 @@ where
     }
 
     /// Gets a slice of the given size from the chunk starting at an offset.
-    fn chunk_slice(chunk: &ByteBuffer, offset: usize, size: usize) -> Result<&[u8]> {
-        let bs = &chunk
-            .as_slice()
+    fn chunk_slice(chunk: &DbVec<u8>, offset: usize, size: usize) -> Result<&[u8]> {
+        let slice = unsafe { chunk.as_slice() };
+        let bs = slice
             .get(offset..(offset + size))
             .ok_or_else(|| DbError::new("chunk buffer not large enough to read from"))?;
 
@@ -525,7 +523,8 @@ where
 
     /// Reads the header at the current position.
     fn read_header(&mut self) -> Result<format::PageHeader> {
-        let buf = &self.chunk.as_slice()[self.chunk_offset..];
+        let slice = unsafe { self.chunk.as_slice() };
+        let buf = &slice[self.chunk_offset..];
         let mut prot = TCompactSliceInputProtocol::new(buf);
         let page_header = format::PageHeader::read_from_in_protocol(&mut prot)
             .context("failed to read page header")?;
