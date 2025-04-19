@@ -28,8 +28,10 @@ impl<T> DbVec<T> {
     /// unitilialized. It's important that a value is written to a given index
     /// before it's read.
     ///
-    /// This should only be used for types with trivial Drop implementations
-    /// (primitive ints, floats).
+    /// This is only allowed for `Copy` types as they cannot implement `Drop`.
+    /// This provides an important guarantee that dropping this vec with any
+    /// number of uninitialized elements avoid touching uninitialized memory
+    /// during drop.
     pub fn new_uninit(manager: &impl AsRawBufferManager, len: usize) -> Result<Self>
     where
         T: Copy,
@@ -292,5 +294,26 @@ mod tests {
         std::mem::drop(vec);
 
         assert_eq!(4, drop_count.load(atomic::Ordering::Relaxed));
+    }
+
+    #[test]
+    fn vec_drop_uninitialized() {
+        // Sanity check.
+        //
+        // Ensure we can drop uninitialized elements without attempting to
+        // access unitialized memory.
+
+        let v = DbVec::<i8>::new_uninit(&DefaultBufferManager, 12).unwrap();
+        std::mem::drop(v);
+        let v = DbVec::<i16>::new_uninit(&DefaultBufferManager, 12).unwrap();
+        std::mem::drop(v);
+        let v = DbVec::<i32>::new_uninit(&DefaultBufferManager, 12).unwrap();
+        std::mem::drop(v);
+        let v = DbVec::<i64>::new_uninit(&DefaultBufferManager, 12).unwrap();
+        std::mem::drop(v);
+        let v = DbVec::<f32>::new_uninit(&DefaultBufferManager, 12).unwrap();
+        std::mem::drop(v);
+        let v = DbVec::<f64>::new_uninit(&DefaultBufferManager, 12).unwrap();
+        std::mem::drop(v);
     }
 }
