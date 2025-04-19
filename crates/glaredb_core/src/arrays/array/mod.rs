@@ -795,7 +795,7 @@ macro_rules! impl_primitive_from_iter {
                 iter: T,
             ) -> Result<Self, Self::Error> {
                 let iter = iter.into_exact_size_iter();
-                let manager = NopBufferManager;
+                let manager = DefaultBufferManager;
 
                 let mut array = Array::new(&manager, DataType::$typ_variant, iter.len())?;
                 let slice = <$phys>::get_addressable_mut(&mut array.data)?;

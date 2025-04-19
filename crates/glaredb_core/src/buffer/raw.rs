@@ -83,35 +83,36 @@ impl RawBuffer {
                 .with_field("true_alignment", true_align));
         }
 
-        let size_bytes = std::mem::size_of::<T>() * cap;
-        let reservation = unsafe { manager.call_reserve(size_bytes)? };
+        unimplemented!()
+        // let size_bytes = std::mem::size_of::<T>() * cap;
+        // let reservation = unsafe { manager.call_reserve(size_bytes)? };
 
-        let ptr = if size_bytes == 0 {
-            // If the amount we're trying to allocate is zero, we still want a
-            // valid pointer. A dangling pointer is still well aligned so is
-            // usable here.
-            //
-            // Previously we attempted to init a layout with zero cap to avoid
-            // the conditional, but that UB when using the global allocator.
-            NonNull::<T>::dangling().cast()
-        } else {
-            let layout =
-                Layout::from_size_align(size_bytes, align).context("failed to create layout")?;
+        // let ptr = if size_bytes == 0 {
+        //     // If the amount we're trying to allocate is zero, we still want a
+        //     // valid pointer. A dangling pointer is still well aligned so is
+        //     // usable here.
+        //     //
+        //     // Previously we attempted to init a layout with zero cap to avoid
+        //     // the conditional, but that UB when using the global allocator.
+        //     NonNull::<T>::dangling().cast()
+        // } else {
+        //     let layout =
+        //         Layout::from_size_align(size_bytes, align).context("failed to create layout")?;
 
-            let ptr = unsafe { alloc::alloc(layout) };
-            match NonNull::new(ptr) {
-                Some(ptr) => ptr,
-                None => alloc::handle_alloc_error(layout),
-            }
-        };
+        //     let ptr = unsafe { alloc::alloc(layout) };
+        //     match NonNull::new(ptr) {
+        //         Some(ptr) => ptr,
+        //         None => alloc::handle_alloc_error(layout),
+        //     }
+        // };
 
-        Ok(RawBuffer {
-            manager,
-            reservation,
-            ptr,
-            capacity: cap,
-            align,
-        })
+        // Ok(RawBuffer {
+        //     manager,
+        //     reservation,
+        //     ptr,
+        //     capacity: cap,
+        //     align,
+        // })
     }
 
     /// Returns the capacity of this buffer in relation to the type this buffer
@@ -220,25 +221,26 @@ impl RawBuffer {
         let additional_bytes = std::mem::size_of::<T>() * additional;
 
         // Reserve additional.
-        let additional_reservation = unsafe { self.manager.call_reserve(additional_bytes)? };
+        unimplemented!()
+        // let additional_reservation = unsafe { self.manager.call_reserve(additional_bytes)? };
 
-        let new_ptr = if self.capacity == 0 {
-            unsafe { alloc::alloc(new_layout) }
-        } else {
-            let old_ptr = self.ptr.as_ptr();
-            unsafe { alloc::realloc(old_ptr, old_layout, new_layout.size()) }
-        };
+        // let new_ptr = if self.capacity == 0 {
+        //     unsafe { alloc::alloc(new_layout) }
+        // } else {
+        //     let old_ptr = self.ptr.as_ptr();
+        //     unsafe { alloc::realloc(old_ptr, old_layout, new_layout.size()) }
+        // };
 
-        self.ptr = match NonNull::new(new_ptr) {
-            Some(p) => p,
-            None => alloc::handle_alloc_error(new_layout),
-        };
+        // self.ptr = match NonNull::new(new_ptr) {
+        //     Some(p) => p,
+        //     None => alloc::handle_alloc_error(new_layout),
+        // };
 
-        self.capacity += additional;
-        self.reservation.merge(additional_reservation);
-        debug_assert_eq!(self.reservation.size(), new_layout.size());
+        // self.capacity += additional;
+        // self.reservation.merge(additional_reservation);
+        // debug_assert_eq!(self.reservation.size(), new_layout.size());
 
-        Ok(())
+        // Ok(())
     }
 
     fn current_layout(&self) -> Layout {
@@ -278,7 +280,7 @@ impl Drop for RawBuffer {
         }
         // Always call this as the buffer manager might track number of buffers
         // even if the capacity is zero.
-        unsafe { self.manager.call_drop(&self.reservation) }
+        unsafe { self.manager.call_free_reservation(&mut self.reservation) }
     }
 }
 
@@ -291,7 +293,7 @@ mod tests {
     fn new_drop() {
         let b = RawBuffer::try_with_capacity::<i64>(&DefaultBufferManager, 4).unwrap();
 
-        assert_eq!(32, b.reservation.size);
+        assert_eq!(32, b.reservation.size());
 
         std::mem::drop(b);
     }
@@ -299,7 +301,7 @@ mod tests {
     #[test]
     fn new_zero_cap() {
         let b = RawBuffer::try_with_capacity::<i64>(&DefaultBufferManager, 0).unwrap();
-        assert_eq!(0, b.reservation.size);
+        assert_eq!(0, b.reservation.size());
         assert_eq!(8, b.align);
 
         // Ensure we get empty slices.
@@ -313,7 +315,7 @@ mod tests {
         struct Zst;
 
         let b = RawBuffer::try_with_capacity::<Zst>(&DefaultBufferManager, 4).unwrap();
-        assert_eq!(0, b.reservation.size);
+        assert_eq!(0, b.reservation.size());
         assert_eq!(1, b.align);
 
         let s = unsafe { b.as_slice::<Zst>() };
@@ -360,7 +362,7 @@ mod tests {
         }
 
         unsafe { b.reserve::<i64>(4).unwrap() };
-        assert_eq!(64, b.reservation.size);
+        assert_eq!(64, b.reservation.size());
 
         let s = unsafe { b.as_slice_mut::<i64>() };
         assert_eq!(8, s.len());
