@@ -13,6 +13,7 @@ use super::buffer_manager::{AsRawBufferManager, RawBufferManager, Reservation};
 /// Note that this is not a general purpose container, and should only be used
 /// for storing array data (or raw bytes). Items stored in this buffer **will
 /// not** have their `Drop` implementations called.
+// TODO: Probably going to change a bit with the array buffer rework
 #[derive(Debug)]
 pub struct RawBuffer {
     pub(crate) manager: RawBufferManager,

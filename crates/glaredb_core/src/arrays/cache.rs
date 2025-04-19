@@ -1,7 +1,7 @@
 use glaredb_error::Result;
 
 use super::array::Array;
-use super::array::array_buffer::{ArrayBuffer2, ArrayBufferType2, ScalarBuffer, StringBuffer};
+use super::array::array_buffer::{ArrayBuffer2, ArrayBufferType2, ScalarBuffer2, StringBuffer2};
 use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::array::validity::Validity;
 use crate::buffer::buffer_manager::{BufferManager, RawBufferManager};
@@ -118,8 +118,8 @@ impl BufferCache {
 /// Contains a possibly cached buffer for a single array.
 #[derive(Debug)]
 pub enum Cached {
-    Scalar(ScalarBuffer),
-    String(StringBuffer),
+    Scalar(ScalarBuffer2),
+    String(StringBuffer2),
     None,
 }
 

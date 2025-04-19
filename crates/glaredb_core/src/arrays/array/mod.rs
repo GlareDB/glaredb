@@ -9,10 +9,10 @@ use std::fmt::Debug;
 use array_buffer::{
     ArrayBuffer2,
     ArrayBufferType2,
-    ConstantBuffer,
-    DictionaryBuffer,
+    ConstantBuffer2,
+    DictionayBuffer2,
     ListItemMetadata,
-    ScalarBuffer,
+    ScalarBuffer2,
     SharedOrOwned,
 };
 use flat::FlattenedArray;
@@ -114,7 +114,7 @@ impl Array {
         let mut arr = Self::new(manager, value.datatype(), 1)?;
         arr.set_value(0, value)?;
 
-        let buffer = ConstantBuffer {
+        let buffer = ConstantBuffer2 {
             row_reference: 0,
             len,
             child_buffer: Box::new(arr.data),
@@ -159,7 +159,7 @@ impl Array {
         len: usize,
     ) -> Result<Self> {
         let data = ArrayBuffer2::try_new_for_datatype(manager, &datatype, 1)?;
-        let buffer = ConstantBuffer {
+        let buffer = ConstantBuffer2 {
             row_reference: 0,
             len,
             child_buffer: Box::new(data),
@@ -239,7 +239,7 @@ impl Array {
         match other.data.as_mut() {
             ArrayBufferType2::Constant(constant) => {
                 let child_buffer = constant.child_buffer.make_shared_and_clone();
-                let buffer = ConstantBuffer {
+                let buffer = ConstantBuffer2 {
                     row_reference: constant.row_reference, // Use existing row reference since it points to the right row already.
                     len,
                     child_buffer: Box::new(child_buffer),
@@ -253,7 +253,7 @@ impl Array {
             }
             ArrayBufferType2::Dictionary(dict) => {
                 let child_buffer = dict.child_buffer.make_shared_and_clone();
-                let buffer = ConstantBuffer {
+                let buffer = ConstantBuffer2 {
                     row_reference: dict.selection.as_slice()[row], // Ensure row reference relative to selection.
                     len,
                     child_buffer: Box::new(child_buffer),
@@ -267,7 +267,7 @@ impl Array {
             }
             _ => {
                 let child_buffer = other.data.make_shared_and_clone();
-                let buffer = ConstantBuffer {
+                let buffer = ConstantBuffer2 {
                     row_reference: row,
                     len,
                     child_buffer: Box::new(child_buffer),
@@ -402,13 +402,13 @@ impl Array {
                     .select(buf_selection.as_slice().iter().copied());
 
                 // Some hacks below, just swapping around the buffers.
-                let uninit = ArrayBuffer2::new(ScalarBuffer {
+                let uninit = ArrayBuffer2::new(ScalarBuffer2 {
                     physical_type: PhysicalType::UntypedNull,
                     raw: SharedOrOwned::Uninit,
                 });
                 let buffer = std::mem::replace(&mut self.data, uninit);
 
-                let dictionary = DictionaryBuffer {
+                let dictionary = DictionayBuffer2 {
                     selection: SharedOrOwned::owned(buf_selection),
                     child_buffer: Box::new(buffer),
                 };
