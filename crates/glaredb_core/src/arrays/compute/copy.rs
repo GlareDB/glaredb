@@ -296,7 +296,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::util::iter::TryFromExactSizeIterator;
 
@@ -315,7 +315,7 @@ mod tests {
     fn copy_rows_from_dict() {
         let mut from = Array::try_from_iter(["a", "b", "c"]).unwrap();
         // => '["b", "a", "c"]
-        from.select(&NopBufferManager, [1, 0, 2]).unwrap();
+        from.select(&DefaultBufferManager, [1, 0, 2]).unwrap();
 
         let mut to = Array::try_from_iter(["d", "d", "d"]).unwrap();
 
@@ -329,7 +329,7 @@ mod tests {
     fn copy_rows_from_dict_invalid() {
         let mut from = Array::try_from_iter([Some("a"), None, Some("c")]).unwrap();
         // => '[NULL, "a", "c"]
-        from.select(&NopBufferManager, [1, 0, 2]).unwrap();
+        from.select(&DefaultBufferManager, [1, 0, 2]).unwrap();
 
         let mut to = Array::try_from_iter(["d", "d", "d"]).unwrap();
 

@@ -7,7 +7,7 @@ use parking_lot::Mutex;
 use super::segment::ColumnCollectionSegment;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::storage::projections::Projections;
 
 #[derive(Debug)]
@@ -132,7 +132,7 @@ impl ConcurrentColumnCollection {
     ) -> Result<()> {
         state
             .segment
-            .append_batch(&NopBufferManager, batch, &self.datatypes)?;
+            .append_batch(&DefaultBufferManager, batch, &self.datatypes)?;
 
         if state.segment.num_chunks() >= self.segment_size {
             self.flush(state)?;

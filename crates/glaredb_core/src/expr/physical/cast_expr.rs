@@ -68,7 +68,7 @@ impl fmt::Display for PhysicalCastExpr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::expr;
     use crate::logical::binder::table_list::TableList;
     use crate::testutil::arrays::assert_arrays_eq_sel;
@@ -87,7 +87,7 @@ mod tests {
         };
 
         let mut state = expr.create_state(1024).unwrap();
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 1024).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 1024).unwrap();
         let mut input = Batch::empty_with_num_rows(3);
         let sel = input.selection();
 

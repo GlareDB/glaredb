@@ -13,7 +13,7 @@ use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::row::row_collection::{RowAppendState, RowCollection};
 use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::buffer::typed::TypedBuffer;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::logical_join::JoinType;
@@ -146,7 +146,7 @@ impl JoinHashTable {
     #[allow(unused)]
     pub fn init_build_state(&self) -> BuildState {
         BuildState {
-            match_init: Array::new_constant(&NopBufferManager, &false.into(), self.batch_size)
+            match_init: Array::new_constant(&DefaultBufferManager, &false.into(), self.batch_size)
                 .expect("constant array to build"),
             row_append: self.data.init_append(),
         }
@@ -188,7 +188,7 @@ impl JoinHashTable {
         // Get build keys from the left for hashing.
         build_arrays.extend(self.build_key_columns.iter().map(|&idx| &input.arrays[idx]));
 
-        let mut hashes = Array::new(&NopBufferManager, DataType::UInt64, input.num_rows())?;
+        let mut hashes = Array::new(&DefaultBufferManager, DataType::UInt64, input.num_rows())?;
         let hash_vals = PhysicalU64::get_addressable_mut(&mut hashes.data)?;
         hash_many_arrays(
             build_arrays.iter().copied(),
@@ -204,9 +204,10 @@ impl JoinHashTable {
         // Ensure we include the "matches" initial values.
         if self.join_type.produce_all_build_side_rows() {
             // Resize to match the input rows.
-            state
-                .match_init
-                .select(&NopBufferManager, Selection::constant(input.num_rows(), 0))?;
+            state.match_init.select(
+                &DefaultBufferManager,
+                Selection::constant(input.num_rows(), 0),
+            )?;
 
             // And add to the arrays we'll be appending.
             build_arrays.push(&state.match_init);
@@ -248,7 +249,7 @@ impl JoinHashTable {
         &self,
         block_indices: impl IntoIterator<Item = usize>,
     ) -> Result<()> {
-        let mut hashes = Array::new(&NopBufferManager, DataType::UInt64, self.batch_size)?;
+        let mut hashes = Array::new(&DefaultBufferManager, DataType::UInt64, self.batch_size)?;
         let mut scan_state = self.data.init_partial_scan(block_indices);
 
         let scan_cols = &[self.hash_column_idx()];
@@ -517,7 +518,7 @@ impl Directory {
         let desired = (num_rows as f64 / Self::LOAD_FACTOR) as usize;
         let actual = usize::max(desired.next_power_of_two(), Self::MIN_SIZE);
 
-        let mut entries = TypedBuffer::try_with_capacity(&NopBufferManager, actual)?;
+        let mut entries = TypedBuffer::try_with_capacity(&DefaultBufferManager, actual)?;
         entries.as_slice_mut().fill(std::ptr::null_mut());
 
         Ok(Directory { entries })

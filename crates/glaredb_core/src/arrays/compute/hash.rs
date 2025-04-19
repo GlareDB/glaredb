@@ -326,7 +326,7 @@ mod tests {
     use super::*;
     use crate::arrays::compute::make_list::make_list_from_values;
     use crate::arrays::datatype::{DataType, ListTypeMeta};
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
@@ -375,7 +375,7 @@ mod tests {
         let mut arr =
             Array::try_from_iter([Some(1), None, Some(3), Some(4), None, None, Some(8)]).unwrap();
         // [NULL, 3, 4, NULL]
-        arr.select(&NopBufferManager, [1, 2, 3, 5]).unwrap();
+        arr.select(&DefaultBufferManager, [1, 2, 3, 5]).unwrap();
 
         hash_array(&arr, 0..4, &mut hashes).unwrap();
 
@@ -389,7 +389,7 @@ mod tests {
     fn hash_i32_dictionary() {
         let mut hashes = vec![0; 4];
         let mut arr = Array::try_from_iter([2, 3]).unwrap();
-        arr.select(&NopBufferManager, [0, 1, 0, 1]).unwrap();
+        arr.select(&DefaultBufferManager, [0, 1, 0, 1]).unwrap();
 
         hash_array(&arr, 0..4, &mut hashes).unwrap();
 
@@ -402,7 +402,7 @@ mod tests {
         let mut hashes = vec![0; 4];
 
         let mut lists = Array::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             4,
         )

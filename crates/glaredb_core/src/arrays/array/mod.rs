@@ -52,7 +52,7 @@ use crate::arrays::scalar::BorrowedScalarValue;
 use crate::arrays::scalar::decimal::{Decimal64Scalar, Decimal128Scalar};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::timestamp::TimestampScalar;
-use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager, NopBufferManager};
+use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager, DefaultBufferManager};
 use crate::buffer::typed::TypedBuffer;
 use crate::util::convert::TryAsMut;
 use crate::util::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};
@@ -852,7 +852,7 @@ where
         iter: T,
     ) -> Result<Self, Self::Error> {
         let iter = iter.into_exact_size_iter();
-        let manager = NopBufferManager;
+        let manager = DefaultBufferManager;
 
         let mut array = Array::new(&manager, DataType::Utf8, iter.len())?;
         let mut buf = PhysicalUtf8::get_addressable_mut(&mut array.data)?;
@@ -910,7 +910,7 @@ mod tests {
 
     #[test]
     fn try_new_constant_utf8() {
-        let arr = Array::new_constant(&NopBufferManager, &"a".into(), 4).unwrap();
+        let arr = Array::new_constant(&DefaultBufferManager, &"a".into(), 4).unwrap();
         let expected = Array::try_from_iter(["a", "a", "a", "a"]).unwrap();
         assert_arrays_eq(&expected, &arr);
     }
@@ -918,7 +918,7 @@ mod tests {
     #[test]
     fn try_new_from_other_simple() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
-        let new_arr = Array::new_from_other(&NopBufferManager, &mut arr).unwrap();
+        let new_arr = Array::new_from_other(&DefaultBufferManager, &mut arr).unwrap();
 
         let expected = Array::try_from_iter(["a", "b", "c"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -929,9 +929,9 @@ mod tests {
     fn try_new_from_other_dictionary() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         // => '["b", "a", "a", "b"]'
-        arr.select(&NopBufferManager, [1, 0, 0, 1]).unwrap();
+        arr.select(&DefaultBufferManager, [1, 0, 0, 1]).unwrap();
 
-        let new_arr = Array::new_from_other(&NopBufferManager, &mut arr).unwrap();
+        let new_arr = Array::new_from_other(&DefaultBufferManager, &mut arr).unwrap();
 
         let expected = Array::try_from_iter(["b", "a", "a", "b"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -940,8 +940,8 @@ mod tests {
 
     #[test]
     fn try_new_from_other_constant() {
-        let mut arr = Array::new_constant(&NopBufferManager, &"cat".into(), 4).unwrap();
-        let new_arr = Array::new_from_other(&NopBufferManager, &mut arr).unwrap();
+        let mut arr = Array::new_constant(&DefaultBufferManager, &"cat".into(), 4).unwrap();
+        let new_arr = Array::new_from_other(&DefaultBufferManager, &mut arr).unwrap();
 
         let expected = Array::try_from_iter(["cat", "cat", "cat", "cat"]).unwrap();
 
@@ -950,7 +950,7 @@ mod tests {
 
     #[test]
     fn try_new_typed_null_array() {
-        let arr = Array::new_typed_null(&NopBufferManager, DataType::Int32, 4).unwrap();
+        let arr = Array::new_typed_null(&DefaultBufferManager, DataType::Int32, 4).unwrap();
         let expected = Array::try_from_iter::<[Option<i32>; 4]>([None, None, None, None]).unwrap();
         assert_arrays_eq(&expected, &arr);
 
@@ -960,7 +960,7 @@ mod tests {
     #[test]
     fn select_no_change() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
-        arr.select(&NopBufferManager, [0, 1, 2]).unwrap();
+        arr.select(&DefaultBufferManager, [0, 1, 2]).unwrap();
 
         let expected = Array::try_from_iter(["a", "b", "c"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -969,7 +969,7 @@ mod tests {
     #[test]
     fn select_prune_rows() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
-        arr.select(&NopBufferManager, [0, 2]).unwrap();
+        arr.select(&DefaultBufferManager, [0, 2]).unwrap();
 
         let expected = Array::try_from_iter(["a", "c"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -978,7 +978,7 @@ mod tests {
     #[test]
     fn select_expand_rows() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
-        arr.select(&NopBufferManager, [0, 1, 1, 2]).unwrap();
+        arr.select(&DefaultBufferManager, [0, 1, 1, 2]).unwrap();
 
         let expected = Array::try_from_iter(["a", "b", "b", "c"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -988,10 +988,10 @@ mod tests {
     fn select_existing_selection() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         // => ["a", "c"]
-        arr.select(&NopBufferManager, [0, 2]).unwrap();
+        arr.select(&DefaultBufferManager, [0, 2]).unwrap();
 
         // => ["c", "c", "a"]
-        arr.select(&NopBufferManager, [1, 1, 0]).unwrap();
+        arr.select(&DefaultBufferManager, [1, 1, 0]).unwrap();
 
         let expected = Array::try_from_iter(["c", "c", "a"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -999,8 +999,9 @@ mod tests {
 
     #[test]
     fn select_constant() {
-        let mut arr = Array::new_constant(&NopBufferManager, &"dog".into(), 3).unwrap();
-        arr.select(&NopBufferManager, [0, 1, 2, 0, 1, 2]).unwrap();
+        let mut arr = Array::new_constant(&DefaultBufferManager, &"dog".into(), 3).unwrap();
+        arr.select(&DefaultBufferManager, [0, 1, 2, 0, 1, 2])
+            .unwrap();
 
         let expected = Array::try_from_iter(["dog", "dog", "dog", "dog", "dog", "dog"]).unwrap();
         assert_arrays_eq(&expected, &arr);
@@ -1012,9 +1013,9 @@ mod tests {
         // it be created from an existing array.
 
         let mut arr1 = Array::try_from_iter([1, 2, 3]).unwrap();
-        let mut arr2 = Array::new_from_other(&NopBufferManager, &mut arr1).unwrap();
+        let mut arr2 = Array::new_from_other(&DefaultBufferManager, &mut arr1).unwrap();
         // => [2, 1, 3]
-        arr2.select(&NopBufferManager, [1, 0, 2]).unwrap();
+        arr2.select(&DefaultBufferManager, [1, 0, 2]).unwrap();
 
         let expected = Array::try_from_iter([2, 1, 3]).unwrap();
         assert_arrays_eq(&expected, &arr2);
@@ -1024,10 +1025,10 @@ mod tests {
     fn select_after_making_constant_array_data_shared() {
         // Same as above, just with a constant array.
 
-        let mut arr1 = Array::new_constant(&NopBufferManager, &14.into(), 3).unwrap();
-        let mut arr2 = Array::new_from_other(&NopBufferManager, &mut arr1).unwrap();
+        let mut arr1 = Array::new_constant(&DefaultBufferManager, &14.into(), 3).unwrap();
+        let mut arr2 = Array::new_from_other(&DefaultBufferManager, &mut arr1).unwrap();
         // => [14, 14, 14]
-        arr2.select(&NopBufferManager, [1, 0, 2]).unwrap();
+        arr2.select(&DefaultBufferManager, [1, 0, 2]).unwrap();
 
         let expected = Array::try_from_iter([14, 14, 14]).unwrap();
         assert_arrays_eq(&expected, &arr2);
@@ -1055,7 +1056,7 @@ mod tests {
     fn get_value_with_selection() {
         let mut arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         // => ["a", "c"]
-        arr.select(&NopBufferManager, [0, 2]).unwrap();
+        arr.select(&DefaultBufferManager, [0, 2]).unwrap();
         let val = arr.get_value(1).unwrap();
 
         assert_eq!(BorrowedScalarValue::Utf8("c".into()), val);
@@ -1065,7 +1066,7 @@ mod tests {
     fn get_value_with_selection_null() {
         let mut arr = Array::try_from_iter([Some("a"), Some("b"), None]).unwrap();
         // => [NULL, "a"]
-        arr.select(&NopBufferManager, [2, 0]).unwrap();
+        arr.select(&DefaultBufferManager, [2, 0]).unwrap();
 
         let val = arr.get_value(0).unwrap();
         assert_eq!(BorrowedScalarValue::Null, val);
@@ -1076,7 +1077,7 @@ mod tests {
 
     #[test]
     fn get_value_constant() {
-        let arr = Array::new_constant(&NopBufferManager, &"cat".into(), 4).unwrap();
+        let arr = Array::new_constant(&DefaultBufferManager, &"cat".into(), 4).unwrap();
         let val = arr.get_value(2).unwrap();
         assert_eq!(BorrowedScalarValue::Utf8("cat".into()), val);
     }
@@ -1103,7 +1104,7 @@ mod tests {
     #[test]
     fn get_value_list_i32() {
         let mut lists = Array::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             DataType::List(ListTypeMeta::new(DataType::Int32)),
             4,
         )
@@ -1131,7 +1132,7 @@ mod tests {
     #[test]
     fn clone_constant_from_other_i32_valid() {
         let mut arr = Array::try_from_iter([1, 2, 3]).unwrap();
-        let mut arr2 = Array::new(&NopBufferManager, DataType::Int32, 16).unwrap();
+        let mut arr2 = Array::new(&DefaultBufferManager, DataType::Int32, 16).unwrap();
 
         arr2.clone_constant_from(&mut arr, 1, 8, &mut NopCache)
             .unwrap();
@@ -1143,7 +1144,7 @@ mod tests {
     #[test]
     fn clone_constant_from_other_i32_null() {
         let mut arr = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
-        let mut arr2 = Array::new(&NopBufferManager, DataType::Int32, 16).unwrap();
+        let mut arr2 = Array::new(&DefaultBufferManager, DataType::Int32, 16).unwrap();
 
         arr2.clone_constant_from(&mut arr, 1, 8, &mut NopCache)
             .unwrap();
@@ -1156,8 +1157,8 @@ mod tests {
     fn clone_constant_from_other_i32_dictionary() {
         let mut arr = Array::try_from_iter([1, 2, 3]).unwrap();
         // => [2, 3, 1]
-        arr.select(&NopBufferManager, [1, 2, 0]).unwrap();
-        let mut arr2 = Array::new(&NopBufferManager, DataType::Int32, 16).unwrap();
+        arr.select(&DefaultBufferManager, [1, 2, 0]).unwrap();
+        let mut arr2 = Array::new(&DefaultBufferManager, DataType::Int32, 16).unwrap();
 
         arr2.clone_constant_from(&mut arr, 1, 8, &mut NopCache)
             .unwrap();

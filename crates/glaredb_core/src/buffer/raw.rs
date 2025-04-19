@@ -136,13 +136,13 @@ impl RawBuffer {
             debug_assert_eq!(
                 0,
                 if std::mem::size_of::<T>() > 0 {
-                    self.reservation.size % std::mem::size_of::<T>()
+                    self.reservation.size() % std::mem::size_of::<T>()
                 } else {
                     0
                 }
             );
             debug_assert_eq!(
-                self.reservation.size,
+                self.reservation.size(),
                 self.capacity * std::mem::size_of::<T>()
             );
 
@@ -156,13 +156,13 @@ impl RawBuffer {
             debug_assert_eq!(
                 0,
                 if std::mem::size_of::<T>() > 0 {
-                    self.reservation.size % std::mem::size_of::<T>()
+                    self.reservation.size() % std::mem::size_of::<T>()
                 } else {
                     0
                 }
             );
             debug_assert_eq!(
-                self.reservation.size,
+                self.reservation.size(),
                 self.capacity * std::mem::size_of::<T>()
             );
 
@@ -178,13 +178,13 @@ impl RawBuffer {
         debug_assert_eq!(
             0,
             if std::mem::size_of::<T>() > 0 {
-                self.reservation.size % std::mem::size_of::<T>()
+                self.reservation.size() % std::mem::size_of::<T>()
             } else {
                 0
             }
         );
         debug_assert_eq!(
-            self.reservation.size,
+            self.reservation.size(),
             self.capacity * std::mem::size_of::<T>()
         );
 
@@ -236,7 +236,7 @@ impl RawBuffer {
 
         self.capacity += additional;
         self.reservation.merge(additional_reservation);
-        debug_assert_eq!(self.reservation.size, new_layout.size());
+        debug_assert_eq!(self.reservation.size(), new_layout.size());
 
         Ok(())
     }
@@ -244,7 +244,7 @@ impl RawBuffer {
     fn current_layout(&self) -> Layout {
         // If we were able to construct this buffer, then the layout here should
         // always be valid.
-        unsafe { Layout::from_size_align_unchecked(self.reservation.size, self.align) }
+        unsafe { Layout::from_size_align_unchecked(self.reservation.size(), self.align) }
     }
 
     /// Writes all bytes in this buffer to the provided value.
@@ -263,14 +263,14 @@ impl RawBuffer {
     #[allow(unused)]
     pub fn contains_addr(&self, addr: usize) -> bool {
         let min = self.as_ptr().addr();
-        let max = min + self.reservation.size;
+        let max = min + self.reservation.size();
         addr >= min && addr < max
     }
 }
 
 impl Drop for RawBuffer {
     fn drop(&mut self) {
-        if self.reservation.size != 0 {
+        if self.reservation.size() != 0 {
             let layout = self.current_layout();
             unsafe {
                 alloc::dealloc(self.ptr.as_ptr(), layout);
@@ -285,11 +285,11 @@ impl Drop for RawBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
 
     #[test]
     fn new_drop() {
-        let b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 4).unwrap();
+        let b = RawBuffer::try_with_capacity::<i64>(&DefaultBufferManager, 4).unwrap();
 
         assert_eq!(32, b.reservation.size);
 
@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn new_zero_cap() {
-        let b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 0).unwrap();
+        let b = RawBuffer::try_with_capacity::<i64>(&DefaultBufferManager, 0).unwrap();
         assert_eq!(0, b.reservation.size);
         assert_eq!(8, b.align);
 
@@ -312,7 +312,7 @@ mod tests {
         #[derive(Debug, PartialEq, Eq)]
         struct Zst;
 
-        let b = RawBuffer::try_with_capacity::<Zst>(&NopBufferManager, 4).unwrap();
+        let b = RawBuffer::try_with_capacity::<Zst>(&DefaultBufferManager, 4).unwrap();
         assert_eq!(0, b.reservation.size);
         assert_eq!(1, b.align);
 
@@ -324,8 +324,8 @@ mod tests {
     fn new_manual_alignment() {
         // Miri helps test this.
 
-        let b =
-            RawBuffer::try_with_capacity_and_alignment::<i64>(&NopBufferManager, 4, 32).unwrap();
+        let b = RawBuffer::try_with_capacity_and_alignment::<i64>(&DefaultBufferManager, 4, 32)
+            .unwrap();
         assert_eq!(32, b.align);
 
         let _ = unsafe { b.as_slice::<i64>() };
@@ -336,7 +336,7 @@ mod tests {
 
     #[test]
     fn as_slice_mut() {
-        let mut b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 4).unwrap();
+        let mut b = RawBuffer::try_with_capacity::<i64>(&DefaultBufferManager, 4).unwrap();
         let s = unsafe { b.as_slice_mut::<i64>() };
         assert_eq!(4, s.len());
 
@@ -351,7 +351,7 @@ mod tests {
 
     #[test]
     fn reserve_additional() {
-        let mut b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 4).unwrap();
+        let mut b = RawBuffer::try_with_capacity::<i64>(&DefaultBufferManager, 4).unwrap();
         let s = unsafe { b.as_slice_mut::<i64>() };
         assert_eq!(4, s.len());
 
@@ -375,7 +375,7 @@ mod tests {
 
     #[test]
     fn reserve_additional_zero() {
-        let mut b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 4).unwrap();
+        let mut b = RawBuffer::try_with_capacity::<i64>(&DefaultBufferManager, 4).unwrap();
         let s = unsafe { b.as_slice_mut::<i64>() };
         for i in 0..4 {
             s[i] = i as i64;
@@ -389,7 +389,7 @@ mod tests {
 
     #[test]
     fn reserve_initial_zero_cap() {
-        let mut b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 0).unwrap();
+        let mut b = RawBuffer::try_with_capacity::<i64>(&DefaultBufferManager, 0).unwrap();
         unsafe { b.reserve::<i64>(8).unwrap() };
         let s = unsafe { b.as_slice::<i64>() };
         assert_eq!(8, s.len());
@@ -400,7 +400,7 @@ mod tests {
         #[derive(Debug, PartialEq, Eq)]
         struct Zst;
 
-        let mut b = RawBuffer::try_with_capacity::<Zst>(&NopBufferManager, 2).unwrap();
+        let mut b = RawBuffer::try_with_capacity::<Zst>(&DefaultBufferManager, 2).unwrap();
         unsafe { b.reserve::<Zst>(4).unwrap() };
 
         let s = unsafe { b.as_slice::<Zst>() };
@@ -411,8 +411,8 @@ mod tests {
     fn reserve_keeps_manual_align() {
         // Miri helps test this.
 
-        let mut b =
-            RawBuffer::try_with_capacity_and_alignment::<i64>(&NopBufferManager, 4, 32).unwrap();
+        let mut b = RawBuffer::try_with_capacity_and_alignment::<i64>(&DefaultBufferManager, 4, 32)
+            .unwrap();
         unsafe { b.reserve::<i64>(4).unwrap() };
         assert_eq!(32, b.align);
 
@@ -433,7 +433,7 @@ mod tests {
         // - Ensuring there's no shared slice reference.
         // - Ensuring the pointers don't overlap during writes.
 
-        let b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 2).unwrap();
+        let b = RawBuffer::try_with_capacity::<i64>(&DefaultBufferManager, 2).unwrap();
 
         let p1 = b.as_mut_ptr();
         let p2 = unsafe { b.as_mut_ptr().add(8) };
@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn contains_addr() {
-        let b = RawBuffer::try_with_capacity::<i64>(&NopBufferManager, 2).unwrap();
+        let b = RawBuffer::try_with_capacity::<i64>(&DefaultBufferManager, 2).unwrap();
 
         let addr = b.as_ptr().addr();
 

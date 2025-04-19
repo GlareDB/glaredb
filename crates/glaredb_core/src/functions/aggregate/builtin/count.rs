@@ -171,7 +171,7 @@ impl AggregateState<&(), i64> for CountNonNullState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
@@ -212,7 +212,7 @@ mod tests {
 
         let mut states = vec![state_ptr1, state_ptr1, state_ptr2, state_ptr1];
 
-        let array = Array::new_constant(&NopBufferManager, &"a".into(), 4).unwrap();
+        let array = Array::new_constant(&DefaultBufferManager, &"a".into(), 4).unwrap();
         Count::update(&(), &[array], 4, &mut states).unwrap();
 
         assert_eq!(3, state1.count);

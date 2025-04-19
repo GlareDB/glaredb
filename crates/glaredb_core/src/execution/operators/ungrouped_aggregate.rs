@@ -8,7 +8,7 @@ use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, Pol
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_layout::AggregateLayout;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::buffer::typed::AlignedBuffer;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
@@ -84,7 +84,7 @@ impl PhysicalUngroupedAggregate {
     /// Initalizes a new buffer for the aggregates in this operator.
     fn try_init_buffer(&self) -> Result<AlignedBuffer<u8>> {
         let values = AlignedBuffer::<u8>::try_with_capacity_and_alignment(
-            &NopBufferManager,
+            &DefaultBufferManager,
             self.layout.row_width,
             self.layout.base_align,
         )?;

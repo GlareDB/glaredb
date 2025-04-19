@@ -599,7 +599,7 @@ where
 mod tests {
     use super::*;
     use crate::arrays::datatype::DecimalTypeMeta;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::functions::cast::behavior::CastFailBehavior;
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::util::iter::TryFromExactSizeIterator;
@@ -607,7 +607,7 @@ mod tests {
     #[test]
     fn cast_i32_to_i32() {
         let arr = Array::try_from_iter([4, 5, 6]).unwrap();
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
         let error_state = CastFailBehavior::Error.new_state();
         PrimToPrim::<PhysicalI32, PhysicalI32>::cast(&(), error_state, &arr, 0..3, &mut out)
@@ -620,7 +620,7 @@ mod tests {
     #[test]
     fn cast_utf8_to_i32() {
         let arr = Array::try_from_iter(["13", "18", "123456789"]).unwrap();
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
         let error_state = CastFailBehavior::Error.new_state();
         Utf8ToPrim::<PhysicalI32>::cast(&(), error_state, &arr, 0..3, &mut out).unwrap();
@@ -632,7 +632,7 @@ mod tests {
     #[test]
     fn cast_utf8_to_i32_overflow_error() {
         let arr = Array::try_from_iter(["13", "18", "123456789000000"]).unwrap();
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
         let error_state = CastFailBehavior::Error.new_state();
         Utf8ToPrim::<PhysicalI32>::cast(&(), error_state, &arr, 0..3, &mut out).unwrap_err();
@@ -641,7 +641,7 @@ mod tests {
     #[test]
     fn cast_utf8_to_i32_overflow_null() {
         let arr = Array::try_from_iter(["13", "18", "123456789000000"]).unwrap();
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
         let error_state = CastFailBehavior::Null.new_state();
         Utf8ToPrim::<PhysicalI32>::cast(&(), error_state, &arr, 0..3, &mut out).unwrap();
@@ -655,7 +655,7 @@ mod tests {
         let mut arr = Array::try_from_iter([1500_i64, 2000, 2500]).unwrap();
         // '[1.500, 2.000, 2.500]'
         arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(10, 3));
-        let mut out = Array::new(&NopBufferManager, DataType::Float64, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Float64, 3).unwrap();
 
         let error_state = CastFailBehavior::Error.new_state();
 

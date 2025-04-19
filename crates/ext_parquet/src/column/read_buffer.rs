@@ -281,13 +281,13 @@ impl ReadCursor {
 
 #[cfg(test)]
 mod tests {
-    use glaredb_core::buffer::buffer_manager::NopBufferManager;
+    use glaredb_core::buffer::buffer_manager::DefaultBufferManager;
 
     use super::*;
 
     #[test]
     fn take_all_read_u8() {
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         let mut s = buf.take_remaining();
 
         assert_eq!(0, unsafe { s.read_next_unchecked::<u8>() });
@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn skip_some_read_u8() {
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         buf.skip(2).unwrap();
         let mut s = buf.take_remaining();
 
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn take_some_read_u8() {
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
 
         let mut s1 = buf.take_next(2).unwrap();
         assert_eq!(0, unsafe { s1.read_next_unchecked::<u8>() });
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn take_all_read_u16() {
         // Assumes le
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         let mut s = buf.take_remaining();
 
         assert_eq!(256, unsafe { s.read_next_unchecked::<u16>() });
@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn take_all_read_into_u8() {
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         let mut s = buf.take_remaining();
 
         let mut out = [0; 3];
@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn take_all_peek_u16() {
         // Assumes le
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         let mut s = buf.take_remaining();
 
         assert_eq!(256, unsafe { s.peek_next_unchecked::<u16>() });
@@ -358,7 +358,7 @@ mod tests {
 
     #[test]
     fn take_all_read_bytes() {
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, b"hello").unwrap();
         let mut s = buf.take_remaining();
 
         let out = unsafe { s.read_bytes_unchecked(1) };

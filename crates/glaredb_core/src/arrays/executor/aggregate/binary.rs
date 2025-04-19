@@ -137,7 +137,7 @@ mod tests {
     use super::*;
     use crate::arrays::array::physical_type::{AddressableMut, PhysicalI32};
     use crate::arrays::executor::PutBuffer;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::iter::TryFromExactSizeIterator;
 
     // SUM(col) + PRODUCT(col)
@@ -207,7 +207,9 @@ mod tests {
 
         let mut array1 = Array::try_from_iter([1, 2, 3, 4, 5]).unwrap();
         // => [4, 5, 2, 3, 1]
-        array1.select(&NopBufferManager, [3, 4, 1, 2, 0]).unwrap();
+        array1
+            .select(&DefaultBufferManager, [3, 4, 1, 2, 0])
+            .unwrap();
         let array2 = Array::try_from_iter([6, 7, 8, 9, 10]).unwrap();
 
         BinaryNonNullUpdater::update::<PhysicalI32, PhysicalI32, _, _, _>(

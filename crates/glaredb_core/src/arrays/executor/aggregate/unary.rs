@@ -105,7 +105,7 @@ mod tests {
     use super::*;
     use crate::arrays::array::physical_type::{AddressableMut, PhysicalI32, PhysicalUtf8};
     use crate::arrays::executor::PutBuffer;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::iter::TryFromExactSizeIterator;
 
     #[derive(Debug, Default)]
@@ -158,7 +158,7 @@ mod tests {
         let mut array = Array::try_from_iter([1, 2, 3, 4, 5]).unwrap();
         // '[1, 5, 5, 5, 5, 2, 2]'
         array
-            .select(&NopBufferManager, [0, 4, 4, 4, 4, 1, 1])
+            .select(&DefaultBufferManager, [0, 4, 4, 4, 4, 1, 1])
             .unwrap();
 
         UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(
@@ -181,7 +181,7 @@ mod tests {
         let mut array = Array::try_from_iter([Some(1), Some(2), Some(3), Some(4), None]).unwrap();
         // => '[1, NULL, NULL, NULL, NULL, 2, 2]'
         array
-            .select(&NopBufferManager, [0, 4, 4, 4, 4, 1, 1])
+            .select(&DefaultBufferManager, [0, 4, 4, 4, 4, 1, 1])
             .unwrap();
 
         UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(
@@ -201,7 +201,7 @@ mod tests {
         let state_ptr: *mut TestSumState = &mut state;
         let mut states = vec![state_ptr; 4];
 
-        let array = Array::new_constant(&NopBufferManager, &3.into(), 5).unwrap();
+        let array = Array::new_constant(&DefaultBufferManager, &3.into(), 5).unwrap();
 
         UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(
             &array,

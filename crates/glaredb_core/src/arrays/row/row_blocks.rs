@@ -351,12 +351,12 @@ where
 mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
 
     #[test]
     fn prepare_append_allocate_single_row_block() {
         let layout = RowLayout::new([DataType::Int32]);
-        let mut blocks = RowBlocks::new_using_row_layout(&NopBufferManager, &layout, 16);
+        let mut blocks = RowBlocks::new_using_row_layout(&DefaultBufferManager, &layout, 16);
 
         let mut append_state = BlockAppendState {
             row_pointers: Vec::new(),
@@ -380,7 +380,7 @@ mod tests {
     #[test]
     fn prepare_append_allocate_multiple_row_blocks() {
         let layout = RowLayout::new([DataType::Int32]);
-        let mut blocks = RowBlocks::new_using_row_layout(&NopBufferManager, &layout, 16);
+        let mut blocks = RowBlocks::new_using_row_layout(&DefaultBufferManager, &layout, 16);
 
         let mut append_state = BlockAppendState {
             row_pointers: Vec::new(),

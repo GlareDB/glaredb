@@ -5,7 +5,7 @@ use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
 use crate::arrays::row::block_scan::BlockScanState;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::logical::logical_join::JoinType;
 
 // TODO:
@@ -116,7 +116,7 @@ impl HashTableScanState {
         let rhs_out = &mut output.arrays[lhs_col_count..];
         for (rhs_out, rhs) in rhs_out.iter_mut().zip(&mut rhs.arrays) {
             rhs_out.select_from_other(
-                &NopBufferManager,
+                &DefaultBufferManager,
                 rhs,
                 self.selection.iter().copied(),
                 &mut NopCache,

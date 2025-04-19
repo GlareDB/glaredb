@@ -290,7 +290,7 @@ impl CsvReader {
 
 #[cfg(test)]
 mod tests {
-    use glaredb_core::buffer::buffer_manager::NopBufferManager;
+    use glaredb_core::buffer::buffer_manager::DefaultBufferManager;
     use glaredb_core::generate_batch;
     use glaredb_core::runtime::filesystem::memory::MemoryFileHandle;
     use glaredb_core::testutil::arrays::assert_batches_eq;
@@ -300,7 +300,7 @@ mod tests {
     use crate::dialect::DialectOptions;
 
     fn make_file(bytes: impl AsRef<[u8]>) -> AnyFile {
-        let file = MemoryFileHandle::from_bytes(&NopBufferManager, bytes).unwrap();
+        let file = MemoryFileHandle::from_bytes(&DefaultBufferManager, bytes).unwrap();
         AnyFile::from_file(file)
     }
 

@@ -190,7 +190,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::task::noop_context;
 
     #[test]
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn memory_file_read_complete() {
-        let mut handle = MemoryFileHandle::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut handle = MemoryFileHandle::from_bytes(&DefaultBufferManager, b"hello").unwrap();
         let mut out = vec![0; 10];
 
         let poll = handle
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn memory_file_read_partial() {
-        let mut handle = MemoryFileHandle::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut handle = MemoryFileHandle::from_bytes(&DefaultBufferManager, b"hello").unwrap();
         let mut out = vec![0; 4];
 
         let poll = handle

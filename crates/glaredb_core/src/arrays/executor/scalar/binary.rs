@@ -156,7 +156,7 @@ mod tests {
     use crate::arrays::array::Array;
     use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
     use crate::arrays::datatype::DataType;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::util::iter::TryFromExactSizeIterator;
 
@@ -165,7 +165,7 @@ mod tests {
         let left = Array::try_from_iter([1, 2, 3]).unwrap();
         let right = Array::try_from_iter([4, 5, 6]).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
             &left,
@@ -186,7 +186,7 @@ mod tests {
         let left = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
         let right = Array::try_from_iter([4, 5, 6]).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
             &left,
@@ -205,9 +205,9 @@ mod tests {
     #[test]
     fn binary_add_with_constant() {
         let left = Array::try_from_iter([1, 2, 3]).unwrap();
-        let right = Array::new_constant(&NopBufferManager, &4.into(), 3).unwrap();
+        let right = Array::new_constant(&DefaultBufferManager, &4.into(), 3).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
             &left,
@@ -227,11 +227,11 @@ mod tests {
     fn binary_simple_add_with_constant_selection() {
         let mut left = Array::try_from_iter([2]).unwrap();
         // [2, 2, 2]
-        left.select(&NopBufferManager, [0, 0, 0]).unwrap();
+        left.select(&DefaultBufferManager, [0, 0, 0]).unwrap();
 
         let right = Array::try_from_iter([4, 5, 6]).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
             &left,
@@ -251,10 +251,10 @@ mod tests {
     fn binary_simple_with_selection_invalid() {
         let mut left = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
         // => [NULL, 3, 1]
-        left.select(&NopBufferManager, [1, 2, 0]).unwrap();
+        left.select(&DefaultBufferManager, [1, 2, 0]).unwrap();
         let right = Array::try_from_iter([4, 5, 6]).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
             &left,
@@ -275,7 +275,7 @@ mod tests {
         let left = Array::try_from_iter([1, 2, 3]).unwrap();
         let right = Array::try_from_iter(["hello", "world", "goodbye!"]).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
 
         let mut string_buf = String::new();
         BinaryExecutor::execute::<PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(

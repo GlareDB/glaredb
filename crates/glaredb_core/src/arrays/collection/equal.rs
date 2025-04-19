@@ -5,7 +5,7 @@ use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{PhysicalBool, ScalarStorage};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::expr;
 use crate::functions::scalar::builtin::comparison::FUNCTION_SET_IS_NOT_DISTINCT_FROM;
 use crate::storage::projections::Projections;
@@ -57,7 +57,7 @@ pub fn verify_collections_eq(
         )?;
 
         let mut row_count = 0;
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, batch_size)?;
+        let mut out = Array::new(&DefaultBufferManager, DataType::Boolean, batch_size)?;
 
         loop {
             if left_batch.num_rows() == 0 {

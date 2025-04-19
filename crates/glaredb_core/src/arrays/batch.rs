@@ -6,7 +6,7 @@ use super::array::selection::Selection;
 use super::cache::{BufferCache, NopCache};
 use super::datatype::DataType;
 use crate::arrays::array::Array;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::util::iter::IntoExactSizeIterator;
 
 /// A batch of owned same-length arrays.
@@ -62,11 +62,11 @@ impl Batch {
         let mut arrays = Vec::with_capacity(datatypes.len());
 
         for datatype in datatypes {
-            let array = Array::new(&NopBufferManager, datatype, capacity)?;
+            let array = Array::new(&DefaultBufferManager, datatype, capacity)?;
             arrays.push(array)
         }
 
-        let cache = BufferCache::new(&NopBufferManager, capacity, arrays.len());
+        let cache = BufferCache::new(&DefaultBufferManager, capacity, arrays.len());
 
         Ok(Batch {
             arrays,
@@ -80,7 +80,7 @@ impl Batch {
         let arrays = other
             .arrays_mut()
             .iter_mut()
-            .map(|arr| Array::new_from_other(&NopBufferManager, arr))
+            .map(|arr| Array::new_from_other(&DefaultBufferManager, arr))
             .collect::<Result<Vec<_>>>()?;
 
         Ok(Batch {
@@ -250,7 +250,7 @@ impl Batch {
         let num_rows = selection.clone().into_exact_size_iter().len();
         for arr in &mut self.arrays {
             let selection = selection.clone();
-            arr.select(&NopBufferManager, selection)?;
+            arr.select(&DefaultBufferManager, selection)?;
         }
         self.set_num_rows(num_rows)?;
 

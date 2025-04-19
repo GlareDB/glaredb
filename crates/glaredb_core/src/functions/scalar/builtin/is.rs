@@ -205,14 +205,14 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunction for IsBool<NOT, BOOL> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::{generate_array, generate_batch};
 
     #[test]
     fn is_null() {
         let input = generate_batch!([Some(4), None, Some(5)]);
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
 
         CheckNull::<true>::execute(&(), &input, &mut out).unwrap();
 
@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn is_not_null() {
         let input = generate_batch!([Some(4), None, Some(5)]);
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
 
         CheckNull::<false>::execute(&(), &input, &mut out).unwrap();
 

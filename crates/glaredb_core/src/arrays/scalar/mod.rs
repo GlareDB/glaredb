@@ -22,7 +22,7 @@ use crate::arrays::datatype::{
     TimeUnit,
     TimestampTypeMeta,
 };
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::functions::cast::format::{
     BoolFormatter,
     Date32Formatter,
@@ -194,7 +194,7 @@ impl BorrowedScalarValue<'_> {
 
     /// Create an array of size `n` using the scalar value.
     pub fn as_array(&self, n: usize) -> Result<Array> {
-        Array::new_constant(&NopBufferManager, self, n)
+        Array::new_constant(&DefaultBufferManager, self, n)
     }
 
     pub fn try_as_bool(&self) -> Result<bool> {

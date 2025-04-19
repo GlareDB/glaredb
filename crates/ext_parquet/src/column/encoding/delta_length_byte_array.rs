@@ -4,7 +4,7 @@ use glaredb_core::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalBinary,
 };
-use glaredb_core::buffer::buffer_manager::NopBufferManager;
+use glaredb_core::buffer::buffer_manager::DefaultBufferManager;
 use glaredb_core::buffer::typed::TypedBuffer;
 use glaredb_error::{DbError, Result, ResultExt};
 
@@ -30,7 +30,7 @@ impl DeltaLengthByteArrayDecoder {
         let num_values = dec.total_values();
 
         // TODO: Not Nop
-        let mut lengths = TypedBuffer::<i32>::try_with_capacity(&NopBufferManager, num_values)?;
+        let mut lengths = TypedBuffer::<i32>::try_with_capacity(&DefaultBufferManager, num_values)?;
         let len_slice = &mut lengths.as_slice_mut()[..num_values]; // May overallocate
         dec.read(len_slice)?;
 

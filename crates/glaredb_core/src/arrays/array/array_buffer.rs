@@ -4,6 +4,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use glaredb_error::{DbError, Result, not_implemented};
+use half::f16;
 
 use super::physical_type::{
     BinaryViewAddressable,
@@ -33,10 +34,13 @@ use crate::arrays::array::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
     ScalarStorage,
+    UntypedNull,
 };
 use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::interval::Interval;
 use crate::arrays::string::{MAX_INLINE_LEN, StringView};
 use crate::buffer::buffer_manager::AsRawBufferManager;
+use crate::buffer::db_vec::DbVec;
 use crate::buffer::raw::RawBuffer;
 use crate::buffer::typed::TypedBuffer;
 use crate::util::convert::TryAsMut;
@@ -86,6 +90,67 @@ pub struct AnyArrayBuffer {
 }
 
 impl AnyArrayBuffer {
+    pub fn new_for_datatype(
+        manager: &impl AsRawBufferManager,
+        datatype: &DataType,
+        capacity: usize,
+    ) -> Result<Self> {
+        match datatype.physical_type() {
+            PhysicalType::UntypedNull => Ok(Self::new_unique(
+                ScalarBuffer::<UntypedNull>::try_new(manager, capacity)?,
+            )),
+            PhysicalType::Boolean => Ok(Self::new_unique(ScalarBuffer::<bool>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Int8 => Ok(Self::new_unique(ScalarBuffer::<i8>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Int16 => Ok(Self::new_unique(ScalarBuffer::<i16>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Int32 => Ok(Self::new_unique(ScalarBuffer::<i32>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Int64 => Ok(Self::new_unique(ScalarBuffer::<i64>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Int128 => Ok(Self::new_unique(ScalarBuffer::<i128>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::UInt8 => Ok(Self::new_unique(ScalarBuffer::<u8>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::UInt16 => Ok(Self::new_unique(ScalarBuffer::<u16>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::UInt32 => Ok(Self::new_unique(ScalarBuffer::<u32>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::UInt64 => Ok(Self::new_unique(ScalarBuffer::<u64>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::UInt128 => Ok(Self::new_unique(ScalarBuffer::<u128>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Float16 => Ok(Self::new_unique(ScalarBuffer::<f16>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Float32 => Ok(Self::new_unique(ScalarBuffer::<f32>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Float64 => Ok(Self::new_unique(ScalarBuffer::<f64>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Interval => Ok(Self::new_unique(ScalarBuffer::<Interval>::try_new(
+                manager, capacity,
+            )?)),
+            PhysicalType::Binary => Ok(Self::new_unique(StringBuffer::try_new(manager, capacity)?)),
+            PhysicalType::Utf8 => Ok(Self::new_unique(StringBuffer::try_new(manager, capacity)?)),
+            PhysicalType::List => Ok(Self::new_unique(ListBuffer::try_new(manager, capacity)?)),
+            PhysicalType::Struct => Ok(Self::new_unique(StructBuffer::try_new(manager, capacity)?)),
+        }
+    }
+
     pub fn new_unique<A>(array: A) -> Self
     where
         A: ArrayBuffer,
@@ -170,18 +235,18 @@ impl<T> Deref for OwnedOrShared<T> {
 
 #[derive(Debug)]
 pub struct ScalarBuffer<T: 'static> {
-    buffer: TypedBuffer<T>,
+    buffer: DbVec<T>,
 }
 
 impl<T: 'static> ScalarBuffer<T> {
     pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
         Ok(ScalarBuffer {
-            buffer: TypedBuffer::try_with_capacity(manager, capacity)?,
+            buffer: DbVec::new_uninit(manager, capacity)?,
         })
     }
 }
 
-impl<T: 'static> ArrayBuffer for ScalarBuffer<T> {}
+impl<T> ArrayBuffer for ScalarBuffer<T> where T: Sync + Send + 'static {}
 
 #[derive(Debug)]
 pub struct StringBuffer {}
@@ -1128,11 +1193,11 @@ impl<T> TryAsMut<T> for SharedOrOwned<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
 
     #[test]
     fn string_view_buffer_push_inlined() {
-        let mut buffer = StringViewBuffer::with_capacity(&NopBufferManager, 0).unwrap();
+        let mut buffer = StringViewBuffer::with_capacity(&DefaultBufferManager, 0).unwrap();
         let m = buffer.push_bytes_as_row(&[0, 1, 2, 3]).unwrap();
         assert!(m.is_inline());
 
@@ -1142,7 +1207,7 @@ mod tests {
 
     #[test]
     fn string_view_buffer_push_referenced() {
-        let mut buffer = StringViewBuffer::with_capacity(&NopBufferManager, 0).unwrap();
+        let mut buffer = StringViewBuffer::with_capacity(&DefaultBufferManager, 0).unwrap();
         let m1 = buffer.push_bytes_as_row(&vec![4; 32]).unwrap();
         assert!(!m1.is_inline());
 
