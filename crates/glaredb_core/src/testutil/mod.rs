@@ -9,6 +9,7 @@
 //! attempts to group these in some manner while also keeping the file structure
 //! flat. This should help with discoverability and reduce duplicated helpers.
 
+#![cfg(debug_assertions)]
 #![allow(unused)]
 
 /// Array helpers.
