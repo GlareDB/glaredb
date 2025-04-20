@@ -220,7 +220,7 @@ impl Array {
 
         match other.data.buffer_type {
             ArrayBufferType::Constant => {
-                let constant = ConstantBuffer::downcast_mut(&mut other.data.buffer)?;
+                let constant = ConstantBuffer::downcast_mut(&mut other.data)?;
                 let buffer = ConstantBuffer {
                     row_idx: constant.row_idx, // Use existing row reference since it points to the right row already.
                     len,
@@ -233,7 +233,7 @@ impl Array {
                 Ok(())
             }
             ArrayBufferType::Dictionary => {
-                let dictionary = DictionaryBuffer::downcast_mut(&mut other.data.buffer)?;
+                let dictionary = DictionaryBuffer::downcast_mut(&mut other.data)?;
                 let buffer = ConstantBuffer {
                     row_idx: unsafe { dictionary.selection.as_slice()[row] }, // Use row relative to the selection.
                     len,
@@ -330,7 +330,7 @@ impl Array {
     ) -> Result<()> {
         match self.data.buffer_type {
             ArrayBufferType::Constant => {
-                let constant = ConstantBuffer::downcast_mut(&mut self.data.buffer)?;
+                let constant = ConstantBuffer::downcast_mut(&mut self.data)?;
                 // Selection on top of constant array produces an array of just
                 // the same constants. Just update the len to match the
                 // selection.
@@ -349,7 +349,7 @@ impl Array {
                 Ok(())
             }
             ArrayBufferType::Dictionary => {
-                let dictionary = DictionaryBuffer::downcast_mut(&mut self.data.buffer)?;
+                let dictionary = DictionaryBuffer::downcast_mut(&mut self.data)?;
                 // Select the existing selection. We don't want to deal with
                 // nested dictionaries.
                 let sel_cloned = selection.clone().into_exact_size_iter();

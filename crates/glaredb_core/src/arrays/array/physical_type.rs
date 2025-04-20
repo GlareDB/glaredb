@@ -239,7 +239,7 @@ pub trait ScalarStorage: Debug + Default + Sync + Send + Clone + Copy + 'static 
     type ArrayBuffer: ArrayBuffer;
 
     fn buffer_downcast_ref(buffer: &AnyArrayBuffer) -> Result<&Self::ArrayBuffer> {
-        ArrayBufferDowncast::downcast_ref(buffer.buffer.as_ref())
+        ArrayBufferDowncast::downcast_ref(buffer)
     }
 
     fn downcast_execution_format(
@@ -258,7 +258,7 @@ pub trait MutableScalarStorage: ScalarStorage {
     type AddressableMut<'a>: AddressableMut<T = Self::StorageType>;
 
     fn buffer_downcast_mut(buffer: &mut AnyArrayBuffer) -> Result<&mut Self::ArrayBuffer> {
-        ArrayBufferDowncast::downcast_mut(&mut buffer.buffer)
+        ArrayBufferDowncast::downcast_mut(buffer)
     }
 
     /// Get mutable addressable storage for the array.

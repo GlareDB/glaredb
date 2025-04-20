@@ -65,17 +65,18 @@ pub trait ArrayBuffer: Sized + Sync + Send + 'static {
     fn logical_len(&self) -> usize;
 }
 
-// TODO: Change these to all take OwnedOrShared
 pub trait ArrayBufferDowncast: ArrayBuffer {
-    /// Try to downcast this buffer into a concrete type reference.
-    fn downcast_ref(buffer: &(dyn Any + Sync + Send)) -> Result<&Self>;
+    /// Downcast from an `AnyArrayBuffer` to a reference to the concrete array
+    /// buffer type.
+    ///
+    /// Errors if the provided buffer isn't actually this type.
+    fn downcast_ref(buffer: &AnyArrayBuffer) -> Result<&Self>;
 
-    /// Try to downcast this buffer into a concrete type mutable reference.
-    fn downcast_mut(buffer: &mut (dyn Any + Sync + Send)) -> Result<&mut Self>;
-
-    /// Try to downcast this buffer into a mutable reference. If the buffer is
-    /// shared, this will error.
-    fn owned_or_shared_downcast_mut(buffer: &mut AnyArrayBuffer) -> Result<&mut Self>;
+    /// Downcast from an `AnyArrayBuffer` to a mutable reference to the concrete
+    /// array buffer type.
+    ///
+    /// Errors if the provided buffer isn't actually this type.
+    fn downcast_mut(buffer: &mut AnyArrayBuffer) -> Result<&mut Self>;
 
     fn downcast_execution_format(buffer: &AnyArrayBuffer) -> Result<ExecutionFormat<'_, Self>>;
 }
@@ -84,32 +85,30 @@ impl<A> ArrayBufferDowncast for A
 where
     A: ArrayBuffer,
 {
-    fn downcast_ref(buffer: &(dyn Any + Sync + Send)) -> Result<&Self> {
+    fn downcast_ref(buffer: &AnyArrayBuffer) -> Result<&Self> {
         buffer
+            .buffer
+            .as_ref()
             .downcast_ref::<A>()
             .ok_or_else(|| DbError::new("failed to downcast array buffer"))
     }
 
-    fn downcast_mut(buffer: &mut (dyn Any + Sync + Send)) -> Result<&mut Self> {
+    fn downcast_mut(buffer: &mut AnyArrayBuffer) -> Result<&mut Self> {
+        let buffer = buffer
+            .buffer
+            .as_mut()
+            .ok_or_else(|| DbError::new("Buffer is shared, cannot get mutable reference"))?;
         buffer
             .downcast_mut::<A>()
             .ok_or_else(|| DbError::new("failed to downcast array buffer (mut)"))
     }
 
-    fn owned_or_shared_downcast_mut(buffer: &mut AnyArrayBuffer) -> Result<&mut Self> {
-        let buffer = buffer
-            .buffer
-            .as_mut()
-            .ok_or_else(|| DbError::new("Buffer is shared, cannot get mutable reference"))?;
-        Self::downcast_mut(buffer)
-    }
-
     fn downcast_execution_format(buffer: &AnyArrayBuffer) -> Result<ExecutionFormat<'_, Self>> {
         match buffer.buffer_type {
             ArrayBufferType::Constant => {
-                let constant = ConstantBuffer::downcast_ref(&buffer.buffer)?;
+                let constant = ConstantBuffer::downcast_ref(buffer)?;
                 let selection = Selection::constant(constant.len, constant.row_idx);
-                let child_buffer = Self::downcast_ref(&constant.buffer.buffer)?;
+                let child_buffer = Self::downcast_ref(&constant.buffer)?;
 
                 Ok(ExecutionFormat::Selection(SelectionFormat {
                     selection,
@@ -117,9 +116,9 @@ where
                 }))
             }
             ArrayBufferType::Dictionary => {
-                let dictionary = DictionaryBuffer::downcast_ref(&buffer.buffer)?;
+                let dictionary = DictionaryBuffer::downcast_ref(buffer)?;
                 let selection = Selection::slice(unsafe { dictionary.selection.as_slice() });
-                let child_buffer = Self::downcast_ref(&dictionary.buffer.buffer)?;
+                let child_buffer = Self::downcast_ref(&dictionary.buffer)?;
 
                 Ok(ExecutionFormat::Selection(SelectionFormat {
                     selection,
@@ -129,7 +128,7 @@ where
             _ => {
                 // No transformation needed for execution. Use this buffer as-is.
                 // TODO: Could be cool if we could do something for lists.
-                let buffer = Self::downcast_ref(&buffer.buffer)?;
+                let buffer = Self::downcast_ref(buffer)?;
                 Ok(ExecutionFormat::Flat(buffer))
             }
         }
@@ -151,7 +150,7 @@ where
 {
     const VTABLE: &'static AnyArrayBufferVTable = &AnyArrayBufferVTable {
         logical_len_fn: |buffer| {
-            let buffer = Self::downcast_ref(buffer).unwrap();
+            let buffer = buffer.downcast_ref::<Self>().unwrap();
             buffer.logical_len()
         },
     };
@@ -342,13 +341,6 @@ where
             OwnedOrSharedPtr::Shared(_) => None,
             OwnedOrSharedPtr::Uninit => unreachable!(),
         }
-    }
-}
-
-impl<T> Deref for OwnedOrShared<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        self.as_ref()
     }
 }
 
@@ -1392,7 +1384,7 @@ mod tests {
         // Sanity check the downcast stuff.
         let buffer =
             AnyArrayBuffer::new_for_datatype(&DefaultBufferManager, &DataType::Int32, 4).unwrap();
-        ScalarBuffer::<i32>::downcast_ref(buffer.buffer.as_ref()).unwrap();
+        ScalarBuffer::<i32>::downcast_ref(&buffer).unwrap();
     }
 
     #[test]
