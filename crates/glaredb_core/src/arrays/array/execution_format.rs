@@ -24,10 +24,6 @@ where
             Self::Selection(sel) => Ok(sel),
         }
     }
-
-    pub const fn is_selection(&self) -> bool {
-        matches!(self, ExecutionFormat::Selection(_))
-    }
 }
 
 #[derive(Debug)]
@@ -52,4 +48,18 @@ where
     pub fn logical_len(&self) -> usize {
         self.selection.len()
     }
+}
+
+/// Similar to `ExecutionFormat`, just with mutable references.
+#[derive(Debug)]
+pub enum ExecutionFormatMut<'a, B: ArrayBuffer> {
+    Flat(&'a mut B),
+    Selection(SelectionFormatMut<'a, B>),
+}
+
+#[derive(Debug)]
+#[allow(unused)]
+pub struct SelectionFormatMut<'a, B: ArrayBuffer> {
+    pub(crate) selection: Selection<'a>,
+    pub(crate) buffer: &'a mut B,
 }

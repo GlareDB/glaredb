@@ -197,6 +197,10 @@ impl BorrowedScalarValue<'_> {
         Array::new_constant(&DefaultBufferManager, self, n)
     }
 
+    pub const fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
+    }
+
     pub fn try_as_bool(&self) -> Result<bool> {
         match self {
             Self::Boolean(b) => Ok(*b),

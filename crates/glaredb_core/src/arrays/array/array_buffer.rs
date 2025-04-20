@@ -6,7 +6,12 @@ use std::sync::Arc;
 use glaredb_error::{DbError, Result, not_implemented};
 use half::f16;
 
-use super::execution_format::{ExecutionFormat, SelectionFormat};
+use super::execution_format::{
+    ExecutionFormat,
+    ExecutionFormatMut,
+    SelectionFormat,
+    SelectionFormatMut,
+};
 use super::physical_type::{
     BinaryViewAddressable,
     BinaryViewAddressableMut,
@@ -79,6 +84,10 @@ pub trait ArrayBufferDowncast: ArrayBuffer {
     fn downcast_mut(buffer: &mut AnyArrayBuffer) -> Result<&mut Self>;
 
     fn downcast_execution_format(buffer: &AnyArrayBuffer) -> Result<ExecutionFormat<'_, Self>>;
+
+    fn downcast_execution_format_mut(
+        buffer: &mut AnyArrayBuffer,
+    ) -> Result<ExecutionFormatMut<'_, Self>>;
 }
 
 impl<A> ArrayBufferDowncast for A
@@ -130,6 +139,39 @@ where
                 // TODO: Could be cool if we could do something for lists.
                 let buffer = Self::downcast_ref(buffer)?;
                 Ok(ExecutionFormat::Flat(buffer))
+            }
+        }
+    }
+
+    fn downcast_execution_format_mut(
+        buffer: &mut AnyArrayBuffer,
+    ) -> Result<ExecutionFormatMut<'_, Self>> {
+        match buffer.buffer_type {
+            ArrayBufferType::Constant => {
+                let constant = ConstantBuffer::downcast_mut(buffer)?;
+                let selection = Selection::constant(constant.len, constant.row_idx);
+                let child_buffer = Self::downcast_mut(&mut constant.buffer)?;
+
+                Ok(ExecutionFormatMut::Selection(SelectionFormatMut {
+                    selection,
+                    buffer: child_buffer,
+                }))
+            }
+            ArrayBufferType::Dictionary => {
+                let dictionary = DictionaryBuffer::downcast_mut(buffer)?;
+                let selection = Selection::slice(unsafe { dictionary.selection.as_slice() });
+                let child_buffer = Self::downcast_mut(&mut dictionary.buffer)?;
+
+                Ok(ExecutionFormatMut::Selection(SelectionFormatMut {
+                    selection,
+                    buffer: child_buffer,
+                }))
+            }
+            _ => {
+                // No transformation needed for execution. Use this buffer as-is.
+                // TODO: Could be cool if we could do something for lists.
+                let buffer = Self::downcast_mut(buffer)?;
+                Ok(ExecutionFormatMut::Flat(buffer))
             }
         }
     }

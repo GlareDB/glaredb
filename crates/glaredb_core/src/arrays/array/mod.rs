@@ -22,6 +22,7 @@ use array_buffer::{
     ScalarBuffer2,
     SharedOrOwned,
 };
+use execution_format::{ExecutionFormat, ExecutionFormatMut};
 use flat::FlattenedArray;
 use glaredb_error::{DbError, Result, not_implemented};
 use half::f16;
@@ -422,139 +423,107 @@ impl Array {
             return Ok(ScalarValue::Null);
         }
 
-        not_implemented!("get value")
-        // let (physical_idx, data) = match self.data.buffer_type {
-        //     ArrayBufferType::Constant => {
-        //         let constant = ConstantBuffer::downcast_ref(&self.data.buffer)?;
-        //         (constant.row_idx, consant.
-        //     }
-        // }
-
-        // let flat = self.flatten()?;
-        // let data_idx = flat.selection.get(idx).expect("Index to be in bounds");
-
-        // get_value_inner(
-        //     &self.datatype,
-        //     flat.array_buffer,
-        //     flat.validity,
-        //     idx,
-        //     data_idx,
-        // )
+        get_physical_value(&self.datatype, &self.validity, &self.data, idx)
     }
 
     /// Set a scalar value at a given index.
     pub fn set_value(&mut self, idx: usize, val: &BorrowedScalarValue) -> Result<()> {
-        // TODO: Handle constant, dictionary
-        //
-        // - Constant => convert to dictionary
-        // - Dictionary => add new value, update selection to point to value
-
-        if self.should_flatten_for_execution() {
-            not_implemented!("set value for dictionary/constant arrays")
-        }
-
         if idx >= self.logical_len() {
             return Err(DbError::new("Index out of bounds")
                 .with_field("idx", idx)
                 .with_field("capacity", self.logical_len()));
         }
 
-        // Currently the same since we don't allow setting inot
-        // dictionary/constant buffers.
-        let logical_idx = idx;
-        let data_idx = idx;
-
-        not_implemented!("set value")
-        // set_value_inner(
-        //     val,
-        //     &mut self.data,
-        //     &mut self.validity,
-        //     logical_idx,
-        //     data_idx,
-        // )
+        set_physical_value(val, &mut self.validity, &mut self.data, idx)
     }
 }
 
-/// Helper for getting the value from an array.
-///
-/// The provided buffer/validity should come from a flattened array. We don't
-/// want to deal with selections here.
-fn get_value_inner<'a>(
+/// Helper for getting a physical value value from an array.
+fn get_physical_value<'a>(
     datatype: &DataType,
-    buffer: &'a AnyArrayBuffer,
     validity: &Validity,
-    logical_idx: usize,
-    data_idx: usize,
+    buffer: &'a AnyArrayBuffer,
+    row_idx: usize,
 ) -> Result<BorrowedScalarValue<'a>> {
-    if !validity.is_valid(logical_idx) {
+    if !validity.is_valid(row_idx) {
         return Ok(BorrowedScalarValue::Null);
+    }
+
+    fn get_value_inner<'a, S>(
+        buffer: &'a AnyArrayBuffer,
+        row_idx: usize,
+    ) -> Result<&'a S::StorageType>
+    where
+        S: ScalarStorage,
+    {
+        match S::downcast_execution_format(buffer)? {
+            ExecutionFormat::Flat(buf) => Ok(S::addressable(buf).get(row_idx).unwrap()),
+            ExecutionFormat::Selection(buf) => {
+                let sel_idx = buf.selection.get(row_idx).unwrap();
+                Ok(S::addressable(buf.buffer).get(sel_idx).unwrap())
+            }
+        }
     }
 
     match datatype {
         DataType::Boolean => {
-            let v = PhysicalBool::get_addressable(buffer)?
-                .get(data_idx)
-                .unwrap();
+            let v = get_value_inner::<PhysicalBool>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Boolean(*v))
         }
         DataType::Int8 => {
-            let v = PhysicalI8::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalI8>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Int8(*v))
         }
         DataType::Int16 => {
-            let v = PhysicalI16::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalI16>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Int16(*v))
         }
         DataType::Int32 => {
-            let v = PhysicalI32::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalI32>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Int32(*v))
         }
         DataType::Int64 => {
-            let v = PhysicalI64::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalI64>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Int64(*v))
         }
         DataType::Int128 => {
-            let v = PhysicalI128::get_addressable(buffer)?
-                .get(data_idx)
-                .unwrap();
+            let v = get_value_inner::<PhysicalI128>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Int128(*v))
         }
         DataType::UInt8 => {
-            let v = PhysicalU8::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalU8>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::UInt8(*v))
         }
         DataType::UInt16 => {
-            let v = PhysicalU16::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalU16>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::UInt16(*v))
         }
         DataType::UInt32 => {
-            let v = PhysicalU32::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalU32>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::UInt32(*v))
         }
         DataType::UInt64 => {
-            let v = PhysicalU64::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalU64>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::UInt64(*v))
         }
         DataType::UInt128 => {
-            let v = PhysicalU128::get_addressable(buffer)?
-                .get(data_idx)
-                .unwrap();
+            let v = get_value_inner::<PhysicalU128>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::UInt128(*v))
         }
         DataType::Float16 => {
-            let v = PhysicalF16::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalF16>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Float16(*v))
         }
         DataType::Float32 => {
-            let v = PhysicalF32::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalF32>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Float32(*v))
         }
         DataType::Float64 => {
-            let v = PhysicalF64::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalF64>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Float64(*v))
         }
         DataType::Decimal64(m) => {
-            let v = PhysicalI64::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalI64>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Decimal64(Decimal64Scalar {
                 precision: m.precision,
                 scale: m.scale,
@@ -562,9 +531,7 @@ fn get_value_inner<'a>(
             }))
         }
         DataType::Decimal128(m) => {
-            let v = PhysicalI128::get_addressable(buffer)?
-                .get(data_idx)
-                .unwrap();
+            let v = get_value_inner::<PhysicalI128>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Decimal128(Decimal128Scalar {
                 precision: m.precision,
                 scale: m.scale,
@@ -572,34 +539,30 @@ fn get_value_inner<'a>(
             }))
         }
         DataType::Interval => {
-            let v = PhysicalInterval::get_addressable(buffer)?
-                .get(data_idx)
-                .unwrap();
+            let v = get_value_inner::<PhysicalInterval>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Interval(*v))
         }
         DataType::Timestamp(m) => {
-            let v = PhysicalI64::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalI64>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Timestamp(TimestampScalar {
                 unit: m.unit,
                 value: *v,
             }))
         }
         DataType::Date32 => {
-            let v = PhysicalI32::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalI32>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Date32(*v))
         }
         DataType::Date64 => {
-            let v = PhysicalI64::get_addressable(buffer)?.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalI64>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Date64(*v))
         }
         DataType::Utf8 => {
-            let addressable = PhysicalUtf8::get_addressable(buffer)?;
-            let v = addressable.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalUtf8>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Utf8(v.into()))
         }
         DataType::Binary => {
-            let addressable = PhysicalBinary::get_addressable(buffer)?;
-            let v = addressable.get(data_idx).unwrap();
+            let v = get_value_inner::<PhysicalBinary>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Binary(v.into()))
         }
         DataType::List(m) => {
@@ -630,130 +593,166 @@ fn get_value_inner<'a>(
     }
 }
 
-fn set_value_inner(
+fn set_physical_value(
     value: &BorrowedScalarValue,
-    buffer: &mut ArrayBuffer2,
     validity: &mut Validity,
-    logical_idx: usize,
-    data_idx: usize,
+    buffer: &mut AnyArrayBuffer,
+    row_idx: usize,
 ) -> Result<()> {
-    validity.set_valid(logical_idx);
+    if value.is_null() {
+        validity.set_invalid(row_idx);
+        return Ok(());
+    }
+    validity.set_valid(row_idx);
 
-    // match value {
-    //     BorrowedScalarValue::Null => {
-    //         // Use the logical index to update the validity mask. Data index is
-    //         // unused.
-    //         validity.set_invalid(logical_idx);
-    //     }
-    //     BorrowedScalarValue::Boolean(val) => {
-    //         PhysicalBool::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Int8(val) => {
-    //         PhysicalI8::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Int16(val) => {
-    //         PhysicalI16::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Int32(val) => {
-    //         PhysicalI32::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Int64(val) => {
-    //         PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Int128(val) => {
-    //         PhysicalI128::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::UInt8(val) => {
-    //         PhysicalU8::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::UInt16(val) => {
-    //         PhysicalU16::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::UInt32(val) => {
-    //         PhysicalU32::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::UInt64(val) => {
-    //         PhysicalU64::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::UInt128(val) => {
-    //         PhysicalU128::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Float16(val) => {
-    //         PhysicalF16::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Float32(val) => {
-    //         PhysicalF32::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Float64(val) => {
-    //         PhysicalF64::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Decimal64(val) => {
-    //         PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, &val.value);
-    //     }
-    //     BorrowedScalarValue::Decimal128(val) => {
-    //         PhysicalI128::get_addressable_mut(buffer)?.put(data_idx, &val.value);
-    //     }
-    //     BorrowedScalarValue::Date32(val) => {
-    //         PhysicalI32::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Date64(val) => {
-    //         PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Timestamp(val) => {
-    //         PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, &val.value);
-    //     }
-    //     BorrowedScalarValue::Interval(val) => {
-    //         PhysicalInterval::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Utf8(val) => {
-    //         PhysicalUtf8::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::Binary(val) => {
-    //         PhysicalBinary::get_addressable_mut(buffer)?.put(data_idx, val);
-    //     }
-    //     BorrowedScalarValue::List(val) => {
-    //         // TODO: Needs unit tests.
-    //         // TODO: List stuff needs a lot of polish.
+    fn set_value_inner<'a, S>(
+        buffer: &mut AnyArrayBuffer,
+        val: &S::StorageType,
+        row_idx: usize,
+    ) -> Result<()>
+    where
+        S: MutableScalarStorage,
+    {
+        match S::downcast_execution_format_mut(buffer)? {
+            ExecutionFormatMut::Flat(buf) => {
+                S::addressable_mut(buf).put(row_idx, val);
+                Ok(())
+            }
+            ExecutionFormatMut::Selection(_) => {
+                // TODO: We may want to allow this.
+                //
+                // Either:
+                //
+                // - Allow setting a single row value to update multiple rows.
+                //   E.g. setting a value for a constant array would change all
+                //   rows to that constant.
+                // - Or change the array buffer to adapt to the new value. E.g.
+                //   a constant array would become a dictionary, and a
+                //   dictionary would have a new value appended to the end of
+                //   the underlying buffer.
+                Err(DbError::new(
+                    "Cannot set value for array buffer with selection",
+                ))
+            }
+        }
+    }
 
-    //         let list_buf = buffer.get_list_buffer_mut()?;
+    match value {
+        BorrowedScalarValue::Null => {
+            // Checked above.
+            unreachable!()
+        }
+        BorrowedScalarValue::Boolean(val) => {
+            set_value_inner::<PhysicalBool>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Int8(val) => {
+            set_value_inner::<PhysicalI8>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Int16(val) => {
+            set_value_inner::<PhysicalI16>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Int32(val) => {
+            set_value_inner::<PhysicalI32>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Int64(val) => {
+            set_value_inner::<PhysicalI64>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Int128(val) => {
+            set_value_inner::<PhysicalI128>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::UInt8(val) => {
+            set_value_inner::<PhysicalU8>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::UInt16(val) => {
+            set_value_inner::<PhysicalU16>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::UInt32(val) => {
+            set_value_inner::<PhysicalU32>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::UInt64(val) => {
+            set_value_inner::<PhysicalU64>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::UInt128(val) => {
+            set_value_inner::<PhysicalU128>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Float16(val) => {
+            set_value_inner::<PhysicalF16>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Float32(val) => {
+            set_value_inner::<PhysicalF32>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Float64(val) => {
+            set_value_inner::<PhysicalF64>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Decimal64(val) => {
+            set_value_inner::<PhysicalI64>(buffer, &val.value, row_idx)?;
+        }
+        BorrowedScalarValue::Decimal128(val) => {
+            set_value_inner::<PhysicalI128>(buffer, &val.value, row_idx)?;
+        }
+        BorrowedScalarValue::Date32(val) => {
+            set_value_inner::<PhysicalI32>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Date64(val) => {
+            set_value_inner::<PhysicalI64>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Timestamp(val) => {
+            set_value_inner::<PhysicalI64>(buffer, &val.value, row_idx)?;
+        }
+        BorrowedScalarValue::Interval(val) => {
+            set_value_inner::<PhysicalInterval>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Utf8(val) => {
+            set_value_inner::<PhysicalUtf8>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::Binary(val) => {
+            set_value_inner::<PhysicalBinary>(buffer, val, row_idx)?;
+        }
+        BorrowedScalarValue::List(val) => {
+            // TODO: Needs unit tests.
+            // TODO: List stuff needs a lot of polish.
 
-    //         // Ensure we have enough space to push.
-    //         if list_buf.current_offset >= list_buf.logical_len() {
-    //             list_buf.try_reserve_child_buffers(val.len())?;
-    //         } else {
-    //             let rem_cap = list_buf.logical_len() - list_buf.current_offset;
-    //             if val.len() > rem_cap {
-    //                 // Resize the secondary buffers.
-    //                 list_buf.try_reserve_child_buffers(val.len() - rem_cap)?;
-    //             }
-    //         }
+            unimplemented!()
 
-    //         let child_buffer = &mut list_buf.child_buffer;
-    //         let child_validity = list_buf.child_validity.try_as_mut()?;
+            // let list_buf = buffer.get_list_buffer_mut()?;
 
-    //         // We should have enough capacity now, insert our values.
-    //         for (child_offset, val) in (list_buf.current_offset..).zip(val) {
-    //             // Lists can't contain selections.
-    //             let logical_idx = child_offset;
-    //             let data_idx = child_offset;
+            // // Ensure we have enough space to push.
+            // if list_buf.current_offset >= list_buf.logical_len() {
+            //     list_buf.try_reserve_child_buffers(val.len())?;
+            // } else {
+            //     let rem_cap = list_buf.logical_len() - list_buf.current_offset;
+            //     if val.len() > rem_cap {
+            //         // Resize the secondary buffers.
+            //         list_buf.try_reserve_child_buffers(val.len() - rem_cap)?;
+            //     }
+            // }
 
-    //             set_value_inner(val, child_buffer, child_validity, logical_idx, data_idx)?;
-    //         }
+            // let child_buffer = &mut list_buf.child_buffer;
+            // let child_validity = list_buf.child_validity.try_as_mut()?;
 
-    //         let start_offset = list_buf.current_offset;
-    //         list_buf.current_offset += val.len();
+            // // We should have enough capacity now, insert our values.
+            // for (child_offset, val) in (list_buf.current_offset..).zip(val) {
+            //     // Lists can't contain selections.
+            //     let logical_idx = child_offset;
+            //     let data_idx = child_offset;
 
-    //         // Set metadata point to new list.
-    //         PhysicalList::get_addressable_mut(buffer)?.put(
-    //             data_idx,
-    //             &ListItemMetadata {
-    //                 offset: start_offset as i32,
-    //                 len: val.len() as i32,
-    //             },
-    //         );
-    //     }
-    //     BorrowedScalarValue::Struct(_) => not_implemented!("set value for struct"),
-    // }
+            //     set_value_inner(val, child_buffer, child_validity, logical_idx, data_idx)?;
+            // }
+
+            // let start_offset = list_buf.current_offset;
+            // list_buf.current_offset += val.len();
+
+            // // Set metadata point to new list.
+            // PhysicalList::get_addressable_mut(buffer)?.put(
+            //     data_idx,
+            //     &ListItemMetadata {
+            //         offset: start_offset as i32,
+            //         len: val.len() as i32,
+            //     },
+            // );
+        }
+        BorrowedScalarValue::Struct(_) => not_implemented!("set value for struct"),
+    }
 
     Ok(())
 }
