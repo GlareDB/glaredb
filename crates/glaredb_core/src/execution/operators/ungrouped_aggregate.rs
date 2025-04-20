@@ -9,7 +9,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::buffer::buffer_manager::DefaultBufferManager;
-use crate::buffer::typed::AlignedBuffer;
+use crate::buffer::db_vec::DbVec;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
 
@@ -20,7 +20,7 @@ pub enum UngroupedAggregatePartitionState {
         /// Binary data containing values for each aggregate.
         ///
         /// This will be aligned and sized according to the aggregate layout.
-        values: AlignedBuffer<u8>,
+        values: DbVec<u8>,
         /// Reusable buffer for storing pointers to an aggregate state.
         ptr_buf: Vec<*mut u8>,
         /// Aggregate inputs buffer.
@@ -51,7 +51,9 @@ struct OperatorStateInner {
     /// Initialize to number of partitions.
     remaining: usize,
     /// Values combined from all partitions.
-    values: AlignedBuffer<u8>,
+    ///
+    /// Aligned to the base alignment of the aggregate layout.
+    values: DbVec<u8>,
 }
 
 #[derive(Debug)]
@@ -82,8 +84,8 @@ impl PhysicalUngroupedAggregate {
     }
 
     /// Initalizes a new buffer for the aggregates in this operator.
-    fn try_init_buffer(&self) -> Result<AlignedBuffer<u8>> {
-        let values = AlignedBuffer::<u8>::try_with_capacity_and_alignment(
+    fn try_init_buffer(&self) -> Result<DbVec<u8>> {
+        let mut values = DbVec::<u8>::new_uninit_with_align(
             &DefaultBufferManager,
             self.layout.row_width,
             self.layout.base_align,
@@ -198,7 +200,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
             }
             UngroupedAggregatePartitionState::Draining => {
                 output.reset_for_write()?;
-                let operator_state = operator_state.inner.lock();
+                let mut operator_state = operator_state.inner.lock();
 
                 // SAFETY: The aggregate values buffer should have been
                 // allocated according to this layout.
