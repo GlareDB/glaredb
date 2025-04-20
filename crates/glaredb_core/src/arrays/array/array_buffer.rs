@@ -206,7 +206,7 @@ pub struct AnyArrayBuffer {
 }
 
 impl AnyArrayBuffer {
-    pub fn new_for_datatype(
+    pub(crate) fn new_for_datatype(
         manager: &impl AsRawBufferManager,
         datatype: &DataType,
         capacity: usize,
@@ -267,7 +267,7 @@ impl AnyArrayBuffer {
         }
     }
 
-    pub fn new_unique<A>(array: A) -> Self
+    pub(crate) fn new_unique<A>(array: A) -> Self
     where
         A: ArrayBuffer,
     {
@@ -287,12 +287,12 @@ impl AnyArrayBuffer {
     ///
     /// This will indiscriminately make the top-level buffer shared. More
     /// selective sharing should happen in `Array`.
-    pub fn make_shared(&mut self) {
+    pub(crate) fn make_shared(&mut self) {
         self.buffer.make_shared()
     }
 
     /// Makes this buffer shared, and clones it.
-    pub fn make_shared_and_clone(&mut self) -> Self {
+    pub(crate) fn make_shared_and_clone(&mut self) -> Self {
         self.buffer.make_shared();
         let shared = match &self.buffer.0 {
             OwnedOrSharedPtr::Shared(shared) => {
@@ -308,7 +308,7 @@ impl AnyArrayBuffer {
         }
     }
 
-    pub fn try_clone_shared(&self) -> Result<Self> {
+    pub(crate) fn try_clone_shared(&self) -> Result<Self> {
         let shared = match &self.buffer.0 {
             OwnedOrSharedPtr::Shared(shared) => {
                 OwnedOrShared(OwnedOrSharedPtr::Shared(shared.clone()))
@@ -323,7 +323,7 @@ impl AnyArrayBuffer {
         })
     }
 
-    pub fn logical_len(&self) -> usize {
+    pub(crate) fn logical_len(&self) -> usize {
         (self.vtable.logical_len_fn)(self.buffer.as_ref())
     }
 }

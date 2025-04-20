@@ -76,6 +76,14 @@ pub struct Array {
     /// This should match the logical length of the underlying data buffer.
     pub(crate) validity: Validity,
     /// Holds the underlying array data.
+    ///
+    /// When making shared:
+    /// - `ConstantBuffer` should remain owned, its child made shared.
+    /// - `DictionaryBuffer` should remain owned, its child made shared.
+    /// - All other should have the top level buffer made shared.
+    ///
+    /// `ConstantBuffer` and `DictionaryBuffer` should always remain unique,
+    /// with its child being owned or shared.
     pub(crate) data: AnyArrayBuffer,
 }
 
@@ -108,7 +116,7 @@ impl Array {
         Ok(Array {
             datatype: other.datatype.clone(),
             validity: other.validity.clone(),
-            data: other.data.make_shared_and_clone(),
+            data: make_array_buffer_shared_and_clone(&mut other.data)?,
         })
     }
 
@@ -187,11 +195,11 @@ impl Array {
             );
         }
 
-        let other_data = other.data.make_shared_and_clone();
-        let existing = std::mem::replace(&mut self.data, other_data);
+        let cloned = make_array_buffer_shared_and_clone(&mut other.data)?;
+        let existing = std::mem::replace(&mut self.data, cloned);
         cache.maybe_cache(existing);
-        self.validity = other.validity.clone();
 
+        self.validity = other.validity.clone();
         Ok(())
     }
 
@@ -435,6 +443,46 @@ impl Array {
         }
 
         set_physical_value(val, &mut self.validity, &mut self.data, idx)
+    }
+}
+
+/// Helper for making an array's buffer shared then cloning it.
+///
+/// This special cases on buffer types.
+fn make_array_buffer_shared_and_clone(data: &mut AnyArrayBuffer) -> Result<AnyArrayBuffer> {
+    match data.buffer_type {
+        ArrayBufferType::Constant => {
+            // Array buffer is constant, clone the child buffer so we
+            // can freely select on it.
+            let constant = ConstantBuffer::downcast_mut(data)?;
+            let child = constant.buffer.make_shared_and_clone();
+
+            Ok(AnyArrayBuffer::new_unique(ConstantBuffer {
+                row_idx: constant.row_idx,
+                len: constant.len,
+                buffer: child,
+            }))
+        }
+        ArrayBufferType::Dictionary => {
+            // See constant
+            let dictionary = DictionaryBuffer::downcast_mut(data)?;
+            let child = dictionary.buffer.make_shared_and_clone();
+
+            // TODO: Pass in manager.
+            let selection = DbVec::new_from_slice(&DefaultBufferManager, unsafe {
+                dictionary.selection.as_slice()
+            })?;
+
+            Ok(AnyArrayBuffer::new_unique(DictionaryBuffer {
+                selection,
+                buffer: child,
+            }))
+        }
+        _ => {
+            // Everything else just clone the top-level buffer.
+            let data = data.make_shared_and_clone();
+            Ok(data)
+        }
     }
 }
 
