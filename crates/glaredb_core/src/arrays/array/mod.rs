@@ -13,6 +13,7 @@ use array_buffer::{
     ConstantBuffer,
     DictionaryBuffer,
     EmptyBuffer,
+    ListBuffer,
 };
 use execution_format::{ExecutionFormat, ExecutionFormatMut};
 use glaredb_error::{DbError, Result, not_implemented};
@@ -46,6 +47,7 @@ use validity::Validity;
 use super::cache::MaybeCache;
 use super::compute::copy::copy_rows_array;
 use super::scalar::ScalarValue;
+use crate::arrays::compute::set_list_value::set_list_value_raw;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::BorrowedScalarValue;
 use crate::arrays::scalar::decimal::{Decimal64Scalar, Decimal128Scalar};
@@ -422,7 +424,7 @@ impl Array {
                 .with_field("capacity", self.logical_len()));
         }
 
-        set_physical_value(val, &mut self.validity, &mut self.data, idx)
+        set_physical_value(val, &self.datatype, &mut self.validity, &mut self.data, idx)
     }
 }
 
@@ -595,27 +597,23 @@ fn get_physical_value<'a>(
             Ok(BorrowedScalarValue::Binary(v.into()))
         }
         DataType::List(m) => {
-            not_implemented!("get list values")
-            // let list_buf = match buffer.as_ref() {
-            //     ArrayBufferType2::List(list_buf) => list_buf,
-            //     _ => return Err(DbError::new("Expected list buffer")),
-            // };
+            let list = ListBuffer::downcast_execution_format(buffer)?.into_selection_format()?;
+            let sel_idx = list.selection.get(row_idx).unwrap();
+            let meta = list.buffer.metadata.as_slice()[sel_idx];
 
-            // let meta = list_buf.metadata.as_slice()[data_idx];
-            // let mut vals = Vec::with_capacity(meta.len as usize);
+            let mut vals = Vec::with_capacity(meta.len as usize);
 
-            // for child_idx in meta.offset..(meta.offset + meta.len) {
-            //     let v = get_value_inner(
-            //         &m.datatype,
-            //         &list_buf.child_buffer,
-            //         &list_buf.child_validity,
-            //         child_idx as usize,
-            //         child_idx as usize,
-            //     )?;
-            //     vals.push(v);
-            // }
+            for child_idx in meta.offset..(meta.offset + meta.len) {
+                let val = get_physical_value(
+                    &m.datatype,
+                    &list.buffer.child.validity,
+                    &list.buffer.child.buffer,
+                    child_idx as usize,
+                )?;
+                vals.push(val);
+            }
 
-            // Ok(BorrowedScalarValue::List(vals))
+            Ok(BorrowedScalarValue::List(vals))
         }
 
         other => not_implemented!("get value for scalar type: {other:?}"),
@@ -624,6 +622,7 @@ fn get_physical_value<'a>(
 
 fn set_physical_value(
     value: &BorrowedScalarValue,
+    datatype: &DataType,
     validity: &mut Validity,
     buffer: &mut AnyArrayBuffer,
     row_idx: usize,
@@ -738,47 +737,7 @@ fn set_physical_value(
             set_value_inner::<PhysicalBinary>(buffer, val, row_idx)?;
         }
         BorrowedScalarValue::List(val) => {
-            // TODO: Needs unit tests.
-            // TODO: List stuff needs a lot of polish.
-
-            unimplemented!()
-
-            // let list_buf = buffer.get_list_buffer_mut()?;
-
-            // // Ensure we have enough space to push.
-            // if list_buf.current_offset >= list_buf.logical_len() {
-            //     list_buf.try_reserve_child_buffers(val.len())?;
-            // } else {
-            //     let rem_cap = list_buf.logical_len() - list_buf.current_offset;
-            //     if val.len() > rem_cap {
-            //         // Resize the secondary buffers.
-            //         list_buf.try_reserve_child_buffers(val.len() - rem_cap)?;
-            //     }
-            // }
-
-            // let child_buffer = &mut list_buf.child_buffer;
-            // let child_validity = list_buf.child_validity.try_as_mut()?;
-
-            // // We should have enough capacity now, insert our values.
-            // for (child_offset, val) in (list_buf.current_offset..).zip(val) {
-            //     // Lists can't contain selections.
-            //     let logical_idx = child_offset;
-            //     let data_idx = child_offset;
-
-            //     set_value_inner(val, child_buffer, child_validity, logical_idx, data_idx)?;
-            // }
-
-            // let start_offset = list_buf.current_offset;
-            // list_buf.current_offset += val.len();
-
-            // // Set metadata point to new list.
-            // PhysicalList::get_addressable_mut(buffer)?.put(
-            //     data_idx,
-            //     &ListItemMetadata {
-            //         offset: start_offset as i32,
-            //         len: val.len() as i32,
-            //     },
-            // );
+            set_list_value_raw(datatype, validity, buffer, val, row_idx)?
         }
         BorrowedScalarValue::Struct(_) => not_implemented!("set value for struct"),
     }

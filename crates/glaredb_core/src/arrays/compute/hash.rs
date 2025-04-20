@@ -5,6 +5,7 @@ use glaredb_error::{DbError, Result, not_implemented};
 use half::f16;
 
 use crate::arrays::array::Array;
+use crate::arrays::array::array_buffer::{AnyArrayBuffer, ArrayBufferDowncast, ListBuffer};
 use crate::arrays::array::execution_format::ExecutionFormat;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -31,6 +32,7 @@ use crate::arrays::array::physical_type::{
     UntypedNull,
 };
 use crate::arrays::array::selection::Selection;
+use crate::arrays::array::validity::Validity;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
 use crate::util::iter::IntoExactSizeIterator;
@@ -102,7 +104,7 @@ pub fn hash_array(
     sel: impl IntoExactSizeIterator<Item = usize>,
     hashes: &mut [u64],
 ) -> Result<()> {
-    hash_inner::<OverwriteHash>(arr, arr.datatype(), sel, hashes)
+    hash_inner::<OverwriteHash>(arr.datatype(), &arr.validity, &arr.data, sel, hashes)
 }
 
 /// Hashes multiple arrays at once, combining each row's hash into a single hash
@@ -125,9 +127,9 @@ where
         let sel = sel.clone();
         let datatype = arr.datatype();
         if idx == 0 {
-            hash_inner::<OverwriteHash>(arr, datatype, sel, hashes)?;
+            hash_inner::<OverwriteHash>(datatype, &arr.validity, &arr.data, sel, hashes)?;
         } else {
-            hash_inner::<CombineHash>(arr, datatype, sel, hashes)?;
+            hash_inner::<CombineHash>(datatype, &arr.validity, &arr.data, sel, hashes)?;
         }
     }
 
@@ -135,8 +137,9 @@ where
 }
 
 fn hash_inner<H>(
-    arr: &Array,
     datatype: &DataType,
+    validity: &Validity,
+    buffer: &AnyArrayBuffer,
     sel: impl IntoExactSizeIterator<Item = usize>,
     hashes: &mut [u64],
 ) -> Result<()>
@@ -144,24 +147,30 @@ where
     H: SetHashOp,
 {
     match datatype.physical_type() {
-        PhysicalType::UntypedNull => hash_typed_inner::<PhysicalUntypedNull, H>(arr, sel, hashes),
-        PhysicalType::Boolean => hash_typed_inner::<PhysicalBool, H>(arr, sel, hashes),
-        PhysicalType::Int8 => hash_typed_inner::<PhysicalI8, H>(arr, sel, hashes),
-        PhysicalType::Int16 => hash_typed_inner::<PhysicalI16, H>(arr, sel, hashes),
-        PhysicalType::Int32 => hash_typed_inner::<PhysicalI32, H>(arr, sel, hashes),
-        PhysicalType::Int64 => hash_typed_inner::<PhysicalI64, H>(arr, sel, hashes),
-        PhysicalType::Int128 => hash_typed_inner::<PhysicalI128, H>(arr, sel, hashes),
-        PhysicalType::UInt8 => hash_typed_inner::<PhysicalU8, H>(arr, sel, hashes),
-        PhysicalType::UInt16 => hash_typed_inner::<PhysicalU16, H>(arr, sel, hashes),
-        PhysicalType::UInt32 => hash_typed_inner::<PhysicalU32, H>(arr, sel, hashes),
-        PhysicalType::UInt64 => hash_typed_inner::<PhysicalU64, H>(arr, sel, hashes),
-        PhysicalType::UInt128 => hash_typed_inner::<PhysicalU128, H>(arr, sel, hashes),
-        PhysicalType::Float16 => hash_typed_inner::<PhysicalF16, H>(arr, sel, hashes),
-        PhysicalType::Float32 => hash_typed_inner::<PhysicalF32, H>(arr, sel, hashes),
-        PhysicalType::Float64 => hash_typed_inner::<PhysicalF64, H>(arr, sel, hashes),
-        PhysicalType::Interval => hash_typed_inner::<PhysicalInterval, H>(arr, sel, hashes),
-        PhysicalType::Utf8 => hash_typed_inner::<PhysicalUtf8, H>(arr, sel, hashes),
-        PhysicalType::Binary => hash_typed_inner::<PhysicalBinary, H>(arr, sel, hashes),
+        PhysicalType::UntypedNull => {
+            hash_typed_inner::<PhysicalUntypedNull, H>(validity, buffer, sel, hashes)
+        }
+        PhysicalType::Boolean => hash_typed_inner::<PhysicalBool, H>(validity, buffer, sel, hashes),
+        PhysicalType::Int8 => hash_typed_inner::<PhysicalI8, H>(validity, buffer, sel, hashes),
+        PhysicalType::Int16 => hash_typed_inner::<PhysicalI16, H>(validity, buffer, sel, hashes),
+        PhysicalType::Int32 => hash_typed_inner::<PhysicalI32, H>(validity, buffer, sel, hashes),
+        PhysicalType::Int64 => hash_typed_inner::<PhysicalI64, H>(validity, buffer, sel, hashes),
+        PhysicalType::Int128 => hash_typed_inner::<PhysicalI128, H>(validity, buffer, sel, hashes),
+        PhysicalType::UInt8 => hash_typed_inner::<PhysicalU8, H>(validity, buffer, sel, hashes),
+        PhysicalType::UInt16 => hash_typed_inner::<PhysicalU16, H>(validity, buffer, sel, hashes),
+        PhysicalType::UInt32 => hash_typed_inner::<PhysicalU32, H>(validity, buffer, sel, hashes),
+        PhysicalType::UInt64 => hash_typed_inner::<PhysicalU64, H>(validity, buffer, sel, hashes),
+        PhysicalType::UInt128 => hash_typed_inner::<PhysicalU128, H>(validity, buffer, sel, hashes),
+        PhysicalType::Float16 => hash_typed_inner::<PhysicalF16, H>(validity, buffer, sel, hashes),
+        PhysicalType::Float32 => hash_typed_inner::<PhysicalF32, H>(validity, buffer, sel, hashes),
+        PhysicalType::Float64 => hash_typed_inner::<PhysicalF64, H>(validity, buffer, sel, hashes),
+        PhysicalType::Interval => {
+            hash_typed_inner::<PhysicalInterval, H>(validity, buffer, sel, hashes)
+        }
+        PhysicalType::Utf8 => hash_typed_inner::<PhysicalUtf8, H>(validity, buffer, sel, hashes),
+        PhysicalType::Binary => {
+            hash_typed_inner::<PhysicalBinary, H>(validity, buffer, sel, hashes)
+        }
         PhysicalType::List => {
             let inner_type = match datatype {
                 DataType::List(m) => &m.datatype,
@@ -169,7 +178,7 @@ where
                     return Err(DbError::new(format!("Expected list datatype, got {other}")));
                 }
             };
-            hash_list_array::<H>(arr, inner_type, sel, hashes)
+            hash_list_array::<H>(validity, buffer, inner_type, sel, hashes)
         }
 
         other => not_implemented!("hash physical type: {other:?}"),
@@ -177,7 +186,8 @@ where
 }
 
 fn hash_typed_inner<S, H>(
-    arr: &Array,
+    validity: &Validity,
+    buffer: &AnyArrayBuffer,
     sel: impl IntoExactSizeIterator<Item = usize>,
     hashes: &mut [u64],
 ) -> Result<()>
@@ -189,18 +199,18 @@ where
     let sel = sel.into_exact_size_iter();
     debug_assert_eq!(sel.len(), hashes.len());
 
-    match S::downcast_execution_format(&arr.data)? {
+    match S::downcast_execution_format(buffer)? {
         ExecutionFormat::Flat(buf) => {
             let values = S::addressable(buf);
 
-            if arr.validity.all_valid() {
+            if validity.all_valid() {
                 for (idx, hash) in sel.zip(hashes.iter_mut()) {
                     let v = values.get(idx).unwrap();
                     H::set_hash(hash, DefaultHasher::hash(v));
                 }
             } else {
                 for (idx, hash) in sel.zip(hashes.iter_mut()) {
-                    if arr.validity.is_valid(idx) {
+                    if validity.is_valid(idx) {
                         let v = values.get(idx).unwrap();
                         H::set_hash(hash, DefaultHasher::hash(v));
                     } else {
@@ -212,7 +222,7 @@ where
         ExecutionFormat::Selection(buf) => {
             let values = S::addressable(buf.buffer);
 
-            if arr.validity.all_valid() {
+            if validity.all_valid() {
                 for (idx, hash) in sel.zip(hashes.iter_mut()) {
                     let sel_idx = buf.selection.get(idx).unwrap();
                     let v = values.get(sel_idx).unwrap();
@@ -220,7 +230,7 @@ where
                 }
             } else {
                 for (idx, hash) in sel.zip(hashes.iter_mut()) {
-                    if arr.validity.is_valid(idx) {
+                    if validity.is_valid(idx) {
                         let sel_idx = buf.selection.get(idx).unwrap();
                         let v = values.get(sel_idx).unwrap();
                         H::set_hash(hash, DefaultHasher::hash(v));
@@ -236,7 +246,8 @@ where
 }
 
 fn hash_list_array<H>(
-    arr: &Array,
+    validity: &Validity,
+    buffer: &AnyArrayBuffer,
     inner_type: &DataType,
     sel: impl IntoExactSizeIterator<Item = usize>,
     hashes: &mut [u64],
@@ -244,47 +255,49 @@ fn hash_list_array<H>(
 where
     H: SetHashOp,
 {
-    not_implemented!("hash array")
-    // let list_buf = arr.array_buffer.get_list_buffer()?;
-    // let metadatas = list_buf.metadata.as_slice();
+    let list = ListBuffer::downcast_execution_format(buffer)?.into_selection_format()?;
+    let metadata = list.buffer.metadata.as_slice();
 
-    // // TODO: Would be cool not having to allocate here.
-    // let mut child_hashes = Vec::new();
+    // TODO: Would be cool not having to allocate here.
+    let mut child_hashes = Vec::new();
 
-    // for (idx, hash) in sel.into_exact_size_iter().zip(hashes.iter_mut()) {
-    //     let sel_idx = arr.selection.get(idx).unwrap();
+    for (idx, hash) in sel.into_exact_size_iter().zip(hashes) {
+        if !validity.is_valid(idx) {
+            H::set_hash(hash, DefaultHasher::NULL_HASH);
+            continue;
+        }
 
-    //     if arr.validity.is_valid(sel_idx) {
-    //         let meta = metadatas.get(sel_idx).unwrap();
+        let sel_idx = list.selection.get(idx).unwrap();
 
-    //         child_hashes.clear();
-    //         child_hashes.resize(meta.len as usize, 0);
+        let meta = metadata[sel_idx];
 
-    //         let sel = Selection::linear(meta.offset as usize, meta.len as usize);
-    //         let child = FlattenedArray::from_buffer_and_validity(
-    //             &list_buf.child_buffer,
-    //             &list_buf.child_validity,
-    //         )?;
-    //         hash_inner::<H>(child, inner_type, sel, &mut child_hashes)?;
+        child_hashes.clear();
+        child_hashes.resize(meta.len as usize, 0);
 
-    //         // Now combine all the child hashes into one.
-    //         let mut child_hash = match child_hashes.first() {
-    //             Some(hash) => *hash,
-    //             None => DefaultHasher::NULL_HASH, // Default to null hash if working with empty list.
-    //         };
+        let selection = Selection::linear(meta.offset as usize, meta.len as usize);
+        hash_inner::<H>(
+            inner_type,
+            &list.buffer.child.validity,
+            &list.buffer.child.buffer,
+            selection,
+            &mut child_hashes,
+        )?;
 
-    //         for &hash2 in &child_hashes {
-    //             child_hash = DefaultHasher::combine_hashes(child_hash, hash2);
-    //         }
+        // Now combine all the child hashes into one.
+        let mut child_hash = match child_hashes.first() {
+            Some(hash) => *hash,
+            None => DefaultHasher::NULL_HASH, // Default to null hash if working with empty list.
+        };
 
-    //         // Set main hash.
-    //         H::set_hash(hash, child_hash);
-    //     } else {
-    //         H::set_hash(hash, DefaultHasher::NULL_HASH);
-    //     }
-    // }
+        for &hash2 in &child_hashes {
+            child_hash = DefaultHasher::combine_hashes(child_hash, hash2);
+        }
 
-    // Ok(())
+        // Set main hash.
+        H::set_hash(hash, child_hash);
+    }
+
+    Ok(())
 }
 
 /// Helper trait for hashing values.

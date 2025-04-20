@@ -5,6 +5,7 @@ use half::f16;
 
 use super::BorrowedScalarValue;
 use super::interval::Interval;
+use crate::arrays::array::physical_type::UntypedNull;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NullableValue<'a, V: ?Sized> {
@@ -21,6 +22,25 @@ pub trait ScalarValueUnwrap: Debug + Sync + Send + Clone + Copy + 'static {
     fn try_unwrap<'a>(
         scalar: &'a BorrowedScalarValue<'a>,
     ) -> Result<NullableValue<'a, Self::StorageType>>;
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct UnwrapUntypedNull;
+
+impl ScalarValueUnwrap for UnwrapUntypedNull {
+    type StorageType = UntypedNull;
+
+    fn try_unwrap<'a>(
+        scalar: &'a BorrowedScalarValue<'a>,
+    ) -> Result<NullableValue<'a, Self::StorageType>> {
+        match scalar {
+            BorrowedScalarValue::Null => Ok(NullableValue::Null),
+            other => Err(DbError::new(format!(
+                "Cannot unwrap '{other}' using {:?}",
+                Self,
+            ))),
+        }
+    }
 }
 
 macro_rules! impl_single_variant {
@@ -47,6 +67,8 @@ macro_rules! impl_single_variant {
     };
 }
 
+impl_single_variant!(bool, UnwrapBool, Boolean);
+
 impl_single_variant!(i8, UnwrapI8, Int8);
 impl_single_variant!(i16, UnwrapI16, Int16);
 
@@ -54,6 +76,7 @@ impl_single_variant!(u8, UnwrapU8, UInt8);
 impl_single_variant!(u16, UnwrapU16, UInt16);
 impl_single_variant!(u32, UnwrapU32, UInt32);
 impl_single_variant!(u64, UnwrapU64, UInt64);
+impl_single_variant!(u128, UnwrapU128, UInt128);
 
 impl_single_variant!(f16, UnwrapF16, Float16);
 impl_single_variant!(f32, UnwrapF32, Float32);
@@ -100,6 +123,27 @@ impl ScalarValueUnwrap for UnwrapI64 {
             BorrowedScalarValue::Date64(v) => Ok(NullableValue::Value(&v)),
             BorrowedScalarValue::Decimal64(v) => Ok(NullableValue::Value(&v.value)),
             BorrowedScalarValue::Timestamp(v) => Ok(NullableValue::Value(&v.value)),
+            other => Err(DbError::new(format!(
+                "Cannot unwrap '{other}' using {:?}",
+                Self,
+            ))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnwrapI128;
+
+impl ScalarValueUnwrap for UnwrapI128 {
+    type StorageType = i128;
+
+    fn try_unwrap<'a>(
+        scalar: &'a BorrowedScalarValue<'a>,
+    ) -> Result<NullableValue<'a, Self::StorageType>> {
+        match scalar {
+            BorrowedScalarValue::Null => Ok(NullableValue::Null),
+            BorrowedScalarValue::Int128(v) => Ok(NullableValue::Value(&v)),
+            BorrowedScalarValue::Decimal128(v) => Ok(NullableValue::Value(&v.value)),
             other => Err(DbError::new(format!(
                 "Cannot unwrap '{other}' using {:?}",
                 Self,

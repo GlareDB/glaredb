@@ -67,13 +67,15 @@ where
 {
     fn prepare_for_chunk(&mut self, chunk_size: usize, compression: Compression) -> Result<()> {
         self.page_reader.chunk_offset = 0;
-        self.page_reader.chunk.resize_uninit(chunk_size)?;
+        // SAFETY: We'll be writing `chunk_size` bytes to this chunks before
+        // reading it.
+        unsafe { self.page_reader.chunk.resize_uninit(chunk_size)? };
         self.page_reader.codec = create_codec(compression, &CodecOptions::default())?;
         Ok(())
     }
 
     fn chunk_buf_mut(&mut self) -> &mut [u8] {
-        unsafe { self.page_reader.chunk.as_slice_mut() }
+        self.page_reader.chunk.as_slice_mut()
     }
 
     fn read(&mut self, output: &mut Array, count: usize) -> Result<()> {
