@@ -38,7 +38,7 @@ impl BinaryNonNullUpdater {
         }
 
         let format1 = S1::downcast_execution_format(&array1.data)?;
-        let format2 = S2::downcast_execution_format(&array1.data)?;
+        let format2 = S2::downcast_execution_format(&array2.data)?;
 
         match (format1, format2) {
             (ExecutionFormat::Flat(a1), ExecutionFormat::Flat(a2)) => {
