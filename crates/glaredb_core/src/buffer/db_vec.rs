@@ -29,6 +29,14 @@ impl<T> DbVec<T> {
         DbVec { raw, len: 0 }
     }
 
+    /// Creates a new vec with at least the given capacity.
+    ///
+    /// The length is initially zero.
+    pub fn with_capacity(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
+        let raw = RawDbVec::new_uninit(manager, capacity)?;
+        Ok(DbVec { raw, len: 0 })
+    }
+
     /// Create a new vec backed by the given manager with an initial capacity of
     /// _at least_ `len`.
     ///
@@ -40,7 +48,7 @@ impl<T> DbVec<T> {
     /// This provides an important guarantee that dropping this vec with any
     /// number of uninitialized elements avoids touching uninitialized memory
     /// during drop.
-    pub fn new_uninit(manager: &impl AsRawBufferManager, len: usize) -> Result<Self>
+    pub unsafe fn new_uninit(manager: &impl AsRawBufferManager, len: usize) -> Result<Self>
     where
         T: Copy,
     {
@@ -67,8 +75,8 @@ impl<T> DbVec<T> {
         T: Copy,
     {
         let src = slice.as_ref();
-        let mut vec = Self::new_uninit(manager, src.len())?;
-        let dest = unsafe { vec.as_slice_mut() };
+        let mut vec = unsafe { Self::new_uninit(manager, src.len())? };
+        let dest = vec.as_slice_mut();
         dest.copy_from_slice(src);
 
         Ok(vec)
@@ -82,8 +90,8 @@ impl<T> DbVec<T> {
         let iter = iter.into_exact_size_iter();
         let len = iter.len();
 
-        let mut vec = Self::new_uninit(manager, len)?;
-        let slice = unsafe { vec.as_slice_mut() };
+        let mut vec = unsafe { Self::new_uninit(manager, len)? };
+        let slice = vec.as_slice_mut();
 
         for (src, dest) in iter.zip(slice) {
             *dest = src
@@ -97,8 +105,8 @@ impl<T> DbVec<T> {
     where
         T: Copy,
     {
-        let mut vec = Self::new_uninit(manager, len)?;
-        let s = unsafe { vec.as_slice_mut() };
+        let mut vec = unsafe { Self::new_uninit(manager, len)? };
+        let s = vec.as_slice_mut();
         s.fill(val);
 
         Ok(vec)
@@ -127,11 +135,72 @@ impl<T> DbVec<T> {
         self.len
     }
 
-    // pub const fn capacity(&self) -> usize {
-    //     self.raw.capacity()
-    // }
+    pub unsafe fn set_len(&mut self, len: usize) {
+        assert!(len <= self.raw.capacity);
+        self.len = len;
+    }
 
-    pub fn resize(&mut self, new_len: usize) -> Result<()> {
+    pub const fn capacity(&self) -> usize {
+        self.raw.capacity()
+    }
+
+    /// Pushes elements onto this vector, reserving additional capacity if
+    /// needed.
+    pub fn push_slice(&mut self, slice: &[T]) -> Result<()>
+    where
+        T: Copy,
+    {
+        let additional = slice.len();
+        let new_len = self.len + additional;
+
+        if new_len > self.capacity() {
+            // Double strategy, but at least fit new_len.
+            let cap = self.capacity();
+            let double = cap.saturating_mul(2);
+            let new_cap = usize::max(double, new_len);
+            self.raw.resize(new_cap)?;
+        }
+
+        // Copy slice to tail.
+        unsafe {
+            let base = self.raw.ptr().as_ptr().cast::<T>();
+            let dest = base.add(self.len);
+            std::ptr::copy_nonoverlapping(slice.as_ptr(), dest, additional);
+        }
+
+        self.len = new_len;
+        Ok(())
+    }
+
+    /// Pushes elements onto this vector, erroring if this vector cannot fit the
+    /// additional elements without reallocating.
+    pub fn push_slice_no_resize(&mut self, slice: &[T]) -> Result<()>
+    where
+        T: Copy,
+    {
+        let additional = slice.len();
+        let new_len = self.len + additional;
+
+        if new_len > self.capacity() {
+            return Err(
+                DbError::new("Cannot push elements onto vector without resizing")
+                    .with_field("curr_cap", self.capacity())
+                    .with_field("need", new_len),
+            );
+        }
+
+        // Copy slice to tail.
+        unsafe {
+            let base = self.raw.ptr().as_ptr().cast::<T>();
+            let dest = base.add(self.len);
+            std::ptr::copy_nonoverlapping(slice.as_ptr(), dest, additional);
+        }
+
+        self.len = new_len;
+        Ok(())
+    }
+
+    pub unsafe fn resize_uninit(&mut self, new_len: usize) -> Result<()> {
         if new_len == self.len {
             return Ok(());
         }
@@ -184,7 +253,7 @@ impl<T> DbVec<T> {
     ///   previously.
     /// - There should exist no mutable references to anything within this vec's
     ///   allocation (by creating it from a raw pointer).
-    pub unsafe fn as_slice(&self) -> &[T] {
+    pub fn as_slice(&self) -> &[T] {
         debug_assert!(self.len() <= self.raw.capacity());
         let ptr = self.raw.ptr().cast().as_ptr();
         unsafe { std::slice::from_raw_parts(ptr, self.len) }
@@ -192,7 +261,8 @@ impl<T> DbVec<T> {
 
     /// Get a mutable slice reference for elements in the vec.
     ///
-    /// This can be used to initialize the memory.
+    /// This can be used to initialize the memory after manually setting the
+    /// lenth via `set_len`.
     ///
     /// # Safety
     ///
@@ -200,13 +270,13 @@ impl<T> DbVec<T> {
     ///   previously.
     /// - There should exist no mutable or immutable references to anything
     ///   within this vec's allocation (by creating it from a raw pointer).
-    pub unsafe fn as_slice_mut(&mut self) -> &mut [T] {
+    pub fn as_slice_mut(&mut self) -> &mut [T] {
         debug_assert!(self.len() <= self.raw.capacity());
         let ptr = self.raw.ptr().cast().as_ptr();
         unsafe { std::slice::from_raw_parts_mut(ptr, self.len) }
     }
 
-    pub unsafe fn as_uninit_slice_mut(&mut self) -> &mut [MaybeUninit<T>] {
+    unsafe fn as_uninit_slice_mut(&mut self) -> &mut [MaybeUninit<T>] {
         debug_assert!(self.len() <= self.raw.capacity());
         let ptr = self.raw.ptr().as_ptr();
         unsafe { std::slice::from_raw_parts_mut(ptr, self.len) }
@@ -342,15 +412,15 @@ mod tests {
         })
         .unwrap();
 
-        let s = unsafe { vec.as_slice() };
+        let s = vec.as_slice();
 
         assert_eq!(&[1, 2, 3, 4], s);
     }
 
     #[test]
     fn vec_zero_len() {
-        let vec = DbVec::<i32>::new_uninit(&DefaultBufferManager, 0).unwrap();
-        let s = unsafe { vec.as_slice() };
+        let vec = unsafe { DbVec::<i32>::new_uninit(&DefaultBufferManager, 0).unwrap() };
+        let s = vec.as_slice();
         assert!(s.is_empty());
     }
 
@@ -360,7 +430,7 @@ mod tests {
         struct Zst;
 
         let vec = DbVec::with_value(&DefaultBufferManager, 4, Zst).unwrap();
-        let s = unsafe { vec.as_slice() };
+        let s = vec.as_slice();
 
         assert_eq!(&[Zst, Zst, Zst, Zst], s);
     }
@@ -396,50 +466,50 @@ mod tests {
         // Ensure we can drop uninitialized elements without attempting to
         // access unitialized memory.
 
-        let v = DbVec::<i8>::new_uninit(&DefaultBufferManager, 12).unwrap();
+        let v = unsafe { DbVec::<i8>::new_uninit(&DefaultBufferManager, 12).unwrap() };
         std::mem::drop(v);
-        let v = DbVec::<i16>::new_uninit(&DefaultBufferManager, 12).unwrap();
+        let v = unsafe { DbVec::<i16>::new_uninit(&DefaultBufferManager, 12).unwrap() };
         std::mem::drop(v);
-        let v = DbVec::<i32>::new_uninit(&DefaultBufferManager, 12).unwrap();
+        let v = unsafe { DbVec::<i32>::new_uninit(&DefaultBufferManager, 12).unwrap() };
         std::mem::drop(v);
-        let v = DbVec::<i64>::new_uninit(&DefaultBufferManager, 12).unwrap();
+        let v = unsafe { DbVec::<i64>::new_uninit(&DefaultBufferManager, 12).unwrap() };
         std::mem::drop(v);
-        let v = DbVec::<f32>::new_uninit(&DefaultBufferManager, 12).unwrap();
+        let v = unsafe { DbVec::<f32>::new_uninit(&DefaultBufferManager, 12).unwrap() };
         std::mem::drop(v);
-        let v = DbVec::<f64>::new_uninit(&DefaultBufferManager, 12).unwrap();
+        let v = unsafe { DbVec::<f64>::new_uninit(&DefaultBufferManager, 12).unwrap() };
         std::mem::drop(v);
     }
 
     #[test]
     fn vec_resize_grow() {
         let mut vec = DbVec::with_value(&DefaultBufferManager, 4, 3).unwrap();
-        vec.resize(6).unwrap();
+        unsafe { vec.resize_uninit(6).unwrap() };
 
-        let s = unsafe { vec.as_slice_mut() };
+        let s = vec.as_slice_mut();
         s[4..].fill(55);
 
-        let s = unsafe { vec.as_slice() };
+        let s = vec.as_slice();
         assert_eq!(&[3, 3, 3, 3, 55, 55], s);
     }
 
     #[test]
     fn vec_resize_grow_from_zero() {
-        let mut vec = DbVec::<i32>::new_uninit(&DefaultBufferManager, 0).unwrap();
-        vec.resize(6).unwrap();
+        let mut vec = unsafe { DbVec::<i32>::new_uninit(&DefaultBufferManager, 0).unwrap() };
+        unsafe { vec.resize_uninit(6).unwrap() };
 
-        let s = unsafe { vec.as_slice_mut() };
+        let s = vec.as_slice_mut();
         s.fill(4);
 
-        let s = unsafe { vec.as_slice() };
+        let s = vec.as_slice();
         assert_eq!(&[4, 4, 4, 4, 4, 4], s);
     }
 
     #[test]
     fn vec_resize_shrink() {
         let mut vec = DbVec::with_value(&DefaultBufferManager, 4, 3).unwrap();
-        vec.resize(2).unwrap();
+        unsafe { vec.resize_uninit(2).unwrap() };
 
-        let s = unsafe { vec.as_slice() };
+        let s = vec.as_slice();
         assert_eq!(&[3, 3], s);
     }
 
@@ -462,7 +532,7 @@ mod tests {
             count: drop_count.clone(),
         })
         .unwrap();
-        vec.resize(1).unwrap();
+        unsafe { vec.resize_uninit(1).unwrap() };
 
         assert_eq!(3, drop_count.load(atomic::Ordering::Relaxed));
     }
@@ -480,7 +550,7 @@ mod tests {
         // - Ensuring there's no shared slice reference.
         // - Ensuring the pointers don't overlap during writes.
 
-        let mut b = DbVec::<i64>::new_uninit(&DefaultBufferManager, 2).unwrap();
+        let mut b = unsafe { DbVec::<i64>::new_uninit(&DefaultBufferManager, 2).unwrap() };
 
         let p1 = b.as_mut_ptr();
         let p2 = unsafe { b.as_mut_ptr().byte_add(8) };
@@ -488,7 +558,7 @@ mod tests {
         unsafe { p1.cast::<i64>().write_unaligned(18) };
         unsafe { p2.cast::<i64>().write_unaligned(1024) };
 
-        let s = unsafe { b.as_slice() };
+        let s = b.as_slice();
         assert_eq!(&[18, 1024], s);
     }
 
@@ -499,13 +569,29 @@ mod tests {
     }
 
     #[test]
-    fn contains_addr() {
-        let b = DbVec::<i64>::new_uninit(&DefaultBufferManager, 2).unwrap();
+    fn vec_contains_addr() {
+        let b = unsafe { DbVec::<i64>::new_uninit(&DefaultBufferManager, 2).unwrap() };
 
         let addr = b.as_ptr().addr();
 
         assert!(b.contains_addr(addr));
         assert!(b.contains_addr(addr + 8));
         assert!(!b.contains_addr(addr + 16));
+    }
+
+    #[test]
+    fn vec_push_slice() {
+        let mut vec = DbVec::<i32>::new_from_slice(&DefaultBufferManager, &[1, 2, 3]).unwrap();
+        vec.push_slice(&[4, 5, 6]).unwrap();
+
+        let s = vec.as_slice();
+        assert_eq!(&[1, 2, 3, 4, 5, 6], s);
+    }
+
+    #[test]
+    fn vec_push_no_resize() {
+        let mut vec = DbVec::<i32>::empty(&DefaultBufferManager);
+        assert_eq!(0, vec.capacity());
+        vec.push_slice_no_resize(&[1, 2, 3]).unwrap_err();
     }
 }

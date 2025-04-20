@@ -43,10 +43,7 @@ impl OwnedReadBuffer {
     #[allow(unused)]
     pub fn from_bytes(manager: &impl AsRawBufferManager, bs: impl AsRef<[u8]>) -> Result<Self> {
         let bs = bs.as_ref();
-        let mut buffer = DbVec::<u8>::new_uninit(manager, bs.len())?;
-
-        let dest = unsafe { buffer.as_slice_mut() };
-        dest.copy_from_slice(bs);
+        let mut buffer = DbVec::<u8>::new_from_slice(manager, bs)?;
 
         let curr = buffer.as_ptr();
         let remaining = bs.len();
@@ -124,7 +121,7 @@ impl OwnedReadBuffer {
     ///
     /// All shared buffers created from this buffer are no longer valid to use.
     pub unsafe fn reset_and_resize(&mut self, size: usize) -> Result<()> {
-        self.buffer.resize(size)?;
+        self.buffer.resize_uninit(size)?;
         self.curr = self.buffer.as_ptr();
         debug_assert!(self.buffer.capacity() >= size);
         self.remaining = size;

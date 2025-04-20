@@ -30,8 +30,8 @@ impl DeltaLengthByteArrayDecoder {
         let num_values = dec.total_values();
 
         // TODO: Not Nop
-        let mut lengths = DbVec::<i32>::new_uninit(&DefaultBufferManager, num_values)?;
-        let len_slice = unsafe { lengths.as_slice_mut() };
+        let mut lengths = unsafe { DbVec::<i32>::new_uninit(&DefaultBufferManager, num_values)? };
+        let len_slice = lengths.as_slice_mut();
         dec.read(len_slice)?;
 
         let cursor = dec.try_into_cursor()?;
@@ -62,7 +62,7 @@ impl DeltaLengthByteArrayDecoder {
         let (data, validity) = output.data_and_validity_mut();
         let mut data = PhysicalBinary::get_addressable_mut(data)?;
 
-        let lens = unsafe { self.lengths.as_slice() };
+        let lens = self.lengths.as_slice();
 
         match definitions {
             Definitions::HasDefinitions { levels, max } => {

@@ -1,9 +1,7 @@
 use std::any::Any;
-use std::fmt;
-use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use glaredb_error::{DbError, Result, not_implemented};
+use glaredb_error::{DbError, Result};
 use half::f16;
 
 use super::execution_format::{
@@ -12,44 +10,13 @@ use super::execution_format::{
     SelectionFormat,
     SelectionFormatMut,
 };
-use super::physical_type::{
-    BinaryViewAddressable,
-    BinaryViewAddressableMut,
-    StringViewAddressable,
-    StringViewAddressableMut,
-};
 use super::selection::Selection;
-use super::validity::Validity;
-use crate::arrays::array::physical_type::{
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI8,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI128,
-    PhysicalInterval,
-    PhysicalType,
-    PhysicalU8,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU128,
-    PhysicalUntypedNull,
-    PhysicalUtf8,
-    ScalarStorage,
-    UntypedNull,
-};
+use crate::arrays::array::physical_type::{PhysicalType, UntypedNull};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::string::{MAX_INLINE_LEN, StringView};
 use crate::buffer::buffer_manager::AsRawBufferManager;
 use crate::buffer::db_vec::DbVec;
-use crate::buffer::raw::RawBuffer;
-use crate::buffer::typed::TypedBuffer;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArrayBufferType {
@@ -125,7 +92,7 @@ where
             }
             ArrayBufferType::Dictionary => {
                 let dictionary = DictionaryBuffer::downcast_ref(buffer)?;
-                let selection = Selection::slice(unsafe { dictionary.selection.as_slice() });
+                let selection = Selection::slice(dictionary.selection.as_slice());
                 let child_buffer = Self::downcast_ref(&dictionary.buffer)?;
 
                 Ok(ExecutionFormat::Selection(SelectionFormat {
@@ -158,7 +125,7 @@ where
             }
             ArrayBufferType::Dictionary => {
                 let dictionary = DictionaryBuffer::downcast_mut(buffer)?;
-                let selection = Selection::slice(unsafe { dictionary.selection.as_slice() });
+                let selection = Selection::slice(dictionary.selection.as_slice());
                 let child_buffer = Self::downcast_mut(&mut dictionary.buffer)?;
 
                 Ok(ExecutionFormatMut::Selection(SelectionFormatMut {
@@ -411,7 +378,7 @@ where
 {
     pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
         Ok(ScalarBuffer {
-            buffer: DbVec::new_uninit(manager, capacity)?,
+            buffer: unsafe { DbVec::new_uninit(manager, capacity)? },
         })
     }
 }
@@ -435,7 +402,7 @@ pub struct StringBuffer {
 
 impl StringBuffer {
     pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
-        let metadata = DbVec::new_uninit(manager, capacity)?;
+        let metadata = unsafe { DbVec::new_uninit(manager, capacity)? };
         let buffer = StringViewBuffer::with_capacity(manager, 0)?;
 
         Ok(StringBuffer { metadata, buffer })
@@ -529,7 +496,7 @@ pub struct StringViewBuffer {
 
 impl StringViewBuffer {
     pub fn with_capacity(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
-        let buffer = DbVec::new_uninit(manager, capacity)?;
+        let buffer = DbVec::with_capacity(manager, capacity)?;
         Ok(StringViewBuffer {
             bytes_filled: 0,
             buffer,
@@ -549,7 +516,7 @@ impl StringViewBuffer {
             debug_assert_eq!(0, reference.buffer_idx);
             let offset = reference.offset as usize;
             let len = reference.len as usize;
-            unsafe { &self.buffer.as_slice()[offset..(offset + len)] }
+            &self.buffer.as_slice()[offset..(offset + len)]
         }
     }
 
@@ -562,7 +529,7 @@ impl StringViewBuffer {
             debug_assert_eq!(0, reference.buffer_idx);
             let offset = reference.offset as usize;
             let len = reference.len as usize;
-            unsafe { &mut self.buffer.as_slice_mut()[offset..(offset + len)] }
+            &mut self.buffer.as_slice_mut()[offset..(offset + len)]
         }
     }
 
@@ -571,6 +538,8 @@ impl StringViewBuffer {
         if value.len() <= MAX_INLINE_LEN {
             Ok(StringView::new_inline(value))
         } else {
+            // TODO: push method
+
             let remaining = self.buffer.len() - self.bytes_filled;
             if remaining < value.len() {
                 let additional = value.len() - remaining;
@@ -579,14 +548,17 @@ impl StringViewBuffer {
                     self.bytes_filled,
                     additional,
                 );
-                self.buffer.resize(self.buffer.len() + reserve_amount)?;
+                unsafe {
+                    self.buffer
+                        .resize_uninit(self.buffer.len() + reserve_amount)?
+                };
             }
 
             let offset = self.bytes_filled;
             self.bytes_filled += value.len();
 
             // Copy entire value to buffer.
-            let buf = unsafe { &mut self.buffer.as_slice_mut()[offset..(offset + value.len())] };
+            let buf = &mut self.buffer.as_slice_mut()[offset..(offset + value.len())];
             buf.copy_from_slice(value);
 
             Ok(StringView::new_reference(value, 0, offset as i32))

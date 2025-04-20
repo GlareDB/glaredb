@@ -67,7 +67,7 @@ where
 {
     fn prepare_for_chunk(&mut self, chunk_size: usize, compression: Compression) -> Result<()> {
         self.page_reader.chunk_offset = 0;
-        self.page_reader.chunk.resize(chunk_size)?;
+        self.page_reader.chunk.resize_uninit(chunk_size)?;
         self.page_reader.codec = create_codec(compression, &CodecOptions::default())?;
         Ok(())
     }

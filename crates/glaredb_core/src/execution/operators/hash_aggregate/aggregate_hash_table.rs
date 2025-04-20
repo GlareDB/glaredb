@@ -230,7 +230,7 @@ impl AggregateHashTable {
         groups_and_hashes.push(hashes_arr);
 
         let cap = self.directory.capacity();
-        let entries = unsafe { self.directory.entries.as_slice_mut() };
+        let entries = self.directory.entries.as_slice_mut();
 
         while !needs_insert.is_empty() {
             new_groups.clear();
@@ -594,9 +594,9 @@ impl Directory {
             DbVec::with_value(&DefaultBufferManager, new_capacity, Entry::EMPTY)?,
         );
 
-        let entries = unsafe { self.entries.as_slice_mut() };
+        let entries = self.entries.as_slice_mut();
 
-        for old_ent in unsafe { old_entries.as_slice() } {
+        for old_ent in old_entries.as_slice() {
             if !old_ent.is_occupied() {
                 continue;
             }

@@ -13,7 +13,6 @@ use array_buffer::{
     ConstantBuffer,
     DictionaryBuffer,
     EmptyBuffer,
-    ListItemMetadata,
 };
 use execution_format::{ExecutionFormat, ExecutionFormatMut};
 use glaredb_error::{DbError, Result, not_implemented};
@@ -33,7 +32,6 @@ use physical_type::{
     PhysicalI64,
     PhysicalI128,
     PhysicalInterval,
-    PhysicalList,
     PhysicalType,
     PhysicalU8,
     PhysicalU16,
