@@ -156,7 +156,7 @@ where
             self.decompressed_page
                 .reset_and_resize(metadata.uncompressed_page_size as usize)?
         };
-        let slice = unsafe { self.chunk.as_slice() };
+        let slice = self.chunk.as_slice();
         let src = slice
             .get(self.chunk_offset..(self.chunk_offset + metadata.compressed_page_size as usize))
             .ok_or_else(|| DbError::new("chunk buffer not large enough to read from"))?;
@@ -201,7 +201,7 @@ where
                 .reset_and_resize(metadata.uncompressed_page_size as usize)?
         };
 
-        let slice = unsafe { self.chunk.as_slice() };
+        let slice = self.chunk.as_slice();
         let src = slice
             .get(self.chunk_offset..(self.chunk_offset + metadata.compressed_page_size as usize))
             .ok_or_else(|| DbError::new("chunk buffer not large enough to read from"))?;
@@ -513,7 +513,7 @@ where
 
     /// Gets a slice of the given size from the chunk starting at an offset.
     fn chunk_slice(chunk: &DbVec<u8>, offset: usize, size: usize) -> Result<&[u8]> {
-        let slice = unsafe { chunk.as_slice() };
+        let slice = chunk.as_slice();
         let bs = slice
             .get(offset..(offset + size))
             .ok_or_else(|| DbError::new("chunk buffer not large enough to read from"))?;
@@ -523,7 +523,7 @@ where
 
     /// Reads the header at the current position.
     fn read_header(&mut self) -> Result<format::PageHeader> {
-        let slice = unsafe { self.chunk.as_slice() };
+        let slice = self.chunk.as_slice();
         let buf = &slice[self.chunk_offset..];
         let mut prot = TCompactSliceInputProtocol::new(buf);
         let page_header = format::PageHeader::read_from_in_protocol(&mut prot)

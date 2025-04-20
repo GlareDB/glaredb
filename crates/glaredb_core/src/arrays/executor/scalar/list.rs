@@ -1,12 +1,7 @@
-use glaredb_error::{DbError, Result, not_implemented};
+use glaredb_error::{Result, not_implemented};
 
 use crate::arrays::array::Array;
-use crate::arrays::array::physical_type::{
-    Addressable,
-    AddressableMut,
-    MutableScalarStorage,
-    ScalarStorage,
-};
+use crate::arrays::array::physical_type::{MutableScalarStorage, ScalarStorage};
 use crate::arrays::executor::OutBuffer;
 use crate::util::iter::IntoExactSizeIterator;
 
@@ -34,11 +29,11 @@ impl BinaryListReducer {
     ///
     /// `S1` and `S2` should be for the inner type within the list.
     pub fn reduce<S1, S2, R, O>(
-        array1: &Array,
-        sel1: impl IntoExactSizeIterator<Item = usize>,
-        array2: &Array,
-        sel2: impl IntoExactSizeIterator<Item = usize>,
-        out: OutBuffer,
+        _array1: &Array,
+        _sel1: impl IntoExactSizeIterator<Item = usize>,
+        _array2: &Array,
+        _sel2: impl IntoExactSizeIterator<Item = usize>,
+        _out: OutBuffer,
     ) -> Result<()>
     where
         S1: ScalarStorage,

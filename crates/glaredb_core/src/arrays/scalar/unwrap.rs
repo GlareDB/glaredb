@@ -56,7 +56,7 @@ macro_rules! impl_single_variant {
             ) -> Result<NullableValue<'a, Self::StorageType>> {
                 match scalar {
                     BorrowedScalarValue::Null => Ok(NullableValue::Null),
-                    BorrowedScalarValue::$variant(v) => Ok(NullableValue::Value(&v)),
+                    BorrowedScalarValue::$variant(v) => Ok(NullableValue::Value(v)),
                     other => Err(DbError::new(format!(
                         "Cannot unwrap '{other}' using {:?}",
                         Self,
@@ -98,8 +98,8 @@ impl ScalarValueUnwrap for UnwrapI32 {
     ) -> Result<NullableValue<'a, Self::StorageType>> {
         match scalar {
             BorrowedScalarValue::Null => Ok(NullableValue::Null),
-            BorrowedScalarValue::Int32(v) => Ok(NullableValue::Value(&v)),
-            BorrowedScalarValue::Date32(v) => Ok(NullableValue::Value(&v)),
+            BorrowedScalarValue::Int32(v) => Ok(NullableValue::Value(v)),
+            BorrowedScalarValue::Date32(v) => Ok(NullableValue::Value(v)),
             other => Err(DbError::new(format!(
                 "Cannot unwrap '{other}' using {:?}",
                 Self,
@@ -119,8 +119,8 @@ impl ScalarValueUnwrap for UnwrapI64 {
     ) -> Result<NullableValue<'a, Self::StorageType>> {
         match scalar {
             BorrowedScalarValue::Null => Ok(NullableValue::Null),
-            BorrowedScalarValue::Int64(v) => Ok(NullableValue::Value(&v)),
-            BorrowedScalarValue::Date64(v) => Ok(NullableValue::Value(&v)),
+            BorrowedScalarValue::Int64(v) => Ok(NullableValue::Value(v)),
+            BorrowedScalarValue::Date64(v) => Ok(NullableValue::Value(v)),
             BorrowedScalarValue::Decimal64(v) => Ok(NullableValue::Value(&v.value)),
             BorrowedScalarValue::Timestamp(v) => Ok(NullableValue::Value(&v.value)),
             other => Err(DbError::new(format!(
@@ -142,7 +142,7 @@ impl ScalarValueUnwrap for UnwrapI128 {
     ) -> Result<NullableValue<'a, Self::StorageType>> {
         match scalar {
             BorrowedScalarValue::Null => Ok(NullableValue::Null),
-            BorrowedScalarValue::Int128(v) => Ok(NullableValue::Value(&v)),
+            BorrowedScalarValue::Int128(v) => Ok(NullableValue::Value(v)),
             BorrowedScalarValue::Decimal128(v) => Ok(NullableValue::Value(&v.value)),
             other => Err(DbError::new(format!(
                 "Cannot unwrap '{other}' using {:?}",

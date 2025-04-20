@@ -100,7 +100,8 @@ impl BinaryExecutor {
         }
     }
 
-    fn execute_with_selection<'a, S1, S2, O, Op>(
+    #[allow(clippy::too_many_arguments)]
+    fn execute_with_selection<S1, S2, O, Op>(
         validity1: &Validity,
         array1: SelectionFormat<'_, S1::ArrayBuffer>,
         sel1: impl IntoExactSizeIterator<Item = usize>,

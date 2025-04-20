@@ -234,7 +234,7 @@ impl Array {
             ArrayBufferType::Dictionary => {
                 let dictionary = DictionaryBuffer::downcast_mut(&mut other.data)?;
                 let buffer = ConstantBuffer {
-                    row_idx: unsafe { dictionary.selection.as_slice()[row] }, // Use row relative to the selection.
+                    row_idx: dictionary.selection.as_slice()[row], // Use row relative to the selection.
                     len,
                     buffer: dictionary.buffer.make_shared_and_clone(),
                 };
@@ -340,8 +340,8 @@ impl Array {
 
                 // Select the selection.
                 let mut new_sel = DbVec::<usize>::new_from_iter(manager, sel_cloned)?;
-                let src = unsafe { dictionary.selection.as_slice() };
-                let dest = unsafe { new_sel.as_slice_mut() };
+                let src = dictionary.selection.as_slice();
+                let dest = new_sel.as_slice_mut();
                 for v in dest {
                     *v = src[*v];
                 }
@@ -452,9 +452,8 @@ fn make_array_buffer_shared_and_clone(data: &mut AnyArrayBuffer) -> Result<AnyAr
 
             // TODO: Pass in manager.
             // TODO: Or possibly wrap the selection in an `OwnedOrShared`.
-            let selection = DbVec::new_from_slice(&DefaultBufferManager, unsafe {
-                dictionary.selection.as_slice()
-            })?;
+            let selection =
+                DbVec::new_from_slice(&DefaultBufferManager, dictionary.selection.as_slice())?;
 
             Ok(AnyArrayBuffer::new_unique(DictionaryBuffer {
                 selection,
@@ -480,10 +479,7 @@ fn get_physical_value<'a>(
         return Ok(BorrowedScalarValue::Null);
     }
 
-    fn get_value_inner<'a, S>(
-        buffer: &'a AnyArrayBuffer,
-        row_idx: usize,
-    ) -> Result<&'a S::StorageType>
+    fn get_value_inner<S>(buffer: &AnyArrayBuffer, row_idx: usize) -> Result<&S::StorageType>
     where
         S: ScalarStorage,
     {
@@ -633,7 +629,7 @@ fn set_physical_value(
     }
     validity.set_valid(row_idx);
 
-    fn set_value_inner<'a, S>(
+    fn set_value_inner<S>(
         buffer: &mut AnyArrayBuffer,
         val: &S::StorageType,
         row_idx: usize,

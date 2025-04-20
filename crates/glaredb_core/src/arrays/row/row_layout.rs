@@ -155,7 +155,7 @@ impl RowLayout {
                 PhysicalType::Binary | PhysicalType::Utf8 => {
                     let buffer = PhysicalBinary::downcast_execution_format(&array.data)?
                         .into_selection_format()?;
-                    let metadatas = unsafe { buffer.buffer.metadata.as_slice() };
+                    let metadatas = buffer.buffer.metadata.as_slice();
 
                     for (output, row) in rows.into_iter().enumerate() {
                         if array.validity.is_valid(row) {

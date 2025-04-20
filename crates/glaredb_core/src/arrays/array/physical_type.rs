@@ -518,7 +518,9 @@ impl ScalarStorage for PhysicalList {
     type ArrayBuffer = ListBuffer;
 
     fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
-        unimplemented!()
+        PrimitiveSlice {
+            slice: buffer.metadata.as_slice(),
+        }
     }
 }
 
@@ -526,6 +528,8 @@ impl MutableScalarStorage for PhysicalList {
     type AddressableMut<'a> = PrimitiveSliceMut<'a, Self::StorageType>;
 
     fn addressable_mut(buffer: &mut Self::ArrayBuffer) -> Self::AddressableMut<'_> {
-        unimplemented!()
+        PrimitiveSliceMut {
+            slice: buffer.metadata.as_slice_mut(),
+        }
     }
 }

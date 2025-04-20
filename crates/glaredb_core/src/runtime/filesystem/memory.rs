@@ -114,7 +114,7 @@ impl File for MemoryFileHandle {
         let rem = self.buffer.len() - self.pos;
         let count = usize::min(buf.len(), rem);
 
-        let slice = unsafe { self.buffer.as_slice() };
+        let slice = self.buffer.as_slice();
         let src = &slice[self.pos..(self.pos + count)];
         let dest = &mut buf[..count];
         dest.copy_from_slice(src);

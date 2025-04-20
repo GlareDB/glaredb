@@ -2,9 +2,7 @@ use std::task::Context;
 
 use glaredb_error::{Result, not_implemented};
 
-use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
-use crate::arrays::compute::copy::copy_rows_raw;
 use crate::arrays::datatype::DataTypeId;
 use crate::arrays::field::{ColumnSchema, Field};
 use crate::execution::operators::{ExecutionProperties, PollExecute, PollFinalize};
@@ -44,8 +42,10 @@ pub struct UnnestListOperatorState {}
 #[derive(Debug)]
 pub struct UnnestListPartitionState {
     /// Current row in the input.
+    #[allow(unused)]
     current_row: usize,
     /// Current position in the list.
+    #[allow(unused)]
     current_list_pos: usize,
 }
 
@@ -95,9 +95,9 @@ impl TableExecuteFunction for UnnestList {
     fn poll_execute(
         _cx: &mut Context,
         _operator_state: &Self::OperatorState,
-        state: &mut Self::PartitionState,
-        input: &mut Batch,
-        output: &mut Batch,
+        _state: &mut Self::PartitionState,
+        _input: &mut Batch,
+        _output: &mut Batch,
     ) -> Result<PollExecute> {
         // TODO: This could ensure the child buffers are shared from the input.
         // Currently we just copy them.

@@ -14,7 +14,6 @@ use super::selection::Selection;
 use super::validity::Validity;
 use crate::arrays::array::physical_type::{PhysicalType, UntypedNull};
 use crate::arrays::datatype::DataType;
-use crate::arrays::scalar::BorrowedScalarValue;
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::string::{MAX_INLINE_LEN, StringView};
 use crate::buffer::buffer_manager::AsRawBufferManager;
@@ -358,20 +357,21 @@ where
         }
     }
 
-    /// Get an reference to the inner T.
-    pub fn as_ref(&self) -> &T {
-        match &self.0 {
-            OwnedOrSharedPtr::Unique(v) => v.as_ref(),
-            OwnedOrSharedPtr::Shared(v) => v.as_ref(),
-            OwnedOrSharedPtr::Uninit => unreachable!(),
-        }
-    }
-
     /// If this is still unique, get a mutable reference to it or return None.
     pub fn as_mut(&mut self) -> Option<&mut T> {
         match &mut self.0 {
             OwnedOrSharedPtr::Unique(b) => Some(&mut *b),
             OwnedOrSharedPtr::Shared(_) => None,
+            OwnedOrSharedPtr::Uninit => unreachable!(),
+        }
+    }
+}
+
+impl<T: ?Sized> AsRef<T> for OwnedOrShared<T> {
+    fn as_ref(&self) -> &T {
+        match &self.0 {
+            OwnedOrSharedPtr::Unique(v) => v.as_ref(),
+            OwnedOrSharedPtr::Shared(v) => v.as_ref(),
             OwnedOrSharedPtr::Uninit => unreachable!(),
         }
     }
@@ -390,7 +390,7 @@ impl ArrayBuffer for EmptyBuffer {
         0
     }
 
-    fn resize(&mut self, len: usize) -> Result<()> {
+    fn resize(&mut self, _len: usize) -> Result<()> {
         Err(DbError::new("Cannot resize Empty buffer"))
     }
 }
@@ -511,7 +511,7 @@ impl ArrayBuffer for ListBuffer {
 pub struct StructBuffer {}
 
 impl StructBuffer {
-    pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
+    pub fn try_new(_manager: &impl AsRawBufferManager, _capacity: usize) -> Result<Self> {
         not_implemented!("create struct buffer")
     }
 }
@@ -524,7 +524,7 @@ impl ArrayBuffer for StructBuffer {
         0
     }
 
-    fn resize(&mut self, len: usize) -> Result<()> {
+    fn resize(&mut self, _len: usize) -> Result<()> {
         not_implemented!("resize struct buffer")
     }
 }
@@ -545,7 +545,7 @@ impl ArrayBuffer for DictionaryBuffer {
         self.selection.len()
     }
 
-    fn resize(&mut self, len: usize) -> Result<()> {
+    fn resize(&mut self, _len: usize) -> Result<()> {
         // TODO: Why not?
         Err(DbError::new("Cannot resize dictionary buffer"))
     }

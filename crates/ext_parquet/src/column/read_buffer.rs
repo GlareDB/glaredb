@@ -121,7 +121,7 @@ impl OwnedReadBuffer {
     ///
     /// All shared buffers created from this buffer are no longer valid to use.
     pub unsafe fn reset_and_resize(&mut self, size: usize) -> Result<()> {
-        self.buffer.resize_uninit(size)?;
+        unsafe { self.buffer.resize_uninit(size)? };
         self.curr = self.buffer.as_ptr();
         debug_assert!(self.buffer.capacity() >= size);
         self.remaining = size;

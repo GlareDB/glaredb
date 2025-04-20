@@ -406,6 +406,7 @@ mod tests {
             "heapafterheapafter",
             "alongerstringdontinlinealongerstringdontinline",
         ]);
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]

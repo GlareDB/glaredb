@@ -129,7 +129,7 @@ impl TernaryExecutor {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn execute_selection_format<'a, S1, S2, S3, O, Op>(
+    fn execute_selection_format<S1, S2, S3, O, Op>(
         validity1: &Validity,
         array1: SelectionFormat<'_, S1::ArrayBuffer>,
         sel1: impl IntoExactSizeIterator<Item = usize>,

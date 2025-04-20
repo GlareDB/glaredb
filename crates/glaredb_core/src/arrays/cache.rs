@@ -44,7 +44,7 @@ pub struct BufferCache {
 }
 
 impl BufferCache {
-    pub fn new(manager: &impl BufferManager, capacity: usize, num_arrays: usize) -> Self {
+    pub fn new(manager: &impl BufferManager, capacity: usize, _num_arrays: usize) -> Self {
         BufferCache {
             manager: RawBufferManager::from_buffer_manager(manager),
             capacity,

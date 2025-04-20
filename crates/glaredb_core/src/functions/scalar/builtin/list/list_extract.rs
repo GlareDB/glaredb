@@ -1,28 +1,6 @@
-use glaredb_error::{DbError, Result, not_implemented};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
-use crate::arrays::array::physical_type::{
-    MutableScalarStorage,
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI8,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI128,
-    PhysicalInterval,
-    PhysicalType,
-    PhysicalU8,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU128,
-    PhysicalUntypedNull,
-    PhysicalUtf8,
-};
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::list_extract::list_extract;
 use crate::arrays::datatype::{DataType, DataTypeId};
@@ -33,7 +11,6 @@ use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
-use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_LIST_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
     name: "list_extract",

@@ -1,3 +1,5 @@
+#![allow(clippy::len_without_is_empty)]
+
 use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 
@@ -40,9 +42,11 @@ impl<T> DbVec<T> {
     /// Create a new vec backed by the given manager with an initial capacity of
     /// _at least_ `len`.
     ///
-    /// This will allocate memory needed, however that memory will remain
-    /// unitilialized. It's important that a value is written to a given index
-    /// before it's read.
+    /// # Safety
+    ///
+    /// This will allocate memory needed with the length set to that initial
+    /// capacity, however that memory will remain unitilialized. It's important
+    /// that a value is written to a given index before it's read.
     ///
     /// This is only allowed for `Copy` types as they cannot implement `Drop`.
     /// This provides an important guarantee that dropping this vec with any
@@ -135,6 +139,14 @@ impl<T> DbVec<T> {
         self.len
     }
 
+    /// Sets the length arbitrarily.
+    ///
+    /// Panics if the length is greater than the vecs actual capacity.
+    ///
+    /// # Safety
+    ///
+    /// This may set the length to allow accessing unitialized memory. It's
+    /// important that that memory gets written to prior to reading it.
     pub unsafe fn set_len(&mut self, len: usize) {
         assert!(len <= self.raw.capacity);
         self.len = len;
@@ -200,6 +212,12 @@ impl<T> DbVec<T> {
         Ok(())
     }
 
+    /// Resizes the vec to `new_len`, reallocating if needed.
+    ///
+    /// # Safety
+    ///
+    /// When reallocating, memory beyond the original length of the vec may be
+    /// unitialized. It's important to write to the memory prior to reading it.
     pub unsafe fn resize_uninit(&mut self, new_len: usize) -> Result<()> {
         if new_len == self.len {
             return Ok(());
