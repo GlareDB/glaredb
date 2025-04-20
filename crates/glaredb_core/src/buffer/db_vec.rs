@@ -4,6 +4,7 @@ use std::ptr::NonNull;
 use glaredb_error::{DbError, Result};
 
 use super::buffer_manager::{AsRawBufferManager, RawBufferManager, Reservation};
+use crate::util::iter::IntoExactSizeIterator;
 use crate::util::marker::PhantomCovariant;
 
 /// A `Vec` type that's backed by a buffer manager.
@@ -69,6 +70,24 @@ impl<T> DbVec<T> {
         let mut vec = Self::new_uninit(manager, src.len())?;
         let dest = unsafe { vec.as_slice_mut() };
         dest.copy_from_slice(src);
+
+        Ok(vec)
+    }
+
+    pub fn new_from_iter<I>(manager: &impl AsRawBufferManager, iter: I) -> Result<Self>
+    where
+        I: IntoExactSizeIterator<Item = T>,
+        I::Item: Copy,
+    {
+        let iter = iter.into_exact_size_iter();
+        let len = iter.len();
+
+        let mut vec = Self::new_uninit(manager, len)?;
+        let slice = unsafe { vec.as_slice_mut() };
+
+        for (src, dest) in iter.zip(slice) {
+            *dest = src
+        }
 
         Ok(vec)
     }

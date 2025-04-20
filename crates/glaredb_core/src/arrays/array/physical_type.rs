@@ -1,6 +1,6 @@
 use std::fmt::{self, Debug};
 
-use glaredb_error::{DbError, Result, not_implemented};
+use glaredb_error::{DbError, Result};
 use glaredb_proto::ProtoConv;
 use half::f16;
 
@@ -16,6 +16,7 @@ use super::array_buffer::{
     StringBuffer,
     StringViewBuffer,
 };
+use super::execution_format::ExecutionFormat;
 use crate::arrays::array::array_buffer::ArrayBufferType2;
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::string::StringView;
@@ -241,6 +242,14 @@ pub trait ScalarStorage: Debug + Default + Sync + Send + Clone + Copy + 'static 
         ArrayBufferDowncast::downcast_ref(buffer.buffer.as_ref())
     }
 
+    fn downcast_execution_format(
+        buffer: &AnyArrayBuffer,
+    ) -> Result<ExecutionFormat<'_, Self::ArrayBuffer>> {
+        ArrayBufferDowncast::downcast_execution_format(buffer)
+    }
+
+    fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_>;
+
     /// Get addressable storage for indexing into the array.
     fn get_addressable(buffer: &AnyArrayBuffer) -> Result<Self::Addressable<'_>>;
 }
@@ -253,7 +262,7 @@ pub trait MutableScalarStorage: ScalarStorage {
     }
 
     /// Get mutable addressable storage for the array.
-    fn get_addressable_mut(buffer: &mut ArrayBuffer2) -> Result<Self::AddressableMut<'_>>;
+    fn get_addressable_mut(buffer: &mut AnyArrayBuffer) -> Result<Self::AddressableMut<'_>>;
 }
 
 /// Marker type representing a null value without an associated type.
@@ -276,6 +285,12 @@ macro_rules! generate_primitive {
 
             type ArrayBuffer = ScalarBuffer<$prim>;
 
+            fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
+                PrimitiveSlice {
+                    slice: unsafe { buffer.buffer.as_slice() },
+                }
+            }
+
             fn get_addressable(buffer: &AnyArrayBuffer) -> Result<Self::Addressable<'_>> {
                 let buf = &Self::buffer_downcast_ref(buffer)?.buffer;
                 Ok(PrimitiveSlice {
@@ -287,9 +302,13 @@ macro_rules! generate_primitive {
         impl MutableScalarStorage for $name {
             type AddressableMut<'a> = PrimitiveSliceMut<'a, Self::StorageType>;
 
-            fn get_addressable_mut(buffer: &mut ArrayBuffer2) -> Result<Self::AddressableMut<'_>> {
-                let s = buffer.get_scalar_buffer_mut()?.try_as_slice_mut::<Self>()?;
-                Ok(PrimitiveSliceMut { slice: s })
+            fn get_addressable_mut(
+                buffer: &mut AnyArrayBuffer,
+            ) -> Result<Self::AddressableMut<'_>> {
+                let buf = &mut Self::buffer_downcast_mut(buffer)?.buffer;
+                Ok(PrimitiveSliceMut {
+                    slice: unsafe { buf.as_slice_mut() },
+                })
             }
         }
     };
@@ -431,6 +450,14 @@ impl ScalarStorage for PhysicalBinary {
 
     type ArrayBuffer = StringBuffer;
 
+    fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
+        let metadata = unsafe { buffer.metadata.as_slice() };
+        BinaryViewAddressable {
+            metadata,
+            buffer: &buffer.buffer,
+        }
+    }
+
     fn get_addressable(buffer: &AnyArrayBuffer) -> Result<Self::Addressable<'_>> {
         let buf = Self::buffer_downcast_ref(buffer)?;
         let metadata = unsafe { buf.metadata.as_slice() };
@@ -445,12 +472,14 @@ impl ScalarStorage for PhysicalBinary {
 impl MutableScalarStorage for PhysicalBinary {
     type AddressableMut<'a> = BinaryViewAddressableMut<'a>;
 
-    fn get_addressable_mut(buffer: &mut ArrayBuffer2) -> Result<Self::AddressableMut<'_>> {
-        unimplemented!()
-        // match buffer.as_mut() {
-        //     ArrayBufferType2::String(buf) => buf.try_as_binary_view_mut(),
-        //     _ => Err(DbError::new("invalid buffer type, expected string buffer")),
-        // }
+    fn get_addressable_mut(buffer: &mut AnyArrayBuffer) -> Result<Self::AddressableMut<'_>> {
+        let buf = Self::buffer_downcast_mut(buffer)?;
+        let metadata = unsafe { buf.metadata.as_slice_mut() };
+
+        Ok(BinaryViewAddressableMut {
+            metadata,
+            buffer: &mut buf.buffer,
+        })
     }
 }
 
@@ -464,6 +493,14 @@ impl ScalarStorage for PhysicalUtf8 {
     type Addressable<'a> = StringViewAddressable<'a>;
 
     type ArrayBuffer = StringBuffer;
+
+    fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
+        let metadata = unsafe { buffer.metadata.as_slice() };
+        StringViewAddressable {
+            metadata,
+            buffer: &buffer.buffer,
+        }
+    }
 
     fn get_addressable(buffer: &AnyArrayBuffer) -> Result<Self::Addressable<'_>> {
         let buf = Self::buffer_downcast_ref(buffer)?;
@@ -479,12 +516,14 @@ impl ScalarStorage for PhysicalUtf8 {
 impl MutableScalarStorage for PhysicalUtf8 {
     type AddressableMut<'a> = StringViewAddressableMut<'a>;
 
-    fn get_addressable_mut(buffer: &mut ArrayBuffer2) -> Result<Self::AddressableMut<'_>> {
-        unimplemented!()
-        // match buffer.as_mut() {
-        //     ArrayBufferType2::String(buf) => buf.try_as_string_view_mut(),
-        //     _ => Err(DbError::new("invalid buffer type, expected string buffer")),
-        // }
+    fn get_addressable_mut(buffer: &mut AnyArrayBuffer) -> Result<Self::AddressableMut<'_>> {
+        let buf = Self::buffer_downcast_mut(buffer)?;
+        let metadata = unsafe { buf.metadata.as_slice_mut() };
+
+        Ok(StringViewAddressableMut {
+            metadata,
+            buffer: &mut buf.buffer,
+        })
     }
 }
 
@@ -498,6 +537,10 @@ impl ScalarStorage for PhysicalList {
     type Addressable<'a> = PrimitiveSlice<'a, Self::StorageType>;
 
     type ArrayBuffer = ListBuffer;
+
+    fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
+        unimplemented!()
+    }
 
     fn get_addressable(buffer: &AnyArrayBuffer) -> Result<Self::Addressable<'_>> {
         unimplemented!()
@@ -514,7 +557,7 @@ impl ScalarStorage for PhysicalList {
 impl MutableScalarStorage for PhysicalList {
     type AddressableMut<'a> = PrimitiveSliceMut<'a, Self::StorageType>;
 
-    fn get_addressable_mut(buffer: &mut ArrayBuffer2) -> Result<Self::AddressableMut<'_>> {
+    fn get_addressable_mut(buffer: &mut AnyArrayBuffer) -> Result<Self::AddressableMut<'_>> {
         unimplemented!()
         // match buffer.as_mut() {
         //     ArrayBufferType2::List(buf) => {

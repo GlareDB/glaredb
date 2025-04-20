@@ -10,10 +10,14 @@ use std::fmt::Debug;
 use array_buffer::{
     AnyArrayBuffer,
     ArrayBuffer2,
+    ArrayBufferDowncast,
+    ArrayBufferType,
     ArrayBufferType2,
     ConstantBuffer,
     ConstantBuffer2,
+    DictionaryBuffer,
     DictionayBuffer2,
+    EmptyBuffer,
     ListItemMetadata,
     ScalarBuffer2,
     SharedOrOwned,
@@ -50,12 +54,14 @@ use validity::Validity;
 
 use super::cache::MaybeCache;
 use super::compute::copy::copy_rows_array;
+use super::scalar::ScalarValue;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::BorrowedScalarValue;
 use crate::arrays::scalar::decimal::{Decimal64Scalar, Decimal128Scalar};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::timestamp::TimestampScalar;
 use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager, DefaultBufferManager};
+use crate::buffer::db_vec::DbVec;
 use crate::buffer::typed::TypedBuffer;
 use crate::util::convert::TryAsMut;
 use crate::util::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};
@@ -196,7 +202,7 @@ impl Array {
         other: &mut Self,
         row: usize,
         len: usize,
-        cache: &mut impl MaybeCache,
+        _cache: &mut impl MaybeCache,
     ) -> Result<()> {
         if self.datatype != other.datatype {
             return Err(
@@ -212,47 +218,43 @@ impl Array {
             Validity::new_all_invalid(len)
         };
 
-        match other.data.as_mut() {
-            ArrayBufferType2::Constant(constant) => {
-                let child_buffer = constant.child_buffer.make_shared_and_clone();
-                let buffer = ConstantBuffer2 {
-                    row_reference: constant.row_reference, // Use existing row reference since it points to the right row already.
+        match other.data.buffer_type {
+            ArrayBufferType::Constant => {
+                let constant = ConstantBuffer::downcast_mut(&mut other.data.buffer)?;
+                let buffer = ConstantBuffer {
+                    row_idx: constant.row_idx, // Use existing row reference since it points to the right row already.
                     len,
-                    child_buffer: Box::new(child_buffer),
+                    buffer: constant.buffer.make_shared_and_clone(),
                 };
 
                 self.validity = new_validity;
-                let existing = std::mem::replace(&mut self.data, ArrayBuffer2::new(buffer));
-                cache.maybe_cache(existing);
-
+                // TODO: Cache buffer
+                self.data = AnyArrayBuffer::new_unique(buffer);
                 Ok(())
             }
-            ArrayBufferType2::Dictionary(dict) => {
-                let child_buffer = dict.child_buffer.make_shared_and_clone();
-                let buffer = ConstantBuffer2 {
-                    row_reference: dict.selection.as_slice()[row], // Ensure row reference relative to selection.
+            ArrayBufferType::Dictionary => {
+                let dictionary = DictionaryBuffer::downcast_mut(&mut other.data.buffer)?;
+                let buffer = ConstantBuffer {
+                    row_idx: unsafe { dictionary.selection.as_slice()[row] }, // Use row relative to the selection.
                     len,
-                    child_buffer: Box::new(child_buffer),
+                    buffer: dictionary.buffer.make_shared_and_clone(),
                 };
 
                 self.validity = new_validity;
-                let existing = std::mem::replace(&mut self.data, ArrayBuffer2::new(buffer));
-                cache.maybe_cache(existing);
-
+                // TODO: Cache buffer
+                self.data = AnyArrayBuffer::new_unique(buffer);
                 Ok(())
             }
             _ => {
-                let child_buffer = other.data.make_shared_and_clone();
-                let buffer = ConstantBuffer2 {
-                    row_reference: row,
+                let buffer = ConstantBuffer {
+                    row_idx: row,
                     len,
-                    child_buffer: Box::new(child_buffer),
+                    buffer: other.data.make_shared_and_clone(),
                 };
 
                 self.validity = new_validity;
-                let existing = std::mem::replace(&mut self.data, ArrayBuffer2::new(buffer));
-                cache.maybe_cache(existing);
-
+                // TODO: Cache buffer
+                self.data = AnyArrayBuffer::new_unique(buffer);
                 Ok(())
             }
         }
@@ -305,11 +307,13 @@ impl Array {
 
     /// If we should flatten the array prior to executing an operation on the
     /// array.
+    // TODO: Remove
     pub fn should_flatten_for_execution(&self) -> bool {
-        matches!(
-            self.data.as_ref(),
-            ArrayBufferType2::Constant(_) | ArrayBufferType2::Dictionary(_)
-        )
+        false
+        // matches!(
+        //     self.data.as_ref(),
+        //     ArrayBufferType2::Constant(_) | ArrayBufferType2::Dictionary(_)
+        // )
     }
 
     pub fn flatten(&self) -> Result<FlattenedArray> {
@@ -324,8 +328,9 @@ impl Array {
         manager: &impl AsRawBufferManager,
         selection: impl IntoExactSizeIterator<Item = usize> + Clone,
     ) -> Result<()> {
-        match self.data.as_mut() {
-            ArrayBufferType2::Constant(constant) => {
+        match self.data.buffer_type {
+            ArrayBufferType::Constant => {
+                let constant = ConstantBuffer::downcast_mut(&mut self.data.buffer)?;
                 // Selection on top of constant array produces an array of just
                 // the same constants. Just update the len to match the
                 // selection.
@@ -343,20 +348,14 @@ impl Array {
 
                 Ok(())
             }
-            ArrayBufferType2::Dictionary(dict) => {
+            ArrayBufferType::Dictionary => {
+                let dictionary = DictionaryBuffer::downcast_mut(&mut self.data.buffer)?;
                 // Select the existing selection. We don't want to deal with
                 // nested dictionaries.
                 let sel_cloned = selection.clone().into_exact_size_iter();
-                let new_len = sel_cloned.len();
 
-                let mut new_sel = TypedBuffer::try_with_capacity(manager, new_len)?;
-                let existing_sel = dict.selection.as_slice();
-
-                for (sel_idx, dest) in sel_cloned.zip(new_sel.as_slice_mut()) {
-                    *dest = existing_sel[sel_idx];
-                }
-
-                dict.selection = SharedOrOwned::owned(new_sel);
+                let new_sel = DbVec::<usize>::new_from_iter(manager, sel_cloned)?;
+                dictionary.selection = new_sel;
 
                 // Update validity based on selection.
                 self.validity = self.validity.select(selection);
@@ -364,32 +363,19 @@ impl Array {
                 Ok(())
             }
             _ => {
-                // For everything else, make array buffer a dictionary.
-                let selection = selection.into_exact_size_iter();
-                let mut buf_selection = TypedBuffer::try_with_capacity(manager, selection.len())?;
+                // For everything else, create a dictionary.
+                let dict_sel = DbVec::<usize>::new_from_iter(manager, selection.clone())?;
+                let validity = self.validity.select(selection);
 
-                for (src, dest) in selection.zip(buf_selection.as_slice_mut()) {
-                    *dest = src;
-                }
-
-                // Update validity.
-                self.validity = self
-                    .validity
-                    .select(buf_selection.as_slice().iter().copied());
-
-                // Some hacks below, just swapping around the buffers.
-                let uninit = ArrayBuffer2::new(ScalarBuffer2 {
-                    physical_type: PhysicalType::UntypedNull,
-                    raw: SharedOrOwned::Uninit,
-                });
-                let buffer = std::mem::replace(&mut self.data, uninit);
-
-                let dictionary = DictionayBuffer2 {
-                    selection: SharedOrOwned::owned(buf_selection),
-                    child_buffer: Box::new(buffer),
+                let buffer =
+                    std::mem::replace(&mut self.data, AnyArrayBuffer::new_unique(EmptyBuffer));
+                let dict = DictionaryBuffer {
+                    selection: dict_sel,
+                    buffer,
                 };
 
-                self.data = ArrayBuffer2::new(dictionary);
+                self.data = AnyArrayBuffer::new_unique(dict);
+                self.validity = validity;
 
                 Ok(())
             }
@@ -432,16 +418,28 @@ impl Array {
                 .with_field("capacity", self.logical_len()));
         }
 
-        let flat = self.flatten()?;
-        let data_idx = flat.selection.get(idx).expect("Index to be in bounds");
+        if !self.validity.is_valid(idx) {
+            return Ok(ScalarValue::Null);
+        }
 
-        get_value_inner(
-            &self.datatype,
-            flat.array_buffer,
-            flat.validity,
-            idx,
-            data_idx,
-        )
+        not_implemented!("get value")
+        // let (physical_idx, data) = match self.data.buffer_type {
+        //     ArrayBufferType::Constant => {
+        //         let constant = ConstantBuffer::downcast_ref(&self.data.buffer)?;
+        //         (constant.row_idx, consant.
+        //     }
+        // }
+
+        // let flat = self.flatten()?;
+        // let data_idx = flat.selection.get(idx).expect("Index to be in bounds");
+
+        // get_value_inner(
+        //     &self.datatype,
+        //     flat.array_buffer,
+        //     flat.validity,
+        //     idx,
+        //     data_idx,
+        // )
     }
 
     /// Set a scalar value at a given index.
@@ -466,13 +464,14 @@ impl Array {
         let logical_idx = idx;
         let data_idx = idx;
 
-        set_value_inner(
-            val,
-            &mut self.data,
-            &mut self.validity,
-            logical_idx,
-            data_idx,
-        )
+        not_implemented!("set value")
+        // set_value_inner(
+        //     val,
+        //     &mut self.data,
+        //     &mut self.validity,
+        //     logical_idx,
+        //     data_idx,
+        // )
     }
 }
 
@@ -482,7 +481,7 @@ impl Array {
 /// want to deal with selections here.
 fn get_value_inner<'a>(
     datatype: &DataType,
-    buffer: &'a ArrayBuffer2,
+    buffer: &'a AnyArrayBuffer,
     validity: &Validity,
     logical_idx: usize,
     data_idx: usize,
@@ -604,26 +603,27 @@ fn get_value_inner<'a>(
             Ok(BorrowedScalarValue::Binary(v.into()))
         }
         DataType::List(m) => {
-            let list_buf = match buffer.as_ref() {
-                ArrayBufferType2::List(list_buf) => list_buf,
-                _ => return Err(DbError::new("Expected list buffer")),
-            };
+            not_implemented!("get list values")
+            // let list_buf = match buffer.as_ref() {
+            //     ArrayBufferType2::List(list_buf) => list_buf,
+            //     _ => return Err(DbError::new("Expected list buffer")),
+            // };
 
-            let meta = list_buf.metadata.as_slice()[data_idx];
-            let mut vals = Vec::with_capacity(meta.len as usize);
+            // let meta = list_buf.metadata.as_slice()[data_idx];
+            // let mut vals = Vec::with_capacity(meta.len as usize);
 
-            for child_idx in meta.offset..(meta.offset + meta.len) {
-                let v = get_value_inner(
-                    &m.datatype,
-                    &list_buf.child_buffer,
-                    &list_buf.child_validity,
-                    child_idx as usize,
-                    child_idx as usize,
-                )?;
-                vals.push(v);
-            }
+            // for child_idx in meta.offset..(meta.offset + meta.len) {
+            //     let v = get_value_inner(
+            //         &m.datatype,
+            //         &list_buf.child_buffer,
+            //         &list_buf.child_validity,
+            //         child_idx as usize,
+            //         child_idx as usize,
+            //     )?;
+            //     vals.push(v);
+            // }
 
-            Ok(BorrowedScalarValue::List(vals))
+            // Ok(BorrowedScalarValue::List(vals))
         }
 
         other => not_implemented!("get value for scalar type: {other:?}"),
@@ -639,121 +639,121 @@ fn set_value_inner(
 ) -> Result<()> {
     validity.set_valid(logical_idx);
 
-    match value {
-        BorrowedScalarValue::Null => {
-            // Use the logical index to update the validity mask. Data index is
-            // unused.
-            validity.set_invalid(logical_idx);
-        }
-        BorrowedScalarValue::Boolean(val) => {
-            PhysicalBool::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Int8(val) => {
-            PhysicalI8::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Int16(val) => {
-            PhysicalI16::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Int32(val) => {
-            PhysicalI32::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Int64(val) => {
-            PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Int128(val) => {
-            PhysicalI128::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::UInt8(val) => {
-            PhysicalU8::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::UInt16(val) => {
-            PhysicalU16::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::UInt32(val) => {
-            PhysicalU32::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::UInt64(val) => {
-            PhysicalU64::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::UInt128(val) => {
-            PhysicalU128::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Float16(val) => {
-            PhysicalF16::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Float32(val) => {
-            PhysicalF32::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Float64(val) => {
-            PhysicalF64::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Decimal64(val) => {
-            PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, &val.value);
-        }
-        BorrowedScalarValue::Decimal128(val) => {
-            PhysicalI128::get_addressable_mut(buffer)?.put(data_idx, &val.value);
-        }
-        BorrowedScalarValue::Date32(val) => {
-            PhysicalI32::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Date64(val) => {
-            PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Timestamp(val) => {
-            PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, &val.value);
-        }
-        BorrowedScalarValue::Interval(val) => {
-            PhysicalInterval::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Utf8(val) => {
-            PhysicalUtf8::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::Binary(val) => {
-            PhysicalBinary::get_addressable_mut(buffer)?.put(data_idx, val);
-        }
-        BorrowedScalarValue::List(val) => {
-            // TODO: Needs unit tests.
-            // TODO: List stuff needs a lot of polish.
+    // match value {
+    //     BorrowedScalarValue::Null => {
+    //         // Use the logical index to update the validity mask. Data index is
+    //         // unused.
+    //         validity.set_invalid(logical_idx);
+    //     }
+    //     BorrowedScalarValue::Boolean(val) => {
+    //         PhysicalBool::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Int8(val) => {
+    //         PhysicalI8::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Int16(val) => {
+    //         PhysicalI16::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Int32(val) => {
+    //         PhysicalI32::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Int64(val) => {
+    //         PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Int128(val) => {
+    //         PhysicalI128::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::UInt8(val) => {
+    //         PhysicalU8::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::UInt16(val) => {
+    //         PhysicalU16::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::UInt32(val) => {
+    //         PhysicalU32::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::UInt64(val) => {
+    //         PhysicalU64::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::UInt128(val) => {
+    //         PhysicalU128::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Float16(val) => {
+    //         PhysicalF16::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Float32(val) => {
+    //         PhysicalF32::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Float64(val) => {
+    //         PhysicalF64::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Decimal64(val) => {
+    //         PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, &val.value);
+    //     }
+    //     BorrowedScalarValue::Decimal128(val) => {
+    //         PhysicalI128::get_addressable_mut(buffer)?.put(data_idx, &val.value);
+    //     }
+    //     BorrowedScalarValue::Date32(val) => {
+    //         PhysicalI32::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Date64(val) => {
+    //         PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Timestamp(val) => {
+    //         PhysicalI64::get_addressable_mut(buffer)?.put(data_idx, &val.value);
+    //     }
+    //     BorrowedScalarValue::Interval(val) => {
+    //         PhysicalInterval::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Utf8(val) => {
+    //         PhysicalUtf8::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::Binary(val) => {
+    //         PhysicalBinary::get_addressable_mut(buffer)?.put(data_idx, val);
+    //     }
+    //     BorrowedScalarValue::List(val) => {
+    //         // TODO: Needs unit tests.
+    //         // TODO: List stuff needs a lot of polish.
 
-            let list_buf = buffer.get_list_buffer_mut()?;
+    //         let list_buf = buffer.get_list_buffer_mut()?;
 
-            // Ensure we have enough space to push.
-            if list_buf.current_offset >= list_buf.logical_len() {
-                list_buf.try_reserve_child_buffers(val.len())?;
-            } else {
-                let rem_cap = list_buf.logical_len() - list_buf.current_offset;
-                if val.len() > rem_cap {
-                    // Resize the secondary buffers.
-                    list_buf.try_reserve_child_buffers(val.len() - rem_cap)?;
-                }
-            }
+    //         // Ensure we have enough space to push.
+    //         if list_buf.current_offset >= list_buf.logical_len() {
+    //             list_buf.try_reserve_child_buffers(val.len())?;
+    //         } else {
+    //             let rem_cap = list_buf.logical_len() - list_buf.current_offset;
+    //             if val.len() > rem_cap {
+    //                 // Resize the secondary buffers.
+    //                 list_buf.try_reserve_child_buffers(val.len() - rem_cap)?;
+    //             }
+    //         }
 
-            let child_buffer = &mut list_buf.child_buffer;
-            let child_validity = list_buf.child_validity.try_as_mut()?;
+    //         let child_buffer = &mut list_buf.child_buffer;
+    //         let child_validity = list_buf.child_validity.try_as_mut()?;
 
-            // We should have enough capacity now, insert our values.
-            for (child_offset, val) in (list_buf.current_offset..).zip(val) {
-                // Lists can't contain selections.
-                let logical_idx = child_offset;
-                let data_idx = child_offset;
+    //         // We should have enough capacity now, insert our values.
+    //         for (child_offset, val) in (list_buf.current_offset..).zip(val) {
+    //             // Lists can't contain selections.
+    //             let logical_idx = child_offset;
+    //             let data_idx = child_offset;
 
-                set_value_inner(val, child_buffer, child_validity, logical_idx, data_idx)?;
-            }
+    //             set_value_inner(val, child_buffer, child_validity, logical_idx, data_idx)?;
+    //         }
 
-            let start_offset = list_buf.current_offset;
-            list_buf.current_offset += val.len();
+    //         let start_offset = list_buf.current_offset;
+    //         list_buf.current_offset += val.len();
 
-            // Set metadata point to new list.
-            PhysicalList::get_addressable_mut(buffer)?.put(
-                data_idx,
-                &ListItemMetadata {
-                    offset: start_offset as i32,
-                    len: val.len() as i32,
-                },
-            );
-        }
-        BorrowedScalarValue::Struct(_) => not_implemented!("set value for struct"),
-    }
+    //         // Set metadata point to new list.
+    //         PhysicalList::get_addressable_mut(buffer)?.put(
+    //             data_idx,
+    //             &ListItemMetadata {
+    //                 offset: start_offset as i32,
+    //                 len: val.len() as i32,
+    //             },
+    //         );
+    //     }
+    //     BorrowedScalarValue::Struct(_) => not_implemented!("set value for struct"),
+    // }
 
     Ok(())
 }
@@ -922,15 +922,6 @@ mod tests {
         let expected = Array::try_from_iter(["cat", "cat", "cat", "cat"]).unwrap();
 
         assert_arrays_eq(&expected, &new_arr);
-    }
-
-    #[test]
-    fn try_new_typed_null_array() {
-        let arr = Array::new_typed_null(&DefaultBufferManager, DataType::Int32, 4).unwrap();
-        let expected = Array::try_from_iter::<[Option<i32>; 4]>([None, None, None, None]).unwrap();
-        assert_arrays_eq(&expected, &arr);
-
-        assert_eq!(BorrowedScalarValue::Null, arr.get_value(2).unwrap());
     }
 
     #[test]

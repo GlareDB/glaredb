@@ -6,7 +6,7 @@ use super::selection::Selection;
 pub enum ExecutionFormat<'a, B: ArrayBuffer> {
     /// No transformations needed to read the buffer, read from the first index
     /// to the last.
-    NoTransformation(&'a B),
+    Flat(&'a B),
     /// We have a selection on the buffer. Read the selection to determine how
     /// we should iterate over the buffer.
     Selection(SelectionFormat<'a, B>),
@@ -24,6 +24,13 @@ impl<'a, B> SelectionFormat<'a, B>
 where
     B: ArrayBuffer,
 {
+    pub fn flat(buffer: &'a B) -> Self {
+        SelectionFormat {
+            selection: Selection::linear(0, buffer.logical_len()),
+            buffer,
+        }
+    }
+
     pub fn logical_len(&self) -> usize {
         self.selection.len()
     }

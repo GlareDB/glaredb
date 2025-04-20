@@ -49,6 +49,7 @@ use crate::util::convert::TryAsMut;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArrayBufferType {
+    Empty,
     Scalar,
     String,
     Constant,
@@ -128,7 +129,7 @@ where
                 // No transformation needed for execution. Use this buffer as-is.
                 // TODO: Could be cool if we could do something for lists.
                 let buffer = Self::downcast_ref(&buffer.buffer)?;
-                Ok(ExecutionFormat::NoTransformation(buffer))
+                Ok(ExecutionFormat::Flat(buffer))
             }
         }
     }
@@ -332,6 +333,18 @@ impl<T> Deref for OwnedOrShared<T> {
     type Target = T;
     fn deref(&self) -> &T {
         self.as_ref()
+    }
+}
+
+/// A buffer that doesn't hold anything.
+#[derive(Debug)]
+pub struct EmptyBuffer;
+
+impl ArrayBuffer for EmptyBuffer {
+    const BUFFER_TYPE: ArrayBufferType = ArrayBufferType::Empty;
+
+    fn logical_len(&self) -> usize {
+        0
     }
 }
 
