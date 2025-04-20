@@ -283,7 +283,7 @@ impl<T> RawDbVec<T> {
         let size = std::mem::size_of::<T>() * cap;
         let reservation = unsafe { manager.call_reserve(size, align) }?;
 
-        let capacity = if size == 0 {
+        let capacity = if std::mem::size_of::<T>() == 0 {
             // Zero-sized type, we can fit up to usize::MAX elements.
             usize::MAX
         } else {
@@ -420,6 +420,18 @@ mod tests {
 
         let s = unsafe { vec.as_slice() };
         assert_eq!(&[3, 3, 3, 3, 55, 55], s);
+    }
+
+    #[test]
+    fn vec_resize_grow_from_zero() {
+        let mut vec = DbVec::<i32>::new_uninit(&DefaultBufferManager, 0).unwrap();
+        vec.resize(6).unwrap();
+
+        let s = unsafe { vec.as_slice_mut() };
+        s.fill(4);
+
+        let s = unsafe { vec.as_slice() };
+        assert_eq!(&[4, 4, 4, 4, 4, 4], s);
     }
 
     #[test]
