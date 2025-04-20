@@ -4,7 +4,6 @@ use glaredb_error::{DbError, Result};
 use glaredb_proto::ProtoConv;
 use half::f16;
 
-use super::Array;
 use super::array_buffer::{
     AnyArrayBuffer,
     ArrayBuffer,
@@ -301,7 +300,7 @@ macro_rules! generate_primitive {
 
             fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
                 PrimitiveSlice {
-                    slice: unsafe { buffer.buffer.as_slice() },
+                    slice: buffer.buffer.as_slice(),
                 }
             }
         }
@@ -311,7 +310,7 @@ macro_rules! generate_primitive {
 
             fn addressable_mut(buffer: &mut Self::ArrayBuffer) -> Self::AddressableMut<'_> {
                 PrimitiveSliceMut {
-                    slice: unsafe { buffer.buffer.as_slice_mut() },
+                    slice: buffer.buffer.as_slice_mut(),
                 }
             }
         }
@@ -455,7 +454,7 @@ impl ScalarStorage for PhysicalBinary {
     type ArrayBuffer = StringBuffer;
 
     fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
-        let metadata = unsafe { buffer.metadata.as_slice() };
+        let metadata = buffer.metadata.as_slice();
         BinaryViewAddressable {
             metadata,
             buffer: &buffer.buffer,
@@ -467,7 +466,7 @@ impl MutableScalarStorage for PhysicalBinary {
     type AddressableMut<'a> = BinaryViewAddressableMut<'a>;
 
     fn addressable_mut(buffer: &mut Self::ArrayBuffer) -> Self::AddressableMut<'_> {
-        let metadata = unsafe { buffer.metadata.as_slice_mut() };
+        let metadata = buffer.metadata.as_slice_mut();
         BinaryViewAddressableMut {
             metadata,
             buffer: &mut buffer.buffer,
@@ -487,7 +486,7 @@ impl ScalarStorage for PhysicalUtf8 {
     type ArrayBuffer = StringBuffer;
 
     fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
-        let metadata = unsafe { buffer.metadata.as_slice() };
+        let metadata = buffer.metadata.as_slice();
         StringViewAddressable {
             metadata,
             buffer: &buffer.buffer,
@@ -499,7 +498,7 @@ impl MutableScalarStorage for PhysicalUtf8 {
     type AddressableMut<'a> = StringViewAddressableMut<'a>;
 
     fn addressable_mut(buffer: &mut Self::ArrayBuffer) -> Self::AddressableMut<'_> {
-        let metadata = unsafe { buffer.metadata.as_slice_mut() };
+        let metadata = buffer.metadata.as_slice_mut();
         StringViewAddressableMut {
             metadata,
             buffer: &mut buffer.buffer,

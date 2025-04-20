@@ -1,6 +1,7 @@
 pub mod decimal;
 pub mod interval;
 pub mod timestamp;
+pub mod unwrap;
 
 use std::borrow::Cow;
 use std::fmt;

@@ -347,7 +347,7 @@ impl HashValue for UntypedNull {
 mod tests {
 
     use super::*;
-    use crate::arrays::compute::make_list::make_list_from_values;
+    use crate::arrays::compute::make_list::make_list;
     use crate::arrays::datatype::{DataType, ListTypeMeta};
     use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::iter::TryFromExactSizeIterator;
@@ -431,7 +431,7 @@ mod tests {
         )
         .unwrap();
         // Rows 0 and 2 have the same list values.
-        make_list_from_values(
+        make_list(
             &[
                 Array::try_from_iter([1, 2, 1, 4]).unwrap(),
                 Array::try_from_iter([5, 6, 5, 8]).unwrap(),

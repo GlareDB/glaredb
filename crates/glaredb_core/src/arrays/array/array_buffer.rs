@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use glaredb_error::{DbError, Result};
+use glaredb_error::{DbError, Result, not_implemented};
 use half::f16;
 
 use super::execution_format::{
@@ -11,8 +11,10 @@ use super::execution_format::{
     SelectionFormatMut,
 };
 use super::selection::Selection;
+use super::validity::Validity;
 use crate::arrays::array::physical_type::{PhysicalType, UntypedNull};
 use crate::arrays::datatype::DataType;
+use crate::arrays::scalar::BorrowedScalarValue;
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::string::{MAX_INLINE_LEN, StringView};
 use crate::buffer::buffer_manager::AsRawBufferManager;
@@ -34,6 +36,11 @@ pub trait ArrayBuffer: Sized + Sync + Send + 'static {
 
     /// Return the logical length of the buffer.
     fn logical_len(&self) -> usize;
+
+    /// Resize this buffer.
+    ///
+    /// `len` represents the final logical length.
+    fn resize(&mut self, len: usize) -> Result<()>;
 }
 
 pub trait ArrayBufferDowncast: ArrayBuffer {
@@ -146,6 +153,7 @@ where
 #[derive(Debug, Clone, Copy)]
 pub struct AnyArrayBufferVTable {
     logical_len_fn: fn(&(dyn Any + Sync + Send)) -> usize,
+    resize_fn: fn(&mut (dyn Any + Sync + Send), len: usize) -> Result<()>,
 }
 
 trait ArrayBufferVTable: ArrayBuffer {
@@ -160,6 +168,10 @@ where
         logical_len_fn: |buffer| {
             let buffer = buffer.downcast_ref::<Self>().unwrap();
             buffer.logical_len()
+        },
+        resize_fn: |buffer, len| {
+            let buffer = buffer.downcast_mut::<Self>().unwrap();
+            buffer.resize(len)
         },
     };
 }
@@ -228,7 +240,9 @@ impl AnyArrayBuffer {
             )?)),
             PhysicalType::Binary => Ok(Self::new_unique(StringBuffer::try_new(manager, capacity)?)),
             PhysicalType::Utf8 => Ok(Self::new_unique(StringBuffer::try_new(manager, capacity)?)),
-            PhysicalType::List => Ok(Self::new_unique(ListBuffer::try_new(manager, capacity)?)),
+            PhysicalType::List => Ok(Self::new_unique(ListBuffer::try_new(
+                manager, datatype, capacity,
+            )?)),
             PhysicalType::Struct => Ok(Self::new_unique(StructBuffer::try_new(manager, capacity)?)),
         }
     }
@@ -291,6 +305,14 @@ impl AnyArrayBuffer {
 
     pub(crate) fn logical_len(&self) -> usize {
         (self.vtable.logical_len_fn)(self.buffer.as_ref())
+    }
+
+    pub(crate) fn resize(&mut self, len: usize) -> Result<()> {
+        let buffer = self
+            .buffer
+            .as_mut()
+            .ok_or_else(|| DbError::new("Cannot resized shared array buffer"))?;
+        (self.vtable.resize_fn)(buffer, len)
     }
 }
 
@@ -356,6 +378,8 @@ where
 }
 
 /// A buffer that doesn't hold anything.
+///
+/// Mostly for mem::swap.
 #[derive(Debug)]
 pub struct EmptyBuffer;
 
@@ -364,6 +388,10 @@ impl ArrayBuffer for EmptyBuffer {
 
     fn logical_len(&self) -> usize {
         0
+    }
+
+    fn resize(&mut self, len: usize) -> Result<()> {
+        Err(DbError::new("Cannot resize Empty buffer"))
     }
 }
 
@@ -392,6 +420,10 @@ where
     fn logical_len(&self) -> usize {
         self.buffer.len()
     }
+
+    fn resize(&mut self, len: usize) -> Result<()> {
+        unsafe { self.buffer.resize_uninit(len) }
+    }
 }
 
 #[derive(Debug)]
@@ -415,14 +447,51 @@ impl ArrayBuffer for StringBuffer {
     fn logical_len(&self) -> usize {
         self.metadata.len()
     }
+
+    fn resize(&mut self, len: usize) -> Result<()> {
+        unsafe { self.metadata.resize_uninit(len) }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ListItemMetadata {
+    /// Offset in the child buffer where this list element starts.
+    pub offset: i32,
+    /// Length of this list element.
+    pub len: i32,
 }
 
 #[derive(Debug)]
-pub struct ListBuffer {}
+pub struct ListChildBuffer {
+    /// Validities for all values in the child.
+    ///
+    /// This is used to determine the number of values being stored in the child
+    /// buffer.
+    pub(crate) validity: Validity,
+    pub(crate) buffer: AnyArrayBuffer,
+}
+
+#[derive(Debug)]
+pub struct ListBuffer {
+    pub(crate) metadata: DbVec<ListItemMetadata>,
+    pub(crate) child: ListChildBuffer,
+}
 
 impl ListBuffer {
-    pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
-        unimplemented!()
+    pub fn try_new(
+        manager: &impl AsRawBufferManager,
+        datatype: &DataType,
+        capacity: usize,
+    ) -> Result<Self> {
+        let list_meta = datatype.try_get_list_type_meta()?;
+        let child = ListChildBuffer {
+            validity: Validity::new_all_valid(0),
+            buffer: AnyArrayBuffer::new_for_datatype(manager, &list_meta.datatype, 0)?,
+        };
+
+        let metadata = unsafe { DbVec::new_uninit(manager, capacity)? };
+
+        Ok(ListBuffer { metadata, child })
     }
 }
 
@@ -430,7 +499,11 @@ impl ArrayBuffer for ListBuffer {
     const BUFFER_TYPE: ArrayBufferType = ArrayBufferType::List;
 
     fn logical_len(&self) -> usize {
-        unimplemented!()
+        self.metadata.len()
+    }
+
+    fn resize(&mut self, len: usize) -> Result<()> {
+        unsafe { self.metadata.resize_uninit(len) }
     }
 }
 
@@ -439,7 +512,7 @@ pub struct StructBuffer {}
 
 impl StructBuffer {
     pub fn try_new(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
-        unimplemented!()
+        not_implemented!("create struct buffer")
     }
 }
 
@@ -447,7 +520,12 @@ impl ArrayBuffer for StructBuffer {
     const BUFFER_TYPE: ArrayBufferType = ArrayBufferType::Struct;
 
     fn logical_len(&self) -> usize {
-        unimplemented!()
+        // TODO
+        0
+    }
+
+    fn resize(&mut self, len: usize) -> Result<()> {
+        not_implemented!("resize struct buffer")
     }
 }
 
@@ -465,6 +543,11 @@ impl ArrayBuffer for DictionaryBuffer {
 
     fn logical_len(&self) -> usize {
         self.selection.len()
+    }
+
+    fn resize(&mut self, len: usize) -> Result<()> {
+        // TODO: Why not?
+        Err(DbError::new("Cannot resize dictionary buffer"))
     }
 }
 
@@ -485,6 +568,11 @@ impl ArrayBuffer for ConstantBuffer {
 
     fn logical_len(&self) -> usize {
         self.len
+    }
+
+    fn resize(&mut self, len: usize) -> Result<()> {
+        self.len = len;
+        Ok(())
     }
 }
 
@@ -583,12 +671,6 @@ impl StringViewBuffer {
         }
         new_size
     }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ListItemMetadata {
-    pub offset: i32,
-    pub len: i32,
 }
 
 #[cfg(test)]

@@ -906,7 +906,7 @@ where
 mod tests {
     use super::*;
     use crate::arrays::cache::NopCache;
-    use crate::arrays::compute::make_list::make_list_from_values;
+    use crate::arrays::compute::make_list::make_list;
     use crate::arrays::datatype::ListTypeMeta;
     use crate::arrays::scalar::ScalarValue;
     use crate::generate_array;
@@ -1105,7 +1105,7 @@ mod tests {
         )
         .unwrap();
 
-        make_list_from_values(
+        make_list(
             &[
                 Array::try_from_iter([Some(1), Some(2), None, Some(4)]).unwrap(),
                 Array::try_from_iter([5, 6, 7, 8]).unwrap(),

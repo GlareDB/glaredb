@@ -2,7 +2,7 @@ use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::arrays::compute::make_list::make_list_from_values;
+use crate::arrays::compute::make_list::make_list;
 use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
 use crate::expr::Expression;
 use crate::functions::Signature;
@@ -69,6 +69,6 @@ impl ScalarFunction for ListValues {
     }
 
     fn execute(_state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
-        make_list_from_values(input.arrays(), input.selection(), output)
+        make_list(input.arrays(), input.selection(), output)
     }
 }

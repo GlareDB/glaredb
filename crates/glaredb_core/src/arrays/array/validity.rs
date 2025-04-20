@@ -1,3 +1,5 @@
+use std::cmp;
+
 use crate::arrays::bitmap::view::{BitmapView, BitmapViewMut, num_bytes_for_bitmap};
 use crate::util::iter::IntoExactSizeIterator;
 
