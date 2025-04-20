@@ -135,22 +135,8 @@ impl Batch {
     /// current array buffers for later reuse.
     pub fn clone_from_other(&mut self, other: &mut Self) -> Result<()> {
         check_num_arrays(self, other)?;
-        match &mut self.cache {
-            Some(cache) => {
-                debug_assert_eq!(self.arrays.len(), cache.cached.len());
-                for (src, (dest, dest_cache)) in other
-                    .arrays
-                    .iter_mut()
-                    .zip(self.arrays.iter_mut().zip(&mut cache.cached))
-                {
-                    dest.clone_from_other(src, dest_cache)?;
-                }
-            }
-            None => {
-                for (src, dest) in other.arrays.iter_mut().zip(&mut self.arrays) {
-                    dest.clone_from_other(src, &mut NopCache)?;
-                }
-            }
+        for (src, dest) in other.arrays.iter_mut().zip(&mut self.arrays) {
+            dest.clone_from_other(src, &mut NopCache)?;
         }
 
         self.num_rows = other.num_rows;
@@ -199,13 +185,7 @@ impl Batch {
         own_idx: usize,
         (other, other_idx): (&mut Self, usize),
     ) -> Result<()> {
-        match &mut self.cache {
-            Some(cache) => self.arrays[own_idx]
-                .clone_from_other(&mut other.arrays[other_idx], &mut cache.cached[own_idx]),
-            None => {
-                self.arrays[own_idx].clone_from_other(&mut other.arrays[other_idx], &mut NopCache)
-            }
-        }
+        self.arrays[own_idx].clone_from_other(&mut other.arrays[other_idx], &mut NopCache)
     }
 
     /// Try to clone an row from another batch into this batch.
@@ -221,20 +201,8 @@ impl Batch {
         num_rows: usize,
     ) -> Result<()> {
         check_num_arrays(self, other)?;
-        match &mut self.cache {
-            Some(cache) => {
-                debug_assert_eq!(self.arrays.len(), cache.cached.len());
-                for ((src, src_cache), dest) in
-                    (other.arrays.iter_mut().zip(&mut cache.cached)).zip(&mut self.arrays)
-                {
-                    dest.clone_constant_from(src, row, num_rows, src_cache)?;
-                }
-            }
-            None => {
-                for (src, dest) in other.arrays.iter_mut().zip(&mut self.arrays) {
-                    dest.clone_constant_from(src, row, num_rows, &mut NopCache)?;
-                }
-            }
+        for (src, dest) in other.arrays.iter_mut().zip(&mut self.arrays) {
+            dest.clone_constant_from(src, row, num_rows, &mut NopCache)?;
         }
 
         self.num_rows = num_rows;

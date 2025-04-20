@@ -12,6 +12,15 @@ pub enum ExecutionFormat<'a, B: ArrayBuffer> {
     Selection(SelectionFormat<'a, B>),
 }
 
+impl<'a, B> ExecutionFormat<'a, B>
+where
+    B: ArrayBuffer,
+{
+    pub const fn is_selection(&self) -> bool {
+        matches!(self, ExecutionFormat::Selection(_))
+    }
+}
+
 #[derive(Debug)]
 pub struct SelectionFormat<'a, B: ArrayBuffer> {
     /// Selection indices for the buffer.

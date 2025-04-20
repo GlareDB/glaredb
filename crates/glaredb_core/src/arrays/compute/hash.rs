@@ -5,6 +5,7 @@ use glaredb_error::{DbError, Result, not_implemented};
 use half::f16;
 
 use crate::arrays::array::Array;
+use crate::arrays::array::execution_format::ExecutionFormat;
 use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -102,7 +103,7 @@ pub fn hash_array(
     sel: impl IntoExactSizeIterator<Item = usize>,
     hashes: &mut [u64],
 ) -> Result<()> {
-    hash_inner::<OverwriteHash>(arr.flatten()?, arr.datatype(), sel, hashes)
+    hash_inner::<OverwriteHash>(arr, arr.datatype(), sel, hashes)
 }
 
 /// Hashes multiple arrays at once, combining each row's hash into a single hash
@@ -124,7 +125,6 @@ where
         let arr = arr.borrow();
         let sel = sel.clone();
         let datatype = arr.datatype();
-        let arr = arr.flatten()?;
         if idx == 0 {
             hash_inner::<OverwriteHash>(arr, datatype, sel, hashes)?;
         } else {
@@ -136,7 +136,7 @@ where
 }
 
 fn hash_inner<H>(
-    arr: FlattenedArray,
+    arr: &Array,
     datatype: &DataType,
     sel: impl IntoExactSizeIterator<Item = usize>,
     hashes: &mut [u64],
@@ -178,7 +178,7 @@ where
 }
 
 fn hash_typed_inner<S, H>(
-    arr: FlattenedArray,
+    arr: &Array,
     sel: impl IntoExactSizeIterator<Item = usize>,
     hashes: &mut [u64],
 ) -> Result<()>
@@ -190,22 +190,45 @@ where
     let sel = sel.into_exact_size_iter();
     debug_assert_eq!(sel.len(), hashes.len());
 
-    let values = S::get_addressable(arr.array_buffer)?;
+    match S::downcast_execution_format(&arr.data)? {
+        ExecutionFormat::Flat(buf) => {
+            let values = S::addressable(buf);
 
-    if arr.validity.all_valid() {
-        for (idx, hash) in sel.zip(hashes.iter_mut()) {
-            let sel_idx = arr.selection.get(idx).unwrap();
-            let v = values.get(sel_idx).unwrap();
-            H::set_hash(hash, DefaultHasher::hash(v));
-        }
-    } else {
-        for (idx, hash) in sel.zip(hashes.iter_mut()) {
-            if arr.validity.is_valid(idx) {
-                let sel_idx = arr.selection.get(idx).unwrap();
-                let v = values.get(sel_idx).unwrap();
-                H::set_hash(hash, DefaultHasher::hash(v));
+            if arr.validity.all_valid() {
+                for (idx, hash) in sel.zip(hashes.iter_mut()) {
+                    let v = values.get(idx).unwrap();
+                    H::set_hash(hash, DefaultHasher::hash(v));
+                }
             } else {
-                H::set_hash(hash, DefaultHasher::NULL_HASH);
+                for (idx, hash) in sel.zip(hashes.iter_mut()) {
+                    if arr.validity.is_valid(idx) {
+                        let v = values.get(idx).unwrap();
+                        H::set_hash(hash, DefaultHasher::hash(v));
+                    } else {
+                        H::set_hash(hash, DefaultHasher::NULL_HASH);
+                    }
+                }
+            }
+        }
+        ExecutionFormat::Selection(buf) => {
+            let values = S::addressable(buf.buffer);
+
+            if arr.validity.all_valid() {
+                for (idx, hash) in sel.zip(hashes.iter_mut()) {
+                    let sel_idx = buf.selection.get(idx).unwrap();
+                    let v = values.get(sel_idx).unwrap();
+                    H::set_hash(hash, DefaultHasher::hash(v));
+                }
+            } else {
+                for (idx, hash) in sel.zip(hashes.iter_mut()) {
+                    if arr.validity.is_valid(idx) {
+                        let sel_idx = buf.selection.get(idx).unwrap();
+                        let v = values.get(sel_idx).unwrap();
+                        H::set_hash(hash, DefaultHasher::hash(v));
+                    } else {
+                        H::set_hash(hash, DefaultHasher::NULL_HASH);
+                    }
+                }
             }
         }
     }
@@ -214,7 +237,7 @@ where
 }
 
 fn hash_list_array<H>(
-    arr: FlattenedArray,
+    arr: &Array,
     inner_type: &DataType,
     sel: impl IntoExactSizeIterator<Item = usize>,
     hashes: &mut [u64],
@@ -222,46 +245,47 @@ fn hash_list_array<H>(
 where
     H: SetHashOp,
 {
-    let list_buf = arr.array_buffer.get_list_buffer()?;
-    let metadatas = list_buf.metadata.as_slice();
+    not_implemented!("hash array")
+    // let list_buf = arr.array_buffer.get_list_buffer()?;
+    // let metadatas = list_buf.metadata.as_slice();
 
-    // TODO: Would be cool not having to allocate here.
-    let mut child_hashes = Vec::new();
+    // // TODO: Would be cool not having to allocate here.
+    // let mut child_hashes = Vec::new();
 
-    for (idx, hash) in sel.into_exact_size_iter().zip(hashes.iter_mut()) {
-        let sel_idx = arr.selection.get(idx).unwrap();
+    // for (idx, hash) in sel.into_exact_size_iter().zip(hashes.iter_mut()) {
+    //     let sel_idx = arr.selection.get(idx).unwrap();
 
-        if arr.validity.is_valid(sel_idx) {
-            let meta = metadatas.get(sel_idx).unwrap();
+    //     if arr.validity.is_valid(sel_idx) {
+    //         let meta = metadatas.get(sel_idx).unwrap();
 
-            child_hashes.clear();
-            child_hashes.resize(meta.len as usize, 0);
+    //         child_hashes.clear();
+    //         child_hashes.resize(meta.len as usize, 0);
 
-            let sel = Selection::linear(meta.offset as usize, meta.len as usize);
-            let child = FlattenedArray::from_buffer_and_validity(
-                &list_buf.child_buffer,
-                &list_buf.child_validity,
-            )?;
-            hash_inner::<H>(child, inner_type, sel, &mut child_hashes)?;
+    //         let sel = Selection::linear(meta.offset as usize, meta.len as usize);
+    //         let child = FlattenedArray::from_buffer_and_validity(
+    //             &list_buf.child_buffer,
+    //             &list_buf.child_validity,
+    //         )?;
+    //         hash_inner::<H>(child, inner_type, sel, &mut child_hashes)?;
 
-            // Now combine all the child hashes into one.
-            let mut child_hash = match child_hashes.first() {
-                Some(hash) => *hash,
-                None => DefaultHasher::NULL_HASH, // Default to null hash if working with empty list.
-            };
+    //         // Now combine all the child hashes into one.
+    //         let mut child_hash = match child_hashes.first() {
+    //             Some(hash) => *hash,
+    //             None => DefaultHasher::NULL_HASH, // Default to null hash if working with empty list.
+    //         };
 
-            for &hash2 in &child_hashes {
-                child_hash = DefaultHasher::combine_hashes(child_hash, hash2);
-            }
+    //         for &hash2 in &child_hashes {
+    //             child_hash = DefaultHasher::combine_hashes(child_hash, hash2);
+    //         }
 
-            // Set main hash.
-            H::set_hash(hash, child_hash);
-        } else {
-            H::set_hash(hash, DefaultHasher::NULL_HASH);
-        }
-    }
+    //         // Set main hash.
+    //         H::set_hash(hash, child_hash);
+    //     } else {
+    //         H::set_hash(hash, DefaultHasher::NULL_HASH);
+    //     }
+    // }
 
-    Ok(())
+    // Ok(())
 }
 
 /// Helper trait for hashing values.

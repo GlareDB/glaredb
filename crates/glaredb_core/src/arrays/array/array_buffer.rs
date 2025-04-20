@@ -263,6 +263,21 @@ impl AnyArrayBuffer {
         }
     }
 
+    pub fn try_clone_shared(&self) -> Result<Self> {
+        let shared = match &self.buffer.0 {
+            OwnedOrSharedPtr::Shared(shared) => {
+                OwnedOrShared(OwnedOrSharedPtr::Shared(shared.clone()))
+            }
+            _ => return Err(DbError::new("Array buffer not shared")),
+        };
+
+        Ok(AnyArrayBuffer {
+            buffer: shared,
+            vtable: self.vtable,
+            buffer_type: self.buffer_type,
+        })
+    }
+
     pub fn logical_len(&self) -> usize {
         (self.vtable.logical_len_fn)(self.buffer.as_ref())
     }

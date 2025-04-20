@@ -1,8 +1,9 @@
 use glaredb_error::Result;
 
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
+use crate::arrays::array::execution_format::{ExecutionFormat, SelectionFormat};
 use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
+use crate::arrays::array::validity::Validity;
 use crate::arrays::executor::{OutBuffer, PutBuffer};
 use crate::util::iter::IntoExactSizeIterator;
 
@@ -24,66 +25,87 @@ impl BinaryExecutor {
         O: MutableScalarStorage,
         for<'a> Op: FnMut(&S1::StorageType, &S2::StorageType, PutBuffer<O::AddressableMut<'a>>),
     {
-        if array1.should_flatten_for_execution() || array2.should_flatten_for_execution() {
-            let view1 = FlattenedArray::from_array(array1)?;
-            let view2 = FlattenedArray::from_array(array2)?;
+        let format1 = S1::downcast_execution_format(&array1.data)?;
+        let format2 = S2::downcast_execution_format(&array2.data)?;
 
-            return Self::execute_flat::<S1, S2, _, _>(view1, sel1, view2, sel2, out, op);
-        }
+        match (format1, format2) {
+            (ExecutionFormat::Flat(a1), ExecutionFormat::Flat(a2)) => {
+                let input1 = S1::addressable(a1);
+                let input2 = S2::addressable(a2);
 
-        // TODO: length validation
+                let mut output = O::get_addressable_mut(out.buffer)?;
 
-        let input1 = S1::get_addressable(&array1.data)?;
-        let input2 = S2::get_addressable(&array2.data)?;
+                let validity1 = &array1.validity;
+                let validity2 = &array2.validity;
 
-        let mut output = O::get_addressable_mut(out.buffer)?;
+                if validity1.all_valid() && validity2.all_valid() {
+                    for (output_idx, (input1_idx, input2_idx)) in sel1
+                        .into_exact_size_iter()
+                        .zip(sel2.into_exact_size_iter())
+                        .enumerate()
+                    {
+                        let val1 = input1.get(input1_idx).unwrap();
+                        let val2 = input2.get(input2_idx).unwrap();
 
-        let validity1 = &array1.validity;
-        let validity2 = &array2.validity;
-
-        if validity1.all_valid() && validity2.all_valid() {
-            for (output_idx, (input1_idx, input2_idx)) in sel1
-                .into_exact_size_iter()
-                .zip(sel2.into_exact_size_iter())
-                .enumerate()
-            {
-                let val1 = input1.get(input1_idx).unwrap();
-                let val2 = input2.get(input2_idx).unwrap();
-
-                op(
-                    val1,
-                    val2,
-                    PutBuffer::new(output_idx, &mut output, out.validity),
-                );
-            }
-        } else {
-            for (output_idx, (input1_idx, input2_idx)) in sel1
-                .into_exact_size_iter()
-                .zip(sel2.into_exact_size_iter())
-                .enumerate()
-            {
-                if validity1.is_valid(input1_idx) && validity2.is_valid(input2_idx) {
-                    let val1 = input1.get(input1_idx).unwrap();
-                    let val2 = input2.get(input2_idx).unwrap();
-
-                    op(
-                        val1,
-                        val2,
-                        PutBuffer::new(output_idx, &mut output, out.validity),
-                    );
+                        op(
+                            val1,
+                            val2,
+                            PutBuffer::new(output_idx, &mut output, out.validity),
+                        );
+                    }
                 } else {
-                    out.validity.set_invalid(output_idx);
+                    for (output_idx, (input1_idx, input2_idx)) in sel1
+                        .into_exact_size_iter()
+                        .zip(sel2.into_exact_size_iter())
+                        .enumerate()
+                    {
+                        if validity1.is_valid(input1_idx) && validity2.is_valid(input2_idx) {
+                            let val1 = input1.get(input1_idx).unwrap();
+                            let val2 = input2.get(input2_idx).unwrap();
+
+                            op(
+                                val1,
+                                val2,
+                                PutBuffer::new(output_idx, &mut output, out.validity),
+                            );
+                        } else {
+                            out.validity.set_invalid(output_idx);
+                        }
+                    }
                 }
+
+                Ok(())
+            }
+            (a1, a2) => {
+                let a1 = match a1 {
+                    ExecutionFormat::Flat(a1) => SelectionFormat::flat(a1),
+                    ExecutionFormat::Selection(a1) => a1,
+                };
+                let a2 = match a2 {
+                    ExecutionFormat::Flat(a2) => SelectionFormat::flat(a2),
+                    ExecutionFormat::Selection(a2) => a2,
+                };
+
+                Self::execute_with_selection::<S1, S2, O, _>(
+                    &array1.validity,
+                    a1,
+                    sel1,
+                    &array2.validity,
+                    a2,
+                    sel2,
+                    out,
+                    op,
+                )
             }
         }
-
-        Ok(())
     }
 
-    pub fn execute_flat<'a, S1, S2, O, Op>(
-        array1: FlattenedArray<'a>,
+    fn execute_with_selection<'a, S1, S2, O, Op>(
+        validity1: &Validity,
+        array1: SelectionFormat<'_, S1::ArrayBuffer>,
         sel1: impl IntoExactSizeIterator<Item = usize>,
-        array2: FlattenedArray<'a>,
+        validity2: &Validity,
+        array2: SelectionFormat<'_, S2::ArrayBuffer>,
         sel2: impl IntoExactSizeIterator<Item = usize>,
         out: OutBuffer,
         mut op: Op,
@@ -95,14 +117,10 @@ impl BinaryExecutor {
         for<'b> Op: FnMut(&S1::StorageType, &S2::StorageType, PutBuffer<O::AddressableMut<'b>>),
     {
         // TODO: length validation
-
-        let input1 = S1::get_addressable(array1.array_buffer)?;
-        let input2 = S2::get_addressable(array2.array_buffer)?;
+        let input1 = S1::addressable(array1.buffer);
+        let input2 = S2::addressable(array2.buffer);
 
         let mut output = O::get_addressable_mut(out.buffer)?;
-
-        let validity1 = &array1.validity;
-        let validity2 = &array2.validity;
 
         if validity1.all_valid() && validity2.all_valid() {
             for (output_idx, (input1_idx, input2_idx)) in sel1

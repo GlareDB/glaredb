@@ -1,6 +1,6 @@
 use std::task::Context;
 
-use glaredb_error::Result;
+use glaredb_error::{Result, not_implemented};
 
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
@@ -160,20 +160,21 @@ impl TableExecuteFunction for UnnestList {
             // Figure out how much we can fit in the output.
             let count = usize::min(cap - output_offset, src_rem_len);
             // Select the part of the list we care about.
-            let src_sel = Selection::linear(src_offset, src_rem_len);
+            // let src_sel = Selection::linear(src_offset, src_rem_len);
 
             // Map index from list (after src_sel) to output idx.
             let mapping = (0..count).map(|idx| (idx, idx + output_offset));
 
-            copy_rows_raw(
-                list_buf.child_physical_type,
-                &list_buf.child_buffer,
-                &list_buf.child_validity,
-                Some(src_sel),
-                mapping,
-                &mut out_arr.data,
-                &mut out_arr.validity,
-            )?;
+            not_implemented!("unnest");
+            // copy_rows_raw(
+            //     list_buf.child_physical_type,
+            //     &list_buf.child_buffer,
+            //     &list_buf.child_validity,
+            //     Some(src_sel),
+            //     mapping,
+            //     &mut out_arr.data,
+            //     &mut out_arr.validity,
+            // )?;
 
             // Update states.
             output_offset += count;

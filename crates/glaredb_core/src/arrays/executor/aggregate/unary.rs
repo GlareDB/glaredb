@@ -2,7 +2,7 @@ use glaredb_error::{DbError, Result};
 
 use super::AggregateState;
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
+use crate::arrays::array::execution_format::ExecutionFormat;
 use crate::arrays::array::physical_type::{Addressable, ScalarStorage};
 use crate::util::iter::IntoExactSizeIterator;
 
@@ -30,69 +30,52 @@ impl UnaryNonNullUpdater {
             .with_field("states_len", states.len()));
         }
 
-        if array.should_flatten_for_execution() {
-            let flat = array.flatten()?;
-            return Self::update_flat::<S, State, BindState, Output>(
-                flat, selection, bind_state, states,
-            );
-        }
-
-        let input = S::get_addressable(&array.data)?;
         let validity = &array.validity;
 
-        if validity.all_valid() {
-            for (state_idx, input_idx) in selection.enumerate() {
-                let val = input.get(input_idx).unwrap();
-                let state = unsafe { &mut *states[state_idx] };
-                state.update(bind_state, val)?;
-            }
-        } else {
-            for (state_idx, input_idx) in selection.enumerate() {
-                if !validity.is_valid(input_idx) {
-                    continue;
+        match S::downcast_execution_format(&array.data)? {
+            ExecutionFormat::Flat(buf) => {
+                let input = S::addressable(buf);
+                if validity.all_valid() {
+                    for (state_idx, input_idx) in selection.enumerate() {
+                        let val = input.get(input_idx).unwrap();
+                        let state = unsafe { &mut *states[state_idx] };
+                        state.update(bind_state, val)?;
+                    }
+                } else {
+                    for (state_idx, input_idx) in selection.enumerate() {
+                        if !validity.is_valid(input_idx) {
+                            continue;
+                        }
+
+                        let val = input.get(input_idx).unwrap();
+                        let state = unsafe { &mut *states[state_idx] };
+                        state.update(bind_state, val)?;
+                    }
                 }
-
-                let val = input.get(input_idx).unwrap();
-                let state = unsafe { &mut *states[state_idx] };
-                state.update(bind_state, val)?;
             }
-        }
+            ExecutionFormat::Selection(buf) => {
+                let input = S::addressable(buf.buffer);
 
-        Ok(())
-    }
+                if validity.all_valid() {
+                    for (state_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
+                        let selected_idx = buf.selection.get(input_idx).unwrap();
 
-    fn update_flat<S, State, BindState, Output>(
-        array: FlattenedArray<'_>,
-        selection: impl IntoExactSizeIterator<Item = usize>,
-        bind_state: &BindState,
-        states: &mut [*mut State],
-    ) -> Result<()>
-    where
-        S: ScalarStorage,
-        Output: ?Sized,
-        for<'b> State: AggregateState<&'b S::StorageType, Output, BindState = BindState>,
-    {
-        let input = S::get_addressable(array.array_buffer)?;
-        let validity = &array.validity;
+                        let val = input.get(selected_idx).unwrap();
+                        let state = unsafe { &mut *states[state_idx] };
+                        state.update(bind_state, val)?;
+                    }
+                } else {
+                    for (state_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
+                        if !validity.is_valid(input_idx) {
+                            continue;
+                        }
 
-        if validity.all_valid() {
-            for (state_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
-                let selected_idx = array.selection.get(input_idx).unwrap();
-
-                let val = input.get(selected_idx).unwrap();
-                let state = unsafe { &mut *states[state_idx] };
-                state.update(bind_state, val)?;
-            }
-        } else {
-            for (state_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
-                if !validity.is_valid(input_idx) {
-                    continue;
+                        let selected_idx = buf.selection.get(input_idx).unwrap();
+                        let val = input.get(selected_idx).unwrap();
+                        let state = unsafe { &mut *states[state_idx] };
+                        state.update(bind_state, val)?;
+                    }
                 }
-
-                let selected_idx = array.selection.get(input_idx).unwrap();
-                let val = input.get(selected_idx).unwrap();
-                let state = unsafe { &mut *states[state_idx] };
-                state.update(bind_state, val)?;
             }
         }
 
