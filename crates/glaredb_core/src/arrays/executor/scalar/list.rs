@@ -52,97 +52,99 @@ impl BinaryListReducer {
             not_implemented!("flattening for list reduce");
         }
 
-        let inner1 = array1.data.get_list_buffer()?;
-        let inner2 = array2.data.get_list_buffer()?;
+        not_implemented!("reduce")
 
-        // List elements are required to all be non-null.
-        //
-        // Note that rows (lists) _can_ be null, they'll just be skipped.
-        if !inner1.child_validity.all_valid() || !inner2.child_validity.all_valid() {
-            // TODO: This can be more selective. Rows that don't conform
-            // could be skipped with the selections.
-            return Err(DbError::new(
-                "List reduction requires all values be non-null",
-            ));
-        }
+        // let inner1 = array1.data.get_list_buffer()?;
+        // let inner2 = array2.data.get_list_buffer()?;
 
-        let metadata1 = inner1.metadata.as_slice();
-        let metadata2 = inner2.metadata.as_slice();
+        // // List elements are required to all be non-null.
+        // //
+        // // Note that rows (lists) _can_ be null, they'll just be skipped.
+        // if !inner1.child_validity.all_valid() || !inner2.child_validity.all_valid() {
+        //     // TODO: This can be more selective. Rows that don't conform
+        //     // could be skipped with the selections.
+        //     return Err(DbError::new(
+        //         "List reduction requires all values be non-null",
+        //     ));
+        // }
 
-        let validity1 = &array1.validity;
-        let validity2 = &array2.validity;
+        // let metadata1 = inner1.metadata.as_slice();
+        // let metadata2 = inner2.metadata.as_slice();
 
-        let mut output = O::get_addressable_mut(out.buffer)?;
+        // let validity1 = &array1.validity;
+        // let validity2 = &array2.validity;
 
-        let input1 = S1::get_addressable(&inner1.child_buffer)?;
-        let input2 = S2::get_addressable(&inner2.child_buffer)?;
+        // let mut output = O::get_addressable_mut(out.buffer)?;
 
-        if validity1.all_valid() && validity2.all_valid() {
-            for (output_idx, (input1_idx, input2_idx)) in sel1
-                .into_iter()
-                .zip(sel2.into_exact_size_iter())
-                .enumerate()
-            {
-                let meta1 = metadata1.get(input1_idx).unwrap();
-                let meta2 = metadata2.get(input2_idx).unwrap();
+        // let input1 = S1::get_addressable(&inner1.child_buffer)?;
+        // let input2 = S2::get_addressable(&inner2.child_buffer)?;
 
-                if meta1.len != meta2.len {
-                    return Err(DbError::new(format!(
-                        "List reduction requires lists be the same length, got {} and {}",
-                        meta1.len, meta2.len,
-                    )));
-                }
+        // if validity1.all_valid() && validity2.all_valid() {
+        //     for (output_idx, (input1_idx, input2_idx)) in sel1
+        //         .into_iter()
+        //         .zip(sel2.into_exact_size_iter())
+        //         .enumerate()
+        //     {
+        //         let meta1 = metadata1.get(input1_idx).unwrap();
+        //         let meta2 = metadata2.get(input2_idx).unwrap();
 
-                let mut reducer = R::default();
+        //         if meta1.len != meta2.len {
+        //             return Err(DbError::new(format!(
+        //                 "List reduction requires lists be the same length, got {} and {}",
+        //                 meta1.len, meta2.len,
+        //             )));
+        //         }
 
-                for offset in 0..meta1.len {
-                    let idx1 = meta1.offset + offset;
-                    let idx2 = meta2.offset + offset;
+        //         let mut reducer = R::default();
 
-                    let v1 = input1.get(idx1 as usize).unwrap();
-                    let v2 = input2.get(idx2 as usize).unwrap();
+        //         for offset in 0..meta1.len {
+        //             let idx1 = meta1.offset + offset;
+        //             let idx2 = meta2.offset + offset;
 
-                    reducer.put_values(v1, v2);
-                }
+        //             let v1 = input1.get(idx1 as usize).unwrap();
+        //             let v2 = input2.get(idx2 as usize).unwrap();
 
-                output.put(output_idx, &reducer.finish());
-            }
-        } else {
-            for (output_idx, (input1_idx, input2_idx)) in
-                sel1.into_iter().zip(sel2.into_iter()).enumerate()
-            {
-                if !validity1.is_valid(input1_idx) || !validity2.is_valid(input2_idx) {
-                    out.validity.set_invalid(output_idx);
-                    continue;
-                }
+        //             reducer.put_values(v1, v2);
+        //         }
 
-                let meta1 = metadata1.get(input1_idx).unwrap();
-                let meta2 = metadata2.get(input2_idx).unwrap();
+        //         output.put(output_idx, &reducer.finish());
+        //     }
+        // } else {
+        //     for (output_idx, (input1_idx, input2_idx)) in
+        //         sel1.into_iter().zip(sel2.into_iter()).enumerate()
+        //     {
+        //         if !validity1.is_valid(input1_idx) || !validity2.is_valid(input2_idx) {
+        //             out.validity.set_invalid(output_idx);
+        //             continue;
+        //         }
 
-                if meta1.len != meta2.len {
-                    return Err(
-                        DbError::new("List reduction requires lists be the same length")
-                            .with_field("len1", meta1.len)
-                            .with_field("len2", meta2.len),
-                    );
-                }
+        //         let meta1 = metadata1.get(input1_idx).unwrap();
+        //         let meta2 = metadata2.get(input2_idx).unwrap();
 
-                let mut reducer = R::default();
+        //         if meta1.len != meta2.len {
+        //             return Err(
+        //                 DbError::new("List reduction requires lists be the same length")
+        //                     .with_field("len1", meta1.len)
+        //                     .with_field("len2", meta2.len),
+        //             );
+        //         }
 
-                for offset in 0..meta1.len {
-                    let idx1 = meta1.offset + offset;
-                    let idx2 = meta2.offset + offset;
+        //         let mut reducer = R::default();
 
-                    let v1 = input1.get(idx1 as usize).unwrap();
-                    let v2 = input2.get(idx2 as usize).unwrap();
+        //         for offset in 0..meta1.len {
+        //             let idx1 = meta1.offset + offset;
+        //             let idx2 = meta2.offset + offset;
 
-                    reducer.put_values(v1, v2);
-                }
+        //             let v1 = input1.get(idx1 as usize).unwrap();
+        //             let v2 = input2.get(idx2 as usize).unwrap();
 
-                output.put(output_idx, &reducer.finish());
-            }
-        }
+        //             reducer.put_values(v1, v2);
+        //         }
 
-        Ok(())
+        //         output.put(output_idx, &reducer.finish());
+        //     }
+        // }
+
+        // Ok(())
     }
 }

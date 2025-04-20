@@ -1,3 +1,5 @@
+use glaredb_error::Result;
+
 use super::array_buffer::ArrayBuffer;
 use super::selection::Selection;
 
@@ -16,6 +18,13 @@ impl<'a, B> ExecutionFormat<'a, B>
 where
     B: ArrayBuffer,
 {
+    pub fn into_selection_format(self) -> Result<SelectionFormat<'a, B>> {
+        match self {
+            Self::Flat(flat) => Ok(SelectionFormat::flat(flat)),
+            Self::Selection(sel) => Ok(sel),
+        }
+    }
+
     pub const fn is_selection(&self) -> bool {
         matches!(self, ExecutionFormat::Selection(_))
     }

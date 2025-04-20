@@ -183,13 +183,16 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunction for IsBool<NOT, BOOL> {
         let input = &input.arrays()[0];
 
         let out = PhysicalBool::get_addressable_mut(&mut output.data)?;
-        let flat = input.flatten()?;
-        let input = PhysicalBool::get_addressable(flat.array_buffer)?;
+
+        let buffer =
+            PhysicalBool::downcast_execution_format(&input.data)?.into_selection_format()?;
+        let input_bools = PhysicalBool::addressable(buffer.buffer);
 
         for (output_idx, idx) in sel.into_iter().enumerate() {
-            let is_valid = flat.validity.is_valid(idx);
+            let is_valid = input.validity.is_valid(idx);
             if is_valid {
-                let val = input.slice[idx];
+                let sel_idx = buffer.selection.get(idx).unwrap();
+                let val = input_bools.slice[sel_idx];
                 out.slice[output_idx] = if NOT { val != BOOL } else { val == BOOL }
             } else {
                 // 'IS TRUE', 'IS FALSE' => false

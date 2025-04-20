@@ -148,44 +148,45 @@ fn extract_inner<S>(
 where
     S: MutableScalarStorage,
 {
-    let flat = array.flatten()?;
+    not_implemented!("extract inner")
+    // let flat = array.flatten()?;
 
-    let list_buf = flat.array_buffer.get_list_buffer()?;
-    let metas = list_buf.metadata.as_slice();
+    // let list_buf = flat.array_buffer.get_list_buffer()?;
+    // let metas = list_buf.metadata.as_slice();
 
-    let child_buf = S::get_addressable(&list_buf.child_buffer)?;
-    let child_validity = &list_buf.child_validity;
+    // let child_buf = S::get_addressable(&list_buf.child_buffer)?;
+    // let child_validity = &list_buf.child_validity;
 
-    let mut out_buffer = S::get_addressable_mut(&mut output.data)?;
-    let out_validity = &mut output.validity;
+    // let mut out_buffer = S::get_addressable_mut(&mut output.data)?;
+    // let out_validity = &mut output.validity;
 
-    for (output_idx, input_idx) in sel.into_iter().enumerate() {
-        let sel_idx = flat.selection.get(input_idx).unwrap();
+    // for (output_idx, input_idx) in sel.into_iter().enumerate() {
+    //     let sel_idx = flat.selection.get(input_idx).unwrap();
 
-        if flat.validity.is_valid(input_idx) {
-            let meta = metas.get(sel_idx).unwrap();
-            if element_idx >= meta.len as usize {
-                // Indexing outside of the list. User is allowed to do that, set
-                // the value to null.
-                out_validity.set_invalid(output_idx);
-                continue;
-            }
+    //     if flat.validity.is_valid(input_idx) {
+    //         let meta = metas.get(sel_idx).unwrap();
+    //         if element_idx >= meta.len as usize {
+    //             // Indexing outside of the list. User is allowed to do that, set
+    //             // the value to null.
+    //             out_validity.set_invalid(output_idx);
+    //             continue;
+    //         }
 
-            let offset = meta.offset as usize + element_idx;
-            if !child_validity.is_valid(offset) {
-                // Element inside list is null.
-                out_validity.set_invalid(output_idx);
-                continue;
-            }
+    //         let offset = meta.offset as usize + element_idx;
+    //         if !child_validity.is_valid(offset) {
+    //             // Element inside list is null.
+    //             out_validity.set_invalid(output_idx);
+    //             continue;
+    //         }
 
-            let val = child_buf.get(offset).unwrap();
-            out_buffer.put(output_idx, val);
-        } else {
-            out_validity.set_invalid(output_idx);
-        }
-    }
+    //         let val = child_buf.get(offset).unwrap();
+    //         out_buffer.put(output_idx, val);
+    //     } else {
+    //         out_validity.set_invalid(output_idx);
+    //     }
+    // }
 
-    Ok(())
+    // Ok(())
 }
 
 #[cfg(test)]

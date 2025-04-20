@@ -1,7 +1,7 @@
 use glaredb_error::Result;
 
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
+use crate::arrays::array::execution_format::{ExecutionFormat, SelectionFormat};
 use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
 use crate::arrays::executor::{OutBuffer, PutBuffer};
 use crate::util::iter::IntoExactSizeIterator;
@@ -24,31 +24,28 @@ impl UniformExecutor {
         O: MutableScalarStorage,
         for<'a> Op: FnMut(&[&S::StorageType], PutBuffer<O::AddressableMut<'a>>),
     {
-        if arrays.iter().any(|arr| arr.should_flatten_for_execution()) {
-            let flats = arrays
-                .iter()
-                .map(|arr| arr.flatten())
-                .collect::<Result<Vec<_>>>()?;
-
-            return Self::execute_flat::<S, O, Op>(&flats, sel, out, op);
-        }
-
+        // (selection, addressable)
         let inputs = arrays
             .iter()
-            .map(|arr| S::get_addressable(&arr.data))
+            .map(|arr| {
+                let format = match S::downcast_execution_format(&arr.data)? {
+                    ExecutionFormat::Flat(buf) => SelectionFormat::flat(buf),
+                    ExecutionFormat::Selection(buf) => buf,
+                };
+                Ok((format.selection, S::addressable(format.buffer)))
+            })
             .collect::<Result<Vec<_>>>()?;
 
         let all_valid = arrays.iter().all(|arr| arr.validity.all_valid());
-
         let mut output = O::get_addressable_mut(out.buffer)?;
-
         let mut op_inputs = Vec::with_capacity(arrays.len());
 
         if all_valid {
             for (output_idx, input_idx) in sel.into_exact_size_iter().enumerate() {
                 op_inputs.clear();
-                for input in &inputs {
-                    op_inputs.push(input.get(input_idx).unwrap());
+                for (sel, input) in &inputs {
+                    let sel_idx = sel.get(input_idx).unwrap();
+                    op_inputs.push(input.get(sel_idx).unwrap());
                 }
 
                 op(
@@ -64,69 +61,8 @@ impl UniformExecutor {
 
                 if all_valid {
                     op_inputs.clear();
-                    for input in &inputs {
-                        op_inputs.push(input.get(input_idx).unwrap());
-                    }
-
-                    op(
-                        &op_inputs,
-                        PutBuffer::new(output_idx, &mut output, out.validity),
-                    );
-                } else {
-                    out.validity.set_invalid(output_idx);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn execute_flat<S, O, Op>(
-        arrays: &[FlattenedArray],
-        sel: impl IntoExactSizeIterator<Item = usize>,
-        out: OutBuffer,
-        mut op: Op,
-    ) -> Result<()>
-    where
-        S: ScalarStorage,
-        O: MutableScalarStorage,
-        for<'a> Op: FnMut(&[&S::StorageType], PutBuffer<O::AddressableMut<'a>>),
-    {
-        // TODO: length check
-
-        let inputs = arrays
-            .iter()
-            .map(|arr| S::get_addressable(arr.array_buffer))
-            .collect::<Result<Vec<_>>>()?;
-
-        let all_valid = arrays.iter().all(|arr| arr.validity.all_valid());
-
-        let mut output = O::get_addressable_mut(out.buffer)?;
-
-        let mut op_inputs = Vec::with_capacity(arrays.len());
-
-        if all_valid {
-            for (output_idx, input_idx) in sel.into_exact_size_iter().enumerate() {
-                op_inputs.clear();
-                for (input, array) in inputs.iter().zip(arrays) {
-                    let sel_idx = array.selection.get(input_idx).unwrap();
-                    op_inputs.push(input.get(sel_idx).unwrap());
-                }
-
-                op(
-                    &op_inputs,
-                    PutBuffer::new(output_idx, &mut output, out.validity),
-                );
-            }
-        } else {
-            for (output_idx, input_idx) in sel.into_exact_size_iter().enumerate() {
-                op_inputs.clear();
-
-                // If any column is invalid, the entire output row is NULL.
-                let all_cols_valid = arrays.iter().all(|arr| arr.validity.is_valid(input_idx));
-                if all_cols_valid {
-                    for (input, array) in inputs.iter().zip(arrays) {
-                        let sel_idx = array.selection.get(input_idx).unwrap();
+                    for (sel, input) in &inputs {
+                        let sel_idx = sel.get(input_idx).unwrap();
                         op_inputs.push(input.get(sel_idx).unwrap());
                     }
 

@@ -1,11 +1,10 @@
 use std::borrow::{Borrow, BorrowMut};
 
-use glaredb_error::Result;
+use glaredb_error::{Result, not_implemented};
 use half::f16;
 
 use super::row_blocks::{BlockAppendState, HeapMutPtr};
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
     AddressableMut,
@@ -150,14 +149,18 @@ impl RowLayout {
         for array in arrays {
             let rows = rows.clone();
 
-            let array = array.borrow().flatten()?;
+            let array = array.borrow();
+
             match array.physical_type() {
                 PhysicalType::Binary | PhysicalType::Utf8 => {
-                    let data = PhysicalBinary::get_addressable(array.array_buffer)?;
+                    let buffer = PhysicalBinary::downcast_execution_format(&array.data)?
+                        .into_selection_format()?;
+                    let metadatas = unsafe { buffer.buffer.metadata.as_slice() };
+
                     for (output, row) in rows.into_iter().enumerate() {
                         if array.validity.is_valid(row) {
-                            let sel = array.selection.get(row).unwrap();
-                            let view = data.metadata[sel];
+                            let sel = buffer.selection.get(row).unwrap();
+                            let view = metadatas[sel];
                             if !view.is_inline() {
                                 // Only increase size if we actually need to
                                 // write to a heap block.
@@ -166,8 +169,8 @@ impl RowLayout {
                         }
                     }
                 }
-                PhysicalType::Struct => unimplemented!(),
-                PhysicalType::List => unimplemented!(),
+                PhysicalType::Struct => not_implemented!("compute heap sizes for struct"),
+                PhysicalType::List => not_implemented!("compute heap sizes for list"),
                 _ => (),
             }
         }
@@ -187,7 +190,7 @@ impl RowLayout {
         unsafe {
             for (array_idx, array) in arrays.iter().enumerate() {
                 let rows = rows.clone();
-                let array = array.borrow().flatten()?;
+                let array = array.borrow();
                 write_array(
                     self,
                     array.physical_type(),
@@ -215,7 +218,7 @@ impl RowLayout {
         unsafe {
             for (array_idx, array) in arrays {
                 let array = array.borrow_mut();
-                let phys_type = array.data.physical_type();
+                let phys_type = array.physical_type();
                 read_array(
                     self,
                     phys_type,
@@ -272,7 +275,7 @@ unsafe fn write_array(
     layout: &RowLayout,
     phys_type: PhysicalType,
     array_idx: usize,
-    array: FlattenedArray,
+    array: &Array,
     row_pointers: &[*mut u8],
     heap_pointers: &mut [HeapMutPtr],
     rows: impl IntoExactSizeIterator<Item = usize>,
@@ -346,7 +349,7 @@ unsafe fn write_array(
 unsafe fn write_binary(
     layout: &RowLayout,
     array_idx: usize,
-    array: FlattenedArray,
+    array: &Array,
     row_pointers: &[*mut u8],
     heap_pointers: &mut [HeapMutPtr],
     rows: impl IntoExactSizeIterator<Item = usize>,
@@ -357,12 +360,15 @@ unsafe fn write_binary(
         debug_assert_eq!(rows.len(), row_pointers.len());
         debug_assert_eq!(rows.len(), heap_pointers.len());
 
-        let data = PhysicalBinary::get_addressable(array.array_buffer)?;
-        let validity = array.validity;
+        let buffer =
+            PhysicalBinary::downcast_execution_format(&array.data)?.into_selection_format()?;
+        let data = PhysicalBinary::addressable(buffer.buffer);
+
+        let validity = &array.validity;
 
         if validity.all_valid() {
             for (output, row_idx) in rows.into_iter().enumerate() {
-                let sel_idx = array.selection.get(row_idx).unwrap();
+                let sel_idx = buffer.selection.get(row_idx).unwrap();
                 let view = data.metadata.get(sel_idx).unwrap();
 
                 if !view.is_inline() {
@@ -390,7 +396,7 @@ unsafe fn write_binary(
         } else {
             for (output, row_idx) in rows.into_iter().enumerate() {
                 if validity.is_valid(row_idx) {
-                    let sel_idx = array.selection.get(row_idx).unwrap();
+                    let sel_idx = buffer.selection.get(row_idx).unwrap();
                     let view = data.metadata.get(sel_idx).unwrap();
 
                     if !view.is_inline() {
@@ -441,7 +447,7 @@ unsafe fn write_binary(
 unsafe fn write_scalar<S>(
     layout: &RowLayout,
     array_idx: usize,
-    array: FlattenedArray,
+    array: &Array,
     row_pointers: &[*mut u8],
     rows: impl IntoExactSizeIterator<Item = usize>,
 ) -> Result<()>
@@ -455,12 +461,14 @@ where
 
         let null_val = <S::StorageType>::default();
 
-        let data = S::get_addressable(array.array_buffer)?;
-        let validity = array.validity;
+        let buffer = S::downcast_execution_format(&array.data)?.into_selection_format()?;
+        let data = S::addressable(buffer.buffer);
+
+        let validity = &array.validity;
 
         if validity.all_valid() {
             for (output, row_idx) in rows.into_iter().enumerate() {
-                let sel_idx = array.selection.get(row_idx).unwrap();
+                let sel_idx = buffer.selection.get(row_idx).unwrap();
                 let v = data.get(sel_idx).unwrap();
 
                 let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
@@ -469,7 +477,7 @@ where
         } else {
             for (output, row_idx) in rows.into_iter().enumerate() {
                 if validity.is_valid(row_idx) {
-                    let sel_idx = array.selection.get(row_idx).unwrap();
+                    let sel_idx = buffer.selection.get(row_idx).unwrap();
                     let v = data.get(sel_idx).unwrap();
 
                     let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);

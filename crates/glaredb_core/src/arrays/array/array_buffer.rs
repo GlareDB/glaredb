@@ -65,6 +65,7 @@ pub trait ArrayBuffer: Sized + Sync + Send + 'static {
     fn logical_len(&self) -> usize;
 }
 
+// TODO: Change these to all take OwnedOrShared
 pub trait ArrayBufferDowncast: ArrayBuffer {
     /// Try to downcast this buffer into a concrete type reference.
     fn downcast_ref(buffer: &(dyn Any + Sync + Send)) -> Result<&Self>;
@@ -85,13 +86,13 @@ where
 {
     fn downcast_ref(buffer: &(dyn Any + Sync + Send)) -> Result<&Self> {
         buffer
-            .downcast_ref::<Self>()
+            .downcast_ref::<A>()
             .ok_or_else(|| DbError::new("failed to downcast array buffer"))
     }
 
     fn downcast_mut(buffer: &mut (dyn Any + Sync + Send)) -> Result<&mut Self> {
         buffer
-            .downcast_mut::<Self>()
+            .downcast_mut::<A>()
             .ok_or_else(|| DbError::new("failed to downcast array buffer (mut)"))
     }
 
@@ -1385,6 +1386,14 @@ impl<T> TryAsMut<T> for SharedOrOwned<T> {
 mod tests {
     use super::*;
     use crate::buffer::buffer_manager::DefaultBufferManager;
+
+    #[test]
+    fn downcast_basic() {
+        // Sanity check the downcast stuff.
+        let buffer =
+            AnyArrayBuffer::new_for_datatype(&DefaultBufferManager, &DataType::Int32, 4).unwrap();
+        ScalarBuffer::<i32>::downcast_ref(buffer.buffer.as_ref()).unwrap();
+    }
 
     #[test]
     fn string_view_buffer_push_inlined() {

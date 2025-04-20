@@ -3,8 +3,9 @@ use std::fmt::Debug;
 use glaredb_error::Result;
 
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
+use crate::arrays::array::execution_format::{ExecutionFormat, SelectionFormat};
 use crate::arrays::array::physical_type::{Addressable, MutableScalarStorage, ScalarStorage};
+use crate::arrays::array::validity::Validity;
 use crate::arrays::executor::{OutBuffer, PutBuffer};
 use crate::util::iter::IntoExactSizeIterator;
 
@@ -35,84 +36,108 @@ impl TernaryExecutor {
             PutBuffer<O::AddressableMut<'a>>,
         ),
     {
-        if array1.should_flatten_for_execution()
-            || array2.should_flatten_for_execution()
-            || array3.should_flatten_for_execution()
-        {
-            let flat1 = array1.flatten()?;
-            let flat2 = array2.flatten()?;
-            let flat3 = array3.flatten()?;
+        let format1 = S1::downcast_execution_format(&array1.data)?;
+        let format2 = S2::downcast_execution_format(&array2.data)?;
+        let format3 = S3::downcast_execution_format(&array3.data)?;
 
-            return Self::execute_flat::<S1, S2, S3, O, _>(
-                flat1, sel1, flat2, sel2, flat3, sel3, out, op,
-            );
-        }
+        match (format1, format2, format3) {
+            (ExecutionFormat::Flat(a1), ExecutionFormat::Flat(a2), ExecutionFormat::Flat(a3)) => {
+                let input1 = S1::addressable(a1);
+                let input2 = S2::addressable(a2);
+                let input3 = S3::addressable(a3);
 
-        // TODO: length validation.
+                let mut output = O::get_addressable_mut(out.buffer)?;
 
-        let input1 = S1::get_addressable(&array1.data)?;
-        let input2 = S2::get_addressable(&array2.data)?;
-        let input3 = S3::get_addressable(&array3.data)?;
+                let validity1 = &array1.validity;
+                let validity2 = &array2.validity;
+                let validity3 = &array3.validity;
 
-        let mut output = O::get_addressable_mut(out.buffer)?;
+                if validity1.all_valid() && validity2.all_valid() && validity3.all_valid() {
+                    for (output_idx, (input1_idx, (input2_idx, input3_idx))) in sel1
+                        .into_exact_size_iter()
+                        .zip(sel2.into_exact_size_iter().zip(sel3.into_exact_size_iter()))
+                        .enumerate()
+                    {
+                        let val1 = input1.get(input1_idx).unwrap();
+                        let val2 = input2.get(input2_idx).unwrap();
+                        let val3 = input3.get(input3_idx).unwrap();
 
-        let validity1 = &array1.validity;
-        let validity2 = &array2.validity;
-        let validity3 = &array3.validity;
-
-        if validity1.all_valid() && validity2.all_valid() && validity3.all_valid() {
-            for (output_idx, (input1_idx, (input2_idx, input3_idx))) in sel1
-                .into_exact_size_iter()
-                .zip(sel2.into_exact_size_iter().zip(sel3.into_exact_size_iter()))
-                .enumerate()
-            {
-                let val1 = input1.get(input1_idx).unwrap();
-                let val2 = input2.get(input2_idx).unwrap();
-                let val3 = input3.get(input3_idx).unwrap();
-
-                op(
-                    val1,
-                    val2,
-                    val3,
-                    PutBuffer::new(output_idx, &mut output, out.validity),
-                );
-            }
-        } else {
-            for (output_idx, (input1_idx, (input2_idx, input3_idx))) in sel1
-                .into_exact_size_iter()
-                .zip(sel2.into_exact_size_iter().zip(sel3.into_exact_size_iter()))
-                .enumerate()
-            {
-                if validity1.is_valid(input1_idx)
-                    && validity2.is_valid(input2_idx)
-                    && validity3.is_valid(input3_idx)
-                {
-                    let val1 = input1.get(input1_idx).unwrap();
-                    let val2 = input2.get(input2_idx).unwrap();
-                    let val3 = input3.get(input3_idx).unwrap();
-
-                    op(
-                        val1,
-                        val2,
-                        val3,
-                        PutBuffer::new(output_idx, &mut output, out.validity),
-                    );
+                        op(
+                            val1,
+                            val2,
+                            val3,
+                            PutBuffer::new(output_idx, &mut output, out.validity),
+                        );
+                    }
                 } else {
-                    out.validity.set_invalid(output_idx);
+                    for (output_idx, (input1_idx, (input2_idx, input3_idx))) in sel1
+                        .into_exact_size_iter()
+                        .zip(sel2.into_exact_size_iter().zip(sel3.into_exact_size_iter()))
+                        .enumerate()
+                    {
+                        if validity1.is_valid(input1_idx)
+                            && validity2.is_valid(input2_idx)
+                            && validity3.is_valid(input3_idx)
+                        {
+                            let val1 = input1.get(input1_idx).unwrap();
+                            let val2 = input2.get(input2_idx).unwrap();
+                            let val3 = input3.get(input3_idx).unwrap();
+
+                            op(
+                                val1,
+                                val2,
+                                val3,
+                                PutBuffer::new(output_idx, &mut output, out.validity),
+                            );
+                        } else {
+                            out.validity.set_invalid(output_idx);
+                        }
+                    }
                 }
+
+                Ok(())
+            }
+            (a1, a2, a3) => {
+                let a1 = match a1 {
+                    ExecutionFormat::Flat(a1) => SelectionFormat::flat(a1),
+                    ExecutionFormat::Selection(a1) => a1,
+                };
+                let a2 = match a2 {
+                    ExecutionFormat::Flat(a2) => SelectionFormat::flat(a2),
+                    ExecutionFormat::Selection(a2) => a2,
+                };
+                let a3 = match a3 {
+                    ExecutionFormat::Flat(a3) => SelectionFormat::flat(a3),
+                    ExecutionFormat::Selection(a3) => a3,
+                };
+
+                Self::execute_selection_format::<S1, S2, S3, _, _>(
+                    &array1.validity,
+                    a1,
+                    sel1,
+                    &array2.validity,
+                    a2,
+                    sel2,
+                    &array3.validity,
+                    a3,
+                    sel3,
+                    out,
+                    op,
+                )
             }
         }
-
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn execute_flat<'a, S1, S2, S3, O, Op>(
-        array1: FlattenedArray<'a>,
+    fn execute_selection_format<'a, S1, S2, S3, O, Op>(
+        validity1: &Validity,
+        array1: SelectionFormat<'_, S1::ArrayBuffer>,
         sel1: impl IntoExactSizeIterator<Item = usize>,
-        array2: FlattenedArray<'a>,
+        validity2: &Validity,
+        array2: SelectionFormat<'_, S2::ArrayBuffer>,
         sel2: impl IntoExactSizeIterator<Item = usize>,
-        array3: FlattenedArray<'a>,
+        validity3: &Validity,
+        array3: SelectionFormat<'_, S3::ArrayBuffer>,
         sel3: impl IntoExactSizeIterator<Item = usize>,
         out: OutBuffer,
         mut op: Op,
@@ -130,16 +155,11 @@ impl TernaryExecutor {
         ),
     {
         // TODO: length validation.
-
-        let input1 = S1::get_addressable(array1.array_buffer)?;
-        let input2 = S2::get_addressable(array2.array_buffer)?;
-        let input3 = S3::get_addressable(array3.array_buffer)?;
+        let input1 = S1::addressable(array1.buffer);
+        let input2 = S2::addressable(array2.buffer);
+        let input3 = S3::addressable(array3.buffer);
 
         let mut output = O::get_addressable_mut(out.buffer)?;
-
-        let validity1 = &array1.validity;
-        let validity2 = &array2.validity;
-        let validity3 = &array3.validity;
 
         if validity1.all_valid() && validity2.all_valid() && validity3.all_valid() {
             for (output_idx, (input1_idx, (input2_idx, input3_idx))) in sel1

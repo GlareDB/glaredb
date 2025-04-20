@@ -6,7 +6,6 @@ use glaredb_error::Result;
 
 use super::row_layout::RowLayout;
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
     PhysicalBinary,
@@ -95,7 +94,7 @@ impl PredicateRowMatcher {
             .zip(rhs_columns.iter())
             .zip(&self.matchers)
         {
-            let rhs_column = rhs_column.borrow().flatten()?;
+            let rhs_column = rhs_column.borrow();
 
             unsafe {
                 matcher.compute_matches(
@@ -179,7 +178,7 @@ trait Matcher<B: BufferManager>: Debug + Sync + Send + 'static {
         layout: &RowLayout,
         lhs_rows: &[*const u8],
         lhs_column: usize,
-        rhs_column: FlattenedArray,
+        rhs_column: &Array,
         selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
     ) -> Result<()>;
@@ -215,12 +214,15 @@ where
         layout: &RowLayout,
         lhs_rows: &[*const u8],
         lhs_column: usize,
-        rhs_column: FlattenedArray,
+        rhs_column: &Array,
         selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
     ) -> Result<()> {
+        // TODO: Scope the unsafe
         unsafe {
-            let rhs_data = S::get_addressable(rhs_column.array_buffer)?;
+            let rhs_buffer =
+                S::downcast_execution_format(&rhs_column.data)?.into_selection_format()?;
+            let rhs_data = S::addressable(rhs_buffer.buffer);
 
             let mut matches = 0;
             for idx in 0..selection.len() {
@@ -241,7 +243,7 @@ where
 
                 let rhs_valid = rhs_column.validity.is_valid(sel_idx);
                 let rhs_val = if rhs_valid {
-                    let rhs_sel = rhs_column.selection.get(sel_idx).unwrap();
+                    let rhs_sel = rhs_buffer.selection.get(sel_idx).unwrap();
                     Some(*rhs_data.get(rhs_sel).unwrap())
                 } else {
                     None
@@ -285,12 +287,14 @@ where
         layout: &RowLayout,
         lhs_rows: &[*const u8],
         lhs_column: usize,
-        rhs_column: FlattenedArray,
+        rhs_column: &Array,
         selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
     ) -> Result<()> {
         unsafe {
-            let rhs_data = PhysicalBinary::get_addressable(rhs_column.array_buffer)?;
+            let rhs_buffer = PhysicalBinary::downcast_execution_format(&rhs_column.data)?
+                .into_selection_format()?;
+            let rhs_data = PhysicalBinary::addressable(rhs_buffer.buffer);
 
             let mut matches = 0;
             for idx in 0..selection.len() {
@@ -318,7 +322,7 @@ where
 
                 let rhs_valid = rhs_column.validity.is_valid(sel_idx);
                 let rhs_val = if rhs_valid {
-                    let rhs_sel = rhs_column.selection.get(sel_idx).unwrap();
+                    let rhs_sel = rhs_buffer.selection.get(sel_idx).unwrap();
                     Some(rhs_data.get(rhs_sel).unwrap())
                 } else {
                     None
