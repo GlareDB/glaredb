@@ -284,11 +284,10 @@ impl AnyArrayBuffer {
     /// Make the underlying buffer shared.
     ///
     /// Does nothing if the buffer is already shared.
+    ///
+    /// This will indiscriminately make the top-level buffer shared. More
+    /// selective sharing should happen in `Array`.
     pub fn make_shared(&mut self) {
-        // TODO: Special case dictionary/constant. We want to make the child
-        // buffers shared, not this buffer though.
-        //
-        // Specifically for selecting on an already shared buffer.
         self.buffer.make_shared()
     }
 
@@ -488,6 +487,7 @@ impl ArrayBuffer for StructBuffer {
 
 #[derive(Debug)]
 pub struct DictionaryBuffer {
+    // TODO: Should this be shareable?
     pub(crate) selection: DbVec<usize>,
     pub(crate) buffer: AnyArrayBuffer,
 }

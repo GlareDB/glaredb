@@ -226,6 +226,7 @@ impl<T> AsSliceMut<T> for PrimitiveSliceMut<'_, T> {
 
 /// Helper trait for getting the underlying data for an array.
 pub trait ScalarStorage: Debug + Default + Sync + Send + Clone + Copy + 'static {
+    // TODO: Remove
     const PHYSICAL_TYPE: PhysicalType;
 
     /// The logical type being stored that can be accessed.
@@ -251,8 +252,11 @@ pub trait ScalarStorage: Debug + Default + Sync + Send + Clone + Copy + 'static 
     fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_>;
 
     /// Get addressable storage for indexing into the array.
-    // todo: remove
-    fn get_addressable(buffer: &AnyArrayBuffer) -> Result<Self::Addressable<'_>>;
+    // TODO: remove
+    fn get_addressable(buffer: &AnyArrayBuffer) -> Result<Self::Addressable<'_>> {
+        let buffer = Self::buffer_downcast_ref(buffer)?;
+        Ok(Self::addressable(buffer))
+    }
 }
 
 pub trait MutableScalarStorage: ScalarStorage {
@@ -271,7 +275,11 @@ pub trait MutableScalarStorage: ScalarStorage {
     fn addressable_mut(buffer: &mut Self::ArrayBuffer) -> Self::AddressableMut<'_>;
 
     /// Get mutable addressable storage for the array.
-    fn get_addressable_mut(buffer: &mut AnyArrayBuffer) -> Result<Self::AddressableMut<'_>>;
+    // TODO: Remove
+    fn get_addressable_mut(buffer: &mut AnyArrayBuffer) -> Result<Self::AddressableMut<'_>> {
+        let buffer = Self::buffer_downcast_mut(buffer)?;
+        Ok(Self::addressable_mut(buffer))
+    }
 }
 
 /// Marker type representing a null value without an associated type.
@@ -299,13 +307,6 @@ macro_rules! generate_primitive {
                     slice: unsafe { buffer.buffer.as_slice() },
                 }
             }
-
-            fn get_addressable(buffer: &AnyArrayBuffer) -> Result<Self::Addressable<'_>> {
-                let buf = &Self::buffer_downcast_ref(buffer)?.buffer;
-                Ok(PrimitiveSlice {
-                    slice: unsafe { buf.as_slice() },
-                })
-            }
         }
 
         impl MutableScalarStorage for $name {
@@ -315,15 +316,6 @@ macro_rules! generate_primitive {
                 PrimitiveSliceMut {
                     slice: unsafe { buffer.buffer.as_slice_mut() },
                 }
-            }
-
-            fn get_addressable_mut(
-                buffer: &mut AnyArrayBuffer,
-            ) -> Result<Self::AddressableMut<'_>> {
-                let buf = &mut Self::buffer_downcast_mut(buffer)?.buffer;
-                Ok(PrimitiveSliceMut {
-                    slice: unsafe { buf.as_slice_mut() },
-                })
             }
         }
     };
@@ -472,16 +464,6 @@ impl ScalarStorage for PhysicalBinary {
             buffer: &buffer.buffer,
         }
     }
-
-    fn get_addressable(buffer: &AnyArrayBuffer) -> Result<Self::Addressable<'_>> {
-        let buf = Self::buffer_downcast_ref(buffer)?;
-        let metadata = unsafe { buf.metadata.as_slice() };
-
-        Ok(BinaryViewAddressable {
-            metadata,
-            buffer: &buf.buffer,
-        })
-    }
 }
 
 impl MutableScalarStorage for PhysicalBinary {
@@ -493,16 +475,6 @@ impl MutableScalarStorage for PhysicalBinary {
             metadata,
             buffer: &mut buffer.buffer,
         }
-    }
-
-    fn get_addressable_mut(buffer: &mut AnyArrayBuffer) -> Result<Self::AddressableMut<'_>> {
-        let buf = Self::buffer_downcast_mut(buffer)?;
-        let metadata = unsafe { buf.metadata.as_slice_mut() };
-
-        Ok(BinaryViewAddressableMut {
-            metadata,
-            buffer: &mut buf.buffer,
-        })
     }
 }
 
@@ -524,16 +496,6 @@ impl ScalarStorage for PhysicalUtf8 {
             buffer: &buffer.buffer,
         }
     }
-
-    fn get_addressable(buffer: &AnyArrayBuffer) -> Result<Self::Addressable<'_>> {
-        let buf = Self::buffer_downcast_ref(buffer)?;
-        let metadata = unsafe { buf.metadata.as_slice() };
-
-        Ok(StringViewAddressable {
-            metadata,
-            buffer: &buf.buffer,
-        })
-    }
 }
 
 impl MutableScalarStorage for PhysicalUtf8 {
@@ -545,16 +507,6 @@ impl MutableScalarStorage for PhysicalUtf8 {
             metadata,
             buffer: &mut buffer.buffer,
         }
-    }
-
-    fn get_addressable_mut(buffer: &mut AnyArrayBuffer) -> Result<Self::AddressableMut<'_>> {
-        let buf = Self::buffer_downcast_mut(buffer)?;
-        let metadata = unsafe { buf.metadata.as_slice_mut() };
-
-        Ok(StringViewAddressableMut {
-            metadata,
-            buffer: &mut buf.buffer,
-        })
     }
 }
 
@@ -572,17 +524,6 @@ impl ScalarStorage for PhysicalList {
     fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
         unimplemented!()
     }
-
-    fn get_addressable(buffer: &AnyArrayBuffer) -> Result<Self::Addressable<'_>> {
-        unimplemented!()
-        // match buffer.as_ref() {
-        //     ArrayBufferType2::List(buf) => {
-        //         let s = buf.metadata.as_slice();
-        //         Ok(PrimitiveSlice { slice: s })
-        //     }
-        //     _ => Err(DbError::new("invalid buffer type, expected list buffer")),
-        // }
-    }
 }
 
 impl MutableScalarStorage for PhysicalList {
@@ -590,16 +531,5 @@ impl MutableScalarStorage for PhysicalList {
 
     fn addressable_mut(buffer: &mut Self::ArrayBuffer) -> Self::AddressableMut<'_> {
         unimplemented!()
-    }
-
-    fn get_addressable_mut(buffer: &mut AnyArrayBuffer) -> Result<Self::AddressableMut<'_>> {
-        unimplemented!()
-        // match buffer.as_mut() {
-        //     ArrayBufferType2::List(buf) => {
-        //         let s = buf.metadata.try_as_mut()?.as_slice_mut();
-        //         Ok(PrimitiveSliceMut { slice: s })
-        //     }
-        //     _ => Err(DbError::new("invalid buffer type, expected list buffer")),
-        // }
     }
 }

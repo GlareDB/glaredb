@@ -47,10 +47,10 @@ impl BinaryListReducer {
         O::StorageType: Sized,
         for<'a> R: BinaryReducer<&'a S1::StorageType, &'a S2::StorageType, O::StorageType>,
     {
-        if array1.should_flatten_for_execution() || array2.should_flatten_for_execution() {
-            // TODO
-            not_implemented!("flattening for list reduce");
-        }
+        // if array1.should_flatten_for_execution() || array2.should_flatten_for_execution() {
+        //     // TODO
+        //     not_implemented!("flattening for list reduce");
+        // }
 
         not_implemented!("reduce")
 

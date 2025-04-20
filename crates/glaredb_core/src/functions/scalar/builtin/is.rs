@@ -77,10 +77,11 @@ impl<const RETURN: bool> ScalarFunction for CheckNull<RETURN> {
             return Ok(());
         }
 
-        let flat = input.flatten()?;
+        // Just need to look at the validity (already logical), no flattening
+        // needed.
 
         for (output_idx, idx) in sel.into_iter().enumerate() {
-            let is_valid = flat.validity.is_valid(idx);
+            let is_valid = input.validity.is_valid(idx);
             if is_valid {
                 out.slice[output_idx] = !RETURN;
             } else {
