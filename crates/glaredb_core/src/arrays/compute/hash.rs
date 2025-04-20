@@ -6,7 +6,6 @@ use half::f16;
 
 use crate::arrays::array::Array;
 use crate::arrays::array::execution_format::ExecutionFormat;
-use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
     PhysicalBinary,

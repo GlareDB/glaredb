@@ -1,6 +1,5 @@
 pub mod array_buffer;
 pub mod execution_format;
-pub mod flat;
 pub mod physical_type;
 pub mod selection;
 pub mod validity;
@@ -9,21 +8,14 @@ use std::fmt::Debug;
 
 use array_buffer::{
     AnyArrayBuffer,
-    ArrayBuffer2,
     ArrayBufferDowncast,
     ArrayBufferType,
-    ArrayBufferType2,
     ConstantBuffer,
-    ConstantBuffer2,
     DictionaryBuffer,
-    DictionayBuffer2,
     EmptyBuffer,
     ListItemMetadata,
-    ScalarBuffer2,
-    SharedOrOwned,
 };
 use execution_format::{ExecutionFormat, ExecutionFormatMut};
-use flat::FlattenedArray;
 use glaredb_error::{DbError, Result, not_implemented};
 use half::f16;
 use physical_type::{
@@ -63,8 +55,6 @@ use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::timestamp::TimestampScalar;
 use crate::buffer::buffer_manager::{AsRawBufferManager, BufferManager, DefaultBufferManager};
 use crate::buffer::db_vec::DbVec;
-use crate::buffer::typed::TypedBuffer;
-use crate::util::convert::TryAsMut;
 use crate::util::iter::{IntoExactSizeIterator, TryFromExactSizeIterator};
 
 #[derive(Debug)]
@@ -312,21 +302,6 @@ impl Array {
         self.validity = validity;
 
         Ok(())
-    }
-
-    /// If we should flatten the array prior to executing an operation on the
-    /// array.
-    // TODO: Remove
-    pub fn should_flatten_for_execution(&self) -> bool {
-        false
-        // matches!(
-        //     self.data.as_ref(),
-        //     ArrayBufferType2::Constant(_) | ArrayBufferType2::Dictionary(_)
-        // )
-    }
-
-    pub fn flatten(&self) -> Result<FlattenedArray> {
-        FlattenedArray::from_array(self)
     }
 
     /// Selects indice from the array.

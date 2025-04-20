@@ -8,7 +8,6 @@ use super::Array;
 use super::array_buffer::{
     AnyArrayBuffer,
     ArrayBuffer,
-    ArrayBuffer2,
     ArrayBufferDowncast,
     ListBuffer,
     ListItemMetadata,
@@ -17,10 +16,8 @@ use super::array_buffer::{
     StringViewBuffer,
 };
 use super::execution_format::{ExecutionFormat, ExecutionFormatMut};
-use crate::arrays::array::array_buffer::ArrayBufferType2;
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::string::StringView;
-use crate::util::convert::TryAsMut;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {

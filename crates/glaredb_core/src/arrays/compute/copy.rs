@@ -1,7 +1,7 @@
 use glaredb_error::{Result, not_implemented};
 
 use crate::arrays::array::Array;
-use crate::arrays::array::array_buffer::{AnyArrayBuffer, ArrayBuffer2};
+use crate::arrays::array::array_buffer::AnyArrayBuffer;
 use crate::arrays::array::execution_format::ExecutionFormat;
 use crate::arrays::array::physical_type::{
     Addressable,

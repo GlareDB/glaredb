@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     PhysicalBool,
     PhysicalF16,
