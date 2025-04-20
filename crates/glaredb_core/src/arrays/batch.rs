@@ -6,7 +6,7 @@ use super::array::selection::Selection;
 use super::cache::{BufferCache, NopCache};
 use super::datatype::DataType;
 use crate::arrays::array::Array;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::util::iter::IntoExactSizeIterator;
 
 /// A batch of owned same-length arrays.
@@ -62,11 +62,11 @@ impl Batch {
         let mut arrays = Vec::with_capacity(datatypes.len());
 
         for datatype in datatypes {
-            let array = Array::new(&NopBufferManager, datatype, capacity)?;
+            let array = Array::new(&DefaultBufferManager, datatype, capacity)?;
             arrays.push(array)
         }
 
-        let cache = BufferCache::new(&NopBufferManager, capacity, arrays.len());
+        let cache = BufferCache::new(&DefaultBufferManager, capacity, arrays.len());
 
         Ok(Batch {
             arrays,
@@ -80,7 +80,7 @@ impl Batch {
         let arrays = other
             .arrays_mut()
             .iter_mut()
-            .map(|arr| Array::new_from_other(&NopBufferManager, arr))
+            .map(|arr| Array::new_from_other(&DefaultBufferManager, arr))
             .collect::<Result<Vec<_>>>()?;
 
         Ok(Batch {
@@ -135,22 +135,8 @@ impl Batch {
     /// current array buffers for later reuse.
     pub fn clone_from_other(&mut self, other: &mut Self) -> Result<()> {
         check_num_arrays(self, other)?;
-        match &mut self.cache {
-            Some(cache) => {
-                debug_assert_eq!(self.arrays.len(), cache.cached.len());
-                for (src, (dest, dest_cache)) in other
-                    .arrays
-                    .iter_mut()
-                    .zip(self.arrays.iter_mut().zip(&mut cache.cached))
-                {
-                    dest.clone_from_other(src, dest_cache)?;
-                }
-            }
-            None => {
-                for (src, dest) in other.arrays.iter_mut().zip(&mut self.arrays) {
-                    dest.clone_from_other(src, &mut NopCache)?;
-                }
-            }
+        for (src, dest) in other.arrays.iter_mut().zip(&mut self.arrays) {
+            dest.clone_from_other(src, &mut NopCache)?;
         }
 
         self.num_rows = other.num_rows;
@@ -199,13 +185,7 @@ impl Batch {
         own_idx: usize,
         (other, other_idx): (&mut Self, usize),
     ) -> Result<()> {
-        match &mut self.cache {
-            Some(cache) => self.arrays[own_idx]
-                .clone_from_other(&mut other.arrays[other_idx], &mut cache.cached[own_idx]),
-            None => {
-                self.arrays[own_idx].clone_from_other(&mut other.arrays[other_idx], &mut NopCache)
-            }
-        }
+        self.arrays[own_idx].clone_from_other(&mut other.arrays[other_idx], &mut NopCache)
     }
 
     /// Try to clone an row from another batch into this batch.
@@ -221,20 +201,8 @@ impl Batch {
         num_rows: usize,
     ) -> Result<()> {
         check_num_arrays(self, other)?;
-        match &mut self.cache {
-            Some(cache) => {
-                debug_assert_eq!(self.arrays.len(), cache.cached.len());
-                for ((src, src_cache), dest) in
-                    (other.arrays.iter_mut().zip(&mut cache.cached)).zip(&mut self.arrays)
-                {
-                    dest.clone_constant_from(src, row, num_rows, src_cache)?;
-                }
-            }
-            None => {
-                for (src, dest) in other.arrays.iter_mut().zip(&mut self.arrays) {
-                    dest.clone_constant_from(src, row, num_rows, &mut NopCache)?;
-                }
-            }
+        for (src, dest) in other.arrays.iter_mut().zip(&mut self.arrays) {
+            dest.clone_constant_from(src, row, num_rows, &mut NopCache)?;
         }
 
         self.num_rows = num_rows;
@@ -250,7 +218,7 @@ impl Batch {
         let num_rows = selection.clone().into_exact_size_iter().len();
         for arr in &mut self.arrays {
             let selection = selection.clone();
-            arr.select(&NopBufferManager, selection)?;
+            arr.select(&DefaultBufferManager, selection)?;
         }
         self.set_num_rows(num_rows)?;
 

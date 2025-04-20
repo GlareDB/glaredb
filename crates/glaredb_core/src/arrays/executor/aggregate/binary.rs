@@ -2,8 +2,9 @@ use glaredb_error::{DbError, Result};
 
 use super::AggregateState;
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
+use crate::arrays::array::execution_format::{ExecutionFormat, SelectionFormat};
 use crate::arrays::array::physical_type::{Addressable, ScalarStorage};
+use crate::arrays::array::validity::Validity;
 use crate::util::iter::IntoExactSizeIterator;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,50 +37,71 @@ impl BinaryNonNullUpdater {
             .with_field("states_len", states.len()));
         }
 
-        if array1.should_flatten_for_execution() || array2.should_flatten_for_execution() {
-            let flat1 = array1.flatten()?;
-            let flat2 = array2.flatten()?;
-            return Self::update_flat::<S1, S2, BindState, State, Output>(
-                flat1, flat2, selection, bind_state, states,
-            );
-        }
+        let format1 = S1::downcast_execution_format(&array1.data)?;
+        let format2 = S2::downcast_execution_format(&array2.data)?;
 
-        let input1 = S1::get_addressable(&array1.data)?;
-        let input2 = S2::get_addressable(&array2.data)?;
+        match (format1, format2) {
+            (ExecutionFormat::Flat(a1), ExecutionFormat::Flat(a2)) => {
+                let input1 = S1::addressable(a1);
+                let input2 = S2::addressable(a2);
 
-        let validity1 = &array1.validity;
-        let validity2 = &array2.validity;
+                let validity1 = &array1.validity;
+                let validity2 = &array2.validity;
 
-        if validity1.all_valid() && validity2.all_valid() {
-            for (state_idx, input_idx) in selection.enumerate() {
-                let val1 = input1.get(input_idx).unwrap();
-                let val2 = input2.get(input_idx).unwrap();
+                if validity1.all_valid() && validity2.all_valid() {
+                    for (state_idx, input_idx) in selection.enumerate() {
+                        let val1 = input1.get(input_idx).unwrap();
+                        let val2 = input2.get(input_idx).unwrap();
 
-                let state = unsafe { &mut *states[state_idx] };
+                        let state = unsafe { &mut *states[state_idx] };
 
-                state.update(bind_state, (val1, val2))?;
-            }
-        } else {
-            for (state_idx, input_idx) in selection.enumerate() {
-                if !validity1.is_valid(input_idx) || !validity2.is_valid(input_idx) {
-                    continue;
+                        state.update(bind_state, (val1, val2))?;
+                    }
+                } else {
+                    for (state_idx, input_idx) in selection.enumerate() {
+                        if !validity1.is_valid(input_idx) || !validity2.is_valid(input_idx) {
+                            continue;
+                        }
+
+                        let val1 = input1.get(input_idx).unwrap();
+                        let val2 = input2.get(input_idx).unwrap();
+
+                        let state = unsafe { &mut *states[state_idx] };
+
+                        state.update(bind_state, (val1, val2))?;
+                    }
                 }
 
-                let val1 = input1.get(input_idx).unwrap();
-                let val2 = input2.get(input_idx).unwrap();
+                Ok(())
+            }
+            (a1, a2) => {
+                let a1 = match a1 {
+                    ExecutionFormat::Flat(a1) => SelectionFormat::flat(a1),
+                    ExecutionFormat::Selection(a1) => a1,
+                };
+                let a2 = match a2 {
+                    ExecutionFormat::Flat(a2) => SelectionFormat::flat(a2),
+                    ExecutionFormat::Selection(a2) => a2,
+                };
 
-                let state = unsafe { &mut *states[state_idx] };
-
-                state.update(bind_state, (val1, val2))?;
+                Self::update_selection_format::<S1, S2, _, _, _>(
+                    &array1.validity,
+                    a1,
+                    &array2.validity,
+                    a2,
+                    selection,
+                    bind_state,
+                    states,
+                )
             }
         }
-
-        Ok(())
     }
 
-    fn update_flat<S1, S2, BindState, State, Output>(
-        array1: FlattenedArray<'_>,
-        array2: FlattenedArray<'_>,
+    fn update_selection_format<S1, S2, BindState, State, Output>(
+        validity1: &Validity,
+        array1: SelectionFormat<'_, S1::ArrayBuffer>,
+        validity2: &Validity,
+        array2: SelectionFormat<'_, S2::ArrayBuffer>,
         selection: impl IntoExactSizeIterator<Item = usize>,
         bind_state: &BindState,
         states: &mut [*mut State],
@@ -94,11 +116,8 @@ impl BinaryNonNullUpdater {
                 BindState = BindState,
             >,
     {
-        let input1 = S1::get_addressable(array1.array_buffer)?;
-        let input2 = S2::get_addressable(array2.array_buffer)?;
-
-        let validity1 = &array1.validity;
-        let validity2 = &array2.validity;
+        let input1 = S1::addressable(array1.buffer);
+        let input2 = S2::addressable(array2.buffer);
 
         if validity1.all_valid() && validity2.all_valid() {
             for (state_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
@@ -137,7 +156,7 @@ mod tests {
     use super::*;
     use crate::arrays::array::physical_type::{AddressableMut, PhysicalI32};
     use crate::arrays::executor::PutBuffer;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::iter::TryFromExactSizeIterator;
 
     // SUM(col) + PRODUCT(col)
@@ -207,7 +226,9 @@ mod tests {
 
         let mut array1 = Array::try_from_iter([1, 2, 3, 4, 5]).unwrap();
         // => [4, 5, 2, 3, 1]
-        array1.select(&NopBufferManager, [3, 4, 1, 2, 0]).unwrap();
+        array1
+            .select(&DefaultBufferManager, [3, 4, 1, 2, 0])
+            .unwrap();
         let array2 = Array::try_from_iter([6, 7, 8, 9, 10]).unwrap();
 
         BinaryNonNullUpdater::update::<PhysicalI32, PhysicalI32, _, _, _>(

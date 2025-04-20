@@ -61,7 +61,7 @@ impl BlockScanState {
             for sel_idx in selection {
                 debug_assert!(sel_idx < block.num_rows(row_width));
                 let ptr = block_ptr.byte_add(row_width * sel_idx);
-                debug_assert!(block.data.raw.contains_addr(ptr.addr()));
+                debug_assert!(block.data.contains_addr(ptr.addr()));
 
                 self.row_pointers.push(ptr);
             }

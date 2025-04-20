@@ -1,10 +1,8 @@
 use std::task::Context;
 
-use glaredb_error::Result;
+use glaredb_error::{Result, not_implemented};
 
-use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
-use crate::arrays::compute::copy::copy_rows_raw;
 use crate::arrays::datatype::DataTypeId;
 use crate::arrays::field::{ColumnSchema, Field};
 use crate::execution::operators::{ExecutionProperties, PollExecute, PollFinalize};
@@ -44,8 +42,10 @@ pub struct UnnestListOperatorState {}
 #[derive(Debug)]
 pub struct UnnestListPartitionState {
     /// Current row in the input.
+    #[allow(unused)]
     current_row: usize,
     /// Current position in the list.
+    #[allow(unused)]
     current_list_pos: usize,
 }
 
@@ -95,91 +95,94 @@ impl TableExecuteFunction for UnnestList {
     fn poll_execute(
         _cx: &mut Context,
         _operator_state: &Self::OperatorState,
-        state: &mut Self::PartitionState,
-        input: &mut Batch,
-        output: &mut Batch,
+        _state: &mut Self::PartitionState,
+        _input: &mut Batch,
+        _output: &mut Batch,
     ) -> Result<PollExecute> {
         // TODO: This could ensure the child buffers are shared from the input.
         // Currently we just copy them.
 
-        let input = input.arrays[0].flatten()?;
+        not_implemented!("unnest")
 
-        let cap = output.write_capacity()?;
-        let out_arr = &mut output.arrays[0];
+        // let input = input.arrays[0].flatten()?;
 
-        let mut output_offset = 0;
-        let mut total_count = 0;
+        // let cap = output.write_capacity()?;
+        // let out_arr = &mut output.arrays[0];
 
-        let list_buf = input.array_buffer.get_list_buffer()?;
+        // let mut output_offset = 0;
+        // let mut total_count = 0;
 
-        loop {
-            if total_count == cap {
-                // We filled up this batch, need to emit but keep the current
-                // input batch.
-                output.set_num_rows(total_count)?;
-                return Ok(PollExecute::HasMore);
-            }
+        // let list_buf = input.array_buffer.get_list_buffer()?;
 
-            if state.current_row >= input.logical_len() {
-                // We need more input. Reset states to accomadate that.
-                state.current_row = 0;
-                state.current_list_pos = 0;
+        // loop {
+        //     if total_count == cap {
+        //         // We filled up this batch, need to emit but keep the current
+        //         // input batch.
+        //         output.set_num_rows(total_count)?;
+        //         return Ok(PollExecute::HasMore);
+        //     }
 
-                output.set_num_rows(total_count)?;
+        //     if state.current_row >= input.logical_len() {
+        //         // We need more input. Reset states to accomadate that.
+        //         state.current_row = 0;
+        //         state.current_list_pos = 0;
 
-                // Return ready here to emit the current batch. This may waste
-                // space, we may want to store the output offset on state, and
-                // emit NeedsMore instead.
-                //
-                // That change would also require that we track when this gets
-                // finalized, as we'd need to emit any remaining rows.
-                return Ok(PollExecute::Ready);
-            }
+        //         output.set_num_rows(total_count)?;
 
-            let row_valid = input.validity.is_valid(state.current_row);
-            if !row_valid {
-                // Skip
-                state.current_row += 1;
-                state.current_list_pos = 0;
-                continue;
-            }
+        //         // Return ready here to emit the current batch. This may waste
+        //         // space, we may want to store the output offset on state, and
+        //         // emit NeedsMore instead.
+        //         //
+        //         // That change would also require that we track when this gets
+        //         // finalized, as we'd need to emit any remaining rows.
+        //         return Ok(PollExecute::Ready);
+        //     }
 
-            let sel_idx = input.selection.get(state.current_row).unwrap();
-            let list_meta = list_buf.metadata.as_slice()[sel_idx];
+        //     let row_valid = input.validity.is_valid(state.current_row);
+        //     if !row_valid {
+        //         // Skip
+        //         state.current_row += 1;
+        //         state.current_list_pos = 0;
+        //         continue;
+        //     }
 
-            let src_offset = list_meta.offset as usize + state.current_list_pos;
-            let src_rem_len = list_meta.len as usize - src_offset;
+        //     let sel_idx = input.selection.get(state.current_row).unwrap();
+        //     let list_meta = list_buf.metadata.as_slice()[sel_idx];
 
-            if src_rem_len == 0 {
-                // Move to next list.
-                state.current_row += 1;
-                state.current_list_pos = 0;
-                continue;
-            }
+        //     let src_offset = list_meta.offset as usize + state.current_list_pos;
+        //     let src_rem_len = list_meta.len as usize - src_offset;
 
-            // Figure out how much we can fit in the output.
-            let count = usize::min(cap - output_offset, src_rem_len);
-            // Select the part of the list we care about.
-            let src_sel = Selection::linear(src_offset, src_rem_len);
+        //     if src_rem_len == 0 {
+        //         // Move to next list.
+        //         state.current_row += 1;
+        //         state.current_list_pos = 0;
+        //         continue;
+        //     }
 
-            // Map index from list (after src_sel) to output idx.
-            let mapping = (0..count).map(|idx| (idx, idx + output_offset));
+        //     // Figure out how much we can fit in the output.
+        //     let count = usize::min(cap - output_offset, src_rem_len);
+        //     // Select the part of the list we care about.
+        //     // let src_sel = Selection::linear(src_offset, src_rem_len);
 
-            copy_rows_raw(
-                list_buf.child_physical_type,
-                &list_buf.child_buffer,
-                &list_buf.child_validity,
-                Some(src_sel),
-                mapping,
-                &mut out_arr.data,
-                &mut out_arr.validity,
-            )?;
+        //     // Map index from list (after src_sel) to output idx.
+        //     let mapping = (0..count).map(|idx| (idx, idx + output_offset));
 
-            // Update states.
-            output_offset += count;
-            total_count += count;
-            state.current_list_pos += count;
-        }
+        //     not_implemented!("unnest");
+        //     // copy_rows_raw(
+        //     //     list_buf.child_physical_type,
+        //     //     &list_buf.child_buffer,
+        //     //     &list_buf.child_validity,
+        //     //     Some(src_sel),
+        //     //     mapping,
+        //     //     &mut out_arr.data,
+        //     //     &mut out_arr.validity,
+        //     // )?;
+
+        //     // Update states.
+        //     output_offset += count;
+        //     total_count += count;
+        //     state.current_list_pos += count;
+        // }
     }
 
     fn poll_finalize_execute(

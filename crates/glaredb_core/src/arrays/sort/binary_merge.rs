@@ -508,7 +508,7 @@ mod tests {
     use super::*;
     use crate::arrays::batch::Batch;
     use crate::arrays::datatype::DataType;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::testutil::arrays::{TestSortedRowBlock, assert_batches_eq, generate_batch};
 
     /// Helper that will binary merge left and right, returning the result.
@@ -531,7 +531,7 @@ mod tests {
         let right_run = SortedSegment::from_sorted_block(right_block.sorted_block);
 
         let merger = BinaryMerger::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             &left_block.key_layout,
             &left_block.data_layout,
             cap,

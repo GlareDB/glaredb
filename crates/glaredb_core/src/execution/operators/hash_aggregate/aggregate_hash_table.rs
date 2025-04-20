@@ -11,8 +11,8 @@ use crate::arrays::row::aggregate_collection::{AggregateAppendState, AggregateCo
 use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::arrays::row::row_scan::RowScanState;
-use crate::buffer::buffer_manager::NopBufferManager;
-use crate::buffer::typed::TypedBuffer;
+use crate::buffer::buffer_manager::DefaultBufferManager;
+use crate::buffer::db_vec::DbVec;
 use crate::execution::operators::util::power_of_two::{
     compute_offset_from_hash,
     inc_and_wrap_offset,
@@ -116,7 +116,7 @@ impl AggregateHashTable {
     ) -> Result<()> {
         // Hash the groups.
         // TODO: Avoid allocating here.
-        let mut hashes_arr = Array::new(&NopBufferManager, DataType::UInt64, groups.num_rows)?;
+        let mut hashes_arr = Array::new(&DefaultBufferManager, DataType::UInt64, groups.num_rows)?;
         let hashes = PhysicalU64::get_addressable_mut(&mut hashes_arr.data)?.slice;
         hash_many_arrays(&groups.arrays, 0..groups.num_rows, hashes)?;
 
@@ -517,6 +517,10 @@ struct Entry {
     row_ptr: *mut u8,
 }
 
+// `*mut u8` is a pointer to a heap block.
+unsafe impl Send for Entry {}
+unsafe impl Sync for Entry {}
+
 impl Entry {
     const EMPTY: Entry = Entry {
         hash: 0,
@@ -550,7 +554,7 @@ pub(crate) struct Directory {
     /// Number of non-null pointers in entries.
     num_occupied: usize,
     /// Row pointers.
-    entries: TypedBuffer<Entry>,
+    entries: DbVec<Entry>,
 }
 
 impl Directory {
@@ -560,9 +564,7 @@ impl Directory {
     fn try_new(capacity: usize) -> Result<Self> {
         let capacity = capacity.next_power_of_two();
 
-        let mut entries = TypedBuffer::try_with_capacity(&NopBufferManager, capacity)?;
-        // Initialize...
-        entries.as_slice_mut().fill(Entry::EMPTY);
+        let entries = DbVec::with_value(&DefaultBufferManager, capacity, Entry::EMPTY)?;
 
         Ok(Directory {
             num_occupied: 0,
@@ -571,7 +573,7 @@ impl Directory {
     }
 
     fn capacity(&self) -> usize {
-        self.entries.capacity()
+        self.entries.len()
     }
 
     /// Resizes the directory to at least `new_capacity`.
@@ -581,19 +583,18 @@ impl Directory {
         if !is_power_of_2(new_capacity) {
             new_capacity = new_capacity.next_power_of_two();
         }
-        if new_capacity < self.entries.capacity() {
+        if new_capacity < self.entries.len() {
             return Err(DbError::new("Cannot reduce capacity of hash table")
-                .with_field("current", self.entries.capacity())
+                .with_field("current", self.entries.len())
                 .with_field("new", new_capacity));
         }
 
         let old_entries = std::mem::replace(
             &mut self.entries,
-            TypedBuffer::try_with_capacity(&NopBufferManager, new_capacity)?,
+            DbVec::with_value(&DefaultBufferManager, new_capacity, Entry::EMPTY)?,
         );
 
         let entries = self.entries.as_slice_mut();
-        entries.fill(Entry::EMPTY);
 
         for old_ent in old_entries.as_slice() {
             if !old_ent.is_occupied() {

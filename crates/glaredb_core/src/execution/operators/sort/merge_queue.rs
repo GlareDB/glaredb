@@ -10,7 +10,7 @@ use crate::arrays::sort::partial_sort::PartialSortedRowCollection;
 use crate::arrays::sort::sort_layout::SortLayout;
 use crate::arrays::sort::sorted_block::SortedBlock;
 use crate::arrays::sort::sorted_segment::SortedSegment;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::execution::operators::util::delayed_count::DelayedPartitionCount;
 use crate::execution::operators::util::partition_wakers::PartitionWakers;
 
@@ -151,7 +151,7 @@ impl MergeQueue {
         std::mem::drop(inner);
 
         let merger = BinaryMerger::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             &self.key_layout,
             &self.data_layout,
             self.block_capacity,

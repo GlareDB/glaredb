@@ -1,7 +1,8 @@
-use glaredb_error::{DbError, Result, not_implemented};
+use glaredb_error::{Result, not_implemented};
 
 use crate::arrays::array::Array;
-use crate::arrays::array::array_buffer::ArrayBuffer;
+use crate::arrays::array::array_buffer::AnyArrayBuffer;
+use crate::arrays::array::execution_format::ExecutionFormat;
 use crate::arrays::array::physical_type::{
     Addressable,
     AddressableMut,
@@ -26,7 +27,6 @@ use crate::arrays::array::physical_type::{
     PhysicalUntypedNull,
     PhysicalUtf8,
 };
-use crate::arrays::array::selection::Selection;
 use crate::arrays::array::validity::Validity;
 
 /// Copy rows from `src` to `dest` using mapping providing (from, to) indices.
@@ -35,36 +35,15 @@ pub fn copy_rows_array(
     mapping: impl IntoIterator<Item = (usize, usize)>,
     dest: &mut Array,
 ) -> Result<()> {
-    if dest.should_flatten_for_execution() {
-        return Err(DbError::new(
-            "Cannot copy to array that needs to be flattened",
-        ));
-    }
-
     let phys_type = src.datatype().physical_type();
-
-    if src.should_flatten_for_execution() {
-        let src = src.flatten()?;
-        copy_rows_raw(
-            phys_type,
-            src.array_buffer,
-            src.validity,
-            Some(src.selection),
-            mapping,
-            &mut dest.data,
-            &mut dest.validity,
-        )
-    } else {
-        copy_rows_raw(
-            phys_type,
-            &src.data,
-            &src.validity,
-            None,
-            mapping,
-            &mut dest.data,
-            &mut dest.validity,
-        )
-    }
+    copy_rows_raw(
+        phys_type,
+        &src.data,
+        &src.validity,
+        mapping,
+        &mut dest.data,
+        &mut dest.validity,
+    )
 }
 
 /// Copy rows from a src buf/validity mask to a destination buf/validity.
@@ -81,18 +60,16 @@ pub fn copy_rows_array(
 /// array-type collections like buffers in `ColumnarCollection`.
 pub(crate) fn copy_rows_raw(
     phys_type: PhysicalType,
-    src_buf: &ArrayBuffer,
+    src_buf: &AnyArrayBuffer,
     src_validity: &Validity,
-    src_sel: Option<Selection>,
     mapping: impl IntoIterator<Item = (usize, usize)>,
-    dest_buf: &mut ArrayBuffer,
+    dest_buf: &mut AnyArrayBuffer,
     dest_validity: &mut Validity,
 ) -> Result<()> {
     match phys_type {
         PhysicalType::UntypedNull => copy_rows_scalar::<PhysicalUntypedNull>(
             src_buf,
             src_validity,
-            src_sel,
             mapping,
             dest_buf,
             dest_validity,
@@ -100,119 +77,60 @@ pub(crate) fn copy_rows_raw(
         PhysicalType::Boolean => copy_rows_scalar::<PhysicalBool>(
             src_buf,
             src_validity,
-            src_sel,
             mapping,
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Int8 => copy_rows_scalar::<PhysicalI8>(
-            src_buf,
-            src_validity,
-            src_sel,
-            mapping,
-            dest_buf,
-            dest_validity,
-        ),
-        PhysicalType::Int16 => copy_rows_scalar::<PhysicalI16>(
-            src_buf,
-            src_validity,
-            src_sel,
-            mapping,
-            dest_buf,
-            dest_validity,
-        ),
-        PhysicalType::Int32 => copy_rows_scalar::<PhysicalI32>(
-            src_buf,
-            src_validity,
-            src_sel,
-            mapping,
-            dest_buf,
-            dest_validity,
-        ),
-        PhysicalType::Int64 => copy_rows_scalar::<PhysicalI64>(
-            src_buf,
-            src_validity,
-            src_sel,
-            mapping,
-            dest_buf,
-            dest_validity,
-        ),
+        PhysicalType::Int8 => {
+            copy_rows_scalar::<PhysicalI8>(src_buf, src_validity, mapping, dest_buf, dest_validity)
+        }
+        PhysicalType::Int16 => {
+            copy_rows_scalar::<PhysicalI16>(src_buf, src_validity, mapping, dest_buf, dest_validity)
+        }
+        PhysicalType::Int32 => {
+            copy_rows_scalar::<PhysicalI32>(src_buf, src_validity, mapping, dest_buf, dest_validity)
+        }
+        PhysicalType::Int64 => {
+            copy_rows_scalar::<PhysicalI64>(src_buf, src_validity, mapping, dest_buf, dest_validity)
+        }
         PhysicalType::Int128 => copy_rows_scalar::<PhysicalI128>(
             src_buf,
             src_validity,
-            src_sel,
             mapping,
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::UInt8 => copy_rows_scalar::<PhysicalU8>(
-            src_buf,
-            src_validity,
-            src_sel,
-            mapping,
-            dest_buf,
-            dest_validity,
-        ),
-        PhysicalType::UInt16 => copy_rows_scalar::<PhysicalU16>(
-            src_buf,
-            src_validity,
-            src_sel,
-            mapping,
-            dest_buf,
-            dest_validity,
-        ),
-        PhysicalType::UInt32 => copy_rows_scalar::<PhysicalU32>(
-            src_buf,
-            src_validity,
-            src_sel,
-            mapping,
-            dest_buf,
-            dest_validity,
-        ),
-        PhysicalType::UInt64 => copy_rows_scalar::<PhysicalU64>(
-            src_buf,
-            src_validity,
-            src_sel,
-            mapping,
-            dest_buf,
-            dest_validity,
-        ),
+        PhysicalType::UInt8 => {
+            copy_rows_scalar::<PhysicalU8>(src_buf, src_validity, mapping, dest_buf, dest_validity)
+        }
+        PhysicalType::UInt16 => {
+            copy_rows_scalar::<PhysicalU16>(src_buf, src_validity, mapping, dest_buf, dest_validity)
+        }
+        PhysicalType::UInt32 => {
+            copy_rows_scalar::<PhysicalU32>(src_buf, src_validity, mapping, dest_buf, dest_validity)
+        }
+        PhysicalType::UInt64 => {
+            copy_rows_scalar::<PhysicalU64>(src_buf, src_validity, mapping, dest_buf, dest_validity)
+        }
         PhysicalType::UInt128 => copy_rows_scalar::<PhysicalU128>(
             src_buf,
             src_validity,
-            src_sel,
             mapping,
             dest_buf,
             dest_validity,
         ),
-        PhysicalType::Float16 => copy_rows_scalar::<PhysicalF16>(
-            src_buf,
-            src_validity,
-            src_sel,
-            mapping,
-            dest_buf,
-            dest_validity,
-        ),
-        PhysicalType::Float32 => copy_rows_scalar::<PhysicalF32>(
-            src_buf,
-            src_validity,
-            src_sel,
-            mapping,
-            dest_buf,
-            dest_validity,
-        ),
-        PhysicalType::Float64 => copy_rows_scalar::<PhysicalF64>(
-            src_buf,
-            src_validity,
-            src_sel,
-            mapping,
-            dest_buf,
-            dest_validity,
-        ),
+        PhysicalType::Float16 => {
+            copy_rows_scalar::<PhysicalF16>(src_buf, src_validity, mapping, dest_buf, dest_validity)
+        }
+        PhysicalType::Float32 => {
+            copy_rows_scalar::<PhysicalF32>(src_buf, src_validity, mapping, dest_buf, dest_validity)
+        }
+        PhysicalType::Float64 => {
+            copy_rows_scalar::<PhysicalF64>(src_buf, src_validity, mapping, dest_buf, dest_validity)
+        }
         PhysicalType::Interval => copy_rows_scalar::<PhysicalInterval>(
             src_buf,
             src_validity,
-            src_sel,
             mapping,
             dest_buf,
             dest_validity,
@@ -220,7 +138,6 @@ pub(crate) fn copy_rows_raw(
         PhysicalType::Utf8 => copy_rows_scalar::<PhysicalUtf8>(
             src_buf,
             src_validity,
-            src_sel,
             mapping,
             dest_buf,
             dest_validity,
@@ -228,7 +145,6 @@ pub(crate) fn copy_rows_raw(
         PhysicalType::Binary => copy_rows_scalar::<PhysicalBinary>(
             src_buf,
             src_validity,
-            src_sel,
             mapping,
             dest_buf,
             dest_validity,
@@ -238,40 +154,20 @@ pub(crate) fn copy_rows_raw(
 }
 
 fn copy_rows_scalar<S>(
-    src_buf: &ArrayBuffer,
+    src_buf: &AnyArrayBuffer,
     src_validity: &Validity,
-    src_sel: Option<Selection>,
     mapping: impl IntoIterator<Item = (usize, usize)>,
-    dest_buf: &mut ArrayBuffer,
+    dest_buf: &mut AnyArrayBuffer,
     dest_validity: &mut Validity,
 ) -> Result<()>
 where
     S: MutableScalarStorage,
 {
-    let src_buf = S::get_addressable(src_buf)?;
     let mut dest_buf = S::get_addressable_mut(dest_buf)?;
+    match S::downcast_execution_format(src_buf)? {
+        ExecutionFormat::Flat(src) => {
+            let src_buf = S::addressable(src);
 
-    match src_sel {
-        Some(src_sel) => {
-            if src_validity.all_valid() {
-                for (src_idx, dest_idx) in mapping {
-                    let sel_idx = src_sel.get(src_idx).unwrap();
-                    let v = src_buf.get(sel_idx).unwrap();
-                    dest_buf.put(dest_idx, v);
-                }
-            } else {
-                for (src_idx, dest_idx) in mapping {
-                    if src_validity.is_valid(src_idx) {
-                        let sel_idx = src_sel.get(src_idx).unwrap();
-                        let v = src_buf.get(sel_idx).unwrap();
-                        dest_buf.put(dest_idx, v);
-                    } else {
-                        dest_validity.set_invalid(dest_idx);
-                    }
-                }
-            }
-        }
-        None => {
             if src_validity.all_valid() {
                 for (src_idx, dest_idx) in mapping {
                     let v = src_buf.get(src_idx).unwrap();
@@ -287,16 +183,39 @@ where
                     }
                 }
             }
+
+            Ok(())
+        }
+        ExecutionFormat::Selection(src) => {
+            let src_buf = S::addressable(src.buffer);
+
+            if src_validity.all_valid() {
+                for (src_idx, dest_idx) in mapping {
+                    let sel_idx = src.selection.get(src_idx).unwrap();
+                    let v = src_buf.get(sel_idx).unwrap();
+                    dest_buf.put(dest_idx, v);
+                }
+            } else {
+                for (src_idx, dest_idx) in mapping {
+                    if src_validity.is_valid(src_idx) {
+                        let sel_idx = src.selection.get(src_idx).unwrap();
+                        let v = src_buf.get(sel_idx).unwrap();
+                        dest_buf.put(dest_idx, v);
+                    } else {
+                        dest_validity.set_invalid(dest_idx);
+                    }
+                }
+            }
+
+            Ok(())
         }
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::util::iter::TryFromExactSizeIterator;
 
@@ -315,7 +234,7 @@ mod tests {
     fn copy_rows_from_dict() {
         let mut from = Array::try_from_iter(["a", "b", "c"]).unwrap();
         // => '["b", "a", "c"]
-        from.select(&NopBufferManager, [1, 0, 2]).unwrap();
+        from.select(&DefaultBufferManager, [1, 0, 2]).unwrap();
 
         let mut to = Array::try_from_iter(["d", "d", "d"]).unwrap();
 
@@ -329,7 +248,7 @@ mod tests {
     fn copy_rows_from_dict_invalid() {
         let mut from = Array::try_from_iter([Some("a"), None, Some("c")]).unwrap();
         // => '[NULL, "a", "c"]
-        from.select(&NopBufferManager, [1, 0, 2]).unwrap();
+        from.select(&DefaultBufferManager, [1, 0, 2]).unwrap();
 
         let mut to = Array::try_from_iter(["d", "d", "d"]).unwrap();
 

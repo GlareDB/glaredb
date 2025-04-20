@@ -5,7 +5,7 @@ use crate::arrays::array::Array;
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::scalar::ScalarValue;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 
 /// Evaluate expressions on batch inputs.
 #[derive(Debug)]
@@ -75,7 +75,7 @@ impl ExpressionEvaluator {
         let state = &mut self.states[0];
 
         let mut input = Batch::empty_with_num_rows(1);
-        let mut out = Array::new(&NopBufferManager, expr.datatype(), 1)?;
+        let mut out = Array::new(&DefaultBufferManager, expr.datatype(), 1)?;
 
         Self::eval_expression(expr, &mut input, state, Selection::linear(0, 1), &mut out)?;
 

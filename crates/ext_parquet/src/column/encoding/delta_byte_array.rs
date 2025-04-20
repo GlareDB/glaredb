@@ -4,8 +4,8 @@ use glaredb_core::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalBinary,
 };
-use glaredb_core::buffer::buffer_manager::NopBufferManager;
-use glaredb_core::buffer::typed::TypedBuffer;
+use glaredb_core::buffer::buffer_manager::DefaultBufferManager;
+use glaredb_core::buffer::db_vec::DbVec;
 use glaredb_error::{DbError, Result, ResultExt};
 
 use super::Definitions;
@@ -26,9 +26,9 @@ pub struct DeltaByteArrayDecoder {
     /// Index of the current prefix/suffix length we're on.
     curr_len_idx: usize,
     /// Decoded prefix lengths.
-    prefix_lengths: TypedBuffer<i32>,
+    prefix_lengths: DbVec<i32>,
     /// Decoded suffix lengths.
-    suffix_lengths: TypedBuffer<i32>,
+    suffix_lengths: DbVec<i32>,
     /// Cursor pointing to the current byte offset.
     cursor: ReadCursor,
 }
@@ -41,8 +41,9 @@ impl DeltaByteArrayDecoder {
             let mut dec = DeltaBinaryPackedValueDecoder::<i32>::try_new(cursor)?;
             let num_values = dec.total_values();
 
-            let mut lengths = TypedBuffer::<i32>::try_with_capacity(&NopBufferManager, num_values)?;
-            let len_slice = &mut lengths.as_slice_mut()[..num_values]; // May overallocate
+            let mut lengths =
+                unsafe { DbVec::<i32>::new_uninit(&DefaultBufferManager, num_values)? };
+            let len_slice = lengths.as_slice_mut();
             dec.read(len_slice)?;
 
             let cursor = dec.try_into_cursor()?;

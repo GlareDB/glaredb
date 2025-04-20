@@ -8,7 +8,6 @@ pub mod explain;
 pub mod expr;
 pub mod extension;
 pub mod functions;
-pub mod io;
 pub mod logical;
 pub mod optimizer;
 pub mod runtime;

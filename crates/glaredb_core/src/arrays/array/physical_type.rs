@@ -1,14 +1,22 @@
 use std::fmt::{self, Debug};
 
-use glaredb_error::{DbError, Result, not_implemented};
+use glaredb_error::{DbError, Result};
 use glaredb_proto::ProtoConv;
 use half::f16;
 
-use super::array_buffer::{ArrayBuffer, ListItemMetadata, StringViewBuffer};
-use crate::arrays::array::array_buffer::ArrayBufferType;
+use super::array_buffer::{
+    AnyArrayBuffer,
+    ArrayBuffer,
+    ArrayBufferDowncast,
+    ListBuffer,
+    ListItemMetadata,
+    ScalarBuffer,
+    StringBuffer,
+    StringViewBuffer,
+};
+use super::execution_format::{ExecutionFormat, ExecutionFormatMut};
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::string::StringView;
-use crate::util::convert::TryAsMut;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalType {
@@ -214,6 +222,7 @@ impl<T> AsSliceMut<T> for PrimitiveSliceMut<'_, T> {
 
 /// Helper trait for getting the underlying data for an array.
 pub trait ScalarStorage: Debug + Default + Sync + Send + Clone + Copy + 'static {
+    // TODO: Remove
     const PHYSICAL_TYPE: PhysicalType;
 
     /// The logical type being stored that can be accessed.
@@ -224,18 +233,49 @@ pub trait ScalarStorage: Debug + Default + Sync + Send + Clone + Copy + 'static 
     /// The type of the addressable storage.
     type Addressable<'a>: Addressable<'a, T = Self::StorageType>;
 
+    type ArrayBuffer: ArrayBuffer;
+
+    fn buffer_downcast_ref(buffer: &AnyArrayBuffer) -> Result<&Self::ArrayBuffer> {
+        ArrayBufferDowncast::downcast_ref(buffer)
+    }
+
+    fn downcast_execution_format(
+        buffer: &AnyArrayBuffer,
+    ) -> Result<ExecutionFormat<'_, Self::ArrayBuffer>> {
+        ArrayBufferDowncast::downcast_execution_format(buffer)
+    }
+
+    fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_>;
+
     /// Get addressable storage for indexing into the array.
-    fn get_addressable(buffer: &ArrayBuffer) -> Result<Self::Addressable<'_>>;
+    // TODO: remove
+    fn get_addressable(buffer: &AnyArrayBuffer) -> Result<Self::Addressable<'_>> {
+        let buffer = Self::buffer_downcast_ref(buffer)?;
+        Ok(Self::addressable(buffer))
+    }
 }
 
 pub trait MutableScalarStorage: ScalarStorage {
     type AddressableMut<'a>: AddressableMut<T = Self::StorageType>;
 
-    /// Get mutable addressable storage for the array.
-    fn get_addressable_mut(buffer: &mut ArrayBuffer) -> Result<Self::AddressableMut<'_>>;
+    fn buffer_downcast_mut(buffer: &mut AnyArrayBuffer) -> Result<&mut Self::ArrayBuffer> {
+        ArrayBufferDowncast::downcast_mut(buffer)
+    }
 
-    /// Try to reserve the buffer to hold `addition` number of elements.
-    fn try_reserve(buffer: &mut ArrayBuffer, additional: usize) -> Result<()>;
+    fn downcast_execution_format_mut(
+        buffer: &mut AnyArrayBuffer,
+    ) -> Result<ExecutionFormatMut<'_, Self::ArrayBuffer>> {
+        ArrayBufferDowncast::downcast_execution_format_mut(buffer)
+    }
+
+    fn addressable_mut(buffer: &mut Self::ArrayBuffer) -> Self::AddressableMut<'_>;
+
+    /// Get mutable addressable storage for the array.
+    // TODO: Remove
+    fn get_addressable_mut(buffer: &mut AnyArrayBuffer) -> Result<Self::AddressableMut<'_>> {
+        let buffer = Self::buffer_downcast_mut(buffer)?;
+        Ok(Self::addressable_mut(buffer))
+    }
 }
 
 /// Marker type representing a null value without an associated type.
@@ -256,24 +296,21 @@ macro_rules! generate_primitive {
             type StorageType = $prim;
             type Addressable<'a> = PrimitiveSlice<'a, Self::StorageType>;
 
-            fn get_addressable(buffer: &ArrayBuffer) -> Result<Self::Addressable<'_>> {
-                let s = buffer.get_scalar_buffer()?.try_as_slice::<Self>()?;
-                Ok(PrimitiveSlice { slice: s })
+            type ArrayBuffer = ScalarBuffer<$prim>;
+
+            fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
+                PrimitiveSlice {
+                    slice: buffer.buffer.as_slice(),
+                }
             }
         }
 
         impl MutableScalarStorage for $name {
             type AddressableMut<'a> = PrimitiveSliceMut<'a, Self::StorageType>;
 
-            fn get_addressable_mut(buffer: &mut ArrayBuffer) -> Result<Self::AddressableMut<'_>> {
-                let s = buffer.get_scalar_buffer_mut()?.try_as_slice_mut::<Self>()?;
-                Ok(PrimitiveSliceMut { slice: s })
-            }
-
-            fn try_reserve(buffer: &mut ArrayBuffer, additional: usize) -> Result<()> {
-                match buffer.as_mut() {
-                    ArrayBufferType::Scalar(buf) => buf.try_reserve::<Self>(additional),
-                    _ => Err(DbError::new("invalid buffer type, expected scalar buffer")),
+            fn addressable_mut(buffer: &mut Self::ArrayBuffer) -> Self::AddressableMut<'_> {
+                PrimitiveSliceMut {
+                    slice: buffer.buffer.as_slice_mut(),
                 }
             }
         }
@@ -414,10 +451,13 @@ impl ScalarStorage for PhysicalBinary {
     type StorageType = [u8];
     type Addressable<'a> = BinaryViewAddressable<'a>;
 
-    fn get_addressable(buffer: &ArrayBuffer) -> Result<Self::Addressable<'_>> {
-        match buffer.as_ref() {
-            ArrayBufferType::String(buf) => Ok(buf.as_binary_view()),
-            _ => Err(DbError::new("invalid buffer type, expected string buffer")),
+    type ArrayBuffer = StringBuffer;
+
+    fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
+        let metadata = buffer.metadata.as_slice();
+        BinaryViewAddressable {
+            metadata,
+            buffer: &buffer.buffer,
         }
     }
 }
@@ -425,17 +465,11 @@ impl ScalarStorage for PhysicalBinary {
 impl MutableScalarStorage for PhysicalBinary {
     type AddressableMut<'a> = BinaryViewAddressableMut<'a>;
 
-    fn get_addressable_mut(buffer: &mut ArrayBuffer) -> Result<Self::AddressableMut<'_>> {
-        match buffer.as_mut() {
-            ArrayBufferType::String(buf) => buf.try_as_binary_view_mut(),
-            _ => Err(DbError::new("invalid buffer type, expected string buffer")),
-        }
-    }
-
-    fn try_reserve(buffer: &mut ArrayBuffer, additional: usize) -> Result<()> {
-        match buffer.as_mut() {
-            ArrayBufferType::String(buf) => buf.try_reserve(additional),
-            _ => Err(DbError::new("invalid buffer type, expected string buffer")),
+    fn addressable_mut(buffer: &mut Self::ArrayBuffer) -> Self::AddressableMut<'_> {
+        let metadata = buffer.metadata.as_slice_mut();
+        BinaryViewAddressableMut {
+            metadata,
+            buffer: &mut buffer.buffer,
         }
     }
 }
@@ -449,10 +483,13 @@ impl ScalarStorage for PhysicalUtf8 {
     type StorageType = str;
     type Addressable<'a> = StringViewAddressable<'a>;
 
-    fn get_addressable(buffer: &ArrayBuffer) -> Result<Self::Addressable<'_>> {
-        match buffer.as_ref() {
-            ArrayBufferType::String(buf) => buf.try_as_string_view(),
-            _ => Err(DbError::new("invalid buffer type, expected string buffer")),
+    type ArrayBuffer = StringBuffer;
+
+    fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
+        let metadata = buffer.metadata.as_slice();
+        StringViewAddressable {
+            metadata,
+            buffer: &buffer.buffer,
         }
     }
 }
@@ -460,17 +497,11 @@ impl ScalarStorage for PhysicalUtf8 {
 impl MutableScalarStorage for PhysicalUtf8 {
     type AddressableMut<'a> = StringViewAddressableMut<'a>;
 
-    fn get_addressable_mut(buffer: &mut ArrayBuffer) -> Result<Self::AddressableMut<'_>> {
-        match buffer.as_mut() {
-            ArrayBufferType::String(buf) => buf.try_as_string_view_mut(),
-            _ => Err(DbError::new("invalid buffer type, expected string buffer")),
-        }
-    }
-
-    fn try_reserve(buffer: &mut ArrayBuffer, additional: usize) -> Result<()> {
-        match buffer.as_mut() {
-            ArrayBufferType::String(buf) => buf.try_reserve(additional),
-            _ => Err(DbError::new("invalid buffer type, expected string buffer")),
+    fn addressable_mut(buffer: &mut Self::ArrayBuffer) -> Self::AddressableMut<'_> {
+        let metadata = buffer.metadata.as_slice_mut();
+        StringViewAddressableMut {
+            metadata,
+            buffer: &mut buffer.buffer,
         }
     }
 }
@@ -484,13 +515,11 @@ impl ScalarStorage for PhysicalList {
     type StorageType = ListItemMetadata;
     type Addressable<'a> = PrimitiveSlice<'a, Self::StorageType>;
 
-    fn get_addressable(buffer: &ArrayBuffer) -> Result<Self::Addressable<'_>> {
-        match buffer.as_ref() {
-            ArrayBufferType::List(buf) => {
-                let s = buf.metadata.as_slice();
-                Ok(PrimitiveSlice { slice: s })
-            }
-            _ => Err(DbError::new("invalid buffer type, expected list buffer")),
+    type ArrayBuffer = ListBuffer;
+
+    fn addressable(buffer: &Self::ArrayBuffer) -> Self::Addressable<'_> {
+        PrimitiveSlice {
+            slice: buffer.metadata.as_slice(),
         }
     }
 }
@@ -498,17 +527,9 @@ impl ScalarStorage for PhysicalList {
 impl MutableScalarStorage for PhysicalList {
     type AddressableMut<'a> = PrimitiveSliceMut<'a, Self::StorageType>;
 
-    fn get_addressable_mut(buffer: &mut ArrayBuffer) -> Result<Self::AddressableMut<'_>> {
-        match buffer.as_mut() {
-            ArrayBufferType::List(buf) => {
-                let s = buf.metadata.try_as_mut()?.as_slice_mut();
-                Ok(PrimitiveSliceMut { slice: s })
-            }
-            _ => Err(DbError::new("invalid buffer type, expected list buffer")),
+    fn addressable_mut(buffer: &mut Self::ArrayBuffer) -> Self::AddressableMut<'_> {
+        PrimitiveSliceMut {
+            slice: buffer.metadata.as_slice_mut(),
         }
-    }
-
-    fn try_reserve(_buffer: &mut ArrayBuffer, _additional: usize) -> Result<()> {
-        not_implemented!("try_reserve on PhysicalList")
     }
 }

@@ -8,7 +8,7 @@ use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
 use crate::arrays::datatype::DataType;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 
 #[derive(Debug, Clone)]
 pub struct PhysicalColumnExpr {
@@ -48,7 +48,7 @@ impl PhysicalColumnExpr {
         output.clone_from_other(col, &mut NopCache)?;
 
         if !sel.is_linear() || sel.len() != input.num_rows() {
-            output.select(&NopBufferManager, sel.iter())?;
+            output.select(&DefaultBufferManager, sel.iter())?;
         }
 
         Ok(())
@@ -80,7 +80,7 @@ mod tests {
             idx: 1,
             datatype: DataType::Int32,
         };
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 4).unwrap();
         let sel = Selection::linear(0, 4);
 
         expr.eval(&mut input, &mut ExpressionState::empty(), sel, &mut out)
@@ -103,7 +103,7 @@ mod tests {
             datatype: DataType::Int32,
         };
         let mut state = expr.create_state(4).unwrap();
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 4).unwrap();
         let sel = Selection::slice(&[1, 3]);
 
         expr.eval(&mut input, &mut state, sel, &mut out).unwrap();

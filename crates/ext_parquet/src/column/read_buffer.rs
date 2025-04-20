@@ -1,12 +1,12 @@
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
-use glaredb_core::buffer::typed::ByteBuffer;
+use glaredb_core::buffer::db_vec::DbVec;
 use glaredb_error::{DbError, Result};
 
 /// Read buffer that owns the underlying buffer.
 #[derive(Debug)]
 pub struct OwnedReadBuffer {
     /// The underlying buffer.
-    buffer: ByteBuffer,
+    buffer: DbVec<u8>,
     /// Pointer to the current position in the buffer.
     curr: *const u8,
     /// Remaining number of bytes until the end of the buffer relative to the
@@ -22,7 +22,7 @@ impl OwnedReadBuffer {
     ///
     /// This buffer's `remaining` count will be initialized to the capacity of
     /// the byte buffer.
-    pub fn new(buffer: ByteBuffer) -> Self {
+    pub fn new(buffer: DbVec<u8>) -> Self {
         let curr = buffer.as_ptr();
         let remaining = buffer.capacity();
 
@@ -43,10 +43,7 @@ impl OwnedReadBuffer {
     #[allow(unused)]
     pub fn from_bytes(manager: &impl AsRawBufferManager, bs: impl AsRef<[u8]>) -> Result<Self> {
         let bs = bs.as_ref();
-        let mut buffer = ByteBuffer::try_with_capacity(manager, bs.len())?;
-
-        let dest = &mut buffer.as_slice_mut()[..bs.len()];
-        dest.copy_from_slice(bs);
+        let mut buffer = DbVec::<u8>::new_from_slice(manager, bs)?;
 
         let curr = buffer.as_ptr();
         let remaining = bs.len();
@@ -124,7 +121,7 @@ impl OwnedReadBuffer {
     ///
     /// All shared buffers created from this buffer are no longer valid to use.
     pub unsafe fn reset_and_resize(&mut self, size: usize) -> Result<()> {
-        self.buffer.reserve_for_size(size)?;
+        unsafe { self.buffer.resize_uninit(size)? };
         self.curr = self.buffer.as_ptr();
         debug_assert!(self.buffer.capacity() >= size);
         self.remaining = size;
@@ -281,13 +278,13 @@ impl ReadCursor {
 
 #[cfg(test)]
 mod tests {
-    use glaredb_core::buffer::buffer_manager::NopBufferManager;
+    use glaredb_core::buffer::buffer_manager::DefaultBufferManager;
 
     use super::*;
 
     #[test]
     fn take_all_read_u8() {
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         let mut s = buf.take_remaining();
 
         assert_eq!(0, unsafe { s.read_next_unchecked::<u8>() });
@@ -298,7 +295,7 @@ mod tests {
 
     #[test]
     fn skip_some_read_u8() {
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         buf.skip(2).unwrap();
         let mut s = buf.take_remaining();
 
@@ -308,7 +305,7 @@ mod tests {
 
     #[test]
     fn take_some_read_u8() {
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
 
         let mut s1 = buf.take_next(2).unwrap();
         assert_eq!(0, unsafe { s1.read_next_unchecked::<u8>() });
@@ -322,7 +319,7 @@ mod tests {
     #[test]
     fn take_all_read_u16() {
         // Assumes le
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         let mut s = buf.take_remaining();
 
         assert_eq!(256, unsafe { s.read_next_unchecked::<u16>() });
@@ -331,7 +328,7 @@ mod tests {
 
     #[test]
     fn take_all_read_into_u8() {
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         let mut s = buf.take_remaining();
 
         let mut out = [0; 3];
@@ -346,7 +343,7 @@ mod tests {
     #[test]
     fn take_all_peek_u16() {
         // Assumes le
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, [0, 1, 2, 3]).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, [0, 1, 2, 3]).unwrap();
         let mut s = buf.take_remaining();
 
         assert_eq!(256, unsafe { s.peek_next_unchecked::<u16>() });
@@ -358,7 +355,7 @@ mod tests {
 
     #[test]
     fn take_all_read_bytes() {
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, b"hello").unwrap();
         let mut s = buf.take_remaining();
 
         let out = unsafe { s.read_bytes_unchecked(1) };

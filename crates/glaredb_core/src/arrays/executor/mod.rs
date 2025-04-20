@@ -4,7 +4,7 @@ pub mod scalar;
 use glaredb_error::Result;
 
 use super::array::Array;
-use super::array::array_buffer::ArrayBuffer;
+use super::array::array_buffer::AnyArrayBuffer;
 use super::array::physical_type::AddressableMut;
 use super::array::validity::Validity;
 
@@ -12,7 +12,7 @@ use super::array::validity::Validity;
 /// construct a full array.
 #[derive(Debug)]
 pub struct OutBuffer<'a> {
-    pub buffer: &'a mut ArrayBuffer,
+    pub buffer: &'a mut AnyArrayBuffer,
     pub validity: &'a mut Validity,
 }
 

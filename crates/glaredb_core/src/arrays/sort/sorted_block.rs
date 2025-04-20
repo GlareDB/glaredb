@@ -330,8 +330,8 @@ fn apply_sort_indices(
 ) {
     let indices = indices.into_exact_size_iter();
 
-    debug_assert_eq!(src.data.capacity(), indices.len() * row_width);
-    debug_assert_eq!(dest.data.capacity(), indices.len() * row_width);
+    debug_assert_eq!(src.data.len(), indices.len() * row_width);
+    debug_assert_eq!(dest.data.len(), indices.len() * row_width);
 
     let src_ptr = src.as_ptr();
     let dest_ptr = dest.as_mut_ptr();

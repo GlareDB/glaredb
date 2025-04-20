@@ -5,7 +5,6 @@ use glaredb_error::Result;
 use half::f16;
 
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
     PhysicalBinary,
@@ -206,7 +205,7 @@ impl SortLayout {
     {
         unsafe {
             for (array_idx, array) in arrays.iter().enumerate() {
-                let array = array.borrow().flatten()?;
+                let array = array.borrow();
                 write_key_array(
                     self,
                     array.physical_type(),
@@ -276,7 +275,7 @@ unsafe fn write_key_array(
     layout: &SortLayout,
     phys_type: PhysicalType,
     array_idx: usize,
-    array: FlattenedArray,
+    array: &Array,
     row_pointers: &[*mut u8],
     num_rows: usize,
 ) -> Result<()> {
@@ -343,13 +342,14 @@ unsafe fn write_key_array(
 unsafe fn write_scalar<S>(
     layout: &SortLayout,
     array_idx: usize,
-    array: FlattenedArray,
+    array: &Array,
     row_pointers: &[*mut u8],
 ) -> Result<()>
 where
     S: ScalarStorage,
     S::StorageType: ComparableEncode + Default + Copy + Sized,
 {
+    // TODO: Scope unsafe
     unsafe {
         let col = &layout.columns[array_idx];
         let valid_b = col.valid_byte();
@@ -357,14 +357,16 @@ where
 
         let null_val = <S::StorageType>::default();
 
-        let data = S::get_addressable(array.array_buffer)?;
-        let validity = array.validity;
+        let buffer = S::downcast_execution_format(&array.data)?.into_selection_format()?;
+        let data = S::addressable(buffer.buffer);
+
+        let validity = &array.validity;
 
         for (row_idx, &row_ptr) in row_pointers.iter().enumerate() {
             let col_buf = layout.column_buffer_mut(row_ptr, array_idx);
 
             if validity.is_valid(row_idx) {
-                let sel_idx = array.selection.get(row_idx).unwrap();
+                let sel_idx = buffer.selection.get(row_idx).unwrap();
                 col_buf[0] = valid_b;
 
                 let v = data.get(sel_idx).unwrap();
@@ -384,7 +386,7 @@ where
 unsafe fn write_binary_prefix(
     layout: &SortLayout,
     array_idx: usize,
-    array: FlattenedArray,
+    array: &Array,
     row_pointers: &[*mut u8],
 ) -> Result<()> {
     unsafe {
@@ -392,14 +394,16 @@ unsafe fn write_binary_prefix(
         let valid_b = col.valid_byte();
         let invalid_b = col.invalid_byte();
 
-        let data = PhysicalBinary::get_addressable(array.array_buffer)?;
-        let validity = array.validity;
+        let buffer =
+            PhysicalBinary::downcast_execution_format(&array.data)?.into_selection_format()?;
+        let data = PhysicalBinary::addressable(buffer.buffer);
+        let validity = &array.validity;
 
         for (row_idx, &row_ptr) in row_pointers.iter().enumerate() {
             let col_buf = layout.column_buffer_mut(row_ptr, array_idx);
 
             if validity.is_valid(row_idx) {
-                let sel_idx = array.selection.get(row_idx).unwrap();
+                let sel_idx = buffer.selection.get(row_idx).unwrap();
                 col_buf[0] = valid_b;
 
                 let v = data.get(sel_idx).unwrap();

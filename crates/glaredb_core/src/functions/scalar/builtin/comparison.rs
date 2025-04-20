@@ -733,11 +733,11 @@ where
     S: ScalarStorage,
     S::StorageType: PartialEq + PartialOrd,
 {
-    let array1 = array1.flatten()?;
-    let array2 = array2.flatten()?;
+    let buffer1 = S::downcast_execution_format(&array1.data)?.into_selection_format()?;
+    let buffer2 = S::downcast_execution_format(&array2.data)?.into_selection_format()?;
 
-    let input1 = S::get_addressable(array1.array_buffer)?;
-    let input2 = S::get_addressable(array2.array_buffer)?;
+    let input1 = S::addressable(buffer1.buffer);
+    let input2 = S::addressable(buffer2.buffer);
 
     let mut output = PhysicalBool::get_addressable_mut(out.buffer)?;
 
@@ -746,8 +746,8 @@ where
 
     if validity1.all_valid() && validity2.all_valid() {
         for (output_idx, sel_idx) in sel.into_exact_size_iter().enumerate() {
-            let sel1 = array1.selection.get(sel_idx).unwrap();
-            let sel2 = array2.selection.get(sel_idx).unwrap();
+            let sel1 = buffer1.selection.get(sel_idx).unwrap();
+            let sel2 = buffer2.selection.get(sel_idx).unwrap();
 
             let val1 = input1.get(sel1).unwrap();
             let val2 = input2.get(sel2).unwrap();
@@ -758,14 +758,14 @@ where
     } else {
         for (output_idx, sel_idx) in sel.into_exact_size_iter().enumerate() {
             let val1 = if validity1.is_valid(sel_idx) {
-                let sel1 = array1.selection.get(sel_idx).unwrap();
+                let sel1 = buffer1.selection.get(sel_idx).unwrap();
                 Some(input1.get(sel1).unwrap())
             } else {
                 None
             };
 
             let val2 = if validity2.is_valid(sel_idx) {
-                let sel2 = array2.selection.get(sel_idx).unwrap();
+                let sel2 = buffer2.selection.get(sel_idx).unwrap();
                 Some(input2.get(sel2).unwrap())
             } else {
                 None
@@ -782,7 +782,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::generate_array;
     use crate::testutil::arrays::assert_arrays_eq;
 
@@ -806,7 +806,7 @@ mod tests {
         let arr1 = generate_array!([1, 2, 4]);
         let arr2 = generate_array!([4, 2, 1]);
 
-        let mut output = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
 
         binary_distinct_execute::<IsDistinctFromOperation, PhysicalI32>(
             &arr1,
@@ -825,7 +825,7 @@ mod tests {
         let arr1 = generate_array!([Some(1), Some(2), None, None]);
         let arr2 = generate_array!([Some(4), Some(2), None, Some(3)]);
 
-        let mut output = Array::new(&NopBufferManager, DataType::Boolean, 4).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, 4).unwrap();
 
         binary_distinct_execute::<IsDistinctFromOperation, PhysicalI32>(
             &arr1,
@@ -844,7 +844,7 @@ mod tests {
         let arr1 = generate_array!([1, 2, 4]);
         let arr2 = generate_array!([4, 2, 1]);
 
-        let mut output = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
 
         binary_distinct_execute::<IsNotDistinctFromOperation, PhysicalI32>(
             &arr1,
@@ -863,7 +863,7 @@ mod tests {
         let arr1 = generate_array!([Some(1), Some(2), None, None]);
         let arr2 = generate_array!([Some(4), Some(2), None, Some(3)]);
 
-        let mut output = Array::new(&NopBufferManager, DataType::Boolean, 4).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, 4).unwrap();
 
         binary_distinct_execute::<IsNotDistinctFromOperation, PhysicalI32>(
             &arr1,

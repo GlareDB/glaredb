@@ -229,7 +229,7 @@ where
                     //
                     // Assumes that we allocated the correct size for the buffer.
                     let ptr = unsafe { ptr.byte_add(self.row_width * offset) };
-                    debug_assert!(block.data.raw.contains_addr(ptr.addr()));
+                    debug_assert!(block.data.contains_addr(ptr.addr()));
 
                     ptr
                 }));
@@ -286,7 +286,7 @@ where
                 // is fine, we're not writing to it in that case). The 0 check
                 // just catches this.
                 debug_assert!(
-                    heap_size == 0 || block.data.raw.contains_addr(ptr.addr()),
+                    heap_size == 0 || block.data.contains_addr(ptr.addr()),
                     "ptr: {}, block: {}",
                     ptr.addr(),
                     block_ptr.addr(),
@@ -351,12 +351,12 @@ where
 mod tests {
     use super::*;
     use crate::arrays::datatype::DataType;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
 
     #[test]
     fn prepare_append_allocate_single_row_block() {
         let layout = RowLayout::new([DataType::Int32]);
-        let mut blocks = RowBlocks::new_using_row_layout(&NopBufferManager, &layout, 16);
+        let mut blocks = RowBlocks::new_using_row_layout(&DefaultBufferManager, &layout, 16);
 
         let mut append_state = BlockAppendState {
             row_pointers: Vec::new(),
@@ -380,7 +380,7 @@ mod tests {
     #[test]
     fn prepare_append_allocate_multiple_row_blocks() {
         let layout = RowLayout::new([DataType::Int32]);
-        let mut blocks = RowBlocks::new_using_row_layout(&NopBufferManager, &layout, 16);
+        let mut blocks = RowBlocks::new_using_row_layout(&DefaultBufferManager, &layout, 16);
 
         let mut append_state = BlockAppendState {
             row_pointers: Vec::new(),

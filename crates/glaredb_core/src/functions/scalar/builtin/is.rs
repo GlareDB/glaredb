@@ -77,10 +77,11 @@ impl<const RETURN: bool> ScalarFunction for CheckNull<RETURN> {
             return Ok(());
         }
 
-        let flat = input.flatten()?;
+        // Just need to look at the validity (already logical), no flattening
+        // needed.
 
         for (output_idx, idx) in sel.into_iter().enumerate() {
-            let is_valid = flat.validity.is_valid(idx);
+            let is_valid = input.validity.is_valid(idx);
             if is_valid {
                 out.slice[output_idx] = !RETURN;
             } else {
@@ -183,13 +184,16 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunction for IsBool<NOT, BOOL> {
         let input = &input.arrays()[0];
 
         let out = PhysicalBool::get_addressable_mut(&mut output.data)?;
-        let flat = input.flatten()?;
-        let input = PhysicalBool::get_addressable(flat.array_buffer)?;
+
+        let buffer =
+            PhysicalBool::downcast_execution_format(&input.data)?.into_selection_format()?;
+        let input_bools = PhysicalBool::addressable(buffer.buffer);
 
         for (output_idx, idx) in sel.into_iter().enumerate() {
-            let is_valid = flat.validity.is_valid(idx);
+            let is_valid = input.validity.is_valid(idx);
             if is_valid {
-                let val = input.slice[idx];
+                let sel_idx = buffer.selection.get(idx).unwrap();
+                let val = input_bools.slice[sel_idx];
                 out.slice[output_idx] = if NOT { val != BOOL } else { val == BOOL }
             } else {
                 // 'IS TRUE', 'IS FALSE' => false
@@ -205,14 +209,14 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunction for IsBool<NOT, BOOL> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::{generate_array, generate_batch};
 
     #[test]
     fn is_null() {
         let input = generate_batch!([Some(4), None, Some(5)]);
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
 
         CheckNull::<true>::execute(&(), &input, &mut out).unwrap();
 
@@ -223,7 +227,7 @@ mod tests {
     #[test]
     fn is_not_null() {
         let input = generate_batch!([Some(4), None, Some(5)]);
-        let mut out = Array::new(&NopBufferManager, DataType::Boolean, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
 
         CheckNull::<false>::execute(&(), &input, &mut out).unwrap();
 

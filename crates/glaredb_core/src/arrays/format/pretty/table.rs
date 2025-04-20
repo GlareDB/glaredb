@@ -794,7 +794,7 @@ mod tests {
     use super::*;
     use crate::arrays::array::selection::Selection;
     use crate::arrays::field::Field;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::generate_batch;
     use crate::util::iter::TryFromExactSizeIterator;
 
@@ -1460,8 +1460,8 @@ mod tests {
         ]);
 
         let mut batch = Batch::from_arrays(vec![
-            Array::new_constant(&NopBufferManager, &"1".into(), 6).unwrap(),
-            Array::new_constant(&NopBufferManager, &2.into(), 6).unwrap(),
+            Array::new_constant(&DefaultBufferManager, &"1".into(), 6).unwrap(),
+            Array::new_constant(&DefaultBufferManager, &2.into(), 6).unwrap(),
         ])
         .unwrap();
 

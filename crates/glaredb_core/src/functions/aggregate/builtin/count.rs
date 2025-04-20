@@ -64,36 +64,21 @@ impl AggregateFunction for Count {
             .with_field("states_len", states.len()));
         }
 
-        if input.should_flatten_for_execution() {
-            let input = input.flatten()?;
+        // We don't need to look at any of the physical values, just the
+        // validity.
+        //
+        // This validity is on top of the logical representation of the array
+        // buffer, so there's no "flattening" that needs to happen.
+        let validity = &input.validity;
 
-            if input.validity.all_valid() {
-                for &mut state_ptr in states {
-                    let state = unsafe { &mut *state_ptr };
-                    state.count += 1;
-                }
-            } else {
-                for (idx, &mut state_ptr) in states.iter_mut().enumerate() {
-                    if !input.validity.is_valid(idx) {
-                        continue;
-                    }
-
-                    let state = unsafe { &mut *state_ptr };
-                    state.count += 1;
-                }
-            }
-
-            return Ok(());
-        }
-
-        if input.validity.all_valid() {
+        if validity.all_valid() {
             for &mut state_ptr in states {
                 let state = unsafe { &mut *state_ptr };
                 state.count += 1;
             }
         } else {
             for (idx, &mut state_ptr) in states.iter_mut().enumerate() {
-                if !input.validity.is_valid(idx) {
+                if !validity.is_valid(idx) {
                     continue;
                 }
 
@@ -171,7 +156,7 @@ impl AggregateState<&(), i64> for CountNonNullState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
@@ -212,7 +197,7 @@ mod tests {
 
         let mut states = vec![state_ptr1, state_ptr1, state_ptr2, state_ptr1];
 
-        let array = Array::new_constant(&NopBufferManager, &"a".into(), 4).unwrap();
+        let array = Array::new_constant(&DefaultBufferManager, &"a".into(), 4).unwrap();
         Count::update(&(), &[array], 4, &mut states).unwrap();
 
         assert_eq!(3, state1.count);

@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     PhysicalBool,
     PhysicalF16,
@@ -58,39 +57,50 @@ pub fn assert_arrays_eq_sel(
 ) {
     assert_eq!(array1.datatype, array2.datatype);
 
-    let flat1 = array1.flatten().unwrap();
-    let flat2 = array2.flatten().unwrap();
-
     match array1.datatype.physical_type() {
         PhysicalType::Boolean => {
-            assert_arrays_eq_sel_inner::<PhysicalBool>(flat1, sel1, flat2, sel2)
+            assert_arrays_eq_sel_inner::<PhysicalBool>(array1, sel1, array2, sel2)
         }
-        PhysicalType::Int8 => assert_arrays_eq_sel_inner::<PhysicalI8>(flat1, sel1, flat2, sel2),
-        PhysicalType::Int16 => assert_arrays_eq_sel_inner::<PhysicalI16>(flat1, sel1, flat2, sel2),
-        PhysicalType::Int32 => assert_arrays_eq_sel_inner::<PhysicalI32>(flat1, sel1, flat2, sel2),
-        PhysicalType::Int64 => assert_arrays_eq_sel_inner::<PhysicalI64>(flat1, sel1, flat2, sel2),
+        PhysicalType::Int8 => assert_arrays_eq_sel_inner::<PhysicalI8>(array1, sel1, array2, sel2),
+        PhysicalType::Int16 => {
+            assert_arrays_eq_sel_inner::<PhysicalI16>(array1, sel1, array2, sel2)
+        }
+        PhysicalType::Int32 => {
+            assert_arrays_eq_sel_inner::<PhysicalI32>(array1, sel1, array2, sel2)
+        }
+        PhysicalType::Int64 => {
+            assert_arrays_eq_sel_inner::<PhysicalI64>(array1, sel1, array2, sel2)
+        }
         PhysicalType::Int128 => {
-            assert_arrays_eq_sel_inner::<PhysicalI128>(flat1, sel1, flat2, sel2)
+            assert_arrays_eq_sel_inner::<PhysicalI128>(array1, sel1, array2, sel2)
         }
-        PhysicalType::UInt8 => assert_arrays_eq_sel_inner::<PhysicalU8>(flat1, sel1, flat2, sel2),
-        PhysicalType::UInt16 => assert_arrays_eq_sel_inner::<PhysicalU16>(flat1, sel1, flat2, sel2),
-        PhysicalType::UInt32 => assert_arrays_eq_sel_inner::<PhysicalU32>(flat1, sel1, flat2, sel2),
-        PhysicalType::UInt64 => assert_arrays_eq_sel_inner::<PhysicalU64>(flat1, sel1, flat2, sel2),
+        PhysicalType::UInt8 => assert_arrays_eq_sel_inner::<PhysicalU8>(array1, sel1, array2, sel2),
+        PhysicalType::UInt16 => {
+            assert_arrays_eq_sel_inner::<PhysicalU16>(array1, sel1, array2, sel2)
+        }
+        PhysicalType::UInt32 => {
+            assert_arrays_eq_sel_inner::<PhysicalU32>(array1, sel1, array2, sel2)
+        }
+        PhysicalType::UInt64 => {
+            assert_arrays_eq_sel_inner::<PhysicalU64>(array1, sel1, array2, sel2)
+        }
         PhysicalType::UInt128 => {
-            assert_arrays_eq_sel_inner::<PhysicalU128>(flat1, sel1, flat2, sel2)
+            assert_arrays_eq_sel_inner::<PhysicalU128>(array1, sel1, array2, sel2)
         }
         PhysicalType::Float16 => {
-            assert_arrays_eq_sel_inner::<PhysicalF16>(flat1, sel1, flat2, sel2)
+            assert_arrays_eq_sel_inner::<PhysicalF16>(array1, sel1, array2, sel2)
         }
         PhysicalType::Float32 => {
-            assert_arrays_eq_sel_inner::<PhysicalF32>(flat1, sel1, flat2, sel2)
+            assert_arrays_eq_sel_inner::<PhysicalF32>(array1, sel1, array2, sel2)
         }
         PhysicalType::Float64 => {
-            assert_arrays_eq_sel_inner::<PhysicalF64>(flat1, sel1, flat2, sel2)
+            assert_arrays_eq_sel_inner::<PhysicalF64>(array1, sel1, array2, sel2)
         }
-        PhysicalType::Utf8 => assert_arrays_eq_sel_inner::<PhysicalUtf8>(flat1, sel1, flat2, sel2),
+        PhysicalType::Utf8 => {
+            assert_arrays_eq_sel_inner::<PhysicalUtf8>(array1, sel1, array2, sel2)
+        }
         PhysicalType::List => {
-            assert_arrays_eq_sel_list_inner(flat1, sel1, flat2, sel2);
+            assert_arrays_eq_sel_list_inner(array1, sel1, array2, sel2);
         }
         other => unimplemented!("{other:?}"),
     }
@@ -98,9 +108,9 @@ pub fn assert_arrays_eq_sel(
 
 #[track_caller]
 fn assert_arrays_eq_sel_list_inner(
-    flat1: FlattenedArray,
+    array1: &Array,
     sel1: impl IntoExactSizeIterator<Item = usize>,
-    flat2: FlattenedArray,
+    array2: &Array,
     sel2: impl IntoExactSizeIterator<Item = usize>,
 ) {
     unimplemented!()
@@ -143,9 +153,9 @@ fn assert_arrays_eq_sel_list_inner(
 
 #[track_caller]
 fn assert_arrays_eq_sel_inner<S>(
-    flat1: FlattenedArray,
+    array1: &Array,
     sel1: impl IntoExactSizeIterator<Item = usize>,
-    flat2: FlattenedArray,
+    array2: &Array,
     sel2: impl IntoExactSizeIterator<Item = usize>,
 ) where
     S: ScalarStorage,
@@ -154,13 +164,13 @@ fn assert_arrays_eq_sel_inner<S>(
     // Maps index to value.
     let mut out = BTreeMap::new();
 
-    UnaryExecutor::for_each_flat::<S, _>(flat1, sel1, |idx, v| {
+    UnaryExecutor::for_each_flat::<S, _>(array1, sel1, |idx, v| {
         out.insert(idx, v.map(|v| v.to_owned()));
     })
     .unwrap();
 
     // TODO: Bubble up these errors for better line numbers when asserts fail.
-    UnaryExecutor::for_each_flat::<S, _>(flat2, sel2, |idx, v| match out.remove(&idx) {
+    UnaryExecutor::for_each_flat::<S, _>(array2, sel2, |idx, v| match out.remove(&idx) {
         Some(existing) => {
             let v = v.map(|v| v.to_owned());
             assert_eq!(existing, v, "values differ at index {idx}");
@@ -202,7 +212,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
@@ -217,7 +227,7 @@ mod tests {
     fn assert_i32_arrays_eq_with_dictionary() {
         let array1 = Array::try_from_iter([5, 4, 4]).unwrap();
         let mut array2 = Array::try_from_iter([4, 5]).unwrap();
-        array2.select(&NopBufferManager, [1, 0, 0]).unwrap();
+        array2.select(&DefaultBufferManager, [1, 0, 0]).unwrap();
 
         assert_arrays_eq(&array1, &array2);
     }

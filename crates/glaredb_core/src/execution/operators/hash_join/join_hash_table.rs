@@ -13,8 +13,8 @@ use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::row::row_collection::{RowAppendState, RowCollection};
 use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
-use crate::buffer::buffer_manager::NopBufferManager;
-use crate::buffer::typed::TypedBuffer;
+use crate::buffer::buffer_manager::DefaultBufferManager;
+use crate::buffer::db_vec::DbVec;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::logical_join::JoinType;
 
@@ -146,7 +146,7 @@ impl JoinHashTable {
     #[allow(unused)]
     pub fn init_build_state(&self) -> BuildState {
         BuildState {
-            match_init: Array::new_constant(&NopBufferManager, &false.into(), self.batch_size)
+            match_init: Array::new_constant(&DefaultBufferManager, &false.into(), self.batch_size)
                 .expect("constant array to build"),
             row_append: self.data.init_append(),
         }
@@ -188,7 +188,7 @@ impl JoinHashTable {
         // Get build keys from the left for hashing.
         build_arrays.extend(self.build_key_columns.iter().map(|&idx| &input.arrays[idx]));
 
-        let mut hashes = Array::new(&NopBufferManager, DataType::UInt64, input.num_rows())?;
+        let mut hashes = Array::new(&DefaultBufferManager, DataType::UInt64, input.num_rows())?;
         let hash_vals = PhysicalU64::get_addressable_mut(&mut hashes.data)?;
         hash_many_arrays(
             build_arrays.iter().copied(),
@@ -204,9 +204,10 @@ impl JoinHashTable {
         // Ensure we include the "matches" initial values.
         if self.join_type.produce_all_build_side_rows() {
             // Resize to match the input rows.
-            state
-                .match_init
-                .select(&NopBufferManager, Selection::constant(input.num_rows(), 0))?;
+            state.match_init.select(
+                &DefaultBufferManager,
+                Selection::constant(input.num_rows(), 0),
+            )?;
 
             // And add to the arrays we'll be appending.
             build_arrays.push(&state.match_init);
@@ -248,7 +249,7 @@ impl JoinHashTable {
         &self,
         block_indices: impl IntoIterator<Item = usize>,
     ) -> Result<()> {
-        let mut hashes = Array::new(&NopBufferManager, DataType::UInt64, self.batch_size)?;
+        let mut hashes = Array::new(&DefaultBufferManager, DataType::UInt64, self.batch_size)?;
         let mut scan_state = self.data.init_partial_scan(block_indices);
 
         let scan_cols = &[self.hash_column_idx()];
@@ -496,8 +497,12 @@ impl JoinHashTable {
 /// of a chain is denoted by a null pointer.
 #[derive(Debug)]
 pub struct Directory {
-    entries: TypedBuffer<*mut u8>,
+    entries: DbVec<*mut u8>,
 }
+
+// `*mut u8` pointing to heap blocks.
+unsafe impl Sync for Directory {}
+unsafe impl Send for Directory {}
 
 impl Directory {
     const MIN_SIZE: usize = 256;
@@ -506,7 +511,7 @@ impl Directory {
     /// Mask to use when determining the position for an entry in the hash
     /// table.
     const fn capacity_mask(&self) -> u64 {
-        self.entries.capacity() as u64 - 1
+        self.entries.len() as u64 - 1
     }
 
     /// Create a new directory for the given number of rows.
@@ -517,21 +522,22 @@ impl Directory {
         let desired = (num_rows as f64 / Self::LOAD_FACTOR) as usize;
         let actual = usize::max(desired.next_power_of_two(), Self::MIN_SIZE);
 
-        let mut entries = TypedBuffer::try_with_capacity(&NopBufferManager, actual)?;
-        entries.as_slice_mut().fill(std::ptr::null_mut());
+        let entries = DbVec::with_value(&DefaultBufferManager, actual, std::ptr::null_mut())?;
 
         Ok(Directory { entries })
     }
 
     fn get_entry(&self, idx: usize) -> *const u8 {
-        debug_assert!(idx < self.entries.capacity());
+        debug_assert!(idx < self.entries.len());
         let ptr = unsafe { self.entries.as_ptr().add(idx) };
         unsafe { *ptr }
     }
 
     fn get_entry_atomic(&self, idx: usize) -> &AtomicPtr<u8> {
-        debug_assert!(idx < self.entries.capacity());
-        let ptr = unsafe { self.entries.as_mut_ptr().add(idx) };
+        debug_assert!(idx < self.entries.len());
+        // TODO: Need to figure out the mutability for the directory.
+        let ptr = self.entries.as_ptr().cast_mut();
+        let ptr = unsafe { ptr.add(idx) };
         unsafe { AtomicPtr::from_ptr(ptr) }
     }
 }

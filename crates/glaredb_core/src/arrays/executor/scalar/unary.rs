@@ -1,7 +1,7 @@
 use glaredb_error::Result;
 
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
+use crate::arrays::array::execution_format::{ExecutionFormat, SelectionFormat};
 use crate::arrays::array::physical_type::{
     Addressable,
     AddressableMut,
@@ -28,80 +28,69 @@ impl UnaryExecutor {
         O: MutableScalarStorage,
         for<'a> Op: FnMut(&S::StorageType, PutBuffer<O::AddressableMut<'a>>),
     {
-        if array.should_flatten_for_execution() {
-            let view = array.flatten()?;
-            return Self::execute_flat::<S, _, _>(view, selection, out, op);
-        }
+        match S::downcast_execution_format(&array.data)? {
+            ExecutionFormat::Flat(buffer) => {
+                let input = S::addressable(buffer);
+                let mut output = O::get_addressable_mut(out.buffer)?;
 
-        let input = S::get_addressable(&array.data)?;
-        let mut output = O::get_addressable_mut(out.buffer)?;
+                let validity = &array.validity;
 
-        let validity = &array.validity;
-
-        if validity.all_valid() {
-            for (output_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
-                op(
-                    input.get(input_idx).unwrap(),
-                    PutBuffer::new(output_idx, &mut output, out.validity),
-                );
-            }
-        } else {
-            for (output_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
-                if validity.is_valid(input_idx) {
-                    op(
-                        input.get(input_idx).unwrap(),
-                        PutBuffer::new(output_idx, &mut output, out.validity),
-                    );
+                if validity.all_valid() {
+                    for (output_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
+                        op(
+                            input.get(input_idx).unwrap(),
+                            PutBuffer::new(output_idx, &mut output, out.validity),
+                        );
+                    }
                 } else {
-                    out.validity.set_invalid(output_idx);
+                    for (output_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
+                        if validity.is_valid(input_idx) {
+                            op(
+                                input.get(input_idx).unwrap(),
+                                PutBuffer::new(output_idx, &mut output, out.validity),
+                            );
+                        } else {
+                            out.validity.set_invalid(output_idx);
+                        }
+                    }
                 }
+
+                Ok(())
             }
-        }
+            ExecutionFormat::Selection(buffer) => {
+                let input = S::addressable(buffer.buffer);
+                let array_selection = buffer.selection;
+                let mut output = O::get_addressable_mut(out.buffer)?;
 
-        Ok(())
-    }
+                let validity = &array.validity;
 
-    pub fn execute_flat<S, O, Op>(
-        array: FlattenedArray<'_>,
-        selection: impl IntoExactSizeIterator<Item = usize>,
-        out: OutBuffer,
-        mut op: Op,
-    ) -> Result<()>
-    where
-        S: ScalarStorage,
-        O: MutableScalarStorage,
-        for<'b> Op: FnMut(&S::StorageType, PutBuffer<O::AddressableMut<'b>>),
-    {
-        let input = S::get_addressable(array.array_buffer)?;
-        let mut output = O::get_addressable_mut(out.buffer)?;
+                if validity.all_valid() {
+                    for (output_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
+                        let selected_idx = array_selection.get(input_idx).unwrap();
 
-        let validity = array.validity;
-
-        if validity.all_valid() {
-            for (output_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
-                let selected_idx = array.selection.get(input_idx).unwrap();
-
-                op(
-                    input.get(selected_idx).unwrap(),
-                    PutBuffer::new(output_idx, &mut output, out.validity),
-                );
-            }
-        } else {
-            for (output_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
-                let selected_idx = array.selection.get(input_idx).unwrap();
-
-                if validity.is_valid(input_idx) {
-                    op(
-                        input.get(selected_idx).unwrap(),
-                        PutBuffer::new(output_idx, &mut output, out.validity),
-                    );
+                        op(
+                            input.get(selected_idx).unwrap(),
+                            PutBuffer::new(output_idx, &mut output, out.validity),
+                        );
+                    }
                 } else {
-                    out.validity.set_invalid(output_idx);
+                    for (output_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
+                        let selected_idx = array_selection.get(input_idx).unwrap();
+
+                        if validity.is_valid(input_idx) {
+                            op(
+                                input.get(selected_idx).unwrap(),
+                                PutBuffer::new(output_idx, &mut output, out.validity),
+                            );
+                        } else {
+                            out.validity.set_invalid(output_idx);
+                        }
+                    }
                 }
+
+                Ok(())
             }
         }
-
-        Ok(())
     }
 
     /// Iterate over all values in a flat array view, calling `op` for each row.
@@ -111,7 +100,7 @@ impl UnaryExecutor {
     ///
     /// `op` will be called with the output index for that row.
     pub fn for_each_flat<S, Op>(
-        array: FlattenedArray<'_>,
+        array: &Array,
         selection: impl IntoExactSizeIterator<Item = usize>,
         mut op: Op,
     ) -> Result<()>
@@ -119,20 +108,24 @@ impl UnaryExecutor {
         S: ScalarStorage,
         Op: FnMut(usize, Option<&S::StorageType>),
     {
-        let input = S::get_addressable(array.array_buffer)?;
-        let validity = array.validity;
+        let validity = &array.validity;
+        let buffer = match S::downcast_execution_format(&array.data)? {
+            ExecutionFormat::Flat(flat) => SelectionFormat::flat(flat),
+            ExecutionFormat::Selection(buf) => buf,
+        };
+        let input = S::addressable(buffer.buffer);
 
         // TODO: `op` should be called with input_idx?
         if validity.all_valid() {
             for (output_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
-                let selected_idx = array.selection.get(input_idx).unwrap();
+                let selected_idx = buffer.selection.get(input_idx).unwrap();
                 let v = input.get(selected_idx).unwrap();
 
                 op(output_idx, Some(v))
             }
         } else {
             for (output_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
-                let selected_idx = array.selection.get(input_idx).unwrap();
+                let selected_idx = buffer.selection.get(input_idx).unwrap();
 
                 if validity.is_valid(selected_idx) {
                     let v = input.get(selected_idx).unwrap();
@@ -191,15 +184,17 @@ impl UnaryExecutor {
         mut when_true: impl FnMut(usize),
         mut when_false: impl FnMut(usize),
     ) -> Result<()> {
-        let flat = array.flatten()?;
-
-        let bools = PhysicalBool::get_addressable(flat.array_buffer)?;
-        let validity = flat.validity;
+        let validity = &array.validity;
+        let buffer = match PhysicalBool::downcast_execution_format(&array.data)? {
+            ExecutionFormat::Flat(flat) => SelectionFormat::flat(flat),
+            ExecutionFormat::Selection(buf) => buf,
+        };
+        let input = PhysicalBool::addressable(buffer.buffer);
 
         if validity.all_valid() {
             for input_idx in selection.into_exact_size_iter() {
-                let selected_idx = flat.selection.get(input_idx).unwrap();
-                let v = *bools.get(selected_idx).unwrap();
+                let selected_idx = buffer.selection.get(input_idx).unwrap();
+                let v = *input.get(selected_idx).unwrap();
 
                 if v {
                     when_true(input_idx)
@@ -210,10 +205,10 @@ impl UnaryExecutor {
         } else {
             for input_idx in selection.into_exact_size_iter() {
                 let valid = validity.is_valid(input_idx);
-                let selected_idx = flat.selection.get(input_idx).unwrap();
+                let selected_idx = buffer.selection.get(input_idx).unwrap();
 
                 if valid {
-                    let v = *bools.get(selected_idx).unwrap();
+                    let v = *input.get(selected_idx).unwrap();
                     if v {
                         when_true(input_idx);
                     } else {
@@ -239,7 +234,7 @@ mod tests {
         StringViewAddressableMut,
     };
     use crate::arrays::datatype::DataType;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::generate_array;
     use crate::testutil::arrays::assert_arrays_eq;
     use crate::util::iter::TryFromExactSizeIterator;
@@ -247,7 +242,7 @@ mod tests {
     #[test]
     fn int32_inc_by_2() {
         let array = Array::try_from_iter([1, 2, 3]).unwrap();
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
@@ -258,21 +253,16 @@ mod tests {
         .unwrap();
         assert!(out.validity.all_valid());
 
-        let out_slice = out
-            .data
-            .get_scalar_buffer()
-            .unwrap()
-            .try_as_slice::<PhysicalI32>()
-            .unwrap();
-        assert_eq!(&[3, 4, 5], out_slice);
+        let expected = generate_array!([3, 4, 5]);
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn int32_inc_by_2_on_selection() {
         let mut array = Array::try_from_iter([1, 2, 3]).unwrap();
         // => [2, 3, 1]
-        array.select(&NopBufferManager, [1, 2, 0]).unwrap();
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        array.select(&DefaultBufferManager, [1, 2, 0]).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
@@ -290,8 +280,8 @@ mod tests {
     fn int32_inc_by_2_on_selection_with_invalid() {
         let mut array = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
         // => [NULL, 3, 1]
-        array.select(&NopBufferManager, [1, 2, 0]).unwrap();
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        array.select(&DefaultBufferManager, [1, 2, 0]).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
@@ -308,12 +298,10 @@ mod tests {
     #[test]
     fn int32_inc_by_2_using_flattened_array() {
         let array = Array::try_from_iter([1, 2, 3]).unwrap();
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
 
-        let flat = FlattenedArray::from_array(&array).unwrap();
-
-        UnaryExecutor::execute_flat::<PhysicalI32, PhysicalI32, _>(
-            flat,
+        UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
+            &array,
             0..3,
             OutBuffer::from_array(&mut out).unwrap(),
             |&v, buf| buf.put(&(v + 2)),
@@ -322,13 +310,8 @@ mod tests {
 
         assert!(out.validity.all_valid());
 
-        let out_slice = out
-            .data
-            .get_scalar_buffer()
-            .unwrap()
-            .try_as_slice::<PhysicalI32>()
-            .unwrap();
-        assert_eq!(&[3, 4, 5], out_slice);
+        let expected = generate_array!([3, 4, 5]);
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
@@ -337,13 +320,8 @@ mod tests {
 
         UnaryExecutor::execute_in_place::<PhysicalI32, _>(&mut array, 0..3, |v| *v += 2).unwrap();
 
-        let arr_slice = array
-            .data
-            .get_scalar_buffer()
-            .unwrap()
-            .try_as_slice::<PhysicalI32>()
-            .unwrap();
-        assert_eq!(&[3, 4, 5], arr_slice);
+        let expected = generate_array!([3, 4, 5]);
+        assert_arrays_eq(&expected, &array);
     }
 
     #[test]
@@ -359,7 +337,7 @@ mod tests {
         ])
         .unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 6).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 6).unwrap();
 
         fn my_string_double(s: &str, buf: PutBuffer<StringViewAddressableMut>) {
             let mut double = s.to_string();
@@ -376,22 +354,15 @@ mod tests {
         .unwrap();
         assert!(out.validity.all_valid());
 
-        let out = out
-            .data
-            .get_string_buffer()
-            .unwrap()
-            .try_as_string_view()
-            .unwrap();
-
-        assert_eq!("aa", out.get(0).unwrap());
-        assert_eq!("bbbb", out.get(1).unwrap());
-        assert_eq!("cccccc", out.get(2).unwrap());
-        assert_eq!("dddddddd", out.get(3).unwrap());
-        assert_eq!("heapafterheapafter", out.get(4).unwrap());
-        assert_eq!(
+        let expected = generate_array!([
+            "aa",
+            "bbbb",
+            "cccccc",
+            "dddddddd",
+            "heapafterheapafter",
             "alongerstringdontinlinealongerstringdontinline",
-            out.get(5).unwrap()
-        );
+        ]);
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
@@ -407,7 +378,7 @@ mod tests {
         ])
         .unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Utf8, 6).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 6).unwrap();
 
         let mut string_buf = String::new();
 
@@ -427,22 +398,15 @@ mod tests {
         .unwrap();
         assert!(out.validity.all_valid());
 
-        let out = out
-            .data
-            .get_string_buffer()
-            .unwrap()
-            .try_as_string_view()
-            .unwrap();
-
-        assert_eq!("aa", out.get(0).unwrap());
-        assert_eq!("bbbb", out.get(1).unwrap());
-        assert_eq!("cccccc", out.get(2).unwrap());
-        assert_eq!("dddddddd", out.get(3).unwrap());
-        assert_eq!("heapafterheapafter", out.get(4).unwrap());
-        assert_eq!(
+        let expected = generate_array!([
+            "aa",
+            "bbbb",
+            "cccccc",
+            "dddddddd",
+            "heapafterheapafter",
             "alongerstringdontinlinealongerstringdontinline",
-            out.get(5).unwrap()
-        );
+        ]);
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
@@ -454,25 +418,19 @@ mod tests {
         })
         .unwrap();
 
-        let out = array
-            .data
-            .get_string_buffer()
-            .unwrap()
-            .try_as_string_view()
-            .unwrap();
-
-        assert_eq!("A", out.get(0).unwrap());
-        assert_eq!("BB", out.get(1).unwrap());
-        assert_eq!("CCC", out.get(2).unwrap());
+        let expected = generate_array!(["A", "BB", "CCC"]);
+        assert_arrays_eq(&expected, &array);
     }
 
     #[test]
     fn int32_inc_by_2_with_dict() {
         let mut array = Array::try_from_iter([1, 2, 3]).unwrap();
         // [3, 3, 2, 1, 1, 3]
-        array.select(&NopBufferManager, [2, 2, 1, 0, 0, 2]).unwrap();
+        array
+            .select(&DefaultBufferManager, [2, 2, 1, 0, 0, 2])
+            .unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 6).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 6).unwrap();
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
@@ -483,20 +441,15 @@ mod tests {
         .unwrap();
         assert!(out.validity.all_valid());
 
-        let out_slice = out
-            .data
-            .get_scalar_buffer()
-            .unwrap()
-            .try_as_slice::<PhysicalI32>()
-            .unwrap();
-        assert_eq!(&[5, 5, 4, 3, 3, 5], out_slice);
+        let expected = generate_array!([5, 5, 4, 3, 3, 5]);
+        assert_arrays_eq(&expected, &out);
     }
 
     #[test]
     fn int32_inc_by_2_constant() {
-        let array = Array::new_constant(&NopBufferManager, &3.into(), 2).unwrap();
+        let array = Array::new_constant(&DefaultBufferManager, &3.into(), 2).unwrap();
 
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 2).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 2).unwrap();
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
@@ -527,7 +480,7 @@ mod tests {
     fn select_dictionary() {
         let mut array = generate_array!([Some(true), Some(false), None, Some(true)]);
         // [NULL, NULL, false, true]
-        array.select(&NopBufferManager, [2, 2, 1, 0]).unwrap();
+        array.select(&DefaultBufferManager, [2, 2, 1, 0]).unwrap();
 
         let mut trues = Vec::new();
         let mut falses = Vec::new();

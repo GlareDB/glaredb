@@ -7,7 +7,7 @@ use glaredb_error::{DbError, Result, not_implemented};
 
 use super::{File, FileOpenContext, FileStat, FileSystem, FileType, OpenFlags};
 use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
-use crate::buffer::typed::ByteBuffer;
+use crate::buffer::db_vec::DbVec;
 
 #[derive(Debug)]
 pub struct MemoryFileSystem {
@@ -15,7 +15,7 @@ pub struct MemoryFileSystem {
     #[allow(unused)] // Will be used for creates
     buffer_manager: RawBufferManager,
     /// Simple mapping of a flat name to byte buffer.
-    files: scc::HashMap<String, Arc<ByteBuffer>>,
+    files: scc::HashMap<String, Arc<DbVec<u8>>>,
 }
 
 impl MemoryFileSystem {
@@ -79,7 +79,7 @@ impl FileSystem for MemoryFileSystem {
 pub struct MemoryFileHandle {
     path: String,
     pos: usize,
-    buffer: Arc<ByteBuffer>,
+    buffer: Arc<DbVec<u8>>,
 }
 
 impl MemoryFileHandle {
@@ -91,10 +91,7 @@ impl MemoryFileHandle {
     /// really only useful for tests).
     pub fn from_bytes(manager: &impl AsRawBufferManager, bytes: impl AsRef<[u8]>) -> Result<Self> {
         let bytes = bytes.as_ref();
-        let mut buffer = ByteBuffer::try_with_capacity(manager, bytes.len())?;
-
-        let slice = &mut buffer.as_slice_mut()[..bytes.len()]; // We may have allocated more than requested
-        slice.copy_from_slice(bytes);
+        let buffer = DbVec::new_from_slice(manager, bytes)?;
 
         Ok(MemoryFileHandle {
             path: String::new(),
@@ -110,14 +107,15 @@ impl File for MemoryFileHandle {
     }
 
     fn size(&self) -> usize {
-        self.buffer.capacity()
+        self.buffer.len()
     }
 
     fn poll_read(&mut self, _cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let rem = self.buffer.capacity() - self.pos;
+        let rem = self.buffer.len() - self.pos;
         let count = usize::min(buf.len(), rem);
 
-        let src = &self.buffer.as_slice()[self.pos..(self.pos + count)];
+        let slice = self.buffer.as_slice();
+        let src = &slice[self.pos..(self.pos + count)];
         let dest = &mut buf[..count];
         dest.copy_from_slice(src);
 
@@ -190,7 +188,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::task::noop_context;
 
     #[test]
@@ -220,7 +218,7 @@ mod tests {
 
     #[test]
     fn memory_file_read_complete() {
-        let mut handle = MemoryFileHandle::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut handle = MemoryFileHandle::from_bytes(&DefaultBufferManager, b"hello").unwrap();
         let mut out = vec![0; 10];
 
         let poll = handle
@@ -237,7 +235,7 @@ mod tests {
 
     #[test]
     fn memory_file_read_partial() {
-        let mut handle = MemoryFileHandle::from_bytes(&NopBufferManager, b"hello").unwrap();
+        let mut handle = MemoryFileHandle::from_bytes(&DefaultBufferManager, b"hello").unwrap();
         let mut out = vec![0; 4];
 
         let poll = handle

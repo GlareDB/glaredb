@@ -12,7 +12,7 @@ use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::arrays::row::row_scan::RowScanState;
 use crate::arrays::scalar::ScalarValue;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::execution::operators::hash_aggregate::grouping_value::compute_grouping_value;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::util::iter::IntoExactSizeIterator;
@@ -396,7 +396,7 @@ impl GroupingSetHashTable {
         for (idx, &grouping_val) in self.grouping_values.iter().enumerate() {
             let output_idx = num_groups + num_aggs + idx;
             let mut const_arr = Array::new_constant(
-                &NopBufferManager,
+                &DefaultBufferManager,
                 &ScalarValue::Int64(grouping_val),
                 group_row_count,
             )?;

@@ -2,7 +2,7 @@ use glaredb_error::{DbError, Result};
 
 use super::AggregateState;
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
+use crate::arrays::array::execution_format::ExecutionFormat;
 use crate::arrays::array::physical_type::{Addressable, ScalarStorage};
 use crate::util::iter::IntoExactSizeIterator;
 
@@ -30,69 +30,52 @@ impl UnaryNonNullUpdater {
             .with_field("states_len", states.len()));
         }
 
-        if array.should_flatten_for_execution() {
-            let flat = array.flatten()?;
-            return Self::update_flat::<S, State, BindState, Output>(
-                flat, selection, bind_state, states,
-            );
-        }
-
-        let input = S::get_addressable(&array.data)?;
         let validity = &array.validity;
 
-        if validity.all_valid() {
-            for (state_idx, input_idx) in selection.enumerate() {
-                let val = input.get(input_idx).unwrap();
-                let state = unsafe { &mut *states[state_idx] };
-                state.update(bind_state, val)?;
-            }
-        } else {
-            for (state_idx, input_idx) in selection.enumerate() {
-                if !validity.is_valid(input_idx) {
-                    continue;
+        match S::downcast_execution_format(&array.data)? {
+            ExecutionFormat::Flat(buf) => {
+                let input = S::addressable(buf);
+                if validity.all_valid() {
+                    for (state_idx, input_idx) in selection.enumerate() {
+                        let val = input.get(input_idx).unwrap();
+                        let state = unsafe { &mut *states[state_idx] };
+                        state.update(bind_state, val)?;
+                    }
+                } else {
+                    for (state_idx, input_idx) in selection.enumerate() {
+                        if !validity.is_valid(input_idx) {
+                            continue;
+                        }
+
+                        let val = input.get(input_idx).unwrap();
+                        let state = unsafe { &mut *states[state_idx] };
+                        state.update(bind_state, val)?;
+                    }
                 }
-
-                let val = input.get(input_idx).unwrap();
-                let state = unsafe { &mut *states[state_idx] };
-                state.update(bind_state, val)?;
             }
-        }
+            ExecutionFormat::Selection(buf) => {
+                let input = S::addressable(buf.buffer);
 
-        Ok(())
-    }
+                if validity.all_valid() {
+                    for (state_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
+                        let selected_idx = buf.selection.get(input_idx).unwrap();
 
-    fn update_flat<S, State, BindState, Output>(
-        array: FlattenedArray<'_>,
-        selection: impl IntoExactSizeIterator<Item = usize>,
-        bind_state: &BindState,
-        states: &mut [*mut State],
-    ) -> Result<()>
-    where
-        S: ScalarStorage,
-        Output: ?Sized,
-        for<'b> State: AggregateState<&'b S::StorageType, Output, BindState = BindState>,
-    {
-        let input = S::get_addressable(array.array_buffer)?;
-        let validity = &array.validity;
+                        let val = input.get(selected_idx).unwrap();
+                        let state = unsafe { &mut *states[state_idx] };
+                        state.update(bind_state, val)?;
+                    }
+                } else {
+                    for (state_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
+                        if !validity.is_valid(input_idx) {
+                            continue;
+                        }
 
-        if validity.all_valid() {
-            for (state_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
-                let selected_idx = array.selection.get(input_idx).unwrap();
-
-                let val = input.get(selected_idx).unwrap();
-                let state = unsafe { &mut *states[state_idx] };
-                state.update(bind_state, val)?;
-            }
-        } else {
-            for (state_idx, input_idx) in selection.into_exact_size_iter().enumerate() {
-                if !validity.is_valid(input_idx) {
-                    continue;
+                        let selected_idx = buf.selection.get(input_idx).unwrap();
+                        let val = input.get(selected_idx).unwrap();
+                        let state = unsafe { &mut *states[state_idx] };
+                        state.update(bind_state, val)?;
+                    }
                 }
-
-                let selected_idx = array.selection.get(input_idx).unwrap();
-                let val = input.get(selected_idx).unwrap();
-                let state = unsafe { &mut *states[state_idx] };
-                state.update(bind_state, val)?;
             }
         }
 
@@ -105,7 +88,7 @@ mod tests {
     use super::*;
     use crate::arrays::array::physical_type::{AddressableMut, PhysicalI32, PhysicalUtf8};
     use crate::arrays::executor::PutBuffer;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::iter::TryFromExactSizeIterator;
 
     #[derive(Debug, Default)]
@@ -158,7 +141,7 @@ mod tests {
         let mut array = Array::try_from_iter([1, 2, 3, 4, 5]).unwrap();
         // '[1, 5, 5, 5, 5, 2, 2]'
         array
-            .select(&NopBufferManager, [0, 4, 4, 4, 4, 1, 1])
+            .select(&DefaultBufferManager, [0, 4, 4, 4, 4, 1, 1])
             .unwrap();
 
         UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(
@@ -181,7 +164,7 @@ mod tests {
         let mut array = Array::try_from_iter([Some(1), Some(2), Some(3), Some(4), None]).unwrap();
         // => '[1, NULL, NULL, NULL, NULL, 2, 2]'
         array
-            .select(&NopBufferManager, [0, 4, 4, 4, 4, 1, 1])
+            .select(&DefaultBufferManager, [0, 4, 4, 4, 4, 1, 1])
             .unwrap();
 
         UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(
@@ -201,7 +184,7 @@ mod tests {
         let state_ptr: *mut TestSumState = &mut state;
         let mut states = vec![state_ptr; 4];
 
-        let array = Array::new_constant(&NopBufferManager, &3.into(), 5).unwrap();
+        let array = Array::new_constant(&DefaultBufferManager, &3.into(), 5).unwrap();
 
         UnaryNonNullUpdater::update::<PhysicalI32, _, _, _>(
             &array,

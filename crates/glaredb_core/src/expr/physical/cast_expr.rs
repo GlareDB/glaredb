@@ -68,10 +68,10 @@ impl fmt::Display for PhysicalCastExpr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::expr;
     use crate::logical::binder::table_list::TableList;
-    use crate::testutil::arrays::assert_arrays_eq_sel;
+    use crate::testutil::arrays::assert_arrays_eq;
     use crate::testutil::exprs::plan_scalar;
     use crate::util::iter::TryFromExactSizeIterator;
 
@@ -87,13 +87,13 @@ mod tests {
         };
 
         let mut state = expr.create_state(1024).unwrap();
-        let mut out = Array::new(&NopBufferManager, DataType::Int32, 1024).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
         let mut input = Batch::empty_with_num_rows(3);
         let sel = input.selection();
 
         expr.eval(&mut input, &mut state, sel, &mut out).unwrap();
 
         let expected = Array::try_from_iter([35, 35, 35]).unwrap();
-        assert_arrays_eq_sel(&expected, 0..3, &out, 0..3);
+        assert_arrays_eq(&expected, &out);
     }
 }

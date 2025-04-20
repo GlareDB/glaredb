@@ -470,7 +470,7 @@ where
 mod tests {
     use super::*;
     use crate::arrays::datatype::DecimalTypeMeta;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::functions::cast::behavior::CastFailBehavior;
     use crate::util::iter::TryFromExactSizeIterator;
 
@@ -481,7 +481,7 @@ mod tests {
         arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(6, 4));
 
         let mut out = Array::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             DataType::Decimal64(DecimalTypeMeta::new(8, 4)),
             1,
         )
@@ -511,7 +511,7 @@ mod tests {
         arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(6, 4));
 
         let mut out = Array::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             DataType::Decimal64(DecimalTypeMeta::new(6, 2)),
             1,
         )
@@ -543,7 +543,7 @@ mod tests {
 
         // Scale down to single decimal place.
         let mut out = Array::new(
-            &NopBufferManager,
+            &DefaultBufferManager,
             DataType::Decimal64(DecimalTypeMeta::new(6, 1)),
             6,
         )

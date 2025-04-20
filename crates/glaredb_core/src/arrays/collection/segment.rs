@@ -97,7 +97,7 @@ impl ColumnCollectionSegment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::buffer_manager::NopBufferManager;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::generate_batch;
 
     #[test]
@@ -106,7 +106,7 @@ mod tests {
 
         let input = generate_batch!([1, 2, 3, 4]);
         segment
-            .append_batch(&NopBufferManager, &input, &[DataType::Int32])
+            .append_batch(&DefaultBufferManager, &input, &[DataType::Int32])
             .unwrap();
 
         assert_eq!(1, segment.num_chunks());
@@ -120,7 +120,7 @@ mod tests {
 
         let input = generate_batch!([1, 2, 3, 4, 5, 6]);
         segment
-            .append_batch(&NopBufferManager, &input, &[DataType::Int32])
+            .append_batch(&DefaultBufferManager, &input, &[DataType::Int32])
             .unwrap();
 
         assert_eq!(2, segment.num_chunks());

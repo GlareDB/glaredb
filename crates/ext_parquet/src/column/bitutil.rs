@@ -198,7 +198,7 @@ impl_rle_encodeable!(i64);
 #[cfg(test)]
 mod tests {
 
-    use glaredb_core::buffer::buffer_manager::NopBufferManager;
+    use glaredb_core::buffer::buffer_manager::DefaultBufferManager;
 
     use super::*;
     use crate::column::read_buffer::OwnedReadBuffer;
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn bit_unpacker_u8_bit_width_0() {
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, []).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, []).unwrap();
         let mut cursor = buf.take_remaining();
         let mut out = [4u8; 8]; // Just to make sure we zero everything out.
         let mut state = BitUnpackState::new(0);
@@ -239,7 +239,7 @@ mod tests {
         //
         // [1, 1, 0, 0, 1, 1, 0, 1]
         let raw = [0b10110011];
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, raw).unwrap();
         let mut cursor = buf.take_remaining();
         let mut out = [0u8; 8];
         let mut state = BitUnpackState::new(1);
@@ -254,7 +254,7 @@ mod tests {
         // - 2 => 010 (bits 3–5)
         // - 7 => 111 (bits 6–8, spanning into the second byte)
         let raw = [0b11010101, 0b00000001];
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, raw).unwrap();
         let mut cursor = buf.take_remaining();
         let mut out = [0u8; 3];
         let mut state = BitUnpackState::new(3);
@@ -281,7 +281,7 @@ mod tests {
         for i in 0..byte_len {
             raw[i] = ((acc >> (i * 8)) & 0xFF) as u8;
         }
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, raw).unwrap();
         let mut cursor = buf.take_remaining();
         let mut out = [0u16; 3];
         let mut state = BitUnpackState::new(width as u8);
@@ -296,7 +296,7 @@ mod tests {
         //
         // The value 127 (0x7F) as a single byte.
         let raw = [0xAC, 0x02, 0x7F];
-        let mut buf = OwnedReadBuffer::from_bytes(&NopBufferManager, raw).unwrap();
+        let mut buf = OwnedReadBuffer::from_bytes(&DefaultBufferManager, raw).unwrap();
         let mut cursor = buf.take_remaining();
         let vlq1 = read_unsigned_vlq(&mut cursor).expect("read vlq failed");
         let vlq2 = read_unsigned_vlq(&mut cursor).expect("read vlq failed");

@@ -1,6 +1,7 @@
 pub mod decimal;
 pub mod interval;
 pub mod timestamp;
+pub mod unwrap;
 
 use std::borrow::Cow;
 use std::fmt;
@@ -22,7 +23,7 @@ use crate::arrays::datatype::{
     TimeUnit,
     TimestampTypeMeta,
 };
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::functions::cast::format::{
     BoolFormatter,
     Date32Formatter,
@@ -194,7 +195,11 @@ impl BorrowedScalarValue<'_> {
 
     /// Create an array of size `n` using the scalar value.
     pub fn as_array(&self, n: usize) -> Result<Array> {
-        Array::new_constant(&NopBufferManager, self, n)
+        Array::new_constant(&DefaultBufferManager, self, n)
+    }
+
+    pub const fn is_null(&self) -> bool {
+        matches!(self, Self::Null)
     }
 
     pub fn try_as_bool(&self) -> Result<bool> {

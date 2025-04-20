@@ -6,7 +6,6 @@ use glaredb_error::Result;
 
 use super::row_layout::RowLayout;
 use crate::arrays::array::Array;
-use crate::arrays::array::flat::FlattenedArray;
 use crate::arrays::array::physical_type::{
     Addressable,
     PhysicalBinary,
@@ -31,7 +30,7 @@ use crate::arrays::array::physical_type::{
 };
 use crate::arrays::bitmap::view::BitmapView;
 use crate::arrays::string::StringPtr;
-use crate::buffer::buffer_manager::{BufferManager, NopBufferManager};
+use crate::buffer::buffer_manager::{BufferManager, DefaultBufferManager};
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::functions::scalar::builtin::comparison::{
     DistinctComparisonOperation,
@@ -49,7 +48,7 @@ use crate::functions::scalar::builtin::comparison::{
 /// Matches rows by comparing encoded values with non-encoded values.
 #[derive(Debug)]
 pub struct PredicateRowMatcher {
-    matchers: Vec<Box<dyn Matcher<NopBufferManager>>>,
+    matchers: Vec<Box<dyn Matcher<DefaultBufferManager>>>,
 }
 
 impl PredicateRowMatcher {
@@ -95,7 +94,7 @@ impl PredicateRowMatcher {
             .zip(rhs_columns.iter())
             .zip(&self.matchers)
         {
-            let rhs_column = rhs_column.borrow().flatten()?;
+            let rhs_column = rhs_column.borrow();
 
             unsafe {
                 matcher.compute_matches(
@@ -116,7 +115,7 @@ impl PredicateRowMatcher {
 fn create_predicate_matcher_from_operator(
     op: ComparisonOperator,
     phys_type: PhysicalType,
-) -> Box<dyn Matcher<NopBufferManager>> {
+) -> Box<dyn Matcher<DefaultBufferManager>> {
     match op {
         ComparisonOperator::Eq => {
             create_predicate_matcher::<NullCoercedComparison<EqOperation>>(phys_type)
@@ -146,7 +145,7 @@ fn create_predicate_matcher_from_operator(
 }
 
 /// Creates a predicate match for a comparison operation.
-fn create_predicate_matcher<C>(phys_type: PhysicalType) -> Box<dyn Matcher<NopBufferManager>>
+fn create_predicate_matcher<C>(phys_type: PhysicalType) -> Box<dyn Matcher<DefaultBufferManager>>
 where
     C: DistinctComparisonOperation,
 {
@@ -179,7 +178,7 @@ trait Matcher<B: BufferManager>: Debug + Sync + Send + 'static {
         layout: &RowLayout,
         lhs_rows: &[*const u8],
         lhs_column: usize,
-        rhs_column: FlattenedArray,
+        rhs_column: &Array,
         selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
     ) -> Result<()>;
@@ -204,7 +203,7 @@ where
     }
 }
 
-impl<C, S> Matcher<NopBufferManager> for ScalarMatcher<C, S>
+impl<C, S> Matcher<DefaultBufferManager> for ScalarMatcher<C, S>
 where
     C: DistinctComparisonOperation,
     S: ScalarStorage,
@@ -215,12 +214,15 @@ where
         layout: &RowLayout,
         lhs_rows: &[*const u8],
         lhs_column: usize,
-        rhs_column: FlattenedArray,
+        rhs_column: &Array,
         selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
     ) -> Result<()> {
+        // TODO: Scope the unsafe
         unsafe {
-            let rhs_data = S::get_addressable(rhs_column.array_buffer)?;
+            let rhs_buffer =
+                S::downcast_execution_format(&rhs_column.data)?.into_selection_format()?;
+            let rhs_data = S::addressable(rhs_buffer.buffer);
 
             let mut matches = 0;
             for idx in 0..selection.len() {
@@ -241,7 +243,7 @@ where
 
                 let rhs_valid = rhs_column.validity.is_valid(sel_idx);
                 let rhs_val = if rhs_valid {
-                    let rhs_sel = rhs_column.selection.get(sel_idx).unwrap();
+                    let rhs_sel = rhs_buffer.selection.get(sel_idx).unwrap();
                     Some(*rhs_data.get(rhs_sel).unwrap())
                 } else {
                     None
@@ -276,7 +278,7 @@ where
     }
 }
 
-impl<C> Matcher<NopBufferManager> for BinaryMatcher<C>
+impl<C> Matcher<DefaultBufferManager> for BinaryMatcher<C>
 where
     C: DistinctComparisonOperation,
 {
@@ -285,12 +287,14 @@ where
         layout: &RowLayout,
         lhs_rows: &[*const u8],
         lhs_column: usize,
-        rhs_column: FlattenedArray,
+        rhs_column: &Array,
         selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
     ) -> Result<()> {
         unsafe {
-            let rhs_data = PhysicalBinary::get_addressable(rhs_column.array_buffer)?;
+            let rhs_buffer = PhysicalBinary::downcast_execution_format(&rhs_column.data)?
+                .into_selection_format()?;
+            let rhs_data = PhysicalBinary::addressable(rhs_buffer.buffer);
 
             let mut matches = 0;
             for idx in 0..selection.len() {
@@ -318,7 +322,7 @@ where
 
                 let rhs_valid = rhs_column.validity.is_valid(sel_idx);
                 let rhs_val = if rhs_valid {
-                    let rhs_sel = rhs_column.selection.get(sel_idx).unwrap();
+                    let rhs_sel = rhs_buffer.selection.get(sel_idx).unwrap();
                     Some(rhs_data.get(rhs_sel).unwrap())
                 } else {
                     None

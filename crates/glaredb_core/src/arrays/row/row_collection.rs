@@ -9,7 +9,7 @@ use super::row_layout::RowLayout;
 use super::row_scan::RowScanState;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
-use crate::buffer::buffer_manager::NopBufferManager;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 
 /// State for appending data to the collection.
 #[derive(Debug)]
@@ -44,7 +44,7 @@ pub struct RowCollection {
 impl RowCollection {
     pub fn new(layout: RowLayout, block_capacity: usize) -> Self {
         RowCollection {
-            blocks: RowBlocks::new_using_row_layout(&NopBufferManager, &layout, block_capacity),
+            blocks: RowBlocks::new_using_row_layout(&DefaultBufferManager, &layout, block_capacity),
             layout,
         }
     }
@@ -311,7 +311,7 @@ mod tests {
         collection.append_batch(&mut state, &input).unwrap();
 
         // Scan just the string column.
-        let mut output = Array::new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::Utf8, 4).unwrap();
 
         let mut state = collection.init_full_scan();
         collection
@@ -331,7 +331,7 @@ mod tests {
         collection.append_batch(&mut state, &input).unwrap();
 
         // Dummy output, nothing should be written.
-        let mut output = Array::new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::Utf8, 4).unwrap();
 
         let mut state = collection.init_partial_scan([]);
         let count = collection
@@ -353,7 +353,7 @@ mod tests {
         let input3 = generate_batch!([9, 10, 11, 12], ["i", "j", "k", "l"]);
         collection.append_batch(&mut state, &input3).unwrap();
 
-        let mut output = Array::new(&NopBufferManager, DataType::Utf8, 4).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::Utf8, 4).unwrap();
 
         let mut state = collection.init_partial_scan([1]);
         let count = collection

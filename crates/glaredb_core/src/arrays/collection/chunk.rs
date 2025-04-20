@@ -1,7 +1,7 @@
 use glaredb_error::{Result, not_implemented};
 
 use crate::arrays::array::Array;
-use crate::arrays::array::array_buffer::ArrayBuffer;
+use crate::arrays::array::array_buffer::AnyArrayBuffer;
 use crate::arrays::array::validity::Validity;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::copy::copy_rows_raw;
@@ -31,7 +31,7 @@ impl ColumnChunk {
     ) -> Result<Self> {
         let mut buffers = Vec::with_capacity(datatypes.len());
         for datatype in datatypes {
-            let buffer = ArrayBuffer::try_new_for_datatype(manager, datatype, capacity)?;
+            let buffer = AnyArrayBuffer::new_for_datatype(manager, datatype, capacity)?;
             buffers.push(ColumnBuffer {
                 validity: Validity::new_all_valid(capacity),
                 buffer,
@@ -96,7 +96,7 @@ impl ColumnChunk {
 #[derive(Debug)]
 pub struct ColumnBuffer {
     pub validity: Validity,
-    pub buffer: ArrayBuffer,
+    pub buffer: AnyArrayBuffer,
 }
 
 impl ColumnBuffer {
@@ -119,27 +119,13 @@ impl ColumnBuffer {
         // src => dest mapping.
         let mapping = (src_offset..(src_offset + count)).zip(dest_offset..(dest_offset + count));
 
-        if src.should_flatten_for_execution() {
-            let src = src.flatten()?;
-            copy_rows_raw(
-                phys_type,
-                src.array_buffer,
-                src.validity,
-                Some(src.selection),
-                mapping,
-                &mut self.buffer,
-                &mut self.validity,
-            )
-        } else {
-            copy_rows_raw(
-                phys_type,
-                &src.data,
-                &src.validity,
-                None,
-                mapping,
-                &mut self.buffer,
-                &mut self.validity,
-            )
-        }
+        copy_rows_raw(
+            phys_type,
+            &src.data,
+            &src.validity,
+            mapping,
+            &mut self.buffer,
+            &mut self.validity,
+        )
     }
 }
