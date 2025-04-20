@@ -511,7 +511,7 @@ impl Directory {
     /// Mask to use when determining the position for an entry in the hash
     /// table.
     const fn capacity_mask(&self) -> u64 {
-        self.entries.capacity() as u64 - 1
+        self.entries.len() as u64 - 1
     }
 
     /// Create a new directory for the given number of rows.
@@ -528,13 +528,13 @@ impl Directory {
     }
 
     fn get_entry(&self, idx: usize) -> *const u8 {
-        debug_assert!(idx < self.entries.capacity());
+        debug_assert!(idx < self.entries.len());
         let ptr = unsafe { self.entries.as_ptr().add(idx) };
         unsafe { *ptr }
     }
 
     fn get_entry_atomic(&self, idx: usize) -> &AtomicPtr<u8> {
-        debug_assert!(idx < self.entries.capacity());
+        debug_assert!(idx < self.entries.len());
         // TODO: Need to figure out the mutability for the directory.
         let ptr = self.entries.as_ptr().cast_mut();
         let ptr = unsafe { ptr.add(idx) };

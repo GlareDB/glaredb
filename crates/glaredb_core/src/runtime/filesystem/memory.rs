@@ -107,11 +107,11 @@ impl File for MemoryFileHandle {
     }
 
     fn size(&self) -> usize {
-        self.buffer.capacity()
+        self.buffer.len()
     }
 
     fn poll_read(&mut self, _cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let rem = self.buffer.capacity() - self.pos;
+        let rem = self.buffer.len() - self.pos;
         let count = usize::min(buf.len(), rem);
 
         let slice = unsafe { self.buffer.as_slice() };

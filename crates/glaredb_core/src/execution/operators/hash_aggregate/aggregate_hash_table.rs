@@ -573,7 +573,7 @@ impl Directory {
     }
 
     fn capacity(&self) -> usize {
-        self.entries.capacity()
+        self.entries.len()
     }
 
     /// Resizes the directory to at least `new_capacity`.
@@ -583,9 +583,9 @@ impl Directory {
         if !is_power_of_2(new_capacity) {
             new_capacity = new_capacity.next_power_of_two();
         }
-        if new_capacity < self.entries.capacity() {
+        if new_capacity < self.entries.len() {
             return Err(DbError::new("Cannot reduce capacity of hash table")
-                .with_field("current", self.entries.capacity())
+                .with_field("current", self.entries.len())
                 .with_field("new", new_capacity));
         }
 

@@ -285,6 +285,10 @@ impl AnyArrayBuffer {
     ///
     /// Does nothing if the buffer is already shared.
     pub fn make_shared(&mut self) {
+        // TODO: Special case dictionary/constant. We want to make the child
+        // buffers shared, not this buffer though.
+        //
+        // Specifically for selecting on an already shared buffer.
         self.buffer.make_shared()
     }
 
@@ -1135,11 +1139,11 @@ impl StringViewBuffer {
         if value.len() <= MAX_INLINE_LEN {
             Ok(StringView::new_inline(value))
         } else {
-            let remaining = self.buffer.capacity() - self.bytes_filled;
+            let remaining = self.buffer.len() - self.bytes_filled;
             if remaining < value.len() {
                 let additional = value.len() - remaining;
                 let reserve_amount = Self::compute_amount_to_reserve(
-                    self.buffer.capacity(),
+                    self.buffer.len(),
                     self.bytes_filled,
                     additional,
                 );

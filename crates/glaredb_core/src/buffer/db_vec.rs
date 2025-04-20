@@ -127,9 +127,9 @@ impl<T> DbVec<T> {
         self.len
     }
 
-    pub const fn capacity(&self) -> usize {
-        self.raw.capacity()
-    }
+    // pub const fn capacity(&self) -> usize {
+    //     self.raw.capacity()
+    // }
 
     pub fn resize(&mut self, new_len: usize) -> Result<()> {
         if new_len == self.len {
@@ -185,7 +185,7 @@ impl<T> DbVec<T> {
     /// - There should exist no mutable references to anything within this vec's
     ///   allocation (by creating it from a raw pointer).
     pub unsafe fn as_slice(&self) -> &[T] {
-        debug_assert!(self.len() <= self.capacity());
+        debug_assert!(self.len() <= self.raw.capacity());
         let ptr = self.raw.ptr().cast().as_ptr();
         unsafe { std::slice::from_raw_parts(ptr, self.len) }
     }
@@ -201,13 +201,13 @@ impl<T> DbVec<T> {
     /// - There should exist no mutable or immutable references to anything
     ///   within this vec's allocation (by creating it from a raw pointer).
     pub unsafe fn as_slice_mut(&mut self) -> &mut [T] {
-        debug_assert!(self.len() <= self.capacity());
+        debug_assert!(self.len() <= self.raw.capacity());
         let ptr = self.raw.ptr().cast().as_ptr();
         unsafe { std::slice::from_raw_parts_mut(ptr, self.len) }
     }
 
     pub unsafe fn as_uninit_slice_mut(&mut self) -> &mut [MaybeUninit<T>] {
-        debug_assert!(self.len() <= self.capacity());
+        debug_assert!(self.len() <= self.raw.capacity());
         let ptr = self.raw.ptr().as_ptr();
         unsafe { std::slice::from_raw_parts_mut(ptr, self.len) }
     }

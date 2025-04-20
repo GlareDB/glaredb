@@ -163,7 +163,7 @@ impl Block {
     }
 
     pub const fn remaining_byte_capacity(&self) -> usize {
-        self.data.capacity() - self.reserved_bytes
+        self.data.len() - self.reserved_bytes
     }
 
     pub const fn remaing_row_capacity(&self, row_width: usize) -> usize {
@@ -180,7 +180,7 @@ mod tests {
     fn concat_empty() {
         let block = Block::concat(&DefaultBufferManager, vec![]).unwrap();
         assert_eq!(0, block.reserved_bytes);
-        assert_eq!(0, block.data.capacity());
+        assert_eq!(0, block.data.len());
     }
 
     #[test]
