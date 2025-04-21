@@ -1,29 +1,7 @@
-use glaredb_error::{DbError, Result, not_implemented};
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::{ArrayBufferDowncast, ListBuffer, ListItemMetadata};
-use crate::arrays::array::physical_type::{
-    MutableScalarStorage,
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI8,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI128,
-    PhysicalInterval,
-    PhysicalType,
-    PhysicalU8,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU128,
-    PhysicalUntypedNull,
-    PhysicalUtf8,
-};
 use crate::arrays::array::validity::Validity;
 use crate::arrays::compute::copy::copy_rows_raw;
 use crate::arrays::datatype::DataType;
@@ -42,8 +20,20 @@ pub fn make_list(
     sel: impl IntoExactSizeIterator<Item = usize> + Clone,
     output: &mut Array,
 ) -> Result<()> {
-    let inner_type = match output.datatype() {
-        DataType::List(m) => m.datatype.physical_type(),
+    make_list_scalar(inputs, sel, output)
+}
+
+/// Helper for constructing the list values and writing them to `output`.
+///
+/// This will overwrite any existing data in `output`.
+// TODO: Why is this separate?
+fn make_list_scalar(
+    inputs: &[Array],
+    sel: impl IntoExactSizeIterator<Item = usize> + Clone,
+    output: &mut Array,
+) -> Result<()> {
+    let inner_type = match &output.datatype {
+        DataType::List(m) => &m.datatype,
         other => {
             return Err(DbError::new(format!(
                 "Expected output to be list datatype, got {other}",
@@ -51,39 +41,6 @@ pub fn make_list(
         }
     };
 
-    match inner_type {
-        PhysicalType::UntypedNull => make_list_scalar::<PhysicalUntypedNull>(inputs, sel, output),
-        PhysicalType::Boolean => make_list_scalar::<PhysicalBool>(inputs, sel, output),
-        PhysicalType::Int8 => make_list_scalar::<PhysicalI8>(inputs, sel, output),
-        PhysicalType::Int16 => make_list_scalar::<PhysicalI16>(inputs, sel, output),
-        PhysicalType::Int32 => make_list_scalar::<PhysicalI32>(inputs, sel, output),
-        PhysicalType::Int64 => make_list_scalar::<PhysicalI64>(inputs, sel, output),
-        PhysicalType::Int128 => make_list_scalar::<PhysicalI128>(inputs, sel, output),
-        PhysicalType::UInt8 => make_list_scalar::<PhysicalU8>(inputs, sel, output),
-        PhysicalType::UInt16 => make_list_scalar::<PhysicalU16>(inputs, sel, output),
-        PhysicalType::UInt32 => make_list_scalar::<PhysicalU32>(inputs, sel, output),
-        PhysicalType::UInt64 => make_list_scalar::<PhysicalU64>(inputs, sel, output),
-        PhysicalType::UInt128 => make_list_scalar::<PhysicalU128>(inputs, sel, output),
-        PhysicalType::Float16 => make_list_scalar::<PhysicalF16>(inputs, sel, output),
-        PhysicalType::Float32 => make_list_scalar::<PhysicalF32>(inputs, sel, output),
-        PhysicalType::Float64 => make_list_scalar::<PhysicalF64>(inputs, sel, output),
-        PhysicalType::Interval => make_list_scalar::<PhysicalInterval>(inputs, sel, output),
-        PhysicalType::Utf8 => make_list_scalar::<PhysicalUtf8>(inputs, sel, output),
-        PhysicalType::Binary => make_list_scalar::<PhysicalBinary>(inputs, sel, output),
-        other => not_implemented!("list values for physical type {other}"),
-    }
-}
-
-/// Helper for constructing the list values and writing them to `output`.
-///
-/// This will overwrite any existing data in `output`.
-///
-/// `S` should be the inner type.
-fn make_list_scalar<S: MutableScalarStorage>(
-    inputs: &[Array],
-    sel: impl IntoExactSizeIterator<Item = usize> + Clone,
-    output: &mut Array,
-) -> Result<()> {
     let output_len = sel.clone().into_exact_size_iter().len();
     // A list elements exist. NULLs inside list elements is handled inside the
     // child buffer.
@@ -104,7 +61,7 @@ fn make_list_scalar<S: MutableScalarStorage>(
         });
 
         copy_rows_raw(
-            S::PHYSICAL_TYPE,
+            inner_type,
             &input.data,
             &input.validity,
             mapping,

@@ -28,6 +28,7 @@ use crate::arrays::array::physical_type::{
     PhysicalUtf8,
 };
 use crate::arrays::array::validity::Validity;
+use crate::arrays::datatype::DataType;
 
 /// Copy rows from `src` to `dest` using mapping providing (from, to) indices.
 pub fn copy_rows_array(
@@ -35,9 +36,8 @@ pub fn copy_rows_array(
     mapping: impl IntoIterator<Item = (usize, usize)>,
     dest: &mut Array,
 ) -> Result<()> {
-    let phys_type = src.datatype().physical_type();
     copy_rows_raw(
-        phys_type,
+        src.datatype(),
         &src.data,
         &src.validity,
         mapping,
@@ -59,14 +59,14 @@ pub fn copy_rows_array(
 /// This is exposed to allow shared copy implementations between `Array`s and
 /// array-type collections like buffers in `ColumnarCollection`.
 pub(crate) fn copy_rows_raw(
-    phys_type: PhysicalType,
+    datatype: &DataType,
     src_buf: &AnyArrayBuffer,
     src_validity: &Validity,
     mapping: impl IntoIterator<Item = (usize, usize)>,
     dest_buf: &mut AnyArrayBuffer,
     dest_validity: &mut Validity,
 ) -> Result<()> {
-    match phys_type {
+    match datatype.physical_type() {
         PhysicalType::UntypedNull => copy_rows_scalar::<PhysicalUntypedNull>(
             src_buf,
             src_validity,
@@ -210,6 +210,24 @@ where
             Ok(())
         }
     }
+}
+
+#[allow(unused)]
+fn copy_rows_list(
+    _datatype: &DataType,
+    _src_buf: &AnyArrayBuffer,
+    _src_validity: &Validity,
+    _mapping: impl IntoIterator<Item = (usize, usize)>,
+    _dest_buf: &mut AnyArrayBuffer,
+    _dest_validity: &mut Validity,
+) -> Result<()> {
+    // let inner_type = &datatype.try_get_list_type_meta()?.datatype;
+
+    // let src = ListBuffer::downcast_execution_format(src_buf)?.into_selection_format()?;
+    // let dest = ListBuffer::downcast_mut(dest_buf)?;
+
+    // TODO
+    not_implemented!("copy rows list")
 }
 
 #[cfg(test)]
