@@ -14,6 +14,8 @@ use array_buffer::{
     DictionaryBuffer,
     EmptyBuffer,
     ListBuffer,
+    ListChildBuffer,
+    ListItemMetadata,
 };
 use execution_format::{ExecutionFormat, ExecutionFormatMut};
 use glaredb_error::{DbError, Result, not_implemented};
@@ -48,7 +50,7 @@ use super::cache::MaybeCache;
 use super::compute::copy::copy_rows_array;
 use super::scalar::ScalarValue;
 use crate::arrays::compute::set_list_value::set_list_value_raw;
-use crate::arrays::datatype::DataType;
+use crate::arrays::datatype::{DataType, ListTypeMeta};
 use crate::arrays::scalar::BorrowedScalarValue;
 use crate::arrays::scalar::decimal::{Decimal64Scalar, Decimal128Scalar};
 use crate::arrays::scalar::interval::Interval;
@@ -857,6 +859,58 @@ where
     }
 }
 
+impl<'a, T> TryFromExactSizeIterator<&'a [T]> for Array
+where
+    T: Copy, // TODO
+    Array: TryFromExactSizeIterator<T, Error = DbError>,
+{
+    type Error = DbError;
+
+    fn try_from_iter<I>(iter: I) -> Result<Self, Self::Error>
+    where
+        I: IntoExactSizeIterator<Item = &'a [T]>,
+    {
+        // TODO: Don't do this.
+        let vals: Vec<&[T]> = iter.into_exact_size_iter().collect();
+
+        // Generate metadatas.
+        let mut metadata =
+            unsafe { DbVec::<ListItemMetadata>::new_uninit(&DefaultBufferManager, vals.len())? };
+        let m_slice = metadata.as_slice_mut();
+        let mut offset = 0;
+
+        for (idx, val) in vals.iter().enumerate() {
+            let m = ListItemMetadata {
+                offset: offset as i32,
+                len: val.len() as i32,
+            };
+            m_slice[idx] = m;
+            offset += val.len();
+        }
+
+        // Generate the list child buffer.
+
+        // TODO: Don't do this.
+        let vals: Vec<T> = vals.into_iter().flatten().copied().collect();
+        let array: Array = TryFromExactSizeIterator::<T>::try_from_iter(vals)?;
+
+        let datatype = DataType::List(ListTypeMeta::new(array.datatype));
+
+        let child = ListChildBuffer {
+            validity: array.validity,
+            buffer: array.data,
+        };
+        let validity = Validity::new_all_valid(m_slice.len());
+        let data = AnyArrayBuffer::new_unique(ListBuffer { metadata, child });
+
+        Ok(Array {
+            datatype,
+            validity,
+            data,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -866,6 +920,16 @@ mod tests {
     use crate::arrays::scalar::ScalarValue;
     use crate::generate_array;
     use crate::testutil::arrays::assert_arrays_eq;
+
+    #[test]
+    fn try_from_create_list_array() {
+        let vals: [&[i64]; 2] = [&[1, 2], &[3, 4, 5]];
+        let arr = Array::try_from_iter(vals).unwrap();
+
+        let expected_dt = DataType::List(ListTypeMeta::new(DataType::Int64));
+        assert_eq!(expected_dt, arr.datatype);
+        assert_eq!(2, arr.logical_len());
+    }
 
     #[test]
     fn try_new_constant_utf8() {
