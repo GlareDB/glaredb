@@ -73,6 +73,15 @@ const FILES: &[DocFile] = &[
             },
         )],
     },
+    DocFile {
+        path: "docs/reference/functions/list.md",
+        sections: &[(
+            "list_functions",
+            &FunctionSectionWriter {
+                category: Category::List,
+            },
+        )],
+    },
 ];
 
 fn main() -> Result<()> {
