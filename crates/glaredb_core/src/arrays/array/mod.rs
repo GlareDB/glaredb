@@ -922,11 +922,31 @@ mod tests {
     use crate::testutil::arrays::assert_arrays_eq;
 
     #[test]
-    fn try_from_create_list_array() {
+    fn try_from_create_i64_list_array() {
         let vals: [&[i64]; 2] = [&[1, 2], &[3, 4, 5]];
         let arr = Array::try_from_iter(vals).unwrap();
 
         let expected_dt = DataType::List(ListTypeMeta::new(DataType::Int64));
+        assert_eq!(expected_dt, arr.datatype);
+        assert_eq!(2, arr.logical_len());
+    }
+
+    #[test]
+    fn try_from_create_i64_with_null_list_array() {
+        let vals: [&[Option<i64>]; 2] = [&[Some(1), None], &[None, Some(4), Some(5)]];
+        let arr = Array::try_from_iter(vals).unwrap();
+
+        let expected_dt = DataType::List(ListTypeMeta::new(DataType::Int64));
+        assert_eq!(expected_dt, arr.datatype);
+        assert_eq!(2, arr.logical_len());
+    }
+
+    #[test]
+    fn try_from_create_str_list_array() {
+        let vals: [&[&str]; 2] = [&["a", "b"], &["c", "d", "e"]];
+        let arr = Array::try_from_iter(vals).unwrap();
+
+        let expected_dt = DataType::List(ListTypeMeta::new(DataType::Utf8));
         assert_eq!(expected_dt, arr.datatype);
         assert_eq!(2, arr.logical_len());
     }
