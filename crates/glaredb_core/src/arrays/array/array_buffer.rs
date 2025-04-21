@@ -578,21 +578,22 @@ impl ArrayBuffer for ConstantBuffer {
 
 #[derive(Debug)]
 pub struct StringViewBuffer {
-    bytes_filled: usize,
     buffer: DbVec<u8>,
 }
 
 impl StringViewBuffer {
     pub fn with_capacity(manager: &impl AsRawBufferManager, capacity: usize) -> Result<Self> {
         let buffer = DbVec::with_capacity(manager, capacity)?;
-        Ok(StringViewBuffer {
-            bytes_filled: 0,
-            buffer,
-        })
+        Ok(StringViewBuffer { buffer })
     }
 
     pub fn clear(&mut self) {
-        self.bytes_filled = 0;
+        // SAFETY: We're truncating, no possibility of making unitialized memory
+        // accessible.
+        unsafe {
+            // TODO: Can we actually error?
+            let _ = self.buffer.resize_uninit(0);
+        }
     }
 
     pub fn get<'a>(&'a self, view: &'a StringView) -> &'a [u8] {
@@ -626,24 +627,8 @@ impl StringViewBuffer {
         if value.len() <= MAX_INLINE_LEN {
             Ok(StringView::new_inline(value))
         } else {
-            // TODO: push method
-
-            let remaining = self.buffer.len() - self.bytes_filled;
-            if remaining < value.len() {
-                let additional = value.len() - remaining;
-                let reserve_amount = Self::compute_amount_to_reserve(
-                    self.buffer.len(),
-                    self.bytes_filled,
-                    additional,
-                );
-                unsafe {
-                    self.buffer
-                        .resize_uninit(self.buffer.len() + reserve_amount)?
-                };
-            }
-
-            let offset = self.bytes_filled;
-            self.bytes_filled += value.len();
+            let offset = self.buffer.len();
+            self.buffer.push_slice(value)?;
 
             // Copy entire value to buffer.
             let buf = &mut self.buffer.as_slice_mut()[offset..(offset + value.len())];
@@ -651,25 +636,6 @@ impl StringViewBuffer {
 
             Ok(StringView::new_reference(value, 0, offset as i32))
         }
-    }
-
-    /// Compute how much we need to reserve for a buffer for it to fit `additional`
-    /// number of bytes.
-    const fn compute_amount_to_reserve(
-        curr_cap: usize,
-        curr_filled: usize,
-        additional: usize,
-    ) -> usize {
-        let mut new_size = if curr_cap == 0 { 16 } else { curr_cap };
-        loop {
-            if new_size - curr_filled >= additional {
-                // This is enough to fit `additional` bytes.
-                break;
-            }
-            // Otherwise, double the size.
-            new_size *= 2;
-        }
-        new_size
     }
 }
 
@@ -717,29 +683,16 @@ mod tests {
     }
 
     #[test]
-    fn compute_reserve_size() {
-        // Current cap sufficient.
-        let amount = StringViewBuffer::compute_amount_to_reserve(16, 0, 1);
-        assert_eq!(16, amount);
+    fn string_view_push_clear_push() {
+        let mut buffer = StringViewBuffer::with_capacity(&DefaultBufferManager, 0).unwrap();
+        let _ = buffer
+            .push_bytes_as_row(b"hellohellohellohellohellohello")
+            .unwrap();
+        buffer.clear();
+        let m = buffer
+            .push_bytes_as_row(b"worldworldworldworldworldworld")
+            .unwrap();
 
-        // Current cap sufficient, including filled bytes.
-        let amount = StringViewBuffer::compute_amount_to_reserve(16, 15, 1);
-        assert_eq!(16, amount);
-
-        // Need to double.
-        let amount = StringViewBuffer::compute_amount_to_reserve(16, 0, 17);
-        assert_eq!(32, amount);
-
-        // Need to double, taking into account existing filled bytes.
-        let amount = StringViewBuffer::compute_amount_to_reserve(16, 15, 2);
-        assert_eq!(32, amount);
-
-        // Need to double more than once.
-        let amount = StringViewBuffer::compute_amount_to_reserve(16, 0, 33);
-        assert_eq!(64, amount);
-
-        // Need to double more than once, taking into account filled bytes.
-        let amount = StringViewBuffer::compute_amount_to_reserve(16, 15, 18);
-        assert_eq!(64, amount);
+        assert_eq!(b"worldworldworldworldworldworld", buffer.get(&m));
     }
 }
