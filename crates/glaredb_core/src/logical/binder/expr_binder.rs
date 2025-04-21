@@ -37,10 +37,7 @@ use crate::functions::scalar::builtin::is::{
     FUNCTION_SET_IS_NULL,
     FUNCTION_SET_IS_TRUE,
 };
-use crate::functions::scalar::builtin::list::{
-    FUNCTION_SET_LIST_EXTRACT,
-    FUNCTION_SET_LIST_VALUES,
-};
+use crate::functions::scalar::builtin::list::{FUNCTION_SET_LIST_EXTRACT, FUNCTION_SET_LIST_VALUE};
 use crate::functions::scalar::builtin::string::{
     FUNCTION_SET_CONCAT,
     FUNCTION_SET_LIKE,
@@ -167,7 +164,7 @@ impl<'a> BaseExpressionBinder<'a> {
                     })
                     .collect::<Result<Vec<_>>>()?;
 
-                let function = expr::bind_scalar_function(&FUNCTION_SET_LIST_VALUES, exprs)?;
+                let function = expr::bind_scalar_function(&FUNCTION_SET_LIST_VALUE, exprs)?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }

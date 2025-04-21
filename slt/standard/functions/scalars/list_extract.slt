@@ -1,7 +1,7 @@
 # list_extract function
 
 query I
-select list_extract(list_values(8, 9), 1);
+select list_extract(list_value(8, 9), 1);
 ----
 8
 
@@ -11,7 +11,7 @@ select list_extract([8, 9], 1);
 8
 
 query I
-select list_extract(list_values(8, 9), 3);
+select list_extract(list_value(8, 9), 3);
 ----
 NULL
 
