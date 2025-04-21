@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 
 use crate::arrays::array::Array;
+use crate::arrays::array::array_buffer::{ArrayBufferDowncast, ScalarBuffer};
 use crate::arrays::array::physical_type::{
     PhysicalBool,
     PhysicalF16,
@@ -25,7 +26,13 @@ use crate::arrays::array::physical_type::{
     ScalarStorage,
 };
 use crate::arrays::batch::Batch;
+use crate::arrays::compute::copy::copy_rows_array;
+use crate::arrays::datatype::DataType;
 use crate::arrays::executor::scalar::UnaryExecutor;
+use crate::arrays::field::{ColumnSchema, Field};
+use crate::buffer::buffer_manager::DefaultBufferManager;
+use crate::expr;
+use crate::functions::scalar::builtin::comparison::FUNCTION_SET_IS_NOT_DISTINCT_FROM;
 use crate::util::iter::IntoExactSizeIterator;
 
 /// Assert two arrays are logically equal.
@@ -40,7 +47,6 @@ pub fn assert_arrays_eq(array1: &Array, array2: &Array) {
     );
 
     let sel = 0..array1.logical_len();
-
     assert_arrays_eq_sel(array1, sel.clone(), array2, sel)
 }
 
@@ -57,131 +63,57 @@ pub fn assert_arrays_eq_sel(
 ) {
     assert_eq!(array1.datatype, array2.datatype);
 
-    match array1.datatype.physical_type() {
-        PhysicalType::Boolean => {
-            assert_arrays_eq_sel_inner::<PhysicalBool>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::Int8 => assert_arrays_eq_sel_inner::<PhysicalI8>(array1, sel1, array2, sel2),
-        PhysicalType::Int16 => {
-            assert_arrays_eq_sel_inner::<PhysicalI16>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::Int32 => {
-            assert_arrays_eq_sel_inner::<PhysicalI32>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::Int64 => {
-            assert_arrays_eq_sel_inner::<PhysicalI64>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::Int128 => {
-            assert_arrays_eq_sel_inner::<PhysicalI128>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::UInt8 => assert_arrays_eq_sel_inner::<PhysicalU8>(array1, sel1, array2, sel2),
-        PhysicalType::UInt16 => {
-            assert_arrays_eq_sel_inner::<PhysicalU16>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::UInt32 => {
-            assert_arrays_eq_sel_inner::<PhysicalU32>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::UInt64 => {
-            assert_arrays_eq_sel_inner::<PhysicalU64>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::UInt128 => {
-            assert_arrays_eq_sel_inner::<PhysicalU128>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::Float16 => {
-            assert_arrays_eq_sel_inner::<PhysicalF16>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::Float32 => {
-            assert_arrays_eq_sel_inner::<PhysicalF32>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::Float64 => {
-            assert_arrays_eq_sel_inner::<PhysicalF64>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::Utf8 => {
-            assert_arrays_eq_sel_inner::<PhysicalUtf8>(array1, sel1, array2, sel2)
-        }
-        PhysicalType::List => {
-            assert_arrays_eq_sel_list_inner(array1, sel1, array2, sel2);
-        }
-        other => unimplemented!("{other:?}"),
-    }
-}
+    let sel1 = sel1.into_exact_size_iter();
+    let sel2 = sel2.into_exact_size_iter();
 
-#[track_caller]
-fn assert_arrays_eq_sel_list_inner(
-    array1: &Array,
-    sel1: impl IntoExactSizeIterator<Item = usize>,
-    array2: &Array,
-    sel2: impl IntoExactSizeIterator<Item = usize>,
-) {
-    unimplemented!()
-    // let inner1 = match flat1.array_buffer.get_secondary() {
-    //     SecondaryBuffer::List(list) => &list.child,
-    //     _ => panic!("Missing child for array 1"),
-    // };
+    assert_eq!(sel1.len(), sel2.len(), "Array selections differ in lengths");
+    let arr_len = sel1.len();
 
-    // let inner2 = match flat2.array_buffer.get_secondary() {
-    //     SecondaryBuffer::List(list) => &list.child,
-    //     _ => panic!("Missing child for array 2"),
-    // };
+    let mut batch = Batch::new(
+        [array1.datatype().clone(), array2.datatype.clone()],
+        arr_len,
+    )
+    .unwrap();
+    batch.set_num_rows(arr_len).unwrap();
 
-    // let metas1 = PhysicalList::get_addressable(flat1.array_buffer).unwrap();
-    // let metas2 = PhysicalList::get_addressable(flat2.array_buffer).unwrap();
+    // Copy the arrays to a new batch.
+    let mapping1 = sel1.enumerate();
+    copy_rows_array(array1, mapping1, &mut batch.arrays[0]).unwrap();
 
-    // let sel1 = sel1.into_iter();
-    // let sel2 = sel2.into_iter();
-    // assert_eq!(sel1.len(), sel2.len());
+    let mapping2 = sel2.enumerate();
+    copy_rows_array(array2, mapping2, &mut batch.arrays[1]).unwrap();
 
-    // for (row_idx, (idx1, idx2)) in sel1.zip(sel2).enumerate() {
-    //     let idx1 = flat1.selection.get(idx1).unwrap();
-    //     let idx2 = flat1.selection.get(idx2).unwrap();
-
-    //     assert_eq!(
-    //         flat1.validity.is_valid(idx1),
-    //         flat2.validity.is_valid(idx2),
-    //         "validity mismatch for row {row_idx}"
-    //     );
-
-    //     let m1 = metas1.get(idx1).unwrap();
-    //     let m2 = metas2.get(idx2).unwrap();
-
-    //     let sel1 = (m1.offset as usize)..((m1.offset + m1.len) as usize);
-    //     let sel2 = (m2.offset as usize)..((m2.offset + m2.len) as usize);
-
-    //     assert_arrays_eq_sel(inner1, sel1, inner2, sel2);
-    // }
-}
-
-#[track_caller]
-fn assert_arrays_eq_sel_inner<S>(
-    array1: &Array,
-    sel1: impl IntoExactSizeIterator<Item = usize>,
-    array2: &Array,
-    sel2: impl IntoExactSizeIterator<Item = usize>,
-) where
-    S: ScalarStorage,
-    S::StorageType: ToOwned<Owned: Debug + PartialEq>,
-{
-    // Maps index to value.
-    let mut out = BTreeMap::new();
-
-    UnaryExecutor::for_each_flat::<S, _>(array1, sel1, |idx, v| {
-        out.insert(idx, v.map(|v| v.to_owned()));
-    })
+    let eq_func = expr::scalar_function(
+        &FUNCTION_SET_IS_NOT_DISTINCT_FROM,
+        vec![
+            expr::column((0, 0), array1.datatype().clone()),
+            expr::column((0, 1), array2.datatype().clone()),
+        ],
+    )
     .unwrap();
 
-    // TODO: Bubble up these errors for better line numbers when asserts fail.
-    UnaryExecutor::for_each_flat::<S, _>(array2, sel2, |idx, v| match out.remove(&idx) {
-        Some(existing) => {
-            let v = v.map(|v| v.to_owned());
-            assert_eq!(existing, v, "values differ at index {idx}");
-        }
-        None => panic!("missing value for index in array 1 {idx}"),
-    })
-    .unwrap();
+    let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, arr_len).unwrap();
+    eq_func.function.call_execute(&batch, &mut output).unwrap();
 
-    if !out.is_empty() {
-        panic!("extra entries in array 1: {:?}", out);
+    // Now check if they were all equal.
+    assert!(output.validity.all_valid(), "Output not all valid");
+    let out_slice = ScalarBuffer::<bool>::downcast_ref(&output.data)
+        .unwrap()
+        .buffer
+        .as_slice();
+    assert_eq!(
+        out_slice.len(),
+        arr_len,
+        "Output length doesn't match selection length"
+    );
+    let not_true_idx = out_slice.iter().position(|&b| !b);
+    if let Some(not_true_idx) = not_true_idx {
+        // Arrays not equal!
+        let table = batch.debug_table();
+        panic!("Arrays not equal! Difference found at row index {not_true_idx}\n{table}");
     }
+
+    // Arrays equal!
 }
 
 /// Asserts two batches are logically equal.
