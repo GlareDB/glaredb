@@ -10,15 +10,15 @@ use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
-pub const FUNCTION_SET_LIST_VALUES: ScalarFunctionSet = ScalarFunctionSet {
-    name: "list_values",
+pub const FUNCTION_SET_LIST_VALUE: ScalarFunctionSet = ScalarFunctionSet {
+    name: "list_value",
     aliases: &[],
     doc: &[&Documentation {
         category: Category::List,
         description: "Create a list from the given values.",
         arguments: &["var_arg"],
         example: Some(Example {
-            example: "list_values('cat', 'dog', 'mouse')",
+            example: "list_value('cat', 'dog', 'mouse')",
             output: "[cat, dog, mouse]",
         }),
     }],
@@ -28,14 +28,14 @@ pub const FUNCTION_SET_LIST_VALUES: ScalarFunctionSet = ScalarFunctionSet {
             variadic_arg: Some(DataTypeId::Any),
             return_type: DataTypeId::List(&DataTypeId::Any),
         },
-        &ListValues,
+        &ListValue,
     )],
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct ListValues;
+pub struct ListValue;
 
-impl ScalarFunction for ListValues {
+impl ScalarFunction for ListValue {
     type State = ();
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
