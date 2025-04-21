@@ -45,6 +45,12 @@ mod tests {
     }
 
     #[test]
+    fn generate_list_array_simple() {
+        // That's _fine_
+        let arr = generate_array!([&[4, 5], &[6, 7, 8]] as [&[_]; 2]);
+    }
+
+    #[test]
     fn generate_batch_single_column() {
         let batch = generate_batch!(["a", "b", "c"]);
         let expected =

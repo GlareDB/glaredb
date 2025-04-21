@@ -114,13 +114,11 @@ impl ColumnBuffer {
         src_offset: usize,
         count: usize,
     ) -> Result<()> {
-        let phys_type = src.datatype().physical_type();
-
         // src => dest mapping.
         let mapping = (src_offset..(src_offset + count)).zip(dest_offset..(dest_offset + count));
 
         copy_rows_raw(
-            phys_type,
+            src.datatype(),
             &src.data,
             &src.validity,
             mapping,
