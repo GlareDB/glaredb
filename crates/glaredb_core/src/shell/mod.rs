@@ -4,6 +4,7 @@ pub mod highlighter;
 pub mod lineedit;
 pub mod raw;
 
+mod code_point_string;
 mod debug;
 mod vt100;
 

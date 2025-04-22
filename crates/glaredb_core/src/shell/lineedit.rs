@@ -2,6 +2,7 @@ use std::{fmt, io};
 
 use glaredb_error::Result;
 
+use super::code_point_string::CodePointString;
 use super::highlighter::HighlightState;
 use super::{debug, vt100};
 
@@ -360,7 +361,7 @@ where
 
         let buffer = &self.buffer;
         // Tokenize the current query for highlighting.
-        self.highlighter.tokenize(&buffer.current);
+        self.highlighter.tokenize(buffer.current.as_str());
 
         // Lines broken up by literal newlines in the input.
         let lines = buffer.lines();
@@ -488,7 +489,9 @@ where
 /// cursor on at the very end of the line on an "empty" space.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct LineSpan {
+    /// The start character position for the line.
     start: usize,
+    /// The number of characters in the line.
     len: usize,
 }
 
@@ -534,17 +537,19 @@ impl LineSpan {
 /// - Position 9 is immediately after the comma, but still on the first line. A
 ///   backspace will delete the ','.
 /// - Postiion 10 is the '2'. A backspace will delete the newline.
+///
+/// A "position" is a character position, not a byte position.
 #[derive(Debug)]
 struct TextBuffer {
     spans: Vec<LineSpan>,
-    current: String,
+    current: CodePointString,
 }
 
 impl TextBuffer {
     fn new() -> Self {
         TextBuffer {
             spans: vec![LineSpan::TEXT_EMPTY],
-            current: String::new(),
+            current: CodePointString::new(),
         }
     }
 
@@ -578,7 +583,7 @@ impl TextBuffer {
         if pos == self.current.len() {
             // Cursor is at the end of the input.
 
-            self.current.push(ch);
+            self.current.push_char(ch);
             self.spans.last_mut().unwrap().len += 1;
 
             if ch == '\n' {
@@ -589,7 +594,7 @@ impl TextBuffer {
                 });
             }
         } else {
-            self.current.insert(pos, ch);
+            self.current.insert_char(pos, ch);
 
             let line_idx = self.current_line(pos);
             let line = &mut self.spans[line_idx];
@@ -623,7 +628,10 @@ impl TextBuffer {
             return;
         }
 
-        let ch = self.current.remove(pos - 1);
+        let ch = match self.current.remove_char(pos - 1) {
+            Some(ch) => ch,
+            None => return,
+        };
 
         let mut line_idx = self.current_line(pos);
         let line = self.spans[line_idx];
@@ -681,9 +689,8 @@ impl TextBuffer {
         }
 
         let span = self.spans[line_idx];
-        let line = &self.current[span.start..(span.start + span.len)];
-
-        Some(line)
+        self.current
+            .slice_chars(span.start..(span.start + span.len))
     }
 }
 
@@ -695,7 +702,7 @@ impl AsRef<str> for TextBuffer {
 
 impl fmt::Display for TextBuffer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.current)
+        write!(f, "{}", self.current.as_str())
     }
 }
 
@@ -922,6 +929,20 @@ mod tests {
         assert_eq!((3, 0), buf.current_line_and_column(12));
         assert_eq!((4, 0), buf.current_line_and_column(13)); // '2'
         assert_eq!((4, 1), buf.current_line_and_column(14)); // ';'
+    }
+
+    #[test]
+    fn text_buffer_position_utf8() {
+        let mut buf = TextBuffer::new();
+        let _ = insert_str(&mut buf, 0, "select '◊',\n2;");
+
+        println!("SPANS: {:?}", buf.spans);
+
+        assert_eq!((0, 7), buf.current_line_and_column(7)); // '
+        assert_eq!((0, 8), buf.current_line_and_column(8)); // ◊
+        assert_eq!((0, 9), buf.current_line_and_column(9)); // '
+        assert_eq!((0, 10), buf.current_line_and_column(10)); // On comma
+        assert_eq!((0, 11), buf.current_line_and_column(11)); // Newline after comma
     }
 
     #[test]
