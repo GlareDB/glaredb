@@ -22,7 +22,7 @@ use glaredb_error::{DbError, Result};
 /// This is a stub implementation that will be expanded to support the full
 /// Iceberg REST API spec.
 ///
-/// Reference: https://iceberg.apache.org/spec/#rest-catalog-api
+/// Reference: <https://editor-next.swagger.io/?url=https://raw.githubusercontent.com/apache/iceberg/main/open-api/rest-catalog-open-api.yaml>
 #[derive(Debug)]
 pub struct RestCatalog {
     #[allow(dead_code)]
