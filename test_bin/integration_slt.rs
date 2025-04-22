@@ -56,8 +56,16 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    // TODO: Why not just return a run config?
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)>;
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>>;
+
+    /// Optional engine teardown...
+    ///
+    /// That's not currently called because the sqllogictest stuff isn't
+    /// actually structured in a way to easily get the session back.
+    #[expect(unused)]
+    fn teardown(_conf: RunConfig<E, R>) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -68,8 +76,13 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
-        Ok((engine, ReplacementVars::default()))
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+        Ok(RunConfig {
+            engine,
+            vars: ReplacementVars::default(),
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(5),
+        })
     }
 }
 
@@ -81,9 +94,14 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(TpchGenExtension)?;
-        Ok((engine, ReplacementVars::default()))
+        Ok(RunConfig {
+            engine,
+            vars: ReplacementVars::default(),
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(5),
+        })
     }
 }
 
@@ -95,9 +113,14 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
-        Ok((engine, ReplacementVars::default()))
+        Ok(RunConfig {
+            engine,
+            vars: ReplacementVars::default(),
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(5),
+        })
     }
 }
 
@@ -109,10 +132,14 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(ParquetExtension)?;
-
-        Ok((engine, ReplacementVars::default()))
+        Ok(RunConfig {
+            engine,
+            vars: ReplacementVars::default(),
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(5),
+        })
     }
 }
 
@@ -124,11 +151,15 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
-
-        Ok((engine, ReplacementVars::default()))
+        Ok(RunConfig {
+            engine,
+            vars: ReplacementVars::default(),
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(5),
+        })
     }
 }
 
@@ -140,11 +171,15 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
-
-        Ok((engine, ReplacementVars::default()))
+        Ok(RunConfig {
+            engine,
+            vars: ReplacementVars::default(),
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(5),
+        })
     }
 }
 
@@ -156,7 +191,7 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
 
@@ -165,7 +200,12 @@ where
         vars.add_var("AWS_KEY", VarValue::sensitive_from_env("AWS_KEY"));
         vars.add_var("AWS_SECRET", VarValue::sensitive_from_env("AWS_SECRET"));
 
-        Ok((engine, vars))
+        Ok(RunConfig {
+            engine,
+            vars,
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(5),
+        })
     }
 }
 
@@ -177,9 +217,14 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(ParquetExtension)?;
-        Ok((engine, ReplacementVars::default()))
+        Ok(RunConfig {
+            engine,
+            vars: ReplacementVars::default(),
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(5),
+        })
     }
 }
 
@@ -191,9 +236,14 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<(SingleUserEngine<E, R>, ReplacementVars)> {
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(ParquetExtension)?;
-        Ok((engine, ReplacementVars::default()))
+        Ok(RunConfig {
+            engine,
+            vars: ReplacementVars::default(),
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(5),
+        })
     }
 }
 
@@ -213,14 +263,7 @@ where
 
             async move {
                 let engine = SingleUserEngine::try_new(executor.clone(), rt.clone())?;
-                let (engine, vars) = S::setup(engine)?;
-
-                Ok(RunConfig {
-                    engine,
-                    vars,
-                    create_slt_tmp: false,
-                    query_timeout: Duration::from_secs(5),
-                })
+                S::setup(engine)
             }
         },
         tag,
