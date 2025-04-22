@@ -10,10 +10,22 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use super::spec::{
-    CreateNamespaceRequest, CreateNamespaceResponse, CreateTableRequest, CreateTableResponse,
-    ErrorModel, GetNamespaceResponse, ListNamespacesResponse, ListTablesResponse, LoadTableResponse,
-    RenameTableRequest, RenameTableResponse, TableIdentifier, UpdateNamespacePropertiesRequest,
-    UpdateNamespacePropertiesResponse, UpdateTableRequest, UpdateTableResponse,
+    CreateNamespaceRequest,
+    CreateNamespaceResponse,
+    CreateTableRequest,
+    CreateTableResponse,
+    ErrorModel,
+    GetNamespaceResponse,
+    ListNamespacesResponse,
+    ListTablesResponse,
+    LoadTableResponse,
+    RenameTableRequest,
+    RenameTableResponse,
+    TableIdentifier,
+    UpdateNamespacePropertiesRequest,
+    UpdateNamespacePropertiesResponse,
+    UpdateTableRequest,
+    UpdateTableResponse,
 };
 
 /// Error returned by iceberg endpoints.
@@ -131,7 +143,10 @@ where
 
     ///
     /// Reference: <https://iceberg.apache.org/spec/#get-namespace>
-    pub async fn get_namespace(&self, namespace: impl Into<String>) -> Result<GetNamespaceResponse> {
+    pub async fn get_namespace(
+        &self,
+        namespace: impl Into<String>,
+    ) -> Result<GetNamespaceResponse> {
         let namespace = namespace.into();
         let resp: GetNamespaceResponse = self
             .do_request::<(), _>(
@@ -157,7 +172,8 @@ where
         let resp: UpdateNamespacePropertiesResponse = self
             .do_request(
                 Method::POST,
-                self.endpoints.v1_namespaces_namespace_properties(&namespace)?,
+                self.endpoints
+                    .v1_namespaces_namespace_properties(&namespace)?,
                 Some(UpdateNamespacePropertiesRequest { removals, updates }),
             )
             .await?;
@@ -227,7 +243,8 @@ where
         let resp: LoadTableResponse = self
             .do_request::<(), _>(
                 Method::GET,
-                self.endpoints.v1_namespaces_namespace_tables_table(&namespace, &table)?,
+                self.endpoints
+                    .v1_namespaces_namespace_tables_table(&namespace, &table)?,
                 None,
             )
             .await?;
@@ -248,7 +265,8 @@ where
         let resp: UpdateTableResponse = self
             .do_request(
                 Method::POST,
-                self.endpoints.v1_namespaces_namespace_tables_table(&namespace, &table)?,
+                self.endpoints
+                    .v1_namespaces_namespace_tables_table(&namespace, &table)?,
                 Some(request),
             )
             .await?;
@@ -268,7 +286,8 @@ where
         let _: () = self
             .do_request::<(), _>(
                 Method::DELETE,
-                self.endpoints.v1_namespaces_namespace_tables_table(&namespace, &table)?,
+                self.endpoints
+                    .v1_namespaces_namespace_tables_table(&namespace, &table)?,
                 None,
             )
             .await?;

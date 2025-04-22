@@ -10,7 +10,6 @@ pub struct ErrorModel {
     pub code: i32,
 }
 
-
 #[derive(Debug, Serialize)]
 pub struct CreateNamespaceRequest {
     pub namespace: Vec<String>,
@@ -49,7 +48,6 @@ pub struct UpdateNamespacePropertiesResponse {
     pub namespace: Vec<String>,
     pub properties: HashMap<String, String>,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Schema {
