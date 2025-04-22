@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::{fmt, io};
 
 use glaredb_error::Result;
@@ -75,6 +76,28 @@ pub struct TermSize {
     pub cols: usize,
 }
 
+#[derive(Debug, Default)]
+pub struct History {
+    /// Query history.
+    queries: VecDeque<String>,
+    /// Cursor for the current history item we're on.
+    cursor: usize,
+}
+
+impl History {
+    /// Max number of queries we can hold in the history buffer.
+    const MAX_LEN: usize = 100;
+
+    /// Push a query to the history buffer.
+    fn push_query(&mut self, query: String) {
+        while self.queries.len() >= Self::MAX_LEN {
+            self.queries.pop_front();
+        }
+        self.queries.push_back(query);
+        self.cursor = self.queries.len();
+    }
+}
+
 /// Line editor inspired by linenoise.
 #[derive(Debug)]
 pub struct LineEditor<W: io::Write> {
@@ -101,6 +124,8 @@ pub struct LineEditor<W: io::Write> {
     did_ctrl_c: bool,
     /// Highlight keywords.
     highlighter: HighlightState,
+    /// Query history.
+    history: History,
 }
 
 impl<W> LineEditor<W>
@@ -125,6 +150,7 @@ where
             max_lines: 1, // We never have less than one line.
             did_ctrl_c: false,
             highlighter: HighlightState::new(),
+            history: History::default(),
         }
     }
 
@@ -170,6 +196,10 @@ where
                         is_dot_command: trimmed.starts_with('.'),
                     };
 
+                    if !input.is_dot_command {
+                        self.history.push_query(trimmed.to_string());
+                    }
+
                     return Ok(Signal::InputCompleted(input));
                 }
                 self.edit_enter()?;
@@ -200,17 +230,64 @@ where
         self.refresh()
     }
 
-    #[allow(unused)]
-    fn consume_history(&mut self, text: &str) -> Result<()> {
-        self.buffer.clear();
-        self.text_pos = 0;
-        self.rendered_cursor_row = 0;
+    /// Go "forward" in history (increment cursor).
+    ///
+    /// If we move forward past the last item in the buffer, then we write an
+    /// empty string.
+    ///
+    /// If we're not currently cycling through history, does nothing.
+    fn history_next_forward(&mut self) -> Result<()> {
+        if self.history.cursor < self.history.queries.len() {
+            self.buffer.clear();
+            self.text_pos = 0;
+            self.rendered_cursor_row = 0;
 
-        // Note we don't want to reset max lines, as we want to properly
-        // overwrite all lines. The resulting query might be fewer lines, but we
-        // won't see anything from the previous query.
+            // See note in history_next_back.
 
-        self.consume_text(text)
+            self.history.cursor += 1;
+            let query = if self.history.cursor == self.history.queries.len() {
+                // No more history left.
+                ""
+            } else {
+                &self.history.queries[self.history.cursor]
+            };
+
+            for ch in query.chars() {
+                self.buffer.insert_char(self.text_pos, ch);
+                self.text_pos += 1;
+            }
+
+            self.refresh()?;
+        }
+
+        Ok(())
+    }
+
+    /// Go "back" in history (decrement cursor).
+    ///
+    /// Does nothing if there's no history to go back to.
+    fn history_next_back(&mut self) -> Result<()> {
+        if self.history.cursor > 0 {
+            self.buffer.clear();
+            self.text_pos = 0;
+            self.rendered_cursor_row = 0;
+
+            // Note we don't want to reset max lines, as we want to properly
+            // overwrite all lines. The resulting query might be fewer lines, but we
+            // won't see anything from the previous query.
+
+            self.history.cursor -= 1;
+            let query = &self.history.queries[self.history.cursor];
+
+            for ch in query.chars() {
+                self.buffer.insert_char(self.text_pos, ch);
+                self.text_pos += 1;
+            }
+
+            self.refresh()?;
+        }
+
+        Ok(())
     }
 
     pub fn edit_start(&mut self) -> Result<()> {
@@ -247,8 +324,7 @@ where
     fn edit_move_up(&mut self) -> Result<()> {
         let line = self.buffer.current_line(self.text_pos);
         if line == 0 {
-            // TODO: History
-            return Ok(());
+            return self.history_next_back();
         }
 
         // Relative position in the current line. We'll use this to try to line
@@ -268,8 +344,7 @@ where
     fn edit_move_down(&mut self) -> Result<()> {
         let line = self.buffer.current_line(self.text_pos);
         if line == self.buffer.spans.len() - 1 {
-            // TODO: History
-            return Ok(());
+            return self.history_next_forward();
         }
 
         // See above.
