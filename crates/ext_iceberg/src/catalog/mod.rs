@@ -1,3 +1,3 @@
 mod rest;
 
-pub use rest::RESTCatalog;
+pub use rest::RestCatalog;

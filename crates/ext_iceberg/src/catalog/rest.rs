@@ -18,19 +18,19 @@ use glaredb_core::storage::storage_manager::{StorageManager, StorageTableId};
 use glaredb_error::{DbError, Result};
 
 #[derive(Debug)]
-pub struct RESTCatalog {
+pub struct RestCatalog {
     #[allow(dead_code)]
     base_url: String,
 }
 
-impl RESTCatalog {
+impl RestCatalog {
     pub fn new(base_url: String) -> Self {
-        RESTCatalog { base_url }
+        RestCatalog { base_url }
     }
 }
 
 #[derive(Debug)]
-pub struct RESTSchema {
+pub struct RestSchema {
     schema: Arc<CatalogEntry>,
     #[allow(dead_code)]
     base_url: String,
@@ -38,8 +38,8 @@ pub struct RESTSchema {
     namespace: String,
 }
 
-impl Catalog for RESTCatalog {
-    type Schema = RESTSchema;
+impl Catalog for RestCatalog {
+    type Schema = RestSchema;
 
     fn create_schema(&self, _create: &CreateSchemaInfo) -> Result<Arc<Self::Schema>> {
         //
@@ -141,7 +141,7 @@ impl Catalog for RESTCatalog {
     }
 }
 
-impl Schema for RESTSchema {
+impl Schema for RestSchema {
     fn as_entry(&self) -> Arc<CatalogEntry> {
         self.schema.clone()
     }

@@ -1,6 +1,6 @@
 use glaredb_core::extension::{Extension, ExtensionTableFunction};
 
-use crate::catalog::RESTCatalog;
+use crate::catalog::RestCatalog;
 
 #[derive(Debug, Clone, Copy)]
 pub struct IcebergExtension;
@@ -14,6 +14,6 @@ impl Extension for IcebergExtension {
     }
 }
 
-pub fn create_rest_catalog(base_url: String) -> RESTCatalog {
-    RESTCatalog::new(base_url)
+pub fn create_rest_catalog(base_url: String) -> RestCatalog {
+    RestCatalog::new(base_url)
 }
