@@ -33,7 +33,7 @@ where
 struct Endpoints {
     /// Base url to use, including a base path if any.
     ///
-    /// The path must have a trailing '/'.
+    /// The path should not have a trailing '/'.
     ///
     /// <https://host.com/path/>
     base: Url,
@@ -70,5 +70,97 @@ impl Endpoints {
 
     fn v1_namespaces_namespace(&self, namespace: &str) -> Result<Url> {
         self.with_path(["v1", &self.prefix, "namespaces", namespace])
+    }
+
+    fn v1_namespaces_namespace_tables(&self, namespace: &str) -> Result<Url> {
+        self.with_path(["v1", &self.prefix, "namespaces", namespace, "tables"])
+    }
+
+    fn v1_namespaces_namespace_tables_table(&self, namespace: &str, table: &str) -> Result<Url> {
+        self.with_path(["v1", &self.prefix, "namespaces", namespace, "tables", table])
+    }
+
+    fn v1_tables_rename(&self) -> Result<Url> {
+        self.with_path(["v1", &self.prefix, "tables", "rename"])
+    }
+
+    fn v1_namespaces_namespace_views(&self, namespace: &str) -> Result<Url> {
+        self.with_path(["v1", &self.prefix, "namespaces", namespace, "views"])
+    }
+
+    fn v1_namespaces_namespace_views_view(&self, namespace: &str, view: &str) -> Result<Url> {
+        self.with_path(["v1", &self.prefix, "namespaces", namespace, "views", view])
+    }
+
+    fn v1_views_rename(&self) -> Result<Url> {
+        self.with_path(["v1", &self.prefix, "views", "rename"])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn endpoints() {
+        let base = Url::parse("https://o1.com/iceberg").unwrap();
+        let endpoints = Endpoints::new(base, "arn");
+
+        assert_eq!(
+            "https://o1.com/iceberg/v1/config",
+            endpoints.v1_config().unwrap().as_str()
+        );
+
+        assert_eq!(
+            "https://o1.com/iceberg/v1/arn/namespaces",
+            endpoints.v1_namespaces().unwrap().as_str()
+        );
+
+        assert_eq!(
+            "https://o1.com/iceberg/v1/arn/namespaces/my_ns",
+            endpoints.v1_namespaces_namespace("my_ns").unwrap().as_str()
+        );
+
+        assert_eq!(
+            "https://o1.com/iceberg/v1/arn/namespaces/my_ns/tables",
+            endpoints
+                .v1_namespaces_namespace_tables("my_ns")
+                .unwrap()
+                .as_str()
+        );
+
+        assert_eq!(
+            "https://o1.com/iceberg/v1/arn/namespaces/my_ns/tables/m_table",
+            endpoints
+                .v1_namespaces_namespace_tables_table("my_ns", "my_table")
+                .unwrap()
+                .as_str()
+        );
+
+        assert_eq!(
+            "https://o1.com/iceberg/v1/arn/tables/rename",
+            endpoints.v1_tables_rename().unwrap().as_str()
+        );
+
+        assert_eq!(
+            "https://o1.com/iceberg/v1/arn/namespaces/my_ns/views",
+            endpoints
+                .v1_namespaces_namespace_views("my_ns")
+                .unwrap()
+                .as_str()
+        );
+
+        assert_eq!(
+            "https://o1.com/iceberg/v1/arn/namespaces/my_ns/views/my_view",
+            endpoints
+                .v1_namespaces_namespace_views_view("my_ns", "my_view")
+                .unwrap()
+                .as_str()
+        );
+
+        assert_eq!(
+            "https://o1.com/iceberg/v1/arn/views/rename",
+            endpoints.v1_views_rename().unwrap().as_str()
+        );
     }
 }
