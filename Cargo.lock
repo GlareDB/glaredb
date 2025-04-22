@@ -813,6 +813,7 @@ dependencies = [
  "futures",
  "glaredb_core",
  "glaredb_error",
+ "glaredb_http",
  "glaredb_proto",
  "regex",
  "serde",
