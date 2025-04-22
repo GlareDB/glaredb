@@ -44,19 +44,25 @@ impl Catalog for RESTCatalog {
     fn create_schema(&self, _create: &CreateSchemaInfo) -> Result<Arc<Self::Schema>> {
         //
 
-        Err(DbError::new("Iceberg REST catalog create_schema not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST catalog create_schema not yet implemented",
+        ))
     }
 
     fn get_schema(&self, _name: &str) -> Result<Option<Arc<Self::Schema>>> {
         //
 
-        Err(DbError::new("Iceberg REST catalog get_schema not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST catalog get_schema not yet implemented",
+        ))
     }
 
     fn drop_entry(&self, _drop: &DropInfo) -> Result<Option<Arc<CatalogEntry>>> {
         //
 
-        Err(DbError::new("Iceberg REST catalog drop_entry not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST catalog drop_entry not yet implemented",
+        ))
     }
 
     fn plan_create_view(
@@ -65,7 +71,9 @@ impl Catalog for RESTCatalog {
         _schema: &str,
         _create: CreateViewInfo,
     ) -> Result<PlannedOperator> {
-        Err(DbError::new("Iceberg REST catalog plan_create_view not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST catalog plan_create_view not yet implemented",
+        ))
     }
 
     fn plan_create_table(
@@ -75,7 +83,9 @@ impl Catalog for RESTCatalog {
         _schema: &str,
         _create: CreateTableInfo,
     ) -> Result<PlannedOperator> {
-        Err(DbError::new("Iceberg REST catalog plan_create_table not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST catalog plan_create_table not yet implemented",
+        ))
     }
 
     fn plan_insert(
@@ -84,7 +94,9 @@ impl Catalog for RESTCatalog {
         _id_gen: &mut OperatorIdGen,
         _table: Arc<CatalogEntry>,
     ) -> Result<PlannedOperator> {
-        Err(DbError::new("Iceberg REST catalog plan_insert not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST catalog plan_insert not yet implemented",
+        ))
     }
 
     fn plan_create_table_as(
@@ -94,7 +106,9 @@ impl Catalog for RESTCatalog {
         _schema: &str,
         _create: CreateTableInfo,
     ) -> Result<PlannedOperator> {
-        Err(DbError::new("Iceberg REST catalog plan_create_table_as not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST catalog plan_create_table_as not yet implemented",
+        ))
     }
 
     fn plan_create_schema(
@@ -102,7 +116,9 @@ impl Catalog for RESTCatalog {
         _id_gen: &mut OperatorIdGen,
         _create: CreateSchemaInfo,
     ) -> Result<PlannedOperator> {
-        Err(DbError::new("Iceberg REST catalog plan_create_schema not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST catalog plan_create_schema not yet implemented",
+        ))
     }
 
     fn plan_drop(
@@ -111,7 +127,9 @@ impl Catalog for RESTCatalog {
         _id_gen: &mut OperatorIdGen,
         _drop: DropInfo,
     ) -> Result<PlannedOperator> {
-        Err(DbError::new("Iceberg REST catalog plan_drop not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST catalog plan_drop not yet implemented",
+        ))
     }
 
     fn list_schemas(
@@ -135,55 +153,80 @@ impl Schema for RESTSchema {
     ) -> Result<Arc<CatalogEntry>> {
         //
 
-        Err(DbError::new("Iceberg REST schema create_table not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST schema create_table not yet implemented",
+        ))
     }
 
     fn create_view(&self, _create: &CreateViewInfo) -> Result<Arc<CatalogEntry>> {
-        Err(DbError::new("Iceberg REST schema create_view not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST schema create_view not yet implemented",
+        ))
     }
 
     fn create_scalar_function(
         &self,
         _create: &CreateScalarFunctionInfo,
     ) -> Result<Arc<CatalogEntry>> {
-        Err(DbError::new("Iceberg REST schema create_scalar_function not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST schema create_scalar_function not yet implemented",
+        ))
     }
 
     fn create_aggregate_function(
         &self,
         _create: &CreateAggregateFunctionInfo,
     ) -> Result<Arc<CatalogEntry>> {
-        Err(DbError::new("Iceberg REST schema create_aggregate_function not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST schema create_aggregate_function not yet implemented",
+        ))
     }
 
-    fn create_table_function(&self, _create: &CreateTableFunctionInfo) -> Result<Arc<CatalogEntry>> {
-        Err(DbError::new("Iceberg REST schema create_table_function not yet implemented"))
+    fn create_table_function(
+        &self,
+        _create: &CreateTableFunctionInfo,
+    ) -> Result<Arc<CatalogEntry>> {
+        Err(DbError::new(
+            "Iceberg REST schema create_table_function not yet implemented",
+        ))
     }
 
     fn get_table_or_view(&self, _name: &str) -> Result<Option<Arc<CatalogEntry>>> {
         //
 
-        Err(DbError::new("Iceberg REST schema get_table_or_view not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST schema get_table_or_view not yet implemented",
+        ))
     }
 
     fn get_table_function(&self, _name: &str) -> Result<Option<Arc<CatalogEntry>>> {
-        Err(DbError::new("Iceberg REST schema get_table_function not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST schema get_table_function not yet implemented",
+        ))
     }
 
     fn get_inferred_table_function(&self, _path: &str) -> Result<Option<Arc<CatalogEntry>>> {
-        Err(DbError::new("Iceberg REST schema get_inferred_table_function not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST schema get_inferred_table_function not yet implemented",
+        ))
     }
 
     fn get_function(&self, _name: &str) -> Result<Option<Arc<CatalogEntry>>> {
-        Err(DbError::new("Iceberg REST schema get_function not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST schema get_function not yet implemented",
+        ))
     }
 
     fn get_scalar_function(&self, _name: &str) -> Result<Option<Arc<CatalogEntry>>> {
-        Err(DbError::new("Iceberg REST schema get_scalar_function not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST schema get_scalar_function not yet implemented",
+        ))
     }
 
     fn get_aggregate_function(&self, _name: &str) -> Result<Option<Arc<CatalogEntry>>> {
-        Err(DbError::new("Iceberg REST schema get_aggregate_function not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST schema get_aggregate_function not yet implemented",
+        ))
     }
 
     fn find_similar_entry(
@@ -191,7 +234,9 @@ impl Schema for RESTSchema {
         _entry_types: &[CatalogEntryType],
         _name: &str,
     ) -> Result<Option<Arc<CatalogEntry>>> {
-        Err(DbError::new("Iceberg REST schema find_similar_entry not yet implemented"))
+        Err(DbError::new(
+            "Iceberg REST schema find_similar_entry not yet implemented",
+        ))
     }
 
     fn list_entries(
