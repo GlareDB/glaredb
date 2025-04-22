@@ -1,14 +1,27 @@
 use std::collections::HashMap;
 
 use glaredb_error::{DbError, Result, ResultExt};
-use glaredb_http::client::HttpClient;
+use glaredb_http::client::{HttpClient, HttpResponse, read_json_response, set_json_body};
+use glaredb_http::{Method, Request};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use url::Url;
+
+/// Error returned by iceberg endpoints.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IcebergErrorModel {
+    pub message: String,
+    #[serde(rename = "type")]
+    pub error_type: String,
+    pub code: i32,
+}
 
 /// Icerberg REST catalog client.
 ///
 /// Reference: <https://editor-next.swagger.io/?url=https://raw.githubusercontent.com/apache/iceberg/main/open-api/rest-catalog-open-api.yaml>
 #[derive(Debug)]
 pub struct CatalogClient<C: HttpClient> {
+    endpoints: Endpoints,
     client: C,
     /// Catalog properties.
     ///
@@ -27,6 +40,25 @@ where
     pub async fn configure(client: C) -> Result<Self> {
         unimplemented!()
     }
+
+    async fn do_request<B, R>(&self, method: Method, url: Url, body: B) -> Result<R>
+    where
+        B: Serialize,
+        R: DeserializeOwned,
+    {
+        let mut request = Request::new(method, url);
+        set_json_body(&mut request, &body)?;
+
+        // Do the request!
+        let resp = self.client.do_request(request).await?;
+
+        // TODO: Check status, read resp as error.
+
+        // Read the response!
+        let resp = read_json_response(resp.into_bytes_stream()).await?;
+
+        Ok(resp)
+    }
 }
 
 #[derive(Debug)]
@@ -35,7 +67,7 @@ struct Endpoints {
     ///
     /// The path should not have a trailing '/'.
     ///
-    /// <https://host.com/path/>
+    /// <https://host.com/path>
     base: Url,
     /// String to use when filling in the '{prefix}' portion of the path.
     ///
