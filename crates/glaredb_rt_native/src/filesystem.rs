@@ -34,6 +34,7 @@ impl File for LocalFile {
     }
 
     fn poll_write(&mut self, _cx: &mut Context, buf: &[u8]) -> Poll<Result<usize>> {
+        // TODO: We may need to update length here.
         Poll::Ready(self.file.write(buf).context("Failed to write"))
     }
 
@@ -42,9 +43,7 @@ impl File for LocalFile {
     }
 
     fn poll_flush(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
-        Poll::Ready(Err(DbError::new(
-            "not implemented: poll flush for local file",
-        )))
+        Poll::Ready(self.file.flush().context("Failed to flush"))
     }
 }
 
