@@ -57,6 +57,15 @@ where
     R: SystemRuntime,
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>>;
+
+    /// Optional engine teardown...
+    ///
+    /// That's not currently called because the sqllogictest stuff isn't
+    /// actually structured in a way to easily get the session back.
+    #[expect(unused)]
+    fn teardown(_conf: RunConfig<E, R>) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

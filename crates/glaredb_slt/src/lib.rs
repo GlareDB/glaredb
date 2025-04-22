@@ -170,6 +170,7 @@ where
 {
     let path = path.as_ref();
 
+    // TODO: Very cool thank you
     let mut runner = sqllogictest::Runner::new(|| async {
         let conf = session_fn().await?;
 

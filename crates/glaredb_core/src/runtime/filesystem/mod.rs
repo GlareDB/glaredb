@@ -25,6 +25,7 @@ pub trait File: Debug + Sync + Send + 'static {
 
     /// Get the size in bytes of this file.
     // TODO: Probably u64
+    // TODO: Probably remove, and just require a call to stat if size is needed.
     fn size(&self) -> usize;
 
     /// Read from the current position into the buffer, returning the number of
