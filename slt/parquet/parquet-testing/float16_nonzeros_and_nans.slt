@@ -1,10 +1,28 @@
 # Test for 'float16_nonzeros_and_nans.parquet'
 
-# TODO: Error source: query failed: Not yet implemented: FIXED_LEN_BYTE_ARRAY
+# NaNs
+# statement ok
+# SET verify_optimized_plan TO true;
 
-statement ok
-SET verify_optimized_plan TO true;
+query TT
+DESCRIBE '../submodules/parquet-testing/data/float16_nonzeros_and_nans.parquet'
+----
+x  Float16
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/float16_nonzeros_and_nans.parquet'
-# ----
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/float16_nonzeros_and_nans.parquet';
+----
+8
+
+query R
+SELECT * FROM '../submodules/parquet-testing/data/float16_nonzeros_and_nans.parquet' ORDER BY 1;
+----
+-2
+-1
+-0
+0
+1
+2
+NaN
+NULL
+

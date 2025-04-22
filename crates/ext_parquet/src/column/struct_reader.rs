@@ -15,6 +15,7 @@ use super::value_reader::primitive::{
     CastingInt32ToUInt16Reader,
     CastingInt32ToUInt32Reader,
     CastingInt64ToUInt64Reader,
+    PlainFloat16ValueReader,
     PlainFloat32ValueReader,
     PlainFloat64ValueReader,
     PlainInt32ValueReader,
@@ -86,6 +87,9 @@ pub(crate) fn new_column_reader(
             manager, datatype, descr,
         )?),
         DataType::UInt64 => Box::new(ValueColumnReader::<CastingInt64ToUInt64Reader>::try_new(
+            manager, datatype, descr,
+        )?),
+        DataType::Float16 => Box::new(ValueColumnReader::<PlainFloat16ValueReader>::try_new(
             manager, datatype, descr,
         )?),
         DataType::Float32 => Box::new(ValueColumnReader::<PlainFloat32ValueReader>::try_new(
