@@ -1,8 +1,23 @@
 # Test for 'float16_zeros_and_nans.parquet'
 
-statement ok
-SET verify_optimized_plan TO true;
+# NaN
+# statement ok
+# SET verify_optimized_plan TO true;
 
-# query TT
-# DESCRIBE '../submodules/parquet-testing/data/float16_zeros_and_nans.parquet'
-# ----
+query TT
+DESCRIBE '../submodules/parquet-testing/data/float16_zeros_and_nans.parquet'
+----
+x  Float16
+
+query I
+SELECT count(*) FROM '../submodules/parquet-testing/data/float16_zeros_and_nans.parquet';
+----
+3
+
+query R
+SELECT * FROM '../submodules/parquet-testing/data/float16_zeros_and_nans.parquet' ORDER BY 1;
+----
+0
+NaN
+NULL
+

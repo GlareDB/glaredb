@@ -177,6 +177,17 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
         basic::Type::INT96 => Ok(DataType::Timestamp(TimestampTypeMeta::new(
             TimeUnit::Nanosecond,
         ))),
+        basic::Type::FIXED_LEN_BYTE_ARRAY => {
+            match (
+                prim.basic_info.logical_type(),
+                prim.basic_info.converted_type(),
+            ) {
+                (Some(LogicalType::Float16), _) => Ok(DataType::Float16),
+                (logical, converted) => Err(DbError::new(format!(
+                    "Cannot handle FIXED_LEN_BYTE_ARRAY with logical type {logical:?} or converted type {converted:?}",
+                ))),
+            }
+        }
         basic::Type::BYTE_ARRAY => {
             match (
                 prim.basic_info.logical_type(),
@@ -190,7 +201,6 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 ))),
             }
         }
-        other => not_implemented!("{other:?}"),
     }
 }
 

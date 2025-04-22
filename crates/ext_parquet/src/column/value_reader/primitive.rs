@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
+    PhysicalF16,
     PhysicalF32,
     PhysicalF64,
     PhysicalI8,
@@ -24,6 +25,10 @@ pub type PlainInt32ValueReader = PrimitiveValueReader<PhysicalI32>;
 pub type PlainInt64ValueReader = PrimitiveValueReader<PhysicalI64>;
 pub type PlainFloat32ValueReader = PrimitiveValueReader<PhysicalF32>;
 pub type PlainFloat64ValueReader = PrimitiveValueReader<PhysicalF64>;
+
+// FIXED_SIZE_BYTE_ARRAY(2) => Float16
+// Just read directly from the byte stream (little endian)
+pub type PlainFloat16ValueReader = PrimitiveValueReader<PhysicalF16>;
 
 // No conversion needed to read INT64 as ns.
 pub type PlainTsNsValueReader = PrimitiveValueReader<PhysicalI64>;
