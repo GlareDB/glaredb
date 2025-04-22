@@ -1,13 +1,20 @@
 use std::ops::Range;
 
+/// String that tracks byte offsets to each char boundary.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CodePointString {
     inner: String,
-    /// Byte offsets of each char boundary. Always sorted, length = inner.chars().count()+1
+    /// Byte offsets of each char boundary.
+    ///
+    /// Always sorted, length = inner.chars().count()+1
     indices: Vec<usize>,
 }
 
 impl CodePointString {
+    pub fn new() -> Self {
+        Self::from_string(String::new())
+    }
+
     /// Build from a String, scanning all char boundaries once.
     pub fn from_string(s: String) -> Self {
         let mut indices = Vec::with_capacity(s.chars().count() + 1);
@@ -18,6 +25,12 @@ impl CodePointString {
         indices.push(s.len());
 
         CodePointString { inner: s, indices }
+    }
+
+    pub fn clear(&mut self) {
+        self.inner.clear();
+        self.indices.clear();
+        self.indices.push(0);
     }
 
     /// Access the underlying str.
@@ -31,7 +44,13 @@ impl CodePointString {
         self.indices.len().saturating_sub(1)
     }
 
+    #[allow(unused)]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Get the char at code‑point position `idx`.
+    #[allow(unused)]
     pub fn char_at(&self, idx: usize) -> Option<char> {
         if idx >= self.len() {
             return None;
@@ -39,6 +58,15 @@ impl CodePointString {
         let start = self.indices[idx];
         let end = self.indices[idx + 1];
         self.inner[start..end].chars().next()
+    }
+
+    /// Push a char onto the end of the string.
+    pub fn push_char(&mut self, ch: char) {
+        self.inner.push(ch);
+        // New end-of-string after push
+        let new_end = self.inner.len();
+        // Append the new boundary index
+        self.indices.push(new_end);
     }
 
     /// Insert a `char` at code‑point index `idx`.
@@ -214,5 +242,24 @@ mod tests {
         assert_eq!(s.remove_char(3), Some('a')); // "st-rt!"
         assert_eq!(s.remove_char(s.len() - 1), Some('!')); // "st-rt"
         assert_eq!(s.as_str(), "st-rt");
+    }
+
+    #[test]
+    fn push_char() {
+        let mut s = CodePointString::from_string(String::new());
+        assert_eq!(s.len(), 0);
+        s.push_char('A');
+        assert_eq!(s.len(), 1);
+        assert_eq!(s.as_str(), "A");
+
+        s.push_char('Ω');
+        assert_eq!(s.len(), 2);
+        assert_eq!(s.as_str(), "AΩ");
+        assert_eq!(s.char_at(1), Some('Ω'));
+
+        s.push_char('8');
+        assert_eq!(s.len(), 3);
+        assert_eq!(s.as_str(), "AΩ8");
+        assert_eq!(s.char_at(2), Some('8'));
     }
 }
