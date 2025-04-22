@@ -213,7 +213,7 @@ mod tests {
         );
 
         assert_eq!(
-            "https://o1.com/iceberg/v1/arn/namespaces/my_ns/tables/m_table",
+            "https://o1.com/iceberg/v1/arn/namespaces/my_ns/tables/my_table",
             endpoints
                 .v1_namespaces_namespace_tables_table("my_ns", "my_table")
                 .unwrap()
