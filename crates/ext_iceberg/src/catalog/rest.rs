@@ -17,6 +17,12 @@ use glaredb_core::execution::planner::OperatorIdGen;
 use glaredb_core::storage::storage_manager::{StorageManager, StorageTableId};
 use glaredb_error::{DbError, Result};
 
+/// A catalog implementation for the Iceberg REST API.
+/// 
+/// This is a stub implementation that will be expanded to support the full
+/// Iceberg REST API spec.
+/// 
+/// Reference: https://iceberg.apache.org/spec/#rest-catalog-api
 #[derive(Debug)]
 pub struct RestCatalog {
     #[allow(dead_code)]
@@ -29,6 +35,9 @@ impl RestCatalog {
     }
 }
 
+/// Schema implementation for Iceberg REST catalog
+///
+/// Reference: https://iceberg.apache.org/spec/#rest-catalog-api-namespace-and-table-operations
 #[derive(Debug)]
 pub struct RestSchema {
     schema: Arc<CatalogEntry>,
