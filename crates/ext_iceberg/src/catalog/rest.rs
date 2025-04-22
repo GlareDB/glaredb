@@ -18,10 +18,10 @@ use glaredb_core::storage::storage_manager::{StorageManager, StorageTableId};
 use glaredb_error::{DbError, Result};
 
 /// A catalog implementation for the Iceberg REST API.
-/// 
+///
 /// This is a stub implementation that will be expanded to support the full
 /// Iceberg REST API spec.
-/// 
+///
 /// Reference: https://iceberg.apache.org/spec/#rest-catalog-api
 #[derive(Debug)]
 pub struct RestCatalog {
