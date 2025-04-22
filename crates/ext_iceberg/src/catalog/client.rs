@@ -1,13 +1,15 @@
+#![allow(unused)]
+
 use std::collections::HashMap;
 
 use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_http::client::{HttpClient, HttpResponse, read_json_response, set_json_body};
-use glaredb_http::{Method, Request};
+use glaredb_http::{Method, Request, StatusCode};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use super::spec::{CreateNamespaceRequest, CreateNamespaceResponse};
+use super::spec::{CreateNamespaceRequest, CreateNamespaceResponse, ErrorModel};
 
 /// Error returned by iceberg endpoints.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,7 +76,18 @@ where
         // Do the request!
         let resp = self.client.do_request(request).await?;
 
-        // TODO: Check status, read resp as error.
+        if resp.status() != StatusCode::OK {
+            // Error!
+            let error_resp: ErrorModel = read_json_response(resp.into_bytes_stream())
+                .await
+                .context("Iceberg request failed; failed to read error message")?;
+
+            return Err(
+                DbError::new(format!("Iceberg catalog error: {}", error_resp.message))
+                    .with_field("type", error_resp.error_type)
+                    .with_field("code", error_resp.code),
+            );
+        }
 
         // Read the response!
         let resp = read_json_response(resp.into_bytes_stream()).await?;
