@@ -1,5 +1,5 @@
 use std::fs::{self, File as StdFile, OpenOptions};
-use std::io::{ErrorKind, Read, Seek, SeekFrom};
+use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
 use std::task::{Context, Poll};
 
 use glaredb_core::runtime::filesystem::{
@@ -33,10 +33,8 @@ impl File for LocalFile {
         Poll::Ready(result)
     }
 
-    fn poll_write(&mut self, _cx: &mut Context, _buf: &[u8]) -> Poll<Result<usize>> {
-        Poll::Ready(Err(DbError::new(
-            "not implemented: poll write for local file",
-        )))
+    fn poll_write(&mut self, _cx: &mut Context, buf: &[u8]) -> Poll<Result<usize>> {
+        Poll::Ready(self.file.write(buf).context("Failed to write"))
     }
 
     fn poll_seek(&mut self, _cx: &mut Context, seek: SeekFrom) -> Poll<Result<()>> {
