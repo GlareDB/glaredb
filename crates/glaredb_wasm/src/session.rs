@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use ext_csv::extension::CsvExtension;
+use ext_iceberg::extension::IcebergExtension;
 use ext_parquet::extension::ParquetExtension;
 use ext_spark::SparkExtension;
 use ext_tpch_gen::TpchGenExtension;
@@ -32,6 +33,7 @@ impl WasmSession {
         engine.register_extension(TpchGenExtension)?;
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
+        engine.register_extension(IcebergExtension)?;
 
         Ok(WasmSession { runtime, engine })
     }
