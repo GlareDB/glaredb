@@ -9,7 +9,12 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use super::spec::{CreateNamespaceRequest, CreateNamespaceResponse, ErrorModel};
+use super::spec::{
+    CreateNamespaceRequest, CreateNamespaceResponse, CreateTableRequest, CreateTableResponse,
+    ErrorModel, GetNamespaceResponse, ListNamespacesResponse, ListTablesResponse, LoadTableResponse,
+    RenameTableRequest, RenameTableResponse, TableIdentifier, UpdateNamespacePropertiesRequest,
+    UpdateNamespacePropertiesResponse, UpdateTableRequest, UpdateTableResponse,
+};
 
 /// Error returned by iceberg endpoints.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -95,6 +100,9 @@ where
         Ok(resp)
     }
 
+    /// Create a namespace in the catalog.
+    ///
+    /// Reference: <https://iceberg.apache.org/spec/#create-a-namespace>
     pub async fn create_namespace(&self, namespace: impl Into<String>) -> Result<()> {
         let _resp: CreateNamespaceResponse = self
             .do_request(
@@ -109,6 +117,195 @@ where
             .await?;
 
         Ok(())
+    }
+
+    ///
+    /// Reference: <https://iceberg.apache.org/spec/#list-namespaces>
+    pub async fn list_namespaces(&self) -> Result<Vec<Vec<String>>> {
+        let resp: ListNamespacesResponse = self
+            .do_request::<(), _>(Method::GET, self.endpoints.v1_namespaces()?, None)
+            .await?;
+
+        Ok(resp.namespaces)
+    }
+
+    ///
+    /// Reference: <https://iceberg.apache.org/spec/#get-namespace>
+    pub async fn get_namespace(&self, namespace: impl Into<String>) -> Result<GetNamespaceResponse> {
+        let namespace = namespace.into();
+        let resp: GetNamespaceResponse = self
+            .do_request::<(), _>(
+                Method::GET,
+                self.endpoints.v1_namespaces_namespace(&namespace)?,
+                None,
+            )
+            .await?;
+
+        Ok(resp)
+    }
+
+    /// Update namespace properties.
+    ///
+    /// Reference: <https://iceberg.apache.org/spec/#update-namespace-properties>
+    pub async fn update_namespace_properties(
+        &self,
+        namespace: impl Into<String>,
+        removals: Vec<String>,
+        updates: HashMap<String, String>,
+    ) -> Result<UpdateNamespacePropertiesResponse> {
+        let namespace = namespace.into();
+        let resp: UpdateNamespacePropertiesResponse = self
+            .do_request(
+                Method::POST,
+                self.endpoints.v1_namespaces_namespace_properties(&namespace)?,
+                Some(UpdateNamespacePropertiesRequest { removals, updates }),
+            )
+            .await?;
+
+        Ok(resp)
+    }
+
+    ///
+    /// Reference: <https://iceberg.apache.org/spec/#drop-namespace>
+    pub async fn drop_namespace(&self, namespace: impl Into<String>) -> Result<()> {
+        let namespace = namespace.into();
+        let _: () = self
+            .do_request::<(), _>(
+                Method::DELETE,
+                self.endpoints.v1_namespaces_namespace(&namespace)?,
+                None,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    ///
+    /// Reference: <https://iceberg.apache.org/spec/#list-tables>
+    pub async fn list_tables(&self, namespace: impl Into<String>) -> Result<Vec<TableIdentifier>> {
+        let namespace = namespace.into();
+        let resp: ListTablesResponse = self
+            .do_request::<(), _>(
+                Method::GET,
+                self.endpoints.v1_namespaces_namespace_tables(&namespace)?,
+                None,
+            )
+            .await?;
+
+        Ok(resp.identifiers)
+    }
+
+    /// Create a table in a namespace.
+    ///
+    /// Reference: <https://iceberg.apache.org/spec/#create-table>
+    pub async fn create_table(
+        &self,
+        namespace: impl Into<String>,
+        request: CreateTableRequest,
+    ) -> Result<CreateTableResponse> {
+        let namespace = namespace.into();
+        let resp: CreateTableResponse = self
+            .do_request(
+                Method::POST,
+                self.endpoints.v1_namespaces_namespace_tables(&namespace)?,
+                Some(request),
+            )
+            .await?;
+
+        Ok(resp)
+    }
+
+    ///
+    /// Reference: <https://iceberg.apache.org/spec/#load-table>
+    pub async fn load_table(
+        &self,
+        namespace: impl Into<String>,
+        table: impl Into<String>,
+    ) -> Result<LoadTableResponse> {
+        let namespace = namespace.into();
+        let table = table.into();
+        let resp: LoadTableResponse = self
+            .do_request::<(), _>(
+                Method::GET,
+                self.endpoints.v1_namespaces_namespace_tables_table(&namespace, &table)?,
+                None,
+            )
+            .await?;
+
+        Ok(resp)
+    }
+
+    ///
+    /// Reference: <https://iceberg.apache.org/spec/#update-table>
+    pub async fn update_table(
+        &self,
+        namespace: impl Into<String>,
+        table: impl Into<String>,
+        request: UpdateTableRequest,
+    ) -> Result<UpdateTableResponse> {
+        let namespace = namespace.into();
+        let table = table.into();
+        let resp: UpdateTableResponse = self
+            .do_request(
+                Method::POST,
+                self.endpoints.v1_namespaces_namespace_tables_table(&namespace, &table)?,
+                Some(request),
+            )
+            .await?;
+
+        Ok(resp)
+    }
+
+    ///
+    /// Reference: <https://iceberg.apache.org/spec/#drop-table>
+    pub async fn drop_table(
+        &self,
+        namespace: impl Into<String>,
+        table: impl Into<String>,
+    ) -> Result<()> {
+        let namespace = namespace.into();
+        let table = table.into();
+        let _: () = self
+            .do_request::<(), _>(
+                Method::DELETE,
+                self.endpoints.v1_namespaces_namespace_tables_table(&namespace, &table)?,
+                None,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    ///
+    /// Reference: <https://iceberg.apache.org/spec/#rename-table>
+    pub async fn rename_table(
+        &self,
+        source_namespace: impl Into<String>,
+        source_table: impl Into<String>,
+        dest_namespace: impl Into<String>,
+        dest_table: impl Into<String>,
+    ) -> Result<RenameTableResponse> {
+        let source = TableIdentifier {
+            namespace: vec![source_namespace.into()],
+            name: source_table.into(),
+        };
+        let destination = TableIdentifier {
+            namespace: vec![dest_namespace.into()],
+            name: dest_table.into(),
+        };
+
+        let resp: RenameTableResponse = self
+            .do_request(
+                Method::POST,
+                self.endpoints.v1_tables_rename()?,
+                Some(RenameTableRequest {
+                    source,
+                    destination,
+                }),
+            )
+            .await?;
+
+        Ok(resp)
     }
 }
 
@@ -153,6 +350,10 @@ impl Endpoints {
 
     fn v1_namespaces_namespace(&self, namespace: &str) -> Result<Url> {
         self.with_path(["v1", &self.prefix, "namespaces", namespace])
+    }
+
+    fn v1_namespaces_namespace_properties(&self, namespace: &str) -> Result<Url> {
+        self.with_path(["v1", &self.prefix, "namespaces", namespace, "properties"])
     }
 
     fn v1_namespaces_namespace_tables(&self, namespace: &str) -> Result<Url> {
