@@ -7,6 +7,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use super::spec::{CreateNamespaceRequest, CreateNamespaceResponse};
+
 /// Error returned by iceberg endpoints.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IcebergErrorModel {
@@ -37,17 +39,37 @@ where
     ///
     /// The catalog's 'config' endpoint will be queried to configure this
     /// client.
-    pub async fn configure(client: C) -> Result<Self> {
-        unimplemented!()
+    pub async fn configure(client: C, base: Url, prefix: impl Into<String>) -> Result<Self> {
+        let client = CatalogClient {
+            endpoints: Endpoints::new(base, prefix),
+            client,
+            properties: HashMap::new(),
+        };
+
+        #[derive(Debug, Deserialize)]
+        struct CatalogConfig {
+            overrides: HashMap<String, String>,
+            defaults: HashMap<String, String>,
+            endpoints: Vec<String>,
+        }
+
+        // TODO
+        let _conf: CatalogConfig = client
+            .do_request::<(), _>(Method::GET, client.endpoints.v1_config()?, None)
+            .await?;
+
+        Ok(client)
     }
 
-    async fn do_request<B, R>(&self, method: Method, url: Url, body: B) -> Result<R>
+    async fn do_request<B, R>(&self, method: Method, url: Url, body: Option<B>) -> Result<R>
     where
         B: Serialize,
         R: DeserializeOwned,
     {
         let mut request = Request::new(method, url);
-        set_json_body(&mut request, &body)?;
+        if let Some(body) = body {
+            set_json_body(&mut request, &body)?;
+        }
 
         // Do the request!
         let resp = self.client.do_request(request).await?;
@@ -58,6 +80,22 @@ where
         let resp = read_json_response(resp.into_bytes_stream()).await?;
 
         Ok(resp)
+    }
+
+    pub async fn create_namespace(&self, namespace: impl Into<String>) -> Result<()> {
+        let _resp: CreateNamespaceResponse = self
+            .do_request(
+                Method::POST,
+                self.endpoints.v1_namespaces()?,
+                Some(CreateNamespaceRequest {
+                    // TODO: Support multi-level namespaces? Would definitely requires a bit of refactor...
+                    namespace: vec![namespace.into()],
+                    properties: HashMap::new(),
+                }),
+            )
+            .await?;
+
+        Ok(())
     }
 }
 
