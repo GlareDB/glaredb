@@ -1,9 +1,12 @@
+use std::fmt::{self, Display};
+
 use super::aggregate::RawAggregateFunction;
 use super::documentation::Documentation;
 use super::scalar::RawScalarFunction;
 use super::table::{RawTableFunction, TableFunctionType};
 use super::{CandidateSignature, Signature};
 use crate::arrays::datatype::DataType;
+use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 pub type ScalarFunctionSet = FunctionSet<RawScalarFunction>;
 pub type AggregateFunctionSet = FunctionSet<RawAggregateFunction>;
@@ -57,6 +60,16 @@ where
     pub fn get(&self, idx: usize) -> Option<&T> {
         self.functions.get(idx)
     }
+
+    pub fn no_function_matches<'a>(
+        &'a self,
+        datatypes: &'a [DataType],
+    ) -> NoFunctionMatches<'a, T> {
+        NoFunctionMatches {
+            datatypes,
+            function: self,
+        }
+    }
 }
 
 impl TableFunctionSet {
@@ -93,5 +106,56 @@ impl FunctionInfo for RawAggregateFunction {
 impl FunctionInfo for RawTableFunction {
     fn signature(&self) -> &Signature {
         RawTableFunction::signature(self)
+    }
+}
+
+#[derive(Debug)]
+pub struct NoFunctionMatches<'a, T: 'static> {
+    datatypes: &'a [DataType],
+    function: &'a FunctionSet<T>,
+}
+
+impl<T> Display for NoFunctionMatches<'_, T>
+where
+    T: FunctionInfo + 'static,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "No function matches '{}({})'. You may need to add explicit type casts.",
+            self.function.name,
+            self.datatypes.display_as_list()
+        )?;
+
+        // Some functions have a lot of sigs (arith functions). Limit the number
+        // we display to not be overwhelming.
+        const MAX_NUM_SIGS: usize = 8;
+
+        let count = usize::min(MAX_NUM_SIGS, self.function.functions.len());
+        if count > 0 {
+            write!(f, "\nCandidate functions:")?;
+        }
+
+        for func in self.function.functions.iter().take(count) {
+            let sig = FunctionInfo::signature(func);
+            write!(
+                f,
+                "\n    {}({}) -> {}",
+                self.function.name,
+                sig.positional_args.display_as_list(),
+                sig.return_type,
+            )?;
+        }
+
+        if count < self.function.functions.len() {
+            let not_shown = self.function.functions.len() - count;
+            write!(f, "\n    ...")?;
+            write!(
+                f,
+                "\n   {not_shown} not shown. View the full list of functions in the catalog."
+            )?;
+        }
+
+        Ok(())
     }
 }

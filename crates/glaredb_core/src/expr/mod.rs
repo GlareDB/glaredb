@@ -59,7 +59,6 @@ use crate::functions::table::{
     TableFunctionType,
 };
 use crate::logical::binder::table_list::TableRef;
-use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 /// A logical expression.
 ///
@@ -820,12 +819,8 @@ where
             let mut candidates = function.candidates(&datatypes);
 
             if candidates.is_empty() {
-                // TODO: Better error.
-                return Err(DbError::new(format!(
-                    "Invalid inputs to '{}': {}",
-                    function.name,
-                    datatypes.display_with_brackets(),
-                )));
+                let no_matches = function.no_function_matches(&datatypes);
+                return Err(DbError::new(no_matches.to_string()));
             }
 
             // TODO: Maybe more sophisticated candidate selection.
