@@ -142,6 +142,45 @@ impl DistinctCollection {
         })
     }
 
+    pub fn create_operator_state(
+        &self,
+        batch_size: usize,
+    ) -> Result<DistinctCollectionOperatorState> {
+        let states = self
+            .tables
+            .iter()
+            .map(|table| table.table.create_operator_state(batch_size))
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(DistinctCollectionOperatorState { states })
+    }
+
+    pub fn create_partition_states(
+        &self,
+        op_state: &mut DistinctCollectionOperatorState,
+        partitions: usize,
+    ) -> Result<Vec<DistinctCollectionPartitionState>> {
+        debug_assert_eq!(op_state.states.len(), self.tables.len());
+
+        let mut part_states: Vec<_> = (0..partitions)
+            .map(|_| DistinctCollectionPartitionState {
+                states: Vec::with_capacity(self.tables.len()),
+            })
+            .collect();
+
+        for (table, op_state) in self.tables.iter().zip(&mut op_state.states) {
+            let states = table
+                .table
+                .create_partition_build_states(op_state, partitions)?;
+
+            for (out, state) in part_states.iter_mut().zip(states) {
+                out.states.push(state);
+            }
+        }
+
+        Ok(part_states)
+    }
+
     pub fn insert(
         &self,
         _op_state: &DistinctCollectionOperatorState,
