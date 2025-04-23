@@ -1,6 +1,8 @@
 mod vars;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
+use glaredb_core::runtime::pipeline::PipelineRuntime;
+use glaredb_core::runtime::system::SystemRuntime;
 use uuid::Uuid;
 pub use vars::*;
 
@@ -39,9 +41,13 @@ pub const DEBUG_SET_PARTITIONS_VAR: &str = "DEBUG_SET_PARTITIONS";
 pub const DEBUG_PRINT_PROFILE_VAR: &str = "DEBUG_PRINT_PROFILE";
 
 #[derive(Debug)]
-pub struct RunConfig {
+pub struct RunConfig<E, R>
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
     /// The session to use for this run.
-    pub engine: SingleUserEngine<ThreadedNativeExecutor, NativeSystemRuntime>,
+    pub engine: SingleUserEngine<E, R>,
 
     /// Variables to replace in the query.
     ///
@@ -76,7 +82,7 @@ pub fn run<F, Fut>(
 ) -> Result<()>
 where
     F: Fn() -> Fut + Clone + Send + 'static,
-    Fut: Future<Output = Result<RunConfig>>,
+    Fut: Future<Output = Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>>,
 {
     let args = Arguments::from_args();
     let env_filter = EnvFilter::builder()
@@ -160,7 +166,7 @@ pub fn find_files(dir: &Path) -> Result<Vec<PathBuf>> {
 async fn run_test<F, Fut>(path: impl AsRef<Path>, session_fn: F) -> Result<()>
 where
     F: Fn() -> Fut + Clone + Send + 'static,
-    Fut: Future<Output = Result<RunConfig>>,
+    Fut: Future<Output = Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>>,
 {
     let path = path.as_ref();
 
@@ -184,8 +190,7 @@ where
 struct TestSession {
     /// If we've already set number of partitions for this session.
     debug_partitions_set: bool,
-
-    conf: RunConfig,
+    conf: RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>,
 }
 
 impl TestSession {
