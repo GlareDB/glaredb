@@ -9,6 +9,7 @@ use super::grouping_set_hash_table::{
     GroupingSetPartitionState,
 };
 use crate::arrays::batch::Batch;
+use crate::arrays::datatype::DataType;
 use crate::execution::operators::hash_aggregate::Aggregates;
 use crate::expr::physical::PhysicalAggregateExpression;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
@@ -148,6 +149,14 @@ impl DistinctCollection {
         self.tables.len()
     }
 
+    /// Return an iterator of datatypes in a given table.
+    pub fn iter_table_types(&self, table_idx: usize) -> impl ExactSizeIterator<Item = DataType> {
+        self.tables[table_idx]
+            .inputs
+            .iter()
+            .map(|expr| expr.datatype.clone())
+    }
+
     /// Returns aggregate indices that a table is producing unique inputs for.
     pub fn aggregates_for_table(&self, table_idx: usize) -> &[usize] {
         &self.tables[table_idx].table_to_agg_index
@@ -168,7 +177,7 @@ impl DistinctCollection {
 
     pub fn create_partition_states(
         &self,
-        op_state: &mut DistinctCollectionOperatorState,
+        op_state: &DistinctCollectionOperatorState,
         partitions: usize,
     ) -> Result<Vec<DistinctCollectionPartitionState>> {
         debug_assert_eq!(op_state.states.len(), self.tables.len());
@@ -179,7 +188,7 @@ impl DistinctCollection {
             })
             .collect();
 
-        for (table, op_state) in self.tables.iter().zip(&mut op_state.states) {
+        for (table, op_state) in self.tables.iter().zip(&op_state.states) {
             let states = table.table.create_partition_states(op_state, partitions)?;
 
             for (out, state) in part_states.iter_mut().zip(states) {
@@ -208,18 +217,33 @@ impl DistinctCollection {
 
     pub fn merge(
         &self,
-        op_state: &mut DistinctCollectionOperatorState,
+        op_state: &DistinctCollectionOperatorState,
         state: &mut DistinctCollectionPartitionState,
     ) -> Result<()> {
         debug_assert_eq!(self.tables.len(), op_state.states.len());
         debug_assert_eq!(self.tables.len(), state.states.len());
 
-        let state_iter = op_state.states.iter_mut().zip(&mut state.states);
+        let state_iter = op_state.states.iter().zip(&mut state.states);
 
         for (table, (op_state, part_state)) in self.tables.iter().zip(state_iter) {
             // No agg selection.
             let _ = table.table.merge(op_state, part_state, [])?;
         }
+
+        Ok(())
+    }
+
+    pub fn scan(
+        &self,
+        op_state: &DistinctCollectionOperatorState,
+        state: &mut DistinctCollectionPartitionState,
+        table_idx: usize,
+        output: &mut Batch,
+    ) -> Result<()> {
+        let op_state = &op_state.states[table_idx];
+        let state = &mut state.states[table_idx];
+
+        self.tables[table_idx].table.scan(op_state, state, output)?;
 
         Ok(())
     }

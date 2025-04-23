@@ -11,10 +11,16 @@ use super::hash_aggregate::distinct_aggregates::{
     DistinctCollectionOperatorState,
     DistinctCollectionPartitionState,
 };
+use super::util::delayed_count::DelayedPartitionCount;
+use super::util::partition_wakers::PartitionWakers;
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::arrays::row::aggregate_layout::{AggregateLayout, CompleteInputSelector};
+use crate::arrays::row::aggregate_layout::{
+    AggregateLayout,
+    AggregateUpdateSelector,
+    CompleteInputSelector,
+};
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::buffer::db_vec::DbVec;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -24,6 +30,7 @@ use crate::expr::physical::PhysicalAggregateExpression;
 pub enum UngroupedAggregatePartitionState {
     /// Partition is aggregating.
     Aggregating {
+        partition_idx: usize,
         /// Binary data containing values for each aggregate.
         ///
         /// This will be aligned and sized according to the aggregate layout.
@@ -35,7 +42,15 @@ pub enum UngroupedAggregatePartitionState {
         /// State for distinct aggregates.
         distinct_state: DistinctCollectionPartitionState,
     },
-    DrainingDistinct {},
+    AggregatingDistinct {
+        partition_idx: usize,
+        /// Same buffer, but now used to update distinct values.
+        values: DbVec<u8>,
+        /// Reusable buffer for storing pointers to an aggregate state.
+        ptr_buf: Vec<*mut u8>,
+        /// State for distinct aggregates.
+        distinct_state: DistinctCollectionPartitionState,
+    },
     /// Partition is draining.
     ///
     /// Only a single partition should drain.
@@ -50,24 +65,30 @@ unsafe impl Sync for UngroupedAggregatePartitionState {}
 
 #[derive(Debug)]
 pub struct UngroupedAggregateOperatorState {
+    batch_size: usize,
     /// Distinct aggregate inputs.
     distinct_collection: DistinctCollection,
+    /// State for distinct collection.
+    distinct_collection_op_state: DistinctCollectionOperatorState,
     inner: Mutex<OperatorStateInner>,
 }
 
 #[derive(Debug)]
 struct OperatorStateInner {
     /// Remaining number of partitions we're waiting to complete before
-    /// producing the final values.
+    /// producing the final values for non-distinct aggregates.
     ///
-    /// Initialize to number of partitions.
-    remaining: usize,
+    /// Initialized to number of partitions.
+    remaining_normal: DelayedPartitionCount,
+    /// Same, but for distinct.
+    remaining_distinct: DelayedPartitionCount,
     /// Values combined from all partitions.
     ///
     /// Aligned to the base alignment of the aggregate layout.
     values: DbVec<u8>,
-    /// State for distinct collection.
-    distinct_collection_op_state: DistinctCollectionOperatorState,
+    /// Wakers for partitions waiting on normal aggregating to complete before
+    /// starting on distinct aggregates.
+    pending_distinct: PartitionWakers,
 }
 
 #[derive(Debug)]
@@ -142,11 +163,14 @@ impl BaseOperator for PhysicalUngroupedAggregate {
             distinct_collection.create_operator_state(props.batch_size)?;
 
         Ok(UngroupedAggregateOperatorState {
+            batch_size: props.batch_size,
             distinct_collection,
+            distinct_collection_op_state,
             inner: Mutex::new(OperatorStateInner {
-                remaining: 0,
+                remaining_normal: DelayedPartitionCount::uninit(),
+                remaining_distinct: DelayedPartitionCount::uninit(),
                 values: self.try_init_buffer()?,
-                distinct_collection_op_state,
+                pending_distinct: PartitionWakers::empty(),
             }),
         })
     }
@@ -173,17 +197,21 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
             .collect();
 
         let mut inner = operator_state.inner.lock();
-        inner.remaining = partitions;
+        inner.remaining_normal.set(partitions)?;
+        inner.remaining_distinct.set(partitions)?;
+        inner.pending_distinct.init_for_partitions(partitions);
 
         let distinct_states = operator_state
             .distinct_collection
-            .create_partition_states(&mut inner.distinct_collection_op_state, partitions)?;
+            .create_partition_states(&operator_state.distinct_collection_op_state, partitions)?;
         debug_assert_eq!(distinct_states.len(), partitions);
 
         let states = distinct_states
             .into_iter()
-            .map(|distinct_state| {
+            .enumerate()
+            .map(|(partition_idx, distinct_state)| {
                 Ok(UngroupedAggregatePartitionState::Aggregating {
+                    partition_idx,
                     values: self.try_init_buffer()?,
                     ptr_buf: Vec::with_capacity(props.batch_size),
                     agg_inputs: Batch::new(agg_input_types.clone(), 0)?,
@@ -197,7 +225,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
 
     fn poll_execute(
         &self,
-        _cx: &mut Context,
+        cx: &mut Context,
         operator_state: &Self::OperatorState,
         state: &mut Self::PartitionExecuteState,
         input: &mut Batch,
@@ -209,6 +237,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 ptr_buf,
                 agg_inputs,
                 distinct_state,
+                ..
             } => {
                 // Get aggregate inputs.
                 for (dest_idx, src_idx) in self
@@ -250,8 +279,97 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
 
                 Ok(PollExecute::NeedsMore)
             }
-            UngroupedAggregatePartitionState::DrainingDistinct { .. } => {
-                unimplemented!()
+            UngroupedAggregatePartitionState::AggregatingDistinct {
+                partition_idx,
+                values,
+                ptr_buf,
+                distinct_state,
+            } => {
+                let mut inner = operator_state.inner.lock();
+                if inner.remaining_normal.current()? != 0 {
+                    // Normal aggregating still happening, and thus still
+                    // filling the distinct tables. Come back later.
+                    inner.pending_distinct.store(cx.waker(), *partition_idx);
+                    return Ok(PollExecute::Pending);
+                }
+                std::mem::drop(inner);
+
+                // We have all distinct values, start aggregating on them one by
+                // one.
+                for distinct_idx in 0..operator_state.distinct_collection.num_distinct_tables() {
+                    // Create buffer to use to drain the table.
+                    let mut batch = Batch::new(
+                        operator_state
+                            .distinct_collection
+                            .iter_table_types(distinct_idx),
+                        operator_state.batch_size,
+                    )?;
+
+                    loop {
+                        batch.reset_for_write()?;
+                        operator_state.distinct_collection.scan(
+                            &operator_state.distinct_collection_op_state,
+                            distinct_state,
+                            distinct_idx,
+                            &mut batch,
+                        )?;
+
+                        if batch.num_rows() == 0 {
+                            // Move to next distinct input.
+                            break;
+                        }
+
+                        // Update aggregate states for all aggregates depending
+                        // on this distinct input.
+                        ptr_buf.clear();
+                        ptr_buf.extend(std::iter::repeat_n(values.as_mut_ptr(), batch.num_rows));
+
+                        let agg_iter = operator_state
+                            .distinct_collection
+                            .aggregates_for_table(distinct_idx)
+                            .iter()
+                            .map(|&agg_idx| AggregateUpdateSelector {
+                                aggregate_idx: agg_idx,
+                                inputs: &batch.arrays,
+                            });
+
+                        unsafe {
+                            self.layout
+                                .update_states(ptr_buf, agg_iter, batch.num_rows)?;
+                        }
+                    }
+                }
+
+                // Merge our local state with the global state now.
+                let mut inner = operator_state.inner.lock();
+                let src_ptr = values.as_mut_ptr();
+                let dest_ptr = inner.values.as_mut_ptr();
+
+                unsafe {
+                    self.layout.combine_states(
+                        self.agg_selection.distinct.iter().copied(),
+                        &mut [src_ptr],
+                        &mut [dest_ptr],
+                    )?
+                }
+
+                inner.remaining_distinct.dec_by_one()?;
+
+                if inner.remaining_distinct.current()? == 0 {
+                    // We're the last partition to finish, we'll be responsible
+                    // for draining.
+                    *state = UngroupedAggregatePartitionState::Draining;
+                    output.set_num_rows(0)?;
+
+                    // Pull again.
+                    Ok(PollExecute::HasMore)
+                } else {
+                    // This partition is finished.
+                    *state = UngroupedAggregatePartitionState::Finished;
+                    output.set_num_rows(0)?;
+
+                    Ok(PollExecute::Exhausted)
+                }
             }
             UngroupedAggregatePartitionState::Draining => {
                 output.reset_for_write()?;
@@ -292,12 +410,12 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 distinct_state,
                 ..
             } => {
-                let mut op_state = operator_state.inner.lock();
-
                 // Merge distinct tables.
                 operator_state
                     .distinct_collection
-                    .merge(&mut op_state.distinct_collection_op_state, distinct_state)?;
+                    .merge(&operator_state.distinct_collection_op_state, distinct_state)?;
+
+                let mut op_state = operator_state.inner.lock();
 
                 // Normal aggregate merge.
                 let src_ptr = values.as_mut_ptr();
@@ -319,18 +437,44 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                     )?
                 }
 
-                op_state.remaining -= 1;
+                let remaining = op_state.remaining_normal.dec_by_one()?;
 
-                if op_state.remaining == 0 {
-                    // This is the final partition to complete, it'll be the one
-                    // that'll drain the final values.
-                    *state = UngroupedAggregatePartitionState::Draining;
-                    Ok(PollFinalize::NeedsDrain)
+                if self.agg_selection.distinct.is_empty() {
+                    // No distinct aggregates.
+                    if remaining == 0 {
+                        // This partition will drain.
+                        *state = UngroupedAggregatePartitionState::Draining;
+                        Ok(PollFinalize::NeedsDrain)
+                    } else {
+                        // This partition is finished.
+                        *state = UngroupedAggregatePartitionState::Finished;
+                        Ok(PollFinalize::Finalized)
+                    }
                 } else {
-                    // Other partitions still need to complete. This partition
-                    // will never produce output.
-                    *state = UngroupedAggregatePartitionState::Finished;
-                    Ok(PollFinalize::Finalized)
+                    // We do have distinct aggregates. All partitions will take
+                    // part in draining the distinct hash tables.
+
+                    let aggregating_state =
+                        std::mem::replace(state, UngroupedAggregatePartitionState::Finished);
+                    match aggregating_state {
+                        UngroupedAggregatePartitionState::Aggregating {
+                            partition_idx,
+                            values,
+                            ptr_buf,
+                            distinct_state,
+                            ..
+                        } => {
+                            *state = UngroupedAggregatePartitionState::AggregatingDistinct {
+                                partition_idx,
+                                values,
+                                ptr_buf,
+                                distinct_state,
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+
+                    Ok(PollFinalize::NeedsDrain)
                 }
             }
             _ => Err(DbError::new("Ungrouped aggregate state in invalid state")),
