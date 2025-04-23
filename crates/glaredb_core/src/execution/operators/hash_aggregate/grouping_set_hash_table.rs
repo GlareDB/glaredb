@@ -193,6 +193,7 @@ impl GroupingSetHashTable {
     pub fn insert(
         &self,
         state: &mut GroupingSetBuildPartitionState,
+        agg_selection: impl IntoExactSizeIterator<Item = usize>,
         input: &mut Batch,
     ) -> Result<()> {
         if state.finished {
@@ -229,9 +230,12 @@ impl GroupingSetHashTable {
         state.groups.set_num_rows(input.num_rows())?;
         state.inputs.set_num_rows(input.num_rows())?;
 
-        state
-            .hash_table
-            .insert(&mut state.insert_state, &state.groups, &state.inputs)?;
+        state.hash_table.insert(
+            &mut state.insert_state,
+            agg_selection,
+            &state.groups,
+            &state.inputs,
+        )?;
 
         Ok(())
     }
@@ -464,7 +468,7 @@ mod tests {
         assert_eq!(1, build_states.len());
 
         let mut input = generate_batch!(["a", "b", "c", "a"], [1_i64, 2, 3, 4]);
-        table.insert(&mut build_states[0], &mut input).unwrap();
+        table.insert(&mut build_states[0], [0], &mut input).unwrap();
 
         let scan_ready = table.merge(&mut op_state, &mut build_states[0]).unwrap();
         assert!(scan_ready);
@@ -514,7 +518,7 @@ mod tests {
             [1_i64, 2, 3, 4],
             ["gg", "ff", "gg", "ff"]
         );
-        table.insert(&mut build_states[0], &mut input).unwrap();
+        table.insert(&mut build_states[0], [0], &mut input).unwrap();
 
         let scan_ready = table.merge(&mut op_state, &mut build_states[0]).unwrap();
         assert!(scan_ready);

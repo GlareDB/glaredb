@@ -7,6 +7,7 @@ mod grouping_value;
 use std::collections::BTreeSet;
 use std::task::Context;
 
+use distinct_aggregates::AggregateSelection;
 use glaredb_error::{DbError, Result};
 use grouping_set_hash_table::{
     GroupingSetBuildPartitionState,
@@ -88,11 +89,15 @@ pub struct PhysicalHashAggregate {
     /// Aggregates we're working on.
     pub(crate) aggregates: Aggregates,
     pub(crate) output_types: Vec<DataType>,
+    /// Distinct/non-distinct aggregate indices.
+    pub(crate) agg_selection: AggregateSelection,
 }
 
 impl PhysicalHashAggregate {
     pub fn new(aggregates: Aggregates, grouping_sets: Vec<BTreeSet<usize>>) -> Self {
         let mut output_types = Vec::new();
+
+        let agg_selection = AggregateSelection::new(&aggregates.aggregates);
 
         for group in &aggregates.groups {
             output_types.push(group.datatype.clone());
@@ -108,6 +113,7 @@ impl PhysicalHashAggregate {
             grouping_sets,
             aggregates,
             output_types,
+            agg_selection,
         }
     }
 }
@@ -205,9 +211,15 @@ impl ExecuteOperator for PhysicalHashAggregate {
             HashAggregatePartitionState::Building(building) => {
                 debug_assert_eq!(building.states.len(), operator_state.tables.len());
 
+                // TODO: Distinct updates.
+
                 // Insert input into each grouping set table.
                 for (table, state) in operator_state.tables.iter().zip(&mut building.states) {
-                    table.insert(state, input)?;
+                    table.insert(
+                        state,
+                        self.agg_selection.non_distinct.iter().copied(),
+                        input,
+                    )?;
                 }
 
                 Ok(PollExecute::NeedsMore)
