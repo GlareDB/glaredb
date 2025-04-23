@@ -193,7 +193,6 @@ impl DistinctCollection {
 
     pub fn insert(
         &self,
-        _op_state: &DistinctCollectionOperatorState,
         state: &mut DistinctCollectionPartitionState,
         input: &mut Batch,
     ) -> Result<()> {
