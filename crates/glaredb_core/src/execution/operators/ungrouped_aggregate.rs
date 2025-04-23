@@ -249,6 +249,8 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 {
                     agg_inputs.clone_array_from(dest_idx, (input, src_idx))?;
                 }
+                // Num rows used by distinct table.
+                agg_inputs.set_num_rows(input.num_rows())?;
 
                 // All inputs update the same "group".
                 ptr_buf.clear();
@@ -328,9 +330,15 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                             .distinct_collection
                             .aggregates_for_table(distinct_idx)
                             .iter()
-                            .map(|&agg_idx| AggregateUpdateSelector {
-                                aggregate_idx: agg_idx,
-                                inputs: &batch.arrays,
+                            .map(|&distinct_agg_idx| {
+                                // Distinct table only knows about distinct
+                                // aggregates. Map that index back to the full
+                                // aggregate list.
+                                let agg_idx = self.agg_selection.distinct[distinct_agg_idx];
+                                AggregateUpdateSelector {
+                                    aggregate_idx: agg_idx,
+                                    inputs: &batch.arrays,
+                                }
                             });
 
                         unsafe {
@@ -472,6 +480,13 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                             }
                         }
                         _ => unreachable!(),
+                    }
+
+                    // Other partitions may already be waiting, wake them up if
+                    // we're the last one to complete the normal aggregate
+                    // phase.
+                    if remaining == 0 {
+                        op_state.pending_distinct.wake_all();
                     }
 
                     Ok(PollFinalize::NeedsDrain)

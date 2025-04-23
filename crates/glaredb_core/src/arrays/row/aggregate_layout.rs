@@ -205,37 +205,35 @@ impl AggregateLayout {
         src_ptrs: &mut [*mut u8],
         dest_ptrs: &mut [*mut u8],
     ) -> Result<()> {
-        unsafe {
-            debug_assert_eq!(src_ptrs.len(), dest_ptrs.len());
+        debug_assert_eq!(src_ptrs.len(), dest_ptrs.len());
 
-            let mut prev_offset = 0;
+        let mut prev_offset = 0;
 
-            for (offset, agg) in self.iter_offsets_and_aggregates_selection(agg_selection) {
-                let rel_offset = offset - prev_offset;
+        for (offset, agg) in self.iter_offsets_and_aggregates_selection(agg_selection) {
+            let rel_offset = offset - prev_offset;
 
-                // Move both sets of pointers to the right state.
-                for row_ptr in src_ptrs.iter_mut() {
-                    *row_ptr = row_ptr.byte_add(rel_offset);
-                    debug_assert_eq!(
-                        0,
-                        row_ptr.addr() % agg.function.aggregate_state_info().align
-                    );
-                }
-                for row_ptr in dest_ptrs.iter_mut() {
-                    *row_ptr = row_ptr.byte_add(rel_offset);
-                    debug_assert_eq!(
-                        0,
-                        row_ptr.addr() % agg.function.aggregate_state_info().align
-                    );
-                }
-                prev_offset = offset;
-
-                // Combine states.
-                agg.function.call_combine(src_ptrs, dest_ptrs)?;
+            // Move both sets of pointers to the right state.
+            for row_ptr in src_ptrs.iter_mut() {
+                *row_ptr = unsafe { row_ptr.byte_add(rel_offset) };
+                debug_assert_eq!(
+                    0,
+                    row_ptr.addr() % agg.function.aggregate_state_info().align
+                );
             }
+            for row_ptr in dest_ptrs.iter_mut() {
+                *row_ptr = unsafe { row_ptr.byte_add(rel_offset) };
+                debug_assert_eq!(
+                    0,
+                    row_ptr.addr() % agg.function.aggregate_state_info().align
+                );
+            }
+            prev_offset = offset;
 
-            Ok(())
+            // Combine states.
+            unsafe { agg.function.call_combine(src_ptrs, dest_ptrs)? };
         }
+
+        Ok(())
     }
 
     /// Finalizes states and writes the output the arrays.

@@ -1,0 +1,21 @@
+# DISTINCT aggregates without GROUP BY
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b TEXT);
+
+statement ok
+INSERT INTO t1 VALUES
+  (3, 'x'),
+  (3, 'y'),
+  (4, 'y'),
+  (5, 'z');
+
+query I
+SELECT count(DISTINCT b) FROM t1;
+----
+3
+
+query II
+SELECT count(a), count(DISTINCT b) FROM t1;
+----
+4  3
