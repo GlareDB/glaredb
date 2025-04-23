@@ -265,6 +265,7 @@ pub enum Expr<T: AstMeta> {
     /// `INTERVAL 1 YEAR`
     Interval(Interval<T>),
     /// `<expr> BETWEEN <low> AND <high>`
+    /// `<expr> NOT BETWEEN <low> AND <high>`
     Between {
         negated: bool,
         expr: Box<Expr<T>>,
@@ -712,9 +713,20 @@ impl Expr<Raw> {
                         expr: Box::new(prefix),
                         pattern: Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?),
                     }),
+                    Keyword::BETWEEN => {
+                        let low = Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?;
+                        parser.expect_keyword(Keyword::AND)?;
+                        let high = Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?;
+                        Ok(Expr::Between {
+                            negated: true,
+                            expr: Box::new(prefix),
+                            low: Box::new(low),
+                            high: Box::new(high),
+                        })
+                    }
                     other => {
                         return Err(DbError::new(format!(
-                            "Unexpected keyword in infix expression: {other}"
+                            "Unexpected keyword after NOT: {other}"
                         )));
                     }
                 },
