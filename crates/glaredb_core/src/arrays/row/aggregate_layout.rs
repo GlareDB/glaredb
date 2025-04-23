@@ -111,8 +111,8 @@ impl AggregateLayout {
     /// `agg_selection` indicates which aggregate values we'll be updating for
     /// each row.
     ///
-    /// `inputs` should contains the input arrays to each aggregate (as
-    /// specified by `agg_selection`) in order. For example, if the first
+    /// `inputs` should contains the input arrays to each aggregate (including
+    /// aggregates not in `agg_selection`) in order. For example, if the first
     /// aggregate accepts two inputs, the first two arrays should be its inputs.
     /// The second aggregate's inputs will start at index 2, and so on...
     ///
@@ -135,32 +135,53 @@ impl AggregateLayout {
         mut inputs: &[Array],
         num_rows: usize,
     ) -> Result<()> {
+        // TODO: Where are the unit tests?
+
         debug_assert_eq!(num_rows, group_ptrs.len());
 
         let mut prev_offset = 0;
 
-        for (offset, agg) in self.iter_offsets_and_aggregates_selection(agg_selection) {
+        let mut agg_selection = agg_selection.into_exact_size_iter();
+        let mut sel_idx = match agg_selection.next() {
+            Some(idx) => idx,
+            None => return Ok(()), // Selection contains nothing.
+        };
+
+        for (agg_idx, (offset, agg)) in self.iter_offsets_and_aggregates().enumerate() {
             let (agg_inputs, remaining_inputs) = inputs.split_at(agg.columns.len());
 
-            // Update pointers to point to the start of this aggregate's state.
-            //
-            // We compute the offset relative to where the pointer is right now
-            // instead of using the offset from the start of the row since we
-            // update the row pointer for each aggregate we're updating.
-            let rel_offset = offset - prev_offset;
-            for row_ptr in group_ptrs.iter_mut() {
-                *row_ptr = unsafe { row_ptr.byte_add(rel_offset) };
-                debug_assert_eq!(
-                    0,
-                    row_ptr.addr() % agg.function.aggregate_state_info().align
-                );
-            }
-            prev_offset = offset; // To get the next offset relative to this pointer on the next iteration.
+            if agg_idx == sel_idx {
+                // This aggregate was selected.
 
-            // Update states.
-            unsafe { agg.function.call_update(agg_inputs, num_rows, group_ptrs)? };
+                // Update pointers to point to the start of this aggregate's state.
+                //
+                // We compute the offset relative to where the pointer is right now
+                // instead of using the offset from the start of the row since we
+                // update the row pointer for each aggregate we're updating.
+                let rel_offset = offset - prev_offset;
+                for row_ptr in group_ptrs.iter_mut() {
+                    *row_ptr = unsafe { row_ptr.byte_add(rel_offset) };
+                    debug_assert_eq!(
+                        0,
+                        row_ptr.addr() % agg.function.aggregate_state_info().align
+                    );
+                }
+                prev_offset = offset; // To get the next offset relative to this pointer on the next iteration.
+
+                // Update states.
+                unsafe { agg.function.call_update(agg_inputs, num_rows, group_ptrs)? };
+
+                // Get next aggregate to update.
+                sel_idx = match agg_selection.next() {
+                    Some(idx) => idx,
+                    None => return Ok(()), // We just updated the last selected aggregate.
+                }
+            }
 
             // Next aggregate starts with the remaining inputs.
+            //
+            // Done for both selected and non-selected aggregates so that we can
+            // properly skip over inputs not in the selection.
             inputs = remaining_inputs;
         }
 

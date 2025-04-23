@@ -7,7 +7,36 @@ use super::grouping_set_hash_table::{
 };
 use crate::arrays::batch::Batch;
 use crate::execution::operators::hash_aggregate::Aggregates;
+use crate::expr::physical::PhysicalAggregateExpression;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
+
+/// Aggregate selections for determining which aggregates are or are not
+/// distinct.
+#[derive(Debug)]
+pub struct AggregateSelection {
+    pub distinct: Vec<usize>,
+    pub non_distinct: Vec<usize>,
+}
+
+impl AggregateSelection {
+    pub fn new<'a>(aggs: impl Iterator<Item = &'a PhysicalAggregateExpression>) -> Self {
+        let mut distinct = Vec::new();
+        let mut non_distinct = Vec::new();
+
+        for (idx, agg) in aggs.enumerate() {
+            if agg.is_distinct {
+                distinct.push(idx);
+            } else {
+                non_distinct.push(idx);
+            }
+        }
+
+        AggregateSelection {
+            distinct,
+            non_distinct,
+        }
+    }
+}
 
 #[expect(unused)]
 #[derive(Debug)]

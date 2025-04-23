@@ -23,8 +23,10 @@ pub enum UngroupedAggregatePartitionState {
         values: DbVec<u8>,
         /// Reusable buffer for storing pointers to an aggregate state.
         ptr_buf: Vec<*mut u8>,
-        /// Aggregate inputs buffer.
+        /// Inputs to normal aggregates.
         agg_inputs: Batch,
+        // /// Inputs to distinct aggregates.
+        // distinct_agg_inputs: Batch,
     },
     /// Partition is draining.
     ///
