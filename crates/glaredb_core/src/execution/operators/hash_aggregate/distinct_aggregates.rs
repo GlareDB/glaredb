@@ -19,11 +19,11 @@ pub struct AggregateSelection {
 }
 
 impl AggregateSelection {
-    pub fn new<'a>(aggs: impl Iterator<Item = &'a PhysicalAggregateExpression>) -> Self {
+    pub fn new<'a>(aggs: impl IntoIterator<Item = &'a PhysicalAggregateExpression>) -> Self {
         let mut distinct = Vec::new();
         let mut non_distinct = Vec::new();
 
-        for (idx, agg) in aggs.enumerate() {
+        for (idx, agg) in aggs.into_iter().enumerate() {
             if agg.is_distinct {
                 distinct.push(idx);
             } else {

@@ -4,6 +4,7 @@ use std::task::Context;
 use glaredb_error::{DbError, Result};
 use parking_lot::Mutex;
 
+use super::hash_aggregate::distinct_aggregates::AggregateSelection;
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
@@ -23,10 +24,8 @@ pub enum UngroupedAggregatePartitionState {
         values: DbVec<u8>,
         /// Reusable buffer for storing pointers to an aggregate state.
         ptr_buf: Vec<*mut u8>,
-        /// Inputs to normal aggregates.
+        /// Inputs to all aggregates.
         agg_inputs: Batch,
-        // /// Inputs to distinct aggregates.
-        // distinct_agg_inputs: Batch,
     },
     /// Partition is draining.
     ///
@@ -66,8 +65,8 @@ pub struct PhysicalUngroupedAggregate {
     layout: AggregateLayout,
     /// Output types for the aggregates.
     output_types: Vec<DataType>,
-    /// Which aggregates we should generate DISTINCT inputs for.
-    distinct_aggregates: Vec<usize>,
+    /// Distinct/not distinct aggregate indices.
+    agg_selection: AggregateSelection,
 }
 
 impl PhysicalUngroupedAggregate {
@@ -81,17 +80,12 @@ impl PhysicalUngroupedAggregate {
             .map(|agg| agg.function.state.return_type.clone())
             .collect();
 
-        let distinct_aggregates: Vec<_> = layout
-            .aggregates
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, agg)| if agg.is_distinct { Some(idx) } else { None })
-            .collect();
+        let agg_selection = AggregateSelection::new(&layout.aggregates);
 
         PhysicalUngroupedAggregate {
             layout,
             output_types,
-            distinct_aggregates,
+            agg_selection,
         }
     }
 
@@ -198,12 +192,19 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 ptr_buf.clear();
                 ptr_buf.extend(std::iter::repeat_n(values.as_mut_ptr(), input.num_rows));
 
+                // Update DISTINCT aggregates.
+                {
+                    // TODO
+                }
+
+                // Update non-DISTINCT aggregates.
+                //
                 // SAFETY: The aggregate values buffer should have been
                 // allocated according to this layout.
                 unsafe {
                     self.layout.update_states(
                         ptr_buf.as_mut_slice(),
-                        0..self.layout.aggregates.len(),
+                        self.agg_selection.non_distinct.iter().copied(),
                         &agg_inputs.arrays,
                         input.num_rows,
                     )?;
