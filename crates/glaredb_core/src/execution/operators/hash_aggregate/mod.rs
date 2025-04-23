@@ -5,7 +5,7 @@ mod grouping_set_hash_table;
 mod grouping_value;
 
 use std::collections::BTreeSet;
-use std::task::{Context, Waker};
+use std::task::Context;
 
 use glaredb_error::{DbError, Result};
 use grouping_set_hash_table::{
@@ -16,6 +16,7 @@ use grouping_set_hash_table::{
 };
 use parking_lot::Mutex;
 
+use super::util::partition_wakers::PartitionWakers;
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
@@ -74,7 +75,7 @@ struct HashAggregateOperatoreStateInner {
     table_states: Vec<GroupingSetOperatorState>,
     /// Wakers for partitions that finished their inputs and are waiting for the
     /// global table to be ready.
-    wakers: Vec<Option<Waker>>,
+    wakers: PartitionWakers,
 }
 
 /// Compute aggregates over input batches.
@@ -126,10 +127,15 @@ impl BaseOperator for PhysicalHashAggregate {
             })
             .collect();
 
+        let table_states = tables
+            .iter()
+            .map(|table| table.create_operator_state())
+            .collect::<Result<Vec<_>>>()?;
+
         let inner = HashAggregateOperatoreStateInner {
             scan_ready: false,
-            table_states: Vec::with_capacity(tables.len()), // Populated below when we get the partition states.
-            wakers: Vec::new(), // Set to correct size when we get the partition states.
+            table_states,
+            wakers: PartitionWakers::empty(), // Set to correct size when we get the partition states.
         };
 
         Ok(HashAggregateOperatorState {
@@ -162,9 +168,14 @@ impl ExecuteOperator for PhysicalHashAggregate {
             .collect();
 
         let inner = &mut operator_state.inner.lock();
-        for table in &operator_state.tables {
-            let (table_op_state, table_partition_states) = table.init_states(partitions)?;
-            inner.table_states.push(table_op_state);
+        inner.wakers.init_for_partitions(partitions);
+
+        debug_assert_eq!(inner.table_states.len(), operator_state.tables.len());
+
+        // Generate build states for each partition.
+        for (table, op_state) in operator_state.tables.iter().zip(&mut inner.table_states) {
+            let table_partition_states =
+                table.create_partition_build_states(op_state, partitions)?;
 
             debug_assert_eq!(partition_states.len(), table_partition_states.len());
             for (partition_state, table_state) in
@@ -173,9 +184,6 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 partition_state.states.push(table_state);
             }
         }
-
-        // Resize partition waker vec.
-        inner.wakers.resize(partitions, None);
 
         let partition_states = partition_states
             .into_iter()
@@ -210,7 +218,9 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     let mut shared_state = operator_state.inner.lock();
                     if !shared_state.scan_ready {
                         // Come back later.
-                        shared_state.wakers[scanning.partition_idx] = Some(cx.waker().clone());
+                        shared_state
+                            .wakers
+                            .store(cx.waker(), scanning.partition_idx);
                         return Ok(PollExecute::Pending);
                     }
 
@@ -309,11 +319,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
                 if shared_state.scan_ready {
                     // Wake up all partitions, we're ready to produce results.
-                    for waker in &mut shared_state.wakers {
-                        if let Some(waker) = waker.take() {
-                            waker.wake();
-                        }
-                    }
+                    shared_state.wakers.wake_all();
                 }
 
                 Ok(PollFinalize::NeedsDrain)

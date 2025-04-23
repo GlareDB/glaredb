@@ -14,6 +14,7 @@ use crate::arrays::row::row_scan::RowScanState;
 use crate::arrays::scalar::ScalarValue;
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::execution::operators::hash_aggregate::grouping_value::compute_grouping_value;
+use crate::execution::operators::util::delayed_count::DelayedPartitionCount;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::util::iter::IntoExactSizeIterator;
 
@@ -54,9 +55,14 @@ pub enum GroupingSetOperatorState {
 
 #[derive(Debug)]
 pub struct HashTableBuildingOperatorState {
-    partitions: usize,
+    /// Number of partitions that will be building/scanning this table.
+    ///
+    /// Initialized when we create the partition-local build states.
+    partitions: Option<usize>,
     /// Remaining inputs we're waiting on to finish.
-    remaining: usize,
+    ///
+    /// Initialized when we create the partition-local build states.
+    remaining: DelayedPartitionCount,
     /// The global hash table.
     hash_table: Box<AggregateHashTable>,
 }
@@ -112,20 +118,31 @@ impl GroupingSetHashTable {
         }
     }
 
-    // TODO: Split this up into init_op_state, init_partition_state
-    pub fn init_states(
-        &self,
-        partitions: usize,
-    ) -> Result<(
-        GroupingSetOperatorState,
-        Vec<GroupingSetBuildPartitionState>,
-    )> {
+    /// Create the global operator state.
+    pub fn create_operator_state(&self) -> Result<GroupingSetOperatorState> {
         let agg_hash_table = AggregateHashTable::try_new(self.layout.clone(), self.batch_size)?;
         let op_state = GroupingSetOperatorState::Building(HashTableBuildingOperatorState {
-            partitions,
-            remaining: partitions,
+            partitions: None,
+            remaining: DelayedPartitionCount::uninit(),
             hash_table: Box::new(agg_hash_table),
         });
+
+        Ok(op_state)
+    }
+
+    /// Creates the partition build states for the table.
+    pub fn create_partition_build_states(
+        &self,
+        op_state: &mut GroupingSetOperatorState,
+        partitions: usize,
+    ) -> Result<Vec<GroupingSetBuildPartitionState>> {
+        match op_state {
+            GroupingSetOperatorState::Building(state) => {
+                state.partitions = Some(partitions);
+                state.remaining.set(partitions)?;
+            }
+            other => panic!("grouping set operator state in invalid state: {other:?}"),
+        };
 
         let build_states = (0..partitions)
             .map(|_| {
@@ -158,7 +175,7 @@ impl GroupingSetHashTable {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok((op_state, build_states))
+        Ok(build_states)
     }
 
     /// Returns an iterator of all group types except for the hash column.
@@ -234,15 +251,17 @@ impl GroupingSetHashTable {
 
         match &mut *op_state {
             GroupingSetOperatorState::Building(building) => {
-                let partitions = building.partitions;
+                let partitions = building
+                    .partitions
+                    .ok_or_else(|| DbError::new("missing partition count"))?;
 
                 building
                     .hash_table
                     .merge_from(&mut state.insert_state, &mut state.hash_table)?;
 
-                building.remaining -= 1;
+                building.remaining.dec_by_one()?;
 
-                if building.remaining == 0 {
+                if building.remaining.current()? == 0 {
                     // We were the last partition to merge, generate all
                     // necessary scan states.
                     let state = std::mem::replace(&mut *op_state, GroupingSetOperatorState::Uninit);
@@ -438,7 +457,10 @@ mod tests {
 
         let grouping_set: BTreeSet<usize> = [0].into();
         let table = GroupingSetHashTable::new(&aggs, grouping_set, 16);
-        let (mut op_state, mut build_states) = table.init_states(1).unwrap();
+        let mut op_state = table.create_operator_state().unwrap();
+        let mut build_states = table
+            .create_partition_build_states(&mut op_state, 1)
+            .unwrap();
         assert_eq!(1, build_states.len());
 
         let mut input = generate_batch!(["a", "b", "c", "a"], [1_i64, 2, 3, 4]);
@@ -481,7 +503,10 @@ mod tests {
 
         let grouping_set: BTreeSet<usize> = [1].into(); // '1' relative to groups (real column index of 2)
         let table = GroupingSetHashTable::new(&aggs, grouping_set, 16);
-        let (mut op_state, mut build_states) = table.init_states(1).unwrap();
+        let mut op_state = table.create_operator_state().unwrap();
+        let mut build_states = table
+            .create_partition_build_states(&mut op_state, 1)
+            .unwrap();
         assert_eq!(1, build_states.len());
 
         let mut input = generate_batch!(

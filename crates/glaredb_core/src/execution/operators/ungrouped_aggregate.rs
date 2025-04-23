@@ -64,6 +64,8 @@ pub struct PhysicalUngroupedAggregate {
     layout: AggregateLayout,
     /// Output types for the aggregates.
     output_types: Vec<DataType>,
+    /// Which aggregates we should generate DISTINCT inputs for.
+    distinct_aggregates: Vec<usize>,
 }
 
 impl PhysicalUngroupedAggregate {
@@ -77,9 +79,17 @@ impl PhysicalUngroupedAggregate {
             .map(|agg| agg.function.state.return_type.clone())
             .collect();
 
+        let distinct_aggregates: Vec<_> = layout
+            .aggregates
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, agg)| if agg.is_distinct { Some(idx) } else { None })
+            .collect();
+
         PhysicalUngroupedAggregate {
             layout,
             output_types,
+            distinct_aggregates,
         }
     }
 
