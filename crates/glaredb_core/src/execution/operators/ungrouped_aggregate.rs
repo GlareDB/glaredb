@@ -35,6 +35,7 @@ pub enum UngroupedAggregatePartitionState {
         /// State for distinct aggregates.
         distinct_state: DistinctCollectionPartitionState,
     },
+    DrainingDistinct {},
     /// Partition is draining.
     ///
     /// Only a single partition should drain.
@@ -246,6 +247,9 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
 
                 Ok(PollExecute::NeedsMore)
             }
+            UngroupedAggregatePartitionState::DrainingDistinct { .. } => {
+                unimplemented!()
+            }
             UngroupedAggregatePartitionState::Draining => {
                 output.reset_for_write()?;
                 let mut operator_state = operator_state.inner.lock();
@@ -299,11 +303,17 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 // No groups, so we're just combining single states (slices of
                 // len 1).
                 //
+                // Only merge the non-distinct aggregates right now. We still
+                // need to produce the inputs & results for distinct aggregates.
+                //
                 // SAFETY: Both src and dest pointers should point to valid
                 // states according to the layout.
                 unsafe {
-                    self.layout
-                        .combine_states(&mut [src_ptr], &mut [dest_ptr])?
+                    self.layout.combine_states(
+                        self.agg_selection.non_distinct.iter().copied(),
+                        &mut [src_ptr],
+                        &mut [dest_ptr],
+                    )?
                 }
 
                 op_state.remaining -= 1;

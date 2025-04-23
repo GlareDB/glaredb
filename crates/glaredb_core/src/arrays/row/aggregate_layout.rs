@@ -41,6 +41,16 @@ pub struct AggregateLayout {
     pub(crate) aggregate_offsets: Vec<usize>,
 }
 
+#[derive(Debug)]
+pub struct AggregateUpdateSelector<'a> {
+    /// Index of the aggregate we're updating.
+    pub aggregate_idx: usize,
+    /// Inputs we're using to update the aggregate.
+    ///
+    /// This must be the exact number of inputs the aggregate is expecting.
+    pub inputs: &'a [Array],
+}
+
 impl AggregateLayout {
     /// Create a new layout representing a row of group values and aggregates.
     pub fn new(
@@ -202,6 +212,7 @@ impl AggregateLayout {
     /// All pointers **must** point to different rows.
     pub(crate) unsafe fn combine_states(
         &self,
+        agg_selection: impl IntoExactSizeIterator<Item = usize>,
         src_ptrs: &mut [*mut u8],
         dest_ptrs: &mut [*mut u8],
     ) -> Result<()> {
@@ -210,7 +221,7 @@ impl AggregateLayout {
 
             let mut prev_offset = 0;
 
-            for (offset, agg) in self.iter_offsets_and_aggregates() {
+            for (offset, agg) in self.iter_offsets_and_aggregates_selection(agg_selection) {
                 let rel_offset = offset - prev_offset;
 
                 // Move both sets of pointers to the right state.

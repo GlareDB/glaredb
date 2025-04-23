@@ -257,6 +257,7 @@ impl GroupingSetHashTable {
         &self,
         op_state: &mut GroupingSetOperatorState,
         state: &mut GroupingSetBuildPartitionState,
+        agg_selection: impl IntoExactSizeIterator<Item = usize> + Clone,
     ) -> Result<bool> {
         if state.finished {
             return Err(DbError::new("State already finished"));
@@ -268,9 +269,11 @@ impl GroupingSetHashTable {
 
         match &mut op_state.inner {
             GroupingSetState::Building(building) => {
-                building
-                    .hash_table
-                    .merge_from(&mut state.insert_state, &mut state.hash_table)?;
+                building.hash_table.merge_from(
+                    &mut state.insert_state,
+                    agg_selection,
+                    &mut state.hash_table,
+                )?;
 
                 building.remaining.dec_by_one()?;
 
@@ -477,7 +480,9 @@ mod tests {
         let mut input = generate_batch!(["a", "b", "c", "a"], [1_i64, 2, 3, 4]);
         table.insert(&mut build_states[0], [0], &mut input).unwrap();
 
-        let scan_ready = table.merge(&mut op_state, &mut build_states[0]).unwrap();
+        let scan_ready = table
+            .merge(&mut op_state, &mut build_states[0], [0])
+            .unwrap();
         assert!(scan_ready);
 
         let mut scan_state = table.take_partition_scan_state(&mut op_state).unwrap();
@@ -527,7 +532,9 @@ mod tests {
         );
         table.insert(&mut build_states[0], [0], &mut input).unwrap();
 
-        let scan_ready = table.merge(&mut op_state, &mut build_states[0]).unwrap();
+        let scan_ready = table
+            .merge(&mut op_state, &mut build_states[0], [0])
+            .unwrap();
         assert!(scan_ready);
 
         let mut scan_state = table.take_partition_scan_state(&mut op_state).unwrap();

@@ -356,6 +356,7 @@ impl AggregateHashTable {
     pub fn merge_from(
         &mut self,
         state: &mut AggregateHashTableInsertState,
+        agg_selection: impl IntoExactSizeIterator<Item = usize> + Clone,
         other: &mut Self,
     ) -> Result<()> {
         if self.directory.num_occupied == 0 {
@@ -399,6 +400,7 @@ impl AggregateHashTable {
             // Combine states.
             unsafe {
                 self.layout.combine_states(
+                    agg_selection.clone(),
                     merge_state.group_scan.scanned_row_pointers_mut(),
                     &mut state.row_ptrs,
                 )?;
@@ -989,7 +991,7 @@ mod tests {
         let inputs = generate_batch!([5_i64, 6, 7, 8]);
         t2.insert(&mut s2, [0], &groups, &inputs).unwrap();
 
-        t1.merge_from(&mut s2, &mut t2).unwrap();
+        t1.merge_from(&mut s2, [0], &mut t2).unwrap();
         assert_eq!(1, t1.data.num_row_blocks());
 
         let (out_groups, out_results) = get_groups_and_results(&t1);

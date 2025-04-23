@@ -218,7 +218,8 @@ impl DistinctCollection {
         let state_iter = op_state.states.iter_mut().zip(&mut state.states);
 
         for (table, (op_state, part_state)) in self.tables.iter().zip(state_iter) {
-            let _ = table.table.merge(op_state, part_state)?;
+            // No agg selection.
+            let _ = table.table.merge(op_state, part_state, [])?;
         }
 
         Ok(())

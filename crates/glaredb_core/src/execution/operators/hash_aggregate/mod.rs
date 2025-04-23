@@ -316,6 +316,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     let scan_ready = operator_state.tables[table_idx].merge(
                         &mut shared_state.table_states[table_idx],
                         &mut partition_state.states[table_idx],
+                        self.agg_selection.non_distinct.iter().copied(),
                     )?;
 
                     // Just set if we're ready on the first table. If the first
