@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 
 use super::execution_stack::{Effects, ExecutionStack};
 use super::operators::{
@@ -108,18 +108,31 @@ impl ExecutablePartitionPipeline {
     /// next call to `poll_execute` will pick up where it left off.
     ///
     /// The inner logic lives in `ExecutionStack`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if this pipeline was already polled to completion.
     pub fn poll_execute<I>(&mut self, cx: &mut Context) -> Poll<Result<PartitionPipelineProfile>>
     where
         I: RuntimeInstant,
     {
-        let prof = self
-            .profile
-            .as_mut()
-            .expect("poll_execute to be called on pipeline that hasn't completed");
+        let prof = match &mut self.profile {
+            Some(prof) => prof,
+            None => {
+                // This _shouldn't_ get hit, but occasionally does specifically
+                // with the http stuff.
+                //
+                // I don't believe we're doing anything wrong, and instead we're
+                // getting woken up more than once by something in reqwest. Rust
+                // doesnt't specify that a waker should only woken exactly once,
+                // so this technically isn't wrong.
+                //
+                // I would like to find the undelying cause though... and maybe
+                // that requires that we coalesce multiple wakeups into a single
+                // poll.
+                //
+                // Issue: <https://github.com/GlareDB/glaredb/issues/3617>
+                return Poll::Ready(Err(DbError::new(
+                    "poll_execute called on already completed pipeline",
+                )));
+            }
+        };
 
         let mut effects = OperatorEffects::<I> {
             cx,
