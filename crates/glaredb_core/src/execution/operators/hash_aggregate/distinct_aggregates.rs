@@ -201,7 +201,7 @@ impl DistinctCollection {
         for (table, state) in self.tables.iter().zip(&mut state.states) {
             // No agg selection since we don't have any aggs in the hash table.
             // It's just a big GROUP BY.
-            table.table.insert(state, [], input)?;
+            table.table.insert(state, &[], input)?;
         }
 
         Ok(())

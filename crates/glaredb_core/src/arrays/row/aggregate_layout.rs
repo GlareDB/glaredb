@@ -111,6 +111,17 @@ impl AggregateLayout {
             .map(|idx| (self.aggregate_offsets[idx], &self.aggregates[idx]))
     }
 
+    /// Creates an update selector for a given aggregate.
+    ///
+    /// `inputs` is a slice of inputs for _all_ aggregates in order.
+    pub fn update_selectors_from_full_input(
+        &self,
+        agg_idx: usize,
+        inputs: &[Array],
+    ) -> AggregateUpdateSelector {
+        unimplemented!()
+    }
+
     /// Update aggregate states based on the inputs.
     ///
     /// `group_ptrs` points to the start of the rows that we should be updating.
@@ -118,13 +129,9 @@ impl AggregateLayout {
     /// at the same time. While row pointers will end up pointing to the last
     /// state in each row, this property should not be relied upon.
     ///
-    /// `agg_selection` indicates which aggregate values we'll be updating for
-    /// each row.
-    ///
-    /// `inputs` should contains the input arrays to each aggregate (including
-    /// aggregates not in `agg_selection`) in order. For example, if the first
-    /// aggregate accepts two inputs, the first two arrays should be its inputs.
-    /// The second aggregate's inputs will start at index 2, and so on...
+    /// `agg_updates` determins which aggregate values we're updating for these
+    /// groups. The iterator must provide aggregates in order, and the number of
+    /// inputs must be exact.
     ///
     /// The length of `group_ptrs` must equal `num_rows`.
     ///
@@ -138,11 +145,10 @@ impl AggregateLayout {
     /// layout of this collection.
     ///
     /// `group_ptrs` may contain duplicated pointers.
-    pub(crate) unsafe fn update_states(
+    pub(crate) unsafe fn update_states<'a>(
         &self,
         group_ptrs: &mut [*mut u8],
-        agg_selection: impl IntoExactSizeIterator<Item = usize>,
-        mut inputs: &[Array],
+        agg_updates: impl IntoExactSizeIterator<Item = AggregateUpdateSelector<'a>>,
         num_rows: usize,
     ) -> Result<()> {
         // TODO: Where are the unit tests?
@@ -151,48 +157,31 @@ impl AggregateLayout {
 
         let mut prev_offset = 0;
 
-        let mut agg_selection = agg_selection.into_exact_size_iter();
-        let mut sel_idx = match agg_selection.next() {
-            Some(idx) => idx,
-            None => return Ok(()), // Selection contains nothing.
-        };
+        for selector in agg_updates {
+            // This aggregate was selected.
+            let offset = self.aggregate_offsets[selector.aggregate_idx];
+            let agg = &self.aggregates[selector.aggregate_idx];
 
-        for (agg_idx, (offset, agg)) in self.iter_offsets_and_aggregates().enumerate() {
-            let (agg_inputs, remaining_inputs) = inputs.split_at(agg.columns.len());
-
-            if agg_idx == sel_idx {
-                // This aggregate was selected.
-
-                // Update pointers to point to the start of this aggregate's state.
-                //
-                // We compute the offset relative to where the pointer is right now
-                // instead of using the offset from the start of the row since we
-                // update the row pointer for each aggregate we're updating.
-                let rel_offset = offset - prev_offset;
-                for row_ptr in group_ptrs.iter_mut() {
-                    *row_ptr = unsafe { row_ptr.byte_add(rel_offset) };
-                    debug_assert_eq!(
-                        0,
-                        row_ptr.addr() % agg.function.aggregate_state_info().align
-                    );
-                }
-                prev_offset = offset; // To get the next offset relative to this pointer on the next iteration.
-
-                // Update states.
-                unsafe { agg.function.call_update(agg_inputs, num_rows, group_ptrs)? };
-
-                // Get next aggregate to update.
-                sel_idx = match agg_selection.next() {
-                    Some(idx) => idx,
-                    None => return Ok(()), // We just updated the last selected aggregate.
-                }
-            }
-
-            // Next aggregate starts with the remaining inputs.
+            // Update pointers to point to the start of this aggregate's state.
             //
-            // Done for both selected and non-selected aggregates so that we can
-            // properly skip over inputs not in the selection.
-            inputs = remaining_inputs;
+            // We compute the offset relative to where the pointer is right now
+            // instead of using the offset from the start of the row since we
+            // update the row pointer for each aggregate we're updating.
+            let rel_offset = offset - prev_offset;
+            for row_ptr in group_ptrs.iter_mut() {
+                *row_ptr = unsafe { row_ptr.byte_add(rel_offset) };
+                debug_assert_eq!(
+                    0,
+                    row_ptr.addr() % agg.function.aggregate_state_info().align
+                );
+            }
+            prev_offset = offset; // To get the next offset relative to this pointer on the next iteration.
+
+            // Update states.
+            unsafe {
+                agg.function
+                    .call_update(selector.inputs, num_rows, group_ptrs)?
+            };
         }
 
         Ok(())
@@ -295,6 +284,67 @@ impl AggregateLayout {
         }
     }
 }
+
+/// Iterator that produces aggregate update selectors from the _complete_ set of
+/// aggregate inputs.
+#[derive(Debug)]
+pub struct CompleteInputSelector<'a> {
+    layout: &'a AggregateLayout,
+    inputs: &'a [Array],
+    prev_agg_sel: usize,
+    agg_selection: &'a [usize],
+}
+
+impl<'a> CompleteInputSelector<'a> {
+    pub fn with_selection(
+        layout: &'a AggregateLayout,
+        agg_selection: &'a [usize],
+        inputs: &'a [Array],
+    ) -> Self {
+        CompleteInputSelector {
+            layout,
+            inputs,
+            prev_agg_sel: 0,
+            agg_selection,
+        }
+    }
+}
+
+impl<'a> Iterator for CompleteInputSelector<'a> {
+    type Item = AggregateUpdateSelector<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.agg_selection.is_empty() {
+            return None;
+        }
+
+        let agg_sel = self.agg_selection[0];
+        self.agg_selection = &self.agg_selection[1..];
+
+        // Jump to current aggregate, skipping over inputs not part of this
+        // aggregate.
+        while self.prev_agg_sel != agg_sel {
+            let num_inputs = self.layout.aggregates[self.prev_agg_sel].columns.len();
+            self.inputs = &self.inputs[num_inputs..];
+            self.prev_agg_sel += 1;
+        }
+
+        let num_inputs = self.layout.aggregates[agg_sel].columns.len();
+        let inputs = &self.inputs[..num_inputs];
+
+        Some(AggregateUpdateSelector {
+            aggregate_idx: agg_sel,
+            inputs,
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let rem = self.agg_selection.len();
+        (rem, Some(rem))
+    }
+}
+
+impl<'a> ExactSizeIterator for CompleteInputSelector<'a> {}
 
 /// Compute the new len to ensure alignment to some value.
 const fn align_len(curr_len: usize, alignment: usize) -> usize {

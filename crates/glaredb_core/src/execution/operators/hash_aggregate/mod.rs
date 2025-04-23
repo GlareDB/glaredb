@@ -213,11 +213,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
                 // Insert input into each grouping set table.
                 for (table, state) in operator_state.tables.iter().zip(&mut building.states) {
-                    table.insert(
-                        state,
-                        self.agg_selection.non_distinct.iter().copied(),
-                        input,
-                    )?;
+                    table.insert(state, &self.agg_selection.non_distinct, input)?;
                 }
 
                 Ok(PollExecute::NeedsMore)

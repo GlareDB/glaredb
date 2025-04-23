@@ -14,7 +14,7 @@ use super::hash_aggregate::distinct_aggregates::{
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::arrays::row::aggregate_layout::AggregateLayout;
+use crate::arrays::row::aggregate_layout::{AggregateLayout, CompleteInputSelector};
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::buffer::db_vec::DbVec;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
@@ -239,8 +239,11 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 unsafe {
                     self.layout.update_states(
                         ptr_buf.as_mut_slice(),
-                        self.agg_selection.non_distinct.iter().copied(),
-                        &agg_inputs.arrays,
+                        CompleteInputSelector::with_selection(
+                            &self.layout,
+                            &self.agg_selection.non_distinct,
+                            &agg_inputs.arrays,
+                        ),
                         input.num_rows,
                     )?;
                 }
