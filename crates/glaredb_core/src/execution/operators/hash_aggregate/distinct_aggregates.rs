@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use glaredb_error::Result;
 
 use super::grouping_set_hash_table::{
@@ -38,65 +40,105 @@ impl AggregateSelection {
     }
 }
 
-#[expect(unused)]
-#[derive(Debug)]
-pub struct DistinctAggregateOperatorState {
-    /// Operator states for each hash table.
-    operator_states: Vec<GroupingSetOperatorState>,
-}
-
-#[expect(unused)]
-#[derive(Debug)]
-pub struct DistinctAggregatePartitionState {
-    /// Partition state per table.
-    partition_states: Vec<GroupingSetBuildPartitionState>,
-    /// Output buffers for each table once we've pushed all data into them.
-    output_buffers: Batch,
-}
-
 #[derive(Debug, Clone)]
-pub struct DistinctAggregateInfo {
+pub struct DistinctAggregateInfo<'a> {
     /// Input arguments to the aggregate that should be distinct.
-    pub inputs: Vec<PhysicalColumnExpr>,
+    pub inputs: &'a [PhysicalColumnExpr],
     /// Group keys we'll be DISTINCTing on as well.
-    pub groups: Vec<PhysicalColumnExpr>,
+    pub groups: &'a [PhysicalColumnExpr],
 }
 
-#[expect(unused)]
 #[derive(Debug)]
-pub struct DistinctAggregateInputs {
-    /// Hash tables holding the inputs to distinct aggregates.
-    tables: Vec<GroupingSetHashTable>,
-    /// Info for each distinct aggregate input.
-    infos: Vec<DistinctAggregateInfo>,
+pub struct DistinctCollectionOperatorState {
+    /// Build state per distinct table.
+    states: Vec<GroupingSetBuildPartitionState>,
 }
 
-impl DistinctAggregateInputs {
-    pub fn new(
-        infos: impl IntoIterator<Item = DistinctAggregateInfo>,
-        batch_size: usize,
-    ) -> Result<Self> {
-        let infos: Vec<_> = infos.into_iter().collect();
-        let mut tables = Vec::with_capacity(infos.len());
+#[derive(Debug)]
+pub struct DistinctCollectionPartitionState {
+    /// Operator states for all distinct tables.
+    states: Vec<GroupingSetOperatorState>,
+}
 
-        for info in &infos {
-            // Create an aggregates object that just groups on all
-            // inputs/groups.
-            let mut groups = info.inputs.clone();
-            groups.extend_from_slice(&info.groups);
+#[derive(Debug)]
+struct DistinctTable {
+    /// The table holding the inputs.
+    table: GroupingSetHashTable,
+    /// Inputs we're distincting on.
+    inputs: Vec<PhysicalColumnExpr>,
+}
 
-            let aggregates = Aggregates {
-                groups,
-                grouping_functions: Vec::new(),
-                aggregates: Vec::new(),
-            };
-
-            let grouping_set = (0..aggregates.groups.len()).collect();
-
-            let table = GroupingSetHashTable::new(&aggregates, grouping_set, batch_size);
-            tables.push(table);
+impl DistinctTable {
+    /// If this set of distinct inputs matches the other set of inputs.
+    ///
+    /// Used to determine if the same hash table can be used for multiple
+    /// DISTINCT aggregates.
+    fn inputs_match(&self, other: &[PhysicalColumnExpr]) -> bool {
+        if self.inputs.len() != other.len() {
+            return false;
         }
 
-        Ok(DistinctAggregateInputs { tables, infos })
+        for (this, other) in self.inputs.iter().zip(other) {
+            if this.idx != other.idx {
+                return false;
+            }
+        }
+
+        true
+    }
+}
+
+#[derive(Debug)]
+pub struct DistinctCollection {
+    /// Hash tables holding the inputs to distinct aggregates.
+    tables: Vec<DistinctTable>,
+    /// Mapping of DISTINCT aggregates to table to insert into.
+    agg_to_table_index: Vec<usize>,
+}
+
+impl DistinctCollection {
+    pub fn new<'a>(
+        aggregates: impl IntoIterator<Item = DistinctAggregateInfo<'a>>,
+    ) -> Result<Self> {
+        let mut tables: Vec<DistinctTable> = Vec::new();
+        let mut agg_to_table_index = Vec::new();
+
+        for agg in aggregates {
+            // We're going to be DISTINCTing on both the aggregate inputs and
+            // the groups.
+            let inputs: Vec<_> = agg
+                .inputs
+                .iter()
+                .cloned()
+                .chain(agg.groups.iter().cloned())
+                .collect();
+
+            // Try to find an exisitng table with the same set of inputs.
+            let table_idx = match tables.iter().position(|table| table.inputs_match(&inputs)) {
+                Some(table_idx) => table_idx,
+                None => {
+                    // Create a new table for these inputs.
+                    let aggregates = Aggregates {
+                        groups: inputs.clone(),
+                        grouping_functions: Vec::new(),
+                        aggregates: Vec::new(),
+                    };
+                    let grouping_set: BTreeSet<_> = (0..inputs.len()).collect();
+                    let table = GroupingSetHashTable::new(&aggregates, grouping_set);
+
+                    let table_idx = tables.len();
+                    tables.push(DistinctTable { table, inputs });
+
+                    table_idx
+                }
+            };
+
+            agg_to_table_index.push(table_idx);
+        }
+
+        Ok(DistinctCollection {
+            tables,
+            agg_to_table_index,
+        })
     }
 }

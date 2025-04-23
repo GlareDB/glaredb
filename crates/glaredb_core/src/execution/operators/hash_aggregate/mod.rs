@@ -128,14 +128,12 @@ impl BaseOperator for PhysicalHashAggregate {
         let tables: Vec<_> = self
             .grouping_sets
             .iter()
-            .map(|grouping_set| {
-                GroupingSetHashTable::new(&self.aggregates, grouping_set.clone(), props.batch_size)
-            })
+            .map(|grouping_set| GroupingSetHashTable::new(&self.aggregates, grouping_set.clone()))
             .collect();
 
         let table_states = tables
             .iter()
-            .map(|table| table.create_operator_state())
+            .map(|table| table.create_operator_state(props.batch_size))
             .collect::<Result<Vec<_>>>()?;
 
         let inner = HashAggregateOperatoreStateInner {
