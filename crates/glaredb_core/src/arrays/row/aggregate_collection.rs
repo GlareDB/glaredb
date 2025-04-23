@@ -293,7 +293,7 @@ mod tests {
         unsafe {
             collection
                 .layout
-                .update_states(&mut update_row_ptrs, &[values], 4)
+                .update_states(&mut update_row_ptrs, [0], &[values], 4)
                 .unwrap();
         }
 

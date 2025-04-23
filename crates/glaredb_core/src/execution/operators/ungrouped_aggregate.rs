@@ -201,6 +201,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 unsafe {
                     self.layout.update_states(
                         ptr_buf.as_mut_slice(),
+                        0..self.layout.aggregates.len(),
                         &agg_inputs.arrays,
                         input.num_rows,
                     )?;

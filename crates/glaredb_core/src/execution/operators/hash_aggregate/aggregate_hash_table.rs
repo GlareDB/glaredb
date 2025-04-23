@@ -169,6 +169,7 @@ impl AggregateHashTable {
         unsafe {
             self.layout.update_states(
                 state.row_ptrs.as_mut_slice(),
+                0..self.layout.aggregates.len(),
                 &inputs.arrays,
                 inputs.num_rows,
             )?;

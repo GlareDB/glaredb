@@ -6,6 +6,7 @@ use super::row_layout::RowLayout;
 use crate::arrays::array::Array;
 use crate::arrays::datatype::DataType;
 use crate::expr::physical::PhysicalAggregateExpression;
+use crate::util::iter::IntoExactSizeIterator;
 
 /// Desribes the row layout for aggregate states and groups.
 ///
@@ -90,6 +91,16 @@ impl AggregateLayout {
         self.aggregate_offsets.iter().copied().zip(&self.aggregates)
     }
 
+    pub fn iter_offsets_and_aggregates_selection(
+        &self,
+        agg_selection: impl IntoExactSizeIterator<Item = usize>,
+    ) -> impl Iterator<Item = (usize, &'_ PhysicalAggregateExpression)> {
+        debug_assert_eq!(self.aggregate_offsets.len(), self.aggregates.len());
+        agg_selection
+            .into_exact_size_iter()
+            .map(|idx| (self.aggregate_offsets[idx], &self.aggregates[idx]))
+    }
+
     /// Update aggregate states based on the inputs.
     ///
     /// `group_ptrs` points to the start of the rows that we should be updating.
@@ -97,10 +108,13 @@ impl AggregateLayout {
     /// at the same time. While row pointers will end up pointing to the last
     /// state in each row, this property should not be relied upon.
     ///
-    /// `inputs` should contains the input arrays to each aggregate in order.
-    /// For example, if the first aggregate accepts two inputs, the first two
-    /// arrays should be its inputs. The second aggregate's inputs will start at
-    /// index 2, and so on...
+    /// `agg_selection` indicates which aggregate values we'll be updating for
+    /// each row.
+    ///
+    /// `inputs` should contains the input arrays to each aggregate (as
+    /// specified by `agg_selection`) in order. For example, if the first
+    /// aggregate accepts two inputs, the first two arrays should be its inputs.
+    /// The second aggregate's inputs will start at index 2, and so on...
     ///
     /// The length of `group_ptrs` must equal `num_rows`.
     ///
@@ -117,37 +131,40 @@ impl AggregateLayout {
     pub(crate) unsafe fn update_states(
         &self,
         group_ptrs: &mut [*mut u8],
+        agg_selection: impl IntoExactSizeIterator<Item = usize>,
         mut inputs: &[Array],
         num_rows: usize,
     ) -> Result<()> {
-        unsafe {
-            debug_assert_eq!(num_rows, group_ptrs.len());
+        debug_assert_eq!(num_rows, group_ptrs.len());
 
-            let mut prev_offset = 0;
+        let mut prev_offset = 0;
 
-            for (offset, agg) in self.iter_offsets_and_aggregates() {
-                let (agg_inputs, remaining_inputs) = inputs.split_at(agg.columns.len());
+        for (offset, agg) in self.iter_offsets_and_aggregates_selection(agg_selection) {
+            let (agg_inputs, remaining_inputs) = inputs.split_at(agg.columns.len());
 
-                // Update pointers to point to the start of this aggregate's state.
-                let rel_offset = offset - prev_offset;
-                for row_ptr in group_ptrs.iter_mut() {
-                    *row_ptr = row_ptr.byte_add(rel_offset);
-                    debug_assert_eq!(
-                        0,
-                        row_ptr.addr() % agg.function.aggregate_state_info().align
-                    );
-                }
-                prev_offset = offset; // To get the next offset relative to this pointer on the next iteration.
-
-                // Update states.
-                agg.function.call_update(agg_inputs, num_rows, group_ptrs)?;
-
-                // Next aggregate starts with the remaining inputs.
-                inputs = remaining_inputs;
+            // Update pointers to point to the start of this aggregate's state.
+            //
+            // We compute the offset relative to where the pointer is right now
+            // instead of using the offset from the start of the row since we
+            // update the row pointer for each aggregate we're updating.
+            let rel_offset = offset - prev_offset;
+            for row_ptr in group_ptrs.iter_mut() {
+                *row_ptr = unsafe { row_ptr.byte_add(rel_offset) };
+                debug_assert_eq!(
+                    0,
+                    row_ptr.addr() % agg.function.aggregate_state_info().align
+                );
             }
+            prev_offset = offset; // To get the next offset relative to this pointer on the next iteration.
 
-            Ok(())
+            // Update states.
+            unsafe { agg.function.call_update(agg_inputs, num_rows, group_ptrs)? };
+
+            // Next aggregate starts with the remaining inputs.
+            inputs = remaining_inputs;
         }
+
+        Ok(())
     }
 
     /// Combines aggregate states, consuming states in `src_ptrs` into
