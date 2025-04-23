@@ -50,14 +50,14 @@ pub struct DistinctAggregateInfo<'a> {
 
 #[derive(Debug)]
 pub struct DistinctCollectionOperatorState {
-    /// Build state per distinct table.
-    states: Vec<GroupingSetBuildPartitionState>,
+    /// Operator states for all distinct tables.
+    states: Vec<GroupingSetOperatorState>,
 }
 
 #[derive(Debug)]
 pub struct DistinctCollectionPartitionState {
-    /// Operator states for all distinct tables.
-    states: Vec<GroupingSetOperatorState>,
+    /// Build state per distinct table.
+    states: Vec<GroupingSetBuildPartitionState>,
 }
 
 #[derive(Debug)]
@@ -140,5 +140,39 @@ impl DistinctCollection {
             tables,
             agg_to_table_index,
         })
+    }
+
+    pub fn insert(
+        &self,
+        _op_state: &DistinctCollectionOperatorState,
+        state: &mut DistinctCollectionPartitionState,
+        input: &mut Batch,
+    ) -> Result<()> {
+        debug_assert_eq!(self.tables.len(), state.states.len());
+
+        for (table, state) in self.tables.iter().zip(&mut state.states) {
+            // No agg selection since we don't have any aggs in the hash table.
+            // It's just a big GROUP BY.
+            table.table.insert(state, [], input)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn merge(
+        &self,
+        op_state: &mut DistinctCollectionOperatorState,
+        state: &mut DistinctCollectionPartitionState,
+    ) -> Result<()> {
+        debug_assert_eq!(self.tables.len(), op_state.states.len());
+        debug_assert_eq!(self.tables.len(), state.states.len());
+
+        let state_iter = op_state.states.iter_mut().zip(&mut state.states);
+
+        for (table, (op_state, part_state)) in self.tables.iter().zip(state_iter) {
+            let _ = table.table.merge(op_state, part_state)?;
+        }
+
+        Ok(())
     }
 }
