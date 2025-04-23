@@ -10,9 +10,9 @@ use std::task::Context;
 use distinct_aggregates::AggregateSelection;
 use glaredb_error::{DbError, Result};
 use grouping_set_hash_table::{
-    GroupingSetBuildPartitionState,
     GroupingSetHashTable,
     GroupingSetOperatorState,
+    GroupingSetPartitionState,
     GroupingSetScanPartitionState,
 };
 use parking_lot::Mutex;
@@ -45,8 +45,8 @@ pub enum HashAggregatePartitionState {
 #[derive(Debug)]
 pub struct HashAggregateBuildingPartitionState {
     partition_idx: usize,
-    /// Build states per grouping set table.
-    states: Vec<GroupingSetBuildPartitionState>,
+    /// Partition state per grouping set table.
+    states: Vec<GroupingSetPartitionState>,
 }
 
 #[derive(Debug)]
@@ -178,8 +178,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
         // Generate build states for each partition.
         for (table, op_state) in operator_state.tables.iter().zip(&mut inner.table_states) {
-            let table_partition_states =
-                table.create_partition_build_states(op_state, partitions)?;
+            let table_partition_states = table.create_partition_states(op_state, partitions)?;
 
             debug_assert_eq!(partition_states.len(), table_partition_states.len());
             for (partition_state, table_state) in

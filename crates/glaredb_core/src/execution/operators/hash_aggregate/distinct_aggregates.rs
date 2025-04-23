@@ -6,6 +6,7 @@ use super::grouping_set_hash_table::{
     GroupingSetBuildPartitionState,
     GroupingSetHashTable,
     GroupingSetOperatorState,
+    GroupingSetPartitionState,
 };
 use crate::arrays::batch::Batch;
 use crate::execution::operators::hash_aggregate::Aggregates;
@@ -56,8 +57,8 @@ pub struct DistinctCollectionOperatorState {
 
 #[derive(Debug)]
 pub struct DistinctCollectionPartitionState {
-    /// Build state per distinct table.
-    states: Vec<GroupingSetBuildPartitionState>,
+    /// Partition state per distinct table.
+    states: Vec<GroupingSetPartitionState>,
 }
 
 #[derive(Debug)]
@@ -179,9 +180,7 @@ impl DistinctCollection {
             .collect();
 
         for (table, op_state) in self.tables.iter().zip(&mut op_state.states) {
-            let states = table
-                .table
-                .create_partition_build_states(op_state, partitions)?;
+            let states = table.table.create_partition_states(op_state, partitions)?;
 
             for (out, state) in part_states.iter_mut().zip(states) {
                 out.states.push(state);
