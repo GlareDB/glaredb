@@ -66,6 +66,8 @@ struct DistinctTable {
     table: GroupingSetHashTable,
     /// Inputs we're distincting on.
     inputs: Vec<PhysicalColumnExpr>,
+    /// Aggregate indices that this table corresponds to.
+    table_to_agg_index: Vec<usize>,
 }
 
 impl DistinctTable {
@@ -92,8 +94,6 @@ impl DistinctTable {
 pub struct DistinctCollection {
     /// Hash tables holding the inputs to distinct aggregates.
     tables: Vec<DistinctTable>,
-    /// Mapping of DISTINCT aggregates to table to insert into.
-    agg_to_table_index: Vec<usize>,
 }
 
 impl DistinctCollection {
@@ -101,9 +101,8 @@ impl DistinctCollection {
         aggregates: impl IntoIterator<Item = DistinctAggregateInfo<'a>>,
     ) -> Result<Self> {
         let mut tables: Vec<DistinctTable> = Vec::new();
-        let mut agg_to_table_index = Vec::new();
 
-        for agg in aggregates {
+        for (agg_idx, agg) in aggregates.into_iter().enumerate() {
             // We're going to be DISTINCTing on both the aggregate inputs and
             // the groups.
             let inputs: Vec<_> = agg
@@ -114,8 +113,10 @@ impl DistinctCollection {
                 .collect();
 
             // Try to find an exisitng table with the same set of inputs.
-            let table_idx = match tables.iter().position(|table| table.inputs_match(&inputs)) {
-                Some(table_idx) => table_idx,
+            match tables.iter_mut().find(|table| table.inputs_match(&inputs)) {
+                Some(table) => {
+                    table.table_to_agg_index.push(agg_idx);
+                }
                 None => {
                     // Create a new table for these inputs.
                     let aggregates = Aggregates {
@@ -126,20 +127,29 @@ impl DistinctCollection {
                     let grouping_set: BTreeSet<_> = (0..inputs.len()).collect();
                     let table = GroupingSetHashTable::new(&aggregates, grouping_set);
 
-                    let table_idx = tables.len();
-                    tables.push(DistinctTable { table, inputs });
-
-                    table_idx
+                    tables.push(DistinctTable {
+                        table,
+                        inputs,
+                        table_to_agg_index: vec![agg_idx],
+                    });
                 }
             };
-
-            agg_to_table_index.push(table_idx);
         }
 
-        Ok(DistinctCollection {
-            tables,
-            agg_to_table_index,
-        })
+        Ok(DistinctCollection { tables })
+    }
+
+    /// Number of tables that are DISTINCTing aggregate inputs.
+    ///
+    /// May be less than the number of distinct aggregates if multiple
+    /// aggregates share the same input.
+    pub fn num_distinct_tables(&self) -> usize {
+        self.tables.len()
+    }
+
+    /// Returns aggregate indices that a table is producing unique inputs for.
+    pub fn aggregates_for_table(&self, table_idx: usize) -> &[usize] {
+        &self.tables[table_idx].table_to_agg_index
     }
 
     pub fn create_operator_state(
