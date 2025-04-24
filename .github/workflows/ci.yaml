@@ -226,7 +226,7 @@ jobs:
       - name: Run tests
         run: ./scripts/ci_run_python_tests.sh
 
-  wasm:
+  wasm-tests:
     name: WebAssembly Tests
     runs-on: ubuntu-latest
     steps:
@@ -283,7 +283,7 @@ jobs:
       - name: Generate code coverage
         run: cargo llvm-cov -p glaredb_core --lcov --output-path lcov.info
 
-  wasm:
+  wasm-build:
     name: Build wasm
     runs-on: ubuntu-latest
     steps:
