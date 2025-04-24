@@ -43,10 +43,10 @@ impl AggregateSelection {
 
 #[derive(Debug, Clone)]
 pub struct DistinctAggregateInfo<'a> {
-    /// Input arguments to the aggregate that should be distinct.
-    pub inputs: &'a [PhysicalColumnExpr],
     /// Group keys we'll be DISTINCTing on as well.
     pub groups: &'a [PhysicalColumnExpr],
+    /// Input arguments to the aggregate that should be distinct.
+    pub inputs: &'a [PhysicalColumnExpr],
 }
 
 #[derive(Debug)]
@@ -107,10 +107,10 @@ impl DistinctCollection {
             // We're going to be DISTINCTing on both the aggregate inputs and
             // the groups.
             let inputs: Vec<_> = agg
-                .inputs
+                .groups
                 .iter()
                 .cloned()
-                .chain(agg.groups.iter().cloned())
+                .chain(agg.inputs.iter().cloned())
                 .collect();
 
             // Try to find an exisitng table with the same set of inputs.
@@ -149,6 +149,8 @@ impl DistinctCollection {
     }
 
     /// Return an iterator of datatypes in a given table.
+    ///
+    /// The return types are ordered GROUP types first, then input types.
     pub fn iter_table_types(&self, table_idx: usize) -> impl ExactSizeIterator<Item = DataType> {
         self.tables[table_idx]
             .inputs

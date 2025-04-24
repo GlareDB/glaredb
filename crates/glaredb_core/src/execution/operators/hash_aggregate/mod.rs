@@ -44,11 +44,21 @@ pub struct Aggregates {
 #[derive(Debug)]
 pub enum HashAggregatePartitionState {
     Aggregating(HashAggregateAggregatingPartitionState),
+    AggregatingDistinct(HashAggregateAggregatingDistinctPartitionState),
     Scanning(HashAggregateScanningPartitionState),
 }
 
 #[derive(Debug)]
 pub struct HashAggregateAggregatingPartitionState {
+    partition_idx: usize,
+    /// Partition state per grouping set table.
+    states: Vec<GroupingSetPartitionState>,
+    /// Distinct states per grouping set.
+    distinct_states: Vec<DistinctCollectionPartitionState>,
+}
+
+#[derive(Debug)]
+pub struct HashAggregateAggregatingDistinctPartitionState {
     partition_idx: usize,
     /// Partition state per grouping set table.
     states: Vec<GroupingSetPartitionState>,
@@ -75,6 +85,8 @@ pub struct HashAggregateScanningPartitionState {
 
 #[derive(Debug)]
 pub struct HashAggregateOperatorState {
+    /// Batch size used when draining the distinct tables.
+    batch_size: usize,
     /// Hash table per grouping set.
     tables: Vec<GroupingSetHashTable>,
     /// State for each grouping set hash table.
@@ -183,6 +195,7 @@ impl BaseOperator for PhysicalHashAggregate {
         };
 
         Ok(HashAggregateOperatorState {
+            batch_size: props.batch_size,
             tables,
             table_states,
             distinct_collections,
@@ -278,24 +291,67 @@ impl ExecuteOperator for PhysicalHashAggregate {
         output: &mut Batch,
     ) -> Result<PollExecute> {
         match state {
-            HashAggregatePartitionState::Aggregating(building) => {
-                debug_assert_eq!(building.states.len(), operator_state.tables.len());
+            HashAggregatePartitionState::Aggregating(aggregating) => {
+                debug_assert_eq!(aggregating.states.len(), operator_state.tables.len());
 
                 // Update distinct states.
                 for (distinct, state) in operator_state
                     .distinct_collections
                     .iter()
-                    .zip(&mut building.distinct_states)
+                    .zip(&mut aggregating.distinct_states)
                 {
                     distinct.insert(state, input)?;
                 }
 
                 // Insert input into each grouping set table.
-                for (table, state) in operator_state.tables.iter().zip(&mut building.states) {
+                for (table, state) in operator_state.tables.iter().zip(&mut aggregating.states) {
                     table.insert(state, &self.agg_selection.non_distinct, input)?;
                 }
 
                 Ok(PollExecute::NeedsMore)
+            }
+            HashAggregatePartitionState::AggregatingDistinct(aggregating) => {
+                debug_assert_eq!(aggregating.states.len(), operator_state.tables.len());
+                debug_assert_eq!(aggregating.distinct_states.len(), aggregating.states.len());
+
+                // TODO: Check op state.
+
+                // Drain all distinct tables.
+                //
+                // Top level loop: Distinct states per grouping set.
+                // Second loop: Distinct tables within a group.
+                for (grouping_set_idx, distinct) in
+                    operator_state.distinct_collections.iter().enumerate()
+                {
+                    let distinct_op_state = &operator_state.distinct_states[grouping_set_idx];
+                    let distinct_part_state = &mut aggregating.distinct_states[grouping_set_idx];
+
+                    for table_idx in 0..distinct.num_distinct_tables() {
+                        let mut batch = Batch::new(
+                            distinct.iter_table_types(table_idx),
+                            operator_state.batch_size,
+                        )?;
+
+                        loop {
+                            batch.reset_for_write()?;
+                            distinct.scan(
+                                distinct_op_state,
+                                distinct_part_state,
+                                table_idx,
+                                &mut batch,
+                            )?;
+
+                            if batch.num_rows() == 0 {
+                                // Move to next distinct table in this grouping set.
+                                break;
+                            }
+
+                            // TODO: Insert here
+                        }
+                    }
+                }
+
+                unimplemented!()
             }
             HashAggregatePartitionState::Scanning(scanning) => {
                 if !scanning.scan_ready {
@@ -356,6 +412,13 @@ impl ExecuteOperator for PhysicalHashAggregate {
             HashAggregatePartitionState::Aggregating(building) => {
                 // Finalize the building for this partition by merging all
                 // partition-local tables into the operator tables.
+
+                // Merge the distinct collections.
+                for (idx, distinct) in operator_state.distinct_collections.iter().enumerate() {
+                    let op_state = &operator_state.distinct_states[idx];
+                    let part_state = &mut building.distinct_states[idx];
+                    distinct.merge(op_state, part_state)?;
+                }
 
                 // TODO: We shouldn't be locking here. We should lock after the
                 // merges. But there seems to be some coordination issues.
