@@ -284,7 +284,7 @@ jobs:
         run: cargo llvm-cov -p glaredb_core --lcov --output-path lcov.info
 
   wasm-build:
-    name: Build wasm
+    name: Build WebAssembly
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
