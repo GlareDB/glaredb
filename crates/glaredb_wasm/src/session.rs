@@ -38,8 +38,15 @@ impl WasmSession {
         Ok(WasmSession { runtime, engine })
     }
 
-    pub async fn query(&self, _sql: &str) -> Result<WasmQueryResults> {
-        Err(DbError::new("query not implemented").into())
+    pub async fn query(&self, sql: &str) -> Result<WasmQueryResult> {
+        let session = self.engine.session();
+        let mut q_res = session.query(sql).await?;
+        let batches = q_res.output.collect().await?;
+
+        Ok(WasmQueryResult {
+            schema: q_res.output_schema,
+            batches,
+        })
     }
 
     // TODO: This copies `content`. Not sure if there's a good way to get around

@@ -44,3 +44,6 @@ reqwest = { version = "0.12.15", default-features = false, features = ["rustls-t
 getrandom = { workspace = true, features = ["wasm_js"] }
 # See <https://docs.rs/uuid/latest/uuid/#webassembly>
 uuid = { workspace = true, features = ["js"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.0"

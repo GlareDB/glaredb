@@ -223,8 +223,26 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run Tests
+      - name: Run tests
         run: ./scripts/ci_run_python_tests.sh
+
+  wasm:
+    name: WebAssembly Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Run tests
+        run: wasm-pack test --firefox --chrome --headless crates/glaredb_wasm
 
   miri:
     name: Run Miri
@@ -281,4 +299,4 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build wasm
-        run: wasm-pack build crates/glaredb_wasm/ --scope glaredb
+        run: wasm-pack build crates/glaredb_wasm/ --dev --scope glaredb
