@@ -216,6 +216,7 @@ impl DistinctCollection {
         Ok(())
     }
 
+    /// Merge the local table into the global table.
     pub fn merge(
         &self,
         op_state: &DistinctCollectionOperatorState,
@@ -227,13 +228,16 @@ impl DistinctCollection {
         let state_iter = op_state.states.iter().zip(&mut state.states);
 
         for (table, (op_state, part_state)) in self.tables.iter().zip(state_iter) {
-            // No agg selection.
-            let _ = table.table.merge(op_state, part_state, [])?;
+            let _ = table.table.merge(op_state, part_state)?;
         }
 
         Ok(())
     }
 
+    /// Scan the distinct table.
+    ///
+    /// This may be called concurrently with other partitions, each partition
+    /// will be readining a disjoint set of rows.
     pub fn scan(
         &self,
         op_state: &DistinctCollectionOperatorState,

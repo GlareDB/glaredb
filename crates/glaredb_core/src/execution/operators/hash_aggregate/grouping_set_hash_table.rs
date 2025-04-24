@@ -346,7 +346,6 @@ impl GroupingSetHashTable {
         &self,
         op_state: &GroupingSetOperatorState,
         state: &mut GroupingSetPartitionState,
-        agg_selection: impl IntoExactSizeIterator<Item = usize> + Clone,
     ) -> Result<bool> {
         let build_state = match &mut state.inner {
             PartitionState::Building(state) => state,
@@ -358,7 +357,7 @@ impl GroupingSetHashTable {
             OperatorState::Building(building) => {
                 building.hash_table.merge_from(
                     &mut build_state.insert_state,
-                    agg_selection,
+                    0..self.layout.aggregates.len(),
                     &mut build_state.hash_table,
                 )?;
 
@@ -570,9 +569,7 @@ mod tests {
             .insert_input(&mut part_states[0], &[0], &mut input)
             .unwrap();
 
-        let scan_ready = table
-            .merge(&mut op_state, &mut part_states[0], [0])
-            .unwrap();
+        let scan_ready = table.merge(&mut op_state, &mut part_states[0]).unwrap();
         assert!(scan_ready);
 
         let mut out = Batch::new([DataType::Utf8, DataType::Int64], 16).unwrap();
@@ -622,9 +619,7 @@ mod tests {
             .insert_input(&mut part_states[0], &[0], &mut input)
             .unwrap();
 
-        let scan_ready = table
-            .merge(&mut op_state, &mut part_states[0], [0])
-            .unwrap();
+        let scan_ready = table.merge(&mut op_state, &mut part_states[0]).unwrap();
         assert!(scan_ready);
 
         let mut out = Batch::new([DataType::Utf8, DataType::Utf8, DataType::Int64], 16).unwrap();
