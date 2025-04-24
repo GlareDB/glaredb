@@ -13,7 +13,6 @@ use grouping_set_hash_table::{
     GroupingSetHashTable,
     GroupingSetOperatorState,
     GroupingSetPartitionState,
-    GroupingSetScanPartitionState,
 };
 use parking_lot::Mutex;
 
@@ -300,14 +299,12 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 // 'true', and if so, will wake everyone up.
                 let mut ready = vec![false; operator_state.tables.len()];
 
-                for table_idx in 0..operator_state.tables.len() {
-                    let scan_ready = operator_state.tables[table_idx].merge(
+                for (table_idx, ready) in ready.iter_mut().enumerate() {
+                    *ready = operator_state.tables[table_idx].merge(
                         &operator_state.table_states[table_idx],
                         &mut building.states[table_idx],
                         self.agg_selection.non_distinct.iter().copied(),
                     )?;
-
-                    ready[table_idx] = scan_ready;
                 }
 
                 // Attach table indices to the states. We're going to drain the

@@ -111,17 +111,6 @@ impl AggregateLayout {
             .map(|idx| (self.aggregate_offsets[idx], &self.aggregates[idx]))
     }
 
-    /// Creates an update selector for a given aggregate.
-    ///
-    /// `inputs` is a slice of inputs for _all_ aggregates in order.
-    pub fn update_selectors_from_full_input(
-        &self,
-        agg_idx: usize,
-        inputs: &[Array],
-    ) -> AggregateUpdateSelector {
-        unimplemented!()
-    }
-
     /// Update aggregate states based on the inputs.
     ///
     /// `group_ptrs` points to the start of the rows that we should be updating.
@@ -342,7 +331,7 @@ impl<'a> Iterator for CompleteInputSelector<'a> {
     }
 }
 
-impl<'a> ExactSizeIterator for CompleteInputSelector<'a> {}
+impl ExactSizeIterator for CompleteInputSelector<'_> {}
 
 /// Compute the new len to ensure alignment to some value.
 const fn align_len(curr_len: usize, alignment: usize) -> usize {

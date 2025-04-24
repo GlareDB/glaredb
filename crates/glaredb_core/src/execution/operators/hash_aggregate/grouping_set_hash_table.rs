@@ -36,7 +36,6 @@ enum PartitionState {
     ScanReady,
     /// Partitions is actively scanning.
     Scanning(GroupingSetScanPartitionState),
-    Uninit,
 }
 
 #[derive(Debug)]
@@ -44,7 +43,7 @@ pub struct GroupingSetBuildPartitionState {
     /// Insert state into the local hash table.
     insert_state: AggregateHashTableInsertState,
     /// The actual hash table.
-    hash_table: AggregateHashTable,
+    hash_table: Box<AggregateHashTable>,
     /// Batch for holding the grouping columns we're inserting into the table.
     /// Only stores columns for the grouping set.
     groups: Batch,
@@ -204,7 +203,7 @@ impl GroupingSetHashTable {
                     partition_idx,
                     inner: PartitionState::Building(GroupingSetBuildPartitionState {
                         insert_state,
-                        hash_table: table,
+                        hash_table: Box::new(table),
                         groups,
                         inputs,
                     }),
@@ -387,12 +386,10 @@ impl GroupingSetHashTable {
                     _ => return Err(DbError::new("Attempted to scan before global table ready")),
                 }
 
-                let scan_state = match &mut state.inner {
+                match &mut state.inner {
                     PartitionState::Scanning(state) => state,
                     _ => unreachable!(),
-                };
-
-                scan_state
+                }
             }
             _ => return Err(DbError::new("Attempted to scan while still in build state")),
         };

@@ -3,7 +3,6 @@ use std::collections::BTreeSet;
 use glaredb_error::Result;
 
 use super::grouping_set_hash_table::{
-    GroupingSetBuildPartitionState,
     GroupingSetHashTable,
     GroupingSetOperatorState,
     GroupingSetPartitionState,
