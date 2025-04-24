@@ -247,3 +247,173 @@ impl DistinctCollection {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::generate_batch;
+    use crate::testutil::arrays::assert_batches_eq;
+
+    #[test]
+    fn distinct_single_agg_single_column_input() {
+        // AGG 1: INPUT [0], GROUP []
+        let collection = DistinctCollection::new([DistinctAggregateInfo {
+            inputs: &[(0, DataType::Int32).into()],
+            groups: &[],
+        }])
+        .unwrap();
+        assert_eq!(1, collection.num_distinct_tables());
+        assert_eq!(&[0], collection.aggregates_for_table(0));
+
+        let op_state = collection.create_operator_state(16).unwrap();
+        let mut part_states = collection.create_partition_states(&op_state, 1).unwrap();
+        assert_eq!(1, part_states.len());
+
+        let mut b = generate_batch!([1, 2, 3, 3, 4], ["a", "b", "c", "d", "e"]);
+        collection.insert(&mut part_states[0], &mut b).unwrap();
+        collection.merge(&op_state, &mut part_states[0]).unwrap();
+
+        let mut out = Batch::new([DataType::Int32], 16).unwrap();
+        collection
+            .scan(&op_state, &mut part_states[0], 0, &mut out)
+            .unwrap();
+
+        let expected = generate_batch!([1, 2, 3, 4]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn distinct_single_agg_single_column_input_not_first() {
+        // AGG 1: INPUT [1], GROUP []
+        let collection = DistinctCollection::new([DistinctAggregateInfo {
+            inputs: &[(1, DataType::Utf8).into()],
+            groups: &[],
+        }])
+        .unwrap();
+        assert_eq!(1, collection.num_distinct_tables());
+        assert_eq!(&[0], collection.aggregates_for_table(0));
+
+        let op_state = collection.create_operator_state(16).unwrap();
+        let mut part_states = collection.create_partition_states(&op_state, 1).unwrap();
+        assert_eq!(1, part_states.len());
+
+        let mut b = generate_batch!([1, 2, 3, 3, 4], ["a", "b", "b", "a", "a"]);
+        collection.insert(&mut part_states[0], &mut b).unwrap();
+        collection.merge(&op_state, &mut part_states[0]).unwrap();
+
+        let mut out = Batch::new([DataType::Utf8], 16).unwrap();
+        collection
+            .scan(&op_state, &mut part_states[0], 0, &mut out)
+            .unwrap();
+
+        let expected = generate_batch!(["a", "b"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn distinct_single_agg_two_column_input() {
+        // AGG 1: INPUT [0, 1], GROUP []
+        let collection = DistinctCollection::new([DistinctAggregateInfo {
+            inputs: &[(0, DataType::Int32).into(), (1, DataType::Utf8).into()],
+            groups: &[],
+        }])
+        .unwrap();
+        assert_eq!(1, collection.num_distinct_tables());
+        assert_eq!(&[0], collection.aggregates_for_table(0));
+
+        let op_state = collection.create_operator_state(16).unwrap();
+        let mut part_states = collection.create_partition_states(&op_state, 1).unwrap();
+        assert_eq!(1, part_states.len());
+
+        let mut b = generate_batch!([1, 3, 3, 3, 1], ["a", "b", "b", "a", "a"]);
+        collection.insert(&mut part_states[0], &mut b).unwrap();
+        collection.merge(&op_state, &mut part_states[0]).unwrap();
+
+        let mut out = Batch::new([DataType::Int32, DataType::Utf8], 16).unwrap();
+        collection
+            .scan(&op_state, &mut part_states[0], 0, &mut out)
+            .unwrap();
+
+        let expected = generate_batch!([1, 3, 3], ["a", "b", "a"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn distinct_two_aggs_different_inputs() {
+        // AGG 1: INPUT [0], GROUP []
+        // AGG 2: INPUT [1], GROUP []
+        let collection = DistinctCollection::new([
+            DistinctAggregateInfo {
+                inputs: &[(0, DataType::Int32).into()],
+                groups: &[],
+            },
+            DistinctAggregateInfo {
+                inputs: &[(1, DataType::Utf8).into()],
+                groups: &[],
+            },
+        ])
+        .unwrap();
+        assert_eq!(2, collection.num_distinct_tables());
+        assert_eq!(&[0], collection.aggregates_for_table(0));
+        assert_eq!(&[1], collection.aggregates_for_table(1));
+
+        let op_state = collection.create_operator_state(16).unwrap();
+        let mut part_states = collection.create_partition_states(&op_state, 1).unwrap();
+        assert_eq!(1, part_states.len());
+
+        let mut b = generate_batch!([1, 3, 3, 3, 1], ["a", "b", "b", "a", "c"]);
+        collection.insert(&mut part_states[0], &mut b).unwrap();
+        collection.merge(&op_state, &mut part_states[0]).unwrap();
+
+        let mut out_agg1 = Batch::new([DataType::Int32], 16).unwrap();
+        collection
+            .scan(&op_state, &mut part_states[0], 0, &mut out_agg1)
+            .unwrap();
+
+        let expected = generate_batch!([1, 3]);
+        assert_batches_eq(&expected, &out_agg1);
+
+        let mut out_agg2 = Batch::new([DataType::Utf8], 16).unwrap();
+        collection
+            .scan(&op_state, &mut part_states[0], 1, &mut out_agg2)
+            .unwrap();
+
+        let expected = generate_batch!(["a", "b", "c"]);
+        assert_batches_eq(&expected, &out_agg2);
+    }
+
+    #[test]
+    fn distinct_two_aggs_shared_inputs() {
+        // AGG 1: INPUT [0, 1], GROUP []
+        // AGG 2: INPUT [0, 1], GROUP []
+        let collection = DistinctCollection::new([
+            DistinctAggregateInfo {
+                inputs: &[(0, DataType::Int32).into(), (1, DataType::Utf8).into()],
+                groups: &[],
+            },
+            DistinctAggregateInfo {
+                inputs: &[(0, DataType::Int32).into(), (1, DataType::Utf8).into()],
+                groups: &[],
+            },
+        ])
+        .unwrap();
+        assert_eq!(1, collection.num_distinct_tables());
+        assert_eq!(&[0, 1], collection.aggregates_for_table(0));
+
+        let op_state = collection.create_operator_state(16).unwrap();
+        let mut part_states = collection.create_partition_states(&op_state, 1).unwrap();
+        assert_eq!(1, part_states.len());
+
+        let mut b = generate_batch!([1, 3, 3, 3, 1], ["a", "b", "b", "a", "c"]);
+        collection.insert(&mut part_states[0], &mut b).unwrap();
+        collection.merge(&op_state, &mut part_states[0]).unwrap();
+
+        let mut out = Batch::new([DataType::Int32, DataType::Utf8], 16).unwrap();
+        collection
+            .scan(&op_state, &mut part_states[0], 0, &mut out)
+            .unwrap();
+
+        let expected = generate_batch!([1, 3, 3, 1], ["a", "b", "a", "c"]);
+        assert_batches_eq(&expected, &out);
+    }
+}
