@@ -9,6 +9,7 @@ use std::task::Context;
 
 use distinct_aggregates::{
     AggregateSelection,
+    DistinctAggregateInfo,
     DistinctCollection,
     DistinctCollectionOperatorState,
     DistinctCollectionPartitionState,
@@ -52,7 +53,7 @@ pub struct HashAggregateAggregatingPartitionState {
     /// Partition state per grouping set table.
     states: Vec<GroupingSetPartitionState>,
     /// Distinct states per grouping set.
-    distinct_state: Vec<DistinctCollectionPartitionState>,
+    distinct_states: Vec<DistinctCollectionPartitionState>,
 }
 
 #[derive(Debug)]
@@ -79,7 +80,7 @@ pub struct HashAggregateOperatorState {
     /// State for each grouping set hash table.
     table_states: Vec<GroupingSetOperatorState>,
     /// Distinct collections for each grouping set.
-    distinct_collection: Vec<DistinctCollection>,
+    distinct_collections: Vec<DistinctCollection>,
     /// Distinct state for each grouping set.
     distinct_states: Vec<DistinctCollectionOperatorState>,
     inner: Mutex<HashAggregateOperatoreStateInner>,
@@ -151,6 +152,25 @@ impl BaseOperator for PhysicalHashAggregate {
             .map(|table| table.create_operator_state(props.batch_size))
             .collect::<Result<Vec<_>>>()?;
 
+        // Create distinct collection per grouping set.
+        let distinct_collections = self
+            .grouping_sets
+            .iter()
+            .map(|_| {
+                DistinctCollection::new(self.agg_selection.distinct.iter().map(|&idx| {
+                    DistinctAggregateInfo {
+                        inputs: &self.aggregates.aggregates[idx].columns,
+                        groups: &[], // TODO: Remove
+                    }
+                }))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let distinct_states = distinct_collections
+            .iter()
+            .map(|col| col.create_operator_state(props.batch_size))
+            .collect::<Result<Vec<_>>>()?;
+
         let inner = HashAggregateOperatoreStateInner {
             scan_ready: vec![false; tables.len()],
             wakers: PartitionWakers::empty(), // Set to correct size when we get the partition states.
@@ -159,8 +179,8 @@ impl BaseOperator for PhysicalHashAggregate {
         Ok(HashAggregateOperatorState {
             tables,
             table_states,
-            distinct_collection: Vec::new(),
-            distinct_states: Vec::new(),
+            distinct_collections,
+            distinct_states,
             inner: Mutex::new(inner),
         })
     }
@@ -183,6 +203,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
             .map(|idx| {
                 HashAggregateAggregatingPartitionState {
                     partition_idx: idx,
+                    distinct_states: Vec::with_capacity(operator_state.tables.len()), // Populated below
                     states: Vec::with_capacity(operator_state.tables.len()), // Populated below
                 }
             })
@@ -212,6 +233,28 @@ impl ExecuteOperator for PhysicalHashAggregate {
             }
         }
 
+        debug_assert_eq!(
+            operator_state.distinct_collections.len(),
+            operator_state.distinct_states.len(),
+        );
+
+        // Generate distinct states for each partition
+        for (distinct, op_state) in operator_state
+            .distinct_collections
+            .iter()
+            .zip(&operator_state.distinct_states)
+        {
+            let distinct_partition_states =
+                distinct.create_partition_states(op_state, partitions)?;
+
+            debug_assert_eq!(partition_states.len(), distinct_partition_states.len());
+            for (partition_state, distinct_state) in
+                partition_states.iter_mut().zip(distinct_partition_states)
+            {
+                partition_state.distinct_states.push(distinct_state);
+            }
+        }
+
         let partition_states = partition_states
             .into_iter()
             .map(HashAggregatePartitionState::Aggregating)
@@ -232,7 +275,14 @@ impl ExecuteOperator for PhysicalHashAggregate {
             HashAggregatePartitionState::Aggregating(building) => {
                 debug_assert_eq!(building.states.len(), operator_state.tables.len());
 
-                // TODO: Distinct updates.
+                // Update distinct states.
+                for (distinct, state) in operator_state
+                    .distinct_collections
+                    .iter()
+                    .zip(&mut building.distinct_states)
+                {
+                    distinct.insert(state, input)?;
+                }
 
                 // Insert input into each grouping set table.
                 for (table, state) in operator_state.tables.iter().zip(&mut building.states) {
