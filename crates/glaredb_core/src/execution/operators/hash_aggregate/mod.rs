@@ -22,6 +22,7 @@ use grouping_set_hash_table::{
 };
 use parking_lot::Mutex;
 
+use super::util::delayed_count::DelayedPartitionCount;
 use super::util::partition_wakers::PartitionWakers;
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;
@@ -100,8 +101,10 @@ pub struct HashAggregateOperatorState {
 
 #[derive(Debug)]
 struct HashAggregateOperatoreStateInner {
-    /// Indicator for if each table is ready for scanning.
-    scan_ready: Vec<bool>,
+    /// Remaining partitions working on normal aggregates.
+    remaining_normal: DelayedPartitionCount,
+    /// Remaining partitions working on distinct aggregates.
+    remaining_distinct: DelayedPartitionCount,
     /// Wakers for partitions that finished their inputs and are waiting for the
     /// global table to be ready.
     wakers: PartitionWakers,
@@ -190,7 +193,8 @@ impl BaseOperator for PhysicalHashAggregate {
             .collect::<Result<Vec<_>>>()?;
 
         let inner = HashAggregateOperatoreStateInner {
-            scan_ready: vec![false; tables.len()],
+            remaining_normal: DelayedPartitionCount::uninit(),
+            remaining_distinct: DelayedPartitionCount::uninit(),
             wakers: PartitionWakers::empty(), // Set to correct size when we get the partition states.
         };
 
@@ -230,6 +234,8 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
         let inner = &mut operator_state.inner.lock();
         inner.wakers.init_for_partitions(partitions);
+        inner.remaining_normal.set(partitions)?;
+        inner.remaining_distinct.set(partitions)?;
 
         debug_assert_eq!(
             operator_state.table_states.len(),
@@ -377,7 +383,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     // Check operator state to really see if the scan is ready
                     // or not.
                     let mut shared_state = operator_state.inner.lock();
-                    let scan_ready = shared_state.scan_ready.iter().all(|&ready| ready);
+                    let scan_ready = shared_state.remaining_normal.current()? == 0;
                     if !scan_ready {
                         // Come back later.
                         shared_state
@@ -439,23 +445,8 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     distinct.merge(op_state, part_state)?;
                 }
 
-                // TODO: We shouldn't be locking here. We should lock after the
-                // merges. But there seems to be some coordination issues.
-                let mut shared_state = operator_state.inner.lock();
-
-                // Note we track scan readiness per table since we may be
-                // finalizing multiple partitions at once, and the order in
-                // which we acquire the locks in the table isn't guaranteed.
-                //
-                // We only update the operator state for tables that return
-                // 'true' from the merge, indicating that table is ready.
-                //
-                // Then every partition will check if all tables are set to
-                // 'true', and if so, will wake everyone up.
-                let mut ready = vec![false; operator_state.tables.len()];
-
-                for (table_idx, ready) in ready.iter_mut().enumerate() {
-                    *ready = operator_state.tables[table_idx].merge(
+                for (table_idx, table) in operator_state.tables.iter().enumerate() {
+                    let _ = table.merge(
                         &operator_state.table_states[table_idx],
                         &mut building.states[table_idx],
                         self.agg_selection.non_distinct.iter().copied(),
@@ -473,14 +464,9 @@ impl ExecuteOperator for PhysicalHashAggregate {
                         states: table_states,
                     });
 
-                for (table_idx, ready) in ready.into_iter().enumerate() {
-                    if ready {
-                        shared_state.scan_ready[table_idx] = true;
-                    }
-                }
-
-                let scan_ready = shared_state.scan_ready.iter().all(|&ready| ready);
-                if scan_ready {
+                let mut shared_state = operator_state.inner.lock();
+                let remaining = shared_state.remaining_normal.dec_by_one()?;
+                if remaining == 0 {
                     // Wake up all partitions, we're ready to produce results.
                     shared_state.wakers.wake_all();
                 }
