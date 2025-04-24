@@ -387,9 +387,6 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     }
                 }
 
-                // TODO: Move below the merge.
-                let mut shared = operator_state.inner.lock();
-
                 // Now merge into the global table.
                 for (table_idx, table) in operator_state.tables.iter().enumerate() {
                     let _ = table.merge(
@@ -398,6 +395,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     )?;
                 }
 
+                let mut shared = operator_state.inner.lock();
                 let remaining = shared.remaining_distinct.dec_by_one()?;
 
                 if remaining == 0 {
@@ -482,9 +480,6 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 // Finalize the building for this partition by merging all
                 // partition-local tables into the operator tables.
 
-                // TODO: Figure out how to not need this here.
-                let mut shared_state = operator_state.inner.lock();
-
                 // Merge the distinct collections.
                 for (idx, distinct) in operator_state.distinct_collections.iter().enumerate() {
                     let op_state = &operator_state.distinct_states[idx];
@@ -516,6 +511,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
                         },
                     );
 
+                    let mut shared_state = operator_state.inner.lock();
                     let remaining = shared_state.remaining_normal.dec_by_one()?;
                     // Decremtn the the pending distinct count too so we can
                     // simplify the check in drain.
@@ -547,6 +543,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
                         },
                     );
 
+                    let mut shared_state = operator_state.inner.lock();
                     let remaining = shared_state.remaining_normal.dec_by_one()?;
 
                     if remaining == 0 {

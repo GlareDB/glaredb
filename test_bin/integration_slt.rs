@@ -72,7 +72,7 @@ where
             engine,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
-            query_timeout: Duration::from_secs(5),
+            query_timeout: Duration::from_secs(30),
         })
     }
 }
