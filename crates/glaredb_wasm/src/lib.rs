@@ -58,4 +58,24 @@ pub mod wasm_tests {
         let expected = generate_batch!([1000]);
         assert_batches_eq(&expected, batch);
     }
+
+    #[wasm_bindgen_test]
+    #[allow(unused)]
+    async fn query_temp_table() {
+        let session = WasmSession::try_new().unwrap();
+        let _ = session
+            .query("CREATE TEMP TABLE t1 (a INT, b TEXT)")
+            .await
+            .unwrap();
+        let _ = session
+            .query("INSERT INTO t1 VALUES (4, 'four'), (5, 'five')")
+            .await
+            .unwrap();
+
+        let q_res = session.query("SELECT * FROM t1 ORDER BY a").await.unwrap();
+        let batch = &q_res.batches[0];
+
+        let expected = generate_batch!([4, 5], ["four", "five"]);
+        assert_batches_eq(&expected, batch);
+    }
 }
