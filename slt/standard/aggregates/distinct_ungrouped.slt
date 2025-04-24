@@ -1,0 +1,87 @@
+# DISTINCT aggregates without GROUP BY
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b TEXT);
+
+statement ok
+INSERT INTO t1 VALUES
+  (3, 'x'),
+  (3, 'y'),
+  (4, 'y'),
+  (5, 'z'),
+  (6, 'z');
+
+query I
+SELECT count(DISTINCT b) FROM t1;
+----
+3
+
+query II
+SELECT count(a), count(DISTINCT b) FROM t1;
+----
+5  3
+
+query II
+SELECT count(a), count(DISTINCT b), count(DISTINCT a) FROM t1;
+----
+5  3  4
+
+statement ok
+CREATE TEMP TABLE nums AS
+  SELECT * FROM generate_series(1, 1000) g1(a), generate_series(1, 1000) g2(b);
+
+query II
+SELECT count(a), count(DISTINCT a) FROM nums;
+----
+1000000  1000
+
+query II
+SELECT sum(a), sum(DISTINCT a) FROM nums;
+----
+500500000  500500
+
+query II
+SELECT count(DISTINCT a), sum(DISTINCT a) FROM nums;
+----
+1000  500500
+
+query II
+SELECT count(DISTINCT b), sum(DISTINCT a) FROM nums
+----
+1000  500500
+
+query IIII
+SELECT count(DISTINCT b), count(a), sum(DISTINCT a), count(b) FROM nums;
+----
+1000  1000000  500500  1000000
+
+# Expression with the DISTINCT
+query I
+SELECT count(DISTINCT b % 10) FROM nums;
+----
+10
+
+# TODO: Stuck
+# # Subquery with DISTINCT.
+# query I
+# SELECT count(DISTINCT (SELECT a)) FROM nums;
+# ----
+
+# Multiple inputs
+query R
+SELECT regr_avgx(DISTINCT a, b) FROM (SELECT a % 5, b % 10 FROM nums) s(a, b);
+----
+4.5
+
+query RII
+SELECT regr_avgx(DISTINCT a, b), count(DISTINCT a), count(DISTINCT b) FROM (SELECT a % 5, b % 10 FROM nums) s(a, b);
+----
+4.5  5  10
+
+query RIII
+SELECT regr_avgx(DISTINCT a, b), count(DISTINCT a), count(DISTINCT b), sum(DISTINCT a + b) FROM (SELECT a % 5, b % 10 FROM nums) s(a, b);
+----
+4.5  5  10  91

@@ -87,12 +87,12 @@ impl OperatorPlanState<'_> {
             children: vec![child],
         };
 
-        if phys_aggs.iter().any(|agg| agg.is_distinct) {
-            not_implemented!("distinct aggregates")
-        }
-
         match agg.node.grouping_sets {
             Some(grouping_sets) => {
+                if phys_aggs.iter().any(|agg| agg.is_distinct) {
+                    not_implemented!("distinct aggregates with GROUP BY clause")
+                }
+
                 // If we're working with groups, push a hash aggregate operator.
                 let aggregates = Aggregates {
                     groups,

@@ -5,17 +5,18 @@ mod grouping_set_hash_table;
 mod grouping_value;
 
 use std::collections::BTreeSet;
-use std::task::{Context, Waker};
+use std::task::Context;
 
+use distinct_aggregates::AggregateSelection;
 use glaredb_error::{DbError, Result};
 use grouping_set_hash_table::{
-    GroupingSetBuildPartitionState,
     GroupingSetHashTable,
     GroupingSetOperatorState,
-    GroupingSetScanPartitionState,
+    GroupingSetPartitionState,
 };
 use parking_lot::Mutex;
 
+use super::util::partition_wakers::PartitionWakers;
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
@@ -43,38 +44,43 @@ pub enum HashAggregatePartitionState {
 #[derive(Debug)]
 pub struct HashAggregateBuildingPartitionState {
     partition_idx: usize,
-    /// Build states per grouping set table.
-    states: Vec<GroupingSetBuildPartitionState>,
+    /// Partition state per grouping set table.
+    states: Vec<GroupingSetPartitionState>,
 }
 
 #[derive(Debug)]
 pub struct HashAggregateScanningPartitionState {
     partition_idx: usize,
-    /// If we need to populate the scan states.
-    needs_populate: bool,
+    /// If the scan is ready.
+    ///
+    /// Stored on the partiton state to avoid needing to look at the operator
+    /// state.
+    ///
+    /// If false, check operator state.
+    scan_ready: bool,
     /// Scan states per grouping set tables.
     ///
     /// This should be treated as a queue, each scan state should be exhausted
     /// (and removed) until we have no scan states left.
-    states: Vec<(GroupingSetScanPartitionState, usize)>,
+    states: Vec<(usize, GroupingSetPartitionState)>,
 }
 
 #[derive(Debug)]
 pub struct HashAggregateOperatorState {
     /// Hash table per grouping set.
     tables: Vec<GroupingSetHashTable>,
+    /// State for each grouping set hash table.
+    table_states: Vec<GroupingSetOperatorState>,
     inner: Mutex<HashAggregateOperatoreStateInner>,
 }
 
 #[derive(Debug)]
 struct HashAggregateOperatoreStateInner {
-    /// If all tables are ready for scanning.
-    scan_ready: bool,
-    /// State for each grouping set hash table.
-    table_states: Vec<GroupingSetOperatorState>,
+    /// Indicator for if each table is ready for scanning.
+    scan_ready: Vec<bool>,
     /// Wakers for partitions that finished their inputs and are waiting for the
     /// global table to be ready.
-    wakers: Vec<Option<Waker>>,
+    wakers: PartitionWakers,
 }
 
 /// Compute aggregates over input batches.
@@ -87,11 +93,15 @@ pub struct PhysicalHashAggregate {
     /// Aggregates we're working on.
     pub(crate) aggregates: Aggregates,
     pub(crate) output_types: Vec<DataType>,
+    /// Distinct/non-distinct aggregate indices.
+    pub(crate) agg_selection: AggregateSelection,
 }
 
 impl PhysicalHashAggregate {
     pub fn new(aggregates: Aggregates, grouping_sets: Vec<BTreeSet<usize>>) -> Self {
         let mut output_types = Vec::new();
+
+        let agg_selection = AggregateSelection::new(&aggregates.aggregates);
 
         for group in &aggregates.groups {
             output_types.push(group.datatype.clone());
@@ -107,6 +117,7 @@ impl PhysicalHashAggregate {
             grouping_sets,
             aggregates,
             output_types,
+            agg_selection,
         }
     }
 }
@@ -121,19 +132,22 @@ impl BaseOperator for PhysicalHashAggregate {
         let tables: Vec<_> = self
             .grouping_sets
             .iter()
-            .map(|grouping_set| {
-                GroupingSetHashTable::new(&self.aggregates, grouping_set.clone(), props.batch_size)
-            })
+            .map(|grouping_set| GroupingSetHashTable::new(&self.aggregates, grouping_set.clone()))
             .collect();
 
+        let table_states = tables
+            .iter()
+            .map(|table| table.create_operator_state(props.batch_size))
+            .collect::<Result<Vec<_>>>()?;
+
         let inner = HashAggregateOperatoreStateInner {
-            scan_ready: false,
-            table_states: Vec::with_capacity(tables.len()), // Populated below when we get the partition states.
-            wakers: Vec::new(), // Set to correct size when we get the partition states.
+            scan_ready: vec![false; tables.len()],
+            wakers: PartitionWakers::empty(), // Set to correct size when we get the partition states.
         };
 
         Ok(HashAggregateOperatorState {
             tables,
+            table_states,
             inner: Mutex::new(inner),
         })
     }
@@ -162,9 +176,20 @@ impl ExecuteOperator for PhysicalHashAggregate {
             .collect();
 
         let inner = &mut operator_state.inner.lock();
-        for table in &operator_state.tables {
-            let (table_op_state, table_partition_states) = table.init_states(partitions)?;
-            inner.table_states.push(table_op_state);
+        inner.wakers.init_for_partitions(partitions);
+
+        debug_assert_eq!(
+            operator_state.table_states.len(),
+            operator_state.tables.len()
+        );
+
+        // Generate build states for each partition.
+        for (table, op_state) in operator_state
+            .tables
+            .iter()
+            .zip(&operator_state.table_states)
+        {
+            let table_partition_states = table.create_partition_states(op_state, partitions)?;
 
             debug_assert_eq!(partition_states.len(), table_partition_states.len());
             for (partition_state, table_state) in
@@ -173,9 +198,6 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 partition_state.states.push(table_state);
             }
         }
-
-        // Resize partition waker vec.
-        inner.wakers.resize(partitions, None);
 
         let partition_states = partition_states
             .into_iter()
@@ -197,44 +219,37 @@ impl ExecuteOperator for PhysicalHashAggregate {
             HashAggregatePartitionState::Building(building) => {
                 debug_assert_eq!(building.states.len(), operator_state.tables.len());
 
+                // TODO: Distinct updates.
+
                 // Insert input into each grouping set table.
                 for (table, state) in operator_state.tables.iter().zip(&mut building.states) {
-                    table.insert(state, input)?;
+                    table.insert(state, &self.agg_selection.non_distinct, input)?;
                 }
 
                 Ok(PollExecute::NeedsMore)
             }
             HashAggregatePartitionState::Scanning(scanning) => {
-                if scanning.needs_populate {
-                    // Get states from operator state.
+                if !scanning.scan_ready {
+                    // Check operator state to really see if the scan is ready
+                    // or not.
                     let mut shared_state = operator_state.inner.lock();
-                    if !shared_state.scan_ready {
+                    let scan_ready = shared_state.scan_ready.iter().all(|&ready| ready);
+                    if !scan_ready {
                         // Come back later.
-                        shared_state.wakers[scanning.partition_idx] = Some(cx.waker().clone());
+                        shared_state
+                            .wakers
+                            .store(cx.waker(), scanning.partition_idx);
                         return Ok(PollExecute::Pending);
                     }
 
-                    // All tables ready, take a scan state for each.
-                    debug_assert_eq!(operator_state.tables.len(), shared_state.table_states.len());
-                    for (idx, (table, table_state)) in operator_state
-                        .tables
-                        .iter()
-                        .zip(&mut shared_state.table_states)
-                        .enumerate()
-                    {
-                        let scan_state = table.take_partition_scan_state(table_state)?;
-                        scanning.states.push((scan_state, idx));
-                    }
-
-                    scanning.needs_populate = false;
-
-                    // Continue on, we have all the scan states we need.
+                    // We're good to scan, continue on...
+                    scanning.scan_ready = true;
                 }
 
                 loop {
                     // Fill up our output batch by trying to scan as many tables
                     // as we can.
-                    let (mut scan_state, table_idx) = match scanning.states.pop() {
+                    let (table_idx, mut scan_state) = match scanning.states.pop() {
                         Some(v) => v,
                         None => {
                             // No more states, we're completely exhausted.
@@ -244,8 +259,9 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     };
 
                     let table = &operator_state.tables[table_idx];
+                    let table_op_state = &operator_state.table_states[table_idx];
 
-                    table.scan(&mut scan_state, output)?;
+                    table.scan(table_op_state, &mut scan_state, output)?;
                     if output.num_rows == 0 {
                         // Scan produced no rows, try the next state.
                         continue;
@@ -253,7 +269,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
                     // Scan produced rows, push this state back onto the queue
                     // for the next poll.
-                    scanning.states.push((scan_state, table_idx));
+                    scanning.states.push((table_idx, scan_state));
 
                     return Ok(PollExecute::HasMore);
                 }
@@ -272,48 +288,50 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 // Finalize the building for this partition by merging all
                 // partition-local tables into the operator tables.
 
-                let partition_idx = building.partition_idx;
-                // Replace partition state to ready it for scanning.
-                let state = std::mem::replace(
-                    state,
-                    HashAggregatePartitionState::Scanning(HashAggregateScanningPartitionState {
-                        partition_idx,
-                        needs_populate: true,
-                        states: Vec::with_capacity(self.grouping_sets.len()),
-                    }),
-                );
-
-                // Get the partition-local hash tables, merge with operator hash
-                // tables.
-                let mut partition_state = match state {
-                    HashAggregatePartitionState::Building(state) => state,
-                    HashAggregatePartitionState::Scanning(_) => unreachable!(),
-                };
-
+                // TODO: We shouldn't be locking here. We should lock after the
+                // merges. But there seems to be some coordination issues.
                 let mut shared_state = operator_state.inner.lock();
 
-                for table_idx in 0..operator_state.tables.len() {
-                    let scan_ready = operator_state.tables[table_idx].merge(
-                        &mut shared_state.table_states[table_idx],
-                        &mut partition_state.states[table_idx],
-                    )?;
+                // Note we track scan readiness per table since we may be
+                // finalizing multiple partitions at once, and the order in
+                // which we acquire the locks in the table isn't guaranteed.
+                //
+                // We only update the operator state for tables that return
+                // 'true' from the merge, indicating that table is ready.
+                //
+                // Then every partition will check if all tables are set to
+                // 'true', and if so, will wake everyone up.
+                let mut ready = vec![false; operator_state.tables.len()];
 
-                    // Just set if we're ready on the first table. If the first
-                    // table is ready for scanning, then all tables should be
-                    // ready for scanning.
-                    if table_idx == 0 {
-                        shared_state.scan_ready = scan_ready
-                    }
-                    debug_assert_eq!(shared_state.scan_ready, scan_ready);
+                for (table_idx, ready) in ready.iter_mut().enumerate() {
+                    *ready = operator_state.tables[table_idx].merge(
+                        &operator_state.table_states[table_idx],
+                        &mut building.states[table_idx],
+                        self.agg_selection.non_distinct.iter().copied(),
+                    )?;
                 }
 
-                if shared_state.scan_ready {
-                    // Wake up all partitions, we're ready to produce results.
-                    for waker in &mut shared_state.wakers {
-                        if let Some(waker) = waker.take() {
-                            waker.wake();
-                        }
+                // Attach table indices to the states. We're going to drain the
+                // states as a queue during draining, so we need to preserve the
+                // table index the state is for.
+                let table_states: Vec<_> = building.states.drain(..).enumerate().collect();
+                *state =
+                    HashAggregatePartitionState::Scanning(HashAggregateScanningPartitionState {
+                        partition_idx: building.partition_idx,
+                        scan_ready: false,
+                        states: table_states,
+                    });
+
+                for (table_idx, ready) in ready.into_iter().enumerate() {
+                    if ready {
+                        shared_state.scan_ready[table_idx] = true;
                     }
+                }
+
+                let scan_ready = shared_state.scan_ready.iter().all(|&ready| ready);
+                if scan_ready {
+                    // Wake up all partitions, we're ready to produce results.
+                    shared_state.wakers.wake_all();
                 }
 
                 Ok(PollFinalize::NeedsDrain)
