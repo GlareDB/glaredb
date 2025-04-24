@@ -110,6 +110,21 @@ Get the min and max `population` from a `cities` table:
 SELECT min(population), max(population) FROM cities;
 ```
 
+### DISTINCT Aggregates
+
+Aggregate functions can be used with the `DISTINCT` keyword to operate only on unique values rather than all values. When `DISTINCT` is specified, duplicate values are eliminated before the aggregate function is applied.
+
+For example:
+```sql
+-- Count the number of unique departments
+SELECT count(DISTINCT department) FROM employees;
+
+-- Calculate the sum of unique values
+SELECT sum(DISTINCT salary) FROM employees;
+```
+
+The `DISTINCT` modifier can be used with any aggregate function.
+
 ## DISTINCT Clause
 
 The `DISTINCT` clause removes duplicate rows from the result set.
