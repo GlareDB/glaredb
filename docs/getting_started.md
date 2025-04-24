@@ -8,25 +8,40 @@ order: 1
 GlareDB is a lightweight analytical database engine designed for
 high-performance SQL analytics.
 
-For installation instructions, head over to the [Install] page.
+## Install
 
-## Query data
+GlareDB can be installed either as a standalone CLI, or used as a library inside
+of Python programs.
 
-Running the CLI without any arguments will drop you into an interactive shell:
+### CLI
 
-```
-$ ~/.glaredb/bin/glaredb
-GlareDB Shell
-v0.10.10
-Enter .help for usage hints.
-glaredb>
-```
+Install the latest version of the GlareDB CLI:
 
-From here, you'll be able to start running SQL queries. For example, we can
-query some sample data from S3:
-
-```sql
-SELECT * FROM 's3://glaredb-public/userdata0.parquet' LIMIT 10;
+```bash
+curl -fsSL https://glaredb.com/install.sh | sh
 ```
 
-[Install]: ./install
+The binary will be located at `~/.glaredb/bin/glaredb`.
+
+### Python
+
+Install the GlareDB Python package via `pip`:
+
+```bash
+pip install glaredb
+```
+
+Then simply import `glaredb` inside your Python script.
+
+# Supported Platforms
+
+GlareDB supports the following platforms:
+
+| OS/Architecture | Additional Requirements |
+|-----------------|-------------------------|
+| macOS 14+ Arm64 |                         |
+| Linux x86_64    | glibc 2.28+             |
+| Linux Arm64     | glibc 2.28+             |
+
+Additional platforms will be supported in the future.
+
