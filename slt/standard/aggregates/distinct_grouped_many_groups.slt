@@ -1,0 +1,21 @@
+# DISTINCT with GROUP BY and many group values.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE nums AS
+  SELECT * FROM generate_series(1, 1000) g1(a), generate_series(1, 1000) g2(b);
+
+query II
+SELECT min(a), max(a) FROM ( SELECT sum(DISTINCT a) FROM nums GROUP BY a % 1000) s(a);
+----
+1  1000
+
+# Multiple inputs
+query RRRRRR
+SELECT min(r), max(r), min(a1), max(a1), min(a2), max(a2)
+  FROM (SELECT regr_avgx(DISTINCT a,b), avg(DISTINCT b), avg(DISTINCT a)
+            FROM nums GROUP BY a % 1000) s(r, a1, a2);
+----
+500.5  500.5  500.5  500.5  1  1000
