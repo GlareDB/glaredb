@@ -156,11 +156,17 @@ impl BaseOperator for PhysicalHashAggregate {
         let distinct_collections = self
             .grouping_sets
             .iter()
-            .map(|_| {
+            .map(|grouping_set| {
+                // Need to distinct on groups too.
+                let groups: Vec<_> = grouping_set
+                    .iter()
+                    .map(|&group_idx| self.aggregates.groups[group_idx].clone())
+                    .collect();
+
                 DistinctCollection::new(self.agg_selection.distinct.iter().map(|&idx| {
                     DistinctAggregateInfo {
                         inputs: &self.aggregates.aggregates[idx].columns,
-                        groups: &[], // TODO: Remove
+                        groups: &groups,
                     }
                 }))
             })
