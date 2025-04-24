@@ -35,6 +35,7 @@ pub fn connect() -> Result<PythonSession> {
     engine.register_extension(ParquetExtension)?;
 
     Ok(PythonSession {
+        tokio_rt,
         engine: Some(engine),
     })
 }
@@ -42,6 +43,13 @@ pub fn connect() -> Result<PythonSession> {
 #[pyclass]
 #[derive(Debug)]
 pub struct PythonSession {
+    /// Keep the tokio runtime on the session to ensure it doesn't get dropped.
+    ///
+    /// Our native runtime only holds onto a handle. By storing the runtime
+    /// here, we ensure that the handle remains valid through the lifetime of
+    /// the session.
+    #[expect(unused)]
+    pub(crate) tokio_rt: tokio::runtime::Runtime,
     /// Single user engine backing this session.
     ///
     /// Wrapped in an option so that we can properly drop it on close and error

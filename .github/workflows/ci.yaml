@@ -33,7 +33,7 @@ jobs:
       - name: Lint
         run: cargo clippy --all --all-features -- --deny warnings
 
-  build:
+  tests:
     name: Tests
     runs-on: ubuntu-latest
     steps:
@@ -210,6 +210,21 @@ jobs:
       # - name: SLTs Clickbench truncated
       #   run: |
       #     cargo test slt/clickbench
+
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Tests
+        run: ./scripts/ci_run_python_tests.sh
 
   miri:
     name: Run Miri

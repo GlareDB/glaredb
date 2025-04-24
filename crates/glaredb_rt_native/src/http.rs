@@ -31,7 +31,10 @@ impl HttpClient for TokioWrappedHttpClient {
         let handle = self.handle.clone();
 
         Box::pin(async move {
-            let join = handle.spawn(fut).await.context("Failed to join")?;
+            let join = handle
+                .spawn(fut)
+                .await
+                .context("Failed to await Tokio task for http request")?;
             let resp = join.context("Failed to send request")?;
 
             Ok(TokioWrappedResponse {
