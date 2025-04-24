@@ -201,6 +201,7 @@ impl ConcurrentColumnCollection {
 
     /// Scan implemenation with the next segment id to scan determined by the
     /// provided function.
+    // TODO: Scanning doesn't properly take into account the output batch size.
     fn scan_inner(
         &self,
         projections: &Projections,

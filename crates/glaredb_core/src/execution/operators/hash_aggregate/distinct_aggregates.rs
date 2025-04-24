@@ -43,10 +43,10 @@ impl AggregateSelection {
 
 #[derive(Debug, Clone)]
 pub struct DistinctAggregateInfo<'a> {
-    /// Input arguments to the aggregate that should be distinct.
-    pub inputs: &'a [PhysicalColumnExpr],
     /// Group keys we'll be DISTINCTing on as well.
     pub groups: &'a [PhysicalColumnExpr],
+    /// Input arguments to the aggregate that should be distinct.
+    pub inputs: &'a [PhysicalColumnExpr],
 }
 
 #[derive(Debug)]
@@ -107,10 +107,10 @@ impl DistinctCollection {
             // We're going to be DISTINCTing on both the aggregate inputs and
             // the groups.
             let inputs: Vec<_> = agg
-                .inputs
+                .groups
                 .iter()
                 .cloned()
-                .chain(agg.groups.iter().cloned())
+                .chain(agg.inputs.iter().cloned())
                 .collect();
 
             // Try to find an exisitng table with the same set of inputs.
@@ -149,6 +149,8 @@ impl DistinctCollection {
     }
 
     /// Return an iterator of datatypes in a given table.
+    ///
+    /// The return types are ordered GROUP types first, then input types.
     pub fn iter_table_types(&self, table_idx: usize) -> impl ExactSizeIterator<Item = DataType> {
         self.tables[table_idx]
             .inputs
@@ -208,12 +210,13 @@ impl DistinctCollection {
         for (table, state) in self.tables.iter().zip(&mut state.states) {
             // No agg selection since we don't have any aggs in the hash table.
             // It's just a big GROUP BY.
-            table.table.insert(state, &[], input)?;
+            table.table.insert_input(state, &[], input)?;
         }
 
         Ok(())
     }
 
+    /// Merge the local table into the global table.
     pub fn merge(
         &self,
         op_state: &DistinctCollectionOperatorState,
@@ -225,13 +228,16 @@ impl DistinctCollection {
         let state_iter = op_state.states.iter().zip(&mut state.states);
 
         for (table, (op_state, part_state)) in self.tables.iter().zip(state_iter) {
-            // No agg selection.
-            let _ = table.table.merge(op_state, part_state, [])?;
+            let _ = table.table.merge(op_state, part_state)?;
         }
 
         Ok(())
     }
 
+    /// Scan the distinct table.
+    ///
+    /// This may be called concurrently with other partitions, each partition
+    /// will be readining a disjoint set of rows.
     pub fn scan(
         &self,
         op_state: &DistinctCollectionOperatorState,

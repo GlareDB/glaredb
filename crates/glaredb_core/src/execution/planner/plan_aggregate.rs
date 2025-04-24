@@ -1,4 +1,4 @@
-use glaredb_error::{DbError, Result, ResultExt, not_implemented};
+use glaredb_error::{DbError, Result, ResultExt};
 
 use super::OperatorPlanState;
 use crate::execution::operators::hash_aggregate::{Aggregates, PhysicalHashAggregate};
@@ -89,10 +89,6 @@ impl OperatorPlanState<'_> {
 
         match agg.node.grouping_sets {
             Some(grouping_sets) => {
-                if phys_aggs.iter().any(|agg| agg.is_distinct) {
-                    not_implemented!("distinct aggregates with GROUP BY clause")
-                }
-
                 // If we're working with groups, push a hash aggregate operator.
                 let aggregates = Aggregates {
                     groups,

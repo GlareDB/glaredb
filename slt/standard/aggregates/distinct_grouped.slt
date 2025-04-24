@@ -1,0 +1,84 @@
+# DISTINCT aggregates with GROUP BY
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b TEXT);
+
+statement ok
+INSERT INTO t1 VALUES
+  (3, 'x'),
+  (3, 'y'),
+  (4, 'y'),
+  (5, 'z'),
+  (6, 'z');
+
+query TI
+SELECT b, count(DISTINCT b) FROM t1 GROUP BY b ORDER BY 1;
+----
+x  1
+y  1
+z  1
+
+query TII
+SELECT b, count(DISTINCT a), sum(DISTINCT a) FROM t1 GROUP BY b ORDER BY 1;
+----
+x  1  3
+y  2  7
+z  2  11
+
+statement ok
+CREATE TEMP TABLE nums AS
+  SELECT * FROM generate_series(1, 1000) g1(a), generate_series(1, 1000) g2(b);
+
+query RRR
+SELECT avg(a % 10), avg(DISTINCT a), avg(DISTINCT b) FROM nums GROUP BY a % 10 ORDER BY 1;
+----
+0  505  500.5
+1  496  500.5
+2  497  500.5
+3  498  500.5
+4  499  500.5
+5  500  500.5
+6  501  500.5
+7  502  500.5
+8  503  500.5
+9  504  500.5
+
+query RR
+SELECT avg(DISTINCT a), avg(DISTINCT b) FROM nums GROUP BY a % 4, b % 2 ORDER BY 1,2;
+----
+499  500
+499  501
+500  500
+500  501
+501  500
+501  501
+502  500
+502  501
+
+query RR
+SELECT avg(DISTINCT a), sum(DISTINCT b) FROM nums GROUP BY a % 4, b % 2 ORDER BY 1,2;
+----
+499  250000
+499  250500
+500  250000
+500  250500
+501  250000
+501  250500
+502  250000
+502  250500
+
+query RR
+SELECT avg(DISTINCT a), sum(DISTINCT b), sum(b) FROM nums GROUP BY a % 4, b % 2 ORDER BY 1,2;
+----
+499  250000  62500000
+499  250500  62625000
+500  250000  62500000
+500  250500  62625000
+501  250000  62500000
+501  250500  62625000
+502  250000  62500000
+502  250500  62625000
+

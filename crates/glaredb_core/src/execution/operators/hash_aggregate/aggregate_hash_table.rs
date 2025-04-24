@@ -109,6 +109,8 @@ impl AggregateHashTable {
     /// `inputs` should be ordered inputs to the aggregates in this table.
     ///
     /// See `AggregateLayout::update_states` for specifics.
+    // TODO: Probably just make this accept a slice of arrays to avoid the batch
+    // stuff.
     pub fn insert(
         &mut self,
         state: &mut AggregateHashTableInsertState,
