@@ -305,7 +305,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
                 // Insert input into each grouping set table.
                 for (table, state) in operator_state.tables.iter().zip(&mut aggregating.states) {
-                    table.insert(state, &self.agg_selection.non_distinct, input)?;
+                    table.insert_input(state, &self.agg_selection.non_distinct, input)?;
                 }
 
                 Ok(PollExecute::NeedsMore)
@@ -332,6 +332,18 @@ impl ExecuteOperator for PhysicalHashAggregate {
                             operator_state.batch_size,
                         )?;
 
+                        // Figure out which aggs these inputs actually apply to.
+                        let agg_sel: Vec<_> = distinct
+                            .aggregates_for_table(table_idx)
+                            .iter()
+                            .map(|&distinct_agg_idx| {
+                                // Distinct table only knows about distinct
+                                // aggregates. Map that index back to the full
+                                // aggregate list.
+                                self.agg_selection.distinct[distinct_agg_idx]
+                            })
+                            .collect();
+
                         loop {
                             batch.reset_for_write()?;
                             distinct.scan(
@@ -346,10 +358,17 @@ impl ExecuteOperator for PhysicalHashAggregate {
                                 break;
                             }
 
-                            // TODO: Insert here
+                            // Now insert into the normal agg table.
+                            operator_state.tables[grouping_set_idx].insert_for_distinct(
+                                &mut aggregating.states[grouping_set_idx],
+                                &agg_sel,
+                                &mut batch,
+                            )?;
                         }
                     }
                 }
+
+                // Now merge into the global table.
 
                 unimplemented!()
             }

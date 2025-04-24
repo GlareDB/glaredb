@@ -222,11 +222,72 @@ impl GroupingSetHashTable {
         types.iter().take(types.len() - 1).cloned()
     }
 
+    /// Similar to `insert`, but with the input batches already containing the
+    /// groups and inputs in the right order.
+    ///
+    /// Groups come first, followed by the aggregate inputs.
+    ///
+    /// The physical column expressions for the grouping set are not consulted.
+    pub fn insert_for_distinct(
+        &self,
+        state: &mut GroupingSetPartitionState,
+        agg_selection: &[usize],
+        input: &mut Batch,
+    ) -> Result<()> {
+        let state = match &mut state.inner {
+            PartitionState::Building(state) => state,
+            _ => return Err(DbError::new("Partition-local table already finished")),
+        };
+
+        if agg_selection.is_empty() {
+            return Ok(());
+        }
+
+        // Clone the group arrays.
+        for idx in 0..self.grouping_set.len() {
+            state.groups.clone_array_from(idx, (input, idx))?;
+        }
+
+        // Clone input arrays.
+
+        let mut prev_sel = 0;
+        let mut state_input_idx = 0;
+
+        let mut input_idx = self.grouping_set.len();
+
+        for &sel in agg_selection {
+            while prev_sel != sel {
+                state_input_idx += self.layout.aggregates[prev_sel].columns.len();
+                prev_sel += 1;
+            }
+
+            for idx in 0..self.layout.aggregates[sel].columns.len() {
+                state
+                    .inputs
+                    .clone_array_from(state_input_idx + idx, (input, input_idx))?;
+                input_idx += 1;
+            }
+        }
+
+        state.groups.set_num_rows(input.num_rows())?;
+        state.inputs.set_num_rows(input.num_rows())?;
+
+        state.hash_table.insert(
+            &mut state.insert_state,
+            agg_selection,
+            &state.groups,
+            &state.inputs,
+        )?;
+
+        Ok(())
+    }
+
     /// Insert a batch into the hash table.
     ///
     /// This will pull out the grouping columns according to this table's
-    /// grouping set, and insert into the hash table using those values.
-    pub fn insert(
+    /// grouping set using physical column expressions, and insert into the hash
+    /// table using those values.
+    pub fn insert_input(
         &self,
         state: &mut GroupingSetPartitionState,
         agg_selection: &[usize],
@@ -505,7 +566,9 @@ mod tests {
         assert_eq!(1, part_states.len());
 
         let mut input = generate_batch!(["a", "b", "c", "a"], [1_i64, 2, 3, 4]);
-        table.insert(&mut part_states[0], &[0], &mut input).unwrap();
+        table
+            .insert_input(&mut part_states[0], &[0], &mut input)
+            .unwrap();
 
         let scan_ready = table
             .merge(&mut op_state, &mut part_states[0], [0])
@@ -555,7 +618,9 @@ mod tests {
             [1_i64, 2, 3, 4],
             ["gg", "ff", "gg", "ff"]
         );
-        table.insert(&mut part_states[0], &[0], &mut input).unwrap();
+        table
+            .insert_input(&mut part_states[0], &[0], &mut input)
+            .unwrap();
 
         let scan_ready = table
             .merge(&mut op_state, &mut part_states[0], [0])
