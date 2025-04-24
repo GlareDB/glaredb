@@ -288,6 +288,10 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 // Finalize the building for this partition by merging all
                 // partition-local tables into the operator tables.
 
+                // TODO: We shouldn't be locking here. We should lock after the
+                // merges. But there seems to be some coordination issues.
+                let mut shared_state = operator_state.inner.lock();
+
                 // Note we track scan readiness per table since we may be
                 // finalizing multiple partitions at once, and the order in
                 // which we acquire the locks in the table isn't guaranteed.
@@ -318,7 +322,6 @@ impl ExecuteOperator for PhysicalHashAggregate {
                         states: table_states,
                     });
 
-                let mut shared_state = operator_state.inner.lock();
                 for (table_idx, ready) in ready.into_iter().enumerate() {
                     if ready {
                         shared_state.scan_ready[table_idx] = true;
