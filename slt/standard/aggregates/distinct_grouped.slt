@@ -1,0 +1,23 @@
+# DISTINCT aggregates with GROUP BY
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b TEXT);
+
+statement ok
+INSERT INTO t1 VALUES
+  (3, 'x'),
+  (3, 'y'),
+  (4, 'y'),
+  (5, 'z'),
+  (6, 'z');
+
+query I
+SELECT b, count(DISTINCT b) FROM t1 GROUP BY b ORDER BY 1;
+----
+x  1
+y  1
+z  1
+

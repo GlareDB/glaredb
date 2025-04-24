@@ -7,7 +7,12 @@ mod grouping_value;
 use std::collections::BTreeSet;
 use std::task::Context;
 
-use distinct_aggregates::AggregateSelection;
+use distinct_aggregates::{
+    AggregateSelection,
+    DistinctCollection,
+    DistinctCollectionOperatorState,
+    DistinctCollectionPartitionState,
+};
 use glaredb_error::{DbError, Result};
 use grouping_set_hash_table::{
     GroupingSetHashTable,
@@ -37,15 +42,17 @@ pub struct Aggregates {
 
 #[derive(Debug)]
 pub enum HashAggregatePartitionState {
-    Building(HashAggregateBuildingPartitionState),
+    Aggregating(HashAggregateAggregatingPartitionState),
     Scanning(HashAggregateScanningPartitionState),
 }
 
 #[derive(Debug)]
-pub struct HashAggregateBuildingPartitionState {
+pub struct HashAggregateAggregatingPartitionState {
     partition_idx: usize,
     /// Partition state per grouping set table.
     states: Vec<GroupingSetPartitionState>,
+    /// Distinct states per grouping set.
+    distinct_state: Vec<DistinctCollectionPartitionState>,
 }
 
 #[derive(Debug)]
@@ -71,6 +78,10 @@ pub struct HashAggregateOperatorState {
     tables: Vec<GroupingSetHashTable>,
     /// State for each grouping set hash table.
     table_states: Vec<GroupingSetOperatorState>,
+    /// Distinct collections for each grouping set.
+    distinct_collection: Vec<DistinctCollection>,
+    /// Distinct state for each grouping set.
+    distinct_states: Vec<DistinctCollectionOperatorState>,
     inner: Mutex<HashAggregateOperatoreStateInner>,
 }
 
@@ -148,6 +159,8 @@ impl BaseOperator for PhysicalHashAggregate {
         Ok(HashAggregateOperatorState {
             tables,
             table_states,
+            distinct_collection: Vec::new(),
+            distinct_states: Vec::new(),
             inner: Mutex::new(inner),
         })
     }
@@ -168,7 +181,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
     ) -> Result<Vec<Self::PartitionExecuteState>> {
         let mut partition_states: Vec<_> = (0..partitions)
             .map(|idx| {
-                HashAggregateBuildingPartitionState {
+                HashAggregateAggregatingPartitionState {
                     partition_idx: idx,
                     states: Vec::with_capacity(operator_state.tables.len()), // Populated below
                 }
@@ -201,7 +214,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
         let partition_states = partition_states
             .into_iter()
-            .map(HashAggregatePartitionState::Building)
+            .map(HashAggregatePartitionState::Aggregating)
             .collect();
 
         Ok(partition_states)
@@ -216,7 +229,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
         output: &mut Batch,
     ) -> Result<PollExecute> {
         match state {
-            HashAggregatePartitionState::Building(building) => {
+            HashAggregatePartitionState::Aggregating(building) => {
                 debug_assert_eq!(building.states.len(), operator_state.tables.len());
 
                 // TODO: Distinct updates.
@@ -284,7 +297,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
         state: &mut Self::PartitionExecuteState,
     ) -> Result<PollFinalize> {
         match state {
-            HashAggregatePartitionState::Building(building) => {
+            HashAggregatePartitionState::Aggregating(building) => {
                 // Finalize the building for this partition by merging all
                 // partition-local tables into the operator tables.
 

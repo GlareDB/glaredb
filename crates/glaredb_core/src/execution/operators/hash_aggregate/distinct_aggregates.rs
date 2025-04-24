@@ -46,6 +46,8 @@ pub struct DistinctAggregateInfo<'a> {
     /// Input arguments to the aggregate that should be distinct.
     pub inputs: &'a [PhysicalColumnExpr],
     /// Group keys we'll be DISTINCTing on as well.
+    // TODO: Not actually needed? We can have a separate collection per grouping
+    // set so we never actually have to care about the values we group by.
     pub groups: &'a [PhysicalColumnExpr],
 }
 
