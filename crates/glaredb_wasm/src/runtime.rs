@@ -14,7 +14,6 @@ use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::http::WasmHttpClient;
-use crate::origin_filesystem::OriginFileSystem;
 use crate::time::PerformanceInstant;
 
 #[derive(Debug, Clone)]
@@ -36,8 +35,9 @@ impl WasmSystemRuntime {
         let s3_fs = S3FileSystem::new(client, "us-east-1");
         dispatch.register_filesystem(s3_fs);
 
-        // Register origin filesystem.
-        dispatch.register_filesystem(OriginFileSystem {});
+        // TODO: When it works, aka we need web workers.
+        // // Register origin filesystem.
+        // dispatch.register_filesystem(OriginFileSystem {});
 
         // TODO: Shared memory fs
 

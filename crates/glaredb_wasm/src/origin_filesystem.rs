@@ -136,11 +136,13 @@ impl OriginFileSystem {
         // javascript bullshit
         let fut = Box::pin(async move {
             let window = window().required("Global window object")?;
-            let root: FileSystemDirectoryHandle =
-                JsFuture::from(window.navigator().storage().get_directory())
-                    .await
-                    .map_err(|_| DbError::new("Failed to get root directory"))?
-                    .into();
+
+            let root_object = JsFuture::from(window.navigator().storage().get_directory())
+                .await
+                .map_err(|_| DbError::new("Failed to get root directory"))?;
+            let root: FileSystemDirectoryHandle = root_object
+                .dyn_into()
+                .map_err(|_| DbError::new("Object not a FileSystemDirectoryHandle"))?;
 
             let options = FileSystemGetFileOptions::new();
             options.set_create(create);
@@ -150,11 +152,11 @@ impl OriginFileSystem {
             // directories?
             let handle =
                 match JsFuture::from(root.get_file_handle_with_options(&path, &options)).await {
-                    Ok(handle) => FileSystemFileHandle::from(handle),
+                    Ok(handle) => match handle.dyn_into::<FileSystemFileHandle>() {
+                        Ok(handle) => handle,
+                        Err(_) => return Err(DbError::new("Object not a FileSystemFileHandle")),
+                    },
                     Err(err) => {
-                        return Err(DbError::new("Failed to get file handle, SOMETHING PLEASE")
-                            .with_field("a;osidfaklfsdj;a", json_stringify(&err)));
-
                         // Try to turn it into a DOMException
                         match err.dyn_into::<DomException>() {
                             Ok(exception) if exception.code() == DomException::NOT_FOUND_ERR => {
@@ -176,6 +178,7 @@ impl OriginFileSystem {
                 };
 
             // _Really_ get the handle.
+            // TODO: This needs to happen in a dedicated web worker.
             // TODO: Options for read/read write
             let handle = JsFuture::from(handle.create_sync_access_handle())
                 .await
@@ -232,7 +235,7 @@ impl FileSystem for OriginFileSystem {
         })
     }
 
-    async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
+    async fn stat(&self, path: &str, _state: &Self::State) -> Result<Option<FileStat>> {
         let url = Url::parse(path).context("Failed to parse path as url")?;
         if url.scheme() != "browser" {
             return Err(DbError::new(format!(

@@ -37,7 +37,9 @@ impl From<WasmError> for JsValue {
     }
 }
 
-pub fn json_stringify(value: &JsValue) -> String {
+/// Helper for JSON stringifying a javascript value.
+#[allow(unused)]
+pub(crate) fn json_stringify(value: &JsValue) -> String {
     // this is amazing
     js_sys::JSON::stringify(value)
         .map(|js_str| format!("{js_str}"))
