@@ -4,6 +4,7 @@ pub mod session;
 pub mod shell;
 
 mod http;
+mod origin_filesystem;
 mod time;
 mod tracing;
 
