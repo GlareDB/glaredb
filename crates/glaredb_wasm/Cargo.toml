@@ -16,7 +16,11 @@ web-sys = { version = "0.3.77", features = [
   "Performance",
   "PerformanceTiming",
 
+  # Errors
+  "DomException",
+
   # Filesystem
+  "StorageManager",
   "FileSystemDirectoryHandle",
   "FileSystemFileHandle",
   "FileSystemSyncAccessHandle",

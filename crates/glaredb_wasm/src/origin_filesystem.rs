@@ -1,9 +1,27 @@
 use std::io;
 use std::task::{Context, Poll};
 
-use glaredb_core::runtime::filesystem::{File, FileOpenContext, FileStat, FileSystem, OpenFlags};
-use glaredb_error::{DbError, Result};
-use web_sys::{FileSystemFileHandle, FileSystemSyncAccessHandle};
+use glaredb_core::runtime::filesystem::{
+    File,
+    FileOpenContext,
+    FileStat,
+    FileSystem,
+    FileType,
+    OpenFlags,
+};
+use glaredb_error::{DbError, OptionExt, Result, ResultExt};
+use url::Url;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{
+    DomException,
+    FileSystemDirectoryHandle,
+    FileSystemFileHandle,
+    FileSystemSyncAccessHandle,
+    window,
+};
+
+use crate::http::FakeSyncSendFuture;
 
 #[derive(Debug)]
 pub struct OriginFileHandle {
@@ -100,23 +118,119 @@ impl File for OriginFileHandle {
 #[derive(Debug)]
 pub struct OriginFileSystem {}
 
+impl OriginFileSystem {
+    async fn open_sync_access_handle(
+        &self,
+        path: String,
+    ) -> Result<Option<FileSystemSyncAccessHandle>> {
+        // javascript bullshit
+        let fut = Box::pin(async move {
+            let window = window().required("Global window object")?;
+            let root: FileSystemDirectoryHandle =
+                JsFuture::from(window.navigator().storage().get_directory())
+                    .await
+                    .map_err(|_| DbError::new("Failed to get root directory"))?
+                    .into();
+
+            // TODO: I don't know what happens if 'path' is a directory, or
+            // contains a directory to a file. Do I need to manually walk
+            // directories?
+            let handle = match JsFuture::from(root.get_file_handle(&path)).await {
+                Ok(handle) => FileSystemFileHandle::from(handle),
+                Err(err) => {
+                    // Try to turn it into a DOMException
+                    if let Ok(exception) = err.dyn_into::<DomException>() {
+                        if exception.code() == DomException::NOT_FOUND_ERR {
+                            return Ok(None);
+                        }
+                    }
+                    // TODO: Context
+                    return Err(DbError::new("Failed to get file handle"));
+                }
+            };
+
+            // _Really_ get the handle.
+            // TODO: Options for read/read write
+            let handle = JsFuture::from(handle.create_sync_access_handle())
+                .await
+                .map_err(|_| DbError::new("Failed to create sync access handle"))?;
+
+            Ok(Some(FileSystemSyncAccessHandle::from(handle)))
+        });
+
+        unsafe { FakeSyncSendFuture::new(fut).await }
+    }
+}
+
 impl FileSystem for OriginFileSystem {
     type File = OriginFileHandle;
     type State = ();
 
-    fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
-        unimplemented!()
+    fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
+        Ok(())
     }
 
-    async fn open(&self, flags: OpenFlags, path: &str, state: &Self::State) -> Result<Self::File> {
-        unimplemented!()
+    async fn open(&self, flags: OpenFlags, path: &str, _state: &Self::State) -> Result<Self::File> {
+        if flags.is_write() {
+            // yet
+            return Err(DbError::new("Write not supported"));
+        }
+        if flags.is_create() {
+            // yet
+            return Err(DbError::new("Create not supported"));
+        }
+
+        let url = Url::parse(path).context("Failed to parse path as url")?;
+        if url.scheme() != "browser" {
+            return Err(DbError::new(format!(
+                "Expected 'browser' as scheme, got '{}'",
+                url.scheme()
+            )));
+        }
+
+        let path = url.path();
+        let handle = self
+            .open_sync_access_handle(path.to_string())
+            .await?
+            .ok_or_else(|| DbError::new("Missing file for path '{path}'"))?;
+
+        let len = handle
+            .get_size()
+            .map_err(|_| DbError::new("Failed to get file size"))?;
+
+        Ok(OriginFileHandle {
+            path: path.to_string(),
+            len: len as usize,
+            pos: 0,
+            handle,
+        })
     }
 
     async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
-        unimplemented!()
+        let url = Url::parse(path).context("Failed to parse path as url")?;
+        if url.scheme() != "browser" {
+            return Err(DbError::new(format!(
+                "Expected 'browser' as scheme, got '{}'",
+                url.scheme()
+            )));
+        }
+
+        let path = url.path();
+
+        match self.open_sync_access_handle(path.to_string()).await? {
+            Some(_) => Ok(Some(FileStat {
+                file_type: FileType::File,
+            })),
+            None => Ok(None),
+        }
     }
 
     fn can_handle_path(&self, path: &str) -> bool {
-        unimplemented!()
+        // TOOD: Requring a valid url for the path is ugly, but I'm doing it for
+        // now just to test things out.
+        match Url::parse(path) {
+            Ok(url) if url.scheme() == "browser" => true,
+            _ => false,
+        }
     }
 }
