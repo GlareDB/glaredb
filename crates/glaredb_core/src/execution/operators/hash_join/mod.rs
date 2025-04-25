@@ -14,7 +14,7 @@ use super::{
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::logical_join::JoinType;
 
 mod hash_table_scan;
@@ -125,7 +125,7 @@ impl PushOperator for PhysicalHashJoin {
 }
 
 impl Explainable for PhysicalHashJoin {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
     }
 }

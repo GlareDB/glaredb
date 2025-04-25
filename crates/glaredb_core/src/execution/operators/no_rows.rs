@@ -5,7 +5,7 @@ use glaredb_error::Result;
 use super::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 
 /// Operator that emits no rows, but knows its output types.
 #[derive(Debug)]
@@ -52,7 +52,7 @@ impl PullOperator for PhysicalNoRows {
 }
 
 impl Explainable for PhysicalNoRows {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
     }
 }

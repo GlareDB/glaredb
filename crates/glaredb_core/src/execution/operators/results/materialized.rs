@@ -16,7 +16,7 @@ use crate::execution::operators::{
     PollPush,
     PushOperator,
 };
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug)]
 pub struct MaterializedResultsOperatorState {
@@ -94,7 +94,7 @@ impl PushOperator for PhysicalMaterializedResults {
 }
 
 impl Explainable for PhysicalMaterializedResults {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
     }
 }

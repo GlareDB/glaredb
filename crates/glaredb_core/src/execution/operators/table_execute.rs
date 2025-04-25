@@ -6,7 +6,7 @@ use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, Pol
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
 use crate::arrays::datatype::DataType;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::functions::table::{
     AnyTableOperatorState,
@@ -262,13 +262,10 @@ impl ExecuteOperator for PhysicalTableExecute {
 
 impl Explainable for PhysicalTableExecute {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent =
-            ExplainEntry::new(Self::OPERATOR_NAME).with_value("function", self.function.name);
-        if conf.verbose {
-            ent = ent.with_values("input_types", &self.input_types);
-        }
-
-        ent
+        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+            .with_value("function", self.function.name)
+            .with_values_if_verbose("input_types", &self.input_types)
+            .build()
     }
 }
 

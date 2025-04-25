@@ -35,7 +35,7 @@ use super::logical_single_row::LogicalSingleRow;
 use super::logical_unnest::LogicalUnnest;
 use super::logical_window::LogicalWindow;
 use super::statistics::StatisticsValue;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, ExplainValue, Explainable};
 use crate::expr::Expression;
 
 /// Requirement for where a node in the plan needs to be executed.
@@ -239,13 +239,17 @@ where
     Node<N>: LogicalNode,
 {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = self
-            .node
-            .explain_entry(conf)
-            .with_value("location", self.location);
+        let mut ent = self.node.explain_entry(conf);
 
+        ent.items.insert(
+            "location".to_string(),
+            ExplainValue::Value(self.location.to_string()),
+        );
         if conf.verbose {
-            ent = ent.with_value("cardinality", self.estimated_cardinality)
+            ent.items.insert(
+                "cardinality".to_string(),
+                ExplainValue::Value(self.estimated_cardinality.to_string()),
+            );
         }
 
         ent

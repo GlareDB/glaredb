@@ -5,7 +5,7 @@ use glaredb_error::Result;
 use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 
@@ -95,8 +95,10 @@ impl ExecuteOperator for PhysicalProject {
 }
 
 impl Explainable for PhysicalProject {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME).with_values("projections", &self.projections)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+            .with_values("projections", &self.projections)
+            .build()
     }
 }
 

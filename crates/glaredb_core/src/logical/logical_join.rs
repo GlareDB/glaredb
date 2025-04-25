@@ -5,7 +5,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::{BindContext, MaterializationRef};
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 use crate::expr::comparison_expr::ComparisonExpr;
 
@@ -97,9 +97,10 @@ pub struct LogicalComparisonJoin {
 
 impl Explainable for LogicalComparisonJoin {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("ComparisonJoin")
-            .with_values_context("conditions", conf, &self.conditions)
+        EntryBuilder::new("ComparisonJoin", conf)
+            .with_contextual_values("conditions", &self.conditions)
             .with_value("join_type", self.join_type)
+            .build()
     }
 }
 
@@ -163,9 +164,11 @@ pub struct LogicalMagicJoin {
 
 impl Explainable for LogicalMagicJoin {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("MagicJoin")
-            .with_values_context("conditions", conf, &self.conditions)
+        EntryBuilder::new("MagicJoin", conf)
+            .with_contextual_values("conditions", &self.conditions)
             .with_value("join_type", self.join_type)
+            .with_value("materialization_ref", self.mat_ref)
+            .build()
     }
 }
 
@@ -209,9 +212,10 @@ pub struct LogicalArbitraryJoin {
 
 impl Explainable for LogicalArbitraryJoin {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("ArbitraryJoin")
+        EntryBuilder::new("ArbitraryJoin", conf)
+            .with_contextual_value("condition", &self.condition)
             .with_value("join_type", self.join_type)
-            .with_value_context("condition", conf, &self.condition)
+            .build()
     }
 }
 
@@ -243,8 +247,8 @@ impl LogicalNode for Node<LogicalArbitraryJoin> {
 pub struct LogicalCrossJoin;
 
 impl Explainable for LogicalCrossJoin {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("CrossJoin")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("CrossJoin", conf).build()
     }
 }
 

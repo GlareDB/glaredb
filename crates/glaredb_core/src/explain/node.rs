@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use super::context_display::ContextDisplayMode;
-use super::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use super::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::operator::LogicalOperator;
@@ -56,7 +56,7 @@ impl ExplainNode {
         visited_materializations: &mut HashSet<MaterializationRef>,
     ) -> Self {
         let (entry, children) = match plan {
-            LogicalOperator::Invalid => (ExplainEntry::new("INVALID"), &Vec::new()),
+            LogicalOperator::Invalid => (EntryBuilder::new("INVALID", config).build(), &Vec::new()),
             LogicalOperator::Project(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Filter(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Distinct(n) => (n.explain_entry(config), &n.children),

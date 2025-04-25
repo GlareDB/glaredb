@@ -26,7 +26,7 @@ use crate::arrays::collection::concurrent::{
     ParallelColumnCollectionScanState,
 };
 use crate::arrays::datatype::DataType;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::selection_evaluator::SelectionEvaluator;
 use crate::logical::logical_join::JoinType;
@@ -531,8 +531,11 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
 }
 
 impl Explainable for PhysicalNestedLoopJoin {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+            .with_value("join_type", self.join_type)
+            .with_value_opt("filter", self.filter.as_ref())
+            .build()
     }
 }
 

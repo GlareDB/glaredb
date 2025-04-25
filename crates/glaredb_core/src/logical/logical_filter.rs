@@ -3,7 +3,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -13,7 +13,9 @@ pub struct LogicalFilter {
 
 impl Explainable for LogicalFilter {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Filter").with_value_context("predicate", conf, &self.filter)
+        EntryBuilder::new("Filter", conf)
+            .with_contextual_value("predicate", &self.filter)
+            .build()
     }
 }
 

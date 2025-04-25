@@ -6,7 +6,7 @@ use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, Pol
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::selection_evaluator::SelectionEvaluator;
 
@@ -87,8 +87,10 @@ impl ExecuteOperator for PhysicalFilter {
 }
 
 impl Explainable for PhysicalFilter {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME).with_value("predicate", &self.predicate)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+            .with_value("predicate", &self.predicate)
+            .build()
     }
 }
 

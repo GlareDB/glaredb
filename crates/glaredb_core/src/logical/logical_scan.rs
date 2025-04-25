@@ -9,7 +9,7 @@ use super::scan_filter::ScanFilter;
 use super::statistics::StatisticsValue;
 use crate::arrays::datatype::DataType;
 use crate::catalog::entry::CatalogEntry;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 use crate::functions::table::PlannedTableFunction;
 
@@ -87,29 +87,25 @@ pub struct LogicalScan {
 
 impl Explainable for LogicalScan {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("Scan")
+        let mut builder = EntryBuilder::new("Scan", conf)
             .with_values("column_names", &self.names)
-            .with_values("column_types", &self.types);
+            .with_values("column_types", &self.types)
+            .with_value_if_verbose("table_ref", self.table_ref)
+            .with_values_if_verbose("projection", &self.projection);
 
         match &self.source {
             ScanSource::Table(table) => {
-                ent = ent.with_value(
+                builder = builder.with_value(
                     "table",
                     format!("{}.{}.{}", table.catalog, table.schema, table.source.name),
                 )
             }
             ScanSource::Function(func) => {
-                ent = ent.with_value("function", func.function.name.to_string())
+                builder = builder.with_value("function", func.function.name.to_string())
             }
         }
 
-        if conf.verbose {
-            ent = ent
-                .with_value("table_ref", self.table_ref)
-                .with_values("projection", &self.projection)
-        }
-
-        ent
+        builder.build()
     }
 }
 

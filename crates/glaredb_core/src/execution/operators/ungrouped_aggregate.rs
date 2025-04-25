@@ -23,7 +23,7 @@ use crate::arrays::row::aggregate_layout::{
 };
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::buffer::db_vec::DbVec;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
 
 #[derive(Debug)]
@@ -498,8 +498,13 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
 }
 
 impl Explainable for PhysicalUngroupedAggregate {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+            .with_values(
+                "aggregates",
+                self.layout.aggregates.iter().map(|agg| agg.function.name),
+            )
+            .build()
     }
 }
 

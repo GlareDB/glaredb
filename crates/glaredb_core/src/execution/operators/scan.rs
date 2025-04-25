@@ -5,7 +5,7 @@ use glaredb_error::Result;
 use super::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::functions::table::{
     AnyTableOperatorState,
     AnyTablePartitionState,
@@ -123,7 +123,9 @@ impl PullOperator for PhysicalScan {
 }
 
 impl Explainable for PhysicalScan {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME).with_value("source", self.function.name)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+            .with_value("source", self.function.name)
+            .build()
     }
 }
