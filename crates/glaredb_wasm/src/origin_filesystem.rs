@@ -152,7 +152,8 @@ impl OriginFileSystem {
                 match JsFuture::from(root.get_file_handle_with_options(&path, &options)).await {
                     Ok(handle) => FileSystemFileHandle::from(handle),
                     Err(err) => {
-                        println!("WHAT IS THE ERROR? {}", json_stringify(&err));
+                        return Err(DbError::new("Failed to get file handle, SOMETHING PLEASE")
+                            .with_field("a;osidfaklfsdj;a", json_stringify(&err)));
 
                         // Try to turn it into a DOMException
                         match err.dyn_into::<DomException>() {
@@ -168,7 +169,7 @@ impl OriginFileSystem {
                                 return Err(DbError::new(
                                     "Failed to get file handle, not a dom exception",
                                 )
-                                .with_field("strigified_exception", json_stringify(&err)));
+                                .with_field("stringified_exception", json_stringify(&err)));
                             }
                         }
                     }
