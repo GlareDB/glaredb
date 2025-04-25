@@ -10,7 +10,7 @@ use crate::catalog::create::CreateTableInfo;
 use crate::catalog::memory::MemorySchema;
 use crate::config::session::DEFAULT_BATCH_SIZE;
 use crate::execution::operators::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::storage::datatable::DataTable;
 use crate::storage::storage_manager::StorageManager;
 
@@ -80,7 +80,7 @@ impl PullOperator for PhysicalCreateTable {
 }
 
 impl Explainable for PhysicalCreateTable {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
     }
 }

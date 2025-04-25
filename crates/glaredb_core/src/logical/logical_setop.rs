@@ -5,7 +5,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,12 +36,10 @@ impl Explainable for LogicalSetop {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         let kind = format!("{}{}", self.kind, if self.all { " ALL" } else { "" });
 
-        let mut ent = ExplainEntry::new("Setop").with_value("kind", kind);
-        if conf.verbose {
-            ent = ent.with_value("table_ref", self.table_ref);
-        }
-
-        ent
+        EntryBuilder::new("Setop", conf)
+            .with_value("kind", kind)
+            .with_value_if_verbose("table_ref", self.table_ref)
+            .build()
     }
 }
 

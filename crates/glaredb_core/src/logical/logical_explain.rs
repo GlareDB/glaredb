@@ -3,7 +3,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::explain::node::ExplainNode;
 use crate::expr::Expression;
 
@@ -23,8 +23,8 @@ pub struct LogicalExplain {
 }
 
 impl Explainable for LogicalExplain {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Explain")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("Explain", conf).build()
     }
 }
 

@@ -7,7 +7,7 @@ use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, Pol
 use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 
 #[derive(Debug)]
 pub struct LimitOperatorState {
@@ -152,12 +152,11 @@ impl ExecuteOperator for PhysicalLimit {
 }
 
 impl Explainable for PhysicalLimit {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new(Self::OPERATOR_NAME).with_value("limit", self.limit);
-        if let Some(offset) = self.offset {
-            ent = ent.with_value("offset", offset);
-        }
-        ent
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+            .with_value("limit", self.limit)
+            .with_value_opt("offset", self.offset)
+            .build()
     }
 }
 

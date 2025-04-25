@@ -3,7 +3,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 /// Emit a single row with no columns.
@@ -11,8 +11,8 @@ use crate::expr::Expression;
 pub struct LogicalSingleRow;
 
 impl Explainable for LogicalSingleRow {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("SingleRow")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("SingleRow", conf).build()
     }
 }
 

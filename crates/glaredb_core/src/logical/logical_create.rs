@@ -5,7 +5,7 @@ use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use crate::arrays::field::Field;
 use crate::catalog::create::OnConflict;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,8 +16,11 @@ pub struct LogicalCreateSchema {
 }
 
 impl Explainable for LogicalCreateSchema {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("CreateSchema")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("CreateSchema", conf)
+            .with_value("catalog", &self.catalog)
+            .with_value("name", &self.name)
+            .build()
     }
 }
 
@@ -55,8 +58,12 @@ pub struct LogicalCreateTable {
 }
 
 impl Explainable for LogicalCreateTable {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("CreateTable")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("CreateTable", conf)
+            .with_value("catalog", &self.catalog)
+            .with_value("schema", &self.schema)
+            .with_value("name", &self.name)
+            .build()
     }
 }
 
@@ -95,8 +102,12 @@ pub struct LogicalCreateView {
 }
 
 impl Explainable for LogicalCreateView {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("CreateView")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("CreateView", conf)
+            .with_value("catalog", &self.catalog)
+            .with_value("schema", &self.schema)
+            .with_value("name", &self.name)
+            .build()
     }
 }
 

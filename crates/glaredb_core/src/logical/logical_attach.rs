@@ -6,7 +6,7 @@ use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use crate::arrays::scalar::ScalarValue;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -17,8 +17,8 @@ pub struct LogicalAttachDatabase {
 }
 
 impl Explainable for LogicalAttachDatabase {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("AttachDatabase")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("AttachDatabase", conf).build()
     }
 }
 
@@ -52,8 +52,8 @@ pub struct LogicalDetachDatabase {
 }
 
 impl Explainable for LogicalDetachDatabase {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("DetachDatabase")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("DetachDatabase", conf).build()
     }
 }
 

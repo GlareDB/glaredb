@@ -3,7 +3,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,17 +21,12 @@ pub struct LogicalUnnest {
 
 impl Explainable for LogicalUnnest {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("Unnest")
-            .with_values_context("unnest_expressions", conf, &self.unnest_expressions)
-            .with_values_context("project_expressions", conf, &self.project_expressions);
-
-        if conf.verbose {
-            ent = ent
-                .with_value("unnest_table_ref", self.unnest_ref)
-                .with_value("project_table_ref", self.projection_ref);
-        }
-
-        ent
+        EntryBuilder::new("Unnest", conf)
+            .with_contextual_values("unnest_expressions", &self.unnest_expressions)
+            .with_contextual_values("project_expressions", &self.project_expressions)
+            .with_value_if_verbose("unnest_table_ref", self.unnest_ref)
+            .with_value_if_verbose("project_table_ref", self.projection_ref)
+            .build()
     }
 }
 

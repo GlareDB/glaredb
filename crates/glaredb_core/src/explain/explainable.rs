@@ -4,6 +4,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use super::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
+use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 /// An entry in an output for explaining a query.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -12,110 +13,8 @@ pub struct ExplainEntry {
     pub name: String,
     /// Items to display in the explain entry.
     ///
-    /// Using a btree to ensure consistent ordering (mostly for test ouput).
+    /// Using a btree to ensure consistent ordering.
     pub items: BTreeMap<String, ExplainValue>,
-}
-
-impl ExplainEntry {
-    /// Create a new explain entry for a query node.
-    pub fn new(name: impl Into<String>) -> Self {
-        ExplainEntry {
-            name: name.into(),
-            items: BTreeMap::new(),
-        }
-    }
-
-    /// Put a value in the explain entry.
-    pub fn with_value(mut self, key: impl Into<String>, value: impl fmt::Display) -> Self {
-        let key = key.into();
-        let val = ExplainValue::Value(value.to_string());
-        self.items.insert(key, val);
-        self
-    }
-
-    pub fn with_value_context(
-        self,
-        key: impl Into<String>,
-        conf: ExplainConfig,
-        value: impl ContextDisplay,
-    ) -> Self {
-        let key = key.into();
-
-        let mut ent = self.with_value(
-            key.clone(),
-            ContextDisplayWrapper::with_mode(&value, conf.context_mode),
-        );
-
-        // If we're printing out a verbose plan, go ahead and print out the raw
-        // form of the value.
-        if conf.verbose && matches!(conf.context_mode, ContextDisplayMode::Enriched(_)) {
-            ent = ent.with_value(
-                format!("{key}_raw"),
-                ContextDisplayWrapper::with_mode(value, ContextDisplayMode::Raw),
-            )
-        }
-
-        ent
-    }
-
-    /// Put a list of values in the explain entry.
-    pub fn with_values<S: fmt::Display>(
-        mut self,
-        key: impl Into<String>,
-        values: impl IntoIterator<Item = S>,
-    ) -> Self {
-        let key = key.into();
-        let vals = ExplainValue::Values(values.into_iter().map(|s| s.to_string()).collect());
-        self.items.insert(key, vals);
-        self
-    }
-
-    pub fn with_values_context<S: ContextDisplay>(
-        self,
-        key: impl Into<String>,
-        conf: ExplainConfig,
-        values: impl IntoIterator<Item = S>,
-    ) -> Self {
-        let key = key.into();
-        let values: Vec<_> = values.into_iter().collect();
-
-        let mut ent = self.with_values(
-            key.clone(),
-            values
-                .iter()
-                .map(|v| ContextDisplayWrapper::with_mode(v, conf.context_mode)),
-        );
-
-        // If we're printing out a verbose plan, go ahead and print out the raw
-        // form of the values.
-        if conf.verbose && matches!(conf.context_mode, ContextDisplayMode::Enriched(_)) {
-            ent = ent.with_values(
-                format!("{key}_raw"),
-                values
-                    .into_iter()
-                    .map(|v| ContextDisplayWrapper::with_mode(v, ContextDisplayMode::Raw)),
-            )
-        }
-
-        ent
-    }
-
-    pub fn with_named_map<S1: fmt::Display, S2: fmt::Display>(
-        mut self,
-        key: impl Into<String>,
-        map_name: impl Into<String>,
-        map: impl IntoIterator<Item = (S1, S2)>,
-    ) -> Self {
-        let key = key.into();
-        let vals = ExplainValue::NamedMap(
-            map_name.into(),
-            map.into_iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect(),
-        );
-        self.items.insert(key, vals);
-        self
-    }
 }
 
 impl fmt::Display for ExplainEntry {
@@ -135,28 +34,199 @@ impl fmt::Display for ExplainEntry {
     }
 }
 
-// TODO: `AsExplainValue` trait.
+/// Builder for explain entries.
+#[derive(Debug, Clone)]
+pub struct EntryBuilder<'a> {
+    conf: ExplainConfig<'a>,
+    name: String,
+    items: BTreeMap<String, ExplainValue>,
+}
+
+impl<'a> EntryBuilder<'a> {
+    pub fn new(name: impl Into<String>, conf: ExplainConfig<'a>) -> Self {
+        EntryBuilder {
+            conf,
+            name: name.into(),
+            items: BTreeMap::new(),
+        }
+    }
+
+    /// Simple key value pair.
+    pub fn with_value(mut self, key: impl Into<String>, value: impl fmt::Display) -> Self {
+        let key = key.into();
+        let val = ExplainValue::Value(value.to_string());
+        self.items.insert(key, val);
+        self
+    }
+
+    pub fn with_value_opt(self, key: impl Into<String>, value: Option<impl fmt::Display>) -> Self {
+        match value {
+            Some(value) => self.with_value(key, value),
+            None => self,
+        }
+    }
+
+    pub fn with_value_opt_if_verbose(
+        self,
+        key: impl Into<String>,
+        value: Option<impl fmt::Display>,
+    ) -> Self {
+        if self.conf.verbose {
+            self.with_value_opt(key, value)
+        } else {
+            self
+        }
+    }
+
+    pub fn with_value_if_verbose(self, key: impl Into<String>, value: impl fmt::Display) -> Self {
+        if self.conf.verbose {
+            self.with_value(key, value)
+        } else {
+            self
+        }
+    }
+
+    /// Key value pair where the value can enrich itself from the context in the
+    /// explain config.
+    ///
+    /// For example, this should be used for column expressions to display the
+    /// pretty name in the explain plan.
+    ///
+    /// If the config is set to verbose, this will alway append a "raw" key
+    /// value pair.
+    pub fn with_contextual_value(
+        mut self,
+        key: impl Into<String>,
+        value: impl ContextDisplay,
+    ) -> Self {
+        let key = key.into();
+        let mode = self.conf.context_mode;
+        self = self.with_value(key.clone(), ContextDisplayWrapper::with_mode(&value, mode));
+
+        // If we're printing out a verbose plan, go ahead and print out the raw
+        // form of the value.
+        if self.conf.verbose && matches!(self.conf.context_mode, ContextDisplayMode::Enriched(_)) {
+            self = self.with_value(
+                format!("{key}_raw"),
+                ContextDisplayWrapper::with_mode(value, ContextDisplayMode::Raw),
+            )
+        }
+
+        self
+    }
+
+    /// Put a list of values associated with a single key in the explain entry.
+    pub fn with_values<S>(
+        mut self,
+        key: impl Into<String>,
+        values: impl IntoIterator<Item = S>,
+    ) -> Self
+    where
+        S: fmt::Display,
+    {
+        let key = key.into();
+        let vals = ExplainValue::Values(values.into_iter().map(|s| s.to_string()).collect());
+        self.items.insert(key, vals);
+        self
+    }
+
+    pub fn with_values_if_verbose<S>(
+        self,
+        key: impl Into<String>,
+        values: impl IntoIterator<Item = S>,
+    ) -> Self
+    where
+        S: fmt::Display,
+    {
+        if self.conf.verbose {
+            self.with_values(key, values)
+        } else {
+            self
+        }
+    }
+
+    /// Put a list of contextual values associated with a single key in the entry.
+    pub fn with_contextual_values<S>(
+        mut self,
+        key: impl Into<String>,
+        values: impl IntoIterator<Item = S>,
+    ) -> Self
+    where
+        S: ContextDisplay,
+    {
+        let key = key.into();
+        let values: Vec<_> = values.into_iter().collect();
+        let mode = self.conf.context_mode;
+
+        self = self.with_values(
+            key.clone(),
+            values
+                .iter()
+                .map(|v| ContextDisplayWrapper::with_mode(v, mode)),
+        );
+
+        // If we're printing out a verbose plan, go ahead and print out the raw
+        // form of the values.
+        if self.conf.verbose && matches!(self.conf.context_mode, ContextDisplayMode::Enriched(_)) {
+            self = self.with_values(
+                format!("{key}_raw"),
+                values
+                    .into_iter()
+                    .map(|v| ContextDisplayWrapper::with_mode(v, ContextDisplayMode::Raw)),
+            )
+        }
+
+        self
+    }
+
+    pub fn with_contextual_values_opt<S>(
+        self,
+        key: impl Into<String>,
+        values: Option<impl IntoIterator<Item = S>>,
+    ) -> Self
+    where
+        S: ContextDisplay,
+    {
+        match values {
+            Some(values) => self.with_contextual_values(key, values),
+            None => self,
+        }
+    }
+
+    pub fn with_contextual_values_opt_if_verbose<S>(
+        self,
+        key: impl Into<String>,
+        values: Option<impl IntoIterator<Item = S>>,
+    ) -> Self
+    where
+        S: ContextDisplay,
+    {
+        if self.conf.verbose {
+            self.with_contextual_values_opt(key, values)
+        } else {
+            self
+        }
+    }
+
+    pub fn build(self) -> ExplainEntry {
+        ExplainEntry {
+            name: self.name,
+            items: self.items,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExplainValue {
     Value(String),
     Values(Vec<String>),
-    NamedMap(String, Vec<(String, String)>),
 }
 
 impl fmt::Display for ExplainValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Value(v) => write!(f, "{v}"),
-            Self::Values(v) => write!(f, "[{}]", v.join(", ")),
-            Self::NamedMap(name, map) => {
-                let s = map
-                    .iter()
-                    .map(|(k, v)| format!("{k}: {v}"))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                // "{k1: v1, k2: v2 ... }"
-                write!(f, "{} {{{}}}", name, s)
-            }
+            Self::Values(v) => write!(f, "{}", v.display_with_brackets()),
         }
     }
 }
@@ -203,7 +273,7 @@ mod tests {
 
     #[test]
     fn explain_entry_display_no_values() {
-        let ent = ExplainEntry::new("DummyNode");
+        let ent = EntryBuilder::new("DummyNode", ExplainConfig::RAW_VERBOSE).build();
 
         let out = ent.to_string();
         assert_eq!("DummyNode", out);
@@ -211,21 +281,12 @@ mod tests {
 
     #[test]
     fn explain_entry_display_with_values() {
-        let ent = ExplainEntry::new("DummyNode")
+        let ent = EntryBuilder::new("DummyNode", ExplainConfig::RAW_VERBOSE)
             .with_value("k1", "v1")
-            .with_values("k2", ["vs1", "vs2", "vs3"]);
+            .with_values("k2", ["vs1", "vs2", "vs3"])
+            .build();
 
         let out = ent.to_string();
         assert_eq!("DummyNode (k1 = v1, k2 = [vs1, vs2, vs3])", out);
-    }
-
-    #[test]
-    fn explain_entry_display_with_map_value() {
-        let ent = ExplainEntry::new("DummyNode")
-            .with_value("k1", "v1")
-            .with_named_map("k2", "my_map", [("m1", "v1"), ("m2", "v2")]);
-
-        let out = ent.to_string();
-        assert_eq!("DummyNode (k1 = v1, k2 = my_map {m1: v1, m2: v2})", out);
     }
 }

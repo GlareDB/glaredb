@@ -18,7 +18,7 @@ use crate::execution::operators::{
     PollExecute,
     PollFinalize,
 };
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::storage::datatable::{DataTable, DataTableAppendState};
 use crate::storage::storage_manager::StorageManager;
 
@@ -199,7 +199,7 @@ impl ExecuteOperator for PhysicalCreateTableAs {
 }
 
 impl Explainable for PhysicalCreateTableAs {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
     }
 }

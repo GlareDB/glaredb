@@ -3,7 +3,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,12 +13,11 @@ pub struct LogicalLimit {
 }
 
 impl Explainable for LogicalLimit {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("Limit").with_value("limit", self.limit);
-        if let Some(offset) = self.offset {
-            ent = ent.with_value("offset", offset);
-        }
-        ent
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("Limit", conf)
+            .with_value("limit", self.limit)
+            .with_value_opt("offset", self.offset)
+            .build()
     }
 }
 

@@ -4,7 +4,7 @@ use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use crate::arrays::field::ColumnSchema;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -14,8 +14,10 @@ pub struct LogicalDescribe {
 }
 
 impl Explainable for LogicalDescribe {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Describe")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("Describe", conf)
+            .with_value_if_verbose("table_ref", self.table_ref)
+            .build()
     }
 }
 

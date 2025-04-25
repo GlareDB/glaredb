@@ -4,7 +4,7 @@ use super::binder::bind_context::BindContext;
 use super::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -13,8 +13,10 @@ pub struct LogicalOrder {
 }
 
 impl Explainable for LogicalOrder {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Order").with_values("expressions", &self.exprs)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("Order", conf)
+            .with_values("expressions", &self.exprs)
+            .build()
     }
 }
 

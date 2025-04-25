@@ -4,7 +4,7 @@ use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use crate::arrays::scalar::ScalarValue;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -14,8 +14,8 @@ pub struct LogicalSetVar {
 }
 
 impl Explainable for LogicalSetVar {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Set")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("Set", conf).build()
     }
 }
 
@@ -55,8 +55,8 @@ pub struct LogicalResetVar {
 }
 
 impl Explainable for Node<LogicalResetVar> {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Reset")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("Reset", conf).build()
     }
 }
 
@@ -91,8 +91,8 @@ pub struct LogicalShowVar {
 }
 
 impl Explainable for LogicalShowVar {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("Show")
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("Show", conf).build()
     }
 }
 

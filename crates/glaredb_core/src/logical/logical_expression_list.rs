@@ -4,7 +4,7 @@ use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use crate::arrays::datatype::DataType;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,12 +55,10 @@ impl LogicalNode for Node<LogicalExpressionList> {
 
 impl Explainable for LogicalExpressionList {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("ExpressionList")
+        EntryBuilder::new("ExpressionList", conf)
             .with_value("num_rows", self.rows.len())
-            .with_values("datatypes", &self.types);
-        if conf.verbose {
-            ent = ent.with_value("table_ref", self.table_ref)
-        }
-        ent
+            .with_values("datatypes", &self.types)
+            .with_value_if_verbose("table_ref", self.table_ref)
+            .build()
     }
 }

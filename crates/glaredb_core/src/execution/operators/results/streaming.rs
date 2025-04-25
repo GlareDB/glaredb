@@ -15,7 +15,7 @@ use crate::execution::operators::{
     PollPush,
     PushOperator,
 };
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::runtime::pipeline::ErrorSink;
 
 /// Streams result batches for a query.
@@ -258,8 +258,8 @@ impl PushOperator for PhysicalStreamingResults {
 }
 
 impl Explainable for PhysicalStreamingResults {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
     }
 }
 

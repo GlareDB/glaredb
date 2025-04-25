@@ -12,7 +12,7 @@ use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::sort::partial_sort::{PartialSortedRowCollection, SortedRowAppendState};
 use crate::arrays::sort::sort_layout::{SortColumn, SortLayout};
 use crate::arrays::sort::sorted_segment::{SortedSegment, SortedSegmentScanState};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalSortExpression;
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 
@@ -289,8 +289,16 @@ impl ExecuteOperator for PhysicalSort {
 }
 
 impl Explainable for PhysicalSort {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+            .with_values(
+                "sort_expressions",
+                self.sort_exprs.iter().map(|expr| {
+                    // TODO: Drops the nulls first/last and asc/desc info.
+                    &expr.column
+                }),
+            )
+            .build()
     }
 }
 

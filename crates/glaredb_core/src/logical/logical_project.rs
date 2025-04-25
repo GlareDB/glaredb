@@ -3,7 +3,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 /// Simple projection.
@@ -15,17 +15,10 @@ pub struct LogicalProject {
 
 impl Explainable for LogicalProject {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("Project").with_values_context(
-            "projections",
-            conf,
-            &self.projections,
-        );
-
-        if conf.verbose {
-            ent = ent.with_value("table_ref", self.projection_table);
-        }
-
-        ent
+        EntryBuilder::new("Project", conf)
+            .with_contextual_values("projections", &self.projections)
+            .with_value_if_verbose("table_ref", self.projection_table)
+            .build()
     }
 }
 

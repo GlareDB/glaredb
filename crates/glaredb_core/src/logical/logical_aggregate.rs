@@ -5,7 +5,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 /// An instance of a GROUPING function.
@@ -54,29 +54,15 @@ pub struct LogicalAggregate {
 
 impl Explainable for LogicalAggregate {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("Aggregate").with_values_context(
-            "aggregates",
-            conf,
-            &self.aggregates,
-        );
-
-        if conf.verbose {
-            ent = ent.with_value("table_ref", self.aggregates_table);
-
-            if let Some(grouping_set_table) = self.grouping_functions_table {
-                ent = ent.with_value("grouping_set_table_ref", grouping_set_table);
-            }
-        }
-
-        if let Some(group_table) = &self.group_table {
-            ent = ent.with_values_context("group_expressions", conf, &self.group_exprs);
-
-            if conf.verbose {
-                ent = ent.with_value("group_table_ref", group_table);
-            }
-        }
-
-        ent
+        EntryBuilder::new("Aggregate", conf)
+            .with_contextual_values("aggregates", &self.aggregates)
+            .with_value_if_verbose("table_ref", self.aggregates_table)
+            .with_value_opt("grouping_set_table_ref", self.grouping_functions_table)
+            .with_contextual_values_opt("group_expressions", {
+                self.group_table.map(|_| &self.group_exprs)
+            })
+            .with_value_opt("group_table_ref", self.group_table)
+            .build()
     }
 }
 

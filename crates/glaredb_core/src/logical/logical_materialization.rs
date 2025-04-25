@@ -3,7 +3,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::{BindContext, MaterializationRef};
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,8 +13,10 @@ pub struct LogicalMaterializationScan {
 }
 
 impl Explainable for LogicalMaterializationScan {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new("MaterializationScan").with_value("materialization_ref", self.mat)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new("MaterializationScan", conf)
+            .with_value("materialization_ref", self.mat)
+            .build()
     }
 }
 
@@ -77,13 +79,11 @@ pub struct LogicalMagicMaterializationScan {
 
 impl Explainable for LogicalMagicMaterializationScan {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("MagicMaterializationScan")
+        EntryBuilder::new("MagicMaterializationScan", conf)
             .with_value("materialization_ref", self.mat)
-            .with_values("projections", &self.projections);
-        if conf.verbose {
-            ent = ent.with_value("table_ref", self.table_ref)
-        }
-        ent
+            .with_values("projections", &self.projections)
+            .with_value_if_verbose("table_ref", self.table_ref)
+            .build()
     }
 }
 

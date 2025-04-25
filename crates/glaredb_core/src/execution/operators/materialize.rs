@@ -22,7 +22,7 @@ use crate::arrays::collection::concurrent::{
     ParallelColumnCollectionScanState,
 };
 use crate::arrays::datatype::DataType;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::binder::bind_context::MaterializationRef;
 use crate::storage::projections::Projections;
 
@@ -258,8 +258,10 @@ impl PushOperator for PhysicalMaterialize {
 }
 
 impl Explainable for PhysicalMaterialize {
-    fn explain_entry(&self, _conf: ExplainConfig) -> ExplainEntry {
-        ExplainEntry::new(Self::OPERATOR_NAME)
+    fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+            .with_value("materialization_ref", self.materialization_ref)
+            .build()
     }
 }
 

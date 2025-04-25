@@ -3,7 +3,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 use crate::functions::table::PlannedTableFunction;
 
@@ -26,21 +26,16 @@ pub struct LogicalTableExecute {
 
 impl Explainable for LogicalTableExecute {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("TableExecute")
-            .with_value("function", self.function.name)
-            .with_values_context("inputs", conf, &self.function.bind_state.input.positional);
-
-        if conf.verbose {
-            ent = ent.with_value("function_table_ref", self.function_table_ref);
-
-            if let Some(projected_table_ref) = self.projected_table_ref {
-                ent = ent
-                    .with_value("projected_table_ref", projected_table_ref)
-                    .with_values_context("projected_outputs", conf, &self.projected_outputs);
-            }
-        }
-
-        ent
+        EntryBuilder::new("TableExecute", conf)
+            .with_value("functoin", self.function.name)
+            .with_contextual_values("inputs", &self.function.bind_state.input.positional)
+            .with_value_if_verbose("function_table_ref", self.function_table_ref)
+            .with_value_opt_if_verbose("projected_table_ref", self.projected_table_ref)
+            .with_contextual_values_opt_if_verbose(
+                "projected_outputs",
+                self.projected_table_ref.map(|_| &self.projected_outputs),
+            )
+            .build()
     }
 }
 

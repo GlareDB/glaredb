@@ -3,7 +3,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 /// Emit no rows with some number of columns.
@@ -41,10 +41,8 @@ impl LogicalNode for Node<LogicalNoRows> {
 
 impl Explainable for LogicalNoRows {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent = ExplainEntry::new("NoRows");
-        if conf.verbose {
-            ent = ent.with_values("table_refs", &self.table_refs);
-        }
-        ent
+        EntryBuilder::new("NoRows", conf)
+            .with_values_if_verbose("table_refs", &self.table_refs)
+            .build()
     }
 }

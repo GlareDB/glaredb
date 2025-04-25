@@ -3,7 +3,7 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -16,14 +16,10 @@ pub struct LogicalWindow {
 
 impl Explainable for LogicalWindow {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        let mut ent =
-            ExplainEntry::new("Window").with_values_context("windows", conf, &self.windows);
-
-        if conf.verbose {
-            ent = ent.with_value("table_ref", self.windows_table);
-        }
-
-        ent
+        EntryBuilder::new("Window", conf)
+            .with_contextual_values("windows", &self.windows)
+            .with_value_if_verbose("table_ref", self.windows_table)
+            .build()
     }
 }
 
