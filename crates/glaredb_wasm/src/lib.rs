@@ -29,6 +29,7 @@ pub mod wasm_tests {
     use glaredb_core::testutil::arrays::assert_batches_eq;
     use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
 
+    use crate::origin_filesystem::OriginFileSystem;
     use crate::session::WasmSession;
 
     // Force running tests in the browser.
@@ -78,5 +79,25 @@ pub mod wasm_tests {
 
         let expected = generate_batch!([4, 5], ["four", "five"]);
         assert_batches_eq(&expected, batch);
+    }
+
+    #[wasm_bindgen_test]
+    #[allow(unused)]
+    async fn simple_read_from_opfs() {
+        // Write some simple data to the file first.
+        let handle = OriginFileSystem {}
+            .open_sync_access_handle("/data.csv", true)
+            .await
+            .expect("open to not error")
+            .expect("file to exist (after creating it)");
+
+        let content = [
+            "number,float,name",
+            "4,8.5,mario",
+            "5,9.1,wario",
+            "6,7.0,yoshi",
+        ]
+        .join("\n");
+        handle.write_with_u8_array(content.as_bytes()).unwrap();
     }
 }

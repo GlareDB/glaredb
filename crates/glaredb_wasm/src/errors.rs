@@ -36,3 +36,10 @@ impl From<WasmError> for JsValue {
         JsValue::from_str(&value.to_string())
     }
 }
+
+pub fn json_stringify(value: &JsValue) -> String {
+    // this is amazing
+    js_sys::JSON::stringify(value)
+        .map(|js_str| format!("{js_str}"))
+        .unwrap_or_default()
+}

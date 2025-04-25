@@ -17,10 +17,12 @@ use web_sys::{
     DomException,
     FileSystemDirectoryHandle,
     FileSystemFileHandle,
+    FileSystemGetFileOptions,
     FileSystemSyncAccessHandle,
     window,
 };
 
+use crate::errors::json_stringify;
 use crate::http::FakeSyncSendFuture;
 
 #[derive(Debug)]
@@ -66,8 +68,11 @@ impl File for OriginFileHandle {
         Poll::Ready(Ok(n))
     }
 
-    fn poll_write(&mut self, _cx: &mut Context, buf: &[u8]) -> Poll<Result<usize>> {
-        unimplemented!()
+    fn poll_write(&mut self, _cx: &mut Context, _buf: &[u8]) -> Poll<Result<usize>> {
+        // yet
+        Poll::Ready(Err(DbError::new(
+            "Write for origin file system not yet supported",
+        )))
     }
 
     fn poll_seek(&mut self, _cx: &mut Context, seek: io::SeekFrom) -> Poll<Result<()>> {
@@ -119,9 +124,14 @@ impl File for OriginFileHandle {
 pub struct OriginFileSystem {}
 
 impl OriginFileSystem {
-    async fn open_sync_access_handle(
+    /// Get a sync access handle to a file at the given path.
+    ///
+    /// Public for tests. Once we have write support, that should be used
+    /// instead for dogfooding.
+    pub async fn open_sync_access_handle(
         &self,
-        path: String,
+        path: &str,
+        create: bool,
     ) -> Result<Option<FileSystemSyncAccessHandle>> {
         // javascript bullshit
         let fut = Box::pin(async move {
@@ -132,22 +142,37 @@ impl OriginFileSystem {
                     .map_err(|_| DbError::new("Failed to get root directory"))?
                     .into();
 
+            let options = FileSystemGetFileOptions::new();
+            options.set_create(create);
+
             // TODO: I don't know what happens if 'path' is a directory, or
             // contains a directory to a file. Do I need to manually walk
             // directories?
-            let handle = match JsFuture::from(root.get_file_handle(&path)).await {
-                Ok(handle) => FileSystemFileHandle::from(handle),
-                Err(err) => {
-                    // Try to turn it into a DOMException
-                    if let Ok(exception) = err.dyn_into::<DomException>() {
-                        if exception.code() == DomException::NOT_FOUND_ERR {
-                            return Ok(None);
+            let handle =
+                match JsFuture::from(root.get_file_handle_with_options(&path, &options)).await {
+                    Ok(handle) => FileSystemFileHandle::from(handle),
+                    Err(err) => {
+                        println!("WHAT IS THE ERROR? {}", json_stringify(&err));
+
+                        // Try to turn it into a DOMException
+                        match err.dyn_into::<DomException>() {
+                            Ok(exception) if exception.code() == DomException::NOT_FOUND_ERR => {
+                                return Ok(None);
+                            }
+                            Ok(exception) => {
+                                return Err(DbError::new("Failed to get file handle")
+                                    .with_field("js_name", exception.name())
+                                    .with_field("message", exception.message()));
+                            }
+                            Err(err) => {
+                                return Err(DbError::new(
+                                    "Failed to get file handle, not a dom exception",
+                                )
+                                .with_field("strigified_exception", json_stringify(&err)));
+                            }
                         }
                     }
-                    // TODO: Context
-                    return Err(DbError::new("Failed to get file handle"));
-                }
-            };
+                };
 
             // _Really_ get the handle.
             // TODO: Options for read/read write
@@ -190,7 +215,7 @@ impl FileSystem for OriginFileSystem {
 
         let path = url.path();
         let handle = self
-            .open_sync_access_handle(path.to_string())
+            .open_sync_access_handle(path, false)
             .await?
             .ok_or_else(|| DbError::new("Missing file for path '{path}'"))?;
 
@@ -217,7 +242,7 @@ impl FileSystem for OriginFileSystem {
 
         let path = url.path();
 
-        match self.open_sync_access_handle(path.to_string()).await? {
+        match self.open_sync_access_handle(path, false).await? {
             Some(_) => Ok(Some(FileStat {
                 file_type: FileType::File,
             })),
