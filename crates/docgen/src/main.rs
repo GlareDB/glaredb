@@ -56,7 +56,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/reference/functions/date_time.md",
+        path: "docs/reference/functions/date-time.md",
         sections: &[(
             "date_time_functions",
             &FunctionSectionWriter {
