@@ -14,7 +14,18 @@ web-sys = { version = "0.3.77", features = [
   "Navigator",
   "Clipboard",
   "Performance",
-  "PerformanceTiming"
+  "PerformanceTiming",
+
+  # Errors
+  "DomException",
+
+  # Filesystem
+  "StorageManager",
+  "FileSystemGetFileOptions",
+  "FileSystemDirectoryHandle",
+  "FileSystemFileHandle",
+  "FileSystemSyncAccessHandle",
+  "FileSystemReadWriteOptions"
 ] }
 
 glaredb_core = { path = '../glaredb_core' }

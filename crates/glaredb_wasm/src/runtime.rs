@@ -35,6 +35,10 @@ impl WasmSystemRuntime {
         let s3_fs = S3FileSystem::new(client, "us-east-1");
         dispatch.register_filesystem(s3_fs);
 
+        // TODO: When it works, aka we need web workers.
+        // // Register origin filesystem.
+        // dispatch.register_filesystem(OriginFileSystem {});
+
         // TODO: Shared memory fs
 
         Ok(WasmSystemRuntime {
