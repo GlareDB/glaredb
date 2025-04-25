@@ -151,7 +151,7 @@ impl OriginFileSystem {
             // contains a directory to a file. Do I need to manually walk
             // directories?
             let handle =
-                match JsFuture::from(root.get_file_handle_with_options(&path, &options)).await {
+                match JsFuture::from(root.get_file_handle_with_options(path, &options)).await {
                     Ok(handle) => match handle.dyn_into::<FileSystemFileHandle>() {
                         Ok(handle) => handle,
                         Err(_) => return Err(DbError::new("Object not a FileSystemFileHandle")),
@@ -257,9 +257,6 @@ impl FileSystem for OriginFileSystem {
     fn can_handle_path(&self, path: &str) -> bool {
         // TOOD: Requring a valid url for the path is ugly, but I'm doing it for
         // now just to test things out.
-        match Url::parse(path) {
-            Ok(url) if url.scheme() == "browser" => true,
-            _ => false,
-        }
+        matches!(Url::parse(path), Ok(url) if url.scheme() == "browser")
     }
 }
