@@ -73,7 +73,7 @@ impl ExpressionColumnBinder for DefaultColumnBinder {
         ident: &ast::Ident,
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        let cmp = CaseCompare::ident(&ident);
+        let cmp = CaseCompare::ident(ident);
         self.bind_column(bind_scope, bind_context, None, &ident.value, cmp)
     }
 

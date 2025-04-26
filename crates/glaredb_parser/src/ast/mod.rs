@@ -88,6 +88,7 @@ impl Ident {
     ///
     /// If an identifier is quoted, its case is preserved. Otherwise it's all
     /// lowercase.
+    // TODO: Remove most uses of this.
     pub fn into_normalized_string(self) -> String {
         if self.quoted {
             self.value

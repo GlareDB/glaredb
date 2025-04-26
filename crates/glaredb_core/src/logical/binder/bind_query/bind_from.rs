@@ -184,7 +184,7 @@ impl<'a> FromBinder<'a> {
                     for (orig_alias, new_alias) in
                         default_column_aliases.iter_mut().zip(columns.into_iter())
                     {
-                        *orig_alias = AsciiCase::new(new_alias.into_normalized_string());
+                        *orig_alias = AsciiCase::new(new_alias.value);
                     }
                 }
             }

@@ -1,0 +1,32 @@
+# Test case sensitivity around views.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP VIEW v1 AS SELECT 4 AS "Acolumn", 5 AS "Bcolumn";
+
+query TT
+DESCRIBE v1;
+----
+Acolumn  Int32
+Bcolumn  Int32
+
+query II
+SELECT acolumn, bcolumn FROM v1;
+----
+4  5
+
+statement ok
+CREATE TEMP VIEW v2(Acolumn, Bcolumn) AS SELECT 6, 7;
+
+query TT
+DESCRIBE v2;
+----
+Acolumn  Int32
+Bcolumn  Int32
+
+query II
+SELECT acolumn, bcolumn FROM v2;
+----
+6  7

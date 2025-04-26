@@ -182,7 +182,7 @@ impl<'a> SelectExprExpander<'a> {
             ast::SelectExpr::AliasedExpr(expr, alias) => {
                 vec![ExpandedSelectExpr::Expr {
                     expr,
-                    alias: Some(alias.into_normalized_string()),
+                    alias: Some(alias.value),
                 }]
             }
             ast::SelectExpr::Expr(expr) => {

@@ -308,7 +308,7 @@ impl ExpressionColumnBinder for SelectAliasColumnBinder<'_> {
         ident: &ast::Ident,
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        let cmp = CaseCompare::ident(&ident);
+        let cmp = CaseCompare::ident(ident);
         match DefaultColumnBinder.bind_column(bind_scope, bind_context, None, &ident.value, cmp)? {
             Some(expr) => Ok(Some(expr)),
             None => {

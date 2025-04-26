@@ -54,8 +54,10 @@ impl<'a> CreateTableBinder<'a> {
         let mut columns: Vec<_> = create
             .columns
             .into_iter()
-            .map(|col| Field::new(col.name.into_normalized_string(), col.datatype, true))
+            .map(|col| Field::new(col.name.value, col.datatype, true))
             .collect();
+
+        // TODO: Check if all columns have unique names, ignoring case.
 
         let input = match create.source {
             Some(source) => {

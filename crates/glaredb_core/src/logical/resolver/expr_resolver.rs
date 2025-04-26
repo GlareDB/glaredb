@@ -113,7 +113,7 @@ where
         for func_arg in args {
             match func_arg {
                 ast::FunctionArg::Named { name, arg } => {
-                    let name = name.into_normalized_string();
+                    let name = name.value;
                     let arg = match Box::pin(self.resolve_expression(arg, resolve_context)).await? {
                         ast::Expr::Literal(lit) => {
                             BaseExpressionBinder::bind_literal(&lit)?.try_into_scalar()?
