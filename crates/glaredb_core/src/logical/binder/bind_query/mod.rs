@@ -16,6 +16,7 @@ use bind_values::{BoundValues, ValuesBinder};
 use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::ast;
 
+use super::ascii_case::AsciiCase;
 use super::bind_context::{BindContext, BindScopeRef};
 use super::table_list::TableRef;
 use crate::logical::binder::bind_context::BoundCte;
@@ -142,7 +143,7 @@ impl<'a> QueryBinder<'a> {
             }
 
             for (idx, col_alias) in col_aliases.iter().enumerate() {
-                names[idx] = col_alias.as_normalized_string();
+                names[idx] = AsciiCase::new(col_alias.to_string());
             }
         }
 

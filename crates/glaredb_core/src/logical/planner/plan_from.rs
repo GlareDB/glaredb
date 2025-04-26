@@ -42,7 +42,12 @@ impl FromPlanner {
                 let mut names = Vec::new();
                 for table in bind_context.iter_tables_in_scope(from.bind_ref)? {
                     types.extend(table.column_types.iter().cloned());
-                    names.extend(table.column_names.iter().cloned());
+                    names.extend(
+                        table
+                            .column_names
+                            .iter()
+                            .map(|name| name.as_str().to_string()),
+                    );
                 }
 
                 let projection = (0..types.len()).collect();
@@ -75,7 +80,12 @@ impl FromPlanner {
                 let mut names = Vec::new();
                 for table in bind_context.iter_tables_in_scope(from.bind_ref)? {
                     types.extend(table.column_types.iter().cloned());
-                    names.extend(table.column_names.iter().cloned());
+                    names.extend(
+                        table
+                            .column_names
+                            .iter()
+                            .map(|name| name.as_str().to_string()),
+                    );
                 }
 
                 match func.function.raw.function_type() {

@@ -7,6 +7,7 @@ use super::bind_group_by::BoundGroupBy;
 use super::bind_select_list::SelectListBinder;
 use crate::expr::Expression;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
+use crate::logical::binder::ascii_case::AsciiCase;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_aggregate::GroupingFunction;
@@ -133,7 +134,7 @@ impl SelectList {
         let projections_table = bind_context.get_table_mut(self.projections_table)?;
         for (alias, col_idx) in self.alias_map {
             let col_name = projections_table.column_names.get_mut(col_idx).ok_or_else(|| DbError::new(format!("Attempted to set the column alias '{alias}' for out-of-bounds column {col_idx}")))?;
-            *col_name = alias;
+            *col_name = AsciiCase::new(alias);
         }
 
         // If we had appended column, ensure we have a pruned table that only
@@ -145,20 +146,19 @@ impl SelectList {
             self.projections.append(&mut self.appended);
 
             let projections_table = bind_context.get_table(self.projections_table)?;
-            let output_table_ref = bind_context.new_ephemeral_table_with_columns(
-                projections_table
-                    .column_types
-                    .iter()
-                    .take(len)
-                    .cloned()
-                    .collect(),
-                projections_table
-                    .column_names
-                    .iter()
-                    .take(len)
-                    .cloned()
-                    .collect(),
-            )?;
+            let types: Vec<_> = projections_table
+                .column_types
+                .iter()
+                .take(len)
+                .cloned()
+                .collect();
+            let names: Vec<_> = projections_table
+                .column_names
+                .iter()
+                .take(len)
+                .cloned()
+                .collect();
+            let output_table_ref = bind_context.new_ephemeral_table_with_columns(types, names)?;
 
             // Project out only expressions in the original select list.
             let projections_table = bind_context.get_table(self.projections_table)?;

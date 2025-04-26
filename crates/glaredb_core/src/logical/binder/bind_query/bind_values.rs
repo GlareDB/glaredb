@@ -100,9 +100,7 @@ impl<'a> ValuesBinder<'a> {
             }
         }
 
-        let names = (0..types.len())
-            .map(|idx| format!("column{}", idx + 1))
-            .collect();
+        let names = (0..types.len()).map(|idx| format!("column{}", idx + 1));
 
         // TODO: What should happen with limit/order by?
 

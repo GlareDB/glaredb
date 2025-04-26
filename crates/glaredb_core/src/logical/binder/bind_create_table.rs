@@ -63,8 +63,8 @@ impl<'a> CreateTableBinder<'a> {
                 bind_context.push_table(
                     self.current,
                     None,
-                    vec![DataType::Int64],
-                    vec!["rows_inserted".to_string()],
+                    [DataType::Int64],
+                    ["rows_inserted"],
                 )?;
 
                 // If we have an input to the table, adjust the column definitions for the table
@@ -88,7 +88,9 @@ impl<'a> CreateTableBinder<'a> {
                         t.column_names
                             .iter()
                             .zip(&t.column_types)
-                            .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
+                            .map(|(name, datatype)| {
+                                Field::new(name.as_str(), datatype.clone(), true)
+                            })
                     })
                     .collect();
 

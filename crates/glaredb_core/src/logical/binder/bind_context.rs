@@ -3,6 +3,7 @@ use std::fmt;
 
 use glaredb_error::{DbError, Result};
 
+use super::ascii_case::AsciiCase;
 use super::bind_query::BoundQuery;
 use super::table_list::{Table, TableAlias, TableList, TableRef};
 use crate::arrays::datatype::DataType;
@@ -89,7 +90,7 @@ pub struct BoundCte {
     /// Normalized name fo the CTE.
     pub name: String,
     /// Column names, possibly aliased.
-    pub column_names: Vec<String>,
+    pub column_names: Vec<AsciiCase<String>>,
     /// Column types.
     pub column_types: Vec<DataType>,
     /// The bound plan representing the CTE.
@@ -101,7 +102,7 @@ pub struct BoundCte {
     pub mat_ref: Option<MaterializationRef>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct UsingColumn {
     /// Normalized column name.
     pub column: String,
@@ -422,25 +423,18 @@ impl BindContext {
 
     /// Create a table that belong to no scope.
     pub fn new_ephemeral_table(&mut self) -> Result<TableRef> {
-        self.new_ephemeral_table_with_columns(Vec::new(), Vec::new())
+        self.new_ephemeral_table_with_columns::<String>([], [])
     }
 
-    pub fn new_ephemeral_table_with_columns(
+    pub fn new_ephemeral_table_with_columns<S>(
         &mut self,
-        column_types: Vec<DataType>,
-        column_names: Vec<String>,
-    ) -> Result<TableRef> {
-        let table_idx = self.tables.tables.len();
-        let reference = TableRef { table_idx };
-        let scope = Table {
-            reference,
-            alias: None,
-            column_types,
-            column_names,
-        };
-        self.tables.tables.push(scope);
-
-        Ok(reference)
+        column_types: impl IntoIterator<Item = DataType>,
+        column_names: impl IntoIterator<Item = S>,
+    ) -> Result<TableRef>
+    where
+        S: Into<AsciiCase<String>>,
+    {
+        self.tables.push_table(None, column_types, column_names)
     }
 
     /// Creates a new table with generated columns from an iterator of expression.
@@ -481,10 +475,7 @@ impl BindContext {
         generated_prefix: &str,
         types: Vec<DataType>,
     ) -> Result<TableRef> {
-        let names = (0..types.len())
-            .map(|idx| format!("{generated_prefix}_{idx}"))
-            .collect();
-
+        let names = (0..types.len()).map(|idx| format!("{generated_prefix}_{idx}"));
         self.new_ephemeral_table_with_columns(types, names)
     }
 
@@ -496,7 +487,7 @@ impl BindContext {
     ) -> Result<usize> {
         let table = self.get_table_mut(table)?;
         let idx = table.column_types.len();
-        table.column_names.push(name.into());
+        table.column_names.push(AsciiCase::new(name.into()));
         table.column_types.push(datatype);
         Ok(idx)
     }
@@ -517,13 +508,16 @@ impl BindContext {
         self.tables.get_mut(table_ref)
     }
 
-    pub fn push_table(
+    pub fn push_table<S>(
         &mut self,
         bind_ref: BindScopeRef,
         alias: Option<TableAlias>,
-        column_types: Vec<DataType>,
-        column_names: Vec<String>,
-    ) -> Result<TableRef> {
+        column_types: impl IntoIterator<Item = DataType>,
+        column_names: impl IntoIterator<Item = S>,
+    ) -> Result<TableRef>
+    where
+        S: Into<AsciiCase<String>>,
+    {
         if let Some(alias) = &alias {
             // If we have multiple tables in scope, they need to have unique
             // alias (e.g. by ensure one is more qualified than the other)
@@ -610,7 +604,8 @@ impl BindContext {
             }
 
             for (col_idx, col_name) in table.column_names.iter().enumerate() {
-                if col_name == column {
+                // TOOD: Should this be insensitive?
+                if col_name.eq_case_sensitive(column) {
                     if found.is_some() {
                         return Err(DbError::new(format!("Ambiguous column name '{column}'")));
                     }
@@ -676,7 +671,7 @@ pub(crate) mod testutil {
             .flat_map(|t| {
                 t.column_names
                     .iter()
-                    .cloned()
+                    .map(|s| s.as_str().to_string())
                     .zip(t.column_types.iter().cloned())
             })
             .collect()

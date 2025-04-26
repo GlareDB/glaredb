@@ -11,6 +11,7 @@ use crate::expr::column_expr::ColumnReference;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::{self, Expression};
 use crate::functions::table::{PlannedTableFunction, TableFunctionInput};
+use crate::logical::binder::ascii_case::AsciiCase;
 use crate::logical::binder::bind_context::{
     BindContext,
     BindScopeRef,
@@ -153,7 +154,7 @@ impl<'a> FromBinder<'a> {
         &self,
         bind_context: &mut BindContext,
         mut default_alias: Option<TableAlias>,
-        mut default_column_aliases: Vec<String>,
+        mut default_column_aliases: Vec<AsciiCase<String>>,
         column_types: Vec<DataType>,
         from_alias: Option<ast::FromAlias>,
     ) -> Result<TableRef> {
@@ -183,7 +184,7 @@ impl<'a> FromBinder<'a> {
                     for (orig_alias, new_alias) in
                         default_column_aliases.iter_mut().zip(columns.into_iter())
                     {
-                        *orig_alias = new_alias.into_normalized_string();
+                        *orig_alias = AsciiCase::new(new_alias.into_normalized_string());
                     }
                 }
             }
@@ -220,7 +221,7 @@ impl<'a> FromBinder<'a> {
                     .try_as_table_entry()?
                     .columns
                     .iter()
-                    .map(|c| c.name.clone())
+                    .map(|c| AsciiCase::new(c.name.clone()))
                     .collect();
 
                 let default_alias = TableAlias {
@@ -369,7 +370,7 @@ impl<'a> FromBinder<'a> {
             }
 
             for (name, alias) in names.iter_mut().zip(column_aliases) {
-                *name = alias;
+                *name = AsciiCase::new(alias);
             }
 
             self.push_table_scope_with_from_alias(
@@ -474,7 +475,7 @@ impl<'a> FromBinder<'a> {
             .schema
             .fields
             .iter()
-            .map(|f| (f.name.clone(), f.datatype.clone()))
+            .map(|f| (AsciiCase::new(f.name.clone()), f.datatype.clone()))
             .unzip();
 
         let table_ref = self.push_table_scope_with_from_alias(
@@ -545,10 +546,16 @@ impl<'a> FromBinder<'a> {
                     .map(|table| table.reference)
                     .collect();
 
+                // TODO: Double check if we really want to do case-sensitive
+                // compares here.
+                //
+                // Right now, this would say the columns "Co1" and "col1" **are
+                // not** equivalent.
+
                 // Get columns from the left.
                 let left_cols: HashSet<_> = bind_context
                     .iter_tables_in_scope(left_idx)?
-                    .flat_map(|table| table.column_names.iter())
+                    .flat_map(|table| table.column_names.iter().map(|col| col.as_str()))
                     .collect();
 
                 // Get columns from the right, skipping columns from tables that
@@ -556,7 +563,7 @@ impl<'a> FromBinder<'a> {
                 let right_cols = bind_context
                     .iter_tables_in_scope(right_idx)?
                     .filter(|table| !left_tables.contains(&table.reference))
-                    .flat_map(|table| table.column_names.iter());
+                    .flat_map(|table| table.column_names.iter().map(|col| col.as_str()));
 
                 let mut common = Vec::new();
 
@@ -566,7 +573,7 @@ impl<'a> FromBinder<'a> {
                 // the order of columns consistent.
                 for right_col in right_cols {
                     if left_cols.contains(right_col) {
-                        common.push(right_col.clone());
+                        common.push(right_col.to_string());
                     }
                 }
 

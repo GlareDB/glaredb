@@ -44,12 +44,7 @@ impl<'a> CopyBinder<'a> {
         bind_context: &mut BindContext,
         copy_to: ast::CopyTo<ResolvedMeta>,
     ) -> Result<BoundCopyTo> {
-        bind_context.push_table(
-            self.current,
-            None,
-            vec![DataType::UInt64],
-            vec!["rows_copied".to_string()],
-        )?;
+        bind_context.push_table(self.current, None, vec![DataType::UInt64], ["rows_copied"])?;
 
         let source_scope = bind_context.new_orphan_scope();
 
@@ -79,7 +74,7 @@ impl<'a> CopyBinder<'a> {
                     t.column_names
                         .iter()
                         .zip(&t.column_types)
-                        .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
+                        .map(|(name, datatype)| Field::new(name.as_str(), datatype.clone(), true))
                 }),
         );
 

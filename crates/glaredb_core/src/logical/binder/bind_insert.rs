@@ -55,12 +55,7 @@ impl<'a> InsertBinder<'a> {
         bind_context: &mut BindContext,
         insert: ast::Insert<ResolvedMeta>,
     ) -> Result<BoundInsert> {
-        bind_context.push_table(
-            self.current,
-            None,
-            vec![DataType::Int64],
-            vec!["rows_inserted".to_string()],
-        )?;
+        bind_context.push_table(self.current, None, [DataType::Int64], ["rows_inserted"])?;
 
         let source_scope = bind_context.new_orphan_scope();
 
@@ -139,9 +134,7 @@ impl<'a> InsertBinder<'a> {
                     .iter()
                     .map(|p| p.datatype())
                     .collect::<Result<Vec<_>>>()?,
-                (0..projections.len())
-                    .map(|idx| format!("__generated_insert_project_{idx}"))
-                    .collect(),
+                (0..projections.len()).map(|idx| format!("__generated_insert_project_{idx}")),
             )?;
 
             Some(InsertProjections {
