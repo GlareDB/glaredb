@@ -365,7 +365,9 @@ where
                             t.column_names
                                 .iter()
                                 .zip(&t.column_types)
-                                .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
+                                .map(|(name, datatype)| {
+                                    Field::new(name.as_str(), datatype.clone(), true)
+                                })
                         }),
                 );
 

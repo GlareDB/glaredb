@@ -1,0 +1,40 @@
+# Case-insensitivity may lead to ambiguous column references. Ensure we can
+# quote to force case sensitivity.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE t1 ("Acolumn" INT, "Bcolumn" TEXT, "bcolumn" TEXT);
+
+statement ok
+INSERT INTO t1 VALUES (3, 'cat', 'yyy'), (4, 'dog', 'zzz');
+
+query TT
+DESCRIBE t1;
+----
+Acolumn  Int32
+Bcolumn  Utf8
+bcolumn  Utf8
+
+query ITT
+SELECT * FROM t1 ORDER BY 1;
+----
+3  cat  yyy
+4  dog  zzz
+
+query I
+SELECT acolumn FROM t1 ORDER BY 1;
+----
+3
+4
+
+statement error Ambiguous column name 'bcolumn'
+SELECT bcolumn FROM t1 ORDER BY 1
+
+query TT
+SELECT "bcolumn", "Bcolumn" FROM t1 ORDER BY 1;
+----
+yyy  cat
+zzz  dog
+

@@ -1,6 +1,7 @@
 use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
+use super::ascii_case::CaseCompare;
 use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn};
 use super::expr_binder::RecursionContext;
 use super::table_list::TableAlias;
@@ -72,8 +73,8 @@ impl ExpressionColumnBinder for DefaultColumnBinder {
         ident: &ast::Ident,
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        let col = ident.as_normalized_string();
-        self.bind_column(bind_scope, bind_context, None, &col)
+        let cmp = CaseCompare::ident(ident);
+        self.bind_column(bind_scope, bind_context, None, &ident.value, cmp)
     }
 
     fn bind_from_idents(
@@ -83,8 +84,8 @@ impl ExpressionColumnBinder for DefaultColumnBinder {
         idents: &[ast::Ident],
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        let (alias, col) = idents_to_alias_and_column(idents)?;
-        self.bind_column(bind_scope, bind_context, alias, &col)
+        let (alias, col, cmp) = idents_to_alias_and_column(idents)?;
+        self.bind_column(bind_scope, bind_context, alias, &col, cmp)
     }
 }
 
@@ -99,10 +100,11 @@ impl DefaultColumnBinder {
         bind_context: &mut BindContext,
         alias: Option<TableAlias>,
         col: &str,
+        cmp: CaseCompare,
     ) -> Result<Option<Expression>> {
         let mut current = bind_scope;
         loop {
-            let table = bind_context.find_table_for_column(current, alias.as_ref(), col)?;
+            let table = bind_context.find_table_for_column(current, alias.as_ref(), col, cmp)?;
             match table {
                 Some((table, col_idx)) => {
                     // Table containing column found. Check if it's correlated
@@ -155,12 +157,18 @@ impl DefaultColumnBinder {
 /// If only one ident is provided, table alias will be None.
 ///
 /// Errors if no idents are provided.
-pub fn idents_to_alias_and_column(idents: &[ast::Ident]) -> Result<(Option<TableAlias>, String)> {
+fn idents_to_alias_and_column(
+    idents: &[ast::Ident],
+) -> Result<(Option<TableAlias>, String, CaseCompare)> {
     match idents.len() {
         0 => Err(DbError::new("Empty identifier")),
         1 => {
             // Single column.
-            Ok((None, idents[0].as_normalized_string()))
+            Ok((
+                None,
+                idents[0].value.clone(),
+                CaseCompare::ident(&idents[0]),
+            ))
         }
         2..=4 => {
             // Qualified column.
@@ -170,7 +178,7 @@ pub fn idents_to_alias_and_column(idents: &[ast::Ident]) -> Result<(Option<Table
             // TODO: Struct fields.
 
             let mut idents = idents.to_vec();
-            let col = idents.pop().unwrap().into_normalized_string();
+            let col = idents.pop().unwrap();
 
             let alias = TableAlias {
                 table: idents
@@ -181,7 +189,10 @@ pub fn idents_to_alias_and_column(idents: &[ast::Ident]) -> Result<(Option<Table
                 database: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
             };
 
-            Ok((Some(alias), col))
+            // TODO: How to do this with the qualifiers?
+            let cmp = CaseCompare::ident(&col);
+
+            Ok((Some(alias), col.value, cmp))
         }
         _ => Err(DbError::new(format!(
             "Too many identifier parts in {}",

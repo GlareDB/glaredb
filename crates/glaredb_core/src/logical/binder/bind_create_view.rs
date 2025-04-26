@@ -37,7 +37,7 @@ impl<'a> CreateViewBinder<'a> {
         let column_aliases = create.column_aliases.map(|aliases| {
             aliases
                 .into_iter()
-                .map(|alias| alias.into_normalized_string())
+                .map(|alias| alias.value)
                 .collect::<Vec<_>>()
         });
 

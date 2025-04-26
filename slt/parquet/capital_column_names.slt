@@ -1,0 +1,22 @@
+# Tests reading parquet files that have capitalized column names.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE read_parquet('../testdata/parquet/capital_column_names.parquet');
+----
+Acolumn  Utf8
+Bcolumn  Int64
+
+query TI
+SELECT "Acolumn", "Bcolumn" FROM read_parquet('../testdata/parquet/capital_column_names.parquet') ORDER BY 1;
+----
+cat    5
+horse  4
+
+query TI
+SELECT Acolumn, "Bcolumn" FROM read_parquet('../testdata/parquet/capital_column_names.parquet') ORDER BY 1;
+----
+cat    5
+horse  4

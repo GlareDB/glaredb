@@ -70,8 +70,8 @@ mod testutil {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Ident {
-    pub(crate) value: String,
-    pub(crate) quoted: bool,
+    pub value: String,
+    pub quoted: bool,
 }
 
 impl Ident {
@@ -88,6 +88,7 @@ impl Ident {
     ///
     /// If an identifier is quoted, its case is preserved. Otherwise it's all
     /// lowercase.
+    // TODO: Remove most uses of this.
     pub fn into_normalized_string(self) -> String {
         if self.quoted {
             self.value

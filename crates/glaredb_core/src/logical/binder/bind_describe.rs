@@ -34,8 +34,8 @@ impl<'a> DescribeBinder<'a> {
         let table_ref = bind_context.push_table(
             self.current,
             None,
-            vec![DataType::Utf8, DataType::Utf8],
-            vec!["column_name".to_string(), "datatype".to_string()],
+            [DataType::Utf8, DataType::Utf8],
+            ["column_name", "datatype"],
         )?;
 
         let query_scope = bind_context.new_orphan_scope();
@@ -59,7 +59,7 @@ impl<'a> DescribeBinder<'a> {
                 t.column_names
                     .iter()
                     .zip(&t.column_types)
-                    .map(|(name, datatype)| Field::new(name, datatype.clone(), true))
+                    .map(|(name, datatype)| Field::new(name.as_str(), datatype.clone(), true))
             });
 
         Ok(Node {

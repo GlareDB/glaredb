@@ -3,6 +3,7 @@ use std::fmt;
 use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
+use super::ascii_case::AsciiCase;
 use crate::arrays::datatype::DataType;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 
@@ -27,8 +28,11 @@ impl fmt::Display for TableRef {
 /// Reference to a table inside a scope.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TableAlias {
+    // TODO: AsciiCase
     pub database: Option<String>,
+    // TODO: AsciiCase
     pub schema: Option<String>,
+    // TODO: AsciiCase
     pub table: String,
 }
 
@@ -73,7 +77,7 @@ pub struct Table {
     pub reference: TableRef,
     pub alias: Option<TableAlias>,
     pub column_types: Vec<DataType>,
-    pub column_names: Vec<String>,
+    pub column_names: Vec<AsciiCase<String>>,
 }
 
 impl Table {
@@ -124,10 +128,10 @@ impl TableList {
         column_names: impl IntoIterator<Item = S>,
     ) -> Result<TableRef>
     where
-        S: Into<String>,
+        S: Into<AsciiCase<String>>,
     {
         let column_types: Vec<_> = column_types.into_iter().collect();
-        let column_names: Vec<_> = column_names.into_iter().map(|s| s.into()).collect();
+        let column_names: Vec<_> = column_names.into_iter().map(|n| n.into()).collect();
 
         if column_types.len() != column_names.len() {
             return Err(

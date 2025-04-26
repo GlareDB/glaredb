@@ -1,3 +1,4 @@
+pub mod ascii_case;
 pub mod bind_attach;
 pub mod bind_context;
 pub mod bind_copy;

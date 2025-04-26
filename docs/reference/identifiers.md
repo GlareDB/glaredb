@@ -7,8 +7,6 @@ order: 1
 
 Identifiers are used when referencing database objects.
 
-Identifier rules attempt to follow Postgres semantics where possible.
-
 ## Case-Sensitivity
 
 Identifiers in a SQL query are case-insensitive.
@@ -37,6 +35,24 @@ Both queries are equivalent:
 ```sql
 SELECT abs(-1.0);
 SELECT ABS(-1.0);
+```
+
+When querying columns, unquoted identifiers match column names ignoring case.
+For example, if we have a parquet file with columns `EmployeeName` and
+`Department`, all of the below queries behave the same:
+
+```sql
+SELECT EmployeeName, Deparment FROM './employees.parquet';
+SELECT employeename, deparment FROM './employees.parquet';
+SELECT "EmployeeName", "Deparment" FROM './employees.parquet';
+```
+
+Note that quoting a column name forces case sensitive matching. Using the same
+parquet example, the below query will error:
+
+```sql
+-- Error: Missing column for reference: employeename
+SELECT "employeename", "deparment" FROM './employees.parquet';
 ```
 
 ## Generated Column Names

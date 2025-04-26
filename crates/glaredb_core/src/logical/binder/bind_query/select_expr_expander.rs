@@ -85,6 +85,8 @@ impl<'a> SelectExprExpander<'a> {
                 //
                 // USING columns are listed first, followed by the other table
                 // columns.
+                //
+                // TODO: Need to double check case-sensitivity handling here.
                 let mut handled = HashSet::new();
                 for using in self.bind_context.get_using_columns(self.current)? {
                     let reference = ColumnReference {
@@ -101,13 +103,13 @@ impl<'a> SelectExprExpander<'a> {
                         name: using.column.clone(),
                     });
 
-                    handled.insert(&using.column);
+                    handled.insert(using.column.as_str());
                 }
 
                 for table in self.bind_context.iter_tables_in_scope(self.current)? {
                     for (col_idx, name) in table.column_names.iter().enumerate() {
                         // If column is already added from USING, skip it.
-                        if handled.contains(name) {
+                        if handled.contains(name.as_str()) {
                             continue;
                         }
 
@@ -122,7 +124,7 @@ impl<'a> SelectExprExpander<'a> {
                                 reference,
                                 datatype,
                             },
-                            name: name.clone(),
+                            name: name.as_str().to_string(),
                         })
                     }
                 }
@@ -180,7 +182,7 @@ impl<'a> SelectExprExpander<'a> {
             ast::SelectExpr::AliasedExpr(expr, alias) => {
                 vec![ExpandedSelectExpr::Expr {
                     expr,
-                    alias: Some(alias.into_normalized_string()),
+                    alias: Some(alias.value),
                 }]
             }
             ast::SelectExpr::Expr(expr) => {
