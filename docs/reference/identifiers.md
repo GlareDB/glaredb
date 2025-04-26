@@ -42,9 +42,9 @@ For example, if we have a parquet file with columns `EmployeeName` and
 `Department`, all of the below queries behave the same:
 
 ```sql
-SELECT EmployeeName, Deparment FROM './employees.parquet';
-SELECT employeename, deparment FROM './employees.parquet';
-SELECT "EmployeeName", "Deparment" FROM './employees.parquet';
+SELECT EmployeeName, Department FROM './employees.parquet';
+SELECT employeename, department FROM './employees.parquet';
+SELECT "EmployeeName", "Department" FROM './employees.parquet';
 ```
 
 Note that quoting a column name forces case sensitive matching. Using the same
@@ -52,7 +52,7 @@ parquet example, the below query will error:
 
 ```sql
 -- Error: Missing column for reference: employeename
-SELECT "employeename", "deparment" FROM './employees.parquet';
+SELECT "employeename", "department" FROM './employees.parquet';
 ```
 
 ## Generated Column Names
