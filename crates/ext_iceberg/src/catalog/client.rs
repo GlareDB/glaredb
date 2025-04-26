@@ -37,7 +37,7 @@ pub struct IcebergErrorModel {
     pub code: i32,
 }
 
-/// Icerberg REST catalog client.
+/// Iceberg REST catalog client.
 ///
 /// Reference: <https://editor-next.swagger.io/?url=https://raw.githubusercontent.com/apache/iceberg/main/open-api/rest-catalog-open-api.yaml>
 #[derive(Debug)]
