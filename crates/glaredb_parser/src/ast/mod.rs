@@ -70,8 +70,8 @@ mod testutil {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Ident {
-    pub(crate) value: String,
-    pub(crate) quoted: bool,
+    pub value: String,
+    pub quoted: bool,
 }
 
 impl Ident {

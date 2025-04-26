@@ -1,3 +1,5 @@
+use glaredb_parser::ast;
+
 /// Wrapper around a string that provides optional case-insensitive comparisons.
 ///
 /// This just delegates to `eq_ignore_ascii_case`. No fancy unicode case folding
@@ -14,6 +16,17 @@ where
 pub enum CaseCompare {
     CaseSensitive,
     CaseInsensitive,
+}
+
+impl CaseCompare {
+    /// Returns which comparison method we should use for the given identifier.
+    pub fn ident(ident: &ast::Ident) -> CaseCompare {
+        if ident.quoted {
+            CaseCompare::CaseSensitive
+        } else {
+            CaseCompare::CaseInsensitive
+        }
+    }
 }
 
 impl<S> AsciiCase<S>

@@ -28,8 +28,11 @@ impl fmt::Display for TableRef {
 /// Reference to a table inside a scope.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TableAlias {
+    // TODO: AsciiCase
     pub database: Option<String>,
+    // TODO: AsciiCase
     pub schema: Option<String>,
+    // TODO: AsciiCase
     pub table: String,
 }
 

@@ -1,4 +1,4 @@
-# Tests for the 'normalize_column_names' option.
+# Tests reading parquet files that have capitalized column names.
 
 statement ok
 SET verify_optimized_plan TO true;
@@ -15,5 +15,8 @@ SELECT "Acolumn", "Bcolumn" FROM read_parquet('../testdata/parquet/capital_colum
 cat    5
 horse  4
 
-statement error Missing column for reference: Acolumn
+query TI
 SELECT Acolumn, "Bcolumn" FROM read_parquet('../testdata/parquet/capital_column_names.parquet') ORDER BY 1;
+----
+cat    5
+horse  4

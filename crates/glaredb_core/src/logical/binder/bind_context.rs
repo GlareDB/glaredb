@@ -3,7 +3,7 @@ use std::fmt;
 
 use glaredb_error::{DbError, Result};
 
-use super::ascii_case::AsciiCase;
+use super::ascii_case::{AsciiCase, CaseCompare};
 use super::bind_query::BoundQuery;
 use super::table_list::{Table, TableAlias, TableList, TableRef};
 use crate::arrays::datatype::DataType;
@@ -87,7 +87,8 @@ pub struct BoundCte {
     pub bind_scope: BindScopeRef,
     /// If this CTE should be materialized.
     pub materialized: bool,
-    /// Normalized name fo the CTE.
+    /// Normalized name for the CTE.
+    // TODO: AsciiCase, would need to figure out the cte map.
     pub name: String,
     /// Column names, possibly aliased.
     pub column_names: Vec<AsciiCase<String>>,
@@ -105,6 +106,7 @@ pub struct BoundCte {
 #[derive(Debug, Clone)]
 pub struct UsingColumn {
     /// Normalized column name.
+    // TODO: AsciiCase?
     pub column: String,
     /// A reference to one of the tables used in the USING condition.
     pub table_ref: TableRef,
@@ -125,6 +127,7 @@ struct BindScope {
     /// Tables currently in scope.
     tables: Vec<TableRef>,
     /// CTEs in scope. Keyed by normalized CTE name.
+    // TODO: AsciiCase?
     ctes: HashMap<String, CteRef>,
 }
 
@@ -574,17 +577,20 @@ impl BindContext {
     ///
     /// Returns the table reference containing the column, and the relative
     /// index of the column within that table.
+    ///
+    /// `cmp` determines if column matching is case sensitive or not.
     pub fn find_table_for_column(
         &self,
         current: BindScopeRef,
         alias: Option<&TableAlias>,
         column: &str,
+        cmp: CaseCompare,
     ) -> Result<Option<(TableRef, usize)>> {
         if alias.is_none() {
             let using = self
                 .get_using_columns(current)?
                 .iter()
-                .find(|&using| using.column == column);
+                .find(|&using| using.column == column); // TODO
             if let Some(using) = using {
                 return Ok(Some((using.table_ref, using.col_idx)));
             }
@@ -604,8 +610,7 @@ impl BindContext {
             }
 
             for (col_idx, col_name) in table.column_names.iter().enumerate() {
-                // TOOD: Should this be insensitive?
-                if col_name.eq_case_sensitive(column) {
+                if col_name.eq(column, cmp) {
                     if found.is_some() {
                         return Err(DbError::new(format!("Ambiguous column name '{column}'")));
                     }

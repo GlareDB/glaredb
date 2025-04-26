@@ -8,6 +8,7 @@ use super::select_list::{BoundDistinctModifier, SelectList};
 use crate::expr::Expression;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::subquery_expr::SubqueryType;
+use crate::logical::binder::ascii_case::CaseCompare;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::{DefaultColumnBinder, ExpressionColumnBinder};
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
@@ -307,12 +308,13 @@ impl ExpressionColumnBinder for SelectAliasColumnBinder<'_> {
         ident: &ast::Ident,
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        let col = ident.as_normalized_string();
-
-        match DefaultColumnBinder.bind_column(bind_scope, bind_context, None, &col)? {
+        let cmp = CaseCompare::ident(&ident);
+        match DefaultColumnBinder.bind_column(bind_scope, bind_context, None, &ident.value, cmp)? {
             Some(expr) => Ok(Some(expr)),
             None => {
-                match self.alias_map.get(&col) {
+                // TODO: Double check if normalized is fine.
+                let normalized = ident.as_normalized_string();
+                match self.alias_map.get(&normalized) {
                     Some(&col_idx) => {
                         if col_idx < self.current_idx {
                             // Valid alias reference, use the existing expression.
@@ -326,7 +328,7 @@ impl ExpressionColumnBinder for SelectAliasColumnBinder<'_> {
                         } else {
                             // Not a valid alias expression.
                             Err(DbError::new(format!(
-                                "'{col}' can only be referenced after it's been defined in the SELECT list"
+                                "'{normalized}' can only be referenced after it's been defined in the SELECT list"
                             )))
                         }
                     }
