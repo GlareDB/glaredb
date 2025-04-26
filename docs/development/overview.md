@@ -94,7 +94,7 @@ $ cargo test slt/standard
 
 All SLTs testing core features should be placed in the `./slt/standard`
 directory. SLTs for testing features outside of core should be placed in a
-relevent subdirectory of `./slt` (e.g. `./slt/tpch_gen` for the `tpch_gen`
+relevant subdirectory of `./slt` (e.g. `./slt/tpch_gen` for the `tpch_gen`
 extension) and an integration test runner added to `./test_bin`.
 
 ### Miri

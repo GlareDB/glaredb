@@ -131,7 +131,7 @@ impl ExpressionRewriteRule for LikeRewrite {
 }
 
 /// Checks if the string actually contains any pattern characters. If it
-/// doesn't, we can just compare the strings direclty.
+/// doesn't, we can just compare the strings directly.
 fn can_str_compare(s: &str) -> bool {
     !s.contains('%') && !s.contains('_')
 }
