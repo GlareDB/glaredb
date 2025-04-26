@@ -88,14 +88,14 @@ impl CsvReader {
         let out_cap = output.write_capacity()?;
 
         // TODO: Bit slow over http since we're only reading a few values at a
-        // time, and writing them direclty to the batch.
+        // time, and writing them directly to the batch.
         //
         // We should speed this this up by just continually writing to the
         // decoder until we reach a threshold (similar to how the parquet stuff
         // writes to a chunk buffer before put it in the batch).
         //
         // However, the current implementation did catch a bug with how we
-        // treater Pending. We were always resetting the batch, even though we
+        // treated Pending. We were always resetting the batch, even though we
         // were using it to store values. This resulted in garbage data when the
         // "file" was actually async (http).
         //

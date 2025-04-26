@@ -27,7 +27,7 @@ pub struct LogicalTableExecute {
 impl Explainable for LogicalTableExecute {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         EntryBuilder::new("TableExecute", conf)
-            .with_value("functoin", self.function.name)
+            .with_value("function", self.function.name)
             .with_contextual_values("inputs", &self.function.bind_state.input.positional)
             .with_value_if_verbose("function_table_ref", self.function_table_ref)
             .with_value_opt_if_verbose("projected_table_ref", self.projected_table_ref)
