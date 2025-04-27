@@ -82,6 +82,9 @@ jobs:
           AWS_SECRET: ${{ secrets.AWS_SECRET }}
         run: cargo test slt/s3/private
 
+      - name: Run CLI non-interactive
+        run: ./scripts/ci_run_cli_non_interactive.sh
+
       # - name: SLTs Delta
       #   env:
       #     AWS_KEY: ${{ secrets.AWS_KEY }}
