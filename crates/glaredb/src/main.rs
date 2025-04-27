@@ -113,8 +113,13 @@ async fn inner(
     engine.register_extension(ParquetExtension)?;
     engine.register_extension(IcebergExtension)?;
 
-    let (cols, _rows) = crossterm::terminal::size()?;
     let mut stdout = BufWriter::new(std::io::stdout());
+
+    // Try our best to get the size. We query the size even for non-interactive
+    // session in order to pretty print the table with a reasonable width.
+    //
+    // However we should still allow moving forward even if not in a proper tty.
+    let (cols, _rows) = crossterm::terminal::size().unwrap_or((80, 24));
 
     if !args.files.is_empty() {
         // Files provided, read them and execute them in order.
