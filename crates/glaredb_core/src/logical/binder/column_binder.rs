@@ -1,13 +1,14 @@
 use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
-use super::ascii_case::ComparePolicy;
 use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn};
 use super::expr_binder::RecursionContext;
+use super::ident::BinderIdent;
 use super::table_list::TableAlias;
 use crate::expr::Expression;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::logical::resolver::ResolvedMeta;
+use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 /// Defined behavior of how to bind idents to actual columns.
 ///
@@ -33,7 +34,7 @@ pub trait ExpressionColumnBinder {
         &mut self,
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
-        ident: &ast::Ident,
+        ident: &BinderIdent,
         recur: RecursionContext,
     ) -> Result<Option<Expression>>;
 
@@ -41,7 +42,7 @@ pub trait ExpressionColumnBinder {
         &mut self,
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
-        idents: &[ast::Ident],
+        idents: &[BinderIdent],
         recur: RecursionContext,
     ) -> Result<Option<Expression>>;
 }
@@ -70,22 +71,21 @@ impl ExpressionColumnBinder for DefaultColumnBinder {
         &mut self,
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
-        ident: &ast::Ident,
+        ident: &BinderIdent,
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        let cmp = ComparePolicy::ident(ident);
-        self.bind_column(bind_scope, bind_context, None, &ident.value, cmp)
+        self.bind_column(bind_scope, bind_context, None, ident)
     }
 
     fn bind_from_idents(
         &mut self,
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
-        idents: &[ast::Ident],
+        idents: &[BinderIdent],
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        let (alias, col, cmp) = idents_to_alias_and_column(idents)?;
-        self.bind_column(bind_scope, bind_context, alias, &col, cmp)
+        let (alias, col) = idents_to_alias_and_column(idents)?;
+        self.bind_column(bind_scope, bind_context, alias, &col)
     }
 }
 
@@ -99,12 +99,11 @@ impl DefaultColumnBinder {
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
         alias: Option<TableAlias>,
-        col: &str,
-        cmp: ComparePolicy,
+        col: &BinderIdent,
     ) -> Result<Option<Expression>> {
         let mut current = bind_scope;
         loop {
-            let table = bind_context.find_table_for_column(current, alias.as_ref(), col, cmp)?;
+            let table = bind_context.find_table_for_column(current, alias.as_ref(), col)?;
             match table {
                 Some((table, col_idx)) => {
                     // Table containing column found. Check if it's correlated
@@ -157,18 +156,12 @@ impl DefaultColumnBinder {
 /// If only one ident is provided, table alias will be None.
 ///
 /// Errors if no idents are provided.
-fn idents_to_alias_and_column(
-    idents: &[ast::Ident],
-) -> Result<(Option<TableAlias>, String, ComparePolicy)> {
+fn idents_to_alias_and_column(idents: &[BinderIdent]) -> Result<(Option<TableAlias>, BinderIdent)> {
     match idents.len() {
         0 => Err(DbError::new("Empty identifier")),
         1 => {
             // Single column.
-            Ok((
-                None,
-                idents[0].value.clone(),
-                ComparePolicy::ident(&idents[0]),
-            ))
+            Ok((None, idents[0].clone()))
         }
         2..=4 => {
             // Qualified column.
@@ -181,22 +174,16 @@ fn idents_to_alias_and_column(
             let col = idents.pop().unwrap();
 
             let alias = TableAlias {
-                table: idents
-                    .pop()
-                    .map(|ident| ident.into_normalized_string())
-                    .unwrap(), // Must exist
-                schema: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
-                database: idents.pop().map(|ident| ident.into_normalized_string()), // May exist
+                table: idents.pop().unwrap(), // Must exist
+                schema: idents.pop(),         // May exist
+                database: idents.pop(),       // May exist
             };
 
-            // TODO: How to do this with the qualifiers?
-            let cmp = ComparePolicy::ident(&col);
-
-            Ok((Some(alias), col.value, cmp))
+            Ok((Some(alias), col))
         }
         _ => Err(DbError::new(format!(
             "Too many identifier parts in {}",
-            ast::ObjectReference(idents.to_vec()),
+            idents.display_as_list(),
         ))), // TODO: Struct fields.
     }
 }
@@ -221,7 +208,7 @@ impl ExpressionColumnBinder for ErroringColumnBinder {
         &mut self,
         _bind_scope: BindScopeRef,
         _bind_context: &mut BindContext,
-        _ident: &ast::Ident,
+        _ident: &BinderIdent,
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
         Err(DbError::new(
@@ -233,7 +220,7 @@ impl ExpressionColumnBinder for ErroringColumnBinder {
         &mut self,
         _bind_scope: BindScopeRef,
         _bind_context: &mut BindContext,
-        _idents: &[ast::Ident],
+        _idents: &[BinderIdent],
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
         Err(DbError::new(

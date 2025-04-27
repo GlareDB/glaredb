@@ -11,7 +11,6 @@ use crate::expr::column_expr::ColumnReference;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::{self, Expression};
 use crate::functions::table::{PlannedTableFunction, TableFunctionInput};
-use crate::logical::binder::ascii_case::{AsciiCase, ComparePolicy};
 use crate::logical::binder::bind_context::{
     BindContext,
     BindScopeRef,
@@ -21,6 +20,7 @@ use crate::logical::binder::bind_context::{
 };
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::binder::ident::BinderIdent;
 use crate::logical::binder::table_list::{TableAlias, TableRef};
 use crate::logical::logical_join::JoinType;
 use crate::logical::operator::LocationRequirement;
@@ -85,7 +85,7 @@ pub struct BoundSubquery {
 pub struct BoundMaterializedCte {
     pub table_ref: TableRef,
     pub cte_ref: CteRef,
-    pub cte_name: String,
+    pub cte_name: BinderIdent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,7 +154,7 @@ impl<'a> FromBinder<'a> {
         &self,
         bind_context: &mut BindContext,
         mut default_alias: Option<TableAlias>,
-        mut default_column_aliases: Vec<AsciiCase<String>>,
+        mut default_column_aliases: Vec<BinderIdent>,
         column_types: Vec<DataType>,
         from_alias: Option<ast::FromAlias>,
     ) -> Result<TableRef> {
@@ -163,7 +163,7 @@ impl<'a> FromBinder<'a> {
                 default_alias = Some(TableAlias {
                     database: None,
                     schema: None,
-                    table: alias.into_normalized_string(),
+                    table: alias.into(),
                 });
 
                 // If column aliases are provided as well, apply those to the
@@ -184,7 +184,7 @@ impl<'a> FromBinder<'a> {
                     for (orig_alias, new_alias) in
                         default_column_aliases.iter_mut().zip(columns.into_iter())
                     {
-                        *orig_alias = AsciiCase::new(new_alias.value);
+                        *orig_alias = BinderIdent::from(new_alias);
                     }
                 }
             }
@@ -221,13 +221,13 @@ impl<'a> FromBinder<'a> {
                     .try_as_table_entry()?
                     .columns
                     .iter()
-                    .map(|c| AsciiCase::new(c.name.clone()))
+                    .map(|c| BinderIdent::from(c.name.clone()))
                     .collect();
 
                 let default_alias = TableAlias {
-                    database: Some(table.catalog.clone()),
-                    schema: Some(table.schema.clone()),
-                    table: table.entry.name.clone(),
+                    database: Some(BinderIdent::from(table.catalog.clone())),
+                    schema: Some(BinderIdent::from(table.schema.clone())),
+                    table: BinderIdent::from(table.entry.name.clone()),
                 };
 
                 let table_ref = self.push_table_scope_with_from_alias(
@@ -370,7 +370,7 @@ impl<'a> FromBinder<'a> {
             }
 
             for (name, alias) in names.iter_mut().zip(column_aliases) {
-                *name = AsciiCase::new(alias);
+                *name = BinderIdent::from(alias);
             }
 
             self.push_table_scope_with_from_alias(
@@ -467,7 +467,7 @@ impl<'a> FromBinder<'a> {
         let default_alias = TableAlias {
             database: None,
             schema: None,
-            table: reference.base_table_alias(),
+            table: BinderIdent::from(reference.base_table_alias()),
         };
 
         let (names, types) = planned
@@ -475,7 +475,7 @@ impl<'a> FromBinder<'a> {
             .schema
             .fields
             .iter()
-            .map(|f| (AsciiCase::new(f.name.clone()), f.datatype.clone()))
+            .map(|f| (BinderIdent::from(f.name.clone()), f.datatype.clone()))
             .unzip();
 
         let table_ref = self.push_table_scope_with_from_alias(
@@ -530,10 +530,7 @@ impl<'a> FromBinder<'a> {
         let (conditions, using_cols) = match join.join_condition {
             ast::JoinCondition::On(exprs) => (vec![exprs], Vec::new()),
             ast::JoinCondition::Using(cols) => {
-                let using_cols: Vec<_> = cols
-                    .into_iter()
-                    .map(|c| c.into_normalized_string())
-                    .collect();
+                let using_cols: Vec<_> = cols.into_iter().map(|c| BinderIdent::from(c)).collect();
                 (Vec::new(), using_cols)
             }
             ast::JoinCondition::Natural => {
@@ -546,16 +543,10 @@ impl<'a> FromBinder<'a> {
                     .map(|table| table.reference)
                     .collect();
 
-                // TODO: Double check if we really want to do case-sensitive
-                // compares here.
-                //
-                // Right now, this would say the columns "Co1" and "col1" **are
-                // not** equivalent.
-
                 // Get columns from the left.
                 let left_cols: HashSet<_> = bind_context
                     .iter_tables_in_scope(left_idx)?
-                    .flat_map(|table| table.column_names.iter().map(|col| col.as_str()))
+                    .flat_map(|table| table.column_names.iter())
                     .collect();
 
                 // Get columns from the right, skipping columns from tables that
@@ -563,7 +554,7 @@ impl<'a> FromBinder<'a> {
                 let right_cols = bind_context
                     .iter_tables_in_scope(right_idx)?
                     .filter(|table| !left_tables.contains(&table.reference))
-                    .flat_map(|table| table.column_names.iter().map(|col| col.as_str()));
+                    .flat_map(|table| table.column_names.iter());
 
                 let mut common = Vec::new();
 
@@ -573,7 +564,7 @@ impl<'a> FromBinder<'a> {
                 // the order of columns consistent.
                 for right_col in right_cols {
                     if left_cols.contains(right_col) {
-                        common.push(right_col.to_string());
+                        common.push(right_col.clone()); // TODO: Try not to clone
                     }
                 }
 
@@ -616,10 +607,10 @@ impl<'a> FromBinder<'a> {
 
             // TODO: Case sensitivity
             let (left_table, left_col_idx) = bind_context
-                .find_table_for_column(left_idx, None, &using, ComparePolicy::CaseSensitive)?
+                .find_table_for_column(left_idx, None, &using)?
                 .ok_or_else(|| missing_column("left"))?;
             let (right_table, right_col_idx) = bind_context
-                .find_table_for_column(right_idx, None, &using, ComparePolicy::CaseSensitive)?
+                .find_table_for_column(right_idx, None, &using)?
                 .ok_or_else(|| missing_column("right"))?;
 
             let using_column = match join_type {

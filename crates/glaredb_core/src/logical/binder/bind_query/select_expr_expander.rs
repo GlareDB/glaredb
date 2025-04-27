@@ -6,6 +6,7 @@ use regex::Regex;
 
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
+use crate::logical::binder::ident::BinderIdent;
 use crate::logical::binder::table_list::TableAlias;
 use crate::logical::resolver::ResolvedMeta;
 
@@ -19,7 +20,7 @@ pub enum ExpandedSelectExpr {
         /// expression binding.
         expr: ast::Expr<ResolvedMeta>,
         /// Optional user-provided alias.
-        alias: Option<ast::Ident>,
+        alias: Option<BinderIdent>,
     },
     /// An index of a column in the current scope. This is needed for wildcards
     /// since they're expanded to match some number of columns in the current
@@ -28,12 +29,12 @@ pub enum ExpandedSelectExpr {
         /// The column expression representing a column in some scope.
         expr: ColumnExpr,
         /// Name as it existed in the bind scope.
-        name: String,
+        name: BinderIdent,
     },
 }
 
 impl ExpandedSelectExpr {
-    pub fn get_alias(&self) -> Option<&ast::Ident> {
+    pub fn get_alias(&self) -> Option<&BinderIdent> {
         match self {
             Self::Expr { alias, .. } => alias.as_ref(),
             Self::Column { .. } => None,
@@ -103,13 +104,13 @@ impl<'a> SelectExprExpander<'a> {
                         name: using.column.clone(),
                     });
 
-                    handled.insert(using.column.as_str());
+                    handled.insert(&using.column);
                 }
 
                 for table in self.bind_context.iter_tables_in_scope(self.current)? {
                     for (col_idx, name) in table.column_names.iter().enumerate() {
                         // If column is already added from USING, skip it.
-                        if handled.contains(name.as_str()) {
+                        if handled.contains(name) {
                             continue;
                         }
 
@@ -124,7 +125,7 @@ impl<'a> SelectExprExpander<'a> {
                                 reference,
                                 datatype,
                             },
-                            name: name.as_str().to_string(),
+                            name: name.clone(),
                         })
                     }
                 }
@@ -141,11 +142,11 @@ impl<'a> SelectExprExpander<'a> {
                 }
 
                 // TODO: Get schema + catalog too if they exist.
-                let table = reference.base()?.into_normalized_string();
+                let table = reference.base()?;
                 let alias = TableAlias {
                     database: None,
                     schema: None,
-                    table,
+                    table: table.into(),
                 };
 
                 let table = self
@@ -171,7 +172,7 @@ impl<'a> SelectExprExpander<'a> {
                             },
                             datatype: datatype.clone(),
                         },
-                        name: name.to_string(),
+                        name: name.clone(),
                     })
                 }
 
@@ -182,7 +183,7 @@ impl<'a> SelectExprExpander<'a> {
             ast::SelectExpr::AliasedExpr(expr, alias) => {
                 vec![ExpandedSelectExpr::Expr {
                     expr,
-                    alias: Some(alias),
+                    alias: Some(BinderIdent::from(alias)),
                 }]
             }
             ast::SelectExpr::Expr(expr) => {
@@ -196,11 +197,14 @@ impl<'a> SelectExprExpander<'a> {
                             let mut exprs = Vec::new();
                             // Iter all columns in the context, select the ones
                             // that match the regex.
+                            //
+                            // TODO: Same here, iter binder idents.
                             for table in self.bind_context.iter_tables_in_scope(self.current)? {
                                 for (col_idx, (name, datatype)) in
                                     table.iter_names_and_types().enumerate()
                                 {
-                                    if !regex.is_match(name) {
+                                    // TODO: Which string do we want to match?
+                                    if !regex.is_match(name.as_raw_str()) {
                                         continue;
                                     }
 
@@ -212,7 +216,7 @@ impl<'a> SelectExprExpander<'a> {
                                             },
                                             datatype: datatype.clone(),
                                         },
-                                        name: name.to_string(),
+                                        name: name.clone(),
                                     })
                                 }
                             }
@@ -240,10 +244,10 @@ impl<'a> SelectExprExpander<'a> {
         //
         // We do not allow users to exlude columns that don't exist in the output, so
         // error if any of the exluded columns aren't visited.
-        let mut normalized_excluded: HashMap<String, bool> = modifier
+        let mut normalized_excluded: HashMap<BinderIdent, bool> = modifier
             .exclude_cols
             .into_iter()
-            .map(|ident| (ident.into_normalized_string(), false))
+            .map(|ident| (ident.into(), false))
             .collect();
 
         exprs.retain(|expr| {
@@ -267,16 +271,12 @@ impl<'a> SelectExprExpander<'a> {
 
         // Like above, we track if we've visited a replacement column, and error
         // if we don't.
-        let mut normalized_replaces: HashMap<String, (ast::Expr<ResolvedMeta>, bool)> = modifier
-            .replace_cols
-            .into_iter()
-            .map(|replacement| {
-                (
-                    replacement.col.into_normalized_string(),
-                    (replacement.expr, false),
-                )
-            })
-            .collect();
+        let mut normalized_replaces: HashMap<BinderIdent, (ast::Expr<ResolvedMeta>, bool)> =
+            modifier
+                .replace_cols
+                .into_iter()
+                .map(|replacement| (replacement.col.into(), (replacement.expr, false)))
+                .collect();
 
         for expr in exprs {
             if let ExpandedSelectExpr::Column { name, .. } = expr {
@@ -290,10 +290,7 @@ impl<'a> SelectExprExpander<'a> {
                     // checks during planning.
                     *expr = ExpandedSelectExpr::Expr {
                         expr: ast_expr.clone(),
-                        alias: Some(ast::Ident {
-                            value: name.clone(),
-                            quoted: false,
-                        }),
+                        alias: Some(name.clone()),
                     };
 
                     // Mark visited.
@@ -353,9 +350,9 @@ mod tests {
             .push_table(
                 bind_context.root_scope_ref(),
                 Some(TableAlias {
-                    database: Some("d1".to_string()),
-                    schema: Some("s1".to_string()),
-                    table: "t1".to_string(),
+                    database: Some(BinderIdent::from("d1")),
+                    schema: Some(BinderIdent::from("s1")),
+                    table: BinderIdent::from("t1"),
                 }),
                 vec![DataType::Utf8, DataType::Utf8],
                 vec!["c1".to_string(), "c2".to_string()],
@@ -378,7 +375,7 @@ mod tests {
                     },
                     datatype: DataType::Utf8,
                 },
-                name: "c1".to_string(),
+                name: "c1".into(),
             },
             ExpandedSelectExpr::Column {
                 expr: ColumnExpr {
@@ -388,7 +385,7 @@ mod tests {
                     },
                     datatype: DataType::Utf8,
                 },
-                name: "c2".to_string(),
+                name: "c2".into(),
             },
         ];
         let expanded = expander.expand_all_select_exprs(exprs).unwrap();
@@ -404,9 +401,9 @@ mod tests {
             .push_table(
                 bind_context.root_scope_ref(),
                 Some(TableAlias {
-                    database: Some("d1".to_string()),
-                    schema: Some("s1".to_string()),
-                    table: "t1".to_string(),
+                    database: Some(BinderIdent::from("d1")),
+                    schema: Some(BinderIdent::from("s1")),
+                    table: BinderIdent::from("t1"),
                 }),
                 vec![DataType::Utf8, DataType::Utf8],
                 vec!["c1".to_string(), "c2".to_string()],
@@ -417,9 +414,9 @@ mod tests {
             .push_table(
                 bind_context.root_scope_ref(),
                 Some(TableAlias {
-                    database: Some("d1".to_string()),
-                    schema: Some("s1".to_string()),
-                    table: "t2".to_string(),
+                    database: Some(BinderIdent::from("d1")),
+                    schema: Some(BinderIdent::from("s1")),
+                    table: BinderIdent::from("t2"),
                 }),
                 vec![DataType::Utf8, DataType::Utf8],
                 vec!["c3".to_string(), "c4".to_string()],
@@ -446,7 +443,7 @@ mod tests {
                     },
                     datatype: DataType::Utf8,
                 },
-                name: "c1".to_string(),
+                name: "c1".into(),
             },
             ExpandedSelectExpr::Column {
                 expr: ColumnExpr {
@@ -456,7 +453,7 @@ mod tests {
                     },
                     datatype: DataType::Utf8,
                 },
-                name: "c2".to_string(),
+                name: "c2".into(),
             },
         ];
         let expanded = expander.expand_all_select_exprs(exprs).unwrap();

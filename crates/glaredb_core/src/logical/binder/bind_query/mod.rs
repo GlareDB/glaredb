@@ -16,8 +16,8 @@ use bind_values::{BoundValues, ValuesBinder};
 use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::ast;
 
-use super::ascii_case::AsciiCase;
 use super::bind_context::{BindContext, BindScopeRef};
+use super::ident::BinderIdent;
 use super::table_list::TableRef;
 use crate::logical::binder::bind_context::BoundCte;
 use crate::logical::resolver::ResolvedMeta;
@@ -143,14 +143,14 @@ impl<'a> QueryBinder<'a> {
             }
 
             for (idx, col_alias) in col_aliases.iter().enumerate() {
-                names[idx] = AsciiCase::new(col_alias.to_string());
+                names[idx] = BinderIdent::from(col_alias.clone());
             }
         }
 
         let cte = BoundCte {
             bind_scope: nested,
             materialized: cte.materialized,
-            name: cte.alias.into_normalized_string(),
+            name: cte.alias.into(),
             column_names: names,
             column_types: types,
             bound: Box::new(bound),

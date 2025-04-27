@@ -7,8 +7,8 @@ use super::bind_group_by::BoundGroupBy;
 use super::bind_select_list::SelectListBinder;
 use crate::expr::Expression;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
-use crate::logical::binder::ascii_case::AsciiCase;
 use crate::logical::binder::bind_context::BindContext;
+use crate::logical::binder::ident::BinderIdent;
 use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_aggregate::GroupingFunction;
 use crate::logical::resolver::ResolvedMeta;
@@ -76,7 +76,7 @@ pub struct SelectList {
     /// Remains empty during binding.
     pub projections_table: TableRef,
     /// Mapping from explicit user-provided alias to column index in the output.
-    pub alias_map: HashMap<String, usize>,
+    pub alias_map: HashMap<BinderIdent, usize>,
     /// Expanded projections that will be shown in the output.
     pub projections: Vec<Expression>,
     /// Projections that are appended to the right of the output projects.
@@ -134,7 +134,7 @@ impl SelectList {
         let projections_table = bind_context.get_table_mut(self.projections_table)?;
         for (alias, col_idx) in self.alias_map {
             let col_name = projections_table.column_names.get_mut(col_idx).ok_or_else(|| DbError::new(format!("Attempted to set the column alias '{alias}' for out-of-bounds column {col_idx}")))?;
-            *col_name = AsciiCase::new(alias);
+            *col_name = alias;
         }
 
         // If we had appended column, ensure we have a pruned table that only
@@ -299,12 +299,10 @@ impl SelectList {
     pub fn column_by_user_alias_or_name(
         &self,
         bind_context: &BindContext,
-        ident: &ast::Ident,
+        ident: &BinderIdent,
     ) -> Result<Option<ColumnExpr>> {
-        let name = ident.as_normalized_string();
-
         // Check user provided alias first.
-        if let Some(idx) = self.alias_map.get(&name) {
+        if let Some(idx) = self.alias_map.get(ident) {
             let reference = ColumnReference {
                 table_scope: self.projections_table,
                 column: *idx,
@@ -329,7 +327,7 @@ impl SelectList {
             .enumerate()
             .take(self.projections.len())
         {
-            if name == col_name {
+            if ident == col_name {
                 // We got our column!
                 if column_expr.is_some() {
                     // But we got more than one...

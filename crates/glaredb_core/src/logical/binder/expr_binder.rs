@@ -3,6 +3,7 @@ use glaredb_parser::ast::{self, QueryNode};
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::column_binder::ExpressionColumnBinder;
+use super::ident::BinderIdent;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::decimal::{
     Decimal64Scalar,
@@ -49,6 +50,7 @@ use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
+use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecursionContext {
@@ -108,7 +110,8 @@ impl<'a> BaseExpressionBinder<'a> {
         match expr {
             ast::Expr::Ident(ident) => {
                 // Use the provided column binder, no fallback.
-                match column_binder.bind_from_ident(self.current, bind_context, ident, recur)? {
+                let ident = BinderIdent::from(ident.clone());
+                match column_binder.bind_from_ident(self.current, bind_context, &ident, recur)? {
                     Some(expr) => Ok(expr),
                     None => Err(DbError::new(format!(
                         "Missing column for reference: {ident}",
@@ -117,18 +120,20 @@ impl<'a> BaseExpressionBinder<'a> {
             }
             ast::Expr::CompoundIdent(idents) => {
                 // Use the provided column binder, no fallback.
-                match column_binder.bind_from_idents(self.current, bind_context, idents, recur)? {
+
+                // TODO: Try not to clone here. We may atually be able to do all
+                // this in the resolve step, and make the associated ident type
+                // for AstMeta be BinderIdent.
+                let idents: Vec<_> = idents
+                    .iter()
+                    .map(|ident| BinderIdent::from(ident.clone()))
+                    .collect();
+                match column_binder.bind_from_idents(self.current, bind_context, &idents, recur)? {
                     Some(expr) => Ok(expr),
-                    None => {
-                        let ident_string = idents
-                            .iter()
-                            .map(|i| i.as_normalized_string())
-                            .collect::<Vec<_>>()
-                            .join(".");
-                        Err(DbError::new(format!(
-                            "Missing column for reference: {ident_string}",
-                        )))
-                    }
+                    None => Err(DbError::new(format!(
+                        "Missing column for reference: {}",
+                        idents.display_as_list(),
+                    ))),
                 }
             }
             ast::Expr::QualifiedWildcard(_) => Err(DbError::new(

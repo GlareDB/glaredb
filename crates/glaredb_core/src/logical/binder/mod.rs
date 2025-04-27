@@ -1,4 +1,3 @@
-pub mod ascii_case;
 pub mod bind_attach;
 pub mod bind_context;
 pub mod bind_copy;
@@ -15,4 +14,5 @@ pub mod bind_statement;
 pub mod column_binder;
 pub mod constant_binder;
 pub mod expr_binder;
+pub mod ident;
 pub mod table_list;

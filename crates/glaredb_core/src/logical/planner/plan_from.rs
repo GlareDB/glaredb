@@ -46,7 +46,7 @@ impl FromPlanner {
                         table
                             .column_names
                             .iter()
-                            .map(|name| name.as_str().to_string()),
+                            .map(|name| name.as_raw_str().to_string()),
                     );
                 }
 
@@ -84,7 +84,7 @@ impl FromPlanner {
                         table
                             .column_names
                             .iter()
-                            .map(|name| name.as_str().to_string()),
+                            .map(|name| name.as_raw_str().to_string()),
                     );
                 }
 

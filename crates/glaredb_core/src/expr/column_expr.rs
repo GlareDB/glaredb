@@ -41,7 +41,7 @@ impl ContextDisplay for ColumnReference {
         match mode {
             ContextDisplayMode::Enriched(context) => match context.get_table(self.table_scope) {
                 Ok(table) if table.num_columns() > self.column => {
-                    write!(f, "{}", &table.column_names[self.column].as_str())
+                    write!(f, "{}", &table.column_names[self.column].as_raw_str())
                 }
                 _ => write!(f, "<missing! {self}>"),
             },

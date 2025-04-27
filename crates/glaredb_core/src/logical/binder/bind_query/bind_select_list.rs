@@ -8,10 +8,10 @@ use super::select_list::{BoundDistinctModifier, SelectList};
 use crate::expr::Expression;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::subquery_expr::SubqueryType;
-use crate::logical::binder::ascii_case::ComparePolicy;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::{DefaultColumnBinder, ExpressionColumnBinder};
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::binder::ident::BinderIdent;
 use crate::logical::binder::table_list::TableRef;
 use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -36,7 +36,7 @@ impl<'a> SelectListBinder<'a> {
         projections: Vec<ExpandedSelectExpr>,
         distinct: Option<ast::DistinctModifier<ResolvedMeta>>,
     ) -> Result<SelectList> {
-        let mut alias_map = HashMap::new();
+        let mut alias_map: HashMap<BinderIdent, usize> = HashMap::new();
 
         // Track all aliases up front. This allows us to give a better error
         // if a user tries to reference an alias before it's been bound,
@@ -58,7 +58,7 @@ impl<'a> SelectListBinder<'a> {
                 // now. I do want to change this to be a specialized map
                 // structure that can optionally ignore case depending on if the
                 // ident is quoted or not.
-                alias_map.insert(alias.as_normalized_string(), idx);
+                alias_map.insert(alias.clone(), idx);
             }
         }
 
@@ -104,7 +104,7 @@ impl<'a> SelectListBinder<'a> {
 
                     let name = generate_column_name(bind_context, &bound_expr)?;
 
-                    names.push(name);
+                    names.push(BinderIdent::from(name));
                     exprs.push(bound_expr);
                 }
                 ExpandedSelectExpr::Column { expr, name } => {
@@ -292,7 +292,7 @@ struct SelectAliasColumnBinder<'a> {
     /// Used to determine if an alias is valid to use.
     current_idx: usize,
     /// User provided aliases.
-    alias_map: &'a HashMap<String, usize>,
+    alias_map: &'a HashMap<BinderIdent, usize>,
     /// Previously planned expressions.
     previous_exprs: &'a [Expression],
 }
@@ -311,20 +311,13 @@ impl ExpressionColumnBinder for SelectAliasColumnBinder<'_> {
         &mut self,
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
-        ident: &ast::Ident,
+        ident: &BinderIdent,
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        let cmp = ComparePolicy::ident(ident);
-        match DefaultColumnBinder.bind_column(bind_scope, bind_context, None, &ident.value, cmp)? {
+        match DefaultColumnBinder.bind_column(bind_scope, bind_context, None, ident)? {
             Some(expr) => Ok(Some(expr)),
             None => {
-                // TODO: Normalizing here matches what we're doing when we
-                // insert into the alias map.
-                //
-                // This is temporary until we have a more specialized structure
-                // (which will be useful for stuff like CTEs too).
-                let normalized = ident.as_normalized_string();
-                match self.alias_map.get(&normalized) {
+                match self.alias_map.get(ident) {
                     Some(&col_idx) => {
                         if col_idx < self.current_idx {
                             // Valid alias reference, use the existing expression.
@@ -338,7 +331,7 @@ impl ExpressionColumnBinder for SelectAliasColumnBinder<'_> {
                         } else {
                             // Not a valid alias expression.
                             Err(DbError::new(format!(
-                                "'{normalized}' can only be referenced after it's been defined in the SELECT list"
+                                "'{ident}' can only be referenced after it's been defined in the SELECT list"
                             )))
                         }
                     }
@@ -352,7 +345,7 @@ impl ExpressionColumnBinder for SelectAliasColumnBinder<'_> {
         &mut self,
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
-        idents: &[ast::Ident],
+        idents: &[BinderIdent],
         recur: RecursionContext,
     ) -> Result<Option<Expression>> {
         DefaultColumnBinder.bind_from_idents(bind_scope, bind_context, idents, recur)
