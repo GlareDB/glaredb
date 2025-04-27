@@ -1,5 +1,8 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
-DESCRIBE SELECT "WatchID", "ClientIP", COUNT(*) AS c, SUM("IsRefresh"), AVG("ResolutionWidth") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' GROUP BY "WatchID", "ClientIP" ORDER BY c DESC LIMIT 10;
+DESCRIBE SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
 ----
 WatchID   Int64
 ClientIP  Int32
@@ -9,7 +12,7 @@ avg       Float64
 
 # Additional ORDER BY, count has duplicates
 query ?????
-SELECT "WatchID", "ClientIP", COUNT(*) AS c, SUM("IsRefresh"), AVG("ResolutionWidth") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' GROUP BY "WatchID", "ClientIP" ORDER BY c DESC, "WatchID" LIMIT 10;
+SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY WatchID, ClientIP ORDER BY c DESC, WatchID LIMIT 10;
 ----
 4617561261186506426  1785570738  1  0  1750
 4621548433098056642  1515936442  1  1  1917

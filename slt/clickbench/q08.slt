@@ -1,12 +1,15 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
-DESCRIBE SELECT "RegionID", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "RegionID" ORDER BY u DESC LIMIT 10;
+DESCRIBE SELECT RegionID, COUNT(DISTINCT UserID) AS u FROM hits GROUP BY RegionID ORDER BY u DESC LIMIT 10;
 ----
 RegionID  Int32
 u         Int64
 
 # Extra ORDER BY
 query ??
-SELECT "RegionID", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "RegionID" ORDER BY u DESC, "RegionID" LIMIT 10;
+SELECT RegionID, COUNT(DISTINCT UserID) AS u FROM hits GROUP BY RegionID ORDER BY u DESC, RegionID LIMIT 10;
 ----
 229    294
 2      119

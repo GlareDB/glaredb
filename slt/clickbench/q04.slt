@@ -1,9 +1,12 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
-DESCRIBE SELECT COUNT(DISTINCT "UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
+DESCRIBE SELECT COUNT(DISTINCT UserID) FROM hits;
 ----
 count Int64
 
 query ?
-SELECT COUNT(DISTINCT "UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
+SELECT COUNT(DISTINCT UserID) FROM hits;
 ----
 723

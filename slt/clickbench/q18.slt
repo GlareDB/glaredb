@@ -1,6 +1,11 @@
+halt
+
+statement ok
+SET verify_optimized_plan TO true;
+
 # Note needed extra epoch call to convert to timestamp
 query TT
-DESCRIBE SELECT "UserID", extract(minute FROM epoch("EventTime")) AS m, "SearchPhrase", COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "UserID", m, "SearchPhrase" ORDER BY COUNT(*) DESC LIMIT 10;
+DESCRIBE SELECT UserID, extract(minute FROM epoch(EventTime)) AS m, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, m, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10;
 ----
 UserID        Int64
 m             Decimal64(18,3)
@@ -9,7 +14,7 @@ count         Int64
 
 # Extra ORDER BY, count has duplicates.
 query ????
-SELECT "UserID", extract(minute FROM epoch("EventTime")) AS m, "SearchPhrase", COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "UserID", m, "SearchPhrase" ORDER BY COUNT(*) DESC, "UserID" LIMIT 10;
+SELECT UserID, extract(minute FROM epoch(EventTime)) AS m, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, m, SearchPhrase ORDER BY COUNT(*) DESC, UserID LIMIT 10;
 ----
 -7918574344944952583  26.000  (empty)  24
 -9154375582268094750  1.000   (empty)  20

@@ -1,11 +1,16 @@
+halt
+
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
-DESCRIBE SELECT "URL", COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "URL" ORDER BY c DESC LIMIT 10;
+DESCRIBE SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
 ----
 URL  Utf8
 c    Int64
 
 query ??
-SELECT "URL", COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "URL" ORDER BY c DESC LIMIT 10;
+SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
 ----
 https://produkty%2Fproduct                                                                                              225
 https://produkty%2Fpulove.ru/album/login                                                                                140

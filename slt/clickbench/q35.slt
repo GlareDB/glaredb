@@ -1,5 +1,8 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
-DESCRIBE SELECT "ClientIP", "ClientIP" - 1, "ClientIP" - 2, "ClientIP" - 3, COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "ClientIP", "ClientIP" - 1, "ClientIP" - 2, "ClientIP" - 3 ORDER BY c DESC LIMIT 10;
+DESCRIBE SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10;
 ----
 ClientIP  Int32
 ?column?  Int32
@@ -9,7 +12,7 @@ c         Int64
 
 # Extra ORDER BY
 query ?????
-SELECT "ClientIP", "ClientIP" - 1, "ClientIP" - 2, "ClientIP" - 3, COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "ClientIP", "ClientIP" - 1, "ClientIP" - 2, "ClientIP" - 3 ORDER BY c DESC, "ClientIP" LIMIT 10;
+SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC, ClientIP LIMIT 10;
 ----
 743072690   743072689   743072688   743072687   194
 -896338100  -896338101  -896338102  -896338103  156

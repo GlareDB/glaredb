@@ -1,5 +1,8 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
-DESCRIBE SELECT "UserID", "SearchPhrase", COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "UserID", "SearchPhrase" ORDER BY COUNT(*) DESC LIMIT 10;
+DESCRIBE SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10;
 ----
 UserID        Int64
 SearchPhrase  Utf8
@@ -7,7 +10,7 @@ count         Int64
 
 # Note extra ORDER BY since count has duplicates
 query ???
-SELECT "UserID", "SearchPhrase", COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "UserID", "SearchPhrase" ORDER BY COUNT(*) DESC, "UserID" LIMIT 10;
+SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase ORDER BY COUNT(*) DESC, UserID LIMIT 10;
 ----
 -7918574344944952583 (empty) 182
 -7589677728426322164 (empty) 152

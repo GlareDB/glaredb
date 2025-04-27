@@ -1,10 +1,13 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
-DESCRIBE SELECT "SearchPhrase" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' ORDER BY "EventTime", "SearchPhrase" LIMIT 10;
+DESCRIBE SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY EventTime, SearchPhrase LIMIT 10;
 ----
 SearchPhrase Utf8
 
 query ?
-SELECT "SearchPhrase" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' ORDER BY "EventTime", "SearchPhrase" LIMIT 10;
+SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY EventTime, SearchPhrase LIMIT 10;
 ----
 ведомосквы с ляйсан баллы
 ведомосквы с ляйсан баллы

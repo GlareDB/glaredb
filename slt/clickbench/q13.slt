@@ -1,12 +1,15 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
-DESCRIBE SELECT "SearchPhrase", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' GROUP BY "SearchPhrase" ORDER BY u DESC LIMIT 10;
+DESCRIBE SELECT SearchPhrase, COUNT(DISTINCT UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC LIMIT 10;
 ----
 SearchPhrase  Utf8
 u             Int64
 
 # Extra ORDER BY
 query ??
-SELECT "SearchPhrase", COUNT(DISTINCT "UserID") AS u FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' GROUP BY "SearchPhrase" ORDER BY u DESC, "SearchPhrase" LIMIT 10;
+SELECT SearchPhrase s, COUNT(DISTINCT UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC, SearchPhrase LIMIT 10;
 ----
 ведомосквы вместу              32
 ведомосквиталия страции        15

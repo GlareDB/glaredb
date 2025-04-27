@@ -1,10 +1,13 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
-DESCRIBE SELECT "SearchPhrase" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' ORDER BY "SearchPhrase" LIMIT 10;
+DESCRIBE SELECT SearchPhrase FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE SearchPhrase <> '' ORDER BY SearchPhrase LIMIT 10;
 ----
 SearchPhrase Utf8
 
 query ?
-SELECT "SearchPhrase" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "SearchPhrase" <> '' ORDER BY "SearchPhrase" LIMIT 10;
+SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY SearchPhrase LIMIT 10;
 ----
 188242-81 кубов
 188242-81 кубов

@@ -1,10 +1,13 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
-DESCRIBE SELECT "UserID" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "UserID" = 435090932899640449;
+DESCRIBE SELECT UserID FROM hits WHERE UserID = 435090932899640449;
 ----
 UserID Int64
 
 # Note this id doesn't exist in the truncated dataset
 query ?
-SELECT "UserID" FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "UserID" = 435090932899640449;
+SELECT UserID FROM hits WHERE UserID = 435090932899640449;
 ----
 

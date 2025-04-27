@@ -1,9 +1,12 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
-DESCRIBE SELECT AVG("UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
+DESCRIBE SELECT AVG(UserID) FROM hits;
 ----
 avg  Float64
 
 query ?
-SELECT AVG("UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
+SELECT AVG(UserID) FROM hits;
 ----
 -7135061942656019000
