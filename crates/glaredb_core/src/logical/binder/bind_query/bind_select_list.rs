@@ -52,12 +52,6 @@ impl<'a> SelectListBinder<'a> {
         // ```
         for (idx, projection) in projections.iter().enumerate() {
             if let Some(alias) = projection.get_alias() {
-                // TODO: Temp
-                //
-                // This ensures we can just match on the lowercase string for
-                // now. I do want to change this to be a specialized map
-                // structure that can optionally ignore case depending on if the
-                // ident is quoted or not.
                 alias_map.insert(alias.clone(), idx);
             }
         }
