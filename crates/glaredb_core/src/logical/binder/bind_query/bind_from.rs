@@ -530,7 +530,7 @@ impl<'a> FromBinder<'a> {
         let (conditions, using_cols) = match join.join_condition {
             ast::JoinCondition::On(exprs) => (vec![exprs], Vec::new()),
             ast::JoinCondition::Using(cols) => {
-                let using_cols: Vec<_> = cols.into_iter().map(|c| BinderIdent::from(c)).collect();
+                let using_cols: Vec<_> = cols.into_iter().map(BinderIdent::from).collect();
                 (Vec::new(), using_cols)
             }
             ast::JoinCondition::Natural => {

@@ -50,7 +50,6 @@ use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;
 use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_function::{ResolvedFunction, SpecialBuiltinFunction};
-use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecursionContext {
