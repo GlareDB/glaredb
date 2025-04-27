@@ -6,7 +6,7 @@ JavaEnable             Int16
 Title                  Utf8
 GoodEvent              Int16
 EventTime              Int64
-EventDate              UInt16
+EventDate              Date32
 CounterID              Int32
 ClientIP               Int32
 RegionID               Int32
