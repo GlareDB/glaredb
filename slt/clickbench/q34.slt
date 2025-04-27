@@ -1,12 +1,14 @@
+halt
+
 query TT
-DESCRIBE SELECT 1, "URL", COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY 1, "URL" ORDER BY c DESC LIMIT 10;
+DESCRIBE SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
 ----
 ?column?  Int32
 URL       Utf8
 c         Int64
 
 query ???
-SELECT 1, "URL", COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY 1, "URL" ORDER BY c DESC LIMIT 10;
+SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
 ----
 1  https://produkty%2Fproduct                                                                                              225
 1  https://produkty%2Fpulove.ru/album/login                                                                                140

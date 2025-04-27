@@ -1,5 +1,5 @@
 query TT
-DESCRIBE SELECT "UserID", "SearchPhrase", COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "UserID", "SearchPhrase" LIMIT 10;
+DESCRIBE SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase LIMIT 10;
 ----
 UserID        Int64
 SearchPhrase  Utf8
@@ -7,7 +7,7 @@ count         Int64
 
 # Note added ORDER BY for consistent results
 query ???
-SELECT "UserID", "SearchPhrase", COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "UserID", "SearchPhrase" ORDER BY "UserID", "SearchPhrase" LIMIT 10;
+SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase ORDER BY UserID, SearchPhrase LIMIT 10;
 ----
 -9214751021948998350 авомосква веб каменисный 2
 -9213728704863893851 (empty) 2

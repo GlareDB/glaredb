@@ -1,5 +1,5 @@
 query TT
-DESCRIBE SELECT "CounterID", AVG(length("URL")) AS l, COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "URL" <> '' GROUP BY "CounterID" HAVING COUNT(*) > 100000 ORDER BY l DESC LIMIT 25;
+DESCRIBE SELECT CounterID, AVG(length(URL)) AS l, COUNT(*) AS c FROM hits WHERE URL <> '' GROUP BY CounterID HAVING COUNT(*) > 100000 ORDER BY l DESC LIMIT 25;
 ----
 CounterID  Int32
 l          Float64
@@ -7,5 +7,5 @@ c          Int64
 
 # Zero rows correct for truncated dataset
 query ???
-SELECT "CounterID", AVG(length("URL")) AS l, COUNT(*) AS c FROM '../submodules/testdata/clickbench/hits_truncated.parquet' WHERE "URL" <> '' GROUP BY "CounterID" HAVING COUNT(*) > 100000 ORDER BY l DESC LIMIT 25;
+SELECT CounterID, AVG(length(URL)) AS l, COUNT(*) AS c FROM hits WHERE URL <> '' GROUP BY CounterID HAVING COUNT(*) > 100000 ORDER BY l DESC LIMIT 25;
 ----

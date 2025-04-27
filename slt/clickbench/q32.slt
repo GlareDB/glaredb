@@ -1,5 +1,7 @@
+halt
+
 query TT
-DESCRIBE SELECT "WatchID", "ClientIP", COUNT(*) AS c, SUM("IsRefresh"), AVG("ResolutionWidth") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "WatchID", "ClientIP" ORDER BY c DESC LIMIT 10;
+DESCRIBE SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;
 ----
 WatchID   Int64
 ClientIP  Int32
@@ -9,7 +11,7 @@ avg       Float64
 
 # Additional ORDER BY, count has duplicates
 query ?????
-SELECT "WatchID", "ClientIP", COUNT(*) AS c, SUM("IsRefresh"), AVG("ResolutionWidth") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "WatchID", "ClientIP" ORDER BY c, "WatchID" DESC LIMIT 10;
+SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits GROUP BY WatchID, ClientIP ORDER BY c, WatchID DESC LIMIT 10;
 ----
 9223293557789499343  1743521871   1  1  1760
 9223247512111991176  1745080255   1  0  1917
