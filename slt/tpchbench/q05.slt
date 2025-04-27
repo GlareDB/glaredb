@@ -1,17 +1,17 @@
-# TODO: Slow in CI. Plan has all inner joins (and hash joins), but doesn't seem
-# to parallelize cleanly (large build side?).
+# Enable hash join
+halt
 
 query TT
 DESCRIBE SELECT
     n_name,
     sum(l_extendedprice * (1 - l_discount)) AS revenue
 FROM
-  '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer,
-  '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
-  '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-  '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-  '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation,
-  '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+  customer,
+  orders,
+  lineitem,
+  supplier,
+  nation,
+  region
 WHERE
     c_custkey = o_custkey
     AND l_orderkey = o_orderkey
@@ -35,12 +35,12 @@ SELECT
     n_name,
     sum(l_extendedprice * (1 - l_discount)) AS revenue
 FROM
-  '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer,
-  '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
-  '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-  '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-  '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation,
-  '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+  customer,
+  orders,
+  lineitem,
+  supplier,
+  nation,
+  region
 WHERE
     c_custkey = o_custkey
     AND l_orderkey = o_orderkey

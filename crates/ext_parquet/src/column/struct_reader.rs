@@ -98,6 +98,9 @@ pub(crate) fn new_column_reader(
         DataType::Float64 => Box::new(ValueColumnReader::<PlainFloat64ValueReader>::try_new(
             manager, datatype, descr,
         )?),
+        DataType::Date32 => Box::new(ValueColumnReader::<PlainInt32ValueReader>::try_new(
+            manager, datatype, descr,
+        )?),
         DataType::Decimal64(_) => match descr.physical_type() {
             basic::Type::INT32 => Box::new(
                 ValueColumnReader::<CastingInt32ToInt64Reader>::try_new(manager, datatype, descr)?,

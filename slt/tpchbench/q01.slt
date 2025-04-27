@@ -11,7 +11,7 @@ DESCRIBE SELECT
     avg(l_discount) AS avg_disc,
     count(*) AS count_order
 FROM
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet' lineitem
+    lineitem
 WHERE
     l_shipdate <= CAST('1998-09-02' AS date)
 GROUP BY
@@ -45,7 +45,7 @@ SELECT
     avg(l_discount) AS avg_disc,
     count(*) AS count_order
 FROM
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet'
+    lineitem
 WHERE
     l_shipdate <= date '1998-09-02'
 GROUP BY

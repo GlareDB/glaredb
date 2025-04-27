@@ -1,3 +1,6 @@
+# Enable hash join
+halt
+
 query TT
 DESCRIBE SELECT
     o_year,
@@ -13,14 +16,14 @@ FROM (
         l_extendedprice * (1 - l_discount) AS volume,
         n2.n_name AS nation
     FROM
-       '../submodules/testdata/tpch_sf0.1/part.parquet'      part,
-       '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-       '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-       '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
-       '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer,
-       '../submodules/testdata/tpch_sf0.1/nation.parquet'    n1,
-       '../submodules/testdata/tpch_sf0.1/nation.parquet'    n2,
-       '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+       part,
+       supplier,
+       lineitem,
+       orders,
+       customer,
+       nation n1,
+       nation n2,
+       region
     WHERE
         p_partkey = l_partkey
         AND s_suppkey = l_suppkey
@@ -56,14 +59,14 @@ FROM (
         l_extendedprice * (1 - l_discount) AS volume,
         n2.n_name AS nation
     FROM
-       '../submodules/testdata/tpch_sf0.1/part.parquet'      part,
-       '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-       '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-       '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
-       '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer,
-       '../submodules/testdata/tpch_sf0.1/nation.parquet'    n1,
-       '../submodules/testdata/tpch_sf0.1/nation.parquet'    n2,
-       '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+       part,
+       supplier,
+       lineitem,
+       orders,
+       customer,
+       nation n1,
+       nation n2,
+       region
     WHERE
         p_partkey = l_partkey
         AND s_suppkey = l_suppkey

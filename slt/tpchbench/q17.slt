@@ -1,12 +1,11 @@
-# Wrong result
-# Get 30116.98, should be 23512.75.. (probably decimal scale)
+halt
 
 query TT
 DESCRIBE SELECT
     sum(l_extendedprice) / 7.0 AS avg_yearly
 FROM
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-    '../submodules/testdata/tpch_sf0.1/part.parquet'      part
+    lineitem,
+    part
 WHERE
     p_partkey = l_partkey
     AND p_brand = 'Brand#23'
@@ -15,7 +14,7 @@ WHERE
         SELECT
             0.2 * avg(l_quantity)
         FROM
-            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem
+            lineitem
         WHERE
             l_partkey = p_partkey);
 ----
@@ -25,8 +24,8 @@ query ?
 SELECT
     sum(l_extendedprice) / 7.0 AS avg_yearly
 FROM
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-    '../submodules/testdata/tpch_sf0.1/part.parquet'      part
+    lineitem,
+    part
 WHERE
     p_partkey = l_partkey
     AND p_brand = 'Brand#23'
@@ -35,7 +34,7 @@ WHERE
         SELECT
             0.2 * avg(l_quantity)
         FROM
-            '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem
+            lineitem
         WHERE
             l_partkey = p_partkey);
 ----

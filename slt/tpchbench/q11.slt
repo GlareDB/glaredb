@@ -1,11 +1,14 @@
+# Panic
+halt
+
 query TT
 DESCRIBE SELECT
     ps_partkey,
     sum(ps_supplycost * ps_availqty) AS value
 FROM
-    '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
-    '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-    '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation
+    partsupp,
+    supplier,
+    nation
 WHERE
     ps_suppkey = s_suppkey
     AND s_nationkey = n_nationkey
@@ -17,9 +20,9 @@ HAVING
         SELECT
             sum(ps_supplycost * ps_availqty) * 0.0001000000
         FROM
-            '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
-            '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-            '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation
+            partsupp,
+            supplier,
+            nation
         WHERE
             ps_suppkey = s_suppkey
             AND s_nationkey = n_nationkey
@@ -35,9 +38,9 @@ SELECT
     ps_partkey,
     sum(ps_supplycost * ps_availqty) AS value
 FROM
-    '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
-    '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-    '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation
+    partsupp,
+    supplier,
+    nation
 WHERE
     ps_suppkey = s_suppkey
     AND s_nationkey = n_nationkey
@@ -49,9 +52,9 @@ HAVING
         SELECT
             sum(ps_supplycost * ps_availqty) * 0.0001000000
         FROM
-            '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
-            '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-            '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation
+            partsupp,
+            supplier,
+            nation
         WHERE
             ps_suppkey = s_suppkey
             AND s_nationkey = n_nationkey

@@ -170,7 +170,7 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                         TimeUnit::Nanosecond,
                     ))),
                 },
-                (Some(basic::LogicalType::Date), _) => Ok(DataType::Date32),
+                (Some(basic::LogicalType::Date), _) => Ok(DataType::Date64),
                 (logical, converted) => Err(DbError::new(format!(
                     "Cannot handle INT64 with logical type {logical:?} or converted type {converted:?}",
                 ))),

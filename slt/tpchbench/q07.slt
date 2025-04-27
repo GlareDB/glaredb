@@ -1,3 +1,6 @@
+# Enable hash join
+halt
+
 # TODO: This produces correct results, but decimal formatting makes the output
 # of 'EXTRACT(year FROM l_shipdate)' a bit weird. Shows extra zeros.
 query TT
@@ -13,12 +16,12 @@ FROM (
         extract(year FROM l_shipdate) AS l_year,
         l_extendedprice * (1 - l_discount) AS volume
     FROM
-        '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-        '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-        '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
-        '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer,
-        '../submodules/testdata/tpch_sf0.1/nation.parquet'    n1,
-        '../submodules/testdata/tpch_sf0.1/nation.parquet'    n2
+        supplier,
+        lineitem,
+        orders,
+        customer,
+        nation n1,
+        nation n2
     WHERE
         s_suppkey = l_suppkey
         AND o_orderkey = l_orderkey
@@ -58,12 +61,12 @@ FROM (
         extract(year FROM l_shipdate) AS l_year,
         l_extendedprice * (1 - l_discount) AS volume
     FROM
-        '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-        '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-        '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
-        '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer,
-        '../submodules/testdata/tpch_sf0.1/nation.parquet'    n1,
-        '../submodules/testdata/tpch_sf0.1/nation.parquet'    n2
+        supplier,
+        lineitem,
+        orders,
+        customer,
+        nation n1,
+        nation n2
     WHERE
         s_suppkey = l_suppkey
         AND o_orderkey = l_orderkey

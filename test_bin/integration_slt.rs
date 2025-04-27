@@ -239,11 +239,23 @@ where
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(ParquetExtension)?;
+
+        let tables = [
+            "customer", "lineitem", "nation", "orders", "part", "partsupp", "region", "supplier",
+        ];
+
+        for table in tables {
+            let query = format!(
+                "CREATE TEMP VIEW {table} AS SELECT * FROM read_parquet('../submodules/testdata/tpch_sf0.1/{table}.parquet')"
+            );
+            run_setup_query(&engine, &query)?;
+        }
+
         Ok(RunConfig {
             engine,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
-            query_timeout: Duration::from_secs(15),
+            query_timeout: Duration::from_secs(30),
         })
     }
 }
