@@ -1,10 +1,10 @@
-use glaredb_error::Result;
+use glaredb_error::{Result, not_implemented};
 
 use super::sort_layout::SortLayout;
 use super::sorted_segment::SortedSegment;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::row_layout::RowLayout;
-use crate::buffer::buffer_manager::BufferManager;
+use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 
 /// Which side we should copy a row from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,6 +33,7 @@ struct ScanState {
 }
 
 impl ScanState {
+    /// Resets the state for a new sorted segment.
     fn reset_for_run(&mut self, key_layout: &SortLayout, run: &SortedSegment) {
         self.block_idx = 0;
         self.row_idx = 0;
@@ -46,8 +47,8 @@ impl ScanState {
 
 /// Merger for merging two sorted runs into a single sorted run.
 #[derive(Debug)]
-pub struct BinaryMerger<'a, B: BufferManager> {
-    pub(crate) manager: &'a B,
+pub struct BinaryMerger<'a> {
+    pub(crate) manager: RawBufferManager,
     pub(crate) key_layout: &'a SortLayout,
     pub(crate) data_layout: &'a RowLayout,
     /// Block capacity in rows for the resulting fixed-len blocks.
@@ -56,18 +57,15 @@ pub struct BinaryMerger<'a, B: BufferManager> {
     pub(crate) block_capacity: usize,
 }
 
-impl<'a, B> BinaryMerger<'a, B>
-where
-    B: BufferManager,
-{
+impl<'a> BinaryMerger<'a> {
     pub fn new(
-        manager: &'a B,
+        manager: &impl AsRawBufferManager,
         key_layout: &'a SortLayout,
         data_layout: &'a RowLayout,
         block_capacity: usize,
     ) -> Self {
         BinaryMerger {
-            manager,
+            manager: manager.as_raw_buffer_manager(),
             key_layout,
             data_layout,
             block_capacity,
@@ -94,24 +92,30 @@ where
         state.left_scan.reset_for_run(self.key_layout, &left);
         state.right_scan.reset_for_run(self.key_layout, &right);
 
-        let scan_count = usize::min(
-            self.block_capacity,
-            state.left_scan.remaining + state.right_scan.remaining,
-        );
-
-        state.scan_sides.clear();
-        state.scan_sides.resize(scan_count, ScanSide::Left);
-
         let mut merged_keys = Vec::new();
         let mut merged_heap_keys = Vec::new();
         let mut merged_data = Vec::new();
 
         loop {
+            // Scan count used to build blocks for this iteration of the loop.
+            let scan_count = usize::min(
+                self.block_capacity,
+                state.left_scan.remaining + state.right_scan.remaining,
+            );
+            state.scan_sides.clear();
+            state.scan_sides.resize(scan_count, ScanSide::Left);
+
             if state.left_scan.remaining == 0 && state.right_scan.remaining == 0 {
                 break;
             }
 
-            let (interleave_count, _, _) = self.find_merge_side(
+            // Fill which sides to scan from for each row.
+            //
+            // Returns updated states, however we need to use the original
+            // states for rest of the merge operations in this iteration.
+            //
+            // All merge steps should be computing the same updated states.
+            let (interleave_count, _unused_l1, _unused_r1) = self.find_merge_side(
                 &left,
                 &right,
                 state.left_scan.clone(),
@@ -121,7 +125,11 @@ where
 
             let scan_sides = &state.scan_sides[0..interleave_count];
 
-            let (key_block, _, _) = self.merge_keys(
+            // Merge the key blocks.
+            //
+            // Same as above, returns new states, but wee need to keep using the
+            // old ones.
+            let (key_block, _unused_l2, _unused_r2) = self.merge_keys(
                 &left,
                 &right,
                 state.left_scan.clone(),
@@ -129,10 +137,13 @@ where
                 scan_count,
                 scan_sides,
             )?;
+            // debug_assert_eq!(_unused_l1, _unused_l2);
+            // debug_assert_eq!(_unused_r1, _unused_r2);
             merged_keys.push(key_block);
 
             if self.key_layout.any_requires_heap() {
-                let (heap_key_block, _, _) = self.merge_heap_keys(
+                // Merge the heap keys.
+                let (heap_key_block, _unused_l3, _unused_r3) = self.merge_heap_keys(
                     &left,
                     &right,
                     state.left_scan.clone(),
@@ -140,9 +151,13 @@ where
                     scan_count,
                     scan_sides,
                 )?;
+                // debug_assert_eq!(_unused_l1, _unused_l3);
+                // debug_assert_eq!(_unused_r1, _unused_r3);
                 merged_heap_keys.push(heap_key_block);
             }
 
+            // Finally merge the data. The updated scan states are what we'll
+            // used in the next iteration of this loop.
             let (data_block, new_left_scan, new_right_scan) = self.merge_data(
                 &left,
                 &right,
@@ -151,6 +166,8 @@ where
                 scan_count,
                 scan_sides,
             )?;
+            // debug_assert_eq!(_unused_l1, new_left_scan);
+            // debug_assert_eq!(_unused_r1, new_right_scan);
             merged_data.push(data_block);
 
             // All updated left/right scans returned from the above `merge`
@@ -272,7 +289,7 @@ where
                 }
             } else {
                 // Need to check heap keys.
-                unimplemented!()
+                not_implemented!("Heap key check for merge")
             }
         }
 
@@ -293,7 +310,7 @@ where
         }
 
         Self::merge_fixed_size_blocks(
-            self.manager,
+            &self.manager,
             self.key_layout.row_width,
             left,
             right,
@@ -319,7 +336,7 @@ where
         }
 
         Self::merge_fixed_size_blocks(
-            self.manager,
+            &self.manager,
             self.key_layout.heap_layout.row_width,
             left,
             right,
@@ -345,7 +362,7 @@ where
         }
 
         Self::merge_fixed_size_blocks(
-            self.manager,
+            &self.manager,
             self.data_layout.row_width,
             left,
             right,
@@ -364,7 +381,7 @@ where
     /// Returns the output block, as well as an updated left/right scan state.
     #[allow(clippy::too_many_arguments)] // I know
     fn merge_fixed_size_blocks(
-        manager: &B,
+        manager: &RawBufferManager,
         row_width: usize,
         left: &SortedSegment,
         right: &SortedSegment,
