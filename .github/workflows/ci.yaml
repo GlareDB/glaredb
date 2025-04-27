@@ -82,7 +82,13 @@ jobs:
           AWS_SECRET: ${{ secrets.AWS_SECRET }}
         run: cargo test slt/s3/private
 
+      - name: Bench (truncated) - ClickBench
+        if: always()
+        run: |
+          cargo test slt/clickbench
+
       - name: Run CLI non-interactive
+        if: always()
         run: ./scripts/ci_run_cli_non_interactive.sh
 
       # - name: SLTs Delta
@@ -210,9 +216,6 @@ jobs:
       #     # cargo test slt/tpcds/q98
       #     # cargo test slt/tpcds/q99
 
-      # - name: SLTs Clickbench truncated
-      #   run: |
-      #     cargo test slt/clickbench
 
   python-tests:
     name: Python Tests
