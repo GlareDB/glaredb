@@ -114,7 +114,8 @@ impl<'a> BinaryMerger<'a> {
             // Returns updated states, however we need to use the original
             // states for rest of the merge operations in this iteration.
             //
-            // All merge steps should be computing the same updated states.
+            // TODO: We should align the states returned from this with the ones
+            // returned from the real merges so that we can assert equality.
             let (interleave_count, _unused_l1, _unused_r1) = self.find_merge_side(
                 &left,
                 &right,
@@ -137,6 +138,7 @@ impl<'a> BinaryMerger<'a> {
                 scan_count,
                 scan_sides,
             )?;
+            // TODO: Uncomment when they're actually equal
             // debug_assert_eq!(_unused_l1, _unused_l2);
             // debug_assert_eq!(_unused_r1, _unused_r2);
             merged_keys.push(key_block);
@@ -151,8 +153,8 @@ impl<'a> BinaryMerger<'a> {
                     scan_count,
                     scan_sides,
                 )?;
-                // debug_assert_eq!(_unused_l1, _unused_l3);
-                // debug_assert_eq!(_unused_r1, _unused_r3);
+                debug_assert_eq!(_unused_l2, _unused_l3);
+                debug_assert_eq!(_unused_r2, _unused_r3);
                 merged_heap_keys.push(heap_key_block);
             }
 
@@ -166,8 +168,8 @@ impl<'a> BinaryMerger<'a> {
                 scan_count,
                 scan_sides,
             )?;
-            // debug_assert_eq!(_unused_l1, new_left_scan);
-            // debug_assert_eq!(_unused_r1, new_right_scan);
+            debug_assert_eq!(_unused_l2, new_left_scan);
+            debug_assert_eq!(_unused_r2, new_right_scan);
             merged_data.push(data_block);
 
             // All updated left/right scans returned from the above `merge`
@@ -611,5 +613,52 @@ mod tests {
 
         let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
         assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_left_right_exceeds_block_cap() {
+        // Test case where the left and right blocks exceed the output block
+        // size, resulting in an output segment containing multiple blocks.
+        //
+        // Addresses: <https://github.com/GlareDB/glaredb/issues/3733>
+        //
+        // LEFT:       4 rows
+        // RIGHT:      2 rows
+        // OUTPUT CAP: 4 rows
+
+        let left = generate_batch!([8, 4, 5, 2]);
+        let right = generate_batch!([9, 6]);
+
+        let left_block = TestSortedRowBlock::from_batch(&left, [0]);
+        let right_block = TestSortedRowBlock::from_batch(&right, [0]);
+
+        let left_run = SortedSegment::from_sorted_block(left_block.sorted_block);
+        let right_run = SortedSegment::from_sorted_block(right_block.sorted_block);
+
+        let merger = BinaryMerger::new(
+            &DefaultBufferManager,
+            &left_block.key_layout,
+            &left_block.data_layout,
+            4,
+        );
+        let mut state = merger.init_merge_state();
+        let out = merger.merge(&mut state, left_run, right_run).unwrap();
+        assert_eq!(2, out.keys.len());
+
+        let mut scan = out.init_scan_state();
+        let mut out_batch = Batch::new([DataType::Int32], 4).unwrap();
+        out.scan_data(&mut scan, &left_block.data_layout, &mut out_batch)
+            .unwrap();
+
+        // First block
+        let expected1 = generate_batch!([2, 4, 5, 6]);
+        assert_batches_eq(&expected1, &out_batch);
+
+        out.scan_data(&mut scan, &left_block.data_layout, &mut out_batch)
+            .unwrap();
+
+        // Second block
+        let expected2 = generate_batch!([8, 9]);
+        assert_batches_eq(&expected2, &out_batch);
     }
 }
