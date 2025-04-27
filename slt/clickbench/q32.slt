@@ -1,5 +1,3 @@
-halt
-
 statement ok
 SET verify_optimized_plan TO true;
 
