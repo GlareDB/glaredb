@@ -19,7 +19,7 @@ pub enum ExpandedSelectExpr {
         /// expression binding.
         expr: ast::Expr<ResolvedMeta>,
         /// Optional user-provided alias.
-        alias: Option<String>,
+        alias: Option<ast::Ident>,
     },
     /// An index of a column in the current scope. This is needed for wildcards
     /// since they're expanded to match some number of columns in the current
@@ -33,9 +33,9 @@ pub enum ExpandedSelectExpr {
 }
 
 impl ExpandedSelectExpr {
-    pub fn get_alias(&self) -> Option<&str> {
+    pub fn get_alias(&self) -> Option<&ast::Ident> {
         match self {
-            Self::Expr { alias, .. } => alias.as_ref().map(|a| a.as_str()),
+            Self::Expr { alias, .. } => alias.as_ref(),
             Self::Column { .. } => None,
         }
     }
@@ -182,7 +182,7 @@ impl<'a> SelectExprExpander<'a> {
             ast::SelectExpr::AliasedExpr(expr, alias) => {
                 vec![ExpandedSelectExpr::Expr {
                     expr,
-                    alias: Some(alias.value),
+                    alias: Some(alias),
                 }]
             }
             ast::SelectExpr::Expr(expr) => {
@@ -290,7 +290,10 @@ impl<'a> SelectExprExpander<'a> {
                     // checks during planning.
                     *expr = ExpandedSelectExpr::Expr {
                         expr: ast_expr.clone(),
-                        alias: Some(name.clone()),
+                        alias: Some(ast::Ident {
+                            value: name.clone(),
+                            quoted: false,
+                        }),
                     };
 
                     // Mark visited.

@@ -8,7 +8,7 @@ use super::select_list::{BoundDistinctModifier, SelectList};
 use crate::expr::Expression;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::subquery_expr::SubqueryType;
-use crate::logical::binder::ascii_case::CaseCompare;
+use crate::logical::binder::ascii_case::ComparePolicy;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::{DefaultColumnBinder, ExpressionColumnBinder};
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
@@ -52,7 +52,13 @@ impl<'a> SelectListBinder<'a> {
         // ```
         for (idx, projection) in projections.iter().enumerate() {
             if let Some(alias) = projection.get_alias() {
-                alias_map.insert(alias.to_string(), idx);
+                // TODO: Temp
+                //
+                // This ensures we can just match on the lowercase string for
+                // now. I do want to change this to be a specialized map
+                // structure that can optionally ignore case depending on if the
+                // ident is quoted or not.
+                alias_map.insert(alias.as_normalized_string(), idx);
             }
         }
 
@@ -308,11 +314,15 @@ impl ExpressionColumnBinder for SelectAliasColumnBinder<'_> {
         ident: &ast::Ident,
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        let cmp = CaseCompare::ident(ident);
+        let cmp = ComparePolicy::ident(ident);
         match DefaultColumnBinder.bind_column(bind_scope, bind_context, None, &ident.value, cmp)? {
             Some(expr) => Ok(Some(expr)),
             None => {
-                // TODO: Double check if normalized is fine.
+                // TODO: Normalizing here matches what we're doing when we
+                // insert into the alias map.
+                //
+                // This is temporary until we have a more specialized structure
+                // (which will be useful for stuff like CTEs too).
                 let normalized = ident.as_normalized_string();
                 match self.alias_map.get(&normalized) {
                     Some(&col_idx) => {

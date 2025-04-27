@@ -3,7 +3,7 @@ use std::fmt;
 
 use glaredb_error::{DbError, Result};
 
-use super::ascii_case::{AsciiCase, CaseCompare};
+use super::ascii_case::{AsciiCase, ComparePolicy};
 use super::bind_query::BoundQuery;
 use super::table_list::{Table, TableAlias, TableList, TableRef};
 use crate::arrays::datatype::DataType;
@@ -584,7 +584,7 @@ impl BindContext {
         current: BindScopeRef,
         alias: Option<&TableAlias>,
         column: &str,
-        cmp: CaseCompare,
+        cmp: ComparePolicy,
     ) -> Result<Option<(TableRef, usize)>> {
         if alias.is_none() {
             let using = self

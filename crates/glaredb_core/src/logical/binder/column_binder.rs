@@ -1,7 +1,7 @@
 use glaredb_error::{DbError, Result};
 use glaredb_parser::ast;
 
-use super::ascii_case::CaseCompare;
+use super::ascii_case::ComparePolicy;
 use super::bind_context::{BindContext, BindScopeRef, CorrelatedColumn};
 use super::expr_binder::RecursionContext;
 use super::table_list::TableAlias;
@@ -73,7 +73,7 @@ impl ExpressionColumnBinder for DefaultColumnBinder {
         ident: &ast::Ident,
         _recur: RecursionContext,
     ) -> Result<Option<Expression>> {
-        let cmp = CaseCompare::ident(ident);
+        let cmp = ComparePolicy::ident(ident);
         self.bind_column(bind_scope, bind_context, None, &ident.value, cmp)
     }
 
@@ -100,7 +100,7 @@ impl DefaultColumnBinder {
         bind_context: &mut BindContext,
         alias: Option<TableAlias>,
         col: &str,
-        cmp: CaseCompare,
+        cmp: ComparePolicy,
     ) -> Result<Option<Expression>> {
         let mut current = bind_scope;
         loop {
@@ -159,7 +159,7 @@ impl DefaultColumnBinder {
 /// Errors if no idents are provided.
 fn idents_to_alias_and_column(
     idents: &[ast::Ident],
-) -> Result<(Option<TableAlias>, String, CaseCompare)> {
+) -> Result<(Option<TableAlias>, String, ComparePolicy)> {
     match idents.len() {
         0 => Err(DbError::new("Empty identifier")),
         1 => {
@@ -167,7 +167,7 @@ fn idents_to_alias_and_column(
             Ok((
                 None,
                 idents[0].value.clone(),
-                CaseCompare::ident(&idents[0]),
+                ComparePolicy::ident(&idents[0]),
             ))
         }
         2..=4 => {
@@ -190,7 +190,7 @@ fn idents_to_alias_and_column(
             };
 
             // TODO: How to do this with the qualifiers?
-            let cmp = CaseCompare::ident(&col);
+            let cmp = ComparePolicy::ident(&col);
 
             Ok((Some(alias), col.value, cmp))
         }

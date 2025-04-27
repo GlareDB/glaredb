@@ -52,3 +52,22 @@ SELECT acolumn, bcolumn FROM (SELECT acolumn AS "Acolumn", bcolumn AS "Bcolumn" 
 statement error Missing column for reference: acolumn
 SELECT "acolumn" FROM (SELECT acolumn AS "Acolumn", bcolumn AS "Bcolumn" FROM t1) ORDER BY 1;
 
+query I
+SELECT acolumn AS "MyAlias" FROM t1 ORDER BY "MyAlias";
+----
+3
+4
+
+query I
+SELECT acolumn AS MyAlias FROM t1 ORDER BY MyAlias;
+----
+3
+4
+
+# Possibly confusing.
+statement error Missing column for reference: MyAlias
+SELECT acolumn AS MyAlias FROM t1 ORDER BY "MyAlias";
+
+# Also possibly confusing.
+statement error Missing column for reference: MyAlias
+SELECT acolumn AS "MyAlias" FROM t1 ORDER BY MyAlias;

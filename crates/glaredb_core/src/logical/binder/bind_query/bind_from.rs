@@ -11,7 +11,7 @@ use crate::expr::column_expr::ColumnReference;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::{self, Expression};
 use crate::functions::table::{PlannedTableFunction, TableFunctionInput};
-use crate::logical::binder::ascii_case::{AsciiCase, CaseCompare};
+use crate::logical::binder::ascii_case::{AsciiCase, ComparePolicy};
 use crate::logical::binder::bind_context::{
     BindContext,
     BindScopeRef,
@@ -616,10 +616,10 @@ impl<'a> FromBinder<'a> {
 
             // TODO: Case sensitivity
             let (left_table, left_col_idx) = bind_context
-                .find_table_for_column(left_idx, None, &using, CaseCompare::CaseSensitive)?
+                .find_table_for_column(left_idx, None, &using, ComparePolicy::CaseSensitive)?
                 .ok_or_else(|| missing_column("left"))?;
             let (right_table, right_col_idx) = bind_context
-                .find_table_for_column(right_idx, None, &using, CaseCompare::CaseSensitive)?
+                .find_table_for_column(right_idx, None, &using, ComparePolicy::CaseSensitive)?
                 .ok_or_else(|| missing_column("right"))?;
 
             let using_column = match join_type {

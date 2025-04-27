@@ -13,18 +13,18 @@ where
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CaseCompare {
+pub enum ComparePolicy {
     CaseSensitive,
     CaseInsensitive,
 }
 
-impl CaseCompare {
+impl ComparePolicy {
     /// Returns which comparison method we should use for the given identifier.
-    pub fn ident(ident: &ast::Ident) -> CaseCompare {
+    pub fn ident(ident: &ast::Ident) -> ComparePolicy {
         if ident.quoted {
-            CaseCompare::CaseSensitive
+            ComparePolicy::CaseSensitive
         } else {
-            CaseCompare::CaseInsensitive
+            ComparePolicy::CaseInsensitive
         }
     }
 }
@@ -37,19 +37,19 @@ where
         AsciiCase { s }
     }
 
-    pub fn eq(&self, other: &str, c: CaseCompare) -> bool {
-        match c {
-            CaseCompare::CaseSensitive => self.as_str() == other,
-            CaseCompare::CaseInsensitive => self.as_str().eq_ignore_ascii_case(other),
+    pub fn eq(&self, other: &str, policy: ComparePolicy) -> bool {
+        match policy {
+            ComparePolicy::CaseSensitive => self.as_str() == other,
+            ComparePolicy::CaseInsensitive => self.as_str().eq_ignore_ascii_case(other),
         }
     }
 
     pub fn eq_case_sensitive(&self, other: &str) -> bool {
-        self.eq(other, CaseCompare::CaseSensitive)
+        self.eq(other, ComparePolicy::CaseSensitive)
     }
 
     pub fn eq_case_insensitive(&self, other: &str) -> bool {
-        self.eq(other, CaseCompare::CaseInsensitive)
+        self.eq(other, ComparePolicy::CaseInsensitive)
     }
 
     /// Returns the underlying string with its original casing.
@@ -85,7 +85,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn eq_case_insensitive() {
+    fn ascii_case_eq_case_insensitive() {
         // Pass
         assert!(AsciiCase::new("cat").eq_case_insensitive("cat"));
         assert!(AsciiCase::new("cat").eq_case_insensitive("Cat"));
@@ -101,7 +101,7 @@ mod tests {
     }
 
     #[test]
-    fn eq_case_sensitive() {
+    fn ascii_case_eq_case_sensitive() {
         // Pass
         assert!(AsciiCase::new("cat").eq_case_sensitive("cat"));
         assert!(AsciiCase::new("Cat").eq_case_sensitive("Cat"));
