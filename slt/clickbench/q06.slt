@@ -4,10 +4,10 @@ SET verify_optimized_plan TO true;
 query TT
 DESCRIBE SELECT MIN(EventDate), MAX(EventDate) FROM hits;
 ----
-min UInt16
-max UInt16
+min Date32
+max Date32
 
 query ??
 SELECT MIN(EventDate), MAX(EventDate) FROM hits;
 ----
-15901 15901
+2013-07-15  2013-07-15

@@ -450,25 +450,6 @@ impl BindContext {
         self.new_ephemeral_table_from_types(generated_prefix, column_types)
     }
 
-    /// Clones an existing table into a new ephemeral table.
-    ///
-    /// Useful for optimizer rules where we're creating new table refs, but want
-    /// to keep the existing column names and types for debuggability.
-    pub fn clone_to_new_ephemeral_table(&mut self, table: TableRef) -> Result<TableRef> {
-        let table = self.get_table(table)?;
-        let table_idx = self.tables.tables.len();
-        let reference = TableRef { table_idx };
-
-        self.tables.tables.push(Table {
-            reference,
-            alias: None,
-            column_types: table.column_types.clone(),
-            column_names: table.column_names.clone(),
-        });
-
-        Ok(reference)
-    }
-
     /// Creates a new table with generated column from a list of datatypes.
     pub fn new_ephemeral_table_from_types(
         &mut self,

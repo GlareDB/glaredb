@@ -407,28 +407,34 @@ impl PruneState {
                         new_proj_mapping.push((old_column, projection.clone()));
                     }
 
-                    // Generate the new table ref.
-                    let table_ref =
-                        bind_context.clone_to_new_ephemeral_table(project.node.projection_table)?;
+                    // Generate the new table ref. Note this table needs to be
+                    // empty. We'll be pushing the projected columns to it next.
+                    let table_ref = bind_context.new_ephemeral_table()?;
 
                     // Generate the new projection, inserting updated
                     // expressions into the state.
                     let mut new_projections = Vec::with_capacity(new_proj_mapping.len());
-                    for (col_idx, (old_column, projection)) in
-                        new_proj_mapping.into_iter().enumerate()
-                    {
-                        new_projections.push(projection);
+                    for (old_column, projection) in new_proj_mapping {
+                        // Push column to the new table ref.
+                        let (name, datatype) = bind_context.get_column(old_column)?;
+                        let name = name.to_string();
+                        let datatype = datatype.clone();
+                        let col_idx = bind_context.push_column_for_table(
+                            table_ref,
+                            name,
+                            datatype.clone(),
+                        )?;
 
-                        let reference = ColumnReference {
+                        new_projections.push(projection);
+                        let new_reference = ColumnReference {
                             table_scope: table_ref,
                             column: col_idx,
                         };
-                        let datatype = bind_context.get_column_type(reference)?;
 
                         self.updated_expressions.insert(
                             old_column,
                             Expression::Column(ColumnExpr {
-                                reference,
+                                reference: new_reference,
                                 datatype,
                             }),
                         );

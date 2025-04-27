@@ -25,3 +25,6 @@ lineedit.log
 
 # Python builds
 **/dist
+
+# Scratch dir for tests queries and stuff.
+/scratch
