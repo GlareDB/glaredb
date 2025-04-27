@@ -7,6 +7,7 @@ use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
+use glaredb_core::util::future::block_on;
 use glaredb_error::Result;
 use glaredb_rt_native::runtime::{
     NativeExecutor,
@@ -210,6 +211,15 @@ where
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(ParquetExtension)?;
+
+        run_setup_query(
+            &engine,
+            "
+            CREATE TEMP VIEW hits AS
+              SELECT * FROM read_parquet('../submodules/testdata/clickbench/hits_truncated.parquet')
+            ",
+        )?;
+
         Ok(RunConfig {
             engine,
             vars: ReplacementVars::default(),
@@ -236,6 +246,18 @@ where
             query_timeout: Duration::from_secs(15),
         })
     }
+}
+
+fn run_setup_query<E, R>(engine: &SingleUserEngine<E, R>, query: &str) -> Result<()>
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    block_on(async {
+        let mut q_res = engine.session().query(query).await?;
+        let _ = q_res.output.collect().await?;
+        Ok(())
+    })
 }
 
 fn run_with_executor<S>(executor: ThreadedNativeExecutor, path: &str, tag: &str) -> Result<()>

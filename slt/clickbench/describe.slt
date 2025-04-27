@@ -1,5 +1,5 @@
 query TT
-DESCRIBE '../submodules/testdata/clickbench/hits_truncated.parquet'
+DESCRIBE hits
 ----
 WatchID                Int64
 JavaEnable             Int16

@@ -1,9 +1,9 @@
 query TT
-DESCRIBE SELECT COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
+DESCRIBE SELECT COUNT(*) FROM hits;
 ----
 count  Int64
 
 query ?
-SELECT COUNT(*) FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
+SELECT COUNT(*) FROM hits;
 ----
 10000
