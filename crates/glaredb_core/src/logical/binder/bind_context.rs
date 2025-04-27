@@ -3,8 +3,8 @@ use std::fmt;
 
 use glaredb_error::{DbError, Result};
 
-use super::ascii_case::{AsciiCase, CaseCompare};
 use super::bind_query::BoundQuery;
+use super::ident::BinderIdent;
 use super::table_list::{Table, TableAlias, TableList, TableRef};
 use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
@@ -88,10 +88,9 @@ pub struct BoundCte {
     /// If this CTE should be materialized.
     pub materialized: bool,
     /// Normalized name for the CTE.
-    // TODO: AsciiCase, would need to figure out the cte map.
-    pub name: String,
+    pub name: BinderIdent,
     /// Column names, possibly aliased.
-    pub column_names: Vec<AsciiCase<String>>,
+    pub column_names: Vec<BinderIdent>,
     /// Column types.
     pub column_types: Vec<DataType>,
     /// The bound plan representing the CTE.
@@ -106,8 +105,7 @@ pub struct BoundCte {
 #[derive(Debug, Clone)]
 pub struct UsingColumn {
     /// Normalized column name.
-    // TODO: AsciiCase?
-    pub column: String,
+    pub column: BinderIdent,
     /// A reference to one of the tables used in the USING condition.
     pub table_ref: TableRef,
     /// Column index inside the table.
@@ -127,8 +125,7 @@ struct BindScope {
     /// Tables currently in scope.
     tables: Vec<TableRef>,
     /// CTEs in scope. Keyed by normalized CTE name.
-    // TODO: AsciiCase?
-    ctes: HashMap<String, CteRef>,
+    ctes: HashMap<BinderIdent, CteRef>,
 }
 
 /// A node in the logical plan that will be materialized to allow for multiple
@@ -435,7 +432,7 @@ impl BindContext {
         column_names: impl IntoIterator<Item = S>,
     ) -> Result<TableRef>
     where
-        S: Into<AsciiCase<String>>,
+        S: Into<BinderIdent>,
     {
         self.tables.push_table(None, column_types, column_names)
     }
@@ -490,7 +487,9 @@ impl BindContext {
     ) -> Result<usize> {
         let table = self.get_table_mut(table)?;
         let idx = table.column_types.len();
-        table.column_names.push(AsciiCase::new(name.into()));
+        table
+            .column_names
+            .push(BinderIdent::new(name.into(), false));
         table.column_types.push(datatype);
         Ok(idx)
     }
@@ -519,7 +518,7 @@ impl BindContext {
         column_names: impl IntoIterator<Item = S>,
     ) -> Result<TableRef>
     where
-        S: Into<AsciiCase<String>>,
+        S: Into<BinderIdent>,
     {
         if let Some(alias) = &alias {
             // If we have multiple tables in scope, they need to have unique
@@ -583,14 +582,13 @@ impl BindContext {
         &self,
         current: BindScopeRef,
         alias: Option<&TableAlias>,
-        column: &str,
-        cmp: CaseCompare,
+        lookup: &BinderIdent,
     ) -> Result<Option<(TableRef, usize)>> {
         if alias.is_none() {
             let using = self
                 .get_using_columns(current)?
                 .iter()
-                .find(|&using| using.column == column); // TODO
+                .find(|&using| using.column.strict_eq(lookup));
             if let Some(using) = using {
                 return Ok(Some((using.table_ref, using.col_idx)));
             }
@@ -610,9 +608,9 @@ impl BindContext {
             }
 
             for (col_idx, col_name) in table.column_names.iter().enumerate() {
-                if col_name.eq(column, cmp) {
+                if col_name.strict_eq(lookup) {
                     if found.is_some() {
-                        return Err(DbError::new(format!("Ambiguous column name '{column}'")));
+                        return Err(DbError::new(format!("Ambiguous column name '{lookup}'")));
                     }
                     found = Some((table.reference, col_idx));
                 }
@@ -676,7 +674,7 @@ pub(crate) mod testutil {
             .flat_map(|t| {
                 t.column_names
                     .iter()
-                    .map(|s| s.as_str().to_string())
+                    .map(|s| s.as_raw_str().to_string())
                     .zip(t.column_types.iter().cloned())
             })
             .collect()

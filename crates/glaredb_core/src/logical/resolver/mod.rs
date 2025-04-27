@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 
 use super::binder::constant_binder::ConstantBinder;
 use super::binder::expr_binder::BaseExpressionBinder;
+use super::binder::ident::BinderIdent;
 use super::binder::table_list::TableAlias;
 use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
 use crate::arrays::scalar::ScalarValue;
@@ -891,7 +892,7 @@ where
                                         table_alias: TableAlias {
                                             database: None,
                                             schema: None,
-                                            table: ent.entry.name.clone(),
+                                            table: BinderIdent::from(ent.entry.name.clone()),
                                         },
                                         column_aliases: view
                                             .column_aliases

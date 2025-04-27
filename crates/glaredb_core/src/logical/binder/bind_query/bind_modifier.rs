@@ -8,6 +8,7 @@ use crate::expr::Expression;
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::column_binder::{DefaultColumnBinder, ExpressionColumnBinder};
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
+use crate::logical::binder::ident::BinderIdent;
 use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
 
@@ -223,7 +224,7 @@ impl ExpressionColumnBinder for OrderByColumnBinder<'_> {
         &mut self,
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
-        ident: &ast::Ident,
+        ident: &BinderIdent,
         recur: RecursionContext,
     ) -> Result<Option<Expression>> {
         // Try to bind normally.
@@ -254,7 +255,7 @@ impl ExpressionColumnBinder for OrderByColumnBinder<'_> {
         &mut self,
         bind_scope: BindScopeRef,
         bind_context: &mut BindContext,
-        idents: &[ast::Ident],
+        idents: &[BinderIdent],
         recur: RecursionContext,
     ) -> Result<Option<Expression>> {
         DefaultColumnBinder.bind_from_idents(bind_scope, bind_context, idents, recur)

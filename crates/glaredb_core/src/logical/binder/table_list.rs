@@ -3,7 +3,7 @@ use std::fmt;
 use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
-use super::ascii_case::AsciiCase;
+use super::ident::BinderIdent;
 use crate::arrays::datatype::DataType;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 
@@ -28,12 +28,9 @@ impl fmt::Display for TableRef {
 /// Reference to a table inside a scope.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TableAlias {
-    // TODO: AsciiCase
-    pub database: Option<String>,
-    // TODO: AsciiCase
-    pub schema: Option<String>,
-    // TODO: AsciiCase
-    pub table: String,
+    pub database: Option<BinderIdent>,
+    pub schema: Option<BinderIdent>,
+    pub table: BinderIdent,
 }
 
 impl TableAlias {
@@ -77,7 +74,7 @@ pub struct Table {
     pub reference: TableRef,
     pub alias: Option<TableAlias>,
     pub column_types: Vec<DataType>,
-    pub column_names: Vec<AsciiCase<String>>,
+    pub column_names: Vec<BinderIdent>,
 }
 
 impl Table {
@@ -85,12 +82,9 @@ impl Table {
         self.column_types.len()
     }
 
-    pub fn iter_names_and_types(&self) -> impl Iterator<Item = (&str, &DataType)> + '_ {
+    pub fn iter_names_and_types(&self) -> impl Iterator<Item = (&BinderIdent, &DataType)> + '_ {
         debug_assert_eq!(self.column_types.len(), self.column_names.len());
-        self.column_names
-            .iter()
-            .map(|s| s.as_str())
-            .zip(&self.column_types)
+        self.column_names.iter().zip(&self.column_types)
     }
 }
 
@@ -128,7 +122,7 @@ impl TableList {
         column_names: impl IntoIterator<Item = S>,
     ) -> Result<TableRef>
     where
-        S: Into<AsciiCase<String>>,
+        S: Into<BinderIdent>,
     {
         let column_types: Vec<_> = column_types.into_iter().collect();
         let column_names: Vec<_> = column_names.into_iter().map(|n| n.into()).collect();
@@ -169,7 +163,7 @@ impl TableList {
         let name = table
             .column_names
             .get(reference.column)
-            .map(|s| s.as_str())
+            .map(|s| s.as_raw_str())
             .ok_or_else(|| {
                 DbError::new(format!(
                     "Missing column {} in table {}",

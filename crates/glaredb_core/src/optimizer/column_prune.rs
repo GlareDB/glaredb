@@ -522,7 +522,7 @@ impl PruneState {
                     scan.node.types = pruned_types;
                     scan.node.names = pruned_names
                         .iter()
-                        .map(|name| name.as_str().to_string())
+                        .map(|name| name.as_raw_str().to_string())
                         .collect();
                     scan.node.table_ref = new_ref;
                     scan.node.projection = cols.into_iter().collect();

@@ -5,8 +5,8 @@ SET verify_optimized_plan TO true;
 
 statement ok
 CREATE TEMP TABLE t1 (
-  "Acolumn" INT,
-  "Bcolumn" TEXT
+  Acolumn INT,
+  Bcolumn TEXT
 );
 
 statement ok
@@ -20,6 +20,12 @@ Bcolumn  Utf8
 
 query IT
 SELECT Acolumn, Bcolumn FROM t1 ORDER BY 1;
+----
+3  cat
+4  dog
+
+query IT
+SELECT ACOLUMN, BCOLUMN FROM t1 ORDER BY 1;
 ----
 3  cat
 4  dog

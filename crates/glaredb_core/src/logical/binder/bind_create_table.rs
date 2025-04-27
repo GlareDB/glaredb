@@ -91,7 +91,7 @@ impl<'a> CreateTableBinder<'a> {
                             .iter()
                             .zip(&t.column_types)
                             .map(|(name, datatype)| {
-                                Field::new(name.as_str(), datatype.clone(), true)
+                                Field::new(name.as_raw_str(), datatype.clone(), true)
                             })
                     })
                     .collect();
