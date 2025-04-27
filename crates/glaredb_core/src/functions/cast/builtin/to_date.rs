@@ -30,6 +30,10 @@ use crate::functions::cast::{
 };
 use crate::util::iter::IntoExactSizeIterator;
 
+/// Function set for casting to Date32.
+///
+/// Date32 is internally represented as a signed int indicating days since Unix
+/// epoch. The integer casts just casts to number of days.
 pub const FUNCTION_SET_TO_DATE32: CastFunctionSet = CastFunctionSet {
     name: "to_date32",
     target: DataTypeId::Date32,

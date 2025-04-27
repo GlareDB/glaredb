@@ -216,7 +216,8 @@ where
             &engine,
             "
             CREATE TEMP VIEW hits AS
-              SELECT * FROM read_parquet('../submodules/testdata/clickbench/hits_truncated.parquet')
+              SELECT *
+                FROM read_parquet('../submodules/testdata/clickbench/hits_truncated.parquet')
             ",
         )?;
 

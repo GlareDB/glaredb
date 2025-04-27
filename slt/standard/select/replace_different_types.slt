@@ -1,0 +1,64 @@
+# Test REPLACE where the replacment is a different type than the original.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE hits (
+  WatchID    BIGINT,
+  Title      TEXT,
+  EventDate  USMALLINT,
+  Url        TEXT
+);
+
+statement ok
+INSERT INTO hits VALUES
+  (4, 'Green',  15901, 'google.com'),
+  (5, 'Blue',   16101, 'bing.com'),
+  (6, 'Yellow', 15941, 'google.com'),
+  (7, 'Red',    14901, 'yahoo.com');
+
+query ITIT
+SELECT * FROM hits ORDER BY 1;
+----
+4  Green   15901  google.com
+5  Blue    16101  bing.com
+6  Yellow  15941  google.com
+7  Red     14901  yahoo.com
+
+query TT
+DESCRIBE SELECT * REPLACE (EventDate::DATE as EventDate) FROM hits ORDER BY 1;
+----
+WatchID    Int64
+Title      Utf8
+EventDate  Date32
+Url        Utf8
+
+query IT?T
+SELECT * REPLACE (EventDate::DATE as EventDate) FROM hits ORDER BY 1
+----
+4  Green   2013-07-15  google.com
+5  Blue    2014-01-31  bing.com
+6  Yellow  2013-08-24  google.com
+7  Red     2010-10-19  yahoo.com
+
+query TT
+DESCRIBE SELECT Url, min(EventDate), max(EventDate)
+  FROM (SELECT * REPLACE (EventDate::DATE as EventDate) FROM hits)
+  GROUP BY Url
+  ORDER BY 1;
+----
+Url  Utf8
+min  Date32
+max  Date32
+
+query T??
+SELECT Url, min(EventDate), max(EventDate)
+  FROM (SELECT * REPLACE (EventDate::DATE as EventDate) FROM hits)
+  GROUP BY Url
+  ORDER BY 1;
+----
+bing.com    2014-01-31  2014-01-31
+google.com  2013-07-15  2013-08-24
+yahoo.com   2010-10-19  2010-10-19
+
