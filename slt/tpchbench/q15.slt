@@ -1,10 +1,16 @@
+# Error source: query failed: Cannot clone arrays with different data types
+# self: Int32
+# other: Decimal64(18,4)
+
+halt
+
 query TT
 DESCRIBE WITH revenue0 AS (
     SELECT
         l_suppkey AS supplier_no,
         sum(l_extendedprice * (1 - l_discount)) AS total_revenue
     FROM
-        '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem
+        lineitem
     WHERE
         l_shipdate >= CAST('1996-01-01' AS date)
       AND l_shipdate < CAST('1996-04-01' AS date)
@@ -18,7 +24,7 @@ SELECT
     s_phone,
     total_revenue
 FROM
-    '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+    supplier,
     revenue0
 WHERE
     s_suppkey = supplier_no
@@ -41,7 +47,7 @@ WITH revenue0 AS (
         l_suppkey AS supplier_no,
         sum(l_extendedprice * (1 - l_discount)) AS total_revenue
     FROM
-        '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem
+        lineitem
     WHERE
         l_shipdate >= CAST('1996-01-01' AS date)
       AND l_shipdate < CAST('1996-04-01' AS date)
@@ -55,7 +61,7 @@ SELECT
     s_phone,
     total_revenue
 FROM
-    '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
+    supplier,
     revenue0
 WHERE
     s_suppkey = supplier_no

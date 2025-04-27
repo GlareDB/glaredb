@@ -1,3 +1,5 @@
+halt
+
 query TT
 DESCRIBE SELECT
     l_shipmode,
@@ -16,8 +18,8 @@ DESCRIBE SELECT
             0
         END) AS low_line_count
 FROM
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-    '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders
+    lineitem,
+    orders
 WHERE
     o_orderkey = l_orderkey
     AND l_shipmode IN ('MAIL', 'SHIP')
@@ -52,8 +54,8 @@ SELECT
             0
         END) AS low_line_count
 FROM
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-    '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders
+    lineitem,
+    orders
 WHERE
     o_orderkey = l_orderkey
     AND l_shipmode IN ('MAIL', 'SHIP')

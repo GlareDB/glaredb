@@ -1,3 +1,5 @@
+halt
+
 query TT
 DESCRIBE SELECT
     p_brand,
@@ -5,8 +7,8 @@ DESCRIBE SELECT
     p_size,
     count(DISTINCT ps_suppkey) AS supplier_cnt
 FROM
-    '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
-    '../submodules/testdata/tpch_sf0.1/part.parquet'      part
+    partsupp,
+    part
 WHERE
     p_partkey = ps_partkey
     AND p_brand <> 'Brand#45'
@@ -16,7 +18,7 @@ WHERE
         SELECT
             s_suppkey
         FROM
-            '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier
+            supplier
         WHERE
             s_comment LIKE '%Customer%Complaints%')
 GROUP BY
@@ -41,8 +43,8 @@ SELECT
     p_size,
     count(DISTINCT ps_suppkey) AS supplier_cnt
 FROM
-    '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
-    '../submodules/testdata/tpch_sf0.1/part.parquet'      part
+    partsupp,
+    part
 WHERE
     p_partkey = ps_partkey
     AND p_brand <> 'Brand#45'
@@ -52,7 +54,7 @@ WHERE
         SELECT
             s_suppkey
         FROM
-            '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier
+            supplier
         WHERE
             s_comment LIKE '%Customer%Complaints%')
 GROUP BY

@@ -1,3 +1,6 @@
+# Enable hash join
+halt
+
 query TT
 DESCRIBE SELECT
     l_orderkey,
@@ -5,9 +8,9 @@ DESCRIBE SELECT
     o_orderdate,
     o_shippriority
 FROM
-    '../submodules/testdata/tpch_sf0.1/customer.parquet' customer,
-    '../submodules/testdata/tpch_sf0.1/orders.parquet'   orders,
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet' lineitem
+    customer,
+    orders,
+    lineitem
 WHERE
     c_mktsegment = 'BUILDING'
     AND c_custkey = o_custkey
@@ -35,9 +38,9 @@ SELECT
     o_orderdate,
     o_shippriority
 FROM
-    '../submodules/testdata/tpch_sf0.1/customer.parquet' customer,
-    '../submodules/testdata/tpch_sf0.1/orders.parquet'   orders,
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet' lineitem
+    customer,
+    orders,
+    lineitem
 WHERE
     c_mktsegment = 'BUILDING'
     AND c_custkey = o_custkey

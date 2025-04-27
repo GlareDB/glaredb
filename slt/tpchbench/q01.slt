@@ -23,10 +23,10 @@ ORDER BY
 ----
 l_returnflag    Utf8
 l_linestatus    Utf8
-sum_qty         Decimal128(15,2)
-sum_base_price  Decimal128(15,2)
-sum_disc_price  Decimal128(31,4)
-sum_charge      Decimal128(38,6)
+sum_qty         Decimal64(15,2)
+sum_base_price  Decimal64(15,2)
+sum_disc_price  Decimal64(18,4)
+sum_charge      Decimal64(18,6)
 avg_qty         Float64
 avg_price       Float64
 avg_disc        Float64

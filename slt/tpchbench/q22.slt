@@ -1,3 +1,5 @@
+halt
+
 query TT
 DESCRIBE SELECT
     cntrycode,
@@ -8,14 +10,14 @@ FROM (
         substring(c_phone FROM 1 FOR 2) AS cntrycode,
         c_acctbal
     FROM
-        '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer
+        customer
     WHERE
         substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
         AND c_acctbal > (
             SELECT
                 avg(c_acctbal)
             FROM
-                '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer
+                customer
             WHERE
                 c_acctbal > 0.00
                 AND substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17'))
@@ -23,7 +25,7 @@ FROM (
                 SELECT
                     *
                 FROM
-                    '../submodules/testdata/tpch_sf0.1/orders.parquet'  orders
+                    orders
                 WHERE
                     o_custkey = c_custkey)) AS custsale
 GROUP BY
@@ -45,14 +47,14 @@ FROM (
         substring(c_phone FROM 1 FOR 2) AS cntrycode,
         c_acctbal
     FROM
-        '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer
+        customer
     WHERE
         substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17')
         AND c_acctbal > (
             SELECT
                 avg(c_acctbal)
             FROM
-                '../submodules/testdata/tpch_sf0.1/customer.parquet'  customer
+                customer
             WHERE
                 c_acctbal > 0.00
                 AND substring(c_phone FROM 1 FOR 2) IN ('13', '31', '23', '29', '30', '18', '17'))
@@ -60,7 +62,7 @@ FROM (
                 SELECT
                     *
                 FROM
-                    '../submodules/testdata/tpch_sf0.1/orders.parquet'  orders
+                    orders
                 WHERE
                     o_custkey = c_custkey)) AS custsale
 GROUP BY

@@ -87,6 +87,11 @@ jobs:
         run: |
           cargo test slt/clickbench
 
+      - name: Bench (truncated) - TPC-H
+        if: always()
+        run: |
+          cargo test slt/tpchbench
+
       - name: Run CLI non-interactive
         if: always()
         run: ./scripts/ci_run_cli_non_interactive.sh

@@ -9,11 +9,11 @@ DESCRIBE SELECT
     s_phone,
     s_comment
 FROM
-    '../submodules/testdata/tpch_sf0.1/part.parquet'      part,
-    '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-    '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
-    '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation,
-    '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+    part,
+    supplier,
+    partsupp,
+    nation,
+    region
 WHERE
     p_partkey = ps_partkey
     AND s_suppkey = ps_suppkey
@@ -26,10 +26,10 @@ WHERE
         SELECT
             min(ps_supplycost)
         FROM
-            '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
-            '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-            '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation,
-            '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+            partsupp,
+            supplier,
+            nation,
+            region
         WHERE
             p_partkey = ps_partkey
             AND s_suppkey = ps_suppkey
@@ -63,11 +63,11 @@ SELECT
     s_phone,
     s_comment
 FROM
-    '../submodules/testdata/tpch_sf0.1/part.parquet'      part,
-    '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-    '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
-    '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation,
-    '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+    part,
+    supplier,
+    partsupp,
+    nation,
+    region
 WHERE
     p_partkey = ps_partkey
     AND s_suppkey = ps_suppkey
@@ -80,10 +80,10 @@ WHERE
         SELECT
             min(ps_supplycost)
         FROM
-            '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
-            '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-            '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation,
-            '../submodules/testdata/tpch_sf0.1/region.parquet'    region
+            partsupp,
+            supplier,
+            nation,
+            region
         WHERE
             p_partkey = ps_partkey
             AND s_suppkey = ps_suppkey

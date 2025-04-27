@@ -2,7 +2,7 @@ query TT
 DESCRIBE SELECT
     sum(l_extendedprice * l_discount) AS revenue
 FROM
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet' lineitem
+    lineitem
 WHERE
     l_shipdate >= CAST('1994-01-01' AS date)
     AND l_shipdate < CAST('1995-01-01' AS date)
@@ -16,7 +16,7 @@ query ?
 SELECT
     sum(l_extendedprice * l_discount) AS revenue
 FROM
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet' lineitem
+    lineitem
 WHERE
     l_shipdate >= CAST('1994-01-01' AS date)
     AND l_shipdate < CAST('1995-01-01' AS date)

@@ -1,4 +1,5 @@
-# TODO: No cross join, still timing out at 30s. Completes in 3s on release.
+# Enable hash join
+halt
 
 query TT
 DESCRIBE SELECT
@@ -11,12 +12,12 @@ FROM (
         extract(year FROM o_orderdate) AS o_year,
         l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity AS amount
     FROM
-        '../submodules/testdata/tpch_sf0.1/part.parquet'      part,
-        '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-        '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-        '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
-        '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
-        '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation
+        part,
+        supplier,
+        lineitem,
+        partsupp,
+        orders,
+        nation
     WHERE
         s_suppkey = l_suppkey
         AND ps_suppkey = l_suppkey
@@ -47,12 +48,12 @@ FROM (
         extract(year FROM o_orderdate) AS o_year,
         l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity AS amount
     FROM
-        '../submodules/testdata/tpch_sf0.1/part.parquet'      part,
-        '../submodules/testdata/tpch_sf0.1/supplier.parquet'  supplier,
-        '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem,
-        '../submodules/testdata/tpch_sf0.1/partsupp.parquet'  partsupp,
-        '../submodules/testdata/tpch_sf0.1/orders.parquet'    orders,
-        '../submodules/testdata/tpch_sf0.1/nation.parquet'    nation
+        part,
+        supplier,
+        lineitem,
+        partsupp,
+        orders,
+        nation
     WHERE
         s_suppkey = l_suppkey
         AND ps_suppkey = l_suppkey

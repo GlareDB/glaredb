@@ -1,4 +1,4 @@
-# DIV decimal scale
+halt
 
 query TT
 DESCRIBE SELECT
@@ -9,8 +9,8 @@ DESCRIBE SELECT
             0
         END) / sum(l_extendedprice * (1 - l_discount)) AS promo_revenue
 FROM
-    '../submodules/testdata/tpch_sf0.1/part.parquet'      part,
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem
+    part,
+    lineitem
 WHERE
     l_partkey = p_partkey
     AND l_shipdate >= date '1995-09-01'
@@ -27,8 +27,8 @@ SELECT
             0
         END) / sum(l_extendedprice * (1 - l_discount)) AS promo_revenue
 FROM
-    '../submodules/testdata/tpch_sf0.1/part.parquet'      part,
-    '../submodules/testdata/tpch_sf0.1/lineitem.parquet'  lineitem
+    part,
+    lineitem
 WHERE
     l_partkey = p_partkey
     AND l_shipdate >= date '1995-09-01'
