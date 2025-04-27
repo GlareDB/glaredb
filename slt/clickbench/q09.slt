@@ -1,5 +1,5 @@
 query TT
-DESCRIBE SELECT "RegionID", SUM("AdvEngineID"), COUNT(*) AS c, AVG("ResolutionWidth"), COUNT(DISTINCT "UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "RegionID" ORDER BY c DESC LIMIT 10;
+DESCRIBE SELECT RegionID, SUM(AdvEngineID), COUNT(*) AS c, AVG(ResolutionWidth), COUNT(DISTINCT UserID) FROM hits GROUP BY RegionID ORDER BY c DESC LIMIT 10;
 ----
 RegionID  Int32
 sum       Int64
@@ -8,7 +8,7 @@ avg       Float64
 count     Int64
 
 query ?????
-SELECT "RegionID", SUM("AdvEngineID"), COUNT(*) AS c, AVG("ResolutionWidth"), COUNT(DISTINCT "UserID") FROM '../submodules/testdata/clickbench/hits_truncated.parquet' GROUP BY "RegionID" ORDER BY c DESC LIMIT 10;
+SELECT RegionID, SUM(AdvEngineID), COUNT(*) AS c, AVG(ResolutionWidth), COUNT(DISTINCT UserID) FROM hits GROUP BY RegionID ORDER BY c DESC LIMIT 10;
 ----
 229    1156  5197  1641.5397344621897  294
 2      326   1964  1561.1390020366598  119

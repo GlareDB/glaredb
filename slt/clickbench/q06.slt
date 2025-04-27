@@ -1,10 +1,10 @@
 query TT
-DESCRIBE SELECT MIN("EventDate"), MAX("EventDate") FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
+DESCRIBE SELECT MIN(EventDate), MAX(EventDate) FROM hits;
 ----
 min UInt16
 max UInt16
 
 query ??
-SELECT MIN("EventDate"), MAX("EventDate") FROM '../submodules/testdata/clickbench/hits_truncated.parquet';
+SELECT MIN(EventDate), MAX(EventDate) FROM hits;
 ----
 15901 15901
