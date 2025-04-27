@@ -1,22 +1,54 @@
 use glaredb_error::{DbError, Result};
 
 use super::null::NullToAnything;
+use super::to_primitive::PrimToPrim;
 use crate::arrays::array::Array;
-use crate::arrays::array::physical_type::{PhysicalI32, PhysicalUtf8};
+use crate::arrays::array::physical_type::{
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI128,
+    PhysicalU8,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU128,
+    PhysicalUtf8,
+};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::cast::behavior::CastErrorState;
 use crate::functions::cast::parse::{Date32Parser, Parser};
-use crate::functions::cast::{CastFunction, CastFunctionSet, RawCastFunction, TO_DATE32_CAST_RULE};
+use crate::functions::cast::{
+    CastFunction,
+    CastFunctionSet,
+    CastRule,
+    RawCastFunction,
+    TO_DATE32_CAST_RULE,
+};
 use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_TO_DATE32: CastFunctionSet = CastFunctionSet {
     name: "to_date32",
     target: DataTypeId::Date32,
+    #[rustfmt::skip]
     functions: &[
         // Null -> Date32
         RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_DATE32_CAST_RULE),
+        // Int_ -> Date32
+        RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalI32>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalI32>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Int32, &PrimToPrim::<PhysicalI32, PhysicalI32>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Int64, &PrimToPrim::<PhysicalI64, PhysicalI32>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Int128, &PrimToPrim::<PhysicalI128, PhysicalI32>::new(), CastRule::Explicit),
+        // UInt_ -> Date32
+        RawCastFunction::new(DataTypeId::UInt8, &PrimToPrim::<PhysicalU8, PhysicalI32>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::UInt16, &PrimToPrim::<PhysicalU16, PhysicalI32>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::UInt32, &PrimToPrim::<PhysicalU32, PhysicalI32>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::UInt64, &PrimToPrim::<PhysicalU64, PhysicalI32>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::UInt128, &PrimToPrim::<PhysicalU128, PhysicalI32>::new(), CastRule::Explicit),
         // Utf8 -> Date32
         RawCastFunction::new(DataTypeId::Utf8, &Utf8ToDate32, TO_DATE32_CAST_RULE),
     ],

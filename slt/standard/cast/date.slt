@@ -13,3 +13,40 @@ select '1992-10-11'::DATE
 # ----
 # 1992-10-11 00:00:00
 
+# Epoch
+query T
+SELECT 0::DATE;
+----
+1970-01-01
+
+query T
+SELECT (-1)::DATE;
+----
+1969-12-31
+
+query T
+SELECT 1::DATE;
+----
+1970-01-02
+
+# A clickbench value.
+query T
+SELECT 15901::DATE
+----
+2013-07-15
+
+# Don't allow implicit casts for numerics.
+statement error
+SELECT 48 < date '2019-10-12';
+
+# But do allow for strings
+query ?
+SELECT '2020-03-04' < date '2019-10-12';
+----
+false
+
+# And null
+query ?
+SELECT NULL < date '2019-10-12';
+----
+NULL
