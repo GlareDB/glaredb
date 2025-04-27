@@ -122,9 +122,7 @@ mod tests {
         assert_eq!(cols.get(&BinderIdent::new("employeename", false)), Some(&0));
         assert_eq!(cols.get(&BinderIdent::new("EmployeeName", false)), Some(&0));
         assert_eq!(cols.get(&BinderIdent::new("EMPLOYEENAME", false)), Some(&0));
-
-        // Doesn't normalize to the same thing.
-        assert_eq!(cols.get(&BinderIdent::new("EmployeeName", true)), None);
+        assert_eq!(cols.get(&BinderIdent::new("EmployeeName", true)), Some(&0));
     }
 
     #[test]
@@ -135,15 +133,13 @@ mod tests {
         cols.insert(BinderIdent::new("EmployeeName", true), 0);
 
         // Get normalized
-        assert_eq!(cols.get("EmployeeName"), Some(&0));
-        assert_eq!(cols.get("employeename"), None);
+        assert_eq!(cols.get("employeename"), Some(&0));
+        assert_eq!(cols.get("EmployeeName"), None);
 
         // Get using another ident.
         assert_eq!(cols.get(&BinderIdent::new("EmployeeName", true)), Some(&0));
-
-        // None of these normalize to the same thing.
-        assert_eq!(cols.get(&BinderIdent::new("employeename", false)), None);
-        assert_eq!(cols.get(&BinderIdent::new("EmployeeName", false)), None);
-        assert_eq!(cols.get(&BinderIdent::new("EMPLOYEENAME", false)), None);
+        assert_eq!(cols.get(&BinderIdent::new("employeename", false)), Some(&0));
+        assert_eq!(cols.get(&BinderIdent::new("EmployeeName", false)), Some(&0));
+        assert_eq!(cols.get(&BinderIdent::new("EMPLOYEENAME", false)), Some(&0));
     }
 }
