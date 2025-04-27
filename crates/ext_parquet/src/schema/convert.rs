@@ -6,7 +6,7 @@ use glaredb_core::arrays::datatype::{
     TimestampTypeMeta,
 };
 use glaredb_core::arrays::field::{ColumnSchema, Field};
-use glaredb_error::{DbError, Result, not_implemented};
+use glaredb_error::{DbError, Result, ResultExt, not_implemented};
 
 use super::types::{GroupType, PrimitiveType, SchemaDescriptor, SchemaType};
 use super::visitor::TypeVisitor;
@@ -83,7 +83,8 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 (None, basic::ConvertedType::INT_32) => Ok(DataType::Int32),
                 (None, basic::ConvertedType::DATE) => Ok(DataType::Date32),
                 (None, basic::ConvertedType::DECIMAL) => {
-                    decimal64_with_prec_scale(prim.precision, prim.scale)
+                    let meta = decimal_type_meta(prim.precision, prim.scale)?;
+                    Ok(DataType::Decimal64(meta))
                 }
                 (None, basic::ConvertedType::TIME_MILLIS) => Ok(DataType::Timestamp(
                     TimestampTypeMeta::new(TimeUnit::Millisecond),
@@ -106,7 +107,8 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                     )),
                 },
                 (Some(basic::LogicalType::Decimal { scale, precision }), _) => {
-                    decimal128_with_prec_scale(precision, scale)
+                    let meta = decimal_type_meta(precision, scale)?;
+                    Ok(DataType::Decimal64(meta))
                 }
                 // (Some(basic::LogicalType::Timestamp { unit, .. }), _) => match unit {
                 //     format::TimeUnit::MILLIS(_) => Ok(DataType::Timestamp(TimestampTypeMeta::new(
@@ -131,7 +133,8 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 (None, basic::ConvertedType::INT_64) => Ok(DataType::Int64),
                 (None, basic::ConvertedType::UINT_64) => Ok(DataType::UInt64),
                 (None, basic::ConvertedType::DECIMAL) => {
-                    decimal64_with_prec_scale(prim.precision, prim.scale)
+                    let meta = decimal_type_meta(prim.precision, prim.scale)?;
+                    Ok(DataType::Decimal64(meta))
                 }
                 (
                     Some(basic::LogicalType::Integer {
@@ -153,7 +156,8 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                     )),
                 },
                 (Some(basic::LogicalType::Decimal { scale, precision }), _) => {
-                    decimal128_with_prec_scale(precision, scale)
+                    let meta = decimal_type_meta(precision, scale)?;
+                    Ok(DataType::Decimal64(meta))
                 }
                 (Some(basic::LogicalType::Timestamp { unit, .. }), _) => match unit {
                     format::TimeUnit::MILLIS(_) => Ok(DataType::Timestamp(TimestampTypeMeta::new(
@@ -204,24 +208,12 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
     }
 }
 
-fn decimal64_with_prec_scale(prec: i32, scale: i32) -> Result<DataType> {
-    let prec: u8 = prec.try_into()?;
-    let scale: i8 = scale.try_into()?;
+fn decimal_type_meta(prec: i32, scale: i32) -> Result<DecimalTypeMeta> {
+    if prec < 0 {
+        return Err(DbError::new("Decimal precision cannot be negative"));
+    }
+    let prec: u8 = prec.try_into().context("Decimal precision too large")?;
+    let scale: i8 = scale.try_into().context("Decimal scale too large")?;
 
-    let meta = DecimalTypeMeta::new(prec, scale);
-
-    // TODO: Validate prec/scale.
-
-    Ok(DataType::Decimal64(meta))
-}
-
-fn decimal128_with_prec_scale(prec: i32, scale: i32) -> Result<DataType> {
-    let prec: u8 = prec.try_into()?;
-    let scale: i8 = scale.try_into()?;
-
-    let meta = DecimalTypeMeta::new(prec, scale);
-
-    // TODO: Validate prec/scale.
-
-    Ok(DataType::Decimal128(meta))
+    Ok(DecimalTypeMeta::new(prec, scale))
 }
