@@ -1,3 +1,6 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE SELECT SUM(AdvEngineID), COUNT(*), AVG(ResolutionWidth) FROM hits;
 ----

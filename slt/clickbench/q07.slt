@@ -1,3 +1,6 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE SELECT AdvEngineID, COUNT(*) FROM hits WHERE AdvEngineID <> 0 GROUP BY AdvEngineID ORDER BY COUNT(*) DESC;
 ----

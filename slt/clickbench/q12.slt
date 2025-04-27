@@ -1,3 +1,6 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE SELECT SearchPhrase, COUNT(*) AS c FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10;
 ----

@@ -1,3 +1,6 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE SELECT RegionID, COUNT(DISTINCT UserID) AS u FROM hits GROUP BY RegionID ORDER BY u DESC LIMIT 10;
 ----

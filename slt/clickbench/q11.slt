@@ -1,3 +1,6 @@
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE SELECT MobilePhone, MobilePhoneModel, COUNT(DISTINCT UserID) AS u FROM hits WHERE MobilePhoneModel <> '' GROUP BY MobilePhone, MobilePhoneModel ORDER BY u DESC LIMIT 10;
 ----
