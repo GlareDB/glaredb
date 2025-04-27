@@ -5,8 +5,8 @@ SET verify_optimized_plan TO true;
 
 statement ok
 CREATE TEMP TABLE t1 (
-  "Acolumn" INT,
-  "Bcolumn" TEXT
+  Acolumn INT,
+  Bcolumn TEXT
 );
 
 statement ok

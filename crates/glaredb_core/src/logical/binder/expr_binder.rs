@@ -130,10 +130,16 @@ impl<'a> BaseExpressionBinder<'a> {
                     .collect();
                 match column_binder.bind_from_idents(self.current, bind_context, &idents, recur)? {
                     Some(expr) => Ok(expr),
-                    None => Err(DbError::new(format!(
-                        "Missing column for reference: {}",
-                        idents.display_as_list(),
-                    ))),
+                    None => {
+                        let idents_string = idents
+                            .iter()
+                            .map(|ident| ident.as_raw_str())
+                            .collect::<Vec<_>>()
+                            .join(".");
+                        Err(DbError::new(format!(
+                            "Missing column for reference: {idents_string}",
+                        )))
+                    }
                 }
             }
             ast::Expr::QualifiedWildcard(_) => Err(DbError::new(

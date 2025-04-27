@@ -58,16 +58,25 @@ SELECT acolumn AS "MyAlias" FROM t1 ORDER BY "MyAlias";
 3
 4
 
+query TT
+DESCRIBE SELECT acolumn AS MyAlias FROM t1 ORDER BY MyAlias;
+----
+MyAlias  Int32
+
 query I
 SELECT acolumn AS MyAlias FROM t1 ORDER BY MyAlias;
 ----
 3
 4
 
-# Possibly confusing.
-statement error Missing column for reference: MyAlias
+query I
 SELECT acolumn AS MyAlias FROM t1 ORDER BY "MyAlias";
+----
+3
+4
 
-# Also possibly confusing.
-statement error Missing column for reference: MyAlias
+query I
 SELECT acolumn AS "MyAlias" FROM t1 ORDER BY MyAlias;
+----
+3
+4

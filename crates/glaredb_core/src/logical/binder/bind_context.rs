@@ -582,13 +582,13 @@ impl BindContext {
         &self,
         current: BindScopeRef,
         alias: Option<&TableAlias>,
-        column: &BinderIdent,
+        lookup: &BinderIdent,
     ) -> Result<Option<(TableRef, usize)>> {
         if alias.is_none() {
             let using = self
                 .get_using_columns(current)?
                 .iter()
-                .find(|&using| &using.column == column);
+                .find(|&using| using.column.strict_eq(lookup));
             if let Some(using) = using {
                 return Ok(Some((using.table_ref, using.col_idx)));
             }
@@ -608,9 +608,9 @@ impl BindContext {
             }
 
             for (col_idx, col_name) in table.column_names.iter().enumerate() {
-                if col_name == column {
+                if col_name.strict_eq(lookup) {
                     if found.is_some() {
-                        return Err(DbError::new(format!("Ambiguous column name '{column}'")));
+                        return Err(DbError::new(format!("Ambiguous column name '{lookup}'")));
                     }
                     found = Some((table.reference, col_idx));
                 }

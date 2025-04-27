@@ -197,13 +197,12 @@ impl<'a> SelectExprExpander<'a> {
                             let mut exprs = Vec::new();
                             // Iter all columns in the context, select the ones
                             // that match the regex.
-                            //
-                            // TODO: Same here, iter binder idents.
                             for table in self.bind_context.iter_tables_in_scope(self.current)? {
                                 for (col_idx, (name, datatype)) in
                                     table.iter_names_and_types().enumerate()
                                 {
-                                    // TODO: Which string do we want to match?
+                                    // Note that COLUMNS always applies the
+                                    // regex to the display name of the column.
                                     if !regex.is_match(name.as_raw_str()) {
                                         continue;
                                     }

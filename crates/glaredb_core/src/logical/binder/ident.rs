@@ -12,8 +12,6 @@ pub struct BinderIdent {
     /// The raw string as entered by the user.
     raw: String,
     /// The normalized string used for comparisons and hashing.
-    ///
-    /// If quoted, this will be the same as the raw string.
     normalized: String,
     /// If this string was quoted by the user.
     quoted: bool,
@@ -22,11 +20,7 @@ pub struct BinderIdent {
 impl BinderIdent {
     pub fn new(raw: impl Into<String>, quoted: bool) -> Self {
         let raw = raw.into();
-        let normalized = if quoted {
-            raw.clone()
-        } else {
-            raw.to_ascii_lowercase()
-        };
+        let normalized = raw.to_ascii_lowercase();
 
         BinderIdent {
             raw,
@@ -49,6 +43,17 @@ impl BinderIdent {
     /// Should not be used for comparisons.
     pub fn as_raw_str(&self) -> &str {
         &self.raw
+    }
+
+    /// Does a strict equality check by comparing the raw strings if `other` is
+    /// quoted.
+    ///
+    /// If `other` is not quoted, then the normalized values are compared.
+    pub fn strict_eq(&self, other: &BinderIdent) -> bool {
+        if other.quoted {
+            return self.raw == other.raw;
+        }
+        self.normalized == other.normalized
     }
 }
 

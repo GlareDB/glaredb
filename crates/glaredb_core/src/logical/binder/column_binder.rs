@@ -14,7 +14,6 @@ use crate::util::fmt::displayable::IntoDisplayableSlice;
 ///
 /// Implementations should typically implement custom logic first, then fall
 /// back to the default binder.
-// TODO: Literal binder.
 pub trait ExpressionColumnBinder {
     /// Try to bind a column from a root literal.
     ///
