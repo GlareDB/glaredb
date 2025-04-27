@@ -1,28 +1,28 @@
 # DESCRIBE all tpch parquet files
 
 query TT
-describe '../submodules/testdata/tpch_sf0.1/customer.parquet'
+describe customer
 ----
 c_custkey     Int32
 c_name        Utf8
 c_address     Utf8
 c_nationkey   Int32
 c_phone       Utf8
-c_acctbal     Decimal64(15,2)
+c_acctbal     Decimal128(15,2)
 c_mktsegment  Utf8
 c_comment     Utf8
 
 query TT
-describe '../submodules/testdata/tpch_sf0.1/lineitem.parquet'
+describe lineitem
 ----
 l_orderkey       Int32
 l_partkey        Int32
 l_suppkey        Int32
 l_linenumber     Int32
-l_quantity       Decimal64(15,2)
-l_extendedprice  Decimal64(15,2)
-l_discount       Decimal64(15,2)
-l_tax            Decimal64(15,2)
+l_quantity       Decimal128(15,2)
+l_extendedprice  Decimal128(15,2)
+l_discount       Decimal128(15,2)
+l_tax            Decimal128(15,2)
 l_returnflag     Utf8
 l_linestatus     Utf8
 l_shipdate       Date32
@@ -34,7 +34,7 @@ l_comment        Utf8
 
 
 query TT
-describe '../submodules/testdata/tpch_sf0.1/nation.parquet'
+describe nation
 ----
 n_nationkey  Int32
 n_name       Utf8
@@ -42,12 +42,12 @@ n_regionkey  Int32
 n_comment    Utf8
 
 query TT
-describe '../submodules/testdata/tpch_sf0.1/orders.parquet'
+describe orders
 ----
 o_orderkey       Int32
 o_custkey        Int32
 o_orderstatus    Utf8
-o_totalprice     Decimal64(15,2)
+o_totalprice     Decimal128(15,2)
 o_orderdate      Date32
 o_orderpriority  Utf8
 o_clerk          Utf8
@@ -55,7 +55,7 @@ o_shippriority   Int32
 o_comment        Utf8
 
 query TT
-describe '../submodules/testdata/tpch_sf0.1/part.parquet'
+describe part
 ----
 p_partkey      Int32
 p_name         Utf8
@@ -64,32 +64,32 @@ p_brand        Utf8
 p_type         Utf8
 p_size         Int32
 p_container    Utf8
-p_retailprice  Decimal64(15,2)
+p_retailprice  Decimal128(15,2)
 p_comment      Utf8
 
 query TT
-describe '../submodules/testdata/tpch_sf0.1/partsupp.parquet'
+describe partsupp
 ----
 ps_partkey     Int32
 ps_suppkey     Int32
 ps_availqty    Int32
-ps_supplycost  Decimal64(15,2)
+ps_supplycost  Decimal128(15,2)
 ps_comment     Utf8
 
 query TT
-describe '../submodules/testdata/tpch_sf0.1/region.parquet'
+describe region
 ----
 r_regionkey  Int32
 r_name       Utf8
 r_comment    Utf8
 
 query TT
-describe '../submodules/testdata/tpch_sf0.1/supplier.parquet'
+describe supplier
 ----
 s_suppkey    Int32
 s_name       Utf8
 s_address    Utf8
 s_nationkey  Int32
 s_phone      Utf8
-s_acctbal    Decimal64(15,2)
+s_acctbal    Decimal128(15,2)
 s_comment    Utf8
