@@ -535,7 +535,10 @@ mod tests {
     /// Note that this will place the left and right batches into their own
     /// sorted blocks, which will locally sort the batch prior to the binary
     /// merge.
-    fn binary_merge_left_right(
+    ///
+    /// This will initialize everything to the exact capacity needed in the
+    /// output block, meaning we'll only hit the merge loop once.
+    fn binary_merge_exact_cap(
         left: &Batch,
         left_keys: impl IntoIterator<Item = usize>,
         right: &Batch,
@@ -571,7 +574,7 @@ mod tests {
     fn binary_merge_interleave() {
         let left = generate_batch!([1, 3, 5], ["a", "c", "e"]);
         let right = generate_batch!([2, 4, 6], ["b", "d", "f"]);
-        let out = binary_merge_left_right(&left, [0], &right, [0]);
+        let out = binary_merge_exact_cap(&left, [0], &right, [0]);
 
         let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
         assert_batches_eq(&expected, &out);
@@ -584,7 +587,7 @@ mod tests {
 
         let left = generate_batch!([2, 4, 6], ["b", "d", "f"]);
         let right = generate_batch!([1, 3, 5], ["a", "c", "e"]);
-        let out = binary_merge_left_right(&left, [0], &right, [0]);
+        let out = binary_merge_exact_cap(&left, [0], &right, [0]);
 
         let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
         assert_batches_eq(&expected, &out);
@@ -597,7 +600,7 @@ mod tests {
 
         let left = generate_batch!([1, 2, 3], ["a", "b", "c"]);
         let right = generate_batch!([4, 5, 6], ["d", "e", "f"]);
-        let out = binary_merge_left_right(&left, [0], &right, [0]);
+        let out = binary_merge_exact_cap(&left, [0], &right, [0]);
 
         let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
         assert_batches_eq(&expected, &out);
@@ -609,7 +612,7 @@ mod tests {
 
         let left = generate_batch!([4, 5, 6], ["d", "e", "f"]);
         let right = generate_batch!([1, 2, 3], ["a", "b", "c"]);
-        let out = binary_merge_left_right(&left, [0], &right, [0]);
+        let out = binary_merge_exact_cap(&left, [0], &right, [0]);
 
         let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
         assert_batches_eq(&expected, &out);
