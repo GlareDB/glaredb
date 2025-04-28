@@ -316,6 +316,7 @@ impl Batch {
     #[allow(unused)]
     pub fn debug_table(&self) -> super::format::pretty::table::PrettyTable {
         use crate::arrays::field::{ColumnSchema, Field};
+        use crate::arrays::format::pretty::components::PRETTY_COMPONENTS;
         use crate::arrays::format::pretty::table::PrettyTable;
 
         let schema =
@@ -323,7 +324,7 @@ impl Batch {
                 Field::new(format!("array{idx}"), array.datatype().clone(), true)
             }));
 
-        PrettyTable::try_new(&schema, &[self], 100, None)
+        PrettyTable::try_new(&schema, &[self], 100, None, PRETTY_COMPONENTS)
             .expect("to be able to create pretty table")
     }
 }

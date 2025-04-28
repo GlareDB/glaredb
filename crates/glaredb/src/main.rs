@@ -8,12 +8,11 @@ use ext_iceberg::extension::IcebergExtension;
 use ext_parquet::extension::ParquetExtension;
 use ext_spark::SparkExtension;
 use ext_tpch_gen::TpchGenExtension;
-use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
-use glaredb_core::shell::lineedit::{KeyEvent, TermSize};
-use glaredb_core::shell::{RawModeTerm, Shell, ShellSignal};
+use glaredb_core::shell::lineedit::{KeyEvent, TermSize, UserInput};
+use glaredb_core::shell::{InteractiveShell, RawModeTerm, Shell, ShellSignal};
 use glaredb_error::Result;
 use glaredb_rt_native::runtime::{
     NativeSystemRuntime,
@@ -23,16 +22,17 @@ use glaredb_rt_native::runtime::{
 
 #[derive(Parser)]
 #[clap(name = "glaredb")]
+#[clap(version)]
 struct Arguments {
-    /// Execute file containing sql statements then exit.
+    /// Execute a file containing SQL statements and continue.
+    #[clap(long)]
+    init: Option<PathBuf>,
+    /// Execute a file containing SQL statements then exit.
     #[clap(short = 'f', long)]
     files: Vec<PathBuf>,
-    /// Queries to execute.
-    ///
-    /// If omitted, and no files were given via the `files` argument, then an
-    /// interactive session is started.
-    #[clap(trailing_var_arg = true)]
-    queries: Vec<String>,
+    /// Execute SQL commands then exit.
+    #[clap(short = 'c', long)]
+    commands: Vec<String>,
 }
 
 /// Simple binary for quickly running arbitrary queries.
@@ -120,57 +120,47 @@ async fn inner(
     //
     // However we should still allow moving forward even if not in a proper tty.
     let (cols, _rows) = crossterm::terminal::size().unwrap_or((80, 24));
+    let cols = cols as usize;
+
+    let mut shell = Shell::new(engine);
+
+    if let Some(init) = args.init {
+        let content = std::fs::read_to_string(init)?;
+        shell
+            .handle_input_non_interactive(UserInput::new(&content), cols, &mut stdout)
+            .await?;
+        stdout.flush()?;
+        // Continue on...
+    }
 
     if !args.files.is_empty() {
-        // Files provided, read them and execute them in order.
         for path in args.files {
             let content = std::fs::read_to_string(path)?;
-
-            let pending_queries = engine.session().query_many(&content)?;
-            for pending in pending_queries {
-                let mut q_res = pending.execute().await?;
-                let batches = q_res.output.collect().await?;
-
-                let table =
-                    PrettyTable::try_new(&q_res.output_schema, &batches, cols as usize, None)?;
-                writeln!(stdout, "{table}")?;
-
-                stdout.flush()?;
-            }
+            shell
+                .handle_input_non_interactive(UserInput::new(&content), cols, &mut stdout)
+                .await?;
             stdout.flush()?;
         }
-
         return Ok(());
     }
 
-    if !args.queries.is_empty() {
-        // Queries provided directly, run and print them, and exit.
-        for query in args.queries {
-            let pending_queries = engine.session().query_many(&query)?;
-            for pending in pending_queries {
-                let mut query_res = pending.execute().await?;
-                let batches = query_res.output.collect().await?;
-
-                let table =
-                    PrettyTable::try_new(&query_res.output_schema, &batches, cols as usize, None)?;
-
-                writeln!(stdout, "{table}")?;
-            }
+    if !args.commands.is_empty() {
+        for command in args.commands {
+            shell
+                .handle_input_non_interactive(UserInput::new(&command), cols, &mut stdout)
+                .await?;
             stdout.flush()?;
         }
-
         return Ok(());
     }
 
     // Otherwise continue on with interactive shell.
 
-    let mut shell = Shell::start(
+    let mut shell = InteractiveShell::start(
         stdout,
         CrosstermRawModeTerm,
-        Some(TermSize {
-            cols: cols as usize,
-        }),
-        engine,
+        Some(TermSize { cols }),
+        shell,
         "GlareDB Shell",
     )?;
 

@@ -1,5 +1,6 @@
 use std::time::Instant;
 
+use glaredb_core::arrays::format::pretty::components::PRETTY_COMPONENTS;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::Result;
@@ -73,7 +74,8 @@ impl BenchmarkRunner {
                                         &q_res.output_schema,
                                         &batches,
                                         100,
-                                        None
+                                        None,
+                                        PRETTY_COMPONENTS,
                                     )?
                                 );
                             }
@@ -104,7 +106,13 @@ impl BenchmarkRunner {
                     if conf.print_results {
                         println!(
                             "{}",
-                            PrettyTable::try_new(&q_res.output_schema, &batches, 100, None)?
+                            PrettyTable::try_new(
+                                &q_res.output_schema,
+                                &batches,
+                                100,
+                                None,
+                                PRETTY_COMPONENTS
+                            )?
                         );
                     }
 

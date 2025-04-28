@@ -4,6 +4,7 @@ use ext_spark::SparkExtension;
 use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::field::ColumnSchema;
+use glaredb_core::arrays::format::pretty::components::PRETTY_COMPONENTS;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::DbError;
@@ -113,12 +114,24 @@ pub struct PythonQueryResult {
 #[pymethods]
 impl PythonQueryResult {
     fn __repr__(&self) -> Result<String> {
-        let pretty = PrettyTable::try_new(&self.schema, &self.batches, DEFAULT_TABLE_WIDTH, None)?;
+        let pretty = PrettyTable::try_new(
+            &self.schema,
+            &self.batches,
+            DEFAULT_TABLE_WIDTH,
+            None,
+            PRETTY_COMPONENTS,
+        )?;
         Ok(format!("{pretty}"))
     }
 
     fn show(&self, py: Python) -> Result<()> {
-        let pretty = PrettyTable::try_new(&self.schema, &self.batches, DEFAULT_TABLE_WIDTH, None)?;
+        let pretty = PrettyTable::try_new(
+            &self.schema,
+            &self.batches,
+            DEFAULT_TABLE_WIDTH,
+            None,
+            PRETTY_COMPONENTS,
+        )?;
         pyprint(pretty, py)
     }
 }
