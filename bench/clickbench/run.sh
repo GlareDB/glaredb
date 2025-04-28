@@ -7,7 +7,10 @@ QUERY_NUM=1
 
 cat queries.sql | while read -r query; do
     sync
-    # echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null
+    if [[ -r /proc/sys/vm/drop_caches ]]; then
+        # Only try to run this if we have a proc file system.
+        echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
+    fi
 
     echo "${QUERY_NUM}: ${query}"
 
