@@ -19,9 +19,11 @@ aws ec2 run-instances \
   --user-data file://aws/userdata.sh
 ```
 
-`aws/userdata`:
+The `aws/userdata` user data file:
 
 - Installs rustup, protoc, build-essential, and gcc (cc)
 - Installs stable rust toolchain
 - Clones the glaredb repo to `/home/ubuntu/glaredb`
+
+This script will log its output to `/var/log/user-data.log`.
 
