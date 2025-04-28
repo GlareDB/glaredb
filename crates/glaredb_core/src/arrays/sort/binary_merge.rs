@@ -664,4 +664,74 @@ mod tests {
         let expected2 = generate_batch!([8, 9]);
         assert_batches_eq(&expected2, &out_batch);
     }
+
+    #[test]
+    fn binary_merge_left_runs_out() {
+        // Test case where the left segment runs out of blocks much earlier than
+        // the right segment, making the inner loop need to scan right multiple
+        // times while left is out of rows.
+        //
+        // We trigger this by creating two sorted runs (via the merger) where
+        // the left run will exhuast first.
+
+        // Batches merged for the first sorted run.
+        let left1 = generate_batch!([1, 3]);
+        let left2 = generate_batch!([2, 4]);
+
+        let left_block1 = TestSortedRowBlock::from_batch(&left1, [0]);
+        let left_block2 = TestSortedRowBlock::from_batch(&left2, [0]);
+
+        let merger = BinaryMerger::new(
+            &DefaultBufferManager,
+            &left_block1.key_layout,
+            &left_block1.data_layout,
+            2,
+        );
+
+        let left_run1 = SortedSegment::from_sorted_block(left_block1.sorted_block);
+        let left_run2 = SortedSegment::from_sorted_block(left_block2.sorted_block);
+
+        let mut state = merger.init_merge_state();
+        let left_out = merger.merge(&mut state, left_run1, left_run2).unwrap();
+        assert_eq!(2, left_out.keys.len());
+
+        // Now do the same with some right blocks, these values always sort
+        // higher than the left blocks.
+        let right1 = generate_batch!([5, 7]);
+        let right2 = generate_batch!([6, 8]);
+
+        let right_block1 = TestSortedRowBlock::from_batch(&right1, [0]);
+        let right_block2 = TestSortedRowBlock::from_batch(&right2, [0]);
+
+        let right_run1 = SortedSegment::from_sorted_block(right_block1.sorted_block);
+        let right_run2 = SortedSegment::from_sorted_block(right_block2.sorted_block);
+
+        let right_out = merger.merge(&mut state, right_run1, right_run2).unwrap();
+        assert_eq!(2, right_out.keys.len());
+
+        // Now merge the two sorted runs. Left with exhaust quicker than right
+        // when producing the final run.
+
+        let final_out = merger.merge(&mut state, left_out, right_out).unwrap();
+        assert_eq!(4, final_out.keys.len());
+
+        let mut scan = final_out.init_scan_state();
+        let mut out_batch = Batch::new([DataType::Int32], 2).unwrap();
+        let mut assert_scan = |expected: Batch| {
+            final_out
+                .scan_data(&mut scan, &left_block1.data_layout, &mut out_batch)
+                .unwrap();
+
+            assert_batches_eq(&expected, &out_batch);
+        };
+
+        // First batch.
+        assert_scan(generate_batch!([1, 2]));
+        // Second
+        assert_scan(generate_batch!([3, 4]));
+        // Third
+        assert_scan(generate_batch!([5, 6]));
+        // Fourth
+        assert_scan(generate_batch!([7, 8]));
+    }
 }
