@@ -2,12 +2,12 @@
 
 set -e
 
-# Override where the binary gets installed.
+# Override where the binary gets installed. Defaults to `~/.glaredb/bin`.
 #
 # `export GLAREDB_INSTALL_DIR=/some/other/path`
 install_dir="${GLAREDB_INSTALL_DIR:-$HOME/.glaredb/bin}"
 
-# Override the version to install. Defaults to the latest version
+# Override the version to install. Defaults to the latest version.
 #
 # `export GLAREDB_VERSION="v0.10.11"`
 version="${GLAREDB_VERSION:-latest}"
