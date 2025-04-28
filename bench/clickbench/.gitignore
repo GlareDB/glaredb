@@ -1,0 +1,4 @@
+# The binary
+/glaredb
+# Any of the hits files
+/hits*
