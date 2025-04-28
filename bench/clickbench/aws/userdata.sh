@@ -8,7 +8,7 @@ exec > >(tee /var/log/user-data.log) 2>&1
 apt update
 apt install -y rustup protobuf-compiler build-essential gcc
 
-# Install rust table
+# Install rust stable
 # Switch to ubuntu user so it picks up the right rustup dir.
 su - ubuntu -c "rustup install stable"
 
