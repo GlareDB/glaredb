@@ -12,10 +12,15 @@ use std::fmt::Debug;
 use std::io::{self, Write};
 
 use glaredb_error::{DbError, Result, ResultExt};
-use lineedit::{KeyEvent, LineEditor, Signal, TermSize};
+use lineedit::{KeyEvent, LineEditor, Signal, TermSize, UserInput};
 use raw::RawTerminalWriter;
 use tracing::trace;
 
+use crate::arrays::format::pretty::components::{
+    ASCII_COMPONENTS,
+    PRETTY_COMPONENTS,
+    TableComponents,
+};
 use crate::arrays::format::pretty::table::PrettyTable;
 use crate::engine::single_user::SingleUserEngine;
 use crate::runtime::pipeline::PipelineRuntime;
@@ -56,6 +61,7 @@ where
 pub struct ShellConfig {
     pub maxrows: usize,
     pub timer: bool,
+    pub table_components: &'static TableComponents,
 }
 
 impl Default for ShellConfig {
@@ -63,6 +69,7 @@ impl Default for ShellConfig {
         ShellConfig {
             maxrows: 50,
             timer: false,
+            table_components: PRETTY_COMPONENTS,
         }
     }
 }
@@ -93,21 +100,17 @@ trait DotCommand: Debug + Clone + Copy + Sized {
     const ARGS: &str;
     const HELP: &str;
 
-    fn handle<W, P, R, T>(shell: &mut Shell<W, P, R, T>, args: &str) -> Result<DotSignal>
+    fn handle<W, P, R>(shell: &mut Shell<P, R>, args: &str, writer: &mut W) -> Result<DotSignal>
     where
         W: io::Write,
         P: PipelineRuntime,
-        R: SystemRuntime,
-        T: RawModeTerm;
+        R: SystemRuntime;
 
-    fn print_usage<W, P, R, T>(shell: &mut Shell<W, P, R, T>) -> Result<DotSignal>
+    fn print_usage<W>(writer: &mut W) -> Result<DotSignal>
     where
         W: io::Write,
-        P: PipelineRuntime,
-        R: SystemRuntime,
-        T: RawModeTerm,
     {
-        let mut writer = RawTerminalWriter::new(shell.editor.writer_mut());
+        let mut writer = RawTerminalWriter::new(writer);
         writeln!(writer, "Usage: .{} {}", Self::NAME, Self::ARGS)?;
         Ok(DotSignal::EditStart)
     }
@@ -121,16 +124,15 @@ impl DotCommand for DotCommandTimer {
     const ARGS: &str = "on|off";
     const HELP: &str = "Display time taken to execute a query";
 
-    fn handle<W, P, R, T>(shell: &mut Shell<W, P, R, T>, args: &str) -> Result<DotSignal>
+    fn handle<W, P, R>(shell: &mut Shell<P, R>, args: &str, _writer: &mut W) -> Result<DotSignal>
     where
         W: io::Write,
         P: PipelineRuntime,
         R: SystemRuntime,
-        T: RawModeTerm,
     {
         match args {
-            "on" => shell.engine.config.timer = true,
-            "off" => shell.engine.config.timer = false,
+            "on" => shell.config.timer = true,
+            "off" => shell.config.timer = false,
             _ => return Err(DbError::new("Expected 'on' or 'off' as arguments")),
         }
 
@@ -146,17 +148,16 @@ impl DotCommand for DotCommandMaxRows {
     const ARGS: &str = "ROWS";
     const HELP: &str = "Set the maximum number of rows to display in the output";
 
-    fn handle<W, P, R, T>(shell: &mut Shell<W, P, R, T>, args: &str) -> Result<DotSignal>
+    fn handle<W, P, R>(shell: &mut Shell<P, R>, args: &str, _writer: &mut W) -> Result<DotSignal>
     where
         W: io::Write,
         P: PipelineRuntime,
         R: SystemRuntime,
-        T: RawModeTerm,
     {
         let num = args
             .parse::<usize>()
             .context_fn(|| format!("Failed to parse '{args}' as a number"))?;
-        shell.engine.config.maxrows = num;
+        shell.config.maxrows = num;
 
         Ok(DotSignal::EditStart)
     }
@@ -170,18 +171,40 @@ impl DotCommand for DotCommandDatabases {
     const ARGS: &str = "";
     const HELP: &str = "List attached databases";
 
-    fn handle<W, P, R, T>(shell: &mut Shell<W, P, R, T>, args: &str) -> Result<DotSignal>
+    fn handle<W, P, R>(shell: &mut Shell<P, R>, args: &str, writer: &mut W) -> Result<DotSignal>
     where
         W: io::Write,
         P: PipelineRuntime,
         R: SystemRuntime,
-        T: RawModeTerm,
     {
         if !args.is_empty() {
-            return Self::print_usage(shell);
+            return Self::print_usage(writer);
         }
-        shell.engine.pending = Some("SHOW DATABASES".to_string());
+        shell.pending = Some("SHOW DATABASES".to_string());
         Ok(DotSignal::ExecutePending)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DotCommandBox;
+
+impl DotCommand for DotCommandBox {
+    const NAME: &str = "box";
+    const ARGS: &str = "pretty|ascii";
+    const HELP: &str = "Characters to use for box drawing";
+
+    fn handle<W, P, R>(shell: &mut Shell<P, R>, args: &str, writer: &mut W) -> Result<DotSignal>
+    where
+        W: io::Write,
+        P: PipelineRuntime,
+        R: SystemRuntime,
+    {
+        match args {
+            "pretty" => shell.config.table_components = PRETTY_COMPONENTS,
+            "ascii" => shell.config.table_components = ASCII_COMPONENTS,
+            _ => return Self::print_usage(writer),
+        }
+        Ok(DotSignal::EditStart)
     }
 }
 
@@ -193,17 +216,16 @@ impl DotCommand for DotCommandTables {
     const ARGS: &str = "";
     const HELP: &str = "List accessible tables";
 
-    fn handle<W, P, R, T>(shell: &mut Shell<W, P, R, T>, args: &str) -> Result<DotSignal>
+    fn handle<W, P, R>(shell: &mut Shell<P, R>, args: &str, writer: &mut W) -> Result<DotSignal>
     where
         W: io::Write,
         P: PipelineRuntime,
         R: SystemRuntime,
-        T: RawModeTerm,
     {
         if !args.is_empty() {
-            return Self::print_usage(shell);
+            return Self::print_usage(writer);
         }
-        shell.engine.pending = Some("SHOW TABLES".to_string());
+        shell.pending = Some("SHOW TABLES".to_string());
         Ok(DotSignal::ExecutePending)
     }
 }
@@ -216,15 +238,14 @@ impl DotCommand for DotCommandHelp {
     const ARGS: &str = "";
     const HELP: &str = "Display this help text";
 
-    fn handle<W, P, R, T>(shell: &mut Shell<W, P, R, T>, args: &str) -> Result<DotSignal>
+    fn handle<W, P, R>(_shell: &mut Shell<P, R>, args: &str, writer: &mut W) -> Result<DotSignal>
     where
         W: io::Write,
         P: PipelineRuntime,
         R: SystemRuntime,
-        T: RawModeTerm,
     {
         if !args.is_empty() {
-            return Self::print_usage(shell);
+            return Self::print_usage(writer);
         }
 
         const fn name_args_help<D: DotCommand>() -> (&'static str, &'static str, &'static str) {
@@ -233,6 +254,7 @@ impl DotCommand for DotCommandHelp {
 
         // (name, args, help)
         const DOT_COMMAND_LINES: &[(&str, &str, &str)] = &[
+            name_args_help::<DotCommandBox>(),
             name_args_help::<DotCommandDatabases>(),
             name_args_help::<DotCommandHelp>(),
             name_args_help::<DotCommandMaxRows>(),
@@ -240,7 +262,7 @@ impl DotCommand for DotCommandHelp {
             name_args_help::<DotCommandTimer>(),
         ];
 
-        let mut writer = RawTerminalWriter::new(shell.editor.writer_mut());
+        let mut writer = RawTerminalWriter::new(writer);
 
         writeln!(
             writer,
@@ -264,20 +286,13 @@ impl DotCommand for DotCommandHelp {
 }
 
 #[derive(Debug)]
-pub struct Shell<W: io::Write, P: PipelineRuntime, R: SystemRuntime, T: RawModeTerm> {
+pub struct InteractiveShell<W: io::Write, P: PipelineRuntime, R: SystemRuntime, T: RawModeTerm> {
     editor: LineEditor<W>,
-    engine: EngineWithConfig<P, R>,
+    shell: Shell<P, R>,
     term: T,
 }
 
-#[derive(Debug)]
-struct EngineWithConfig<P: PipelineRuntime, R: SystemRuntime> {
-    engine: SingleUserEngine<P, R>,
-    pending: Option<String>,
-    config: ShellConfig,
-}
-
-impl<W, P, R, T> Shell<W, P, R, T>
+impl<W, P, R, T> InteractiveShell<W, P, R, T>
 where
     W: io::Write,
     P: PipelineRuntime,
@@ -288,7 +303,7 @@ where
         writer: W,
         term: T,
         initial_size: Option<TermSize>,
-        engine: SingleUserEngine<P, R>,
+        shell: Shell<P, R>,
         shell_msg: &str,
     ) -> Result<Self> {
         const PROMPT: &str = "glaredb> ";
@@ -297,13 +312,9 @@ where
         let initial_size = initial_size.unwrap_or(TermSize { cols: 80 });
 
         let editor = LineEditor::new(writer, PROMPT, CONTIN, initial_size);
-        let mut shell = Shell {
+        let mut shell = InteractiveShell {
             editor,
-            engine: EngineWithConfig {
-                engine,
-                pending: None,
-                config: ShellConfig::default(),
-            },
+            shell,
             term,
         };
 
@@ -355,7 +366,7 @@ where
                 }
 
                 let query = input.s.to_string();
-                self.engine.pending = Some(query);
+                self.shell.pending = Some(query);
                 Ok(ShellSignal::ExecutePending(guard))
             }
             Signal::Exit => Ok(ShellSignal::Exit),
@@ -373,18 +384,98 @@ where
         let width = self.editor.get_size().cols;
         trace!(%width, "using editor reported width");
 
-        let timer = self.engine.config.timer;
-        let engine = &mut self.engine;
-        let query = match engine.pending.take() {
+        self.shell
+            .execute_pending(width, self.editor.writer_mut())
+            .await?;
+
+        Ok(())
+    }
+
+    /// Handle a dot command.
+    fn handle_dot_command(
+        &mut self,
+        guard: RawModeGuard<T>,
+        command: &str,
+    ) -> Result<ShellSignal<T>> {
+        match self
+            .shell
+            .handle_dot_command(command, self.editor.writer_mut())
+        {
+            Ok(sig) => match sig {
+                DotSignal::EditStart => {
+                    self.editor.edit_start()?;
+                    Ok(ShellSignal::Continue(guard))
+                }
+                DotSignal::ExecutePending => Ok(ShellSignal::ExecutePending(guard)),
+            },
+            Err(e) => {
+                // User input error, print it out instead of returning it.
+                let mut writer = RawTerminalWriter::new(self.editor.writer_mut());
+                writeln!(writer, "{e}")?;
+
+                // Begin editing again.
+                self.editor.edit_start()?;
+                Ok(ShellSignal::Continue(guard))
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Shell<P: PipelineRuntime, R: SystemRuntime> {
+    engine: SingleUserEngine<P, R>,
+    pending: Option<String>,
+    config: ShellConfig,
+}
+
+impl<P, R> Shell<P, R>
+where
+    P: PipelineRuntime,
+    R: SystemRuntime,
+{
+    pub fn new(engine: SingleUserEngine<P, R>) -> Self {
+        Shell {
+            engine,
+            pending: None,
+            config: ShellConfig::default(),
+        }
+    }
+
+    pub async fn handle_input_non_interactive<W>(
+        &mut self,
+        input: UserInput<'_>,
+        width: usize,
+        writer: &mut W,
+    ) -> Result<()>
+    where
+        W: io::Write,
+    {
+        if input.is_dot_command {
+            self.handle_dot_command(input.s, writer)?;
+        } else {
+            self.pending = Some(input.s.to_string());
+        }
+
+        self.execute_pending(width, writer).await?;
+
+        Ok(())
+    }
+
+    async fn execute_pending<W>(&mut self, width: usize, writer: &mut W) -> Result<()>
+    where
+        W: io::Write,
+    {
+        let timer = self.config.timer;
+        let query = match self.pending.take() {
             Some(query) => query,
             None => return Ok(()), // Nothing to execute.
         };
         // Using a raw writer here even in "cooked" mode is fine, since
         // all it does is replace '\n' with '\r\n' which works in either
         // mode.
-        let mut writer = RawTerminalWriter::new(self.editor.writer_mut());
+        let mut writer = RawTerminalWriter::new(writer);
 
-        match engine.engine.session().query_many(&query) {
+        match self.engine.session().query_many(&query) {
             Ok(pending_queries) => {
                 trace!("writing results");
                 for pending in pending_queries {
@@ -410,7 +501,8 @@ where
                         &query_res.output_schema,
                         &batches,
                         width,
-                        Some(engine.config.maxrows),
+                        Some(self.config.maxrows),
+                        self.config.table_components,
                     ) {
                         Ok(table) => {
                             writeln!(writer, "{table}")?;
@@ -445,33 +537,10 @@ where
         Ok(())
     }
 
-    /// Handle a dot command.
-    fn handle_dot_command(
-        &mut self,
-        guard: RawModeGuard<T>,
-        command: &str,
-    ) -> Result<ShellSignal<T>> {
-        match self.handle_dot_command_inner(command) {
-            Ok(sig) => match sig {
-                DotSignal::EditStart => {
-                    self.editor.edit_start()?;
-                    Ok(ShellSignal::Continue(guard))
-                }
-                DotSignal::ExecutePending => Ok(ShellSignal::ExecutePending(guard)),
-            },
-            Err(e) => {
-                // User input error, print it out instead of returning it.
-                let mut writer = RawTerminalWriter::new(self.editor.writer_mut());
-                writeln!(writer, "{e}")?;
-
-                // Begin editing again.
-                self.editor.edit_start()?;
-                Ok(ShellSignal::Continue(guard))
-            }
-        }
-    }
-
-    fn handle_dot_command_inner(&mut self, command: &str) -> Result<DotSignal> {
+    fn handle_dot_command<W>(&mut self, command: &str, writer: &mut W) -> Result<DotSignal>
+    where
+        W: io::Write,
+    {
         let (first, rest) = match command.split(' ').next() {
             Some(first) => (first, command.trim_start_matches(first).trim()),
             None => return Err(DbError::new("Empty dot command")),
@@ -480,11 +549,12 @@ where
         let name = first.trim_start_matches('.');
 
         match name {
-            DotCommandDatabases::NAME => DotCommandDatabases::handle(self, rest),
-            DotCommandTables::NAME => DotCommandTables::handle(self, rest),
-            DotCommandHelp::NAME => DotCommandHelp::handle(self, rest),
-            DotCommandMaxRows::NAME => DotCommandMaxRows::handle(self, rest),
-            DotCommandTimer::NAME => DotCommandTimer::handle(self, rest),
+            DotCommandDatabases::NAME => DotCommandDatabases::handle(self, rest, writer),
+            DotCommandTables::NAME => DotCommandTables::handle(self, rest, writer),
+            DotCommandHelp::NAME => DotCommandHelp::handle(self, rest, writer),
+            DotCommandMaxRows::NAME => DotCommandMaxRows::handle(self, rest, writer),
+            DotCommandTimer::NAME => DotCommandTimer::handle(self, rest, writer),
+            DotCommandBox::NAME => DotCommandBox::handle(self, rest, writer),
             other => Err(DbError::new(format!("Unknown dot command: '{other}'"))),
         }
     }

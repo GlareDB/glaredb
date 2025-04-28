@@ -7,7 +7,7 @@ use glaredb_error::Result;
 use textwrap::core::display_width;
 use textwrap::{fill_inplace, wrap};
 
-use super::components::{PRETTY_COMPONENTS, TableComponents};
+use super::components::TableComponents;
 use super::display::{Alignment, PrettyFooter, PrettyHeader, PrettyValues, table_width};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
@@ -20,19 +20,6 @@ const NUM_VALS_FOR_AVG: usize = 30;
 
 /// Default number of rows to display.
 const DEFAULT_MAX_ROWS: usize = 50;
-
-/// Components to use for table drawning.
-// TODO: Allow passing in when constructing table.
-const DEFAULT_COMPONENTS: TableComponents = PRETTY_COMPONENTS;
-
-pub fn pretty_format_batches(
-    schema: &ColumnSchema,
-    batches: &[Batch],
-    max_width: usize,
-    max_rows: Option<usize>,
-) -> Result<impl fmt::Display + use<>> {
-    PrettyTable::try_new(schema, batches, max_width, max_rows)
-}
 
 #[derive(Debug)]
 pub struct PrettyTable {
@@ -49,6 +36,7 @@ impl PrettyTable {
         batches: &[B],
         max_width: usize,
         max_rows: Option<usize>,
+        components: &'static TableComponents,
     ) -> Result<Self> {
         if schema.fields.is_empty() {
             let header = ColumnValues::try_new_arbitrary_header(
@@ -58,11 +46,11 @@ impl PrettyTable {
             )?;
             let widths = vec![header.value(1).len()];
             return Ok(PrettyTable {
-                header: PrettyHeader::new(&DEFAULT_COMPONENTS, widths.clone(), vec![header], false),
+                header: PrettyHeader::new(components, widths.clone(), vec![header], false),
                 head: Vec::new(),
                 tail: Vec::new(),
                 footer: PrettyFooter {
-                    components: &DEFAULT_COMPONENTS,
+                    components,
                     content: String::new(),
                     column_widths: widths,
                 },
@@ -208,7 +196,7 @@ impl PrettyTable {
             let (vals, num_rows) =
                 Self::column_values_for_batch(batch.borrow(), &format, 0..head_rows)?;
             head.push(PrettyValues::new(
-                &DEFAULT_COMPONENTS,
+                components,
                 col_alignments.clone(),
                 column_widths.clone(),
                 vals,
@@ -231,7 +219,7 @@ impl PrettyTable {
             };
             let (vals, num_rows) = Self::column_values_for_batch(batch.borrow(), &format, range)?;
             tail.push(PrettyValues::new(
-                &DEFAULT_COMPONENTS,
+                components,
                 col_alignments.clone(),
                 column_widths.clone(),
                 vals,
@@ -245,7 +233,7 @@ impl PrettyTable {
                 .map(|_| ColumnValues::elided_column(true, 1))
                 .collect();
             tail.push(PrettyValues::new(
-                &DEFAULT_COMPONENTS,
+                components,
                 col_alignments.clone(),
                 column_widths.clone(),
                 dot_cols,
@@ -256,16 +244,11 @@ impl PrettyTable {
         tail.reverse();
 
         Ok(PrettyTable {
-            header: PrettyHeader::new(
-                &DEFAULT_COMPONENTS,
-                column_widths.clone(),
-                headers,
-                !head.is_empty(),
-            ),
+            header: PrettyHeader::new(components, column_widths.clone(), headers, !head.is_empty()),
             head,
             tail,
             footer: PrettyFooter {
-                components: &DEFAULT_COMPONENTS,
+                components,
                 column_widths,
                 content: footer_content,
             },
@@ -794,9 +777,19 @@ mod tests {
     use super::*;
     use crate::arrays::array::selection::Selection;
     use crate::arrays::field::Field;
+    use crate::arrays::format::pretty::components::PRETTY_COMPONENTS;
     use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::generate_batch;
     use crate::util::iter::TryFromExactSizeIterator;
+
+    fn pretty_format_batches(
+        schema: &ColumnSchema,
+        batches: &[Batch],
+        max_width: usize,
+        max_rows: Option<usize>,
+    ) -> Result<impl fmt::Display + use<>> {
+        PrettyTable::try_new(schema, batches, max_width, max_rows, PRETTY_COMPONENTS)
+    }
 
     #[test]
     fn test_truncate_string() {

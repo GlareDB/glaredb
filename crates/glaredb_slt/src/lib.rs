@@ -1,4 +1,5 @@
 mod vars;
+use glaredb_core::arrays::format::pretty::components::PRETTY_COMPONENTS;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
@@ -222,8 +223,14 @@ impl TestSession {
         let batches = query_res.output.collect().await.unwrap();
         println!(
             "{}",
-            PrettyTable::try_new(&query_res.output_schema, &batches, cols as usize, Some(200))
-                .unwrap()
+            PrettyTable::try_new(
+                &query_res.output_schema,
+                &batches,
+                cols as usize,
+                Some(200),
+                PRETTY_COMPONENTS
+            )
+            .unwrap()
         );
     }
 
@@ -262,8 +269,14 @@ impl TestSession {
                 let batches = res.output.collect().await.unwrap();
                 println!(
                     "{}",
-                    PrettyTable::try_new(&res.output_schema, &batches, cols as usize, Some(200))
-                        .unwrap()
+                    PrettyTable::try_new(
+                        &res.output_schema,
+                        &batches,
+                        cols as usize,
+                        Some(200),
+                        PRETTY_COMPONENTS
+                    )
+                    .unwrap()
                 );
             }
         };

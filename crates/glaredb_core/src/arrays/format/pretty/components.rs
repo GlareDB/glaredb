@@ -1,4 +1,4 @@
-pub const PRETTY_COMPONENTS: TableComponents = TableComponents {
+pub const PRETTY_COMPONENTS: &TableComponents = &TableComponents {
     lb: '│',
     rb: '│',
     tb: '─',
@@ -16,7 +16,7 @@ pub const PRETTY_COMPONENTS: TableComponents = TableComponents {
     intersection: '┼',
 };
 
-pub const ASCII_COMPONENTS: TableComponents = TableComponents {
+pub const ASCII_COMPONENTS: &TableComponents = &TableComponents {
     lb: '|',
     rb: '|',
     tb: '-',

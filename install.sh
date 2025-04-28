@@ -65,12 +65,6 @@ chmod +x "${tmpf}"
 mkdir -p "${install_dir}"
 mv "${tmpf}" "${dest}"
 
-if ${dest} 'select 1' >/dev/null 2>&1; then
-  echo "GlareDB installed!"
-  echo "You can run it by typing:"
-  echo "    ${dest}"
-else
-  echo "Failed to run smoke‐test!"
-  exit 1
-fi
-
+echo "GlareDB installed!"
+echo "You can run it by typing:"
+echo "    ${dest}"

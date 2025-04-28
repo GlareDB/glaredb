@@ -60,6 +60,16 @@ pub struct UserInput<'a> {
     pub is_dot_command: bool,
 }
 
+impl<'a> UserInput<'a> {
+    pub fn new(input: &'a str) -> Self {
+        let trimmed = input.trim();
+        UserInput {
+            s: trimmed,
+            is_dot_command: trimmed.starts_with('.'),
+        }
+    }
+}
+
 /// Signal as a response to a key input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Signal<'a> {
@@ -190,14 +200,9 @@ where
                     write!(self.writer, "{}", vt100::CRLF)?;
                     self.writer.flush()?;
 
-                    let trimmed = self.buffer.as_ref().trim();
-                    let input = UserInput {
-                        s: trimmed,
-                        is_dot_command: trimmed.starts_with('.'),
-                    };
-
+                    let input = UserInput::new(self.buffer.as_ref());
                     if !input.is_dot_command {
-                        self.history.push_query(trimmed.to_string());
+                        self.history.push_query(input.s.to_string());
                     }
 
                     return Ok(Signal::InputCompleted(input));

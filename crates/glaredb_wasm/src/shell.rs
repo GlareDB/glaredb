@@ -3,7 +3,7 @@ use std::io;
 use std::rc::Rc;
 
 use glaredb_core::shell::lineedit::{KeyEvent, TermSize};
-use glaredb_core::shell::{RawModeGuard, RawModeTerm, Shell, ShellSignal};
+use glaredb_core::shell::{InteractiveShell, RawModeGuard, RawModeTerm, Shell, ShellSignal};
 use glaredb_error::{DbError, OptionExt};
 use js_sys::Function;
 use tracing::{error, trace, warn};
@@ -121,11 +121,11 @@ impl WasmShell {
         let session = WasmSession::try_new()?;
 
         let terminal = TerminalBuffer::new(terminal);
-        let mut shell = Shell::start(
+        let mut shell = InteractiveShell::start(
             terminal,
             NopRawMode,
             None,
-            session.engine,
+            Shell::new(session.engine),
             "GlareDB Wasm Shell",
         )?;
 
@@ -171,7 +171,7 @@ impl WasmShell {
 
 #[derive(Debug)]
 pub(crate) struct ShellHandler {
-    shell: Shell<TerminalBuffer, WasmExecutor, WasmSystemRuntime, NopRawMode>,
+    shell: InteractiveShell<TerminalBuffer, WasmExecutor, WasmSystemRuntime, NopRawMode>,
     edit_guard: Option<WasmEditGuard>,
 }
 
