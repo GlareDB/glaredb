@@ -2,10 +2,16 @@
 
 set -e
 
-# You can override this:
+# Override where the binary gets installed. Defaults to `~/.glaredb/bin`.
 #
-# export GLAREDB_INSTALL_DIR=/some/other/path
+# `export GLAREDB_INSTALL_DIR=/some/other/path`
 install_dir="${GLAREDB_INSTALL_DIR:-$HOME/.glaredb/bin}"
+
+# Override the version to install. Defaults to the latest version.
+#
+# `export GLAREDB_VERSION="v0.10.11"`
+version="${GLAREDB_VERSION:-latest}"
+
 dest="$install_dir/glaredb"
 
 echo "***"
@@ -37,7 +43,15 @@ esac
 asset="glaredb-${os}-${arch}"
 
 # Direct download url
-download_url="https://github.com/GlareDB/glaredb/releases/latest/download/${asset}"
+case "${version}" in
+  latest)
+    download_url="https://github.com/GlareDB/glaredb/releases/latest/download/${asset}"
+    ;;
+  *)
+    # Assume the user entered in a valid tag.
+    download_url="https://github.com/GlareDB/glaredb/releases/download/${version}/${asset}"
+    ;;
+esac
 
 # Download
 tmpf=$(mktemp)
@@ -51,6 +65,12 @@ chmod +x "${tmpf}"
 mkdir -p "${install_dir}"
 mv "${tmpf}" "${dest}"
 
-echo "GlareDB installed!"
-echo "You can run it by typing:"
-echo "    ${dest}"
+if ${dest} 'select 1' >/dev/null 2>&1; then
+  echo "GlareDB installed!"
+  echo "You can run it by typing:"
+  echo "    ${dest}"
+else
+  echo "Failed to run smoke‐test!"
+  exit 1
+fi
+
