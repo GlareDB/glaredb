@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-set -e
+set -eu
+set -o pipefail
 
 case "$1" in
     single)
@@ -36,6 +37,11 @@ cat queries.sql | while read -r query; do
         duration=$(awk -F': ' '/^Execution duration/ { printf "%.3f\n", $2 }' <<< "$output")
 
         echo "$output"
+
+        if [ -z "${duration}" ]; then
+           echo "Query failed"
+           exit 1
+        fi
 
         # JSON results
         echo -n "${duration}" >> results.json
