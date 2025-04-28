@@ -198,6 +198,6 @@ jobs:
 
       - name: Install specific version
         env:
-          GLAREDB_VERSION: v0.10.11
+          GLAREDB_VERSION: v0.10.13
         run: ./install.sh
 
