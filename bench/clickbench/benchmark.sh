@@ -33,9 +33,8 @@ case "$1" in
 esac
 popd
 
-# Ensure working directory in the script dir. The view that gets created uses a
+# Ensure working directory is the script dir. The view that gets created uses a
 # relative path.
 pushd "${script_dir}"
-trap 'popd' EXIT
 
 ./run.sh "$@"

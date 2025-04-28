@@ -15,6 +15,9 @@ esac
 TRIES=3
 QUERY_NUM=1
 
+echo "[" > results.json
+echo "query_num,iteration,duration" > results.csv
+
 cat queries.sql | while read -r query; do
     sync
     if [[ -r /proc/sys/vm/drop_caches ]]; then
@@ -25,9 +28,28 @@ cat queries.sql | while read -r query; do
 
     echo "${QUERY_NUM}: ${query}"
 
+    [ "${QUERY_NUM}" != 1 ] && echo "," >> results.json
+    echo -n "    [" >> results.json
+
     for i in $(seq 1 $TRIES); do
-        ./glaredb --init "${create_sql_file}" -c ".timer on" -c "${query}"
+        output=$(./glaredb --init "${create_sql_file}" -c ".timer on" -c "${query}")
+        duration=$(awk -F': ' '/^Execution duration/ { printf "%.3f\n", $2 }' <<< "$output")
+
+        echo "$output"
+
+        # JSON results
+        echo -n "${duration}" >> results.json
+        [ "${i}" != "${TRIES}" ] && echo -n "," >> results.json
+
+        # CSV results
+        echo "${QUERY_NUM},${i},${duration}" >> results.csv
     done
+
+    echo -n "]" >> results.json
 
     QUERY_NUM=$((QUERY_NUM + 1))
 done
+
+echo "" >> results.csv
+echo "" >> results.json
+echo "]" >> results.json
