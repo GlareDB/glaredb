@@ -439,8 +439,6 @@ unsafe fn sort_heap_keys(
     let heap_key_column =
         layout.heap_mapping[key_column].expect("to be provides s column that has a heap key");
 
-    let heap_key_block_ptr = heap_keys.as_ptr();
-
     // Read the first row we're comparing to see if it's NULL. Since we're
     // comparing prefix ties, we should return early if the values are NULL.
     let first_heap_row_idx =
@@ -518,11 +516,14 @@ unsafe fn sort_heap_keys(
     // ties.
     let heap_curr_row_idx =
         unsafe { read_inline_idx(key_row_ptr(keys, layout, row_offset), layout) };
-    let mut curr_heap_ptr = unsafe { heap_key_row_ptr(heap_keys, layout, heap_curr_row_idx) };
+    let mut curr_heap_ptr =
+        unsafe { heap_key_row_ptr(heap_keys, layout, heap_curr_row_idx).byte_add(heap_col_offset) };
     for next_row_idx in (row_offset + 1)..(row_offset + row_count) {
         let heap_next_row_idx =
             unsafe { read_inline_idx(key_row_ptr(keys, layout, next_row_idx), layout) };
-        let next_heap_ptr = unsafe { heap_key_row_ptr(heap_keys, layout, heap_next_row_idx) };
+        let next_heap_ptr = unsafe {
+            heap_key_row_ptr(heap_keys, layout, heap_next_row_idx).byte_add(heap_col_offset)
+        };
 
         // Compare curr with next.
         let cmp = unsafe { compare_heap_values(curr_heap_ptr, next_heap_ptr, phys_type)? };
@@ -567,16 +568,16 @@ fn apply_sort_indices(
 /// serves to iterate over those reordered indices.
 #[derive(Debug)]
 struct BlockRowIndexIter<'a> {
-    block_ptr: *const u8,
+    keys: &'a Block,
     count: usize,
     curr: usize,
     layout: &'a SortLayout,
 }
 
 impl<'a> BlockRowIndexIter<'a> {
-    fn new(layout: &'a SortLayout, block: &Block, count: usize) -> Self {
+    fn new(layout: &'a SortLayout, keys: &'a Block, count: usize) -> Self {
         BlockRowIndexIter {
-            block_ptr: block.as_ptr(),
+            keys,
             count,
             curr: 0,
             layout,
@@ -592,13 +593,8 @@ impl Iterator for BlockRowIndexIter<'_> {
             return None;
         }
 
-        let idx = unsafe {
-            read_inline_idx(
-                self.block_ptr
-                    .byte_add(self.layout.row_width * self.curr + self.layout.compare_width),
-                self.layout,
-            )
-        };
+        let idx =
+            unsafe { read_inline_idx(key_row_ptr(self.keys, self.layout, self.curr), self.layout) };
         self.curr += 1;
 
         Some(idx)
