@@ -17,10 +17,21 @@ pub struct SortedSegmentScanState {
 /// Contains multiple blocks that have been totally sorted.
 #[derive(Debug)]
 pub struct SortedSegment {
+    /// Blocks containing the fixed width keys.
+    ///
+    /// This will also contain "prefixes" for heap keys. E.g. strings will have
+    /// fixed sized prefix encoded as a key, in additional to the normal string
+    /// encoding in heap_keys.
     pub(crate) keys: Vec<Block>,
+    /// Keys that require a heap.
+    ///
+    /// Encoded using a row layout.
     pub(crate) heap_keys: Vec<Block>,
+    /// Heap for the heap keys (row layout).
     pub(crate) heap_keys_heap: Vec<Block>,
+    /// Data that's being passed through the sort, row layout.
     pub(crate) data: Vec<Block>,
+    /// Heap blocks for the data (row layout).
     pub(crate) data_heap: Vec<Block>,
 }
 

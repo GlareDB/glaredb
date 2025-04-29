@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 
-use glaredb_error::Result;
+use glaredb_error::{Result, not_implemented};
 use half::f16;
 
 use crate::arrays::array::Array;
@@ -123,6 +123,8 @@ pub struct SortLayout {
     /// BTreeMap as we want to iterate this in order when pulling out keys that
     /// require heap blocks when appending.
     pub(crate) heap_mapping: BTreeMap<usize, usize>,
+    /// Exact sized vec indicating if the key at a given index is a heap key.
+    pub(crate) is_heap_key: Vec<bool>,
 }
 
 impl SortLayout {
@@ -138,6 +140,7 @@ impl SortLayout {
         let mut offsets = Vec::with_capacity(columns.len());
 
         let mut column_widths = Vec::with_capacity(columns.len());
+        let mut is_heap_key = Vec::with_capacity(columns.len());
 
         for (idx, col) in columns.iter().enumerate() {
             let phys_type = col.datatype.physical_type();
@@ -151,8 +154,13 @@ impl SortLayout {
             if matches!(col.datatype, DataType::Utf8 | DataType::Binary) {
                 heap_mapping.insert(idx, heap_types.len());
                 heap_types.push(col.datatype.clone());
+                is_heap_key.push(true);
+            } else {
+                is_heap_key.push(false);
             }
         }
+
+        debug_assert_eq!(columns.len(), is_heap_key.len());
 
         let heap_layout = RowLayout::new(heap_types);
         let compare_width = offset;
@@ -166,6 +174,7 @@ impl SortLayout {
             row_width,
             heap_layout,
             heap_mapping,
+            is_heap_key,
         }
     }
 
@@ -334,7 +343,7 @@ unsafe fn write_key_array(
             PhysicalType::Utf8 | PhysicalType::Binary => {
                 write_binary_prefix(layout, array_idx, array, row_pointers)
             }
-            other => unimplemented!("other: {other}"),
+            other => not_implemented!("write sort key array: {other}"),
         }
     }
 }

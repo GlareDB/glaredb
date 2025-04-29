@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use glaredb_error::{OptionExt, Result, not_implemented};
 
 use super::sort_layout::SortLayout;
@@ -268,12 +270,63 @@ impl<'a> BinaryMerger<'a> {
                         right_scan.remaining -= 1;
                         unsafe { right_ptr = right_ptr.byte_add(self.key_layout.row_width) };
                     }
-
                     curr_count += 1;
                 }
             } else {
-                // Need to check heap keys.
-                not_implemented!("Heap key check for merge")
+                // Similarly to above, scan as much as we can.
+                while left_scan.row_idx < left_num_rows
+                    && right_scan.row_idx < right_num_rows
+                    && curr_count < scan_sides.len()
+                {
+                    // Sort layout contains heap keys. Need to compare column by
+                    // column since we may need look at the row-encoded heap value
+                    // to break ties.
+                    let mut col_left_ptr = left_ptr;
+                    let mut col_right_ptr = right_ptr;
+
+                    let mut col_cmp = Ordering::Equal;
+
+                    for col_idx in 0..self.key_layout.columns.len() {
+                        // Do the initial comparison of the columns.
+                        let col_width = self.key_layout.column_widths[col_idx];
+                        let col_left =
+                            unsafe { std::slice::from_raw_parts(col_left_ptr, col_width) };
+                        let col_right = unsafe { std::slice::from_raw_parts(right_ptr, col_width) };
+
+                        col_cmp = col_left.cmp(col_right);
+                        if col_cmp == Ordering::Equal && self.key_layout.is_heap_key[col_idx] {
+                            // Need to check the heap value.
+                            not_implemented!("Heap check for heap key")
+                        }
+
+                        if col_cmp == Ordering::Less || col_cmp == Ordering::Greater {
+                            // We have our ordering, no need to check the rest
+                            // of the columns.
+                            break;
+                        }
+
+                        // Advance pointers to next column to check.
+                        col_left_ptr = unsafe { col_left_ptr.byte_add(col_width) };
+                        col_right_ptr = unsafe { col_right_ptr.byte_add(col_width) };
+                    }
+
+                    // Same logic as without the heap keys.
+                    match col_cmp {
+                        Ordering::Less => {
+                            scan_sides[curr_count] = ScanSide::Left;
+                            left_scan.row_idx += 1;
+                            left_scan.remaining -= 1;
+                            unsafe { left_ptr = left_ptr.byte_add(self.key_layout.row_width) };
+                        }
+                        _ => {
+                            scan_sides[curr_count] = ScanSide::Right;
+                            right_scan.row_idx += 1;
+                            right_scan.remaining -= 1;
+                            unsafe { right_ptr = right_ptr.byte_add(self.key_layout.row_width) };
+                        }
+                    }
+                    curr_count += 1;
+                }
             }
         }
 
@@ -689,6 +742,93 @@ mod tests {
         let out = binary_merge_exact_cap(&left, [0], &right, [0]);
 
         let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "d", "e", "f", "c"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_heap_key_inline() {
+        // Sort keys are the strings, however all strings can be inlined so no
+        // actual need to check the heap blocks.
+
+        let left = generate_batch!([100, 2, 60], ["a", "b", "f"]);
+        let right = generate_batch!([32, 40, 5], ["c", "d", "e"]);
+        let out = binary_merge_exact_cap(&left, [1], &right, [1]);
+
+        let expected = generate_batch!([100, 2, 32, 40, 5, 60], ["a", "b", "c", "d", "e", "f"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_heap_key_prefix_check() {
+        // Sort keys are the strings that do spill to heap, but the prefix is
+        // enough to sort them.
+
+        let left = generate_batch!(
+            [100, 2, 60],
+            [
+                "a$$$$$$$$$$$$$$$$$$$$",
+                "b$$$$$$$$$$$$$$$$$$$$",
+                "f$$$$$$$$$$$$$$$$$$$$"
+            ]
+        );
+        let right = generate_batch!(
+            [32, 40, 5],
+            [
+                "c$$$$$$$$$$$$$$$$$$$$",
+                "d$$$$$$$$$$$$$$$$$$$$",
+                "e$$$$$$$$$$$$$$$$$$$$"
+            ]
+        );
+        let out = binary_merge_exact_cap(&left, [1], &right, [1]);
+
+        let expected = generate_batch!(
+            [100, 2, 32, 40, 5, 60],
+            [
+                "a$$$$$$$$$$$$$$$$$$$$",
+                "b$$$$$$$$$$$$$$$$$$$$",
+                "c$$$$$$$$$$$$$$$$$$$$",
+                "d$$$$$$$$$$$$$$$$$$$$",
+                "e$$$$$$$$$$$$$$$$$$$$",
+                "f$$$$$$$$$$$$$$$$$$$$"
+            ]
+        );
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_heap_key_check_heap() {
+        // Sort keys are the strings that do spill to heap, and we need to read
+        // the heap to compare.
+
+        let left = generate_batch!(
+            [100, 2, 60],
+            [
+                "$$$$$$$$$$$$$$$$$$$$a",
+                "$$$$$$$$$$$$$$$$$$$$b",
+                "$$$$$$$$$$$$$$$$$$$$f"
+            ]
+        );
+        let right = generate_batch!(
+            [32, 40, 5],
+            [
+                "$$$$$$$$$$$$$$$$$$$$c",
+                "$$$$$$$$$$$$$$$$$$$$d",
+                "$$$$$$$$$$$$$$$$$$$$e"
+            ]
+        );
+        let out = binary_merge_exact_cap(&left, [1], &right, [1]);
+
+        let expected = generate_batch!(
+            [100, 2, 32, 40, 5, 60],
+            [
+                "$$$$$$$$$$$$$$$$$$$$a",
+                "$$$$$$$$$$$$$$$$$$$$b",
+                "$$$$$$$$$$$$$$$$$$$$c",
+                "$$$$$$$$$$$$$$$$$$$$d",
+                "$$$$$$$$$$$$$$$$$$$$e",
+                "$$$$$$$$$$$$$$$$$$$$f"
+            ]
+        );
         assert_batches_eq(&expected, &out);
     }
 
