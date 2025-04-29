@@ -1,0 +1,23 @@
+# ORDER BY with string sort keys.
+#
+# Tests should focus on strings that require them be written to heap blocks.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# query T
+# SELECT repeat(a, b) AS strings FROM (VALUES ('a'), ('b'), ('c')) v(a), generate_series(23, 25) g(b) ORDER BY strings;
+# ----
+# aaaaaaaaaaaaaaaaaaaaaaa
+# aaaaaaaaaaaaaaaaaaaaaaaa
+# aaaaaaaaaaaaaaaaaaaaaaaaa
+# bbbbbbbbbbbbbbbbbbbbbbb
+# bbbbbbbbbbbbbbbbbbbbbbbb
+# bbbbbbbbbbbbbbbbbbbbbbbbb
+# ccccccccccccccccccccccc
+# cccccccccccccccccccccccc
+# ccccccccccccccccccccccccc
+
+query T
+SELECT repeat(a, b) AS strings FROM (VALUES ('a'), ('b'), ('c')) v(a), generate_series(23, 25) g(b) ORDER BY strings DESC;
+----

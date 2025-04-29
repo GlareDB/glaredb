@@ -667,7 +667,7 @@ impl<'a> BinaryMerger<'a> {
             return Ok(Ordering::Equal);
         }
 
-        match layout.heap_layout.types[heap_key_column].physical_type() {
+        let ord = match layout.heap_layout.types[heap_key_column].physical_type() {
             PhysicalType::Utf8 => {
                 // Compare strings.
                 let col_offset = layout.heap_layout.offsets[heap_key_column];
@@ -677,17 +677,19 @@ impl<'a> BinaryMerger<'a> {
                 let left_str = unsafe { left_col_ptr.cast::<StringPtr>().read_unaligned() };
                 let right_str = unsafe { right_col_ptr.cast::<StringPtr>().read_unaligned() };
 
-                let mut ordering = left_str.as_bytes().cmp(right_str.as_bytes());
-                if layout.columns[heap_key_column].desc {
-                    ordering = ordering.reverse();
-                }
-
-                Ok(ordering)
+                left_str.as_bytes().cmp(right_str.as_bytes())
             }
             other => {
                 // TODO: Structs and lists
-                not_implemented!("Heap key compare for type {other}")
+                not_implemented!("Heap key compare for type {other} (binary merge)")
             }
+        };
+
+        // Note we're using the original key column index.
+        if layout.columns[key_column].desc {
+            Ok(ord.reverse())
+        } else {
+            Ok(ord)
         }
     }
 }

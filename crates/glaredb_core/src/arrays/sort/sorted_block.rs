@@ -1,9 +1,12 @@
-use glaredb_error::Result;
+use glaredb_error::{Result, not_implemented};
 
 use super::sort_layout::SortLayout;
+use crate::arrays::array::physical_type::PhysicalType;
+use crate::arrays::bitmap::view::BitmapView;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::row::row_layout::RowLayout;
+use crate::arrays::string::StringPtr;
 use crate::buffer::buffer_manager::AsRawBufferManager;
 use crate::util::iter::IntoExactSizeIterator;
 
@@ -111,7 +114,7 @@ impl SortedBlock {
                 break;
             }
 
-            // Find subsequent rows that are tied with eachother.
+            // Find subsequent rows that are tied with each other.
             unsafe {
                 fill_ties(
                     key_layout,
@@ -225,6 +228,7 @@ unsafe fn fill_ties(
     }
 }
 
+/// Sorts tied (fixed length) keys in place.
 unsafe fn sort_tied_keys_in_place(
     manager: &impl AsRawBufferManager,
     layout: &SortLayout,
@@ -307,7 +311,6 @@ unsafe fn sort_keys_in_place(
     for sort_idx in sort_indices {
         unsafe {
             let src_ptr = start_ptr.byte_add(sort_idx * layout.row_width);
-
             temp_ptr.copy_from_nonoverlapping(src_ptr, layout.row_width);
             temp_ptr = temp_ptr.byte_add(layout.row_width);
         }
@@ -320,6 +323,181 @@ unsafe fn sort_keys_in_place(
     }
 
     Ok(())
+}
+
+/// Sorts tied heap keys in place.
+///
+/// Unlike sorting for fixed size keys, this will also update `ties` to indicate
+/// broken ties.
+unsafe fn sort_tied_heap_keys_in_place(
+    manager: &impl AsRawBufferManager,
+    layout: &SortLayout,
+    keys: &mut Block,
+    heap_keys: &mut Block,
+    heap_keys_heap: &[Block],
+    ties: &mut [bool],
+    key_column: usize,
+) -> Result<()> {
+    let mut row_offset = 0;
+
+    while row_offset < ties.len() {
+        if !ties[row_offset] {
+            // Skip, row not tied.
+            row_offset += 1;
+            continue;
+        }
+
+        // Row is tied with the next. Find all contiguously tied rows.
+        let mut next_row_offset = row_offset + 1;
+        while next_row_offset < ties.len() && ties[next_row_offset] {
+            next_row_offset += 1;
+        }
+
+        let row_count = next_row_offset - row_offset + 1;
+
+        // Sort the subset.
+        unsafe {
+            sort_heap_keys(
+                manager,
+                layout,
+                keys,
+                heap_keys,
+                heap_keys_heap,
+                ties,
+                key_column,
+                row_offset,
+                row_count,
+            )?;
+        }
+
+        row_offset = next_row_offset;
+    }
+
+    Ok(())
+}
+
+/// Helper function for sorting **tied** heap keys.
+unsafe fn sort_heap_keys(
+    manager: &impl AsRawBufferManager,
+    layout: &SortLayout,
+    keys: &mut Block,
+    heap_keys: &mut Block,
+    _heap_keys_heap: &[Block],
+    ties: &mut [bool],
+    key_column: usize,
+    row_offset: usize,
+    row_count: usize,
+) -> Result<()> {
+    let heap_key_column =
+        layout.heap_mapping[key_column].expect("to be provides s column that has a heap key");
+
+    let key_block_ptr = keys.as_ptr();
+    let heap_key_block_ptr = heap_keys.as_ptr();
+
+    // Read the first row we're comparing to see if it's NULL. Since we're
+    // comparing prefix ties, we should return early if the values are NULL.
+    let first_heap_row_idx = unsafe {
+        key_block_ptr
+            .byte_add(row_offset * layout.row_width)
+            .cast::<u32>()
+    } as usize;
+    let validity_buf = unsafe {
+        layout.heap_layout.validity_buffer(
+            heap_key_block_ptr.byte_add(first_heap_row_idx * layout.heap_layout.row_width),
+        )
+    };
+    let valid =
+        BitmapView::new(validity_buf, layout.heap_layout.num_columns()).value(heap_key_column);
+    if !valid {
+        // If the first row isn't valid, then all rows in this subset aren't
+        // valid, as we're sorting ties. No sorting needs to be done.
+        return Ok(());
+    }
+
+    let heap_col_offset = layout.heap_layout.offsets[heap_key_column];
+
+    // Generate sorted indices for the subset of rows we're sorting.
+    // Relative to row offset.
+    let mut sort_indices: Vec<_> = (0..row_count).collect();
+    let phys_type = layout.heap_layout.types[heap_key_column].physical_type();
+    if !matches!(phys_type, PhysicalType::Utf8) {
+        // TODO: Structs and lists
+        not_implemented!("Heap key compare for type {phys_type} (sorted block)")
+    }
+    sort_indices.sort_unstable_by(|&a, &b| {
+        // TODO: Some of this is duplicated with the binary merge stuff.
+        let ord = match phys_type {
+            PhysicalType::Utf8 => {
+                // Note that heap key blocks are never reordered during
+                // in-progress sorting, while fixed-len key blocks are. We need
+                // to read the key block to get the original row for the heap
+                // key block.
+                let a_row_idx = unsafe {
+                    key_block_ptr
+                        .byte_add(a * layout.row_width)
+                        .cast::<u32>()
+                        .read_unaligned()
+                } as usize;
+                let b_row_idx = unsafe {
+                    key_block_ptr
+                        .byte_add(b * layout.row_width)
+                        .cast::<u32>()
+                        .read_unaligned()
+                } as usize;
+
+                // Use row indices to compute the pointers into heap key blocks.
+                let a_ptr = unsafe {
+                    heap_key_block_ptr
+                        .byte_add(a_row_idx * layout.heap_layout.row_width + heap_col_offset)
+                };
+                let b_ptr = unsafe {
+                    heap_key_block_ptr
+                        .byte_add(b_row_idx * layout.heap_layout.row_width + heap_col_offset)
+                };
+
+                let left_str = unsafe { a_ptr.cast::<StringPtr>().read_unaligned() };
+                let right_str = unsafe { b_ptr.cast::<StringPtr>().read_unaligned() };
+
+                left_str.as_bytes().cmp(right_str.as_bytes())
+            }
+            _ => {
+                unreachable!("allowed variants checked before the sort")
+            }
+        };
+
+        // Note we're using the original key column index.
+        if layout.columns[key_column].desc {
+            ord.reverse()
+        } else {
+            ord
+        }
+    });
+
+    // Copy rows into temp block in sort order.
+    //
+    // We are only copying fixed-len sort keys here. Heap keys remain in
+    // their original order.
+    let mut temp_keys = Block::try_new_reserve_none(manager, layout.buffer_size(row_count), None)?;
+    let mut temp_ptr = temp_keys.as_mut_ptr();
+
+    let key_block_copy_start_ptr =
+        unsafe { keys.as_mut_ptr().byte_add(row_offset * layout.row_width) };
+
+    for sort_idx in sort_indices {
+        unsafe {
+            let src_ptr = key_block_copy_start_ptr.byte_add(sort_idx * layout.row_width);
+            temp_ptr.copy_from_nonoverlapping(src_ptr, layout.row_width);
+            temp_ptr = temp_ptr.byte_add(layout.row_width);
+        }
+    }
+
+    // Now copy from the temp block back into the original keys block.
+    let temp_ptr = temp_keys.as_ptr();
+    unsafe {
+        key_block_copy_start_ptr.copy_from_nonoverlapping(temp_ptr, layout.row_width * row_count);
+    }
+
+    unimplemented!()
 }
 
 fn apply_sort_indices(
