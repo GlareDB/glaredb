@@ -1,5 +1,4 @@
 use std::borrow::Borrow;
-use std::collections::BTreeMap;
 
 use glaredb_error::{Result, not_implemented};
 use half::f16;
@@ -118,13 +117,12 @@ pub struct SortLayout {
     pub(crate) heap_layout: RowLayout,
     /// Mapping between columns in the sort layout to column the heap layout.
     ///
-    /// Empty if there are no columns in this layout that require heap blocks.
+    /// If the key at the given index isn't a heap key, then the value will be
+    /// None. Otherwise the value indicates the index of the heap key within the
+    /// row layout.
     ///
-    /// BTreeMap as we want to iterate this in order when pulling out keys that
-    /// require heap blocks when appending.
-    pub(crate) heap_mapping: BTreeMap<usize, usize>,
-    /// Exact sized vec indicating if the key at a given index is a heap key.
-    pub(crate) is_heap_key: Vec<bool>,
+    /// This can be used to determine if a key is a heap key or not.
+    pub(crate) heap_mapping: Vec<Option<usize>>,
 }
 
 impl SortLayout {
@@ -134,15 +132,14 @@ impl SortLayout {
         let columns: Vec<_> = columns.into_iter().collect();
 
         let mut heap_types = Vec::new();
-        let mut heap_mapping = BTreeMap::new();
 
         let mut offset = 0;
         let mut offsets = Vec::with_capacity(columns.len());
 
         let mut column_widths = Vec::with_capacity(columns.len());
-        let mut is_heap_key = Vec::with_capacity(columns.len());
+        let mut heap_mapping = Vec::with_capacity(columns.len());
 
-        for (idx, col) in columns.iter().enumerate() {
+        for col in &columns {
             let phys_type = col.datatype.physical_type();
             let width = key_width_for_physical_type(phys_type);
 
@@ -152,15 +149,14 @@ impl SortLayout {
             column_widths.push(width);
 
             if matches!(col.datatype, DataType::Utf8 | DataType::Binary) {
-                heap_mapping.insert(idx, heap_types.len());
+                heap_mapping.push(Some(heap_types.len()));
                 heap_types.push(col.datatype.clone());
-                is_heap_key.push(true);
             } else {
-                is_heap_key.push(false);
+                heap_mapping.push(None);
             }
         }
 
-        debug_assert_eq!(columns.len(), is_heap_key.len());
+        debug_assert_eq!(columns.len(), heap_mapping.len());
 
         let heap_layout = RowLayout::new(heap_types);
         let compare_width = offset;
@@ -174,7 +170,6 @@ impl SortLayout {
             row_width,
             heap_layout,
             heap_mapping,
-            is_heap_key,
         }
     }
 
@@ -191,7 +186,7 @@ impl SortLayout {
     }
 
     pub fn column_requires_heap(&self, col: usize) -> bool {
-        self.heap_mapping.contains_key(&col)
+        self.heap_mapping[col].is_some()
     }
 
     /// Return the buffer size needed to store some number of rows.

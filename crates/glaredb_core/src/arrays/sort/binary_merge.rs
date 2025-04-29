@@ -4,8 +4,11 @@ use glaredb_error::{OptionExt, Result, not_implemented};
 
 use super::sort_layout::SortLayout;
 use super::sorted_segment::SortedSegment;
+use crate::arrays::array::physical_type::PhysicalType;
+use crate::arrays::bitmap::view::BitmapView;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::row_layout::RowLayout;
+use crate::arrays::string::StringPtr;
 use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 
 /// Which side we should copy a row from.
@@ -294,9 +297,18 @@ impl<'a> BinaryMerger<'a> {
                         let col_right = unsafe { std::slice::from_raw_parts(right_ptr, col_width) };
 
                         col_cmp = col_left.cmp(col_right);
-                        if col_cmp == Ordering::Equal && self.key_layout.is_heap_key[col_idx] {
+                        if col_cmp == Ordering::Equal
+                            && self.key_layout.column_requires_heap(col_idx)
+                        {
                             // Need to check the heap value.
-                            not_implemented!("Heap check for heap key")
+                            col_cmp = Self::compare_heap_key(
+                                &self.key_layout,
+                                col_idx,
+                                &left_scan,
+                                &right_scan,
+                                left,
+                                right,
+                            )?
                         }
 
                         if col_cmp == Ordering::Less || col_cmp == Ordering::Greater {
@@ -606,6 +618,76 @@ impl<'a> BinaryMerger<'a> {
         }
 
         Ok(src_scan)
+    }
+
+    /// Compare a heap key between left and right.
+    ///
+    /// `key_column` is the the index of the key in the sort layout, not the row
+    /// layout.
+    fn compare_heap_key(
+        layout: &SortLayout,
+        key_column: usize,
+        left_scan_state: &ScanState,
+        right_scan_state: &ScanState,
+        left: &SortedSegment,
+        right: &SortedSegment,
+    ) -> Result<Ordering> {
+        let heap_key_column = layout.heap_mapping[key_column]
+            .expect("to be provided a column index that has a heap key");
+
+        let left_heap_block = &left.heap_keys[left_scan_state.block_idx];
+        let right_heap_block = &right.heap_keys[right_scan_state.block_idx];
+
+        let left_row_ptr = unsafe {
+            left_heap_block
+                .as_ptr()
+                .byte_add(layout.heap_layout.row_width * left_scan_state.row_idx)
+        };
+        let right_row_ptr = unsafe {
+            right_heap_block
+                .as_ptr()
+                .byte_add(layout.heap_layout.row_width * right_scan_state.row_idx)
+        };
+
+        let left_validity_buf = unsafe { layout.heap_layout.validity_buffer(left_row_ptr) };
+        let right_validity_buf = unsafe { layout.heap_layout.validity_buffer(right_row_ptr) };
+
+        let left_valid = BitmapView::new(left_validity_buf, layout.heap_layout.num_columns())
+            .value(heap_key_column);
+        let right_valid = BitmapView::new(right_validity_buf, layout.heap_layout.num_columns())
+            .value(heap_key_column);
+
+        // It's only possible for the left and right values to both be NULL, or
+        // neither be NULL.
+        //
+        // If one value is NULL, then we should have been able to short-circuit
+        // with the prefix comparison.
+        if !left_valid && !right_valid {
+            return Ok(Ordering::Equal);
+        }
+
+        match layout.heap_layout.types[heap_key_column].physical_type() {
+            PhysicalType::Utf8 => {
+                // Compare strings.
+                let col_offset = layout.offsets[heap_key_column];
+                let left_col_ptr = unsafe { left_row_ptr.byte_add(col_offset) };
+                let right_col_ptr = unsafe { right_row_ptr.byte_add(col_offset) };
+
+                let left_str = unsafe { left_col_ptr.cast::<StringPtr>().read_unaligned() };
+                let right_str = unsafe { right_col_ptr.cast::<StringPtr>().read_unaligned() };
+
+                let mut ordering = left_str.as_bytes().cmp(right_str.as_bytes());
+                if layout.columns[heap_key_column].desc {
+                    ordering = ordering.reverse();
+                }
+
+                Ok(ordering)
+            }
+            other => {
+                // TODO: Structs and lists
+                not_implemented!("Heap key compare for type {other}")
+            }
+        }
     }
 }
 
