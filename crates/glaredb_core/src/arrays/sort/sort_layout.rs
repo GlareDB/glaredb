@@ -112,6 +112,8 @@ pub struct SortLayout {
     /// Size in bytes of the portion of the row to compare.
     pub(crate) compare_width: usize,
     /// Size in bytes of a single row.
+    ///
+    /// Includes the trailing u32 value.
     pub(crate) row_width: usize,
     /// Row layout for columns that require heap blocks (varlen, nested).
     pub(crate) heap_layout: RowLayout,
