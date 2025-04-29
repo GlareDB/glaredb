@@ -1,15 +1,13 @@
 use std::cmp::Ordering;
 
-use glaredb_error::{OptionExt, Result, not_implemented};
+use glaredb_error::{OptionExt, Result};
 
 use super::heap_compare::compare_heap_values;
 use super::sort_layout::SortLayout;
 use super::sorted_segment::SortedSegment;
-use crate::arrays::array::physical_type::PhysicalType;
 use crate::arrays::bitmap::view::BitmapView;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::row_layout::RowLayout;
-use crate::arrays::string::StringPtr;
 use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 
 /// Which side we should copy a row from.

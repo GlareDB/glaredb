@@ -425,6 +425,7 @@ unsafe fn sort_tied_heap_keys_in_place(
 }
 
 /// Helper function for sorting **tied** heap keys.
+#[allow(clippy::too_many_arguments)] // I know
 unsafe fn sort_heap_keys(
     manager: &impl AsRawBufferManager,
     layout: &SortLayout,
@@ -470,8 +471,10 @@ unsafe fn sort_heap_keys(
         // in-progress sorting, while fixed-len key blocks are. We need
         // to read the key block to get the original row for the heap
         // key block.
-        let a_row_idx = unsafe { read_inline_idx(key_row_ptr(keys, layout, a), layout) };
-        let b_row_idx = unsafe { read_inline_idx(key_row_ptr(keys, layout, b), layout) };
+        let a_row_idx =
+            unsafe { read_inline_idx(key_row_ptr(keys, layout, a + row_offset), layout) };
+        let b_row_idx =
+            unsafe { read_inline_idx(key_row_ptr(keys, layout, b + row_offset), layout) };
 
         // Use row indices to compute the pointers into heap key blocks.
         let a_ptr =
