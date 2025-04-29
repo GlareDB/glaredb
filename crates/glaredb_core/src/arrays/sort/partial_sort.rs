@@ -195,6 +195,10 @@ impl PartialSortedRowCollection {
     }
 
     /// Sorts all currently unsorted data that we've collected.
+    ///
+    /// Note that this may produce sorted blocks that exceed our initial block
+    /// capacity (e.g. may produce a block of 2117 rows when we have a capacity
+    /// of 2048). This is for implementation simplicity.
     pub fn sort_unsorted(&mut self) -> Result<()> {
         let (keys, _) = self.key_blocks.take_blocks(); // Keys should never have heap blocks.
         let (heap_keys, heap_keys_heap) = self.key_heap_blocks.take_blocks();
