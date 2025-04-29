@@ -1,7 +1,11 @@
-use glaredb_error::{OptionExt, Result, not_implemented};
+use std::cmp::Ordering;
 
+use glaredb_error::{OptionExt, Result};
+
+use super::heap_compare::compare_heap_values;
 use super::sort_layout::SortLayout;
 use super::sorted_segment::SortedSegment;
+use crate::arrays::bitmap::view::BitmapView;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::row_layout::RowLayout;
 use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
@@ -268,12 +272,73 @@ impl<'a> BinaryMerger<'a> {
                         right_scan.remaining -= 1;
                         unsafe { right_ptr = right_ptr.byte_add(self.key_layout.row_width) };
                     }
-
                     curr_count += 1;
                 }
             } else {
-                // Need to check heap keys.
-                not_implemented!("Heap key check for merge")
+                // Similarly to above, scan as much as we can.
+                while left_scan.row_idx < left_num_rows
+                    && right_scan.row_idx < right_num_rows
+                    && curr_count < scan_sides.len()
+                {
+                    // Sort layout contains heap keys. Need to compare column by
+                    // column since we may need look at the row-encoded heap value
+                    // to break ties.
+                    let mut col_left_ptr = left_ptr;
+                    let mut col_right_ptr = right_ptr;
+
+                    let mut col_cmp = Ordering::Equal;
+
+                    for col_idx in 0..self.key_layout.columns.len() {
+                        // Do the initial comparison of the columns.
+                        let col_width = self.key_layout.column_widths[col_idx];
+                        let col_left =
+                            unsafe { std::slice::from_raw_parts(col_left_ptr, col_width) };
+                        let col_right =
+                            unsafe { std::slice::from_raw_parts(col_right_ptr, col_width) };
+
+                        col_cmp = col_left.cmp(col_right);
+                        if col_cmp == Ordering::Equal
+                            && self.key_layout.column_requires_heap(col_idx)
+                        {
+                            // Need to check the heap value.
+                            col_cmp = Self::compare_heap_key(
+                                self.key_layout,
+                                col_idx,
+                                &left_scan,
+                                &right_scan,
+                                left,
+                                right,
+                            )?
+                        }
+
+                        if col_cmp == Ordering::Less || col_cmp == Ordering::Greater {
+                            // We have our ordering, no need to check the rest
+                            // of the columns.
+                            break;
+                        }
+
+                        // Advance pointers to next column to check.
+                        col_left_ptr = unsafe { col_left_ptr.byte_add(col_width) };
+                        col_right_ptr = unsafe { col_right_ptr.byte_add(col_width) };
+                    }
+
+                    // Same logic as without the heap keys.
+                    match col_cmp {
+                        Ordering::Less => {
+                            scan_sides[curr_count] = ScanSide::Left;
+                            left_scan.row_idx += 1;
+                            left_scan.remaining -= 1;
+                            unsafe { left_ptr = left_ptr.byte_add(self.key_layout.row_width) };
+                        }
+                        _ => {
+                            scan_sides[curr_count] = ScanSide::Right;
+                            right_scan.row_idx += 1;
+                            right_scan.remaining -= 1;
+                            unsafe { right_ptr = right_ptr.byte_add(self.key_layout.row_width) };
+                        }
+                    }
+                    curr_count += 1;
+                }
             }
         }
 
@@ -554,6 +619,67 @@ impl<'a> BinaryMerger<'a> {
 
         Ok(src_scan)
     }
+
+    /// Compare a heap key between left and right.
+    ///
+    /// `key_column` is the the index of the key in the sort layout, not the row
+    /// layout.
+    fn compare_heap_key(
+        layout: &SortLayout,
+        key_column: usize,
+        left_scan_state: &ScanState,
+        right_scan_state: &ScanState,
+        left: &SortedSegment,
+        right: &SortedSegment,
+    ) -> Result<Ordering> {
+        let heap_key_column = layout.heap_mapping[key_column]
+            .expect("to be provided a column index that has a heap key");
+
+        let left_heap_block = &left.heap_keys[left_scan_state.block_idx];
+        let right_heap_block = &right.heap_keys[right_scan_state.block_idx];
+
+        let left_row_ptr = unsafe {
+            left_heap_block
+                .as_ptr()
+                .byte_add(layout.heap_layout.row_width * left_scan_state.row_idx)
+        };
+        let right_row_ptr = unsafe {
+            right_heap_block
+                .as_ptr()
+                .byte_add(layout.heap_layout.row_width * right_scan_state.row_idx)
+        };
+
+        let left_validity_buf = unsafe { layout.heap_layout.validity_buffer(left_row_ptr) };
+        let right_validity_buf = unsafe { layout.heap_layout.validity_buffer(right_row_ptr) };
+
+        let left_valid = BitmapView::new(left_validity_buf, layout.heap_layout.num_columns())
+            .value(heap_key_column);
+        let right_valid = BitmapView::new(right_validity_buf, layout.heap_layout.num_columns())
+            .value(heap_key_column);
+
+        // It's only possible for the left and right values to both be NULL, or
+        // neither be NULL.
+        //
+        // If one value is NULL, then we should have been able to short-circuit
+        // with the prefix comparison.
+        if !left_valid && !right_valid {
+            return Ok(Ordering::Equal);
+        }
+
+        let col_offset = layout.heap_layout.offsets[heap_key_column];
+        let left_col_ptr = unsafe { left_row_ptr.byte_add(col_offset) };
+        let right_col_ptr = unsafe { right_row_ptr.byte_add(col_offset) };
+
+        let phys_type = layout.heap_layout.types[heap_key_column].physical_type();
+        let ord = unsafe { compare_heap_values(left_col_ptr, right_col_ptr, phys_type)? };
+
+        // Note we're using the original key column index.
+        if layout.columns[key_column].desc {
+            Ok(ord.reverse())
+        } else {
+            Ok(ord)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -689,6 +815,93 @@ mod tests {
         let out = binary_merge_exact_cap(&left, [0], &right, [0]);
 
         let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "d", "e", "f", "c"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_heap_key_inline() {
+        // Sort keys are the strings, however all strings can be inlined so no
+        // actual need to check the heap blocks.
+
+        let left = generate_batch!([100, 2, 60], ["a", "b", "f"]);
+        let right = generate_batch!([32, 40, 5], ["c", "d", "e"]);
+        let out = binary_merge_exact_cap(&left, [1], &right, [1]);
+
+        let expected = generate_batch!([100, 2, 32, 40, 5, 60], ["a", "b", "c", "d", "e", "f"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_heap_key_prefix_check() {
+        // Sort keys are the strings that do spill to heap, but the prefix is
+        // enough to sort them.
+
+        let left = generate_batch!(
+            [100, 2, 60],
+            [
+                "a$$$$$$$$$$$$$$$$$$$$",
+                "b$$$$$$$$$$$$$$$$$$$$",
+                "f$$$$$$$$$$$$$$$$$$$$"
+            ]
+        );
+        let right = generate_batch!(
+            [32, 40, 5],
+            [
+                "c$$$$$$$$$$$$$$$$$$$$",
+                "d$$$$$$$$$$$$$$$$$$$$",
+                "e$$$$$$$$$$$$$$$$$$$$"
+            ]
+        );
+        let out = binary_merge_exact_cap(&left, [1], &right, [1]);
+
+        let expected = generate_batch!(
+            [100, 2, 32, 40, 5, 60],
+            [
+                "a$$$$$$$$$$$$$$$$$$$$",
+                "b$$$$$$$$$$$$$$$$$$$$",
+                "c$$$$$$$$$$$$$$$$$$$$",
+                "d$$$$$$$$$$$$$$$$$$$$",
+                "e$$$$$$$$$$$$$$$$$$$$",
+                "f$$$$$$$$$$$$$$$$$$$$"
+            ]
+        );
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_heap_key_check_heap() {
+        // Sort keys are the strings that do spill to heap, and we need to read
+        // the heap to compare.
+
+        let left = generate_batch!(
+            [100, 2, 60],
+            [
+                "$$$$$$$$$$$$$$$$$$$$a",
+                "$$$$$$$$$$$$$$$$$$$$b",
+                "$$$$$$$$$$$$$$$$$$$$f"
+            ]
+        );
+        let right = generate_batch!(
+            [32, 40, 5],
+            [
+                "$$$$$$$$$$$$$$$$$$$$c",
+                "$$$$$$$$$$$$$$$$$$$$d",
+                "$$$$$$$$$$$$$$$$$$$$e"
+            ]
+        );
+        let out = binary_merge_exact_cap(&left, [1], &right, [1]);
+
+        let expected = generate_batch!(
+            [100, 2, 32, 40, 5, 60],
+            [
+                "$$$$$$$$$$$$$$$$$$$$a",
+                "$$$$$$$$$$$$$$$$$$$$b",
+                "$$$$$$$$$$$$$$$$$$$$c",
+                "$$$$$$$$$$$$$$$$$$$$d",
+                "$$$$$$$$$$$$$$$$$$$$e",
+                "$$$$$$$$$$$$$$$$$$$$f"
+            ]
+        );
         assert_batches_eq(&expected, &out);
     }
 

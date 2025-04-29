@@ -43,8 +43,10 @@ pub struct RowLayout {
     pub(crate) types: Vec<DataType>,
     /// Byte offsets within the encoded row to the start of the value.
     pub(crate) offsets: Vec<usize>,
-    /// Sized in bytes for the (inline) encoded row. Does not include the size
+    /// Size in bytes for the (inline) encoded row. Does not include the size
     /// encoded and pushed to the string heap.
+    ///
+    /// Includes the validity width.
     pub(crate) row_width: usize,
     /// If the row encoding requires writing parts of the data to a heap.
     pub(crate) requires_heap: bool,
@@ -333,7 +335,7 @@ unsafe fn write_array(
             PhysicalType::Utf8 | PhysicalType::Binary => {
                 write_binary(layout, array_idx, array, row_pointers, heap_pointers, rows)
             }
-            _ => unimplemented!(),
+            other => not_implemented!("Write array for row layout: {other}"),
         }
     }
 }

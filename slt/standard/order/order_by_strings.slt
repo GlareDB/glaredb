@@ -1,0 +1,100 @@
+# ORDER BY with string sort keys.
+#
+# Tests should focus on strings that require them be written to heap blocks.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query T
+SELECT repeat(a, b) AS strings FROM (VALUES ('a'), ('b'), ('c')) v(a), generate_series(23, 25) g(b) ORDER BY strings;
+----
+aaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaa
+bbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbb
+ccccccccccccccccccccccc
+cccccccccccccccccccccccc
+ccccccccccccccccccccccccc
+
+query T
+SELECT repeat(a, b) AS strings FROM (VALUES ('a'), ('b'), ('c')) v(a), generate_series(23, 25) g(b) ORDER BY strings DESC;
+----
+ccccccccccccccccccccccccc
+cccccccccccccccccccccccc
+ccccccccccccccccccccccc
+bbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbb
+aaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaa
+
+query TT
+SELECT a, repeat(a, b) AS strings
+  FROM (VALUES ('a'), ('b'), ('c')) v(a), generate_series(23, 25) g(b)
+  ORDER BY a DESC, strings ASC;
+----
+c  ccccccccccccccccccccccc
+c  cccccccccccccccccccccccc
+c  ccccccccccccccccccccccccc
+b  bbbbbbbbbbbbbbbbbbbbbbb
+b  bbbbbbbbbbbbbbbbbbbbbbbb
+b  bbbbbbbbbbbbbbbbbbbbbbbbb
+a  aaaaaaaaaaaaaaaaaaaaaaa
+a  aaaaaaaaaaaaaaaaaaaaaaaa
+a  aaaaaaaaaaaaaaaaaaaaaaaaa
+
+query TT
+SELECT a, repeat(a, b) AS strings
+  FROM (VALUES ('a'), ('b'), ('c')) v(a), generate_series(23, 25) g(b)
+  ORDER BY a ASC, strings DESC;
+----
+a  aaaaaaaaaaaaaaaaaaaaaaaaa
+a  aaaaaaaaaaaaaaaaaaaaaaaa
+a  aaaaaaaaaaaaaaaaaaaaaaa
+b  bbbbbbbbbbbbbbbbbbbbbbbbb
+b  bbbbbbbbbbbbbbbbbbbbbbbb
+b  bbbbbbbbbbbbbbbbbbbbbbb
+c  ccccccccccccccccccccccccc
+c  cccccccccccccccccccccccc
+c  ccccccccccccccccccccccc
+
+query TT
+SELECT a, repeat(a, b) AS strings
+  FROM (VALUES ('a'), ('b'), ('c'), (NULL)) v(a), generate_series(23, 25) g(b)
+  ORDER BY a DESC, strings ASC;
+----
+NULL  NULL
+NULL  NULL
+NULL  NULL
+c     ccccccccccccccccccccccc
+c     cccccccccccccccccccccccc
+c     ccccccccccccccccccccccccc
+b     bbbbbbbbbbbbbbbbbbbbbbb
+b     bbbbbbbbbbbbbbbbbbbbbbbb
+b     bbbbbbbbbbbbbbbbbbbbbbbbb
+a     aaaaaaaaaaaaaaaaaaaaaaa
+a     aaaaaaaaaaaaaaaaaaaaaaaa
+a     aaaaaaaaaaaaaaaaaaaaaaaaa
+
+
+query TT
+SELECT a, repeat(a, b) AS strings
+  FROM (VALUES ('a'), ('b'), ('c'), (NULL)) v(a), generate_series(23, 25) g(b)
+  ORDER BY a DESC NULLS LAST, strings ASC;
+----
+c     ccccccccccccccccccccccc
+c     cccccccccccccccccccccccc
+c     ccccccccccccccccccccccccc
+b     bbbbbbbbbbbbbbbbbbbbbbb
+b     bbbbbbbbbbbbbbbbbbbbbbbb
+b     bbbbbbbbbbbbbbbbbbbbbbbbb
+a     aaaaaaaaaaaaaaaaaaaaaaa
+a     aaaaaaaaaaaaaaaaaaaaaaaa
+a     aaaaaaaaaaaaaaaaaaaaaaaaa
+NULL  NULL
+NULL  NULL
+NULL  NULL
+

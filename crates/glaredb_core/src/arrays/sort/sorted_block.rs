@@ -1,9 +1,13 @@
-use glaredb_error::Result;
+#![allow(clippy::needless_range_loop)] // Iter by index makes few thing in this clearer.
+
+use glaredb_error::{Result, not_implemented};
 
 use super::sort_layout::SortLayout;
+use crate::arrays::bitmap::view::BitmapView;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::row::row_layout::RowLayout;
+use crate::arrays::sort::heap_compare::{compare_heap_value_supported, compare_heap_values};
 use crate::buffer::buffer_manager::AsRawBufferManager;
 use crate::util::iter::IntoExactSizeIterator;
 
@@ -111,7 +115,7 @@ impl SortedBlock {
                 break;
             }
 
-            // Find subsequent rows that are tied with eachother.
+            // Find subsequent rows that are tied with each other.
             unsafe {
                 fill_ties(
                     key_layout,
@@ -127,7 +131,26 @@ impl SortedBlock {
                 break;
             }
 
-            // TODO: Sort (non-inline) blobs
+            // Sort heap keys if needed.
+            if key_layout.heap_mapping[col_idx].is_some() {
+                unsafe {
+                    sort_tied_heap_keys_in_place(
+                        manager,
+                        key_layout,
+                        &mut keys,
+                        &heap_keys,
+                        &heap_keys_heap,
+                        &mut tied_with_next,
+                        col_idx,
+                    )?
+                };
+
+                // Sorting tied heap keys may have resolved our ties.
+                if tied_with_next.iter().all(|&v| !v) {
+                    // No ties, we're done.
+                    break;
+                }
+            }
 
             compare_offset += compare_width;
             compare_width = 0;
@@ -191,13 +214,41 @@ impl SortedBlock {
     }
 }
 
+/// Reads the u32 row index value at the end of a row, and casts it to a usize
+/// for convenience.
+///
+/// The pointer should be pointing to the start of a row located in a block with
+/// a sort layout.
+unsafe fn read_inline_idx(row_start: *const u8, layout: &SortLayout) -> usize {
+    // TODO: Possibly require this to be aligned since we iterate over it.
+    unsafe {
+        row_start
+            .byte_add(layout.compare_width)
+            .cast::<u32>()
+            .read_unaligned() as usize
+    }
+}
+
+/// Get a row pointer for a row in a **fixed-size key block**.
+unsafe fn key_row_ptr(key_block: &Block, layout: &SortLayout, row: usize) -> *const u8 {
+    unsafe { key_block.as_ptr().byte_add(row * layout.row_width) }
+}
+
+/// Get a row pointer for a row in a **heap key block**.
+unsafe fn heap_key_row_ptr(heap_key_block: &Block, layout: &SortLayout, row: usize) -> *const u8 {
+    unsafe {
+        heap_key_block
+            .as_ptr()
+            .byte_add(row * layout.heap_layout.row_width)
+    }
+}
+
 /// Compares subsequent rows for tied values and writes the result to `ties`.
 ///
 /// Each `ties[i]` is set to true if row[i] and row[i+1] are equal in the
 /// compare range.
 ///
 /// Assumes `ties.len() + 1 == row_count`.
-#[allow(clippy::needless_range_loop)] // Iter by index makes this clearer.
 unsafe fn fill_ties(
     layout: &SortLayout,
     block: &Block,
@@ -225,6 +276,7 @@ unsafe fn fill_ties(
     }
 }
 
+/// Sorts tied (fixed length) keys in place.
 unsafe fn sort_tied_keys_in_place(
     manager: &impl AsRawBufferManager,
     layout: &SortLayout,
@@ -307,7 +359,6 @@ unsafe fn sort_keys_in_place(
     for sort_idx in sort_indices {
         unsafe {
             let src_ptr = start_ptr.byte_add(sort_idx * layout.row_width);
-
             temp_ptr.copy_from_nonoverlapping(src_ptr, layout.row_width);
             temp_ptr = temp_ptr.byte_add(layout.row_width);
         }
@@ -317,6 +368,173 @@ unsafe fn sort_keys_in_place(
     let temp_ptr = temp_keys.as_ptr();
     unsafe {
         start_ptr.copy_from_nonoverlapping(temp_ptr, layout.row_width * row_count);
+    }
+
+    Ok(())
+}
+
+/// Sorts tied heap keys in place.
+///
+/// Unlike sorting for fixed size keys, this will also update `ties` to indicate
+/// broken ties.
+unsafe fn sort_tied_heap_keys_in_place(
+    manager: &impl AsRawBufferManager,
+    layout: &SortLayout,
+    keys: &mut Block,
+    heap_keys: &Block,
+    heap_keys_heap: &[Block],
+    ties: &mut [bool],
+    key_column: usize,
+) -> Result<()> {
+    let mut row_offset = 0;
+
+    while row_offset < ties.len() {
+        if !ties[row_offset] {
+            // Skip, row not tied.
+            row_offset += 1;
+            continue;
+        }
+
+        // Row is tied with the next. Find all contiguously tied rows.
+        let mut next_row_offset = row_offset + 1;
+        while next_row_offset < ties.len() && ties[next_row_offset] {
+            next_row_offset += 1;
+        }
+
+        let row_count = next_row_offset - row_offset + 1;
+
+        // Sort the subset.
+        unsafe {
+            sort_heap_keys(
+                manager,
+                layout,
+                keys,
+                heap_keys,
+                heap_keys_heap,
+                ties,
+                key_column,
+                row_offset,
+                row_count,
+            )?;
+        }
+
+        row_offset = next_row_offset;
+    }
+
+    Ok(())
+}
+
+/// Helper function for sorting **tied** heap keys.
+#[allow(clippy::too_many_arguments)] // I know
+unsafe fn sort_heap_keys(
+    manager: &impl AsRawBufferManager,
+    layout: &SortLayout,
+    keys: &mut Block,
+    heap_keys: &Block,
+    _heap_keys_heap: &[Block],
+    ties: &mut [bool],
+    key_column: usize,
+    row_offset: usize,
+    row_count: usize,
+) -> Result<()> {
+    let heap_key_column =
+        layout.heap_mapping[key_column].expect("to be provides s column that has a heap key");
+
+    // Read the first row we're comparing to see if it's NULL. Since we're
+    // comparing prefix ties, we should return early if the values are NULL.
+    let first_heap_row_idx =
+        unsafe { read_inline_idx(key_row_ptr(keys, layout, row_offset), layout) };
+    let validity_buf = unsafe {
+        layout
+            .heap_layout
+            .validity_buffer(heap_key_row_ptr(heap_keys, layout, first_heap_row_idx))
+    };
+    let valid =
+        BitmapView::new(validity_buf, layout.heap_layout.num_columns()).value(heap_key_column);
+    if !valid {
+        // If the first row isn't valid, then all rows in this subset aren't
+        // valid, as we're sorting ties. No sorting needs to be done.
+        return Ok(());
+    }
+
+    // Generate sorted indices for the subset of rows we're sorting.
+    // Relative to row offset.
+    let mut sort_indices: Vec<_> = (0..row_count).collect();
+    let phys_type = layout.heap_layout.types[heap_key_column].physical_type();
+    if !compare_heap_value_supported(phys_type) {
+        not_implemented!("Heap key compare for type {phys_type} (sorted block)")
+    }
+
+    let heap_col_offset = layout.heap_layout.offsets[heap_key_column];
+    sort_indices.sort_unstable_by(|&a, &b| {
+        // Note that heap key blocks are never reordered during
+        // in-progress sorting, while fixed-len key blocks are. We need
+        // to read the key block to get the original row for the heap
+        // key block.
+        let a_row_idx =
+            unsafe { read_inline_idx(key_row_ptr(keys, layout, a + row_offset), layout) };
+        let b_row_idx =
+            unsafe { read_inline_idx(key_row_ptr(keys, layout, b + row_offset), layout) };
+
+        // Use row indices to compute the pointers into heap key blocks.
+        let a_ptr =
+            unsafe { heap_key_row_ptr(heap_keys, layout, a_row_idx).byte_add(heap_col_offset) };
+        let b_ptr =
+            unsafe { heap_key_row_ptr(heap_keys, layout, b_row_idx).byte_add(heap_col_offset) };
+
+        let ord =
+            unsafe { compare_heap_values(a_ptr, b_ptr, phys_type).expect("supported phys type") };
+
+        // Note we're using the original key column index.
+        if layout.columns[key_column].desc {
+            ord.reverse()
+        } else {
+            ord
+        }
+    });
+
+    // Copy rows into temp block in sort order.
+    //
+    // We are only copying fixed-len sort keys here. Heap keys remain in
+    // their original order.
+    let mut temp_keys = Block::try_new_reserve_none(manager, layout.buffer_size(row_count), None)?;
+    let mut temp_ptr = temp_keys.as_mut_ptr();
+
+    for sort_idx in sort_indices {
+        unsafe {
+            let src_ptr = key_row_ptr(keys, layout, sort_idx + row_offset);
+            temp_ptr.copy_from_nonoverlapping(src_ptr, layout.row_width);
+            temp_ptr = temp_ptr.byte_add(layout.row_width);
+        }
+    }
+
+    // Now copy from the temp block back into the original keys block.
+    let temp_ptr = temp_keys.as_ptr();
+    unsafe {
+        let dest = key_row_ptr(keys, layout, row_offset).cast_mut();
+        dest.copy_from_nonoverlapping(temp_ptr, layout.row_width * row_count);
+    }
+
+    // Now... Iterate throught he rows we just sorted to see if there's still
+    // ties.
+    let heap_curr_row_idx =
+        unsafe { read_inline_idx(key_row_ptr(keys, layout, row_offset), layout) };
+    let mut curr_heap_ptr =
+        unsafe { heap_key_row_ptr(heap_keys, layout, heap_curr_row_idx).byte_add(heap_col_offset) };
+    for next_row_idx in (row_offset + 1)..(row_offset + row_count) {
+        let heap_next_row_idx =
+            unsafe { read_inline_idx(key_row_ptr(keys, layout, next_row_idx), layout) };
+        let next_heap_ptr = unsafe {
+            heap_key_row_ptr(heap_keys, layout, heap_next_row_idx).byte_add(heap_col_offset)
+        };
+
+        // Compare curr with next.
+        let cmp = unsafe { compare_heap_values(curr_heap_ptr, next_heap_ptr, phys_type)? };
+
+        // Update ties for curr.
+        ties[next_row_idx - 1] = cmp.is_eq();
+
+        curr_heap_ptr = next_heap_ptr;
     }
 
     Ok(())
@@ -353,16 +571,16 @@ fn apply_sort_indices(
 /// serves to iterate over those reordered indices.
 #[derive(Debug)]
 struct BlockRowIndexIter<'a> {
-    block_ptr: *const u8,
+    keys: &'a Block,
     count: usize,
     curr: usize,
     layout: &'a SortLayout,
 }
 
 impl<'a> BlockRowIndexIter<'a> {
-    fn new(layout: &'a SortLayout, block: &Block, count: usize) -> Self {
+    fn new(layout: &'a SortLayout, keys: &'a Block, count: usize) -> Self {
         BlockRowIndexIter {
-            block_ptr: block.as_ptr(),
+            keys,
             count,
             curr: 0,
             layout,
@@ -378,15 +596,11 @@ impl Iterator for BlockRowIndexIter<'_> {
             return None;
         }
 
-        let val = unsafe {
-            self.block_ptr
-                .byte_add(self.layout.row_width * self.curr + self.layout.compare_width)
-                .cast::<u32>()
-                .read_unaligned() as usize
-        };
+        let idx =
+            unsafe { read_inline_idx(key_row_ptr(self.keys, self.layout, self.curr), self.layout) };
         self.curr += 1;
 
-        Some(val)
+        Some(idx)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {

@@ -142,11 +142,18 @@ impl PartialSortedRowCollection {
 
         // Encode sort keys that require heap blocks.
         if self.key_layout.any_requires_heap() {
-            let heap_keys: Vec<_> = self
+            let heap_keys: Vec<&Array> = self
                 .key_layout
                 .heap_mapping
-                .keys()
-                .map(|&idx| keys[idx].borrow())
+                .iter()
+                .enumerate()
+                .filter_map(|(key_idx, maybe_heap_idx)| {
+                    if maybe_heap_idx.is_some() {
+                        Some(keys[key_idx].borrow())
+                    } else {
+                        None
+                    }
+                })
                 .collect();
 
             // Compute heap sizes needed.
