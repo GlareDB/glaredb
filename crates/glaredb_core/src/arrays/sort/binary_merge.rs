@@ -303,7 +303,7 @@ impl<'a> BinaryMerger<'a> {
                         {
                             // Need to check the heap value.
                             col_cmp = Self::compare_heap_key(
-                                &self.key_layout,
+                                self.key_layout,
                                 col_idx,
                                 &left_scan,
                                 &right_scan,

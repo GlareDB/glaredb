@@ -40,7 +40,7 @@ pub struct SortCollectingState {
     /// State for appending new batches to sort collection.
     append: SortedRowAppendState,
     /// Hold partially sorted data for this partition.
-    collection: PartialSortedRowCollection,
+    collection: Box<PartialSortedRowCollection>,
 }
 
 #[derive(Debug)]
@@ -150,7 +150,7 @@ impl ExecuteOperator for PhysicalSort {
                         operator_state.queue.key_layout.datatypes(),
                         props.batch_size,
                     )?,
-                    collection,
+                    collection: Box::new(collection),
                     append,
                 }))
             })
@@ -276,7 +276,7 @@ impl ExecuteOperator for PhysicalSort {
                 collect_state.collection.sort_unsorted()?;
                 operator_state
                     .queue
-                    .add_sorted_partition(collect_state.collection)?;
+                    .add_sorted_partition(*collect_state.collection)?;
 
                 // Trigger merge work.
                 Ok(PollFinalize::NeedsDrain)
